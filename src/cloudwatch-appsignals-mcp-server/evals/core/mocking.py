@@ -29,6 +29,10 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 
+REQUEST = 'request'
+RESPONSE = 'response'
+
+
 class UnmockedMethodError(Exception):
     """Raised when code attempts to call a method that hasn't been mocked.
 
@@ -100,14 +104,14 @@ class MockHandler(ABC):
         Returns:
             Resolved mock response with loaded fixture data
         """
-        if 'request' not in arg_response_pair or 'response' not in arg_response_pair:
+        if REQUEST not in arg_response_pair or RESPONSE not in arg_response_pair:
             raise ValueError(
                 f"Invalid mock config structure. Expected dict with 'request' and 'response' keys, "
                 f'got keys: {list(arg_response_pair.keys())}'
             )
 
         # TODO: Add support for exception mocking (e.g., {'request': {...}, 'exception': SomeException(...)})
-        response = arg_response_pair['response']
+        response = arg_response_pair[RESPONSE]
 
         if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
             fixture_path = Path(response)
@@ -121,7 +125,7 @@ class MockHandler(ABC):
                 with open(fixture_path, 'r') as f:
                     response = f.read()
 
-        return {'request': arg_response_pair['request'], 'response': response}
+        return {REQUEST: arg_response_pair[REQUEST], RESPONSE: response}
 
     def resolve_method_mock_configs(
         self, arg_response_pairs: List[Dict[str, Any]], fixtures_dir: Optional[Path] = None
@@ -169,8 +173,8 @@ class MockHandler(ABC):
 
         def mock_implementation(**kwargs):
             for matcher in matchers:
-                request_params = matcher.get('request', {})
-                response = matcher.get('response')
+                request_params = matcher.get(REQUEST, {})
+                response = matcher.get(RESPONSE)
 
                 if not request_params:
                     return response

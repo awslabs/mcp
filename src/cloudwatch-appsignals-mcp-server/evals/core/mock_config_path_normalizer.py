@@ -25,6 +25,7 @@ Supported fixture file formats:
 Other file extensions are treated as inline values and not loaded from disk.
 """
 
+from .mocking import REQUEST, RESPONSE
 from pathlib import Path
 from typing import Any, Dict
 
@@ -82,8 +83,8 @@ class MockConfigPathNormalizer:
                     return True
             elif isinstance(value, list):
                 for item in value:
-                    if isinstance(item, dict) and 'response' in item:
-                        response = item['response']
+                    if isinstance(item, dict) and RESPONSE in item:
+                        response = item[RESPONSE]
                         if isinstance(
                             response, str
                         ) and MockConfigPathNormalizer._is_fixture_file_reference(response):
@@ -125,16 +126,16 @@ class MockConfigPathNormalizer:
         Returns:
             Request/response pair with absolute path for response if it's a file reference
         """
-        if not isinstance(pair, dict) or 'request' not in pair or 'response' not in pair:
+        if not isinstance(pair, dict) or REQUEST not in pair or RESPONSE not in pair:
             raise ValueError(
                 f"Expected request/response pair dict with 'request' and 'response' keys, got: {pair}"
             )
 
         # TODO: Add support for file references in request field (currently only response supports files)
-        response = pair['response']
+        response = pair[RESPONSE]
         if isinstance(response, str) and MockConfigPathNormalizer._is_fixture_file_reference(
             response
         ):
             response = str(fixtures_dir / response)
 
-        return {'request': pair['request'], 'response': response}
+        return {REQUEST: pair[REQUEST], RESPONSE: response}
