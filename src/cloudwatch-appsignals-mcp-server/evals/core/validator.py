@@ -53,8 +53,7 @@ class ValidationResult(TypedDict, total=False):
 
     Optional fields:
         error: Error message if validation failed
-        raw_response: Raw LLM response (LLMJudgeValidator only)
-        build_result: Build execution details (BuildValidator only)
+        raw_validation_output: Raw validation output (response, execution logs, etc)
     """
 
     validator_name: str
@@ -62,8 +61,7 @@ class ValidationResult(TypedDict, total=False):
     criteria_results: List[CriterionResult]
 
     error: str
-    raw_response: str
-    build_result: Dict[str, Any]
+    raw_validation_output: Dict[str, Any]
 
 
 class ValidationPromptType(Enum):
@@ -160,7 +158,7 @@ class LLMJudgeValidator(Validator):
                 'validator_name': self.get_name(),
                 'overall_pass': overall_pass,
                 'criteria_results': criteria_results,
-                'raw_response': response_text,
+                'raw_validation_output': {'response': response_text},
             }
         except Exception as e:
             logger.error(f'LLM validation failed: {e}')
@@ -319,7 +317,7 @@ class BuildValidator(Validator):
                             'reasoning': 'Build completed with exit code 0',
                         }
                     ],
-                    'build_result': result,
+                    'raw_validation_output': result,
                 }
             else:
                 logger.error(f'✗ Build failed with exit code {exit_code}')
@@ -333,7 +331,7 @@ class BuildValidator(Validator):
                             'reasoning': f'Build failed with exit code {exit_code}',
                         }
                     ],
-                    'build_result': result,
+                    'raw_validation_output': result,
                 }
         except Exception as e:
             logger.error(f'Build validation error: {e}')
@@ -348,7 +346,7 @@ class BuildValidator(Validator):
                         'reasoning': f'Build error: {str(e)}',
                     }
                 ],
-                'build_result': {
+                'raw_validation_output': {
                     'exit_code': -1,
                     'stdout': '',
                     'stderr': str(e),
