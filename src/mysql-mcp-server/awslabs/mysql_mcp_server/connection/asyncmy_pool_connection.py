@@ -132,7 +132,7 @@ class AsyncmyPoolConnection(AbstractDBConnection):
                         await cursor.execute('SET TRANSACTION READ ONLY')
                     # Execute the query
                     if parameters:
-                        params = _convert_parameters(self, parameters).values()
+                        params = list(_convert_parameters(self, parameters).values())
                         await cursor.execute(sql, params)
                     else:
                         await cursor.execute(sql)
@@ -146,7 +146,7 @@ class AsyncmyPoolConnection(AbstractDBConnection):
                         rows = await cursor.fetchall()
 
                         # Structure the response to match the interface contract required by server.py
-                        column_metadata = [{'name': col} for col in columns]
+                        column_metadata = [{'label': col} for col in columns]
                         records = []
 
                         # Convert each row to the expected format
