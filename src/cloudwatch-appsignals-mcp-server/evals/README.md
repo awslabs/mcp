@@ -32,12 +32,14 @@ python -m evals applicationsignals --task-id <task_id> --no-cleanup
 
 ### Configuration
 
-The framework can be configured via environment variables. **Note:** These settings apply to both the agent being evaluated and the LLM judge.
+The framework can be configured via environment variables.
 
 - **MCP_EVAL_MODEL_ID**: Override default Bedrock model ID (default: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
 - **MCP_EVAL_AWS_REGION**: Override default AWS region (default: `us-east-1`)
 - **MCP_EVAL_MAX_TURNS**: Override default max conversation turns (default: `20`)
 - **MCP_EVAL_TEMPERATURE**: Override default model temperature (default: `0.0`)
+
+**Note:** These settings apply to both the agent being evaluated and the LLM judge, but MAX_TURNS is not relevant for the LLM judge (one-shot call).
 
 **MCP Server Logging:**
 - **MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL**: Control MCP server log verbosity for debugging (default: `WARNING`, options: `DEBUG`, `INFO`, `WARNING`, `ERROR`)
