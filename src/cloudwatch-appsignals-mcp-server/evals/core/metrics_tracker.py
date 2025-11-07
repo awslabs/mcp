@@ -27,6 +27,7 @@ class MetricsTracker:
 
     def __init__(self):
         """Initialize metrics tracker."""
+        # TODO: Create ToolCall dataclass/TypedDict to replace Dict[str, Any]
         self.tool_calls: List[Dict[str, Any]] = []
         self.task_start_time: Optional[float] = None
         self.task_end_time: Optional[float] = None
