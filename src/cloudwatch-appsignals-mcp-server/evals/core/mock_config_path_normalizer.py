@@ -25,7 +25,7 @@ Supported fixture file formats:
 Other file extensions are treated as inline values and not loaded from disk.
 """
 
-from .mocking import REQUEST, RESPONSE
+from .mcp_dependency_mocking_handler import REQUEST, RESPONSE
 from pathlib import Path
 from typing import Any, Dict
 

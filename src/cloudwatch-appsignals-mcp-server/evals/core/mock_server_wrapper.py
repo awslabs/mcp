@@ -68,7 +68,7 @@ def apply_mocks(mock_config: dict):
     if not mock_config:
         return
 
-    from .mocking import get_registry
+    from .mcp_dependency_mocking_handler import get_registry
 
     registry = get_registry()
 

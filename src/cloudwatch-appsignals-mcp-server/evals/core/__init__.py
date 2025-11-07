@@ -53,7 +53,12 @@ from .eval_runner import EvalRunner
 from .task_result import TaskResult
 
 # Mocking system
-from .mocking import MockHandler, Boto3MockHandler, MockHandlerRegistry, get_registry
+from .mcp_dependency_mocking_handler import (
+    MockHandler,
+    Boto3MockHandler,
+    MockHandlerRegistry,
+    get_registry,
+)
 
 # Lower-level utilities
 from .conversation_runner import execute_tool, run_agent_loop, convert_mcp_tools_to_bedrock
