@@ -128,17 +128,26 @@ class MockHandler(ABC):
     ) -> List[Dict[str, Any]]:
         """Resolve a list of method mock configurations.
 
+        Note: Empty service configs like {'boto3': {}} are valid for preventing real API calls
+        for that specific library without defining specific mocks. All operations on the patched
+        library will return UnmockedMethodError to the agent (eval continues, but operations fail).
+        If you define an operation, it must have at least one request/response pair.
+
         Args:
             arg_response_pairs: List of dicts with 'request' and 'response' keys
             fixtures_dir: Directory containing fixture files
 
         Returns:
             List of resolved mock responses
+
+        Raises:
+            ValueError: If arg_response_pairs is empty (operation defined but no mocks provided)
         """
         if not arg_response_pairs:
             raise ValueError(
-                'Invalid mock configuration. '
-                "Lists must contain at least one dict with 'request' and 'response' keys."
+                'Invalid mock configuration: operation defined with empty list. '
+                "Each operation must have at least one mock with 'request' and 'response' keys. "
+                "To patch a library without defining mocks, use empty service config: {'boto3': {}}."
             )
 
         return [self.resolve_method_mock_config(pair, fixtures_dir) for pair in arg_response_pairs]
