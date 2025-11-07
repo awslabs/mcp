@@ -76,12 +76,11 @@ class McpDependencyMockingHandler(ABC):
         pass
 
     @abstractmethod
-    def patch(self, mock_config: Dict[str, Any], fixtures_dir: Optional[Path] = None) -> None:
+    def patch(self, mock_config: Dict[str, Any]) -> None:
         """Apply patches to the library.
 
         Args:
-            mock_config: Mock configuration dictionary for this library
-            fixtures_dir: Directory containing fixture files
+            mock_config: Mock configuration dictionary for this library (fixture paths must be absolute)
         """
         pass
 
@@ -90,17 +89,14 @@ class McpDependencyMockingHandler(ABC):
         """Remove all patches applied by this handler."""
         pass
 
-    def resolve_method_mock_config(
-        self, arg_response_pair: Dict[str, Any], fixtures_dir: Optional[Path] = None
-    ) -> Dict[str, Any]:
+    def resolve_method_mock_config(self, arg_response_pair: Dict[str, Any]) -> Dict[str, Any]:
         """Resolve a single method mock configuration.
 
         Takes a dict with 'request' and 'response' keys. If 'response' is a file path,
         loads the fixture data.
 
         Args:
-            arg_response_pair: Dict with 'request' and 'response' keys
-            fixtures_dir: Directory containing fixture files
+            arg_response_pair: Dict with 'request' and 'response' keys (fixture paths must be absolute)
 
         Returns:
             Resolved mock response with loaded fixture data
@@ -132,7 +128,7 @@ class McpDependencyMockingHandler(ABC):
         return {REQUEST: arg_response_pair[REQUEST], RESPONSE: response}
 
     def resolve_method_mock_configs(
-        self, arg_response_pairs: List[Dict[str, Any]], fixtures_dir: Optional[Path] = None
+        self, arg_response_pairs: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Resolve a list of method mock configurations.
 
@@ -142,8 +138,7 @@ class McpDependencyMockingHandler(ABC):
         If you define an operation, it must have at least one request/response pair.
 
         Args:
-            arg_response_pairs: List of dicts with 'request' and 'response' keys
-            fixtures_dir: Directory containing fixture files
+            arg_response_pairs: List of dicts with 'request' and 'response' keys (fixture paths must be absolute)
 
         Returns:
             List of resolved mock responses
@@ -158,7 +153,7 @@ class McpDependencyMockingHandler(ABC):
                 "To patch a library without defining mocks, use empty service config: {'boto3': {}}."
             )
 
-        return [self.resolve_method_mock_config(pair, fixtures_dir) for pair in arg_response_pairs]
+        return [self.resolve_method_mock_config(pair) for pair in arg_response_pairs]
 
     def _create_parameter_aware_mock(self, operation: str, matchers: list) -> MagicMock:
         """Create a mock that matches on parameters.
@@ -205,32 +200,28 @@ class Boto3DependencyMockingHandler(McpDependencyMockingHandler):
         """Initialize Boto3DependencyMockingHandler with empty state."""
         self.original_client = None
         self.service_method_mock_configs: Dict[str, Dict[str, Any]] = {}
-        self.fixtures_dir: Optional[Path] = None
 
     def get_library_name(self) -> str:
         """Return library name."""
         return 'boto3'
 
-    def patch(self, mock_config: Dict[str, Any], fixtures_dir: Optional[Path] = None) -> None:
+    def patch(self, mock_config: Dict[str, Any]) -> None:
         """Patch boto3.client() to return mocked clients.
 
         Args:
             mock_config: Dict mapping service names to operation responses
                 Example: {'cloudwatch': {'GetMetricData': {...}}}
-            fixtures_dir: Directory containing fixture files
+                Fixture paths must be absolute.
         """
         import boto3
 
-        self.fixtures_dir = fixtures_dir
         self.original_client = boto3.client
 
         resolved_config = {}
         for service, operations in mock_config.items():
             resolved_config[service] = {}
             for operation, response in operations.items():
-                resolved_config[service][operation] = self.resolve_method_mock_configs(
-                    response, fixtures_dir
-                )
+                resolved_config[service][operation] = self.resolve_method_mock_configs(response)
 
         self.service_method_mock_configs = resolved_config
         boto3.client = self._create_mock_client
@@ -314,17 +305,16 @@ class McpDependencyMockingHandlerRegistry:
         """
         return list(self._handlers.keys())
 
-    def patch_all(self, mock_config: Dict[str, Any], fixtures_dir: Optional[Path] = None) -> None:
+    def patch_all(self, mock_config: Dict[str, Any]) -> None:
         """Apply all mocks from configuration.
 
         Args:
-            mock_config: Full mock configuration dict
-            fixtures_dir: Directory containing fixture files
+            mock_config: Full mock configuration dict (fixture paths must be absolute)
         """
         for library_name, library_config in mock_config.items():
             handler = self.get_handler(library_name)
             if handler:
-                handler.patch(library_config, fixtures_dir)
+                handler.patch(library_config)
             else:
                 raise ValueError(
                     f"No mock handler registered for '{library_name}'. "

@@ -73,7 +73,7 @@ def apply_mocks(mock_config: dict):
     registry = get_registry()
 
     try:
-        registry.patch_all(mock_config, fixtures_dir=None)
+        registry.patch_all(mock_config)
         logger.debug(f'Applied mocks for: {", ".join(mock_config.keys())}')
     except Exception as e:
         logger.warning(f'Failed to apply mocks: {e}')
