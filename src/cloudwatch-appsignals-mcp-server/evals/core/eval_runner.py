@@ -14,7 +14,7 @@
 
 """Evaluation runner orchestrating task execution."""
 
-from .agent_loop import run_agent_loop
+from .conversation_runner import run_agent_loop
 from .eval_config import MAX_TURNS
 from .llm_provider import BedrockLLMProvider
 from .mcp_client import connect_to_mcp_server
