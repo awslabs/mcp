@@ -42,7 +42,7 @@ class TaskResult:
     error: Optional[str] = None
 
     @classmethod
-    def from_success(
+    def from_execution(
         cls,
         task_id: str,
         prompt: str,
@@ -51,7 +51,10 @@ class TaskResult:
         metrics: Dict[str, Any],
         captured_data: Dict[str, Any],
     ) -> 'TaskResult':
-        """Create a successful result instance.
+        """Create result from completed task execution.
+
+        Use this for tasks that executed successfully (no exceptions), regardless of
+        whether validation passed or failed. Use from_error() for execution failures.
 
         Args:
             task_id: ID of the task

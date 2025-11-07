@@ -32,6 +32,7 @@ Ref: https://www.evidentlyai.com/llm-guide/llm-as-a-judge
 
 from enum import Enum
 
+
 CODE_MODIFICATION_VALIDATION_PROMPT = """You are evaluating code changes for a software modification task.
 
 **Validation Rubric:**
@@ -98,10 +99,10 @@ class ValidationPromptType(Enum):
     WORKFLOW = WORKFLOW_VALIDATION_PROMPT
 
     def format(self, rubric_items: str, captured_data: str, num_criteria: int) -> str:
-        """Format the prompt template with validation parameters.
+        r"""Format the prompt template with validation parameters.
 
         Args:
-            rubric_items: Formatted rubric criteria (e.g., "1. Criterion 1\\n2. Criterion 2")
+            rubric_items: Formatted rubric criteria (e.g., "1. Criterion 1\n2. Criterion 2")
             captured_data: Formatted captured data (git diff, tool calls, response, etc.)
             num_criteria: Number of criteria in the rubric
 
