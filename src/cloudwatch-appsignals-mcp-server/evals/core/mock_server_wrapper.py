@@ -30,6 +30,7 @@ import importlib.util
 import json
 import os
 import sys
+from loguru import logger
 from pathlib import Path
 from typing import Optional
 
@@ -46,7 +47,7 @@ def load_mock_config() -> dict:
 
     mock_path = Path(mock_file)
     if not mock_path.exists():
-        print(f'Warning: Mock file not found: {mock_file}', file=sys.stderr)
+        logger.warning(f'Mock file not found: {mock_file}')
         return {}
 
     try:
@@ -54,7 +55,7 @@ def load_mock_config() -> dict:
             config = json.load(f)
             return config
     except Exception as e:
-        print(f'Warning: Failed to load mock config: {e}', file=sys.stderr)
+        logger.warning(f'Failed to load mock config: {e}')
         return {}
 
 
@@ -73,9 +74,9 @@ def apply_mocks(mock_config: dict):
 
     try:
         registry.patch_all(mock_config, fixtures_dir=None)
-        print(f'Applied mocks for: {", ".join(mock_config.keys())}', file=sys.stderr)
+        logger.debug(f'Applied mocks for: {", ".join(mock_config.keys())}')
     except Exception as e:
-        print(f'Warning: Failed to apply mocks: {e}', file=sys.stderr)
+        logger.warning(f'Failed to apply mocks: {e}')
 
 
 def run_server(server_path: str, server_cwd: Optional[str] = None):
@@ -87,7 +88,7 @@ def run_server(server_path: str, server_cwd: Optional[str] = None):
     """
     server_file = Path(server_path)
     if not server_file.exists():
-        print(f'Error: Server file not found: {server_path}', file=sys.stderr)
+        logger.error(f'Server file not found: {server_path}')
         sys.exit(1)
 
     server_dir = server_file.parent
@@ -112,10 +113,10 @@ def run_server(server_path: str, server_cwd: Optional[str] = None):
         if hasattr(module, 'main'):
             module.main()
         else:
-            print(f'Error: Server module {module_path} has no main() function', file=sys.stderr)
+            logger.error(f'Server module {module_path} has no main() function')
             sys.exit(1)
     except Exception as e:
-        print(f'Error running server: {e}', file=sys.stderr)
+        logger.error(f'Error running server: {e}')
         import traceback
 
         traceback.print_exc()
@@ -133,9 +134,13 @@ def main():
 
     args = parser.parse_args()
 
-    # TODO: Improve logging configuration for subprocess.
-    # Current setup uses Python's last resort handler (stderr only, no formatting).
-    # Consider: proper handler configuration, file output, integration with parent process logs.
+    # TODO: Consolidate logging setup across wrapper, server subprocess, and main process
+    # Configure loguru logger for wrapper diagnostics
+    logger.remove()
+    loguru_level = os.environ.get('TEMP_SERVER_WRAPPER_LOGURU_LEVEL', 'INFO').upper()
+    logger.add(sys.stderr, level=loguru_level)
+
+    # Configure Python logging for MCP server
     log_level = os.environ.get('TEMP_SERVER_WRAPPER_LOG_LEVEL', 'INFO').upper()
     mcp_logger = logging.getLogger('mcp')
     mcp_logger.setLevel(getattr(logging, log_level))
