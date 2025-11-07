@@ -159,11 +159,11 @@ class MetricsTracker:
             'unexpected_tools_called': sorted(unexpected),
         }
 
-    def get_metrics(self, expected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Collect all metrics into a dictionary.
+    def get_metrics_report(self, expected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Collect all metrics into a dictionary for reporting.
 
         This is a convenience method for serialization (e.g., TaskResult).
-        Prefer accessing individual properties or compare_expected_tools() directly.
+        Prefer accessing individual properties directly for programmatic use.
 
         Args:
             expected_tools: List of MCP tools expected to be used

@@ -120,7 +120,7 @@ class EvalRunner:
                 )
 
                 # Gather metrics
-                metrics = metrics_tracker.get_metrics(expected_tools=task.expected_tools)
+                metrics = metrics_tracker.get_metrics_report(expected_tools=task.expected_tools)
                 overall_pass = all(v.get('overall_pass', False) for v in validation_results)
 
                 result = TaskResult.from_success(
