@@ -162,7 +162,7 @@ async def execute_tool(
         metrics_tracker.record_tool_call(tool_name, params_to_log, duration, success, error)
 
 
-async def run_agent_loop(
+async def run_conversation(
     llm_provider,
     session: ClientSession,
     prompt: str,

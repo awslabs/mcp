@@ -61,7 +61,7 @@ from .mcp_dependency_mocking_handler import (
 )
 
 # Lower-level utilities
-from .conversation_runner import execute_tool, run_agent_loop, convert_mcp_tools_to_bedrock
+from .conversation_runner import execute_tool, run_conversation, convert_mcp_tools_to_bedrock
 from .file_tools import get_file_tools
 from .mcp_client import connect_to_mcp_server
 from .metrics_tracker import MetricsTracker
@@ -107,5 +107,5 @@ __all__ = [
     'convert_mcp_tools_to_bedrock',
     'get_file_tools',
     'execute_tool',
-    'run_agent_loop',
+    'run_conversation',
 ]

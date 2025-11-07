@@ -14,7 +14,7 @@
 
 """Evaluation runner orchestrating task execution."""
 
-from .conversation_runner import run_agent_loop
+from .conversation_runner import run_conversation
 from .eval_config import MAX_TURNS
 from .llm_provider import BedrockLLMProvider
 from .mcp_client import connect_to_mcp_server
@@ -97,7 +97,7 @@ class EvalRunner:
                 # Execute agent loop
                 llm_provider = BedrockLLMProvider()
                 metrics_tracker = MetricsTracker()
-                messages = await run_agent_loop(
+                messages = await run_conversation(
                     llm_provider=llm_provider,
                     session=session,
                     prompt=prompt,
