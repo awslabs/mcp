@@ -80,7 +80,7 @@ Step 3: Add Gateway Targets
         --name MyAPITarget \\
         --target-type openApiSchema \\
         --target-payload '{"openApiSchema": {"uri": "https://api.example.com/openapi.json"}}' \\
-        --credentials '{"api_key": "your-api-key", "credential_location": "header", "credential_parameter_name": "X-API-Key"}'
+        --credentials '{"api_key": "your-api-key", "credential_location": "header", "credential_parameter_name": "X-API-Key"}'  # pragma: allowlist secret
     
     C. Smithy Model Target:
     agentcore gateway create-mcp-gateway-target \\
@@ -183,7 +183,7 @@ CREDENTIAL PROVIDERS FOR OPENAPI TARGETS:
 
 API Key Authentication:
 {
-    "api_key": "your-api-key",
+    "api_key": "your-api-key",  # pragma: allowlist secret
     "credential_location": "header",  # or "query"
     "credential_parameter_name": "X-API-Key"
 }
@@ -196,7 +196,7 @@ OAuth2 Authentication (Custom):
                 "discoveryUrl": "https://auth.example.com/.well-known/openid-configuration"
             },
             "clientId": "your-client-id",
-            "clientSecret": "your-client-secret"
+            "clientSecret": "your-client-secret"  # pragma: allowlist secret
         }
     },
     "scopes": ["read", "write"]
@@ -207,7 +207,7 @@ OAuth2 Authentication (Google):
     "oauth2_provider_config": {
         "googleOauth2ProviderConfig": {
             "clientId": "your-google-client-id",
-            "clientSecret": "your-google-client-secret"
+            "clientSecret": "your-google-client-secret"  # pragma: allowlist secret
         }
     },
     "scopes": ["https://www.googleapis.com/auth/userinfo.email"]
@@ -252,7 +252,7 @@ Complete Gateway Setup:
         --name ExternalAPI \\
         --target-type openApiSchema \\
         --target-payload '{"openApiSchema": {"uri": "https://api.example.com/openapi.json"}}' \\
-        --credentials '{"api_key": "key123", "credential_location": "header", "credential_parameter_name": "Authorization"}'
+        --credentials '{"api_key": "key123", "credential_location": "header", "credential_parameter_name": "Authorization"}'  # pragma: allowlist secret
 
 Gateway Cleanup:
     # 1. List and delete all targets first
