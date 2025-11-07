@@ -16,6 +16,7 @@
 
 import asyncio
 import time
+from .captor import FINAL_RESPONSE, GIT_DIFF, TOOL_CALLS
 from .llm_provider import LLMProvider
 from .validation_prompts import (
     CODE_MODIFICATION_VALIDATION_PROMPT,
@@ -27,12 +28,6 @@ from enum import Enum
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
-
-
-# Captured data dictionary keys
-GIT_DIFF = 'git_diff'
-FINAL_RESPONSE = 'final_response'
-TOOL_CALLS = 'tool_calls'
 
 
 class CriterionResult(TypedDict):

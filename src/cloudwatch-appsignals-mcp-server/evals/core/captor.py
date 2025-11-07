@@ -20,6 +20,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
+# Captured data dictionary keys
+GIT_DIFF = 'git_diff'
+FINAL_RESPONSE = 'final_response'
+TOOL_CALLS = 'tool_calls'
+
+# LLM message structure constants
 MESSAGE_ROLE = 'role'
 ROLE_ASSISTANT = 'assistant'
 ROLE_USER = 'user'
@@ -87,9 +93,9 @@ class GitDiffCaptor(Captor):
                     ['git', 'diff'],
                     timeout=10,
                 )
-            return {'git_diff': result.stdout}
+            return {GIT_DIFF: result.stdout}
         except Exception as e:
-            return {'git_diff': '', 'error': str(e)}
+            return {GIT_DIFF: '', 'error': str(e)}
 
 
 class ToolCallsCaptor(Captor):
@@ -113,7 +119,7 @@ class ToolCallsCaptor(Captor):
             for call in metrics_tracker.tool_calls
         ]
 
-        return {'tool_calls': tool_calls}
+        return {TOOL_CALLS: tool_calls}
 
 
 class ConversationCaptor(Captor):
@@ -143,9 +149,9 @@ class FinalResponseCaptor(Captor):
             if message.get(MESSAGE_ROLE) == ROLE_ASSISTANT:
                 for content in message.get(MESSAGE_CONTENT, []):
                     if CONTENT_TEXT in content:
-                        return {'final_response': content[CONTENT_TEXT]}
+                        return {FINAL_RESPONSE: content[CONTENT_TEXT]}
 
-        return {'final_response': '', 'error': 'No final response found'}
+        return {FINAL_RESPONSE: '', 'error': 'No final response found'}
 
 
 class ToolResultsCaptor(Captor):
