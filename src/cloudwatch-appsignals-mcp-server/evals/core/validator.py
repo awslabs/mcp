@@ -147,7 +147,10 @@ class LLMJudgeValidator(Validator):
 
         try:
             start = time.time()
-            response_text = await self.llm_provider.generate(prompt)
+            response = self.llm_provider.converse(
+                messages=[{'role': 'user', 'content': [{'text': prompt}]}]
+            )
+            response_text = response['output']['message']['content'][0]['text']
             elapsed = time.time() - start
             logger.debug(f'LLM validation took {elapsed:.2f}s')
 

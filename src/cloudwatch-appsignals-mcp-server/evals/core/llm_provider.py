@@ -25,23 +25,9 @@ from typing import Any, Dict, List, Optional
 class LLMProvider(ABC):
     """Abstract base class for LLM providers.
 
-    Supports both simple text generation (for judge) and conversational
-    interactions with tool calling (for agent).
+    Provides conversational interface for both simple queries and multi-turn
+    interactions with tool calling.
     """
-
-    @abstractmethod
-    async def generate(self, prompt: str) -> str:
-        """Generate text from a simple prompt.
-
-        Used by LLM judge for validation.
-
-        Args:
-            prompt: Text prompt for generation
-
-        Returns:
-            Generated text response
-        """
-        pass
 
     @abstractmethod
     def converse(
@@ -84,21 +70,6 @@ class BedrockLLMProvider(LLMProvider):
         self.bedrock_client = bedrock_client
         self.model_id = model_id
         self.temperature = temperature
-
-    async def generate(self, prompt: str) -> str:
-        """Generate text using AWS Bedrock."""
-        from .eval_config import MODEL_ID, TEMPERATURE
-
-        model_id = self.model_id or MODEL_ID
-        temperature = self.temperature if self.temperature is not None else TEMPERATURE
-
-        response = self.bedrock_client.converse(
-            modelId=model_id,
-            messages=[{'role': 'user', 'content': [{'text': prompt}]}],
-            inferenceConfig={'temperature': temperature},
-        )
-
-        return response['output']['message']['content'][0]['text']
 
     def converse(
         self,
