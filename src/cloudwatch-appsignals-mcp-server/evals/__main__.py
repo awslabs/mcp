@@ -37,7 +37,7 @@ from evals.core.eval_config import AWS_REGION
 from evals.core.task import Task
 from loguru import logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
 
 # TODO: Review print() vs logger usage pattern for consistency.
@@ -47,7 +47,7 @@ from typing import Any, Dict, List
 logger.remove()
 
 
-def _discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
+def _discover_tasks(task_dir: Path) -> tuple[List[Task], Dict[str, List[Task]]]:
     """Auto-discover all tasks from *_tasks.py files in the specified directory.
 
     Args:
@@ -99,7 +99,7 @@ def _discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
     return all_tasks, tasks_by_module
 
 
-def _report_task_results(task: Any, result: TaskResult) -> None:
+def _report_task_results(task: Task, result: TaskResult) -> None:
     """Report results for a single task.
 
     Args:
