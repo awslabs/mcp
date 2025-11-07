@@ -84,8 +84,10 @@ async def connect_to_mcp_server(
         env['TEMP_SERVER_WRAPPER_LOGURU_LEVEL'] = 'ERROR'
         env['TEMP_SERVER_WRAPPER_LOG_LEVEL'] = 'WARNING'
         # Set server logging (for the actual server subprocess)
+        # Default to WARNING if not set by user
         env['LOGURU_LEVEL'] = 'ERROR'
-        env['MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL'] = 'WARNING'
+        if 'MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL' not in env:
+            env['MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL'] = 'WARNING'
 
     mock_file_path = None
 

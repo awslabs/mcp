@@ -39,10 +39,14 @@ The framework can be configured via environment variables. **Note:** These setti
 - **MCP_EVAL_MAX_TURNS**: Override default max conversation turns (default: `20`)
 - **MCP_EVAL_TEMPERATURE**: Override default model temperature (default: `0.0`)
 
+**MCP Server Logging:**
+- **MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL**: Control MCP server log verbosity for debugging (default: `WARNING`, options: `DEBUG`, `INFO`, `WARNING`, `ERROR`)
+
 Example:
 ```bash
 export MCP_EVAL_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
 export MCP_EVAL_MAX_TURNS=30
+export MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL=DEBUG  # For debugging server issues
 python -m evals applicationsignals --task-id my_task
 ```
 
