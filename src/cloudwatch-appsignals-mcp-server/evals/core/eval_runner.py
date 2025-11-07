@@ -90,16 +90,14 @@ class EvalRunner:
                 tools_response = await session.list_tools()
                 logger.debug(f'Connected to MCP server with {len(tools_response.tools)} tools')
 
-                context = self._create_context(working_directory, bedrock_client)
+                task.setup(working_directory)
 
-                task.setup(context)
-
-                prompt = task.get_prompt(context)
+                prompt = task.get_prompt(working_directory)
 
                 logger.debug(f'Running eval for task {task.id}')
 
                 # Execute agent loop
-                llm_provider = context['llm_provider']
+                llm_provider = BedrockLLMProvider(bedrock_client)
                 metrics_tracker = MetricsTracker()
                 messages = await run_agent_loop(
                     llm_provider=llm_provider,
@@ -113,11 +111,13 @@ class EvalRunner:
 
                 # Execute captors
                 captured_data = await self._execute_captors(
-                    task, context, messages, metrics_tracker, working_directory, prompt
+                    task, working_directory, messages, metrics_tracker, prompt
                 )
 
                 # Execute validators
-                validation_results = await self._execute_validators(task, context, captured_data)
+                validation_results = await self._execute_validators(
+                    task, working_directory, bedrock_client, captured_data
+                )
 
                 # Gather metrics
                 metrics = metrics_tracker.get_metrics(expected_tools=task.expected_tools)
@@ -134,31 +134,21 @@ class EvalRunner:
 
                 # Cleanup task changes
                 if not skip_cleanup:
-                    task.cleanup(context)
+                    task.cleanup(working_directory)
 
                 return result
-
-    def _create_context(self, working_directory: Path, bedrock_client: Any) -> Dict[str, Any]:
-        """Create context dictionary for task execution."""
-        llm_provider = BedrockLLMProvider(bedrock_client)
-        return {
-            'working_directory': working_directory,
-            'bedrock_client': bedrock_client,
-            'llm_provider': llm_provider,
-        }
 
     async def _execute_captors(
         self,
         task: Task,
-        context: Dict[str, Any],
+        working_directory: Path,
         messages: list,
         metrics_tracker: MetricsTracker,
-        working_directory: Path,
         prompt: str,
     ) -> Dict[str, Any]:
         """Execute all captors and gather captured data."""
         captured_data = {'prompt': prompt}
-        captors = task.get_captors(context)
+        captors = task.get_captors(working_directory)
 
         for captor in captors:
             captor_output = captor.capture(messages, metrics_tracker, working_directory)
@@ -169,12 +159,13 @@ class EvalRunner:
     async def _execute_validators(
         self,
         task: Task,
-        context: Dict[str, Any],
+        working_directory: Path,
+        bedrock_client: Any,
         captured_data: Dict[str, Any],
     ) -> List[ValidationResult]:
         """Execute all validators and gather validation results."""
         validation_results = []
-        validators = task.get_validators(context)
+        validators = task.get_validators(working_directory, bedrock_client)
 
         for validator in validators:
             validation_result = await validator.validate(captured_data)

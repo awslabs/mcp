@@ -67,7 +67,7 @@ class Task(ABC):
     process_executor: ProcessExecutor = field(default_factory=SubprocessExecutor)
 
     @abstractmethod
-    def get_prompt(self, context: Dict[str, Any]) -> str:
+    def get_prompt(self, working_directory: Path) -> str:
         """Return the prompt/instruction to send to the AI agent.
 
         The prompt is the core instruction that defines what the agent should do. It triggers
@@ -75,16 +75,14 @@ class Task(ABC):
         success is measured by how well the agent fulfills this prompt according to the validators.
 
         Args:
-            context: Runtime context containing:
-                - working_directory: Path to task working directory
-                - bedrock_client: Boto3 Bedrock client for LLM calls
+            working_directory: Path to task working directory
 
         Returns:
             Prompt string describing the task the agent should complete
         """
         pass
 
-    def get_captors(self, context: Dict[str, Any]) -> List[Captor]:
+    def get_captors(self, working_directory: Path) -> List[Captor]:
         """Return captors to collect data during task execution.
 
         Captors extract information from the agent's execution (e.g., tool calls,
@@ -93,14 +91,14 @@ class Task(ABC):
         Common captors: GitDiffCaptor, ToolCallsCaptor, ConversationCaptor, FinalResponseCaptor
 
         Args:
-            context: Runtime context (working_directory, bedrock_client)
+            working_directory: Path to task working directory
 
         Returns:
             List of Captor instances (default: empty list)
         """
         return []
 
-    def get_validators(self, context: Dict[str, Any]) -> List[Validator]:
+    def get_validators(self, working_directory: Path, bedrock_client: Any) -> List[Validator]:
         """Return validators to evaluate task success.
 
         Validators evaluate captured data to determine if the agent completed the task
@@ -112,14 +110,15 @@ class Task(ABC):
             return [
                 LLMJudgeValidator(
                     validation_prompt_type=ValidationPromptType.CODE_MODIFICATION,
-                    llm_provider=BedrockLLMProvider(context['bedrock_client']),
+                    llm_provider=BedrockLLMProvider(bedrock_client),
                     rubric=["Criterion 1", "Criterion 2"]
                 ),
                 BuildValidator(command="npm test", working_dir=Path(".")),
             ]
 
         Args:
-            context: Runtime context (working_directory, bedrock_client)
+            working_directory: Path to task working directory
+            bedrock_client: Boto3 Bedrock client for LLM calls
 
         Returns:
             List of Validator instances (default: empty list)
@@ -163,7 +162,7 @@ class Task(ABC):
         """Return root directory of the MCP server (where imports work)."""
         pass
 
-    def setup(self, context: Dict[str, Any]) -> None:
+    def setup(self, working_directory: Path) -> None:
         """Set up workspace before task execution.
 
         Override to prepare the workspace before the agent starts (e.g., copy template
@@ -172,13 +171,11 @@ class Task(ABC):
         Called before the agent loop starts.
 
         Args:
-            context: Runtime context containing:
-                - working_directory: Path to task working directory
-                - bedrock_client: Boto3 Bedrock client for LLM calls
+            working_directory: Path to task working directory
         """
         pass
 
-    def cleanup(self, context: Dict[str, Any]) -> None:
+    def cleanup(self, working_directory: Path) -> None:
         """Clean up after task execution.
 
         Override to clean up changes made during task execution (e.g., reset git state,
@@ -187,9 +184,7 @@ class Task(ABC):
         Called after validation completes (or on error if --no-cleanup not specified).
 
         Args:
-            context: Runtime context containing:
-                - working_directory: Path to task working directory
-                - bedrock_client: Boto3 Bedrock client for LLM calls
+            working_directory: Path to task working directory
         """
         pass
 
