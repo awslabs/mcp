@@ -98,6 +98,7 @@ const sidebars: SidebarsConfig = {
             'servers/openapi-mcp-server',
             'servers/aws-diagram-mcp-server',
             'servers/prometheus-mcp-server',
+            'servers/pcap-analyzer-mcp-server',
             'servers/code-doc-gen-mcp-server',
             'servers/frontend-mcp-server',
             'servers/iam-mcp-server',
