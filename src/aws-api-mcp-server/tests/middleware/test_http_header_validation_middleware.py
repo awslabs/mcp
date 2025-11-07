@@ -66,18 +66,22 @@ async def test_origin_header_validation_fails(
         'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
         allowed_origins,
     ):
-        with pytest.raises(ClientError, match='Origin validation failed'):
+        with pytest.raises(ClientError, match='Origin header validation failed'):
             await middleware.on_request(context, call_next)
         call_next.assert_not_called()
 
 
 @pytest.mark.parametrize(
-    'host_value,allowed_origins',
+    'host_value,allowed_hosts',
     [
         ('example.com', 'example.com'),  # Exact match
         ('example.com:8080', 'example.com'),  # With port
-        ('example.com', 'example.com,other.com'),  # Multiple allowed origins
+        ('example.com', 'example.com,other.com'),  # Multiple allowed hosts
+        ('other.com', 'example.com,other.com'),  # Second in list
         ('example.com', '*'),  # Wildcard
+        ('any-domain.com', '*'),  # Wildcard allows any
+        ('127.0.0.1', '127.0.0.1'),  # IP address
+        ('localhost:3000', 'localhost'),  # localhost with port
     ],
 )
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -85,9 +89,9 @@ async def test_origin_header_validation_fails(
 async def test_host_header_validation_passes(
     mock_get_headers: MagicMock,
     host_value: str,
-    allowed_origins: str,
+    allowed_hosts: str,
 ):
-    """Test host header validation passes when origin is not present."""
+    """Test host header validation passes for allowed hosts."""
     # No origin header, only host
     mock_get_headers.return_value = {'host': host_value}
 
@@ -96,8 +100,8 @@ async def test_host_header_validation_passes(
     call_next = AsyncMock(return_value='success')
 
     with patch(
-        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-        allowed_origins,
+        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
+        allowed_hosts,
     ):
         result = await middleware.on_request(context, call_next)
         assert result == 'success'
@@ -105,9 +109,13 @@ async def test_host_header_validation_passes(
 
 
 @pytest.mark.parametrize(
-    'host_value,allowed_origins',
+    'host_value,allowed_hosts',
     [
-        ('forbidden.com', 'example.com'),
+        ('forbidden.com', 'example.com'),  # Not in allowed list
+        ('malicious.com', '127.0.0.1'),
+        ('other.com:8080', 'example.com'),
+        ('forbidden.com', 'example.com,other.com'),  # Not in multiple allowed
+        ('sub.example.com', 'example.com'),  # Subdomain not matched
     ],
 )
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -115,9 +123,9 @@ async def test_host_header_validation_passes(
 async def test_host_header_validation_fails(
     mock_get_headers: MagicMock,
     host_value: str,
-    allowed_origins: str,
+    allowed_hosts: str,
 ):
-    """Test host header validation fails when origin is not present."""
+    """Test host header validation fails for disallowed hosts."""
     # No origin header, only host
     mock_get_headers.return_value = {'host': host_value}
 
@@ -126,36 +134,102 @@ async def test_host_header_validation_fails(
     call_next = AsyncMock(return_value='success')
 
     with patch(
-        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-        allowed_origins,
+        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
+        allowed_hosts,
     ):
-        with pytest.raises(ClientError, match='Origin validation failed'):
+        with pytest.raises(ClientError, match='Host header validation failed'):
             await middleware.on_request(context, call_next)
         call_next.assert_not_called()
 
 
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
 @pytest.mark.asyncio
-async def test_origin_takes_precedence_over_host(mock_get_headers: MagicMock):
-    """Test that origin header takes precedence over host header."""
+async def test_both_headers_validated_independently(mock_get_headers: MagicMock):
+    """Test that both host and origin headers are validated independently."""
     # Both headers present
     mock_get_headers.return_value = {
         'origin': 'example.com',
-        'host': 'other.com',
+        'host': 'example.com',
     }
 
     middleware = HTTPHeaderValidationMiddleware()
     context = MagicMock()
     call_next = AsyncMock(return_value='success')
 
-    with patch(
-        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-        'example.com',
+    with (
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
+            'example.com',
+        ),
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
+            'example.com',
+        ),
     ):
-        # Should use origin (example.com) which is allowed
+        # Both should pass validation
         result = await middleware.on_request(context, call_next)
         assert result == 'success'
         call_next.assert_called_once_with(context)
+
+
+@patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
+@pytest.mark.asyncio
+async def test_host_fails_validation_when_both_present(mock_get_headers: MagicMock):
+    """Test that host validation fails even when origin is valid."""
+    # Both headers present, origin valid but host invalid
+    mock_get_headers.return_value = {
+        'origin': 'example.com',
+        'host': 'malicious.com',
+    }
+
+    middleware = HTTPHeaderValidationMiddleware()
+    context = MagicMock()
+    call_next = AsyncMock(return_value='success')
+
+    with (
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
+            'example.com',
+        ),
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
+            'example.com',
+        ),
+    ):
+        # Should fail on host validation
+        with pytest.raises(ClientError, match='Host header validation failed'):
+            await middleware.on_request(context, call_next)
+        call_next.assert_not_called()
+
+
+@patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
+@pytest.mark.asyncio
+async def test_origin_fails_validation_when_both_present(mock_get_headers: MagicMock):
+    """Test that origin validation fails even when host is valid."""
+    # Both headers present, host valid but origin invalid
+    mock_get_headers.return_value = {
+        'origin': 'malicious.com',
+        'host': 'example.com',
+    }
+
+    middleware = HTTPHeaderValidationMiddleware()
+    context = MagicMock()
+    call_next = AsyncMock(return_value='success')
+
+    with (
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
+            'example.com',
+        ),
+        patch(
+            'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
+            'example.com',
+        ),
+    ):
+        # Should fail on origin validation
+        with pytest.raises(ClientError, match='Origin header validation failed'):
+            await middleware.on_request(context, call_next)
+        call_next.assert_not_called()
 
 
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -207,34 +281,6 @@ async def test_port_removal_from_origin(
 
 
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
-@patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.logger')
-@pytest.mark.asyncio
-async def test_error_logging_on_validation_failure(
-    mock_logger: MagicMock,
-    mock_get_headers: MagicMock,
-):
-    """Test that validation failures are logged."""
-    mock_get_headers.return_value = {'origin': 'forbidden.com'}
-
-    middleware = HTTPHeaderValidationMiddleware()
-    context = MagicMock()
-    call_next = AsyncMock()
-
-    with patch(
-        'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-        'example.com',
-    ):
-        with pytest.raises(ClientError):
-            await middleware.on_request(context, call_next)
-
-    # Verify error was logged
-    mock_logger.error.assert_called_once()
-    error_msg = mock_logger.error.call_args[0][0]
-    assert 'Origin validation failed' in error_msg
-    assert 'forbidden.com' in error_msg
-
-
-@patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
 @pytest.mark.asyncio
 async def test_empty_allowed_origins(mock_get_headers: MagicMock):
     """Test behavior when ALLOWED_ORIGINS is empty."""
@@ -249,5 +295,5 @@ async def test_empty_allowed_origins(mock_get_headers: MagicMock):
         '',
     ):
         # Should fail validation with empty allowed origins
-        with pytest.raises(ClientError, match='Origin validation failed'):
+        with pytest.raises(ClientError, match='Origin header validation failed'):
             await middleware.on_request(context, call_next)

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core.common.config import ALLOWED_ORIGINS
+from ..core.common.config import ALLOWED_HOSTS, ALLOWED_ORIGINS
 from fastmcp.exceptions import ClientError
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.middleware import Middleware, MiddlewareContext
@@ -29,13 +29,25 @@ class HTTPHeaderValidationMiddleware(Middleware):
     ):
         """Validates any incoming request."""
         headers = get_http_headers(include_all=True)
+        logger.info(headers)
 
-        if origin := headers.get('origin') or headers.get('host'):
-            hostname = origin.split(':')[0]  # Remove port if present
+        if host := headers.get('host'):
+            host = host.split(':')[0]  # Strip port if present
+            allowed_hosts = ALLOWED_HOSTS.split(',')
+
+            if '*' not in allowed_hosts and host not in allowed_hosts:
+                error_msg = f'Host header validation failed: {host} not in {allowed_hosts}'
+                logger.error(error_msg)
+                raise ClientError(error_msg)
+
+        if origin := headers.get('origin'):
+            origin = origin.split(':')[0]  # Strip port if present
             allowed_origins = ALLOWED_ORIGINS.split(',')
 
-            if '*' not in allowed_origins and hostname not in allowed_origins:
-                error_msg = f'Origin validation failed: {hostname} is not allowed'
+            if '*' not in allowed_origins and origin not in allowed_origins:
+                error_msg = (
+                    f'Origin header validation failed: {origin} is not in {allowed_origins}'
+                )
                 logger.error(error_msg)
                 raise ClientError(error_msg)
 
