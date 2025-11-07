@@ -33,17 +33,17 @@ class Task(ABC):
     a TASKS list for auto-discovery (see README.md for examples).
 
     Required Implementations:
-        - get_prompt(context): Return the prompt string for the agent
+        - get_prompt(working_directory): Return the prompt string for the agent
         - rubric: Property returning validation criteria
         - get_server_file(): Return path to MCP server file
         - get_server_root_directory(): Return server root directory
 
     Optional Overrides:
-        - get_captors(context): Return captors to collect execution data
-        - get_validators(context): Return validators for custom validation
+        - get_captors(working_directory): Return captors to collect execution data
+        - get_validators(working_directory): Return validators for custom validation
         - get_working_directory(): Return task working directory
-        - setup(context): Set up workspace before task execution
-        - cleanup(context): Clean up after execution
+        - setup(working_directory): Set up workspace before task execution
+        - cleanup(working_directory): Clean up after execution
 
     Attributes:
         id: Unique identifier for the task
