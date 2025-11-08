@@ -2,6 +2,7 @@
 
 import os
 import pytest
+from awslabs.cloudwatch_applicationsignals_mcp_server import __version__
 from unittest.mock import MagicMock, patch
 
 
@@ -158,3 +159,26 @@ def test_initialize_aws_clients_with_profile():
                 assert applicationsignals == mock_client
                 assert cloudwatch == mock_client
                 assert xray == mock_client
+
+
+def test_initialize_aws_clients_with_mcp_source():
+    """Test _initialize_aws_clients function with MCP_RUN_FROM set."""
+    from awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients import (
+        _initialize_aws_clients,
+    )
+
+    with patch.dict(os.environ, {'MCP_RUN_FROM': 'test-caller', 'AWS_REGION': 'us-east-1'}):
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config'
+        ) as mock_config:
+            with patch('boto3.client'):
+                _initialize_aws_clients()
+
+                # Verify Config was called with MCP_RUN_FROM in user agent
+                mock_config.assert_called_once()
+                call_args = mock_config.call_args
+                user_agent = call_args.kwargs['user_agent_extra']
+                assert (
+                    user_agent
+                    == f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}/test-caller'
+                )
