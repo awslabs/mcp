@@ -174,4 +174,4 @@ def test_initialize_aws_clients_with_mcp_source():
                 mock_config.assert_called_once()
                 call_args = mock_config.call_args
                 user_agent = call_args.kwargs['user_agent_extra']
-                assert user_agent == f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}/test-caller'
+                assert user_agent == f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}/test-caller'
