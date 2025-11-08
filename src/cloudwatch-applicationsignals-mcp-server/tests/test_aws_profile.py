@@ -167,7 +167,7 @@ def test_initialize_aws_clients_with_mcp_source():
 
     with patch.dict(os.environ, {'MCP_RUN_FROM': 'test-caller', 'AWS_REGION': 'us-east-1'}):
         with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config') as mock_config:
-            with patch('boto3.client'):
+            with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.boto3.client'):
                 _initialize_aws_clients()
 
                 # Verify Config was called with MCP_RUN_FROM in user agent
