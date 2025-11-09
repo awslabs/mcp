@@ -93,6 +93,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Developer Tools & Support',
           items: [
+            'servers/aws-amplify-mcp-server',
             'servers/core-mcp-server',
             'servers/git-repo-research-mcp-server',
             'servers/openapi-mcp-server',
