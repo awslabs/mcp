@@ -28,8 +28,12 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 
 def _initialize_aws_clients():
     """Initialize AWS clients with proper configuration."""
+    # Add caller suffix if MCP_RUN_FROM is set
+    mcp_source = os.environ.get('MCP_RUN_FROM')
+    user_agent_suffix = f'/{mcp_source}' if mcp_source else ''
+
     config = Config(
-        user_agent_extra=f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}'
+        user_agent_extra=f'awslabs.cloudwatch-applicationsignals-mcp-server/{__version__}{user_agent_suffix}'
     )
 
     # Get endpoint URLs from environment variables

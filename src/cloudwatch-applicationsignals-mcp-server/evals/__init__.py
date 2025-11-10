@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.ccapi-mcp-server"""
+"""MCP Evaluation Framework.
 
-__version__ = '1.0.10'
+A framework for evaluating MCP tool performance using multi-turn agent interactions
+with LLM-as-a-judge validation.
+"""
