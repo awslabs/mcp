@@ -227,5 +227,4 @@ class EnablementTask(Task):
 
 
 # Task definitions
-TASKS = [
-]
+TASKS = []
