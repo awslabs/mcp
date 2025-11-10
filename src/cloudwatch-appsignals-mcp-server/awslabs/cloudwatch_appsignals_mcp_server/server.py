@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import tempfile
+import warnings
 from .audit_utils import (
     execute_audit_api,
     expand_service_operation_wildcard_patterns,
@@ -166,6 +167,8 @@ async def audit_services(
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_services tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **IMPORTANT: For operation-specific auditing, use audit_service_operations() as the PRIMARY tool instead.**
 
     **USE THIS FIRST FOR ALL SERVICE-LEVEL AUDITING TASKS**
@@ -295,6 +298,8 @@ async def audit_services(
     """
     start_time_perf = timer()
     logger.debug('Starting audit_services (PRIMARY SERVICE AUDIT TOOL)')
+    msg = 'audit_services tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_services tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Region defaults
@@ -426,6 +431,8 @@ async def audit_slos(
 ) -> str:
     """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_slos tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **PREFERRED TOOL FOR SLO ROOT CAUSE ANALYSIS**
     This is the RECOMMENDED tool after using get_slo() to understand SLO configuration:
     - **Use auditors="all" for comprehensive root cause analysis** of specific SLO breaches
@@ -514,6 +521,8 @@ async def audit_slos(
     """
     start_time_perf = timer()
     logger.debug('Starting audit_slos (PRIMARY SLO AUDIT TOOL)')
+    msg = 'audit_slos tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_slos tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Region defaults
@@ -639,6 +648,8 @@ async def audit_service_operations(
 ) -> str:
     """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the audit_service_operations tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **⭐ USE THIS AS THE PRIMARY TOOL FOR ALL OPERATION-SPECIFIC AUDITING TASKS ⭐**
 
     **PREFERRED OVER audit_services() for operation auditing because:**
@@ -736,6 +747,8 @@ async def audit_service_operations(
     """
     start_time_perf = timer()
     logger.debug('Starting audit_service_operations (SPECIALIZED OPERATION AUDIT TOOL)')
+    msg = 'audit_service_operations tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the audit_service_operations tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Region defaults
@@ -822,6 +835,8 @@ async def audit_service_operations(
 async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) -> str:
     """Comprehensive canary failure analysis with deep dive into issues.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the analyze_canary_failures tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     Use this tool to:
     - Deep dive into canary failures with root cause identification
     - Analyze historical patterns and specific incident details
@@ -864,6 +879,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
             - Root cause identification with specific remediation steps
             - Historical pattern analysis and trend insights
     """
+    msg = 'analyze_canary_failures tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the analyze_canary_failures tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     try:
         # Get recent canary runs
         response = synthetics_client.get_canary_runs(Name=canary_name, MaxResults=5)

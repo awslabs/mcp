@@ -1,3 +1,7 @@
+# Deprecation Notice
+
+**IMPORTANT**: This server is deprecated, please use the cloudwatch-applicationsignals-mcp-server instead.
+
 # CloudWatch Application Signals MCP Server
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
