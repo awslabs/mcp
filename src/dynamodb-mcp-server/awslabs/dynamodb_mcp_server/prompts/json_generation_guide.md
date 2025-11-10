@@ -122,26 +122,9 @@ Convert to new format with keys: pattern, description, table/index (optional), d
 - **Convert Implementation Notes** to valid AWS CLI commands in implementation field with complete syntax:
   - Include `--table-name <TableName>` for all operations
   - Include both partition and sort keys in `--key` parameters
-  - **ALWAYS use `--expression-attribute-names`** for DynamoDB reserved keywords and attribute names with special characters
-  - **Common reserved keywords** requiring aliases: status, type, name, size, order, date, time, user, group, role, state, count, data, value, key, index, table, item, attribute, condition, expression, filter, limit, select, from, where, and, or, not, null, true, false
-  - **Reserved keyword syntax**: Use `#alias` in expressions and `{"#alias":"actual_name"}` in expression-attribute-names
-  - **Example**: `#status = :status` with `--expression-attribute-names '{"#status":"status"}'`
+  - **ALWAYS use `--expression-attribute-names`** for all attributes (not just reserved keywords)
   - **Use single quotes** around all JSON parameters (--expression-attribute-values, --item, --key, --transact-items, etc.)
-  - **Ensure complete item structures** with all required attributes
-  - **Include all required keys** in TransactWrite operations
-  - **DATE RANGE QUERIES**: ALWAYS use Scan with filter-expression for any date range pattern
-  - **AWS CLI boolean parameters** use `--no-` prefix for false values (NOT `--flag false`):
-    - `--no-scan-index-forward` (NOT `--scan-index-forward false`) for descending order
-    - `--no-consistent-read` (NOT `--consistent-read false`) for eventual consistency
-    - `--no-return-consumed-capacity` (NOT `--return-consumed-capacity false`)
-    - `--no-return-item-collection-metrics` (NOT `--return-item-collection-metrics false`)
-    - `--no-return-values` (NOT `--return-values false`) for operations that don't need return values
-  - **AWS CLI boolean flags for true values** use flag alone or specific values (NOT `--flag true`):
-    - `--consistent-read` (NOT `--consistent-read true`) for strong consistency
-    - `--scan-index-forward` (NOT `--scan-index-forward true`) for ascending order (default)
-    - `--return-consumed-capacity TOTAL` (NOT `--return-consumed-capacity true`)
-    - `--return-item-collection-metrics SIZE` (NOT `--return-item-collection-metrics true`)
-    - `--return-values ALL_OLD|ALL_NEW|UPDATED_OLD|UPDATED_NEW` (NOT `--return-values true`)
+  - **Use correct AWS CLI boolean syntax**: `--flag` for true, `--no-flag` for false (e.g., `--no-scan-index-forward` NOT `--scan-index-forward false`)
   - **Commands must be executable** and syntactically correct with valid JSON syntax
 - **Preserve pattern ranges** (e.g. "1-2") when multiple patterns share the same description, operation, and implementation
 - **Split pattern ranges** when multiple operations exist (e.g. "16-19" with GetItem/UpdateItem becomes two entries: "16-19" with GetItem operation and "16-19" with UpdateItem operation)
@@ -161,9 +144,10 @@ Once the JSON file is generated, the AI will ask:
 **Environment Setup:**
 - Set up DynamoDB Local environment (tries containers first: Docker/Podman/Finch/nerdctl, falls back to Java)
 
-**⚠️ IMPORTANT - Data Cleanup Warning:**
-- **DELETE ALL existing tables** in DynamoDB Local container `dynamodb-local-setup-for-data-model-validation` (or Java process `dynamodb.local.setup.for.data.model.validation`)
-- This ensures a clean validation environment
+**⚠️ IMPORTANT - Isolated Environment:**
+- **Creates a separate DynamoDB Local instance** specifically for validation (container: `dynamodb-local-setup-for-data-model-validation` or Java process: `dynamodb.local.setup.for.data.model.validation`)
+- **Does NOT affect your existing DynamoDB Local setup** - uses an isolated environment
+- **Cleans up only validation tables** to ensure accurate testing
 
 **Validation Process:**
 - Create tables from your data model specification

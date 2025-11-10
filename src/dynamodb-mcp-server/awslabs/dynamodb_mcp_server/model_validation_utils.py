@@ -410,7 +410,7 @@ def start_container(container_path: str, port: int) -> str:
         '--name',
         DynamoDBLocalConfig.CONTAINER_NAME,
         '-p',
-        f'{port}:{DynamoDBLocalConfig.DEFAULT_PORT}',
+        f'127.0.0.1:{port}:{DynamoDBLocalConfig.DEFAULT_PORT}',
         DynamoDBLocalConfig.DOCKER_IMAGE,
     ]
 
@@ -533,6 +533,8 @@ def start_java_process(java_path: str, port: int) -> str:
         f'-Djava.library.path={lib_path}',
         '-jar',
         jar_path,
+        '-bindAddress',
+        '127.0.0.1',
         '-port',
         str(port),
         '-inMemory',
