@@ -187,3 +187,28 @@ ERROR_NO_S3_BUCKETS_CONFIGURED = (
 ERROR_INVALID_S3_BUCKET_PATH = (
     'Invalid S3 bucket path: {}. Must start with "s3://" and contain a valid bucket name'
 )
+
+# Genomics file index patterns
+# Maps primary file extensions to their associated index file extensions
+GENOMICS_INDEX_PATTERNS = {
+    '.bam': ['.bam.bai', '.bai'],
+    '.cram': ['.cram.crai', '.crai'],
+    '.vcf': ['.vcf.tbi', '.tbi'],
+    '.vcf.gz': ['.vcf.gz.tbi', '.tbi'],
+    '.fasta': ['.fasta.fai', '.fai'],
+    '.fa': ['.fa.fai', '.fai'],
+    '.fna': ['.fna.fai', '.fai'],
+}
+
+# FASTQ paired-end read patterns
+FASTQ_PAIR_PATTERNS = [
+    ('_R1_', '_R2_'),
+    ('_R1.', '_R2.'),
+    ('_R2_', '_R1_'),
+    ('_R2.', '_R1.'),
+    ('_1.', '_2.'),
+    ('_2.', '_1.'),
+]
+
+# FASTQ file extensions
+FASTQ_EXTENSIONS = ['fastq', 'fq', 'fastq.gz', 'fq.gz']

@@ -14,6 +14,11 @@
 
 """S3 file models and utilities for handling S3 objects."""
 
+from awslabs.aws_healthomics_mcp_server.consts import (
+    FASTQ_EXTENSIONS,
+    FASTQ_PAIR_PATTERNS,
+    GENOMICS_INDEX_PATTERNS,
+)
 from dataclasses import field
 from datetime import datetime
 from pydantic import BaseModel, field_validator
@@ -36,21 +41,56 @@ class S3File(BaseModel):
     @field_validator('bucket')
     @classmethod
     def validate_bucket_name(cls, v: str) -> str:
-        """Validate S3 bucket name format."""
+        """Validate S3 bucket name format according to AWS naming rules.
+
+        See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+        """
         if not v:
             raise ValueError('Bucket name cannot be empty')
 
+        # Length validation
         if len(v) < 3 or len(v) > 63:
             raise ValueError('Bucket name must be between 3 and 63 characters')
 
-        # Must start and end with alphanumeric
-        if not (v[0].isalnum() and v[-1].isalnum()):
-            raise ValueError('Bucket name must start and end with alphanumeric character')
-
-        # Can contain lowercase letters, numbers, hyphens, and periods
+        # Can only contain lowercase letters, numbers, hyphens, and periods
         allowed_chars = set('abcdefghijklmnopqrstuvwxyz0123456789-.')
         if not all(c in allowed_chars for c in v):
-            raise ValueError('Bucket name contains invalid characters')
+            raise ValueError(
+                'Bucket name can only contain lowercase letters, numbers, hyphens, and periods'
+            )
+
+        # Must start and end with a letter or number
+        if not (v[0].isalnum() and v[-1].isalnum()):
+            raise ValueError('Bucket name must begin and end with a letter or number')
+
+        # Must not contain two adjacent periods
+        if '..' in v:
+            raise ValueError('Bucket name must not contain two adjacent periods')
+
+        # Must not be formatted as an IP address
+        parts = v.split('.')
+        if len(parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts):
+            raise ValueError('Bucket name must not be formatted as an IP address')
+
+        # Must not start with reserved prefixes
+        if v.startswith('xn--'):
+            raise ValueError('Bucket name must not start with the prefix "xn--"')
+        if v.startswith('sthree-'):
+            raise ValueError('Bucket name must not start with the prefix "sthree-"')
+        if v.startswith('amzn-s3-demo-'):
+            raise ValueError('Bucket name must not start with the prefix "amzn-s3-demo-"')
+
+        # Must not end with reserved suffixes
+        if v.endswith('-s3alias'):
+            raise ValueError('Bucket name must not end with the suffix "-s3alias"')
+        if v.endswith('--ol-s3'):
+            raise ValueError('Bucket name must not end with the suffix "--ol-s3"')
+        if v.endswith('.mrap'):
+            raise ValueError('Bucket name must not end with the suffix ".mrap"')
+        if v.endswith('--x-s3'):
+            raise ValueError('Bucket name must not end with the suffix "--x-s3"')
+        if v.endswith('--table-s3'):
+            raise ValueError('Bucket name must not end with the suffix "--table-s3"')
 
         return v
 
@@ -347,19 +387,8 @@ def get_s3_file_associations(primary_file: S3File) -> List[S3File]:
     """
     associations = []
 
-    # Common index file patterns
-    index_patterns = {
-        '.bam': ['.bam.bai', '.bai'],
-        '.cram': ['.cram.crai', '.crai'],
-        '.vcf': ['.vcf.tbi', '.tbi'],
-        '.vcf.gz': ['.vcf.gz.tbi', '.tbi'],
-        '.fasta': ['.fasta.fai', '.fai'],
-        '.fa': ['.fa.fai', '.fai'],
-        '.fna': ['.fna.fai', '.fai'],
-    }
-
-    # Check for index files
-    for ext, index_exts in index_patterns.items():
+    # Check for index files using patterns from consts
+    for ext, index_exts in GENOMICS_INDEX_PATTERNS.items():
         if primary_file.key.endswith(ext):
             for index_ext in index_exts:
                 if index_ext.startswith(ext):
@@ -374,23 +403,14 @@ def get_s3_file_associations(primary_file: S3File) -> List[S3File]:
 
     # FASTQ pair patterns (R1/R2) - check extension properly
     filename = primary_file.filename
-    if any(filename.endswith(f'.{ext}') for ext in ['fastq', 'fq', 'fastq.gz', 'fq.gz']):
+    if any(filename.endswith(f'.{ext}') for ext in FASTQ_EXTENSIONS):
         key = primary_file.key
 
-        # Look for R1/R2 patterns
-        if '_R1_' in key or '_R1.' in key:
-            r2_key = key.replace('_R1_', '_R2_').replace('_R1.', '_R2.')
-            associations.append(S3File(bucket=primary_file.bucket, key=r2_key))
-        elif '_R2_' in key or '_R2.' in key:
-            r1_key = key.replace('_R2_', '_R1_').replace('_R2.', '_R1.')
-            associations.append(S3File(bucket=primary_file.bucket, key=r1_key))
-
-        # Look for _1/_2 patterns
-        elif '_1.' in key:
-            pair_key = key.replace('_1.', '_2.')
-            associations.append(S3File(bucket=primary_file.bucket, key=pair_key))
-        elif '_2.' in key:
-            pair_key = key.replace('_2.', '_1.')
-            associations.append(S3File(bucket=primary_file.bucket, key=pair_key))
+        # Look for paired-end read patterns using patterns from consts
+        for pattern1, pattern2 in FASTQ_PAIR_PATTERNS:
+            if pattern1 in key:
+                pair_key = key.replace(pattern1, pattern2)
+                associations.append(S3File(bucket=primary_file.bucket, key=pair_key))
+                break  # Only match the first pattern found
 
     return associations

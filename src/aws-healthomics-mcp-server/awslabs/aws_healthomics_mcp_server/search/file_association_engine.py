@@ -21,7 +21,7 @@ from awslabs.aws_healthomics_mcp_server.models import (
     get_s3_file_associations,
 )
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Pattern, Set, Tuple
 
 
 class FileAssociationEngine:
@@ -85,8 +85,80 @@ class FileAssociationEngine:
     ]
 
     def __init__(self):
-        """Initialize the file association engine."""
-        pass
+        """Initialize the file association engine with pre-compiled regex patterns.
+
+        Pre-compiling patterns significantly improves performance when processing
+        large numbers of files, as it avoids repeated regex compilation overhead.
+        """
+        # Pre-compile all regex patterns for better performance
+        self._compiled_patterns: List[Tuple[Pattern[str], str, str]] = [
+            (re.compile(primary_pattern, re.IGNORECASE), assoc_pattern, group_type)
+            for primary_pattern, assoc_pattern, group_type in self.ASSOCIATION_PATTERNS
+        ]
+
+        # Build extension-based lookup table for fast pattern filtering
+        self._extension_pattern_map = self._build_extension_pattern_map()
+
+    def _build_extension_pattern_map(self) -> Dict[str, List[int]]:
+        """Build a lookup table mapping file extensions to relevant pattern indices.
+
+        This allows us to skip irrelevant patterns when processing files,
+        further improving performance by reducing the number of regex operations.
+
+        Returns:
+            Dictionary mapping file extensions to lists of pattern indices
+        """
+        ext_map: Dict[str, List[int]] = {}
+
+        # Define which extensions are relevant for each pattern
+        # This is based on the primary pattern in ASSOCIATION_PATTERNS
+        extension_hints = {
+            '.bam': ['bam'],
+            '.cram': ['cram'],
+            '.fastq': ['fastq'],
+            '.fastq.gz': ['fastq'],
+            '.fastq.bz2': ['fastq'],
+            '.fq': ['fastq'],
+            '.fq.gz': ['fastq'],
+            '.fasta': ['fasta'],
+            '.fa': ['fasta'],
+            '.fna': ['fasta'],
+            '.vcf': ['vcf'],
+            '.vcf.gz': ['vcf'],
+            '.gvcf': ['gvcf'],
+            '.gvcf.gz': ['gvcf'],
+            '.bcf': ['bcf'],
+        }
+
+        # Map pattern keywords to indices
+        for idx, (_, _, group_type) in enumerate(self.ASSOCIATION_PATTERNS):
+            for ext, keywords in extension_hints.items():
+                # Check if any keyword matches the group type
+                if any(keyword in group_type for keyword in keywords):
+                    if ext not in ext_map:
+                        ext_map[ext] = []
+                    ext_map[ext].append(idx)
+
+        return ext_map
+
+    def _get_relevant_pattern_indices(self, file_path: str) -> List[int]:
+        """Get indices of patterns relevant to the given file path.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            List of pattern indices to check, or all indices if no optimization applies
+        """
+        file_path_lower = file_path.lower()
+
+        # Check for matching extensions
+        for ext, pattern_indices in self._extension_pattern_map.items():
+            if ext in file_path_lower:
+                return pattern_indices
+
+        # If no specific extension match, return all patterns
+        return list(range(len(self._compiled_patterns)))
 
     def find_associations(self, files: List[GenomicsFile]) -> List[FileGroup]:
         """Find file associations and group related files together.
@@ -168,14 +240,17 @@ class FileAssociationEngine:
         # Fall back to regex-based pattern matching for additional associations
         # or for non-S3 files (like HealthOmics access points)
         primary_path = primary_file.path
-        for orig_primary, orig_assoc, group_type in self.ASSOCIATION_PATTERNS:
+
+        # Get relevant pattern indices for optimization
+        relevant_indices = self._get_relevant_pattern_indices(primary_path)
+
+        for pattern_idx in relevant_indices:
+            compiled_primary, assoc_pattern, group_type = self._compiled_patterns[pattern_idx]
             try:
-                # Check if the primary pattern matches
-                if re.search(orig_primary, primary_path, re.IGNORECASE):
+                # Check if the primary pattern matches (using pre-compiled pattern)
+                if compiled_primary.search(primary_path):
                     # Generate the expected associated file path
-                    expected_assoc_path = re.sub(
-                        orig_primary, orig_assoc, primary_path, flags=re.IGNORECASE
-                    )
+                    expected_assoc_path = compiled_primary.sub(assoc_pattern, primary_path)
 
                     # Check if the associated file exists in our file map
                     if expected_assoc_path in file_map and expected_assoc_path != primary_path:

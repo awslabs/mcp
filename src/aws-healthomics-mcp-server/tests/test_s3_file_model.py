@@ -84,25 +84,77 @@ class TestS3File:
 
         # Test bucket name not starting with alphanumeric
         with pytest.raises(
-            ValueError, match='Bucket name must start and end with alphanumeric character'
+            ValueError, match='Bucket name must begin and end with a letter or number'
         ):
             S3File(bucket='-invalid-bucket', key='test.txt')
 
         # Test bucket name not ending with alphanumeric
         with pytest.raises(
-            ValueError, match='Bucket name must start and end with alphanumeric character'
+            ValueError, match='Bucket name must begin and end with a letter or number'
         ):
             S3File(bucket='invalid-bucket-', key='test.txt')
 
-        # Test bucket name with invalid characters (! is not alphanumeric so it fails the start/end check first)
+        # Test bucket name with invalid characters (underscore and !)
         with pytest.raises(
-            ValueError, match='Bucket name must start and end with alphanumeric character'
+            ValueError,
+            match='Bucket name can only contain lowercase letters, numbers, hyphens, and periods',
         ):
             S3File(bucket='invalid_bucket!', key='test.txt')
 
         # Test bucket name with invalid characters in middle
-        with pytest.raises(ValueError, match='Bucket name contains invalid characters'):
+        with pytest.raises(
+            ValueError,
+            match='Bucket name can only contain lowercase letters, numbers, hyphens, and periods',
+        ):
             S3File(bucket='invalid@bucket', key='test.txt')
+
+        # Test bucket name with two adjacent periods
+        with pytest.raises(ValueError, match='Bucket name must not contain two adjacent periods'):
+            S3File(bucket='invalid..bucket', key='test.txt')
+
+        # Test bucket name formatted as IP address
+        with pytest.raises(ValueError, match='Bucket name must not be formatted as an IP address'):
+            S3File(bucket='192.168.1.1', key='test.txt')
+
+        # Test bucket name with reserved prefix xn--
+        with pytest.raises(ValueError, match='Bucket name must not start with the prefix "xn--"'):
+            S3File(bucket='xn--bucket', key='test.txt')
+
+        # Test bucket name with reserved prefix sthree-
+        with pytest.raises(
+            ValueError, match='Bucket name must not start with the prefix "sthree-"'
+        ):
+            S3File(bucket='sthree-bucket', key='test.txt')
+
+        # Test bucket name with reserved prefix amzn-s3-demo-
+        with pytest.raises(
+            ValueError, match='Bucket name must not start with the prefix "amzn-s3-demo-"'
+        ):
+            S3File(bucket='amzn-s3-demo-bucket', key='test.txt')
+
+        # Test bucket name with reserved suffix -s3alias
+        with pytest.raises(
+            ValueError, match='Bucket name must not end with the suffix "-s3alias"'
+        ):
+            S3File(bucket='bucket-s3alias', key='test.txt')
+
+        # Test bucket name with reserved suffix --ol-s3
+        with pytest.raises(ValueError, match='Bucket name must not end with the suffix "--ol-s3"'):
+            S3File(bucket='bucket--ol-s3', key='test.txt')
+
+        # Test bucket name with reserved suffix .mrap
+        with pytest.raises(ValueError, match='Bucket name must not end with the suffix ".mrap"'):
+            S3File(bucket='bucket.mrap', key='test.txt')
+
+        # Test bucket name with reserved suffix --x-s3
+        with pytest.raises(ValueError, match='Bucket name must not end with the suffix "--x-s3"'):
+            S3File(bucket='bucket--x-s3', key='test.txt')
+
+        # Test bucket name with reserved suffix --table-s3
+        with pytest.raises(
+            ValueError, match='Bucket name must not end with the suffix "--table-s3"'
+        ):
+            S3File(bucket='bucket--table-s3', key='test.txt')
 
     def test_s3_file_key_validation_edge_cases(self):
         """Test S3File key validation edge cases."""
