@@ -118,6 +118,7 @@ class EnablementTask(Task):
             Path(__file__).parent.parent.parent.parent.parent
             / 'samples'
             / 'cloudwatch-applicationsignals-mcp-server'
+            / 'get-enablement-guide-samples'
         )
 
     def get_server_file(self) -> Path:
