@@ -24,6 +24,8 @@ from evals.core import (
     GitDiffCaptor,
     LLMJudgeValidator,
     Task,
+    ToolCallsCaptor,
+    ToolResultsCaptor,
     ValidationPromptType,
     Validator,
 )
@@ -157,7 +159,7 @@ class EnablementTask(Task):
     def get_captors(self, working_directory: Path) -> list[Captor]:
         """Return captors for this task.
 
-        Captures git diff to evaluate code modifications.
+        Captures git diff, tool calls, and tool results for evaluation.
 
         Args:
             working_directory: Path to task working directory
@@ -165,7 +167,11 @@ class EnablementTask(Task):
         Returns:
             List of captors
         """
-        return [GitDiffCaptor(git_paths=self.git_paths)]
+        return [
+            GitDiffCaptor(git_paths=self.git_paths),
+            ToolCallsCaptor(),
+            ToolResultsCaptor(),
+        ]
 
     def get_validators(self, working_directory: Path) -> list[Validator]:
         """Return validators for this task.
