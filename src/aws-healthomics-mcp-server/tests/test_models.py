@@ -21,6 +21,7 @@ from awslabs.aws_healthomics_mcp_server.models import (
     CacheBehavior,
     ContainerRegistryMap,
     ExportType,
+    GenomicsFileSearchRequest,
     ImageMapping,
     LogEvent,
     LogResponse,
@@ -821,3 +822,28 @@ def test_container_registry_map_serialization():
     assert isinstance(json_str, str)
     assert 'docker.io' in json_str
     assert 'nginx:latest' in json_str
+
+
+def test_genomics_file_search_request_validation():
+    """Test GenomicsFileSearchRequest validation."""
+    # Test valid request
+    request = GenomicsFileSearchRequest(
+        file_type='fastq', search_terms=['sample'], max_results=100, pagination_buffer_size=500
+    )
+    assert request.max_results == 100
+    assert request.pagination_buffer_size == 500
+
+    # Test max_results validation - too high
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(max_results=15000)
+    assert 'max_results cannot exceed 10000' in str(exc_info.value)
+
+    # Test pagination_buffer_size validation - too low
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(pagination_buffer_size=50)
+    assert 'pagination_buffer_size must be at least 100' in str(exc_info.value)
+
+    # Test pagination_buffer_size validation - too high
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(pagination_buffer_size=60000)
+    assert 'pagination_buffer_size cannot exceed 50000' in str(exc_info.value)

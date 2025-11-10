@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Defines data models, Pydantic models, and validation logic."""
+"""Core HealthOmics data models for workflows, runs, and storage."""
 
 from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
