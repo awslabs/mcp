@@ -63,8 +63,8 @@ class TestSiteWiseData:
         entries = [
             {
                 'entryId': 'entry1',
-                'assetId': 'test-asset-123',
-                'propertyId': 'test-property-456',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
                 'propertyValues': [
                     {
                         'value': {'doubleValue': 25.5},
@@ -104,8 +104,8 @@ class TestSiteWiseData:
 
         # Call the function
         result = get_asset_property_value(
-            asset_id='test-asset-123',
-            property_id='test-property-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
         )
 
@@ -136,8 +136,8 @@ class TestSiteWiseData:
         mock_client.get_asset_property_value_history.return_value = mock_response
 
         result = get_asset_property_value_history(
-            asset_id='test-asset-123',
-            property_id='test-property-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias=None,
             start_date=None,
             end_date=None,
@@ -169,8 +169,8 @@ class TestSiteWiseData:
         mock_client.get_asset_property_aggregates.return_value = mock_response
 
         result = get_asset_property_aggregates(
-            asset_id='test-asset-123',
-            property_id='test-property-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias=None,
             aggregate_types=None,
             resolution='1h',
@@ -204,8 +204,8 @@ class TestSiteWiseData:
         mock_client.get_interpolated_asset_property_values.return_value = mock_response
 
         result = get_interpolated_asset_property_values(
-            asset_id='test-asset-123',
-            property_id='test-property-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             start_time_in_seconds=1640995200,
             end_time_in_seconds=1640999000,
             region='us-east-1',
@@ -230,7 +230,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_value.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
         result = batch_get_asset_property_value(entries=entries, region='us-east-1')
 
         assert result['success'] is True
@@ -249,7 +255,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_value_history.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
         result = batch_get_asset_property_value_history(entries=entries, region='us-east-1')
 
         assert result['success'] is True
@@ -268,7 +280,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_aggregates.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
         result = batch_get_asset_property_aggregates(entries=entries, region='us-east-1')
 
         assert result['success'] is True
@@ -353,15 +371,16 @@ class TestSiteWiseData:
 
         # Test with asset_id and property_id
         result = get_asset_property_value(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias=None,
             region='us-west-2',
         )
 
         assert result['success'] is True
         mock_client.get_asset_property_value.assert_called_once_with(
-            assetId='test-asset-123', propertyId='test-prop-456'
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
         # Test with property_alias only
@@ -381,16 +400,16 @@ class TestSiteWiseData:
         # Test with all parameters
         mock_client.reset_mock()
         result = get_asset_property_value(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias='/company/plant/temperature',
             region='us-west-2',
         )
 
         assert result['success'] is True
         mock_client.get_asset_property_value.assert_called_once_with(
-            assetId='test-asset-123',
-            propertyId='test-prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
             propertyAlias='/company/plant/temperature',
         )
 
@@ -413,8 +432,8 @@ class TestSiteWiseData:
         mock_client.get_asset_property_value_history.return_value = mock_response
 
         result = get_asset_property_value_history(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias='/company/plant/temperature',
             start_date='2021-01-01T00:00:00Z',
             end_date='2021-01-02T00:00:00Z',
@@ -431,8 +450,8 @@ class TestSiteWiseData:
 
         # Verify datetime parsing and all parameters were passed
         call_args = mock_client.get_asset_property_value_history.call_args[1]
-        assert call_args['assetId'] == 'test-asset-123'
-        assert call_args['propertyId'] == 'test-prop-456'
+        assert call_args['assetId'] == '12345678-1234-1234-1234-123456789012'
+        assert call_args['propertyId'] == 'abcdef12-3456-7890-abcd-ef1234567890'
         assert call_args['propertyAlias'] == '/company/plant/temperature'
         assert call_args['qualities'] == ['GOOD', 'BAD']
         assert call_args['timeOrdering'] == 'DESCENDING'
@@ -459,8 +478,8 @@ class TestSiteWiseData:
 
         # Test with custom aggregate types
         result = get_asset_property_aggregates(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias='/company/plant/temperature',
             aggregate_types=['AVERAGE', 'MAXIMUM', 'MINIMUM'],
             resolution='15m',
@@ -479,8 +498,8 @@ class TestSiteWiseData:
         # Test with default aggregate types (None)
         mock_client.reset_mock()
         result = get_asset_property_aggregates(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias=None,
             aggregate_types=None,  # Should default to ["AVERAGE"]
             resolution='1h',
@@ -515,8 +534,8 @@ class TestSiteWiseData:
         mock_client.get_interpolated_asset_property_values.return_value = mock_response
 
         result = get_interpolated_asset_property_values(
-            asset_id='test-asset-123',
-            property_id='test-prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             property_alias='/company/plant/temperature',
             start_time_in_seconds=1609459200,
             end_time_in_seconds=1609545600,
@@ -534,8 +553,8 @@ class TestSiteWiseData:
 
         # Verify all parameters were passed correctly
         call_args = mock_client.get_interpolated_asset_property_values.call_args[1]
-        assert call_args['assetId'] == 'test-asset-123'
-        assert call_args['propertyId'] == 'test-prop-456'
+        assert call_args['assetId'] == '12345678-1234-1234-1234-123456789012'
+        assert call_args['propertyId'] == 'abcdef12-3456-7890-abcd-ef1234567890'
         assert call_args['propertyAlias'] == '/company/plant/temperature'
         assert call_args['startTimeInSeconds'] == 1609459200
         assert call_args['endTimeInSeconds'] == 1609545600
@@ -560,7 +579,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_value.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
 
         # Test with next_token
         result = batch_get_asset_property_value(
@@ -597,7 +622,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_value_history.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
 
         # Test with next_token
         result = batch_get_asset_property_value_history(
@@ -640,7 +671,13 @@ class TestSiteWiseData:
         }
         mock_client.batch_get_asset_property_aggregates.return_value = mock_response
 
-        entries = [{'entryId': 'entry1', 'assetId': 'asset-123', 'propertyId': 'prop-456'}]
+        entries = [
+            {
+                'entryId': 'entry1',
+                'assetId': '12345678-1234-1234-1234-123456789012',
+                'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
+            }
+        ]
 
         # Test with next_token
         result = batch_get_asset_property_aggregates(
@@ -799,7 +836,7 @@ class TestSiteWiseData:
             error_response, 'GetAssetPropertyValue'
         )
         result = get_asset_property_value(
-            asset_id='test-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             property_id=None,
             property_alias=None,
             region='us-east-1',
@@ -812,7 +849,7 @@ class TestSiteWiseData:
             error_response, 'GetAssetPropertyValueHistory'
         )
         result = get_asset_property_value_history(
-            asset_id='test-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             property_id=None,
             property_alias=None,
             start_date=None,
@@ -831,7 +868,7 @@ class TestSiteWiseData:
             error_response, 'GetAssetPropertyAggregates'
         )
         result = get_asset_property_aggregates(
-            asset_id='test-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             property_id=None,
             property_alias=None,
             aggregate_types=None,
@@ -852,7 +889,7 @@ class TestSiteWiseData:
             error_response, 'GetInterpolatedAssetPropertyValues'
         )
         result = get_interpolated_asset_property_values(
-            asset_id='test-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             start_time_in_seconds=1609459200,
             end_time_in_seconds=1609545600,
         )
