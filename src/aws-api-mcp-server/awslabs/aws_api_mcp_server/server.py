@@ -47,6 +47,7 @@ from .core.common.models import (
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
+from .middleware.http_header_validation_middleware import HTTPHeaderValidationMiddleware
 from botocore.exceptions import NoCredentialsError
 from fastmcp import Context, FastMCP
 from loguru import logger
@@ -70,6 +71,7 @@ server = FastMCP(
     host=HOST,
     port=PORT,
     stateless_http=STATELESS_HTTP,
+    middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
@@ -238,6 +240,7 @@ async def call_aws_helper(
         Field(description='Optional limit for number of results (useful for pagination)'),
     ] = None,
     credentials: Credentials | None = None,
+    default_region: str | None = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Helper function that actually calls aws."""
     try:
@@ -301,6 +304,7 @@ async def call_aws_helper(
                     cli_command,
                     ir.command,
                     credentials=credentials,
+                    default_region_override=default_region,
                 )
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
@@ -311,6 +315,7 @@ async def call_aws_helper(
             cli_command=cli_command,
             max_results=max_results,
             credentials=credentials,
+            default_region_override=default_region,
         )
     except NoCredentialsError:
         error_message = (

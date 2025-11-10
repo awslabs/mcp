@@ -279,7 +279,7 @@ class TestErrorHandling:
                 'alarmRecommendations': [
                     {
                         'alarmDescription': 'Valid alarm',
-                        'threshold': {'staticValue': 80.0},
+                        'threshold': {'value': 80.0},
                         'period': 300,
                         'statistic': 'Average',
                     },
@@ -298,18 +298,23 @@ class TestErrorHandling:
                     side_effect=[Mock(), Exception('Parse error')],
                 ):
                     with patch(
-                        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
-                    ) as mock_logger:
-                        result = await tools.get_recommended_metric_alarms(
-                            mock_context,
-                            namespace='AWS/EC2',
-                            metric_name='CPUUtilization',
-                            dimensions=[],
-                        )
+                        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.AlarmRecommendationResult'
+                    ) as mock_result_class:
+                        mock_result_instance = Mock()
+                        mock_result_class.return_value = mock_result_instance
+                        with patch(
+                            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
+                        ) as mock_logger:
+                            result = await tools.get_recommended_metric_alarms(
+                                mock_context,
+                                namespace='AWS/EC2',
+                                metric_name='CPUUtilization',
+                                dimensions=[],
+                            )
 
-                        # Should return only valid recommendations and log warning for invalid ones
-                        assert isinstance(result, list)
-                        mock_logger.warning.assert_called()
+                            # Should return only valid recommendations and log warning for invalid ones
+                            assert result == mock_result_instance
+                            mock_logger.warning.assert_called()
 
     @pytest.mark.asyncio
     async def test_parse_alarm_recommendation_missing_fields(self, mock_context):
@@ -325,6 +330,11 @@ class TestErrorHandling:
             # Should handle missing fields gracefully with defaults
             assert isinstance(result, AlarmRecommendation)
             assert result.alarmDescription == ''
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+                StaticAlarmThreshold,
+            )
+
+            assert isinstance(result.threshold, StaticAlarmThreshold)
             assert result.threshold.staticValue == 0.0
             assert result.threshold.justification == ''
             assert result.period == 300
@@ -373,6 +383,50 @@ class TestErrorHandling:
             result = tools._alarm_matches_dimensions(alarm_data, {'InstanceType': 't2.micro'})
             assert result is False
 
+    @pytest.mark.asyncio
+    async def test_analyze_metric_analyzer_error(self, mock_context):
+        """Test analyze_metric when metric analyzer fails."""
+        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+            tools = CloudWatchMetricsTools()
+
+            mock_response = Mock()
+            mock_response.metricDataResults = []
+            with patch.object(tools, 'get_metric_data', return_value=mock_response):
+                with patch.object(
+                    tools.metric_analyzer,
+                    'analyze_metric_data',
+                    side_effect=Exception('Analysis error'),
+                ):
+                    with pytest.raises(Exception) as exc_info:
+                        await tools.analyze_metric(
+                            mock_context, namespace='AWS/EC2', metric_name='CPUUtilization'
+                        )
+
+                    assert 'Analysis error' in str(exc_info.value)
+                    mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_recommended_alarms_analysis_fallback_error(self, mock_context):
+        """Test get_recommended_metric_alarms when analysis fallback fails."""
+        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
+            tools = CloudWatchMetricsTools()
+
+            # Mock no existing recommendations
+            with patch.object(tools, '_lookup_metadata', return_value=None):
+                with patch.object(
+                    tools, 'analyze_metric', side_effect=Exception('Analysis failed')
+                ):
+                    with pytest.raises(Exception) as exc_info:
+                        await tools.get_recommended_metric_alarms(
+                            mock_context,
+                            namespace='Custom/App',
+                            metric_name='CustomMetric',
+                            dimensions=[],
+                        )
+
+                    assert 'Analysis failed' in str(exc_info.value)
+                    mock_context.error.assert_called_once()
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
@@ -419,11 +473,12 @@ class TestEdgeCases:
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 3
+            assert mock_mcp.tool.call_count == 4
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'get_metric_data',
                 'get_metric_metadata',
+                'analyze_metric',
                 'get_recommended_metric_alarms',
             ]
             for tool in expected_tools:

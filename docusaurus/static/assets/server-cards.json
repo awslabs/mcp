@@ -1144,9 +1144,9 @@
       "category": "Cost & Operations",
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
-      "id": "cloudwatch-appsignals-mcp-server",
+      "id": "cloudwatch-applicationsignals-mcp-server",
       "name": "Amazon CloudWatch Application Signals MCP Server",
-      "source_path": "src/cloudwatch-appsignals-mcp-server/",
+      "source_path": "src/cloudwatch-applicationsignals-mcp-server/",
       "subcategory": "Monitoring & Logging",
       "tags": [
         "cost-operations",
