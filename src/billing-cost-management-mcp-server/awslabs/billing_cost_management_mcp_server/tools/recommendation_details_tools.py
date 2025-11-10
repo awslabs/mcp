@@ -14,11 +14,12 @@
 
 """AWS Cost Optimization Hub enhanced recommendation details tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 import os
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.constants import (
     ACCOUNT_SCOPE_MAP,
     ACTION_TYPE_DELETE,
@@ -59,6 +60,11 @@ This tool combines data from:
 
 It provides comprehensive analysis with utilization metrics, savings calculations, and implementation guidance.
 
+Multi-account support:
+- The tool automatically queries the account associated with the recommendation
+- Recommendation IDs contain embedded account information
+- Cross-account IAM role 'MCPServerCrossAccountRole' required in target accounts
+
 RESPONSE FORMATTING INSTRUCTIONS:
 The tool may return both raw recommendation data and a formatting template.
 When presenting the recommendation:
@@ -68,36 +74,70 @@ When presenting the recommendation:
 4. Ensure all numeric values (costs, savings, metrics) are included
 5. Add natural language explanations to make the information more accessible""",
 )
-async def get_recommendation_details(ctx: Context, recommendation_id: str) -> Dict[str, Any]:
+async def get_recommendation_details(
+    ctx: Context,
+    recommendation_id: str,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
+) -> Dict[str, Any]:
     """Get enhanced recommendation details with integrated data from multiple AWS services.
 
     Args:
         ctx: The MCP context object
         recommendation_id: ID of the recommendation to retrieve details for
+        account_id: Target AWS account ID (optional, can be inferred from recommendation_id)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the enhanced recommendation details
+        Dict containing the enhanced recommendation details with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(f'Getting recommendation details for: {recommendation_id}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
-        # Get base recommendation from Cost Optimization Hub using shared utility
-        coh_client = create_aws_client('cost-optimization-hub', region_name='us-east-1')
+        # Get base recommendation from Cost Optimization Hub
+        # Cost Optimization Hub is only available in us-east-1
+        coh_client = credential_manager.get_client(
+            service='cost-optimization-hub',
+            account_id=account_id,
+            region='us-east-1'
+        )
+        
         base_recommendation = coh_client.get_recommendation(recommendationId=recommendation_id)
 
+        # Extract account from recommendation if not provided
+        recommendation_account = base_recommendation.get('accountId')
+        if recommendation_account:
+            target_account = recommendation_account
+
         # Process the recommendation with additional data
-        response = await process_recommendation(ctx, base_recommendation)
+        response = await process_recommendation(
+            ctx, base_recommendation, target_account, region
+        )
+
+        # Add account tracking to response
+        response['account_id'] = target_account
+        response['region'] = region
 
         return format_response('success', response)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(
+        error_response = await handle_aws_error(
             ctx, e, 'get_recommendation_details', 'Cost Optimization Hub'
         )
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
-async def process_recommendation(ctx: Context, recommendation: Dict[str, Any]) -> Dict[str, Any]:
+async def process_recommendation(
+    ctx: Context, recommendation: Dict[str, Any], target_account: str, region: str
+) -> Dict[str, Any]:
     """Process a recommendation with additional data from appropriate services."""
     action_type = recommendation.get('actionType')
 
@@ -107,11 +147,11 @@ async def process_recommendation(ctx: Context, recommendation: Dict[str, Any]) -
     # Add additional data based on recommendation type
     if action_type in [ACTION_TYPE_PURCHASE_SAVINGS_PLAN, ACTION_TYPE_PURCHASE_RESERVED_INSTANCE]:
         # Get Cost Explorer data for Savings Plans or Reserved Instances
-        additional_data = await get_cost_explorer_data(ctx, recommendation)
+        additional_data = await get_cost_explorer_data(ctx, recommendation, target_account)
         result['additional_details'] = additional_data
     else:
         # Get Compute Optimizer data for other recommendation types
-        additional_data = await get_compute_optimizer_data(ctx, recommendation)
+        additional_data = await get_compute_optimizer_data(ctx, recommendation, target_account)
         result['additional_details'] = additional_data
 
     # Get the appropriate template
@@ -167,12 +207,18 @@ def format_base_recommendation(recommendation: Dict[str, Any]) -> Dict[str, Any]
     return formatted
 
 
-async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -> Dict[str, Any]:
+async def get_cost_explorer_data(
+    ctx: Context, recommendation: Dict[str, Any], target_account: str
+) -> Dict[str, Any]:
     """Get additional data from Cost Explorer for Savings Plans or Reserved Instance recommendations."""
     action_type = recommendation.get('actionType')
 
-    # Initialize Cost Explorer client using shared utility
-    ce_client = create_aws_client('ce')
+    # Get Cost Explorer client for the target account
+    ce_client = credential_manager.get_client(
+        service='ce',
+        account_id=target_account if target_account != credential_manager.current_account_id else None,
+        region='us-east-1'
+    )
 
     try:
         if action_type == ACTION_TYPE_PURCHASE_SAVINGS_PLAN:
@@ -319,7 +365,7 @@ async def get_reserved_instances_recommendation(
 
 
 async def get_compute_optimizer_data(
-    ctx: Context, recommendation: Dict[str, Any]
+    ctx: Context, recommendation: Dict[str, Any], target_account: str
 ) -> Dict[str, Any]:
     """Get additional data from Compute Optimizer for compute resource recommendations."""
     action_type = recommendation.get('actionType')
@@ -331,8 +377,13 @@ async def get_compute_optimizer_data(
         return {'error': 'No resource ARN found in recommendation'}
 
     try:
-        # Initialize Compute Optimizer client using shared utility
-        compute_optimizer = create_aws_client('compute-optimizer', region_name=region_name)
+        # Get Compute Optimizer client for the target account
+        # Note: Compute Optimizer is only available in us-east-1
+        compute_optimizer = credential_manager.get_client(
+            service='compute-optimizer',
+            account_id=target_account if target_account != credential_manager.current_account_id else None,
+            region='us-east-1'
+        )
 
         # Handle Stop and Delete recommendations
         if action_type in [ACTION_TYPE_STOP, ACTION_TYPE_DELETE]:

@@ -14,15 +14,15 @@
 
 """AWS Free Tier Usage tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     handle_aws_error,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -44,6 +44,11 @@ This tool provides insights into your AWS Free Tier usage across services:
    - Supports filtering by service, region, or usage type
    - Possible Dimensions values are: 'SERVICE'|'OPERATION'|'USAGE_TYPE'|'REGION'|'FREE_TIER_TYPE'|'DESCRIPTION'|'USAGE_PERCENTAGE'
    - Possible MatchOptions are: 'EQUALS'|'STARTS_WITH'|'ENDS_WITH'|'CONTAINS'|'GREATER_THAN_OR_EQUAL'
+
+Multi-account support:
+- Optionally specify account_id parameter to query Free Tier usage from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
    """,
 )
 async def free_tier_usage(
@@ -51,6 +56,8 @@ async def free_tier_usage(
     operation: str = 'get_free_tier_usage',
     filter: Optional[str] = None,
     max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves AWS Free Tier usage information using the Free Tier Usage API.
 
@@ -59,30 +66,57 @@ async def free_tier_usage(
         operation: The operation to perform: 'get_free_tier_usage'
         filter: Optional filter to apply to the results as a JSON string.
         max_results: Maximum number of results to return per page (1-1000). Defaults to 100.
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1, only supported region for Free Tier API)
 
     Returns:
-        Dict containing the free tier usage information
+        Dict containing the free tier usage information with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(f'Free Tier Usage operation: {operation}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
-        # Initialize Free Tier client using shared utility
-        freetier_client = create_aws_client('freetier', region_name='us-east-1')
+        # Get Free Tier client with appropriate credentials
+        # Note: Free Tier API is only available in us-east-1
+        freetier_client = credential_manager.get_client(
+            service='freetier',
+            account_id=account_id,
+            region='us-east-1'  # Free Tier only available in us-east-1
+        )
 
         if operation == 'get_free_tier_usage':
-            return await get_free_tier_usage_data(ctx, freetier_client, filter, max_results)
+            return await get_free_tier_usage_data(
+                ctx, freetier_client, filter, max_results, target_account, region
+            )
         else:
             return format_response(
-                'error', {}, f"Unsupported operation: {operation}. Use 'get_free_tier_usage'."
+                'error',
+                {
+                    'account_id': target_account,
+                    'region': region,
+                },
+                f"Unsupported operation: {operation}. Use 'get_free_tier_usage'.",
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'free_tier_usage', 'Free Tier Usage')
+        error_response = await handle_aws_error(ctx, e, 'free_tier_usage', 'Free Tier Usage')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_free_tier_usage_data(
-    ctx: Context, freetier_client: Any, filter_expr: Optional[str], max_results: Optional[int]
+    ctx: Context,
+    freetier_client: Any,
+    filter_expr: Optional[str],
+    max_results: Optional[int],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves Free Tier usage data.
 
@@ -91,9 +125,11 @@ async def get_free_tier_usage_data(
         freetier_client: Free Tier API client
         filter_expr: Optional filter as JSON string
         max_results: Maximum results to return
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing Free Tier usage data
+        Dict containing Free Tier usage data with account tracking
     """
     try:
         # Ensure max_results is within valid range (1-1000)
@@ -143,12 +179,26 @@ async def get_free_tier_usage_data(
         # Create categorized summaries
         summary = create_free_tier_usage_summary(all_usages)
 
-        # Return formatted response using shared utility
-        return format_response('success', {'freeTierUsages': all_usages, 'summary': summary})
+        # Return formatted response with account tracking
+        return format_response(
+            'success',
+            {
+                'account_id': target_account,
+                'region': region,
+                'freeTierUsages': all_usages,
+                'summary': summary,
+            },
+        )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_free_tier_usage_data', 'Free Tier Usage')
+        error_response = await handle_aws_error(
+            ctx, e, 'get_free_tier_usage_data', 'Free Tier Usage'
+        )
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, Any]:

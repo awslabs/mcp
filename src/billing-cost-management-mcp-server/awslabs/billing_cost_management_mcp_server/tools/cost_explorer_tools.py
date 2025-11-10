@@ -14,10 +14,11 @@
 
 """AWS Cost Explorer tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.aws_credentials import credential_manager
 from .cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -49,6 +50,12 @@ IMPORTANT USAGE GUIDELINES:
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
 
+MULTI-ACCOUNT SUPPORT:
+- Optionally specify account_id parameter to query costs from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+- Region defaults to us-east-1 (standard for Cost Explorer) but can be overridden
+
 USE THIS TOOL FOR:
 - **Historical cost trends** and spending analysis (any time period)
 - **Usage pattern analysis** over time
@@ -56,37 +63,39 @@ USE THIS TOOL FOR:
 - **Forecasting** future costs and usage
 - **Resource-level cost analysis** (last 14 days)
 - **Multi-dimensional cost analysis** with complex grouping
+- **Cross-account cost analysis** by specifying account_id
 
 ## OPERATIONS
 
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
-   Optional: group_by, filter, next_token, max_pages
+   Optional: group_by, filter, next_token, max_pages, account_id, region
    Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"SERVICE\"}]"}
+   Example (cross-account): {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "account_id": "123456789012"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by
+   Optional: metrics, group_by, account_id, region
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
    Required: operation="getDimensionValues", dimension, start_date, end_date
-   Optional: context, search_string, filter, max_results
+   Optional: context, search_string, filter, max_results, account_id, region
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
    Returns: List of values for specified dimension with automatic pagination
 
 4. getCostForecast - Future cost projections
    Required: operation="getCostForecast", metric, granularity, start_date, end_date
-   Optional: filter, prediction_interval_level
+   Optional: filter, prediction_interval_level, account_id, region
    Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
    Notes: metric value for this operation should be in all caps
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
    Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
-   Optional: prediction_interval_level
+   Optional: prediction_interval_level, account_id, region
    Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE_GROUP\", \"Values\": [\"EC2-Instance\"]}}"}
    Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"And\": [{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}, {\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\"]}}]}"}
    Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\", \"Reservation:p4de.24xlarge\", \"UnusedBox:p4de.24xlarge\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"REGION\"}]"}
@@ -95,20 +104,20 @@ USE THIS TOOL FOR:
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
-   Optional: start_date, end_date, search_string, next_token, max_pages
+   Optional: start_date, end_date, search_string, next_token, max_pages, account_id, region
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
 8. getCostCategories - Available cost categories
    Required: operation="getCostCategories", start_date, end_date
-   Optional: search_string, next_token, max_pages
+   Optional: search_string, next_token, max_pages, account_id, region
    Example: {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
    Returns: List of available cost categories with automatic pagination
 
 9. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization", start_date, end_date
-   Optional: granularity, filter
+   Optional: granularity, filter, account_id, region
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
    Notes: This operation supports only DAILY and MONTHLY granularity
    Returns: Savings Plans utilization for the specified time period
@@ -148,6 +157,8 @@ async def cost_explorer(
     prediction_interval_level: int = 80,
     tag_key: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Main entry point for Cost Explorer operations.
 
@@ -172,25 +183,15 @@ async def cost_explorer(
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Response from the operation handler
+        Response from the operation handler with account tracking
     """
-    await ctx.info(f'Cost Explorer operation: {operation}')
-
-    # Create Cost Explorer client
-    try:
-        ce_client = create_aws_client('ce')
-    except Exception as client_error:
-        await ctx.error(f'Failed to create AWS client: {str(client_error)}')
-        return format_response(
-            'error',
-            {
-                'error_type': 'client_creation_error',
-                'message': f'Failed to create AWS client: {str(client_error)}',
-                'details': repr(client_error),
-            },
-        )
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    await ctx.info(f'Cost Explorer operation: {operation} for account: {target_account} in region: {region}')
 
     # Route to the appropriate operation handler
     try:
@@ -199,7 +200,6 @@ async def cost_explorer(
         if operation == 'getCostAndUsage':
             return await get_cost_and_usage(
                 ctx,
-                ce_client,
                 start_date,
                 end_date,
                 granularity,
@@ -208,22 +208,33 @@ async def cost_explorer(
                 filter,
                 next_token,
                 max_pages,
+                account_id,
+                region,
             )
 
         elif operation == 'getCostAndUsageWithResources':
             return await get_cost_and_usage_with_resources(
-                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
+                ctx,
+                start_date,
+                end_date,
+                granularity,
+                metrics,
+                group_by,
+                filter,
+                account_id,
+                region,
             )
 
         elif operation == 'getDimensionValues':
             if not dimension:
-                return format_response(
+                error_response = format_response(
                     'error', {'message': 'dimension is required for getDimensionValues operation'}
                 )
+                error_response['account_id'] = target_account
+                return error_response
 
             return await get_dimension_values(
                 ctx,
-                ce_client,
                 dimension,
                 start_date,
                 end_date,
@@ -232,77 +243,103 @@ async def cost_explorer(
                 max_results,
                 next_token,
                 max_pages,
+                account_id,
+                region,
             )
 
         elif operation == 'getCostForecast':
             if not metric:
-                return format_response(
+                error_response = format_response(
                     'error', {'message': 'metric is required for getCostForecast operation'}
                 )
+                error_response['account_id'] = target_account
+                return error_response
 
             return await get_cost_forecast(
                 ctx,
-                ce_client,
                 metric,
                 start_date,
                 end_date,
                 granularity,
                 filter,
                 prediction_interval_level,
+                account_id,
+                region,
             )
 
         elif operation == 'getUsageForecast':
             if not metric:
-                return format_response(
+                error_response = format_response(
                     'error', {'message': 'metric is required for getUsageForecast operation'}
                 )
+                error_response['account_id'] = target_account
+                return error_response
 
             return await get_usage_forecast(
                 ctx,
-                ce_client,
                 metric,
                 start_date,
                 end_date,
                 granularity,
                 filter,
                 prediction_interval_level,
+                account_id,
+                region,
             )
 
         elif operation == 'getTagsOrValues':
             return await get_tags(
                 ctx,
-                ce_client,
                 start_date,
                 end_date,
                 search_string,
                 tag_key,
                 next_token,
                 max_pages,
+                account_id,
+                region,
             )
 
         elif operation == 'getCostCategories' or operation == 'getCostCategoryValues':
             return await get_cost_categories(
                 ctx,
-                ce_client,
                 start_date,
                 end_date,
                 search_string,
                 cost_category_name if operation == 'getCostCategoryValues' else None,
                 next_token,
                 max_pages,
+                account_id,
+                region,
             )
 
         elif operation == 'getSavingsPlansUtilization':
             return await get_savings_plans_utilization(
-                ctx, ce_client, start_date, end_date, granularity, filter, next_token, max_pages
+                ctx,
+                start_date,
+                end_date,
+                granularity,
+                filter,
+                next_token,
+                max_pages,
+                account_id,
+                region,
             )
 
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            error_response = format_response('error', {'message': f'Unknown operation: {operation}'})
+            error_response['account_id'] = target_account
+            return error_response
 
     except ClientError as e:
         # Let the shared handler take care of this
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response
     except Exception as e:
         # For all other exceptions, use the shared error handler
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response

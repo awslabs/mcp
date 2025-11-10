@@ -15,6 +15,7 @@
 """Helper functions for AWS Cost Optimization Hub operations.
 
 These functions handle the specific operations for the Cost Optimization Hub tool.
+Updated to include account tracking in all responses.
 """
 
 from ..utilities.aws_service_base import format_response
@@ -61,6 +62,8 @@ async def list_recommendations(
     max_results: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
     include_all_recommendations: Optional[bool] = None,
+    target_account: str = None,
+    region: str = None,
 ) -> Dict[str, Any]:
     """List recommendations from Cost Optimization Hub.
 
@@ -70,9 +73,11 @@ async def list_recommendations(
         max_results: Maximum total results to return across all pages; None means all available
         filters: Optional filters dictionary
         include_all_recommendations: Whether to include all recommendations
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing recommendations from all pages
+        Dict containing recommendations from all pages with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -149,6 +154,8 @@ async def list_recommendations(
             return format_response(
                 'success',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'recommendations': [],
                 },
             )
@@ -176,10 +183,12 @@ async def list_recommendations(
             }
             formatted_recommendations.append(recommendation)
 
-        # Return formatted response
+        # Return formatted response with account tracking
         return format_response(
             'success',
             {
+                'account_id': target_account,
+                'region': region,
                 'recommendations': formatted_recommendations,
             },
         )
@@ -192,21 +201,34 @@ async def list_recommendations(
             await ctx_logger.warning(f'Cost Optimization Hub validation error: {error_message}')
             return format_response(
                 'error',
-                {'error_code': error_code, 'error_message': error_message},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                    'error_message': error_message,
+                },
                 f'Cost Optimization Hub validation error: {error_message}',
             )
         elif error_code == 'AccessDeniedException':
             await ctx_logger.error(f'Access denied for Cost Optimization Hub: {error_message}')
             return format_response(
                 'error',
-                {'error_code': error_code},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                },
                 'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:ListRecommendations.',
             )
         elif error_code == 'ResourceNotFoundException':
             await ctx_logger.warning(f'Cost Optimization Hub resource not found: {error_message}')
             return format_response(
                 'error',
-                {'error_code': error_code},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                },
                 'Cost Optimization Hub resources not found. The service may not be enabled in this account or region.',
             )
         else:
@@ -220,7 +242,12 @@ async def list_recommendations(
 
 
 async def get_recommendation(
-    ctx: Context, coh_client: Any, resource_id: str, resource_type: str
+    ctx: Context,
+    coh_client: Any,
+    resource_id: str,
+    resource_type: str,
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Get detailed information about a specific recommendation.
 
@@ -229,9 +256,11 @@ async def get_recommendation(
         coh_client: Cost Optimization Hub client
         resource_id: Recommendation ID to retrieve
         resource_type: Resource type (for compatibility, not used in API call)
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing detailed recommendation information
+        Dict containing detailed recommendation information with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -254,6 +283,8 @@ async def get_recommendation(
             return format_response(
                 'warning',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'resource_id': resource_id,
                     'resource_type': resource_type,
                     'message': 'No recommendation found for the specified resource.',
@@ -263,13 +294,15 @@ async def get_recommendation(
 
         # Build response using actual API fields
         formatted_response = {
+            'account_id': target_account,
+            'region': region,
             'recommendation_id': recommendation.get('recommendationId'),
-            'account_id': recommendation.get('accountId'),
+            'resource_account_id': recommendation.get('accountId'),
             'resource_id': recommendation.get('resourceId'),
             'resource_arn': recommendation.get('resourceArn'),
             'current_resource_type': recommendation.get('currentResourceType'),
             'recommended_resource_type': recommendation.get('recommendedResourceType'),
-            'region': recommendation.get('region'),
+            'resource_region': recommendation.get('region'),
             'action_type': recommendation.get('actionType'),
             'estimated_monthly_savings': recommendation.get('estimatedMonthlySavings'),
             'estimated_savings_percentage': recommendation.get('estimatedSavingsPercentage'),
@@ -306,7 +339,12 @@ async def get_recommendation(
             await ctx_logger.warning(f'Validation error in get_recommendation: {error_message}')
             return format_response(
                 'error',
-                {'error_code': error_code, 'error_message': error_message},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                    'error_message': error_message,
+                },
                 f'Cost Optimization Hub validation error: {error_message}',
             )
         elif error_code == 'AccessDeniedException':
@@ -315,7 +353,11 @@ async def get_recommendation(
             )
             return format_response(
                 'error',
-                {'error_code': error_code},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                },
                 'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:GetRecommendation.',
             )
         elif error_code == 'ResourceNotFoundException':
@@ -323,6 +365,8 @@ async def get_recommendation(
             return format_response(
                 'warning',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'error_code': error_code,
                     'resource_id': resource_id,
                     'resource_type': resource_type,
@@ -344,6 +388,8 @@ async def list_recommendation_summaries(
     group_by: str,
     max_results: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
+    target_account: str = None,
+    region: str = None,
 ) -> Dict[str, Any]:
     """List recommendation summaries from Cost Optimization Hub.
 
@@ -353,9 +399,11 @@ async def list_recommendation_summaries(
         group_by: Grouping parameter
         max_results: Maximum total results to return across all pages; None means all available
         filters: Optional filters dictionary
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing recommendation summaries from all pages
+        Dict containing recommendation summaries from all pages with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -429,6 +477,8 @@ async def list_recommendation_summaries(
         if not all_summaries:
             await ctx_logger.info('No recommendation summaries found across any pages')
             formatted_response = {
+                'account_id': target_account,
+                'region': region,
                 'group_by': group_by,
                 'currency_code': 'USD',
                 'estimated_total_savings': 0,
@@ -445,8 +495,10 @@ async def list_recommendation_summaries(
             }
             formatted_summaries.append(formatted_summary)
 
-        # Format response
+        # Format response with account tracking
         formatted_response = {
+            'account_id': target_account,
+            'region': region,
             'group_by': response.get('groupBy') if response else group_by,
             'currency_code': response.get('currencyCode', 'USD') if response else 'USD',
             'estimated_total_savings': response.get('estimatedTotalDedupedSavings')
@@ -475,6 +527,8 @@ async def list_recommendation_summaries(
             return format_response(
                 'error',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'error_code': error_code,
                     'error_message': error_message,
                     'valid_group_by_values': [
@@ -490,13 +544,23 @@ async def list_recommendation_summaries(
         elif error_code in ['AccessDeniedException', 'UnauthorizedException']:
             return format_response(
                 'error',
-                {'error_code': error_code, 'error_message': error_message},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                    'error_message': error_message,
+                },
                 'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:ListRecommendationSummaries.',
             )
         elif error_code == 'ResourceNotFoundException':
             return format_response(
                 'error',
-                {'error_code': error_code, 'error_message': error_message},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                    'error_message': error_message,
+                },
                 'Cost Optimization Hub resources not found. The service may not be enabled in this account or region.',
             )
         else:
@@ -504,6 +568,8 @@ async def list_recommendation_summaries(
             return format_response(
                 'error',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'error_code': error_code,
                     'error_message': error_message,
                     'request_id': e.response.get('ResponseMetadata', {}).get(
@@ -519,6 +585,8 @@ async def list_recommendation_summaries(
         return format_response(
             'error',
             {
+                'account_id': target_account,
+                'region': region,
                 'error_type': 'service_error',
                 'service': 'Cost Optimization Hub',
                 'operation': 'list_recommendation_summaries',

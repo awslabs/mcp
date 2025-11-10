@@ -16,13 +16,16 @@
 
 This module provides functionality to create and query Athena tables for S3 Storage Lens data.
 See the resources/storage_lens_metrics_reference.md file for detailed metrics information and sample queries.
+
+Updated to use credential manager and support multi-account access.
 """
 
 import asyncio
 import json
 import os
 import re
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.constants import (
     ATHENA_MAX_RETRIES,
     ATHENA_RETRY_DELAY_SECONDS,
@@ -94,14 +97,22 @@ class AthenaQueryExecution(TypedDict):
 class ManifestHandler:
     """Handler for S3 Storage Lens manifest files."""
 
-    def __init__(self, ctx: Context):
+    def __init__(self, ctx: Context, account_id: Optional[str] = None, region: str = 'us-east-1'):
         """Initialize the S3 client.
 
         Args:
             ctx: MCP context for logging
+            account_id: Target AWS account ID (optional, uses current account if not provided)
+            region: AWS region for S3 client
         """
         self.ctx = ctx
-        self.s3_client = create_aws_client('s3')
+        self.account_id = account_id
+        self.region = region
+        self.s3_client = credential_manager.get_client(
+            service='s3',
+            account_id=account_id,
+            region=region
+        )
 
     async def get_manifest(self, manifest_location: str) -> Dict[str, Any]:
         """Locate and parse the manifest file from S3.
@@ -292,15 +303,23 @@ class ManifestHandler:
 class AthenaHandler:
     """Handler for Athena operations on S3 Storage Lens data."""
 
-    def __init__(self, ctx: Context):
+    def __init__(self, ctx: Context, account_id: Optional[str] = None, region: str = 'us-east-1'):
         """Initialize the Athena client.
 
         Args:
             ctx: MCP context for logging
+            account_id: Target AWS account ID (optional, uses current account if not provided)
+            region: AWS region for Athena client (default: us-east-1)
         """
         self.ctx = ctx
-        # Create Athena client using shared utility function
-        self.athena_client = create_aws_client('athena')
+        self.account_id = account_id
+        self.region = region
+        # Create Athena client using credential manager
+        self.athena_client = credential_manager.get_client(
+            service='athena',
+            account_id=account_id,
+            region=region
+        )
 
     async def create_database(self, database_name: str, output_location: str) -> None:
         """Create an Athena database if it doesn't exist.
@@ -446,7 +465,6 @@ class AthenaHandler:
 
         except Exception as e:
             await self.ctx.error(f'Error starting Athena query: {str(e)}')
-            # Use shared error handler
             raise Exception(f'Error starting Athena query: {str(e)}')
 
     async def wait_for_query_completion(
@@ -497,7 +515,6 @@ class AthenaHandler:
             return {'status': 'ERROR', 'message': 'Query timed out'}
 
         except Exception as e:
-            # Use shared error handler for consistent error reporting
             await self.ctx.error(f'Error waiting for query completion: {str(e)}')
             raise
 
@@ -538,7 +555,6 @@ class AthenaHandler:
             return {'columns': columns, 'rows': rows}
 
         except Exception as e:
-            # Use shared error handler for consistent error reporting
             await self.ctx.error(f'Error getting query results: {str(e)}')
             raise
 
@@ -566,15 +582,19 @@ class AthenaHandler:
 class StorageLensQueryTool:
     """Tool for querying S3 Storage Lens metrics using Athena."""
 
-    def __init__(self, ctx: Context):
+    def __init__(self, ctx: Context, account_id: Optional[str] = None, region: str = 'us-east-1'):
         """Initialize the manifest and Athena handlers.
 
         Args:
             ctx: MCP context for logging
+            account_id: Target AWS account ID (optional, uses current account if not provided)
+            region: AWS region for S3 and Athena clients
         """
         self.ctx = ctx
-        self.manifest_handler = ManifestHandler(ctx)
-        self.athena_handler = AthenaHandler(ctx)
+        self.account_id = account_id
+        self.region = region
+        self.manifest_handler = ManifestHandler(ctx, account_id, region)
+        self.athena_handler = AthenaHandler(ctx, account_id, region)
 
     async def query_storage_lens(
         self,
@@ -594,8 +614,11 @@ class StorageLensQueryTool:
             output_location: S3 location for query results (optional)
 
         Returns:
-            Dict[str, Any]: Query results and metadata
+            Dict[str, Any]: Query results and metadata with account tracking
         """
+        # Track the account being queried
+        target_account = self.account_id or credential_manager.current_account_id
+        
         try:
             # 1. Locate and parse manifest file
             manifest = await self.manifest_handler.get_manifest(manifest_location)
@@ -644,7 +667,7 @@ class StorageLensQueryTool:
                 query_result['query_execution_id']
             )
 
-            # 9. Add query statistics and metadata
+            # 9. Add query statistics and metadata with account tracking
             stats = execution_details['Statistics']
             formatted_response = {
                 'execution_time_ms': stats.get('TotalExecutionTimeInMillis', 0),
@@ -655,13 +678,19 @@ class StorageLensQueryTool:
                 'query': formatted_query,
                 'manifest_location': manifest_location,
                 'data_location': data_location,
+                'account_id': target_account,
+                'region': self.region,
             }
 
             return format_response('success', formatted_response)
 
         except Exception as e:
-            # Use shared error handler for consistent error reporting
-            return await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
+            # Use shared error handler with account tracking
+            error_response = await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
+            if isinstance(error_response, dict):
+                error_response['account_id'] = target_account
+                error_response['region'] = self.region
+            return error_response
 
 
 @storage_lens_server.tool(
@@ -673,6 +702,12 @@ IMPORTANT USAGE GUIDELINES:
 - Use standard SQL syntax for Athena queries
 - Use {table} as a placeholder for the Storage Lens metrics table name
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions
+
+MULTI-ACCOUNT SUPPORT:
+- Optionally specify account_id parameter to query Storage Lens data from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+- Region defaults to us-east-1 but can be overridden
 
 This tool allows you to analyze S3 Storage Lens metrics data using SQL queries.
 Storage Lens provides metrics about your S3 storage, including:
@@ -771,6 +806,8 @@ async def storage_lens_run_query(
     output_location: Optional[str] = None,
     database_name: Optional[str] = None,
     table_name: Optional[str] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Query S3 Storage Lens metrics data using Athena SQL.
 
@@ -781,10 +818,16 @@ async def storage_lens_run_query(
         output_location: S3 location for Athena query results (overrides environment variable)
         database_name: Athena database name (defaults to 'storage_lens_db')
         table_name: Athena table name (defaults to 'storage_lens_metrics')
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the query results and metadata
+        Dict containing the query results and metadata with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    await ctx.info(f'Storage Lens query for account: {target_account} in region: {region}')
+
     try:
         # Log the request
         await ctx.info(f'Running Storage Lens query: {query}')
@@ -792,11 +835,14 @@ async def storage_lens_run_query(
         # Get manifest location from args or environment variable
         manifest_loc = manifest_location or os.environ.get(ENV_STORAGE_LENS_MANIFEST_LOCATION, '')
         if not manifest_loc:
-            return format_response(
+            error_response = format_response(
                 'error',
                 {},
                 f"Missing manifest location. Provide 'manifest_location' parameter or set {ENV_STORAGE_LENS_MANIFEST_LOCATION} environment variable.",
             )
+            error_response['account_id'] = target_account
+            error_response['region'] = region
+            return error_response
 
         # Get output location from args or environment variable (optional)
         output_loc = output_location or os.environ.get(ENV_STORAGE_LENS_OUTPUT_LOCATION, '')
@@ -805,8 +851,8 @@ async def storage_lens_run_query(
         db_name = database_name or STORAGE_LENS_DEFAULT_DATABASE
         tbl_name = table_name or STORAGE_LENS_DEFAULT_TABLE
 
-        # Create the query tool
-        query_tool = StorageLensQueryTool(ctx)
+        # Create the query tool with account and region
+        query_tool = StorageLensQueryTool(ctx, account_id, region)
 
         # Execute the query
         result = await query_tool.query_storage_lens(
@@ -820,5 +866,9 @@ async def storage_lens_run_query(
         return result
 
     except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'storage_lens_run_query', 'Athena')
+        # Use shared error handler with account tracking
+        error_response = await handle_aws_error(ctx, e, 'storage_lens_run_query', 'Athena')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+            error_response['region'] = region
+        return error_response

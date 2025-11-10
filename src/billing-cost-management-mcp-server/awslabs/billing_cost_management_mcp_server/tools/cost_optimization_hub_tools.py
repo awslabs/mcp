@@ -14,15 +14,15 @@
 
 """AWS Cost Optimization Hub tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     handle_aws_error,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.constants import (
     COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
     OPERATION_GET_RECOMMENDATION,
@@ -60,6 +60,11 @@ USE THIS TOOL FOR:
 - **Monthly cost reduction opportunities**
 
 DO NOT USE FOR: Performance optimization (use compute-optimizer)
+
+Multi-account support:
+- Optionally specify account_id parameter to query recommendations from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
 
 Supported Operations:
 1. list_recommendation_summaries: High-level overview of savings opportunities grouped by a dimension
@@ -108,6 +113,8 @@ async def cost_optimization_hub(
     filters: Optional[str] = None,
     group_by: Optional[str] = None,
     include_all_recommendations: Optional[bool] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves recommendations from AWS Cost Optimization Hub.
 
@@ -120,20 +127,31 @@ async def cost_optimization_hub(
         filters: Optional filter expression as JSON string
         group_by: Optional grouping parameter for list_recommendation_summaries
         include_all_recommendations: Whether to include all recommendations
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1, only supported region for Cost Optimization Hub)
 
     Returns:
-        Dict containing the Cost Optimization Hub recommendations
+        Dict containing the Cost Optimization Hub recommendations with account tracking
 
     Note:
         This function automatically fetches all pages of results and combines them into
         a single response when multiple pages are available.
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         # Log the request
         await ctx.info(f'Cost Optimization Hub operation: {operation}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
-        # Initialize Cost Optimization Hub client using shared utility
-        coh_client = create_aws_client('cost-optimization-hub', region_name='us-east-1')
+        # Get Cost Optimization Hub client with appropriate credentials
+        # Note: Cost Optimization Hub is only available in us-east-1
+        coh_client = credential_manager.get_client(
+            service='cost-optimization-hub',
+            account_id=account_id,
+            region='us-east-1'  # COH only available in us-east-1
+        )
         await ctx.info('Created Cost Optimization Hub client in region us-east-1')
 
         # Validate operation-specific requirements
@@ -141,7 +159,11 @@ async def cost_optimization_hub(
             if not group_by:
                 return format_response(
                     'error',
-                    {'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES},
+                    {
+                        'account_id': target_account,
+                        'region': region,
+                        'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
+                    },
                     'group_by parameter is required for list_recommendation_summaries operation. Must be one of: ACCOUNT_ID, RECOMMENDATION_TYPE, RESOURCE_TYPE, TAG, USAGE_TYPE',
                 )
 
@@ -150,6 +172,8 @@ async def cost_optimization_hub(
                 return format_response(
                     'error',
                     {
+                        'account_id': target_account,
+                        'region': region,
                         'provided_group_by': group_by,
                         'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
                     },
@@ -160,7 +184,10 @@ async def cost_optimization_hub(
             if not resource_id or not resource_type:
                 return format_response(
                     'error',
-                    {},
+                    {
+                        'account_id': target_account,
+                        'region': region,
+                    },
                     'Both resource_id and resource_type are required for get_recommendation operation',
                 )
 
@@ -179,6 +206,8 @@ async def cost_optimization_hub(
                     group_by=effective_group_by,
                     max_results=int(max_results) if max_results else None,
                     filters=parsed_filters,
+                    target_account=target_account,
+                    region=region,
                 )
 
                 # Add the operation parameters to the response for diagnostics
@@ -200,6 +229,8 @@ async def cost_optimization_hub(
                 return format_response(
                     'error',
                     {
+                        'account_id': target_account,
+                        'region': region,
                         'error_type': 'service_error',
                         'service': 'Cost Optimization Hub',
                         'operation': 'list_recommendation_summaries',
@@ -215,7 +246,13 @@ async def cost_optimization_hub(
                 parsed_filters = parse_json(filters, 'filters') if filters else None
 
                 result = await list_recommendations(
-                    ctx, coh_client, max_results, parsed_filters, include_all_recommendations
+                    ctx,
+                    coh_client,
+                    max_results,
+                    parsed_filters,
+                    include_all_recommendations,
+                    target_account,
+                    region,
                 )
 
                 # Add the operation parameters to the response for diagnostics
@@ -235,6 +272,8 @@ async def cost_optimization_hub(
                 return format_response(
                     'error',
                     {
+                        'account_id': target_account,
+                        'region': region,
                         'error_type': 'service_error',
                         'service': 'Cost Optimization Hub',
                         'operation': 'list_recommendations',
@@ -248,25 +287,35 @@ async def cost_optimization_hub(
                 return format_response(
                     'error',
                     {
-                        'message': 'Both resource_id and resource_type are required for get_recommendation operation'
+                        'account_id': target_account,
+                        'region': region,
+                        'message': 'Both resource_id and resource_type are required for get_recommendation operation',
                     },
                 )
-            return await get_recommendation(ctx, coh_client, str(resource_id), str(resource_type))
+            return await get_recommendation(
+                ctx, coh_client, str(resource_id), str(resource_type), target_account, region
+            )
 
         else:
             # Return error for unsupported operations
             return format_response(
                 'error',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'supported_operations': [
                         OPERATION_LIST_RECOMMENDATION_SUMMARIES,
                         OPERATION_LIST_RECOMMENDATIONS,
                         OPERATION_GET_RECOMMENDATION,
-                    ]
+                    ],
                 },
                 f"Unsupported operation: {operation}. Use '{OPERATION_LIST_RECOMMENDATION_SUMMARIES}', '{OPERATION_LIST_RECOMMENDATIONS}', or '{OPERATION_GET_RECOMMENDATION}'.",
             )
 
     except Exception as e:
         await ctx.error(f'Error in Cost Optimization Hub operation {operation}: {str(e)}')
-        return await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')
+        error_response = await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response

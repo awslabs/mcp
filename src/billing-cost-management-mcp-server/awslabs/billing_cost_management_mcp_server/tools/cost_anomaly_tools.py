@@ -14,15 +14,15 @@
 
 """AWS Cost Anomaly Detection tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     handle_aws_error,
     validate_date_format,
 )
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
@@ -51,7 +51,12 @@ You can filter anomalies by:
 Feedback status options:
 - YES: Anomalies marked as accurate
 - NO: Anomalies marked as inaccurate
-- PLANNED_ACTIVITY: Anomalies marked as planned activities""",
+- PLANNED_ACTIVITY: Anomalies marked as planned activities
+
+Multi-account support:
+- Optionally specify account_id parameter to query anomalies from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts""",
 )
 async def cost_anomaly(
     ctx: Context,
@@ -63,6 +68,8 @@ async def cost_anomaly(
     total_impact_operator: Optional[str] = None,
     total_impact_start: Optional[float] = None,
     total_impact_end: Optional[float] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
 
@@ -76,26 +83,41 @@ async def cost_anomaly(
         total_impact_operator: Optional numeric operator for filtering by total impact (EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, BETWEEN).
         total_impact_start: Optional start value for total impact filter.
         total_impact_end: Optional end value for total impact filter (required when using BETWEEN operator).
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the cost anomaly information
+        Dict containing the cost anomaly information with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
+        await ctx_logger.info(f'Querying account: {target_account} in region: {region}')
+        
         # Validate date formats first
         if not validate_date_format(start_date):
             return format_response(
                 'error',
-                {'invalid_parameter': 'start_date'},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'invalid_parameter': 'start_date',
+                },
                 f'Invalid start_date format: {start_date}. Date must be in YYYY-MM-DD format.',
             )
 
         if not validate_date_format(end_date):
             return format_response(
                 'error',
-                {'invalid_parameter': 'end_date'},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'invalid_parameter': 'end_date',
+                },
                 f'Invalid end_date format: {end_date}. Date must be in YYYY-MM-DD format.',
             )
 
@@ -111,7 +133,12 @@ async def cost_anomaly(
         if start_date_obj > end_date_obj:
             return format_response(
                 'error',
-                {'start_date': start_date, 'end_date': end_date},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                },
                 'Invalid date range: start_date must be before or equal to end_date.',
             )
 
@@ -119,7 +146,11 @@ async def cost_anomaly(
         if end_date_obj > today:
             return format_response(
                 'error',
-                {'end_date': end_date},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'end_date': end_date,
+                },
                 'Invalid end_date: Cannot request anomalies for future dates.',
             )
 
@@ -131,7 +162,7 @@ async def cost_anomaly(
                 f'Some data may not be available.'
             )
 
-        # For 2024 data specifically (reported issue)
+        # For recent data (reported issue)
         current_year = today.year
         if start_date_obj.year == current_year or end_date_obj.year == current_year:
             # Check if we're in early January and querying current year data
@@ -145,7 +176,12 @@ async def cost_anomaly(
         if feedback and feedback not in ['YES', 'NO', 'PLANNED_ACTIVITY']:
             return format_response(
                 'error',
-                {'invalid_parameter': 'feedback', 'value': feedback},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'invalid_parameter': 'feedback',
+                    'value': feedback,
+                },
                 f'Invalid feedback value: {feedback}. Must be one of: YES, NO, PLANNED_ACTIVITY.',
             )
 
@@ -161,7 +197,12 @@ async def cost_anomaly(
         if total_impact_operator and total_impact_operator not in valid_operators:
             return format_response(
                 'error',
-                {'invalid_parameter': 'total_impact_operator', 'value': total_impact_operator},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'invalid_parameter': 'total_impact_operator',
+                    'value': total_impact_operator,
+                },
                 f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}',
             )
 
@@ -169,14 +210,22 @@ async def cost_anomaly(
         if total_impact_operator == 'BETWEEN' and total_impact_end is None:
             return format_response(
                 'error',
-                {'missing_parameter': 'total_impact_end'},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'missing_parameter': 'total_impact_end',
+                },
                 'When using BETWEEN operator for total_impact, both total_impact_start and total_impact_end must be provided.',
             )
 
         await ctx_logger.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
 
-        # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client('ce', region_name='us-east-1')
+        # Get Cost Explorer client with appropriate credentials
+        ce_client = credential_manager.get_client(
+            service='ce',
+            account_id=account_id,
+            region=region
+        )
 
         return await get_anomalies(
             ctx,
@@ -189,12 +238,20 @@ async def cost_anomaly(
             total_impact_operator,
             total_impact_start,
             total_impact_end,
+            target_account,
+            region,
         )
 
     except ValueError as e:
         # Handle date parsing errors
         return format_response(
-            'error', {'error_type': 'validation_error'}, f'Date validation error: {str(e)}'
+            'error',
+            {
+                'account_id': target_account,
+                'region': region,
+                'error_type': 'validation_error',
+            },
+            f'Date validation error: {str(e)}',
         )
     except ClientError as e:
         # Handle AWS service-specific errors
@@ -202,26 +259,42 @@ async def cost_anomaly(
         error_message = e.response.get('Error', {}).get('Message')
 
         if error_code == 'ValidationException' and '2024' in error_message:
-            # Special handling for 2024 data issues
+            # Special handling for recent data issues
             return format_response(
                 'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                },
+                f'Cost Anomaly Detection validation error for recent data: {error_message}. '
                 f'Note that cost anomalies may not be available yet for very recent data. '
                 f'Try querying a date range that ends at least 24-48 hours in the past.',
             )
         elif error_code == 'ValidationException':
             return format_response(
                 'error',
-                {'error_code': error_code},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'error_code': error_code,
+                },
                 f'Cost Anomaly Detection validation error: {error_message}',
             )
         else:
             # Use shared error handler for other AWS errors
-            raise
+            error_response = await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
+            if isinstance(error_response, dict) and 'data' in error_response:
+                error_response['data']['account_id'] = target_account
+                error_response['data']['region'] = region
+            return error_response
     except Exception as e:
         # Use shared error handler for other exceptions
-        return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_anomalies(
@@ -235,6 +308,8 @@ async def get_anomalies(
     total_impact_operator: Optional[str],
     total_impact_start: Optional[float],
     total_impact_end: Optional[float],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves cost anomalies using the AWS Cost Explorer GetAnomalies API.
 
@@ -249,9 +324,11 @@ async def get_anomalies(
         total_impact_operator: Optional numeric operator for filtering
         total_impact_start: Optional start value for total impact filter
         total_impact_end: Optional end value for total impact filter
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing anomaly data
+        Dict containing anomaly data with account tracking
     """
     try:
         # Prepare the request parameters
@@ -305,7 +382,11 @@ async def get_anomalies(
                 break
 
         # Format the response for better readability
-        formatted_response: Dict[str, Any] = {'anomalies': []}
+        formatted_response: Dict[str, Any] = {
+            'account_id': target_account,
+            'region': region,
+            'anomalies': [],
+        }
 
         for anomaly in all_anomalies:
             formatted_anomaly = {
@@ -358,4 +439,8 @@ async def get_anomalies(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_anomalies', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'get_anomalies', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response

@@ -15,23 +15,28 @@
 """AWS Pricing operations for the AWS Billing and Cost Management MCP server.
 
 This module contains the individual operation handlers for the AWS Pricing tool.
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 import json
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     get_pricing_region,
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_api_response_to_table
+from ..utilities.aws_credentials import credential_manager
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
-async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
+async def get_service_codes(
+    ctx: Context,
+    max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
+) -> Dict[str, Any]:
     """Retrieve all available service codes from AWS Price List API.
 
     Uses shared utilities for client creation and response formatting.
@@ -39,15 +44,28 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
     Args:
         ctx: MCP context
         max_results: Maximum number of results to return
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing service codes
+        Dict containing service codes with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
-        await ctx.info('Retrieving AWS service codes from Price List API')
+        await ctx.info(f'Retrieving AWS service codes from Price List API for account: {target_account}')
 
-        # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        # Determine correct pricing region
+        pricing_region = get_pricing_region(region)
+        await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
+
+        # Get pricing client with appropriate credentials
+        pricing_client = credential_manager.get_client(
+            service='pricing',
+            account_id=account_id,
+            region=pricing_region
+        )
 
         # Initialize collection variables
         service_codes = []
@@ -90,6 +108,8 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
         return format_response(
             'success',
             {
+                'account_id': target_account,
+                'region': region,
                 'service_codes': sorted_codes,
                 'total_count': len(sorted_codes),
                 'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
@@ -98,24 +118,49 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
 
     except Exception as e:
         # Use standard error format
-        return format_response('error', {'message': f'Error retrieving service codes: {str(e)}'})
+        return format_response(
+            'error',
+            {
+                'account_id': target_account,
+                'region': region,
+                'message': f'Error retrieving service codes: {str(e)}',
+            },
+        )
 
 
-async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, Any]:
+async def get_service_attributes(
+    ctx: Context,
+    service_code: str,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
+) -> Dict[str, Any]:
     """Retrieve all available attributes for a specific AWS service.
 
     Args:
         ctx: MCP context
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3')
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing service attributes
+        Dict containing service attributes with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
-        await ctx.info(f'Retrieving attributes for service: {service_code}')
+        await ctx.info(f'Retrieving attributes for service: {service_code} in account: {target_account}')
 
-        # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        # Determine correct pricing region
+        pricing_region = get_pricing_region(region)
+        await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
+
+        # Get pricing client with appropriate credentials
+        pricing_client = credential_manager.get_client(
+            service='pricing',
+            account_id=account_id,
+            region=pricing_region
+        )
 
         # Make API call
         response = pricing_client.describe_services(ServiceCode=service_code)
@@ -123,7 +168,12 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         # Check if service exists
         if not response.get('Services'):
             return format_response(
-                'error', {'message': f'No service found with code: {service_code}'}
+                'error',
+                {
+                    'account_id': target_account,
+                    'region': region,
+                    'message': f'No service found with code: {service_code}',
+                },
             )
 
         # Extract attributes
@@ -138,6 +188,8 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         return format_response(
             'success',
             {
+                'account_id': target_account,
+                'region': region,
                 'service_code': service_code,
                 'attributes': sorted_attributes,
                 'total_count': len(sorted_attributes),
@@ -149,12 +201,21 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         # Use standard error format
         return format_response(
             'error',
-            {'message': f'Failed to retrieve attributes for service {service_code}: {str(e)}'},
+            {
+                'account_id': target_account,
+                'region': region,
+                'message': f'Failed to retrieve attributes for service {service_code}: {str(e)}',
+            },
         )
 
 
 async def get_attribute_values(
-    ctx: Context, service_code: str, attribute_name: str, max_results: Optional[int] = None
+    ctx: Context,
+    service_code: str,
+    attribute_name: str,
+    max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieve all possible values for a specific attribute of an AWS service.
 
@@ -163,17 +224,30 @@ async def get_attribute_values(
         service_code: AWS service code
         attribute_name: Service attribute name
         max_results: Maximum number of results to return
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing attribute values
+        Dict containing attribute values with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(
-            f"Retrieving values for attribute '{attribute_name}' of service '{service_code}'"
+            f"Retrieving values for attribute '{attribute_name}' of service '{service_code}' in account: {target_account}"
         )
 
-        # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', 'us-east-1')
+        # Determine correct pricing region
+        pricing_region = get_pricing_region(region)
+        await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
+
+        # Get pricing client with appropriate credentials
+        pricing_client = credential_manager.get_client(
+            service='pricing',
+            account_id=account_id,
+            region=pricing_region
+        )
 
         # Initialize collection variables
         values = []
@@ -220,6 +294,8 @@ async def get_attribute_values(
         return format_response(
             'success',
             {
+                'account_id': target_account,
+                'region': region,
                 'service_code': service_code,
                 'attribute_name': attribute_name,
                 'values': sorted_values,
@@ -233,7 +309,9 @@ async def get_attribute_values(
         return format_response(
             'error',
             {
-                'message': f'Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}'
+                'account_id': target_account,
+                'region': region,
+                'message': f'Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}',
             },
         )
 
@@ -241,33 +319,42 @@ async def get_attribute_values(
 async def get_pricing_from_api(
     ctx: Context,
     service_code: str,
-    region: str,
+    region: str = 'us-east-1',
     filters: Optional[str] = None,
     max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get pricing information from AWS Price List API.
 
     Args:
         ctx: MCP context
         service_code: AWS service code
-        region: AWS region
+        region: AWS region (default: us-east-1)
         filters: Optional filters as JSON string
         max_results: Maximum number of results to return
+        account_id: Target AWS account ID (optional, uses current account if not provided)
 
     Returns:
-        Dict containing pricing data
+        Dict containing pricing data with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(
-            f"Retrieving pricing data for service '{service_code}' in region '{region}'"
+            f"Retrieving pricing data for service '{service_code}' in region '{region}' for account: {target_account}"
         )
 
         # Determine correct pricing region
         pricing_region = get_pricing_region(region)
         await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
 
-        # Create pricing client using shared utility
-        pricing_client = create_aws_client('pricing', pricing_region)
+        # Get pricing client with appropriate credentials
+        pricing_client = credential_manager.get_client(
+            service='pricing',
+            account_id=account_id,
+            region=pricing_region
+        )
 
         # Process filters
         api_filters = []
@@ -324,6 +411,8 @@ async def get_pricing_from_api(
             return format_response(
                 'error',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'message': f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
                     'examples': {
                         'OpenSearch': 'AmazonES',
@@ -336,6 +425,7 @@ async def get_pricing_from_api(
 
         # Create response with raw data
         raw_response = {
+            'account_id': target_account,
             'service_code': service_code,
             'region': region,
             'filter_count': len(api_filters),
@@ -348,8 +438,9 @@ async def get_pricing_from_api(
             ctx, raw_response, 'getPricing', service_code=service_code, region=region
         )
 
-        # If table was created, return that, otherwise process the response for easier consumption
+        # If table was created, add account_id and return
         if isinstance(table_response, dict) and 'data_stored' in table_response:
+            table_response['account_id'] = target_account
             return format_response('success', table_response)
 
         # Process the pricing data for easier consumption
@@ -445,6 +536,7 @@ async def get_pricing_from_api(
 
         # Use shared format_response utility
         result = {
+            'account_id': target_account,
             'service_code': service_code,
             'region': region,
             'filter_count': len(api_filters),
@@ -467,6 +559,7 @@ async def get_pricing_from_api(
         return format_response(
             'error',
             {
+                'account_id': target_account,
                 'message': f'Pricing API request failed: {str(e)}',
                 'service_code': service_code,
                 'region': region,

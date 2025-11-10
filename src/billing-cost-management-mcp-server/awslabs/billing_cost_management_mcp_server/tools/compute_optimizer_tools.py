@@ -14,15 +14,15 @@
 
 """AWS Compute Optimizer tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     handle_aws_error,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
@@ -48,6 +48,11 @@ USE THIS TOOL FOR:
 
 DO NOT USE FOR: Cost optimization or idle detection (use cost-optimization-hub)
 
+Multi-account support:
+- Optionally specify account_id parameter to query recommendations from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+
 This tool supports the following operations:
 1. get_ec2_instance_recommendations: Get recommendations for EC2 instances
 2. get_auto_scaling_group_recommendations: Get recommendations for Auto Scaling groups
@@ -71,6 +76,8 @@ async def compute_optimizer(
     filters: Optional[str] = None,
     account_ids: Optional[str] = None,
     next_token: Optional[str] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves recommendations from AWS Compute Optimizer.
 
@@ -79,21 +86,32 @@ async def compute_optimizer(
         operation: The operation to perform (e.g., 'get_ec2_instance_recommendations')
         max_results: Maximum number of results to return (1-100)
         filters: Optional filter expression as JSON string
-        account_ids: Optional list of AWS account IDs as JSON array string
+        account_ids: Optional list of AWS account IDs as JSON array string (for filtering recommendations)
         next_token: Optional pagination token from a previous response
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the Compute Optimizer recommendations
+        Dict containing the Compute Optimizer recommendations with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
         # Log the request
         await ctx_logger.info(f'Compute Optimizer operation: {operation}')
+        await ctx_logger.info(f'Querying account: {target_account} in region: {region}')
 
-        # Initialize Compute Optimizer client using shared utility
-        co_client = create_aws_client('compute-optimizer', region_name='us-east-1')
+        # Get Compute Optimizer client with appropriate credentials
+        # Note: Compute Optimizer is only available in us-east-1
+        co_client = credential_manager.get_client(
+            service='compute-optimizer',
+            account_id=account_id,
+            region='us-east-1'  # Compute Optimizer only available in us-east-1
+        )
 
         # Check enrollment status first to provide better error messages
         try:
@@ -120,6 +138,8 @@ async def compute_optimizer(
                     return format_response(
                         'error',
                         {
+                            'account_id': target_account,
+                            'region': region,
                             'error_type': 'enrollment_error',
                             'enrollment_status': status,
                             'operation': operation,
@@ -144,32 +164,34 @@ async def compute_optimizer(
         # Process the operation
         if operation == 'get_ec2_instance_recommendations':
             return await get_ec2_instance_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         elif operation == 'get_auto_scaling_group_recommendations':
             return await get_auto_scaling_group_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         elif operation == 'get_ebs_volume_recommendations':
             return await get_ebs_volume_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         elif operation == 'get_lambda_function_recommendations':
             return await get_lambda_function_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         elif operation == 'get_rds_recommendations':
             return await get_rds_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         elif operation == 'get_ecs_service_recommendations':
             return await get_ecs_service_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token
+                ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
             )
         else:
             return format_response(
                 'error',
                 {
+                    'account_id': target_account,
+                    'region': region,
                     'error_type': 'invalid_operation',
                     'provided_operation': operation,
                     'valid_operations': [
@@ -198,6 +220,8 @@ async def compute_optimizer(
             'error_type': 'access_denied',  # Default, will be overridden
             'message': 'An error occurred',  # Default, will be overridden
             'data': {
+                'account_id': target_account,
+                'region': region,
                 'service': 'Compute Optimizer',
                 'operation': operation,
                 'aws_error_code': error_code,
@@ -269,8 +293,12 @@ async def compute_optimizer(
             await ctx_logger.error(f'Resource not found: {aws_message}', exc_info=True)
 
         else:
-            # For other AWS errors, use the generic handler
-            return await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            # For other AWS errors, use the generic handler and add account tracking
+            error_response = await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+            if isinstance(error_response, dict) and 'data' in error_response:
+                error_response['data']['account_id'] = target_account
+                error_response['data']['region'] = region
+            return error_response
 
         return error_response
 
@@ -281,6 +309,8 @@ async def compute_optimizer(
             'error_type': 'validation_error',
             'service': 'Compute Optimizer',
             'operation': operation,
+            'account_id': target_account,
+            'region': region,
             'message': f'Invalid parameter: {str(e)}',
             'details': str(e),
         }
@@ -295,11 +325,15 @@ async def compute_optimizer(
         )
 
         # Use shared error handler for other unexpected exceptions
-        return await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+        error_response = await handle_aws_error(ctx, e, operation, 'Compute Optimizer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_ec2_instance_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
 ):
     """Get EC2 instance recommendations."""
     # Prepare the request parameters
@@ -325,6 +359,8 @@ async def get_ec2_instance_recommendations(
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }
@@ -366,7 +402,7 @@ async def get_ec2_instance_recommendations(
 
 
 async def get_auto_scaling_group_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
 ):
     """Get Auto Scaling group recommendations."""
     # Prepare the request parameters
@@ -392,6 +428,8 @@ async def get_auto_scaling_group_recommendations(
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }
@@ -433,7 +471,7 @@ async def get_auto_scaling_group_recommendations(
 
 
 async def get_ebs_volume_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
 ):
     """Get EBS volume recommendations."""
     # Prepare the request parameters
@@ -459,6 +497,8 @@ async def get_ebs_volume_recommendations(
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }
@@ -509,7 +549,7 @@ async def get_ebs_volume_recommendations(
 
 
 async def get_lambda_function_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
 ):
     """Get Lambda function recommendations."""
     # Prepare the request parameters
@@ -535,6 +575,8 @@ async def get_lambda_function_recommendations(
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }
@@ -575,7 +617,9 @@ async def get_lambda_function_recommendations(
     return format_response('success', formatted_response)
 
 
-async def get_rds_recommendations(ctx, co_client, max_results, filters, account_ids, next_token):
+async def get_rds_recommendations(
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
+):
     """Get RDS instance recommendations.
 
     Args:
@@ -585,9 +629,11 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
         filters: Optional filters as JSON string
         account_ids: Optional list of account IDs as JSON string
         next_token: Pagination token
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing RDS instance recommendations
+        Dict containing RDS instance recommendations with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -618,6 +664,8 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }
@@ -662,7 +710,7 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
 
 async def get_ecs_service_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token
+    ctx, co_client, max_results, filters, account_ids, next_token, target_account, region
 ):
     """Get ECS service recommendations."""
     # Get context logger for consistent logging
@@ -694,6 +742,8 @@ async def get_ecs_service_recommendations(
 
     # Format the response for better readability
     formatted_response: Dict[str, Any] = {
+        'account_id': target_account,
+        'region': region,
         'recommendations': [],
         'next_token': response.get('nextToken'),
     }

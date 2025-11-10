@@ -14,10 +14,11 @@
 
 """AWS Budgets tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.aws_credentials import credential_manager
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -41,6 +42,11 @@ The API returns information about:
 
 With this information, you can determine which budgets have been exceeded or are projected to exceed their limits.
 
+Multi-account support:
+- Optionally specify account_id parameter to query budgets from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+
 The tool automatically retrieves the AWS account ID of the calling identity or uses the provided account_id.""",
 )
 async def budgets(
@@ -48,6 +54,7 @@ async def budgets(
     budget_name: Optional[str] = None,
     max_results: int = 100,
     account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves AWS budget information using the AWS Budgets API.
 
@@ -55,57 +62,41 @@ async def budgets(
         ctx: The MCP context object
         budget_name: Optional budget name filter. If provided, only returns information for the specified budget.
         max_results: Maximum number of results to return. Defaults to 100.
-        account_id: Optional AWS account ID. If not provided, it will be retrieved automatically.
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the budget information
+        Dict containing the budget information with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         # Log the request
         await ctx.info(
             f'Retrieving budgets (budget_name={budget_name}, max_results={max_results})'
         )
-
-        # Get the AWS account ID dynamically or use provided one
-        if not account_id:
-            account_id = await get_aws_account_id(ctx)
-        await ctx.info(f'Using AWS Account ID: {account_id}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
         # Call describe_budgets
-        return await describe_budgets(ctx, account_id, budget_name, max_results)
+        return await describe_budgets(ctx, target_account, budget_name, max_results, region)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'budgets', 'AWS Budgets')
-
-
-async def get_aws_account_id(ctx: Context) -> str:
-    """Retrieves the AWS account ID of the calling identity.
-
-    Returns:
-        str: The AWS account ID.
-
-    Raises:
-        Exception: If unable to retrieve the AWS account ID.
-    """
-    try:
-        # Create an STS client using shared utility
-        sts_client = create_aws_client('sts')
-
-        await ctx.info('Retrieving AWS account ID from STS')
-
-        # Call get-caller-identity to retrieve the account ID
-        response = sts_client.get_caller_identity()
-
-        # Extract and return the account ID
-        return response['Account']
-    except Exception as e:
-        # Proper error handling - raise the exception with a clear message
-        raise Exception(f'Failed to retrieve AWS account ID: {str(e)}')
+        # Add account_id to error response
+        error_response = await handle_aws_error(ctx, e, 'budgets', 'AWS Budgets')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def describe_budgets(
-    ctx: Context, account_id: str, budget_name: Optional[str], max_results: int
+    ctx: Context,
+    account_id: str,
+    budget_name: Optional[str],
+    max_results: int,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves budgets using the AWS Budgets API.
 
@@ -114,16 +105,22 @@ async def describe_budgets(
         account_id: The AWS account ID.
         budget_name: Optional budget name filter.
         max_results: Maximum number of results to return.
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the formatted budget information.
+        Dict containing the formatted budget information with account tracking.
     """
     try:
+        # Get Budgets client with appropriate credentials
+        # Note: Budgets API is only available in us-east-1
+        budgets_client = credential_manager.get_client(
+            service='budgets',
+            account_id=account_id if account_id != credential_manager.current_account_id else None,
+            region='us-east-1'  # Budgets API only available in us-east-1
+        )
+
         # Prepare the request parameters
         request_params = {'AccountId': account_id, 'MaxResults': max_results}
-
-        # Initialize Budgets client using shared utility
-        budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
         # Collect all budgets with internal pagination
         all_budgets = []
@@ -167,15 +164,20 @@ async def describe_budgets(
         return format_response(
             'success',
             {
+                'account_id': account_id,
+                'region': region,
                 'budgets': formatted_budgets,
                 'total_count': len(formatted_budgets),
-                'account_id': account_id,
             },
         )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'describe_budgets', 'AWS Budgets')
+        error_response = await handle_aws_error(ctx, e, 'describe_budgets', 'AWS Budgets')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = account_id
+            error_response['data']['region'] = region
+        return error_response
 
 
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

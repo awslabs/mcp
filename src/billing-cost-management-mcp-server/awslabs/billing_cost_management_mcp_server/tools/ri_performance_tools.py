@@ -14,17 +14,17 @@
 
 """AWS Reservation Coverage and Utilization tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     get_date_range,
     handle_aws_error,
     paginate_aws_response,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -51,6 +51,11 @@ This tool provides insights into your Reserved Instance (RI) and Savings Plans u
    - Can be grouped by SUBSCRIPTION_ID to see utilization per RI
    - Helps identify RIs that could be modified or sold in the marketplace
 
+Multi-account support:
+- Optionally specify account_id parameter to query RI performance from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+
 Supported dimensions for grouping reservation coverage:
 - AZ: Availability Zone
 - INSTANCE_TYPE: Instance type (e.g., m4.xlarge)
@@ -73,6 +78,8 @@ async def ri_performance(
     filter: Optional[str] = None,
     sort_by: Optional[str] = None,
     max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves AWS RI coverage and utilization data using the Cost Explorer API.
 
@@ -86,17 +93,26 @@ async def ri_performance(
         group_by: Optional grouping of results as a JSON string. For coverage, supports multiple dimensions. For utilization, only supports SUBSCRIPTION_ID.
         filter: Optional filter to apply to the results as a JSON string, such as filtering by service, region, or instance type.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
-
         max_results: Maximum number of results to return per page.
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the reservation coverage/utilization information
+        Dict containing the reservation coverage/utilization information with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(f'Reservation Coverage/Utilization operation: {operation}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
-        # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client('ce', region_name='us-east-1')
+        # Get Cost Explorer client with appropriate credentials
+        ce_client = credential_manager.get_client(
+            service='ce',
+            account_id=account_id,
+            region=region
+        )
 
         if operation == 'get_reservation_coverage':
             return await get_reservation_coverage(
@@ -110,6 +126,8 @@ async def ri_performance(
                 filter,
                 sort_by,
                 max_results,
+                target_account,
+                region,
             )
         elif operation == 'get_reservation_utilization':
             return await get_reservation_utilization(
@@ -122,17 +140,26 @@ async def ri_performance(
                 filter,
                 sort_by,
                 max_results,
+                target_account,
+                region,
             )
         else:
             return format_response(
                 'error',
-                {},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                },
                 f"Unsupported operation: {operation}. Use 'get_reservation_coverage' or 'get_reservation_utilization'.",
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'ri_performance', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'ri_performance', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_reservation_coverage(
@@ -146,6 +173,8 @@ async def get_reservation_coverage(
     filter_expr: Optional[str],
     sort_by: Optional[str],
     max_results: Optional[int],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves reservation coverage data using the AWS Cost Explorer API.
 
@@ -160,9 +189,11 @@ async def get_reservation_coverage(
         filter_expr: Filter expression as JSON string
         sort_by: Sort configuration as JSON string
         max_results: Maximum results to return
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing coverage data
+        Dict containing coverage data with account tracking
     """
     try:
         # Get date range using shared utility
@@ -216,6 +247,8 @@ async def get_reservation_coverage(
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
+            'account_id': target_account,
+            'region': region,
             'coverages_by_time': [],
             'pagination': pagination_metadata,
         }
@@ -255,7 +288,11 @@ async def get_reservation_coverage(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_reservation_coverage', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'get_reservation_coverage', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_reservation_utilization(
@@ -268,6 +305,8 @@ async def get_reservation_utilization(
     filter_expr: Optional[str],
     sort_by: Optional[str],
     max_results: Optional[int],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves reservation utilization data using the AWS Cost Explorer API.
 
@@ -281,9 +320,11 @@ async def get_reservation_utilization(
         filter_expr: Filter expression as JSON string
         sort_by: Sort configuration as JSON string
         max_results: Maximum results to return
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing utilization data
+        Dict containing utilization data with account tracking
     """
     try:
         # Get date range using shared utility
@@ -334,6 +375,8 @@ async def get_reservation_utilization(
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
+            'account_id': target_account,
+            'region': region,
             'utilizations_by_time': [],
             'pagination': pagination_metadata,
             'total': {},
@@ -374,7 +417,11 @@ async def get_reservation_utilization(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_reservation_utilization', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'get_reservation_utilization', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 def format_coverage_metrics(coverage_data: Dict) -> Dict:

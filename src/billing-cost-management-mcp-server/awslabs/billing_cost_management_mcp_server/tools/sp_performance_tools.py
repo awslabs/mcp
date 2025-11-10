@@ -14,17 +14,17 @@
 
 """AWS Savings Plans Coverage and Utilization tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions, credential manager, and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     get_date_range,
     handle_aws_error,
     paginate_aws_response,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional, Union
@@ -44,7 +44,13 @@ This tool provides insights into your Savings Plans usage patterns through three
 
 1. get_savings_plans_coverage: Shows how much of your eligible usage is covered by Savings Plans
 2. get_savings_plans_utilization: Shows overall utilization metrics for your Savings Plans
-3. get_savings_plans_utilization_details: Shows detailed per-Savings Plan utilization""",
+3. get_savings_plans_utilization_details: Shows detailed per-Savings Plan utilization
+
+MULTI-ACCOUNT SUPPORT:
+- Optionally specify account_id parameter to query Savings Plans from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
+- Region defaults to us-east-1 (standard for Cost Explorer) but can be overridden""",
 )
 async def sp_performance(
     ctx: Context,
@@ -56,6 +62,8 @@ async def sp_performance(
     group_by: Optional[str] = None,
     filter: Optional[str] = None,
     max_results: Optional[int] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Tool that retrieves AWS Savings Plans coverage and utilization data.
 
@@ -69,38 +77,57 @@ async def sp_performance(
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_FAMILY.
         filter: Optional filter to apply to the results as a JSON string.
         max_results: Maximum number of results to return per page.
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the savings plans coverage/utilization information
+        Dict containing the savings plans coverage/utilization information with account tracking
     """
-    try:
-        await ctx.info(f'Savings Plans Coverage/Utilization operation: {operation}')
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    await ctx.info(f'Savings Plans operation: {operation} for account: {target_account} in region: {region}')
 
-        # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client('ce', region_name='us-east-1')
+    try:
+        # Get Cost Explorer client with appropriate credentials
+        ce_client = credential_manager.get_client(
+            service='ce',
+            account_id=account_id,
+            region=region
+        )
 
         if operation == 'get_savings_plans_coverage':
-            return await get_savings_plans_coverage(
-                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
+            result = await get_savings_plans_coverage(
+                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter, target_account
             )
         elif operation == 'get_savings_plans_utilization':
-            return await get_savings_plans_utilization(
-                ctx, ce_client, start_date, end_date, granularity, filter
+            result = await get_savings_plans_utilization(
+                ctx, ce_client, start_date, end_date, granularity, filter, target_account
             )
         elif operation == 'get_savings_plans_utilization_details':
-            return await get_savings_plans_utilization_details(
-                ctx, ce_client, start_date, end_date, filter, max_results
+            result = await get_savings_plans_utilization_details(
+                ctx, ce_client, start_date, end_date, filter, max_results, target_account
             )
         else:
-            return format_response(
+            error_response = format_response(
                 'error',
                 {},
                 f"Unsupported operation: {operation}. Use 'get_savings_plans_coverage', 'get_savings_plans_utilization', or 'get_savings_plans_utilization_details'.",
             )
+            error_response['account_id'] = target_account
+            return error_response
+
+        # Add account tracking to successful response
+        if isinstance(result, dict):
+            result['account_id'] = target_account
+        
+        return result
 
     except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'sp_performance', 'Cost Explorer')
+        # Use shared error handler with account tracking
+        error_response = await handle_aws_error(ctx, e, 'sp_performance', 'Cost Explorer')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response
 
 
 async def get_savings_plans_coverage(
@@ -112,6 +139,7 @@ async def get_savings_plans_coverage(
     metrics: Optional[str],
     group_by: Optional[str],
     filter_expr: Optional[str],
+    target_account: str,
 ) -> Dict[str, Any]:
     """Retrieves Savings Plans coverage data.
 
@@ -124,9 +152,10 @@ async def get_savings_plans_coverage(
         metrics: Metrics to retrieve as JSON string
         group_by: Grouping dimensions as JSON string
         filter_expr: Filter expression as JSON string
+        target_account: Target account ID for tracking
 
     Returns:
-        Dict containing coverage data
+        Dict containing coverage data with account tracking
     """
     try:
         # Get date range using shared utility
@@ -174,6 +203,7 @@ async def get_savings_plans_coverage(
             'pagination': pagination_metadata,
             'time_period': {'start': start, 'end': end},
             'granularity': granularity,
+            'account_id': target_account,
         }
 
         # Add total coverage metrics if available
@@ -186,8 +216,11 @@ async def get_savings_plans_coverage(
         return format_response('success', formatted_response)
 
     except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_savings_plans_coverage', 'Cost Explorer')
+        # Use shared error handler with account tracking
+        error_response = await handle_aws_error(ctx, e, 'get_savings_plans_coverage', 'Cost Explorer')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response
 
 
 async def get_savings_plans_utilization(
@@ -197,6 +230,7 @@ async def get_savings_plans_utilization(
     end_date: Optional[str],
     granularity: str,
     filter_expr: Optional[str],
+    target_account: str,
 ) -> Dict[str, Any]:
     """Retrieves Savings Plans utilization data.
 
@@ -207,9 +241,10 @@ async def get_savings_plans_utilization(
         end_date: End date for the query
         granularity: Time granularity (DAILY/MONTHLY)
         filter_expr: Filter expression as JSON string
+        target_account: Target account ID for tracking
 
     Returns:
-        Dict containing utilization data
+        Dict containing utilization data with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -257,6 +292,7 @@ async def get_savings_plans_utilization(
                     'pagination': pagination_metadata,
                     'time_period': {'start': start, 'end': end},
                     'granularity': granularity,
+                    'account_id': target_account,
                     'message': 'No Savings Plans utilization data found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
                 },
             )
@@ -316,6 +352,7 @@ async def get_savings_plans_utilization(
             'pagination': pagination_metadata,
             'time_period': {'start': start, 'end': end},
             'granularity': granularity,
+            'account_id': target_account,
         }
 
         # Add total utilization if available
@@ -378,8 +415,11 @@ async def get_savings_plans_utilization(
         return format_response('success', formatted_response)
 
     except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_savings_plans_utilization', 'Cost Explorer')
+        # Use shared error handler with account tracking
+        error_response = await handle_aws_error(ctx, e, 'get_savings_plans_utilization', 'Cost Explorer')
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response
 
 
 async def get_savings_plans_utilization_details(
@@ -389,6 +429,7 @@ async def get_savings_plans_utilization_details(
     end_date: Optional[str],
     filter_expr: Optional[str],
     max_results: Optional[int],
+    target_account: str,
 ) -> Dict[str, Any]:
     """Retrieves detailed Savings Plans utilization data.
 
@@ -399,9 +440,10 @@ async def get_savings_plans_utilization_details(
         end_date: End date for the query
         filter_expr: Filter expression as JSON string
         max_results: Maximum results to return
+        target_account: Target account ID for tracking
 
     Returns:
-        Dict containing detailed utilization data
+        Dict containing detailed utilization data with account tracking
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
@@ -451,6 +493,7 @@ async def get_savings_plans_utilization_details(
                     'pagination': pagination_metadata,
                     'time_period': {'start': start, 'end': end},
                     'total_count': 0,
+                    'account_id': target_account,
                     'message': 'No Savings Plans utilization details found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
                 },
             )
@@ -531,6 +574,7 @@ async def get_savings_plans_utilization_details(
             'pagination': pagination_metadata,
             'time_period': {'start': start, 'end': end},
             'total_count': len(formatted_details),
+            'account_id': target_account,
         }
 
         # Add summary stats
@@ -566,7 +610,10 @@ async def get_savings_plans_utilization_details(
         return format_response('success', formatted_response)
 
     except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(
+        # Use shared error handler with account tracking
+        error_response = await handle_aws_error(
             ctx, e, 'get_savings_plans_utilization_details', 'Cost Explorer'
         )
+        if isinstance(error_response, dict):
+            error_response['account_id'] = target_account
+        return error_response

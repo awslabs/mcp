@@ -14,15 +14,15 @@
 
 """AWS Cost Comparison tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+Updated to use shared utility functions and support multi-account access.
 """
 
 from ..utilities.aws_service_base import (
-    create_aws_client,
     format_response,
     handle_aws_error,
     parse_json,
 )
+from ..utilities.aws_credentials import credential_manager
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -50,6 +50,11 @@ STRICT LIMITATIONS:
 - Both periods must start on 1st day of month, end on 1st day of next month
 - Cannot compare weeks, quarters, or custom periods
 - DO NOT USE for general cost analysis or flexible time periods
+
+Multi-account support:
+- Optionally specify account_id parameter to query cost comparisons from a different AWS account
+- If account_id is not provided, uses the current account where the MCP server is running
+- Requires cross-account IAM role 'MCPServerCrossAccountRole' in target accounts
 
 This tool supports two main operations:
 1. getCostAndUsageComparisons: Compare costs between two time periods with flexible grouping and filtering
@@ -97,6 +102,8 @@ async def cost_comparison(
     filter: Optional[str] = None,
     max_results: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
+    account_id: Optional[str] = None,
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
     """Retrieves AWS cost comparison data using the Cost Explorer API.
 
@@ -112,15 +119,25 @@ async def cost_comparison(
         filter: Optional filter to apply to the results as a JSON string
         max_results: Maximum number of results to return (default: 10, max: 2000 for comparisons, max: 10 for drivers)
         billing_view_arn: Optional ARN of a specific billing view
+        account_id: Target AWS account ID (optional, uses current account if not provided)
+        region: AWS region (default: us-east-1)
 
     Returns:
-        Dict containing the cost comparison information
+        Dict containing the cost comparison information with account tracking
     """
+    # Track the account being queried
+    target_account = account_id or credential_manager.current_account_id
+    
     try:
         await ctx.info(f'Cost comparison operation: {operation}')
+        await ctx.info(f'Querying account: {target_account} in region: {region}')
 
-        # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client('ce', region_name='us-east-1')
+        # Get Cost Explorer client with appropriate credentials
+        ce_client = credential_manager.get_client(
+            service='ce',
+            account_id=account_id,
+            region=region
+        )
 
         if operation == 'getCostAndUsageComparisons':
             return await get_cost_and_usage_comparisons(
@@ -135,6 +152,8 @@ async def cost_comparison(
                 filter,
                 max_results,
                 billing_view_arn,
+                target_account,
+                region,
             )
         elif operation == 'getCostComparisonDrivers':
             return await get_cost_comparison_drivers(
@@ -149,17 +168,26 @@ async def cost_comparison(
                 filter,
                 max_results,
                 billing_view_arn,
+                target_account,
+                region,
             )
         else:
             return format_response(
                 'error',
-                {},
+                {
+                    'account_id': target_account,
+                    'region': region,
+                },
                 f"Unsupported operation: {operation}. Use 'getCostAndUsageComparisons' or 'getCostComparisonDrivers'.",
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'cost_comparison', 'Cost Explorer')
+        error_response = await handle_aws_error(ctx, e, 'cost_comparison', 'Cost Explorer')
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_cost_and_usage_comparisons(
@@ -174,6 +202,8 @@ async def get_cost_and_usage_comparisons(
     filter_expr: Optional[str],
     max_results: Optional[int],
     billing_view_arn: Optional[str],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves cost and usage comparison data using the AWS Cost Explorer API.
 
@@ -189,9 +219,11 @@ async def get_cost_and_usage_comparisons(
         filter_expr: Optional filter as JSON string
         max_results: Maximum results to return
         billing_view_arn: Optional billing view ARN
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing comparison data
+        Dict containing comparison data with account tracking
     """
     try:
         # Prepare the request parameters
@@ -247,7 +279,11 @@ async def get_cost_and_usage_comparisons(
                 break
 
         # Format the response for better readability
-        formatted_response: Dict[str, Any] = {'cost_and_usage_comparisons': []}
+        formatted_response: Dict[str, Any] = {
+            'account_id': target_account,
+            'region': region,
+            'cost_and_usage_comparisons': [],
+        }
 
         # Add total cost and usage if present
         if total_cost_and_usage:
@@ -282,7 +318,13 @@ async def get_cost_and_usage_comparisons(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_cost_and_usage_comparisons', 'Cost Explorer')
+        error_response = await handle_aws_error(
+            ctx, e, 'get_cost_and_usage_comparisons', 'Cost Explorer'
+        )
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
 
 
 async def get_cost_comparison_drivers(
@@ -297,6 +339,8 @@ async def get_cost_comparison_drivers(
     filter_expr: Optional[str],
     max_results: Optional[int],
     billing_view_arn: Optional[str],
+    target_account: str,
+    region: str,
 ) -> Dict[str, Any]:
     """Retrieves cost comparison drivers using the AWS Cost Explorer API.
 
@@ -312,9 +356,11 @@ async def get_cost_comparison_drivers(
         filter_expr: Optional filter as JSON string
         max_results: Maximum results to return
         billing_view_arn: Optional billing view ARN
+        target_account: Target account ID being queried
+        region: AWS region
 
     Returns:
-        Dict containing driver data
+        Dict containing driver data with account tracking
     """
     try:
         # Prepare the request parameters
@@ -363,7 +409,11 @@ async def get_cost_comparison_drivers(
                 break
 
         # Format the response for better readability
-        formatted_response: Dict[str, Any] = {'cost_comparison_drivers': []}
+        formatted_response: Dict[str, Any] = {
+            'account_id': target_account,
+            'region': region,
+            'cost_comparison_drivers': [],
+        }
 
         # Format all collected drivers
         for driver in all_drivers:
@@ -409,4 +459,10 @@ async def get_cost_comparison_drivers(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'get_cost_comparison_drivers', 'Cost Explorer')
+        error_response = await handle_aws_error(
+            ctx, e, 'get_cost_comparison_drivers', 'Cost Explorer'
+        )
+        if isinstance(error_response, dict) and 'data' in error_response:
+            error_response['data']['account_id'] = target_account
+            error_response['data']['region'] = region
+        return error_response
