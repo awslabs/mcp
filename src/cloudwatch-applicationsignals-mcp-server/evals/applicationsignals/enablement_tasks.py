@@ -20,10 +20,12 @@ to enable Application Signals monitoring on various platforms.
 
 from evals.core import (
     BuildValidator,
+    Captor,
     GitDiffCaptor,
     LLMJudgeValidator,
     Task,
     ValidationPromptType,
+    Validator,
 )
 from loguru import logger
 from pathlib import Path
@@ -68,7 +70,7 @@ class EnablementTask(Task):
         framework: str,
         platform: str,
         validation_rubric: list[str],
-        expected_tools: list[str] = None,
+        expected_tools: Optional[list[str]] = None,
         build_command: Optional[str] = None,
         build_working_dir: Optional[str] = None,
         modifies_code: bool = True,
@@ -151,7 +153,7 @@ class EnablementTask(Task):
         """Return validation rubric."""
         return self.validation_rubric
 
-    def get_captors(self, working_directory: Path):
+    def get_captors(self, working_directory: Path) -> list[Captor]:
         """Return captors for this task.
 
         Captures git diff to evaluate code modifications.
@@ -164,7 +166,7 @@ class EnablementTask(Task):
         """
         return [GitDiffCaptor(git_paths=self.git_paths)]
 
-    def get_validators(self, working_directory: Path):
+    def get_validators(self, working_directory: Path) -> list[Validator]:
         """Return validators for this task.
 
         Args:
