@@ -81,6 +81,9 @@ NOTICE                                           @awslabs/mcp-admins
 /src/valkey-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/well-architected-security-mcp-server        @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
 
+## Samples
+
+/samples/cloudwatch-applicationsignals-mcp-server        @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon
 ## Secure the CODEOWNERS file
 
 /.github/CODEOWNERS                              @awslabs/mcp-admins
