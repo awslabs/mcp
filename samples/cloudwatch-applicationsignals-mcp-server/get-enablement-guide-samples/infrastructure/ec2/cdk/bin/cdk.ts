@@ -13,7 +13,7 @@ const env = {
 };
 
 // Read all config files from config directory
-const configDir = path.join(__dirname, '../config');
+const configDir = path.resolve(__dirname, '../config');
 const configFiles = fs.readdirSync(configDir).filter(f => f.endsWith('.json'));
 
 // Create a stack for each config
@@ -23,7 +23,13 @@ configFiles.forEach(configFile => {
     throw new Error(`Invalid config file name: ${configFile}`);
   }
 
-  const configPath = path.join(configDir, configFile);
+  const configPath = path.resolve(configDir, configFile);
+
+  // Ensure the resolved path is within the config directory
+  if (!configPath.startsWith(configDir + path.sep)) {
+    throw new Error(`Path traversal detected: ${configFile}`);
+  }
+
   const config: AppConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
   const stackId = `${config.appName}Stack`;
