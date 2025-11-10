@@ -303,7 +303,7 @@ jobs:
       # Clear up space for specific large projects
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["core-mcp-server"]'), matrix.changed-directory)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@63e6709e228dd0ad4ecf5ac39f293cbdbecc74c9
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@78e7eac4b8a42e705e7272c3ebb23cb249e12a52
       #TODO: remove local action checkout when working...
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
