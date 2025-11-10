@@ -14,7 +14,7 @@
 
 """AgentCore Memory Tool - Manage memory resources and operations.
 
-Comprehensive memory operations including create, retrieve, events, and lifecycle management.
+Comprehensive memory resource management and lifecycle operations.
 """
 
 from typing import Any, Dict
@@ -25,9 +25,6 @@ def manage_agentcore_memory() -> Dict[str, Any]:
 
     This tool returns detailed documentation about:
     - Memory resource creation and configuration
-    - Event management for conversation tracking
-    - Semantic memory retrieval
-    - Actor and session management
     - Complete CLI command reference
 
     Use this tool to understand the complete process of working with AgentCore Memory.
@@ -40,8 +37,6 @@ OVERVIEW:
 AgentCore Memory provides persistent knowledge storage with:
 - Short-term memory (STM): Conversation events with automatic expiry
 - Long-term memory (LTM): Semantic memory strategies for facts and knowledge
-- Actor-based organization: Track conversations per user/actor
-- Session management: Group related conversations
 
 MEMORY CONCEPTS:
 
@@ -55,16 +50,6 @@ MEMORY CONCEPTS:
    - Semantic Memory: Store and retrieve facts using vector search
    - Each strategy has a name and namespace
    - Example: "Facts" strategy for user preferences
-
-3. Events:
-   - Conversational events track dialogue
-   - Associated with actor ID and optional session ID
-   - Automatically expire based on retention policy
-
-4. Actors & Sessions:
-   - Actor: Unique identifier for user/entity
-   - Session: Group of related conversations for an actor
-   - Namespace format: /users/{actorId}/{strategyName}
 
 CLI COMMAND REFERENCE:
 
@@ -167,115 +152,6 @@ WARNING: This permanently deletes all events and semantic memories.
 
 ═══════════════════════════════════════════════════════════════════
 
-CREATE MEMORY EVENT
-Command: agentcore memory create-event <memory_id> <actor_id> <payload> [OPTIONS]
-
-Create a conversational event for tracking dialogue.
-
-Arguments:
-  memory_id                      Memory resource ID (required)
-  actor_id                       Actor ID, e.g., user ID (required)
-  payload                        Event payload as JSON string (required)
-
-Options:
-  --region, -r TEXT              AWS region
-  --session-id, -s TEXT          Session ID for grouping conversations
-
-Event Payload Format:
-  {
-    "conversational": {
-      "content": {
-        "text": "Your message here"
-      },
-      "role": "USER"  // or "ASSISTANT"
-    }
-  }
-
-Examples:
-  # User message
-  agentcore memory create-event mem_123 user_456 '{"conversational": {"content": {"text": "Hello!"}, "role": "USER"}}'
-
-  # Assistant response with session
-  agentcore memory create-event mem_123 user_456 '{"conversational": {"content": {"text": "Hi there!"}, "role": "ASSISTANT"}}' --session-id session_789
-
-  # Multi-turn conversation
-  agentcore memory create-event mem_123 user_456 '{"conversational": {"content": {"text": "What is my name?"}, "role": "USER"}}' -s sess_1
-  agentcore memory create-event mem_123 user_456 '{"conversational": {"content": {"text": "Your name is John."}, "role": "ASSISTANT"}}' -s sess_1
-
-═══════════════════════════════════════════════════════════════════
-
-RETRIEVE MEMORIES
-Command: agentcore memory retrieve <memory_id> <namespace> <query> [OPTIONS]
-
-Search semantic memories using vector similarity.
-
-Arguments:
-  memory_id                      Memory resource ID (required)
-  namespace                      Namespace to search in (required)
-  query                          Search query text (required)
-
-Options:
-  --region, -r TEXT              AWS region
-  --top-k, -k INT                Number of results to return (default: 5)
-
-Namespace Format:
-  /users/{actorId}/{strategyName}
-
-  Example: /users/user_456/Facts
-
-Examples:
-  # Search user preferences
-  agentcore memory retrieve mem_123 "/users/user_456/Facts" "What are the user preferences?" --top-k 5
-
-  # Find specific information
-  agentcore memory retrieve mem_123 "/users/john_doe/Facts" "favorite color" -k 3
-
-Output:
-  - Memory record ID
-  - Content text
-  - Similarity score
-
-═══════════════════════════════════════════════════════════════════
-
-LIST ACTORS
-Command: agentcore memory list-actors <memory_id> [OPTIONS]
-
-List all actors (users) who have interacted with the memory.
-
-Arguments:
-  memory_id                      Memory resource ID (required)
-
-Options:
-  --region, -r TEXT              AWS region
-  --max-results, -n INT          Maximum number of results (default: 100)
-
-Example:
-  agentcore memory list-actors mem_123
-
-Output: Table showing Actor ID and Last Activity timestamp
-
-═══════════════════════════════════════════════════════════════════
-
-LIST SESSIONS
-Command: agentcore memory list-sessions <memory_id> <actor_id> [OPTIONS]
-
-List all sessions for a specific actor.
-
-Arguments:
-  memory_id                      Memory resource ID (required)
-  actor_id                       Actor ID (required)
-
-Options:
-  --region, -r TEXT              AWS region
-  --max-results, -n INT          Maximum number of results (default: 100)
-
-Example:
-  agentcore memory list-sessions mem_123 user_456
-
-Output: Table showing Session ID and Last Activity timestamp
-
-═══════════════════════════════════════════════════════════════════
-
 CHECK MEMORY STATUS
 Command: agentcore memory status <memory_id> [OPTIONS]
 
@@ -301,31 +177,20 @@ Possible Status Values:
 
 COMMON WORKFLOWS:
 
-1. Basic Memory Setup (STM only):
+1. Basic Memory Setup:
    agentcore memory create my_memory
-   agentcore memory create-event my_memory user_1 '{"conversational": {"content": {"text": "Hello"}, "role": "USER"}}'
 
-2. Memory with Semantic Search (STM + LTM):
+2. Memory with Semantic Search:
    agentcore memory create my_memory --strategies '[{"semanticMemoryStrategy": {"name": "Facts"}}]' --wait
-   agentcore memory retrieve my_memory "/users/user_1/Facts" "user preferences"
 
-3. Session-based Conversations:
-   SESSION_ID="session_$(date +%s)"
-   agentcore memory create-event mem_123 user_1 '{"conversational": {"content": {"text": "Hi"}, "role": "USER"}}' -s $SESSION_ID
-   agentcore memory create-event mem_123 user_1 '{"conversational": {"content": {"text": "Hello!"}, "role": "ASSISTANT"}}' -s $SESSION_ID
-
-4. Multi-user Memory Management:
-   agentcore memory list-actors mem_123
-   agentcore memory list-sessions mem_123 user_1
-   agentcore memory retrieve mem_123 "/users/user_1/Facts" "preferences"
+3. Check Memory Status:
+   agentcore memory status my_memory
+   agentcore memory get my_memory
 
 KEY POINTS:
 - Memory resources must be ACTIVE before use
 - Events automatically expire based on retention policy
 - Semantic strategies enable vector search capabilities
-- Namespace format is critical for retrieval: /users/{actorId}/{strategyName}
-- Session IDs are optional but recommended for conversation grouping
-- Actor IDs should be consistent across your application
 - Use --wait flag to ensure resources are ready before proceeding
 """
 
