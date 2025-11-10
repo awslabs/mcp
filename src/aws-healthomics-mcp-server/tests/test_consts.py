@@ -42,7 +42,7 @@ class TestConstants:
 
         importlib.reload(consts)
 
-        assert consts.DEFAULT_MAX_RESULTS == 10
+        assert consts.DEFAULT_MAX_RESULTS == 100
 
     @patch.dict(os.environ, {'HEALTHOMICS_DEFAULT_MAX_RESULTS': '100'})
     def test_default_max_results_custom_value(self):
@@ -58,13 +58,13 @@ class TestConstants:
     @patch.dict(os.environ, {'HEALTHOMICS_DEFAULT_MAX_RESULTS': 'invalid'})
     def test_default_max_results_invalid_value(self):
         """Test DEFAULT_MAX_RESULTS handles invalid environment variable value."""
-        # Should fall back to default value of 10 when invalid value is provided
+        # Should fall back to default value of 100 when invalid value is provided
         import importlib
         from awslabs.aws_healthomics_mcp_server import consts
 
         importlib.reload(consts)
 
-        assert consts.DEFAULT_MAX_RESULTS == 10
+        assert consts.DEFAULT_MAX_RESULTS == 100
 
 
 class TestServiceConstants:
