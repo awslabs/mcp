@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11
 
 WORKDIR /app
 
@@ -29,7 +29,6 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 ENV PORT=5000
-ENV SERVICE_NAME=python-flask-app
 
 EXPOSE 5000
 
