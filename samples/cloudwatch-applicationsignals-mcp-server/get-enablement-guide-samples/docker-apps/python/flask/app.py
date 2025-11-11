@@ -28,12 +28,14 @@ s3_client = boto3.client('s3', region_name=AWS_REGION)
 
 @app.route('/health')
 def health():
+    """Return the health status of the application."""
     app.logger.info('Health check endpoint called')
     return Response(json.dumps({'status': 'healthy'}) + '\n', mimetype='application/json')
 
 
 @app.route('/api/buckets')
 def list_buckets():
+    """List all S3 buckets in the configured AWS region."""
     try:
         response = s3_client.list_buckets()
         buckets = [bucket['Name'] for bucket in response.get('Buckets', [])]
