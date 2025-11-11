@@ -9,9 +9,9 @@ from awslabs.aws_api_mcp_server.core.aws.service import (
     validate,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
+from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
 from awslabs.aws_api_mcp_server.core.common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     CommandMetadata,
     Context,
@@ -479,25 +479,23 @@ def test_execute_awscli_customization_success(mock_get_driver):
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 def test_execute_awscli_customization_error(mock_get_driver):
-    """Test execute_awscli_customization returns AwsApiMcpServerErrorResponse on exception."""
+    """Test execute_awscli_customization raises AwsApiMcpError on exception."""
     mock_driver = Mock()
     mock_driver.main.side_effect = Exception('Invalid command')
     mock_get_driver.return_value = mock_driver
 
-    result = execute_awscli_customization(
-        'aws invalid command',
-        IRCommand(
-            command_metadata=CommandMetadata('invalid', None, 'command'),
-            region='us-east-1',
-            parameters={},
-            is_awscli_customization=True,
-        ),
-    )
+    with pytest.raises(AwsApiMcpError) as exc_info:
+        execute_awscli_customization(
+            'aws invalid command',
+            IRCommand(
+                command_metadata=CommandMetadata('invalid', None, 'command'),
+                region='us-east-1',
+                parameters={},
+                is_awscli_customization=True,
+            ),
+        )
 
-    assert isinstance(result, AwsApiMcpServerErrorResponse)
-    assert result.error is True
-    assert result.detail == "Error while executing 'aws invalid command': Invalid command"
-
+    assert "Error while executing 'aws invalid command': Invalid command" in str(exc_info.value)
     mock_driver.main.assert_called_once_with(['invalid', 'command'])
 
 

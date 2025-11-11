@@ -20,13 +20,6 @@ from pydantic import BaseModel, Field
 from typing import Any
 
 
-class AwsApiMcpServerErrorResponse(BaseModel):
-    """Base class for all errors thrown by the server."""
-
-    error: bool = True
-    detail: str
-
-
 class ProgramValidationRequest(BaseModel):
     """The request structure for the validation endpoint."""
 
