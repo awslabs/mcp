@@ -1,59 +1,72 @@
 # Get Enablement Guide Samples
 
-Sample infrastructure for testing the `get_enablement_guide` tool.
+## Overview
 
-## Testing Requirements
+These baseline applications are used to test an AI agent's ability to automatically enable AWS Application Signals across different platforms and languages via our `get_enablement_guide` MCP tool.
 
-**Important:** All changes to this infrastructure should be tested to ensure the IaC and sample apps work correctly.
+The testing flow is:
+1. **Baseline Setup:** Deploy infrastructure without Application Signals
+2. **Agent Modification:** AI agent modifies code to enable Application Signals
+3. **Verification:** Re-deploy and verify Application Signals is enabled
 
-## Deployment
+## Prerequisites
 
-### Prerequisites
+## Platforms
 
-- AWS CLI configured with appropriate credentials
-- Node.js and npm installed
-- AWS CDK CLI installed (`npm install -g aws-cdk`)
+### EC2
 
-### Deploy EC2 CDK Sample
+#### Containerized Deployment (Docker)
 
-#### Step 1: Push Sample App to ECR
+Applications run as Docker containers on an EC2 instance, with images pulled from Amazon ECR repos.
 
-Before deploying the CDK stack, you must build and push the Python Flask sample application to your ECR repository.
+##### Build and Push Images to ECR
 
-```bash
-# Navigate to the Python Flask sample app
-cd sample-apps/python/flask
+```shell
+# Navigate to app directory (see table below)
+cd <app-directory>
 
-# Set your AWS account and region
+# Set variables
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export AWS_REGION=$(aws configure get region)
+export AWS_REGION=$(aws configure get region || echo "us-east-1")
+export ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/<repo-name>" # See table below
+
+# Authenticate with ECR Public (for base images)
+aws ecr-public get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin public.ecr.aws
+
+# Authenticate Docker with ECR
+aws ecr get-login-password --region $AWS_REGION | \
+  docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 # Create ECR repository (if it doesn't exist)
-aws ecr create-repository --repository-name python-flask --region $AWS_REGION || true
+aws ecr create-repository --repository-name <repo-name> --region $AWS_REGION 2>/dev/null || true
 
-# Authenticate Docker to ECR
-aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-
-# Build and push the Docker image
-docker build -t python-flask .
-docker tag python-flask:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/python-flask:latest
-docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/python-flask:latest
+# Build multi-platform and push to ECR
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t $ECR_URI \
+  --push \
+  .
 ```
 
-#### Step 2: Deploy the CDK Stack
+| Language-Framework | App Directory            | ECR Repo     |
+|--------------------|--------------------------|--------------|
+| python-flask       | docker-apps/python/flask | python-flask |
 
-```bash
-# Navigate to the CDK directory
-cd ../../infrastructure/ec2/cdk
+##### Deploy & Cleanup Containerized Infrastructure
 
-# Install dependencies
+**Using CDK:**
+
+```shell
+cd infrastructure/ec2/cdk
+
+# Install dependencies (first time only)
 npm install
 
-# Deploy the Python Flask stack
-cdk deploy PythonFlaskCdkStack
+cdk deploy <stack-name>
 
-# Clean up when done
-cdk destroy PythonFlaskCdkStack
+cdk destroy <stack-name>
 ```
 
-This deploys an EC2 instance running the containerized Python Flask sample application pulled from your ECR repository.
+| Language-Framework | Stack Name          |
+|--------------------|---------------------|
+| python-flask       | PythonFlaskCdkStack |
