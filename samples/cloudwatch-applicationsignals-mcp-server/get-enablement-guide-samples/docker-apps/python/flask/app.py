@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import boto3
-import os
 import json
+import os
 from botocore.exceptions import ClientError
 from flask import Flask, Response
 
@@ -38,10 +38,17 @@ def list_buckets():
         response = s3_client.list_buckets()
         buckets = [bucket['Name'] for bucket in response.get('Buckets', [])]
         app.logger.info(f'Successfully listed {len(buckets)} S3 buckets')
-        return Response(json.dumps({'bucket_count': len(buckets), 'buckets': buckets}) + '\n', mimetype='application/json')
+        return Response(
+            json.dumps({'bucket_count': len(buckets), 'buckets': buckets}) + '\n',
+            mimetype='application/json',
+        )
     except ClientError as e:
         app.logger.error(f'S3 client error: {str(e)}')
-        return Response(json.dumps({'error': 'Failed to retrieve S3 buckets'}) + '\n', mimetype='application/json', status=500)
+        return Response(
+            json.dumps({'error': 'Failed to retrieve S3 buckets'}) + '\n',
+            mimetype='application/json',
+            status=500,
+        )
 
 
 if __name__ == '__main__':
