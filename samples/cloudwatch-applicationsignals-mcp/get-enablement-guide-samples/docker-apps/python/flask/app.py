@@ -21,7 +21,6 @@ from flask import Flask, Response
 
 app = Flask(__name__)
 
-PORT = int(os.environ.get('PORT', 5000))
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 s3_client = boto3.client('s3', region_name=AWS_REGION)
 
@@ -51,8 +50,3 @@ def list_buckets():
             mimetype='application/json',
             status=500,
         )
-
-
-if __name__ == '__main__':
-    print(f'Starting Flask application on port {PORT}')
-    app.run(host='0.0.0.0', port=PORT)
