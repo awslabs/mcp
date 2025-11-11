@@ -1,0 +1,6 @@
+# CDK TypeScript compilation output
+infrastructure/ec2/cdk/**/*.js
+infrastructure/ec2/cdk/**/*.d.ts
+infrastructure/ec2/cdk/node_modules
+infrastructure/ec2/cdk/cdk.out
+infrastructure/ec2/cdk/.cdk.staging
