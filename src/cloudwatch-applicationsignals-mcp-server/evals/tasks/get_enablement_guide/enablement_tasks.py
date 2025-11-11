@@ -36,13 +36,13 @@ from typing import Optional
 
 # MCP server file path
 SERVER_PATH = (
-    Path(__file__).parent.parent.parent
+    Path(__file__).parent.parent.parent.parent
     / 'awslabs'
     / 'cloudwatch_applicationsignals_mcp_server'
     / 'server.py'
 )
 # MCP server working directory (cloudwatch-applicationsignals-mcp-server root)
-SERVER_CWD = Path(__file__).parent.parent.parent
+SERVER_CWD = Path(__file__).parent.parent.parent.parent
 
 # Prompt templates
 ENABLEMENT_PROMPT = """Enable Application Signals for my {language} {framework} on {platform}.
@@ -114,10 +114,10 @@ class EnablementTask(Task):
         Returns:
             Path to cloudwatch-applicationsignals-mcp-server samples directory
         """
-        # Calculate path to samples: enablement_tasks.py -> applicationsignals/ -> evals/
-        # -> cloudwatch-applicationsignals-mcp-server/ -> src/ -> mcp/ -> samples/
+        # Calculate path to samples: enablement_tasks.py -> get_enablement_guide/ -> tasks/
+        # -> evals/ -> cloudwatch-applicationsignals-mcp-server/ -> src/ -> mcp/ -> samples/
         return (
-            Path(__file__).parent.parent.parent.parent.parent
+            Path(__file__).parent.parent.parent.parent.parent.parent
             / 'samples'
             / 'cloudwatch-applicationsignals-mcp-server'
             / 'get-enablement-guide-samples'
