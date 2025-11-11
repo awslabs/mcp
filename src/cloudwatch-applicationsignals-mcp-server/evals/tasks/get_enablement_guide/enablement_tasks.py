@@ -112,14 +112,14 @@ class EnablementTask(Task):
         """Return path to Application Signals samples directory.
 
         Returns:
-            Path to cloudwatch-applicationsignals-mcp-server samples directory
+            Path to cloudwatch-appplicationsignals-mcp samples directory
         """
         # Calculate path to samples: enablement_tasks.py -> get_enablement_guide/ -> tasks/
         # -> evals/ -> cloudwatch-applicationsignals-mcp-server/ -> src/ -> mcp/ -> samples/
         return (
             Path(__file__).parent.parent.parent.parent.parent.parent
             / 'samples'
-            / 'cloudwatch-applicationsignals-mcp-server'
+            / 'cloudwatch-appplicationsignals-mcp'
             / 'get-enablement-guide-samples'
         )
 
