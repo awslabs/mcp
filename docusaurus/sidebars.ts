@@ -144,6 +144,7 @@ const sidebars: SidebarsConfig = {
       label: 'Samples',
       collapsed: false,
       items: [
+        'samples/cloudwatch-applicationsignals-mcp',
         'samples/mcp-integration-with-kb',
         'samples/mcp-integration-with-nova-canvas',
         'samples/stepfunctions-tool-mcp-server',
