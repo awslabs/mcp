@@ -2,7 +2,7 @@
 
 ## Overview
 
-These baseline applications are used to test an AI agent's ability to automatically enable AWS Application Signals accross different platforms and languages via our `get_enablement_guide` MCP tool.
+These baseline applications are used to test an AI agent's ability to automatically enable AWS Application Signals across different platforms and languages via our `get_enablement_guide` MCP tool.
 
 The testing flow is:
 1. **Baseline Setup:** Deploy infrastructure without Application Signals
@@ -15,7 +15,7 @@ The testing flow is:
 
 ### EC2
 
-#### Containerized Deployement (Docker)
+#### Containerized Deployment (Docker)
 
 Applications run as Docker containers on an EC2 instance, with images pulled from Amazon ECR repos.
 
