@@ -1,8 +1,8 @@
 ---
-title: CloudWatch Appsignals MCP Server
+title: CloudWatch Application Signals Sample
 ---
 
-import ReadmeContent from "../../../src/cloudwatch-appsignals-mcp-server/README.md";
+import ReadmeContent from "../../../samples/cloudwatch-applicationsignals-mcp-server/README.md";
 
 <div className="readme-content">
   <style>
