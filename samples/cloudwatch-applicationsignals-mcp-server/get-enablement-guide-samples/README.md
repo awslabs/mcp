@@ -1,24 +1,34 @@
 # Get Enablement Guide Samples
 
-Sample infrastructure for testing the `get_enablement_guide` tool.
+Sample infrastructure and applications using **AWS CDK** and **Terraform**, across EC2, ECS, and AgentCore environments for testing the `get_enablement_guide` tool.
 
-## Testing Requirements
+---
 
-**Important:** All changes to this infrastructure should be tested to ensure the IaC and sample apps work correctly.
+## Overview
 
-## Deployment
+These samples are designed to verify enablement flows:
 
-### Prerequisites
+| Category | IaC Tool | Language(s) | Description |
+|-----------|-----------|--------------|--------------|
+| EC2 | CDK | Python | Simple Flask app running on EC2 |
+| ECS | CDK / Terraform | Python, Node.js, Java | Containerized apps deployed on ECS Fargate |
+| AgentCore | CDK / Terraform | Python | Agent-based observability stack |
+
+---
+
+## Prerequisites
 
 - AWS CLI configured with appropriate credentials
-- Node.js and npm installed
+- Docker installed and authenticated to ECR
+- Node.js & npm installed
 - AWS CDK CLI installed (`npm install -g aws-cdk`)
+- Terraform installed (`brew install terraform` or download from [terraform.io](https://www.terraform.io/downloads))
 
-### Deploy EC2 CDK Sample
+---
 
-#### Step 1: Push Sample App to ECR
+## EC2 Sample (CDK)
 
-Before deploying the CDK stack, you must build and push the Python Flask sample application to your ECR repository.
+### Step 1: Push Sample App to ECR
 
 ```bash
 # Navigate to the Python Flask sample app
@@ -40,20 +50,169 @@ docker tag python-flask:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/python-flask:latest
 ```
 
-#### Step 2: Deploy the CDK Stack
+### Step 2: Deploy the CDK Stack
 
 ```bash
-# Navigate to the CDK directory
 cd ../../infrastructure/ec2/cdk
-
-# Install dependencies
 npm install
-
-# Deploy the Python Flask stack
 cdk deploy PythonFlaskCdkStack
+```
 
-# Clean up when done
+### Step 3: Clean Up
+
+```bash
 cdk destroy PythonFlaskCdkStack
 ```
 
-This deploys an EC2 instance running the containerized Python Flask sample application pulled from your ECR repository.
+---
+
+## ECS Samples
+
+ECS samples demonstrate containerized deployments using multiple programming languages (Python, Node.js, Java) and two IaC frameworks (CDK and Terraform).
+
+### Prerequisite
+
+Before deploying ECS samples, make sure you have **completed Step 1 in the EC2 sample section** — pushing the sample application image to ECR.  
+All ECS deployments (both CDK and Terraform) pull this same image from your ECR repository.
+
+### Languages Supported
+- Python
+- Node.js
+- Java
+
+Each version is located under:
+- CDK: `infrastructure/ecs/cdk`
+- Terraform: `infrastructure/ecs/terraform`
+
+---
+
+### ECS (CDK)
+
+#### Python
+
+##### Deploy
+```bash
+cd ../../infrastructure/ecs/cdk
+npm install
+cdk deploy python-flask
+```
+
+##### Clean up
+```bash
+cdk destroy python-flask
+```
+
+#### Node.js
+
+##### Deploy
+```bash
+cd ../../infrastructure/ecs/cdk
+npm install
+cdk deploy nodejs-express
+```
+
+##### Clean up
+```bash
+cdk destroy nodejs-express
+```
+
+#### Java
+
+##### Deploy
+```bash
+cd ../../infrastructure/ecs/cdk
+npm install
+cdk deploy java-springboot
+```
+
+##### Clean up
+```bash
+cdk destroy java-springboot
+```
+
+---
+
+### ECS (Terraform)
+
+#### Python
+
+##### Deploy
+```bash
+cd infrastructure/ecs/terraform
+./scripts/deploy.sh python-flask
+```
+
+##### Clean up
+```bash
+./scripts/destroy.sh python-flask
+```
+
+#### Node.js
+
+##### Deploy
+```bash
+cd infrastructure/ecs/terraform
+./scripts/deploy.sh nodejs-express
+```
+
+##### Clean up
+```bash
+./scripts/destroy.sh nodejs-express
+```
+
+#### Java
+
+##### Deploy
+```bash
+cd infrastructure/ecs/terraform
+./scripts/deploy.sh java-springboot
+```
+
+##### Clean up
+```bash
+./scripts/destroy.sh java-springboot
+```
+
+---
+
+## AgentCore Samples
+
+### AgentCore (CDK)
+**Deploy**
+
+```bash
+cd infrastructure/agent/cdk
+npm install
+cdk deploy
+```
+
+
+**Clean Up**
+```bash
+cdk destroy
+```
+
+---
+
+### AgentCore (Terraform)
+
+**Deploy**
+```bash
+cd infrastructure/agent/terraform
+terraform init
+terraform apply
+```
+
+
+**Clean Up**
+```bash
+terraform destroy
+```
+
+---
+
+## Notes
+
+- Each module can be deployed independently.
+- Clean up resources after each test to avoid unexpected conflicts.
+- Default regions and account IDs are inferred from your AWS CLI configuration.
