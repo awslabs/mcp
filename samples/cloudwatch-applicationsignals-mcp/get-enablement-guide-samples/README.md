@@ -28,8 +28,7 @@ cd <app-directory>
 # Set variables
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=$(aws configure get region || echo "us-east-1")
-export ECR_REPO_NAME="<repo-name>" # See table below
-export ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME"
+export ECR_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/<repo-name>" # See table below
 
 # Authenticate with ECR Public (for base images)
 aws ecr-public get-login-password --region us-east-1 | \
@@ -40,7 +39,7 @@ aws ecr get-login-password --region $AWS_REGION | \
   docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
 # Create ECR repository (if it doesn't exist)
-aws ecr create-repository --repository-name $ECR_REPO_NAME --region $AWS_REGION 2>/dev/null || true
+aws ecr create-repository --repository-name <repo-name> --region $AWS_REGION 2>/dev/null || true
 
 # Build multi-platform and push to ECR
 docker buildx build --platform linux/amd64,linux/arm64 \
