@@ -50,6 +50,7 @@ class TestListKnowledgeBasesTool:
         mock_discover_knowledge_bases.return_value = {
             'kb-12345': {
                 'name': 'Test Knowledge Base',
+                'description': 'A test knowledge base for testing purposes',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                     {'id': 'ds-67890', 'name': 'Another Data Source'},
@@ -57,6 +58,7 @@ class TestListKnowledgeBasesTool:
             },
             'kb-67890': {
                 'name': 'Another Knowledge Base',
+                'description': 'Another knowledge base for testing',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                 ],
@@ -74,7 +76,11 @@ class TestListKnowledgeBasesTool:
         assert 'kb-12345' in kb_mapping
         assert 'kb-67890' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert kb_mapping['kb-67890']['name'] == 'Another Knowledge Base'
+        assert kb_mapping['kb-67890']['description'] == 'Another knowledge base for testing'
         assert len(kb_mapping['kb-12345']['data_sources']) == 2
         assert len(kb_mapping['kb-67890']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
@@ -160,6 +166,7 @@ class TestServerIntegration:
         mock_discover_knowledge_bases.return_value = {
             'kb-12345': {
                 'name': 'Test Knowledge Base',
+                'description': 'A test knowledge base for testing purposes',
                 'data_sources': [
                     {'id': 'ds-12345', 'name': 'Test Data Source'},
                 ],
@@ -181,6 +188,9 @@ class TestServerIntegration:
         assert len(kb_mapping) == 1
         assert 'kb-12345' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert len(kb_mapping['kb-12345']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
         assert kb_mapping['kb-12345']['data_sources'][0]['name'] == 'Test Data Source'
