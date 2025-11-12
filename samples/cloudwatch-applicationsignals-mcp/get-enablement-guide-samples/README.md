@@ -11,6 +11,21 @@ The testing flow is:
 
 ## Prerequisites
 
+### General
+- AWS CLI configured with appropriate credentials and permissions
+- Access to AWS services: Lambda, API Gateway, ECR, EC2, IAM
+
+### For Lambda Deployments
+
+**Build Requirements:**
+- **Docker:** Required for building Lambda deployment packages
+  - Uses official AWS Lambda runtime images to ensure consistent build environment
+  - Matches Lambda execution environment exactly
+
+### For EC2 Containerized Deployments
+- Docker with buildx support for multi-platform builds
+- AWS ECR repository access
+
 ## Platforms
 
 ### EC2
@@ -70,3 +85,66 @@ cdk destroy <stack-name>
 | Language-Framework | Stack Name          |
 |--------------------|---------------------|
 | python-flask       | PythonFlaskCdkStack |
+
+### Lambda
+
+#### Serverless Deployment
+
+Lambda functions are deployed with API Gateway HTTP API for testing from your local machine.
+
+**Deployment is a two-step process:**
+1. **Build**: Package Lambda code with dependencies into a deployment artifact
+2. **Deploy**: Deploy the packaged artifact using Terraform or CDK
+
+##### Step 1: Build Lambda Deployment Package
+
+Each Lambda function has a `build.sh` script that uses Docker to build the deployment package:
+- Uses official AWS Lambda runtime images (e.g., `public.ecr.aws/lambda/python:3.13`)
+- Installs dependencies in the exact Lambda execution environment
+- Packages the code and dependencies into a zip file
+- Outputs the deployment artifact to `infrastructure/lambda/builds/`
+
+```shell
+cd infrastructure/lambda/<language>-lambda
+./build.sh
+```
+
+**Output:** `infrastructure/lambda/builds/{function-name}.zip`
+
+##### Step 2: Deploy Lambda Infrastructure
+
+**Using Terraform:**
+
+```shell
+cd infrastructure/lambda/terraform
+
+# Initialize Terraform (first time only)
+terraform init
+
+terraform apply -var="config_file=<config-file>"
+
+terraform destroy -var="config_file=<config-file>"
+```
+
+| Language | Config File  | Function Name | Build Output              |
+|----------|--------------|---------------|---------------------------|
+| python   | python.json  | PythonLambda  | builds/python-lambda.zip  |
+
+**Using CDK:**
+
+```shell
+cd infrastructure/lambda/cdk
+
+# Install dependencies (first time only)
+npm install
+
+cdk deploy <stack-name>
+
+cdk destroy <stack-name>
+```
+
+| Language | Config File  | Stack Name           | Function Name    | Build Output              |
+|----------|--------------|----------------------|------------------|---------------------------|
+| python   | python.json  | PythonLambdaCdkStack | PythonLambdaCdk  | builds/python-lambda.zip  |
+
+**Note:** You must run the build script before deploying. If you modify Lambda code or dependencies, rebuild before redeploying.
