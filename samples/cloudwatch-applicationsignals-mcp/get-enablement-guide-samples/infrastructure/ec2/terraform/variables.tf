@@ -16,6 +16,10 @@ variable "language" {
 variable "port" {
   description = "Application port"
   type        = number
+  validation {
+    condition     = var.port > 0 && var.port <= 65535
+    error_message = "Port must be between 1 and 65535."
+  }
 }
 
 variable "health_check_path" {
