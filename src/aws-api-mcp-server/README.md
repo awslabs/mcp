@@ -192,6 +192,12 @@ Once the server is running, connect to it using the following configuration (ens
   - Use HTTPS with TLS/SSL certificates
   - Avoid transmitting sensitive data over unencrypted HTTP connections
 
+## 🏗️ Self-host on AgentCore Runtime
+
+You can deploy the AWS API MCP Server to Amazon Bedrock AgentCore for managed, scalable hosting with built-in authentication and session isolation. AgentCore provides a containerized runtime environment that handles scaling, security, and infrastructure management automatically.
+
+See [DEPLOYMENT.md](https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/DEPLOYMENT.md) and [AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-lqqkwbcraxsgw) for details.
+
 
 
 ## ⚙️ Configuration Options
