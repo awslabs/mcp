@@ -1,0 +1,7 @@
+{
+  "appName": "PythonFlaskCdk",
+  "healthCheckPath": "/health",
+  "imageName": "python-flask",
+  "language": "python",
+  "port": 5000
+}

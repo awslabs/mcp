@@ -1,3 +1,7 @@
+# Deprecation Notice
+
+**IMPORTANT**: This server is deprecated, please use the cloudwatch-applicationsignals-mcp-server instead.
+
 # CloudWatch Application Signals MCP Server
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
@@ -628,14 +632,24 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListServiceLevelObjectives",
         "application-signals:GetServiceLevelObjective",
         "application-signals:BatchGetServiceLevelObjectiveBudgetReport",
+        "application-signals:ListAuditFindings",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",
         "logs:StartQuery",
         "logs:StopQuery",
+        "logs:FilterLogEvents",
         "xray:GetTraceSummaries",
         "xray:BatchGetTraces",
-        "xray:GetTraceSegmentDestination"
+        "xray:GetTraceSegmentDestination",
+        "synthetics:GetCanary",
+        "synthetics:GetCanaryRuns",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
       ],
       "Resource": "*"
     }
