@@ -1,16 +1,16 @@
 {
-  "version": "1.0.0",
-  "description": "nodejs-express-app",
-  "scripts": {
-    "start": "node app.js"
-  },
-  "private": true,
-  "keywords": [],
   "author": "",
-  "license": "Apache-2.0",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
     "express": "^5.1.0",
     "pino": "^10.1.0"
-  }
+  },
+  "description": "nodejs-express-app",
+  "keywords": [],
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "version": "1.0.0"
 }
