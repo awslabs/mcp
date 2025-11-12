@@ -3,19 +3,19 @@ output "instance_id" {
   value       = aws_instance.app.id
 }
 
-output "instance_public_ip" {
-  description = "EC2 Instance Public IP"
-  value       = aws_instance.app.public_ip
+output "instance_private_ip" {
+  description = "EC2 Instance Private IP"
+  value       = aws_instance.app.private_ip
 }
 
 output "health_check_url" {
   description = "Health check endpoint URL"
-  value       = "http://${aws_instance.app.public_ip}:${var.port}${var.health_check_path}"
+  value       = "http://${aws_instance.app.private_ip}:${var.port}${var.health_check_path}"
 }
 
 output "buckets_api_url" {
   description = "Buckets API endpoint URL"
-  value       = "http://${aws_instance.app.public_ip}:${var.port}/api/buckets"
+  value       = "http://${aws_instance.app.private_ip}:${var.port}/api/buckets"
 }
 
 output "ecr_image_uri" {
