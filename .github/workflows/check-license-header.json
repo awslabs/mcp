@@ -32,7 +32,7 @@
   },
   {
     "exclude": [
-      "docusaurus/**",
+      "docusaurus/**"
     ],
     "include": [
       "**/*.java",
