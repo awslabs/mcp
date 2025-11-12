@@ -15,7 +15,13 @@
       "**/trivy-results.sarif",
       "**/py.typed",
       "**/*.npz",
-      "**/*.template"
+      "**/*.template",
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs",
+      "**/*.properties",
+      "**/*.xml"
     ],
     "include": [
       "**/*.py",
@@ -23,6 +29,15 @@
       "**/*.sh"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
+  },
+  {
+    "include": [
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs"
+    ],
+    "license": "./.github/workflows/check-license-header-slash.txt"
   },
   {
     "include": [
@@ -54,7 +69,9 @@
       "**/trivy-results.sarif",
       "**/py.typed",
       "**/*.npz",
-      "**/*.template"
+      "**/*.template",
+      "**/*.properties",
+      "**/*.xml"
     ]
   }
 ]
