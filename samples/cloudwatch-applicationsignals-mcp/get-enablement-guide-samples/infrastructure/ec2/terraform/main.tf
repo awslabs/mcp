@@ -143,7 +143,20 @@ locals {
                 -e AWS_REGION=${var.aws_region} \
                 ${local.ecr_image_uri}
 
-              sleep 10
+              echo "Waiting for application to be ready..."
+              for i in {1..30}; do
+                if curl -f http://localhost:${var.port}${var.health_check_path} >/dev/null 2>&1; then
+                  echo "Application is healthy"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "Application failed to become healthy after 60 seconds"
+                  docker logs ${var.app_name}
+                  exit 1
+                fi
+                echo "Waiting for application to be ready... ($i/30)"
+                sleep 2
+              done
 
               docker exec -d ${var.app_name} bash /app/generate-traffic.sh
 
