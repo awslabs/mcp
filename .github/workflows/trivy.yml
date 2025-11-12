@@ -53,7 +53,7 @@ jobs:
         run: |
           # Fetch depth the number of commits in the PR and otherwise 1
           echo "fetch-depth=$(( ${{ (github.event_name == 'pull_request' && github.event.pull_request.commits) || 0 }} + 1 ))" >> "${GITHUB_OUTPUT}"
-          echo "image-name=$( echo "${{ matrix.dockerfile}}" | cut -d'/' -f2 )" >> "${GITHUB_OUTPUT}"
+          echo "image-name=$( echo "${{ matrix.dockerfile}}" | sed 's|^/||; s|^[^/]*/||; s|/Dockerfile$||; s|/|_|g' | head -c128 )" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout code
         id: checkout-code
