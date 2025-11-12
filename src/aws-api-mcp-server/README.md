@@ -196,7 +196,7 @@ Once the server is running, connect to it using the following configuration (ens
 
 You can deploy the AWS API MCP Server to Amazon Bedrock AgentCore for managed, scalable hosting with built-in authentication and session isolation. AgentCore provides a containerized runtime environment that handles scaling, security, and infrastructure management automatically.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) and [AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-lqqkwbcraxsgw) for details.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) and [AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-lqqkwbcraxsgw) for details.
 
 
 
