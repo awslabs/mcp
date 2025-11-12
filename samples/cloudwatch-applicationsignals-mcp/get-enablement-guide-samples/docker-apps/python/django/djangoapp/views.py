@@ -15,13 +15,15 @@
 import boto3
 import json
 import logging
+import os
 from botocore.exceptions import ClientError
 from django.http import HttpResponse
 
 
 logger = logging.getLogger(__name__)
 
-s3_client = boto3.client('s3')
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+s3_client = boto3.client('s3', region_name=AWS_REGION)
 
 
 def health(request):
