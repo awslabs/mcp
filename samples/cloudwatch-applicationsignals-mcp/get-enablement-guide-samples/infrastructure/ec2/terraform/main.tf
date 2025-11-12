@@ -39,7 +39,7 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 resource "aws_iam_role" "app_role" {
-  name = "${var.app_name}-role"
+  name_prefix = "${var.app_name}-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -71,8 +71,8 @@ resource "aws_iam_role_policy_attachment" "ecr_readonly" {
 }
 
 resource "aws_iam_instance_profile" "app_profile" {
-  name = "${var.app_name}-profile"
-  role = aws_iam_role.app_role.name
+  name_prefix = "${var.app_name}-profile-"
+  role        = aws_iam_role.app_role.name
 }
 
 resource "aws_security_group" "app_sg" {
