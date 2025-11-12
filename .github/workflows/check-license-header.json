@@ -31,6 +31,9 @@
     "license": "./.github/workflows/check-license-header-hash.txt"
   },
   {
+    "exclude": [
+      "docusaurus/**",
+    ],
     "include": [
       "**/*.java",
       "**/*.js",
