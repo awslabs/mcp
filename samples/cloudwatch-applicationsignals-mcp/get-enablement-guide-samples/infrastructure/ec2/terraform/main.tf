@@ -76,7 +76,7 @@ resource "aws_iam_instance_profile" "app_profile" {
 }
 
 resource "aws_security_group" "app_sg" {
-  name        = "${var.app_name}-sg"
+  name_prefix = "${var.app_name}-sg-"
   description = "Security group for ${var.app_name}"
   vpc_id      = data.aws_vpc.default.id
 
