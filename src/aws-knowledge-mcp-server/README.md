@@ -26,7 +26,7 @@ This MCP server is in general availability.
 2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
 3. `recommend`: Get content recommendations for AWS documentation pages
 4. `list_regions` _(Experimental)_: Retrieve a list of all AWS regions, including their identifiers and names
-5. `get_regional_availability`_(Experimental)_: Retrieve AWS regional availability information for SDK service APIs and CloudFormation resources
+5. `get_regional_availability`_(Experimental)_: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
 
 ### Current knowledge sources
 
