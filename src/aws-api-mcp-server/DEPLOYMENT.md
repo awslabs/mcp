@@ -73,7 +73,7 @@ AgentCore handles all inbound authentication at the runtime level, which means t
 
 #### SigV4 Authentication Setup
 
-**How it works**: 
+**How it works**:
 
 1. Your MCP client uses local AWS credentials
 2. AWS MCP Proxy handles SigV4 signing and forwards requests to AgentCore
@@ -429,7 +429,7 @@ Configure your MCP client to use the bearer token with your AgentCore endpoint.
 #### File Operations
 
 * **Downloads Work But Are Inaccessible**: Files are trapped in ephemeral containers
-* **Stateless Execution**: Each request uses a fresh container instance  
+* **Stateless Execution**: Each request uses a fresh container instance
 * **No File Persistence**: Downloaded files cannot be accessed by clients due to session isolation
 * **Makes file-based workflows impossible** in stateless deployments
 
