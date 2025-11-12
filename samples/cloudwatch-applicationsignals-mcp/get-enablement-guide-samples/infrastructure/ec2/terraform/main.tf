@@ -165,12 +165,13 @@ locals {
 }
 
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t3.small"
-  iam_instance_profile   = aws_iam_instance_profile.app_profile.name
-  vpc_security_group_ids = [aws_security_group.app_sg.id]
-  ebs_optimized          = true
-  monitoring             = true
+  ami                         = data.aws_ami.amazon_linux_2023.id
+  instance_type               = "t3.small"
+  iam_instance_profile        = aws_iam_instance_profile.app_profile.name
+  vpc_security_group_ids      = [aws_security_group.app_sg.id]
+  ebs_optimized               = true
+  monitoring                  = true
+  associate_public_ip_address = true
 
   user_data = local.user_data
 
