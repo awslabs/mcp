@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-diagram-mcp-server"
-version = "1.0.11"
+version = "1.0.12"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
 requires-python = ">=3.12"

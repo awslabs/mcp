@@ -27,7 +27,11 @@ const config: Config = {
   projectName: 'mcp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
+  markdown: {
+    hooks:  {
+      onBrokenMarkdownLinks: 'throw'
+    }
+  },
 
   // Add plugins
   plugins: [],

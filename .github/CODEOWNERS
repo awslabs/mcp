@@ -26,7 +26,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/amazon-qbusiness-anonymous-mcp-server       @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
 /src/amazon-sns-sqs-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
-/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko # @silver83 @marcbowes @kennthhz
+/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @imforster @wcmjunior
 /src/aws-api-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
 /src/aws-bedrock-custom-model-import-mcp-server  @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @alexa-perlov # @saidrhs
@@ -48,6 +48,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/cdk-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
 /src/cfn-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko @alexa-perlov # @karamvsingh
 /src/cloudtrail-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
+/src/cloudwatch-applicationsignals-mcp-server    @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon
 /src/cloudwatch-appsignals-mcp-server            @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque @thpierce
 /src/cloudwatch-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @gcacace @shri-tambe @agiuliano @goranmod
 /src/code-doc-gen-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
@@ -80,6 +81,9 @@ NOTICE                                           @awslabs/mcp-admins
 /src/valkey-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/well-architected-security-mcp-server        @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
 
+## Samples
+
+/samples/cloudwatch-applicationsignals-mcp       @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon
 ## Secure the CODEOWNERS file
 
 /.github/CODEOWNERS                              @awslabs/mcp-admins
