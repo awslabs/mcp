@@ -123,7 +123,7 @@ const sidebars: SidebarsConfig = {
             'servers/aws-pricing-mcp-server',
             'servers/cost-explorer-mcp-server',
             'servers/cloudwatch-mcp-server',
-            'servers/cloudwatch-appsignals-mcp-server',
+            'servers/cloudwatch-applicationsignals-mcp-server',
             'servers/well-architected-security-mcp-server',
             'servers/cloudtrail-mcp-server',
             'servers/billing-cost-management-mcp-server',
@@ -144,6 +144,7 @@ const sidebars: SidebarsConfig = {
       label: 'Samples',
       collapsed: false,
       items: [
+        'samples/cloudwatch-applicationsignals-mcp',
         'samples/mcp-integration-with-kb',
         'samples/mcp-integration-with-nova-canvas',
         'samples/stepfunctions-tool-mcp-server',

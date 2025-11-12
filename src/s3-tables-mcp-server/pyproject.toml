@@ -2,7 +2,7 @@
 name = "awslabs.s3-tables-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.13"
+version = "0.0.14"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for awslabs.s3-tables-mcp-server"
 readme = "README.md"

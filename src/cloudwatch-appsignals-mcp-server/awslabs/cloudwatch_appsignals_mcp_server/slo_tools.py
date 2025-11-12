@@ -15,6 +15,7 @@
 """CloudWatch Application Signals MCP Server - SLO-related tools."""
 
 import json
+import warnings
 from .aws_clients import appsignals_client
 from botocore.exceptions import ClientError
 from loguru import logger
@@ -26,6 +27,8 @@ async def get_slo(
     slo_id: str = Field(..., description='The ARN or name of the SLO to retrieve'),
 ) -> str:
     """Get detailed information about a specific Service Level Objective (SLO).
+
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the get_slo tool in the cloudwatch-applicationsignals-mcp-server instead.
 
     **RECOMMENDED WORKFLOW AFTER USING THIS TOOL:**
     After getting SLO configuration details, use `audit_slos()` with `auditors="all"` for comprehensive root cause analysis:
@@ -60,6 +63,8 @@ async def get_slo(
     """
     start_time_perf = timer()
     logger.info(f'Starting get_service_level_objective request for SLO: {slo_id}')
+    msg = 'get_slo tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the get_slo tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         response = appsignals_client.get_service_level_objective(Id=slo_id)
@@ -289,6 +294,8 @@ async def list_slos(
 ) -> str:
     """List all Service Level Objectives (SLOs) in Application Signals.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_slos tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     Use this tool to:
     - Get a complete list of all SLOs in your account
     - Discover SLO names and ARNs for use with other tools
@@ -309,6 +316,8 @@ async def list_slos(
     """
     start_time_perf = timer()
     logger.debug('Starting list_slos request')
+    msg = 'list_slos tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_slos tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Parse key_attributes JSON string

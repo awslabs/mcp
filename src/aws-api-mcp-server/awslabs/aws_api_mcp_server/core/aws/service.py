@@ -17,7 +17,6 @@ from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
 from ..common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
     Credentials,
@@ -130,7 +129,7 @@ def execute_awscli_customization(
     ir_command: IRCommand,
     credentials: Credentials | None = None,
     default_region_override: str | None = None,
-) -> AwsCliAliasResponse | AwsApiMcpServerErrorResponse:
+) -> AwsCliAliasResponse:
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
 
@@ -159,10 +158,7 @@ def execute_awscli_customization(
 
         return AwsCliAliasResponse(response=stdout_output, error=stderr_output)
     except Exception as e:
-        return AwsApiMcpServerErrorResponse(
-            error=True,
-            detail=f"Error while executing '{cli_command}': {e}",
-        )
+        raise AwsApiMcpError(f"Error while executing '{cli_command}': {e}")
 
 
 def interpret_command(
