@@ -90,8 +90,8 @@ Step 2: Validate Agent Code Format
     
     ✓ requirements.txt exists and includes:
       - bedrock-agentcore (REQUIRED)
-      - Your agent framework (e.g., strands-agents, langgraph)
-      - All other dependencies
+      - Your agent framework (e.g., strands-agents if using strands), langgraph)
+      - All other dependencies (strands-agents-tools if using strands tools)
       
     COMMON ISSUES:
     ✗ Missing BedrockAgentCoreApp import
