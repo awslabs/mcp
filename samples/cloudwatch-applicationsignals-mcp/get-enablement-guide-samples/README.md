@@ -84,9 +84,9 @@ terraform apply -var-file="config/<config-file>"
 terraform destroy -var-file="config/<config-file>"
 ```
 
-| Language-Framework | Config File                  |
-|--------------------|------------------------------|
-| python-flask       | config/python-flask.tfvars   |
-| python-django      | config/python-django.tfvars  |
-| nodejs-express     | config/nodejs-express.tfvars |
-| java-springboot    | config/java-springboot.tfvars|
+| Language-Framework | Config File                   |
+|--------------------|-------------------------------|
+| python-flask       | config/python-flask.tfvars    |
+| python-django      | config/python-django.tfvars   |
+| nodejs-express     | config/nodejs-express.tfvars  |
+| java-springboot    | config/java-springboot.tfvars |
