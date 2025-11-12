@@ -1,0 +1,9 @@
+FROM public.ecr.aws/lambda/python:3.13
+
+# Install build tools
+RUN dnf install -y zip && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Set working directory
+WORKDIR /var/task
