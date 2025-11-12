@@ -123,3 +123,18 @@ exclude_dirs = ["venv","tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.pyright]
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "dist",
+    "build"
+]
+extraPaths = ["../../../"]
+include = ["."]
+reportMissingImports = "none"
+reportMissingTypeStubs = false
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = true
