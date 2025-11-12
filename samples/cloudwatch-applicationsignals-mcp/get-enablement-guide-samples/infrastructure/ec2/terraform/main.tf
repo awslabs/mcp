@@ -81,9 +81,34 @@ resource "aws_security_group" "app_sg" {
   vpc_id      = data.aws_vpc.default.id
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "Allow HTTPS for ECR, AWS APIs, and package repositories"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow HTTP for package repositories"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow DNS queries"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow DNS queries over TCP"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -131,8 +156,20 @@ resource "aws_instance" "app" {
   instance_type          = "t3.small"
   iam_instance_profile   = aws_iam_instance_profile.app_profile.name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
+  ebs_optimized          = true
+  monitoring             = true
 
   user_data = local.user_data
+
+  root_block_device {
+    encrypted = true
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   tags = {
     Name     = var.app_name
