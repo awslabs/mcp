@@ -8,3 +8,14 @@ infrastructure/ec2/cdk/.cdk.staging
 # Un-ignore the lib/ directory (override root .gitignore)
 !infrastructure/ec2/cdk/lib/
 !infrastructure/ec2/cdk/lib/**
+
+# EC2 Terraform files
+infrastructure/ec2/terraform/.terraform/
+infrastructure/ec2/terraform/*.tfstate
+infrastructure/ec2/terraform/*.tfstate.*
+infrastructure/ec2/terraform/.terraform.lock.hcl
+infrastructure/ec2/terraform/crash.log
+infrastructure/ec2/terraform/override.tf
+infrastructure/ec2/terraform/override.tf.json
+infrastructure/ec2/terraform/*_override.tf
+infrastructure/ec2/terraform/*_override.tf.json

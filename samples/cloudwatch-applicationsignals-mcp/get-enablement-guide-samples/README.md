@@ -70,3 +70,23 @@ cdk destroy <stack-name>
 | Language-Framework | Stack Name          |
 |--------------------|---------------------|
 | python-flask       | PythonFlaskCdkStack |
+
+**Using Terraform:**
+
+```shell
+cd infrastructure/ec2/terraform
+
+# Initialize Terraform (first time only)
+terraform init
+
+terraform apply -var-file="config/<config-file>"
+
+terraform destroy -var-file="config/<config-file>"
+```
+
+| Language-Framework | Config File                  |
+|--------------------|------------------------------|
+| python-flask       | config/python-flask.tfvars   |
+| python-django      | config/python-django.tfvars  |
+| nodejs-express     | config/nodejs-express.tfvars |
+| java-springboot    | config/java-springboot.tfvars|
