@@ -23,7 +23,7 @@ const PORT = parseInt(process.env.PORT || '8080', 10);
 
 const app = express();
 
-const s3Client = new S3Client({ region: 'us-east-1' });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
 app.get('/', (req, res) => {
   healthCheck(res);
