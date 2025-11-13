@@ -93,6 +93,7 @@ async def list_knowledge_bases_tool() -> str:
 
     This tool returns a mapping of knowledge base IDs to their details, including:
     - name: The human-readable name of the knowledge base
+    - description: The description of the knowledge base
     - data_sources: A list of data sources within the knowledge base, each with:
       - id: The unique identifier of the data source
       - name: The human-readable name of the data source
@@ -102,6 +103,7 @@ async def list_knowledge_bases_tool() -> str:
     {
         "kb-12345": {
             "name": "Customer Support KB",
+            "description": "Knowledge base containing customer support documentation and FAQs",
             "data_sources": [
                 {"id": "ds-abc123", "name": "Technical Documentation"},
                 {"id": "ds-def456", "name": "FAQs"}
@@ -109,6 +111,7 @@ async def list_knowledge_bases_tool() -> str:
         },
         "kb-67890": {
             "name": "Product Information KB",
+            "description": "Comprehensive product specifications and details",
             "data_sources": [
                 {"id": "ds-ghi789", "name": "Product Specifications"}
             ]
