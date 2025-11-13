@@ -1,0 +1,7 @@
+{
+  "appName": "JavaSpringBootCdk",
+  "healthCheckPath": "/health",
+  "imageName": "java-springboot",
+  "language": "java",
+  "port": 8080
+}
