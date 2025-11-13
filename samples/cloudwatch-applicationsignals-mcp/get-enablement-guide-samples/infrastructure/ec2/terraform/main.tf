@@ -133,6 +133,20 @@ locals {
               systemctl enable docker
               usermod -a -G docker ec2-user
 
+              echo "Waiting for Docker to be ready..."
+              for i in {1..30}; do
+                if docker info >/dev/null 2>&1; then
+                  echo "Docker is ready"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "Docker failed to become ready after 60 seconds"
+                  exit 1
+                fi
+                echo "Waiting for Docker... ($i/30)"
+                sleep 2
+              done
+
               aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com
 
               docker pull ${local.ecr_image_uri}
@@ -169,6 +183,7 @@ resource "aws_instance" "app" {
   instance_type          = "t3.small"
   iam_instance_profile   = aws_iam_instance_profile.app_profile.name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
+  subnet_id              = tolist(data.aws_subnets.default.ids)[0]
   ebs_optimized          = true
   monitoring             = true
 
