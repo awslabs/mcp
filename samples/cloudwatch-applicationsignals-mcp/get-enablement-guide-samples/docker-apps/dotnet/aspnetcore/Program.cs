@@ -39,9 +39,9 @@ app.MapGet("/api/buckets", async (IAmazonS3 s3Client, ILogger<Program> logger) =
     {
         var response = await s3Client.ListBucketsAsync();
         var buckets = response.Buckets.Select(b => b.BucketName).ToList();
-        
+
         logger.LogInformation("Successfully listed {BucketCount} S3 buckets", buckets.Count);
-        
+
         return Results.Json(new { bucket_count = buckets.Count, buckets });
     }
     catch (Exception ex)
