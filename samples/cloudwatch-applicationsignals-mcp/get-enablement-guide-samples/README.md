@@ -94,7 +94,7 @@ cdk destroy <stack-name>
 
 #### Serverless Deployment
 
-Lambda functions are self-contained - each invocation performs a health check and S3 bucket listing.
+Lambda functions are self-contained - each invocation performs S3 bucket listing.
 
 **Deployment is a three-step process:**
 1. **Build**: Package Lambda code with dependencies into a deployment artifact
@@ -166,4 +166,4 @@ aws lambda invoke --function-name PythonLambdaCdk --invocation-type Event /dev/s
 aws lambda invoke --function-name PythonLambdaTerraform --invocation-type Event /dev/stdout
 ```
 
-Each invocation executes quickly, performing a health check and listing S3 buckets. Invoke multiple times to generate more traffic. Execution logs can be monitored in CloudWatch Logs.
+Each invocation executes quickly, listing S3 buckets. Invoke multiple times to generate more traffic. Execution logs can be monitored in CloudWatch Logs.

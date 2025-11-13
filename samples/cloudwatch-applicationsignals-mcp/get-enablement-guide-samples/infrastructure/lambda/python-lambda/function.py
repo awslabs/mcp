@@ -20,12 +20,8 @@ s3 = boto3.client('s3')
 
 
 def lambda_handler(event, context):
-    """Lambda function that performs health check and S3 bucket operations."""
+    """Lambda function that performs S3 bucket operations."""
     print('Starting Lambda execution')
-
-    # Call health check logic
-    health_result = health_check()
-    print(f'Health check: {health_result["status"]}')
 
     # Call buckets logic
     buckets_result = list_buckets()
@@ -36,16 +32,10 @@ def lambda_handler(event, context):
         'body': json.dumps(
             {
                 'message': 'Execution completed',
-                'health': health_result,
                 'buckets': buckets_result,
             }
         ),
     }
-
-
-def health_check():
-    """Health check logic."""
-    return {'status': 'healthy', 'service': 'python-lambda'}
 
 
 def list_buckets():
