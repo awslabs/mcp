@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import boto3
+import time
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
@@ -22,12 +23,73 @@ from ..common.config import get_user_agent_extra
 from ..common.file_system_controls import validate_file_path
 from ..common.helpers import operation_timer
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from jmespath.parser import ParsedResult
 from typing import Any
 
 
 TIMEOUT_AFTER_SECONDS = 10
 CHUNK_SIZE = 4 * 1024 * 1024
+
+
+def _should_retry_error(error: Exception) -> bool:
+    """Determine if an error should be retried.
+
+    - No retry for 4xx client errors (won't succeed on retry)
+    - No retry for 503 Service Unavailable (service overload/spillover)
+    - Return for other cases
+
+    Args:
+        error: The exception to evaluate
+
+    Returns:
+        bool: True if the error should be retried, False otherwise
+    """
+    if isinstance(error, ClientError):
+        status_code = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
+
+        # Never retry 4xx errors (client errors)
+        if 400 <= status_code < 500:
+            return False
+
+        # Never retry 503 (service overload)
+        if status_code == 503:
+            return False
+
+    return True
+
+
+def _execute_with_custom_retry(operation, **kwargs) -> dict[str, Any]:
+    """Execute an operation with retry logic.
+
+    Implements a single retry for allowed errors, with no retry for
+    4xx errors or 503 Service Unavailable. Uses a 1-second delay before
+    retry to match boto3's default behavior.
+
+    Args:
+        operation: The boto3 operation to execute
+        **kwargs: Parameters to pass to the operation
+
+    Returns:
+        dict: The operation response
+
+    Raises:
+        Exception: The final error if all attempts fail
+    """
+    max_attempts = 2  # 1 initial attempt + 1 retry
+
+    for attempt in range(max_attempts):
+        try:
+            return operation(**kwargs)
+        except Exception as e:
+            if attempt < max_attempts - 1 and _should_retry_error(e):
+                time.sleep(1)  # 1 second delay before retry
+                continue
+            else:
+                raise
+
+    # This should never be reached, but included for type checking
+    raise RuntimeError('Unexpected execution path in retry logic')
 
 
 def interpret(
@@ -53,7 +115,7 @@ def interpret(
         region_name=region,
         connect_timeout=TIMEOUT_AFTER_SECONDS,
         read_timeout=TIMEOUT_AFTER_SECONDS,
-        retries={'max_attempts': 3, 'mode': 'adaptive'},
+        retries={'max_attempts': 1},  # Disable automatic retries
         user_agent_extra=get_user_agent_extra(),
     )
 
@@ -68,17 +130,23 @@ def interpret(
         )
 
         if client.can_paginate(ir.operation_python_name):
-            response = build_result(
-                paginator=client.get_paginator(ir.operation_python_name),
-                service_name=ir.service_name,
-                operation_name=ir.operation_name,
-                operation_parameters=ir.parameters,
-                pagination_config=pagination_config,
-                client_side_filter=client_side_filter,
-            )
+            # For paginated operations, wrap with custom retry logic
+            paginator = client.get_paginator(ir.operation_python_name)
+
+            def execute_pagination():
+                return build_result(
+                    paginator=paginator,
+                    service_name=ir.service_name,
+                    operation_name=ir.operation_name,
+                    operation_parameters=ir.parameters,
+                    pagination_config=pagination_config,
+                    client_side_filter=client_side_filter,
+                )
+
+            response = _execute_with_custom_retry(execute_pagination)
         else:
             operation = getattr(client, ir.operation_python_name)
-            response = operation(**parameters)
+            response = _execute_with_custom_retry(operation, **parameters)
 
             if client_side_filter is not None:
                 response = _apply_filter(response, client_side_filter)
