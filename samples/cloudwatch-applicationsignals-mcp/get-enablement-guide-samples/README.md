@@ -48,10 +48,11 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   .
 ```
 
-| Language-Framework | App Directory              | ECR Repo       |
-|--------------------|----------------------------|----------------|
-| python-flask       | docker-apps/python/flask   | python-flask   |
-| nodejs-express     | docker-apps/nodejs/express | nodejs-express |
+| Language-Framework | App Directory                | ECR Repo        |
+|--------------------|------------------------------|-----------------|
+| python-flask       | docker-apps/python/flask     | python-flask    |
+| java-springboot    | docker-apps/java/spring-boot | java-springboot |
+| nodejs-express     | docker-apps/nodejs/express   | nodejs-express  |
 
 ##### Deploy & Cleanup Containerized Infrastructure
 
@@ -68,7 +69,8 @@ cdk deploy <stack-name>
 cdk destroy <stack-name>
 ```
 
-| Language-Framework | Stack Name            |
-|--------------------|---------------------- |
-| python-flask       | PythonFlaskCdkStack   |
-| nodejs-express     | NodejsExpressCdkStack |
+| Language-Framework | Stack Name             |
+|--------------------|------------------------|
+| python-flask       | PythonFlaskCdkStack    |
+| java-springboot    | JavaSpringBootCdkStack |
+| nodejs-express     | NodejsExpressCdkStack  |
