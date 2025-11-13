@@ -56,3 +56,9 @@ variable "ssl_certificate_arn" {
     error_message = "ssl_certificate_arn must be provided when enable_https is true. Create a certificate in AWS Certificate Manager (ACM) first."
   }
 }
+
+variable "enable_deletion_protection" {
+  description = "Enable deletion protection for the Application Load Balancer. For demo purposes, you may want to set this to false to allow easy cleanup. In production, this should be true."
+  type        = bool
+  default     = true
+}

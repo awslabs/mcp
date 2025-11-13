@@ -1,5 +1,5 @@
 app_name           = "python-django-ecs-terraform"
 image_name         = "python-django"
-language           = "dotnet"
+language           = "python"
 port               = 8000
 health_check_path  = "/health"
