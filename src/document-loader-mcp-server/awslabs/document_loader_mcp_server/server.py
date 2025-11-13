@@ -16,15 +16,16 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
+from typing import Optional
+
 import pdfplumber
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
 from loguru import logger
 from markitdown import MarkItDown
-from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 # Set up logging
