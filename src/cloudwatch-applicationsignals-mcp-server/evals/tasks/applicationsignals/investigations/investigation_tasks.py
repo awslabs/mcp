@@ -30,8 +30,10 @@ from evals.core import (
     ValidationPromptType,
     Validator,
 )
-from evals.tasks.applicationsignals import ApplicationSignalsTask
-from evals.tasks.applicationsignals.base import SAMPLES_ROOT
+from evals.tasks.applicationsignals import (
+    SAMPLES_ROOT,
+    ApplicationSignalsTask,
+)
 from pathlib import Path
 from typing import Any, Dict, Optional
 
