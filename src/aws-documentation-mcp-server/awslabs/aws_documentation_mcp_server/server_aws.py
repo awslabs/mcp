@@ -21,6 +21,7 @@ import uuid
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
     RecommendationResult,
+    SearchResponse,
     SearchResult,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
@@ -36,7 +37,7 @@ from awslabs.aws_documentation_mcp_server.util import (
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import List
+from typing import List, Optional
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
@@ -170,7 +171,15 @@ async def search_documentation(
         ge=1,
         le=50,
     ),
-) -> List[SearchResult]:
+    product_filter: Optional[str] = Field(
+        default=None,
+        description='Filter results by AWS product/service (e.g., "Amazon Simple Storage Service")',
+    ),
+    guide_filter: Optional[str] = Field(
+        default=None,
+        description='Filter results by guide type (e.g., "User Guide", "API Reference", "Developer Guide")',
+    ),
+) -> SearchResponse:
     """Search AWS documentation using the official AWS Documentation Search API.
 
     ## Usage
@@ -184,22 +193,45 @@ async def search_documentation(
     - Include service names to narrow results (e.g., "S3 bucket versioning" instead of just "versioning")
     - Use quotes for exact phrase matching (e.g., "AWS Lambda function URLs")
     - Include abbreviations and alternative terms to improve results
+    - Use search_documentation response property "facets" to further refine a user's search if they are looking
+        for a particular service or guide type
+    - After making generic service searches (e.g AWS Lambda, S3 Bucket), ask the user if they want to filter
+      searches by specific products or guide types, and suggest options from the "facets" property
+
+    ## Tips for Filtering by Facets
+
+    ### CRITICAL RULES
+    - Filtered search MUST use identical search_phrase from previous unfiltered search
+    - Only use filters that appeared in previous search facets
+    - Maximum: one product_filter + one guide_filter per search
+
+    ### When to Facets Examples
+    - User asks for specific doc types: "show me API reference" -> use guide_filter
+    - Results too broad and facets available -> ask user if they want to filter and provide options
+    - User consistently asks about same service -> use product_filter
+    - "I want to build...", "I want to learn...", "I want to code..." -> use available guide_filter based on user's needs (e.g Developer Guide, User Guide)
 
     ## Result Interpretation
 
     Each result includes:
-    - rank_order: The relevance ranking (lower is more relevant)
-    - url: The documentation page URL
-    - title: The page title
-    - context: A brief excerpt or summary (if available)
+    - searchResults: List of documentation pages, each with:
+        - rank_order: The relevance ranking (lower is more relevant)
+        - url: The documentation page URL
+        - title: The page title
+        - context: A brief excerpt or summary (if available)
+    - facets: Available filters (product_filters, guide_filters) for refining searches
+    - query_id: Unique identifier for this search session
+
 
     Args:
         ctx: MCP context for logging and error handling
         search_phrase: Search phrase to use
         limit: Maximum number of results to return
+        product_filter: Filter by AWS product/service (use when facets suggest it)
+        guide_filter: Filter by guide type (use when facets suggest it)
 
     Returns:
-        List of search results with URLs, titles, query ID, and context snippets
+        List of search results with URLs, titles, query ID, context snippets, and facets for filtering
     """
     logger.debug(f'Searching AWS documentation for: {search_phrase}')
 
@@ -214,6 +246,16 @@ async def search_documentation(
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
         if any(term in search_phrase.lower() for term in modifier['terms']):
             request_body['contextAttributes'].extend(modifier['domains'])
+
+    # Add product and guide filters if provided
+    if product_filter:
+        request_body['contextAttributes'].append(
+            {'key': 'aws-docs-search-product', 'value': product_filter}
+        )
+    if guide_filter:
+        request_body['contextAttributes'].append(
+            {'key': 'aws-docs-search-guide', 'value': guide_filter}
+        )
 
     search_url_with_session = f'{SEARCH_API_URL}?session={SESSION_UUID}'
 
@@ -233,38 +275,46 @@ async def search_documentation(
             error_msg = f'Error searching AWS docs: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [SearchResult(rank_order=1, url='', title=error_msg, query_id='', context=None)]
+            return SearchResponse(
+                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                facets=None,
+                query_id='',
+            )
 
         if response.status_code >= 400:
             error_msg = f'Error searching AWS docs - status code {response.status_code}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [
-                SearchResult(
-                    rank_order=1,
-                    url='',
-                    title=error_msg,
-                    query_id='',
-                    context=None,
-                )
-            ]
+            return SearchResponse(
+                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                facets=None,
+                query_id='',
+            )
 
         try:
             data = response.json()
-            query_id = data.get('queryId')
+            query_id = data.get('queryId', '')
+            raw_facets = data.get('facets', {})
+
+            # Parse facets to rename keys
+            facets = {}
+            if raw_facets:
+                for key, value in raw_facets.items():
+                    if key == 'aws-docs-search-product':
+                        facets['product_filters'] = value
+                    elif key == 'aws-docs-search-guide':
+                        facets['guide_filters'] = value
+                    else:
+                        facets[key] = value
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [
-                SearchResult(
-                    rank_order=1,
-                    url='',
-                    title=error_msg,
-                    query_id='',
-                    context=None,
-                )
-            ]
+            return SearchResponse(
+                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                facets=None,
+                query_id='',
+            )
 
     results = []
     if 'suggestions' in data:
@@ -290,15 +340,17 @@ async def search_documentation(
                         rank_order=i + 1,
                         url=text_suggestion.get('link', ''),
                         title=text_suggestion.get('title', ''),
-                        query_id=query_id,
                         context=context,
                     )
                 )
 
     logger.debug(f'Found {len(results)} search results for: {search_phrase}')
     logger.debug(f'Search query ID: {query_id}')
-    add_search_result_cache_item(results)
-    return results
+    finalSearchResponse = SearchResponse(
+        searchResults=results, facets=facets if facets else None, query_id=query_id
+    )
+    add_search_result_cache_item(finalSearchResponse)
+    return finalSearchResponse
 
 
 @mcp.tool()

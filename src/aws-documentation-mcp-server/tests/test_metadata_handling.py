@@ -58,8 +58,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'SEO optimized abstract'
 
@@ -91,8 +91,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'Regular abstract'
 
@@ -121,8 +121,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -150,8 +150,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'Suggestion body text'
 
@@ -178,8 +178,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context is None
 
@@ -207,8 +207,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -260,8 +260,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 4
             assert results[0].context == 'SEO abstract 1'
             assert results[1].context == 'Regular abstract 2'
@@ -307,8 +307,8 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='s3', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='s3', limit=10)
+            results = response.searchResults
             assert len(results) == 2
             # First result should use seo_abstract
             assert (
@@ -342,7 +342,7 @@ class TestMetadataHandling:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase='test', limit=10)
-
+            response = await search_documentation(ctx, search_phrase='test', limit=10)
+            results = response.searchResults
             assert len(results) == 1
             assert results[0].context == 'Regular summary'

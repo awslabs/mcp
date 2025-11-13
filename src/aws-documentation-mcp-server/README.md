@@ -171,7 +171,7 @@ read_documentation(url: str) -> str
 Searches AWS documentation using the official AWS Documentation Search API.
 
 ```python
-search_documentation(search_phrase: str, limit: int) -> list[dict]
+search_documentation(ctx: Context, search_phrase: str, limit: int, product_filter: Optional[str], guide_filter: Optional[str]) -> SearchResponse
 ```
 
 ### recommend (global only)
