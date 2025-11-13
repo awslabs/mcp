@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.10'
+import os
+import sys
+
+
+if __name__ == '__main__':
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'djangoapp.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError("Couldn't import Django. Are you sure it's installed?") from exc
+    execute_from_command_line(sys.argv)

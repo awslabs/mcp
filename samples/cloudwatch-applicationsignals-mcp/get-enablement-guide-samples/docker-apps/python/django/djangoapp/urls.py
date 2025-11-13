@@ -11,6 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.10'
+from . import views
+from django.urls import path
+
+
+urlpatterns = [
+    path('health', views.health, name='health'),
+    path('api/buckets', views.list_buckets, name='list_buckets'),
+]

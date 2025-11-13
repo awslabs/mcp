@@ -11,6 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.10'
+FROM public.ecr.aws/docker/library/python:3.11
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+ENV PORT=8000
+ENV GUNICORN_WORKERS=2
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "djangoapp.wsgi:application"]

@@ -11,6 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.10'
+import os
+
+
+# Server socket
+bind = f'0.0.0.0:{os.getenv("PORT", "8000")}'
+
+# Worker processes
+workers = int(os.getenv('GUNICORN_WORKERS', '2'))
+worker_class = 'sync'
+worker_connections = 1000
+
+# Timeouts
+timeout = 30
+keepalive = 2
+
+# Logging
+accesslog = '-'
+errorlog = '-'
+loglevel = 'info'
