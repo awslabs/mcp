@@ -14,7 +14,6 @@
 """Document Loader MCP Server."""
 
 import asyncio
-import functools
 import os
 import sys
 import pdfplumber
