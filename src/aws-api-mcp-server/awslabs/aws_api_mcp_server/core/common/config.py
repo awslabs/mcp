@@ -16,6 +16,7 @@ import boto3
 import importlib.metadata
 import os
 import tempfile
+from fastmcp.server.dependencies import get_context
 from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
@@ -84,6 +85,18 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
 def get_user_agent_extra() -> str:
     """Get the user agent extra string."""
     user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
+
+    try:
+        ctx = get_context()
+        user_agent_extra += f' via/{ctx.fastmcp.name}'
+
+        if client_params := ctx.session.client_params:
+            user_agent_extra += (
+                f' MCPClient/{client_params.clientInfo.name}-{client_params.clientInfo.version}'
+            )
+    except RuntimeError:
+        pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
+
     if not OPT_IN_TELEMETRY:
         return user_agent_extra
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'

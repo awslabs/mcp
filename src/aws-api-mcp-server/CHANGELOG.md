@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Add MCPClient and via to user agent (#1724)
+
+### Fixed
+
+- Throw error instead of return response in MCP tools (#1704)
+
+## [1.1.4] - 2025-11-07
+
+### Fixed
+
+- Validate origin/host headers in streamable-http mode (#1683)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.65 (#1646)
+
+## [1.1.3] - 2025-11-03
+
+### Fixed
+
+- Change priorities of default_region parameters in call_aws_helper (#1641)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.64 (#1637)
+
+## [1.1.2] - 2025-10-31
+
+### Changed
+
+- Add region parameter support to call_aws_helper (#1622)
+
+## [1.1.1] - 2025-10-25
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.57 (#1573)
+
+## [1.1.0] - 2025-10-22
+
 ### Fixed
 
 - Log errors thrown by the agent scripts manager (#1533)
@@ -14,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
+- Add call_aws helper function to consume credentials from other sources (#1547)
 
 ## [1.0.2] - 2025-10-13
 
