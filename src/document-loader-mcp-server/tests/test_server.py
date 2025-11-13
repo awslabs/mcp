@@ -493,6 +493,154 @@ async def test_read_image_exception():
             print('✓ General exception in read_image covered')
 
 
+@pytest.mark.asyncio
+async def test_convert_with_markitdown_timeout():
+    """Test timeout handling in _convert_with_markitdown."""
+    # Create a mock context
+    ctx = MockContext()
+
+    # Create a valid file path that passes validation but times out in conversion
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+
+        # Mock the event loop and executor to prevent actual execution
+        with patch('awslabs.document_loader_mcp_server.server.asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = MagicMock()
+            mock_get_loop.return_value = mock_loop
+            
+            # Mock run_in_executor to return a future that we can control
+            mock_future = asyncio.Future()
+            mock_loop.run_in_executor.return_value = mock_future
+            
+            # Mock asyncio.wait_for to raise TimeoutError immediately
+            with patch('awslabs.document_loader_mcp_server.server.asyncio.wait_for') as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError()
+
+                # Call the function
+                response = await _convert_with_markitdown(ctx, '/test/document.docx', 'Word document', 30)
+
+                # Verify the response
+                assert isinstance(response, DocumentReadResponse)
+                assert response.status == 'error'
+                assert response.content == ''
+                assert 'Word document conversion timed out after 30 seconds' in response.error_message
+                print('✓ TimeoutError in _convert_with_markitdown covered')
+
+
+@pytest.mark.asyncio
+async def test_read_pdf_content_timeout():
+    """Test timeout handling in _read_pdf_content."""
+    # Create a mock context
+    ctx = MockContext()
+
+    # Create a valid file path that passes validation but times out in PDF processing
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+
+        # Mock the event loop and executor to prevent actual execution
+        with patch('awslabs.document_loader_mcp_server.server.asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = MagicMock()
+            mock_get_loop.return_value = mock_loop
+            
+            # Mock run_in_executor to return a future that we can control
+            mock_future = asyncio.Future()
+            mock_loop.run_in_executor.return_value = mock_future
+            
+            # Mock asyncio.wait_for to raise TimeoutError immediately
+            with patch('awslabs.document_loader_mcp_server.server.asyncio.wait_for') as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError()
+
+                # Call the function
+                response = await _read_pdf_content(ctx, '/test/document.pdf', 30)
+
+                # Verify the response
+                assert isinstance(response, DocumentReadResponse)
+                assert response.status == 'error'
+                assert response.content == ''
+                assert 'PDF processing timed out after 30 seconds' in response.error_message
+                print('✓ TimeoutError in _read_pdf_content covered')
+
+
+@pytest.mark.asyncio
+async def test_read_image_timeout():
+    """Test timeout handling in read_image."""
+    # Create a valid file path that passes validation but times out in image loading
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+
+        # Mock the event loop and executor to prevent actual execution
+        with patch('awslabs.document_loader_mcp_server.server.asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = MagicMock()
+            mock_get_loop.return_value = mock_loop
+            
+            # Mock run_in_executor to return a future that we can control
+            mock_future = asyncio.Future()
+            mock_loop.run_in_executor.return_value = mock_future
+            
+            # Mock asyncio.wait_for to raise TimeoutError immediately
+            with patch('awslabs.document_loader_mcp_server.server.asyncio.wait_for') as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError()
+
+                # Call the function through the MCP tool and expect a RuntimeError
+                with pytest.raises(RuntimeError) as excinfo:
+                    await call_mcp_tool('read_image', '/test/image.png')
+
+                # Verify the error message
+                assert 'Image loading timed out after 30 seconds' in str(excinfo.value)
+                print('✓ TimeoutError in read_image covered')
+
+
+@pytest.mark.asyncio
+async def test_read_document_timeout_scenarios():
+    """Test timeout handling for all document types in read_document tool."""
+    # Test PDF timeout through read_document tool
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        mock_validate.return_value = None
+        
+        # Mock the event loop and executor to prevent actual execution
+        with patch('awslabs.document_loader_mcp_server.server.asyncio.get_event_loop') as mock_get_loop:
+            mock_loop = MagicMock()
+            mock_get_loop.return_value = mock_loop
+            
+            # Mock run_in_executor to return a future that we can control
+            mock_future = asyncio.Future()
+            mock_loop.run_in_executor.return_value = mock_future
+            
+            with patch('awslabs.document_loader_mcp_server.server.asyncio.wait_for') as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError()
+                
+                # Test PDF timeout
+                pdf_result = await call_mcp_tool('read_document', '/test/document.pdf', 'pdf')
+                assert isinstance(pdf_result, DocumentReadResponse)
+                assert pdf_result.status == 'error'
+                assert 'PDF processing timed out after 30 seconds' in pdf_result.error_message
+                print('✓ PDF timeout through read_document covered')
+                
+                # Test DOCX timeout
+                docx_result = await call_mcp_tool('read_document', '/test/document.docx', 'docx')
+                assert isinstance(docx_result, DocumentReadResponse)
+                assert docx_result.status == 'error'
+                assert 'Word document conversion timed out after 30 seconds' in docx_result.error_message
+                print('✓ DOCX timeout through read_document covered')
+                
+                # Test XLSX timeout
+                xlsx_result = await call_mcp_tool('read_document', '/test/document.xlsx', 'xlsx')
+                assert isinstance(xlsx_result, DocumentReadResponse)
+                assert xlsx_result.status == 'error'
+                assert 'Excel file conversion timed out after 30 seconds' in xlsx_result.error_message
+                print('✓ XLSX timeout through read_document covered')
+                
+                # Test PPTX timeout
+                pptx_result = await call_mcp_tool('read_document', '/test/document.pptx', 'pptx')
+                assert isinstance(pptx_result, DocumentReadResponse)
+                assert pptx_result.status == 'error'
+                assert 'PowerPoint file conversion timed out after 30 seconds' in pptx_result.error_message
+                print('✓ PPTX timeout through read_document covered')
+
+
 if __name__ == '__main__':
     asyncio.run(test_server())
     asyncio.run(test_mcp_tool_functions())
@@ -504,3 +652,7 @@ if __name__ == '__main__':
     asyncio.run(test_convert_with_markitdown_general_exception())
     asyncio.run(test_read_pdf_content_file_not_found())
     asyncio.run(test_read_image_exception())
+    asyncio.run(test_convert_with_markitdown_timeout())
+    asyncio.run(test_read_pdf_content_timeout())
+    asyncio.run(test_read_image_timeout())
+    asyncio.run(test_read_document_timeout_scenarios())
