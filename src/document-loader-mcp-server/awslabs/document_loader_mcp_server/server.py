@@ -40,8 +40,8 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
 
 # Timeout Constants
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
-MAX_TIMEOUT_SECONDS = 300     # 5 minute maximum timeout
-MIN_TIMEOUT_SECONDS = 5       # 5 second minimum timeout
+MAX_TIMEOUT_SECONDS = 300  # 5 minute maximum timeout
+MIN_TIMEOUT_SECONDS = 5  # 5 second minimum timeout
 ALLOWED_EXTENSIONS = {
     '.pdf',
     '.docx',
@@ -146,8 +146,7 @@ async def _convert_with_markitdown(
         # Run conversion in thread pool with timeout
         loop = asyncio.get_event_loop()
         content = await asyncio.wait_for(
-            loop.run_in_executor(None, _convert_document_sync, file_path),
-            timeout=timeout_seconds
+            loop.run_in_executor(None, _convert_document_sync, file_path), timeout=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -155,7 +154,9 @@ async def _convert_with_markitdown(
         )
 
     except asyncio.TimeoutError:
-        error_msg = f'{file_type} conversion timed out after {timeout_seconds} seconds for {file_path}'
+        error_msg = (
+            f'{file_type} conversion timed out after {timeout_seconds} seconds for {file_path}'
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
         return DocumentReadResponse(
@@ -177,7 +178,9 @@ async def _convert_with_markitdown(
         )
 
 
-async def _read_pdf_content(ctx: Context, file_path: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> DocumentReadResponse:
+async def _read_pdf_content(
+    ctx: Context, file_path: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+) -> DocumentReadResponse:
     """Helper function to read PDF content using pdfplumber."""
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
@@ -190,8 +193,7 @@ async def _read_pdf_content(ctx: Context, file_path: str, timeout_seconds: int =
         # Run PDF extraction in thread pool with timeout
         loop = asyncio.get_event_loop()
         text_content = await asyncio.wait_for(
-            loop.run_in_executor(None, _extract_pdf_text_sync, file_path),
-            timeout=timeout_seconds
+            loop.run_in_executor(None, _extract_pdf_text_sync, file_path), timeout=timeout_seconds
         )
 
         return DocumentReadResponse(
@@ -229,10 +231,7 @@ async def read_document(
         ..., description="Type of document: 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', or 'ppt'"
     ),
     timeout_seconds: int = Field(
-        DEFAULT_TIMEOUT_SECONDS,
-        description='Timeout in seconds (min: 5, max: 300)',
-        ge=5,
-        le=300
+        DEFAULT_TIMEOUT_SECONDS, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
     ),
 ) -> DocumentReadResponse:
     """Extract content from various document formats (PDF, Word, Excel, PowerPoint)."""
@@ -278,10 +277,7 @@ async def read_image(
         description='Absolute path to the image file (supports PNG, JPG, JPEG, GIF, BMP, TIFF, WEBP)',
     ),
     timeout_seconds: int = Field(
-        DEFAULT_TIMEOUT_SECONDS,
-        description='Timeout in seconds (min: 5, max: 300)',
-        ge=5,
-        le=300
+        DEFAULT_TIMEOUT_SECONDS, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
     ),
 ) -> Image:
     """Load an image file and return it to the LLM for viewing and analysis."""
@@ -294,8 +290,7 @@ async def read_image(
         # Run image loading in thread pool with timeout
         loop = asyncio.get_event_loop()
         image = await asyncio.wait_for(
-            loop.run_in_executor(None, _load_image_sync, file_path),
-            timeout=timeout_seconds
+            loop.run_in_executor(None, _load_image_sync, file_path), timeout=timeout_seconds
         )
         return image
 
