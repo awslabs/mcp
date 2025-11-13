@@ -18,13 +18,6 @@ variable "port" {
   type        = number
 }
 
-
-variable "health_check_path" {
-  description = "Health check endpoint path"
-  type        = string
-  default     = "/health"
-}
-
 variable "kms_key_id" {
   description = "The ARN of the KMS Key to use when encrypting log data. If not provided, uses the default AWS managed key for CloudWatch Logs."
   type        = string
@@ -39,26 +32,4 @@ variable "log_retention_in_days" {
     condition     = var.log_retention_in_days >= 365
     error_message = "Log retention must be at least 365 days (1 year) for security compliance."
   }
-}
-
-variable "enable_https" {
-  description = "Enable HTTPS for the load balancer. Requires ssl_certificate_arn to be provided. Set to false to use HTTP only (not recommended for production)."
-  type        = bool
-  default     = false
-}
-
-variable "ssl_certificate_arn" {
-  description = "ARN of the SSL certificate to use for HTTPS. Required when enable_https is true. Use AWS Certificate Manager (ACM) to create a certificate. Leave empty to use HTTP only."
-  type        = string
-  default     = null
-  validation {
-    condition     = var.enable_https == false || (var.enable_https == true && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "")
-    error_message = "ssl_certificate_arn must be provided when enable_https is true. Create a certificate in AWS Certificate Manager (ACM) first."
-  }
-}
-
-variable "enable_deletion_protection" {
-  description = "Enable deletion protection for the Application Load Balancer. For demo purposes, you may want to set this to false to allow easy cleanup. In production, this should be true."
-  type        = bool
-  default     = true
 }
