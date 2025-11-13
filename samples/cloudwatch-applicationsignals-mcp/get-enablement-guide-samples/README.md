@@ -84,15 +84,17 @@ cdk deploy <stack-name>
 cdk destroy <stack-name>
 ```
 
-| Language-Framework | Stack Name          |
-|--------------------|---------------------|
-| python-flask       | PythonFlaskCdkStack |
+| Language-Framework | Stack Name             |
+|--------------------|------------------------|
+| python-flask       | PythonFlaskCdkStack    |
+| java-springboot    | JavaSpringBootCdkStack |
+| nodejs-express     | NodejsExpressCdkStack  |
 
 ### Lambda
 
 #### Serverless Deployment
 
-Lambda functions are self-contained - they generate internal traffic by calling application functions in a loop for ~10 minutes when invoked. This avoids public API Gateway endpoints and associated security checks.
+Lambda functions are self-contained - each invocation performs a health check and S3 bucket listing.
 
 **Deployment is a three-step process:**
 1. **Build**: Package Lambda code with dependencies into a deployment artifact
@@ -164,4 +166,4 @@ aws lambda invoke --function-name PythonLambdaCdk --invocation-type Event /dev/s
 aws lambda invoke --function-name PythonLambdaTerraform --invocation-type Event /dev/stdout
 ```
 
-The Lambda will run for approximately 10 minutes in the background, calling the health check and S3 buckets functions internally in a loop. Progress can be monitored in CloudWatch Logs.
+Each invocation executes quickly, performing a health check and listing S3 buckets. Invoke multiple times to generate more traffic. Execution logs can be monitored in CloudWatch Logs.

@@ -14,55 +14,30 @@
 
 import boto3
 import json
-import time
-from datetime import datetime
 
 
 s3 = boto3.client('s3')
 
 
 def lambda_handler(event, context):
-    """Self-contained Lambda function that generates internal traffic.
+    """Lambda function that performs health check and S3 bucket operations."""
+    print('Starting Lambda execution')
 
-    Runs for ~10 minutes, calling application functions in a loop.
-    """
-    print('Starting self-contained traffic generation')
+    # Call health check logic
+    health_result = health_check()
+    print(f'Health check: {health_result["status"]}')
 
-    duration = 600  # Run for 10 minutes (600 seconds)
-    interval = 2  # Call every 2 seconds
-
-    start_time = time.time()
-    iteration = 0
-
-    while (time.time() - start_time) < duration:
-        iteration += 1
-        timestamp = datetime.now().strftime('%H:%M:%S')
-
-        print(f'[{timestamp}] Iteration {iteration}: Generating traffic...')
-
-        # Call health check logic
-        health_result = health_check()
-        print(f'[{timestamp}] Health check: {health_result["status"]}')
-
-        # Call buckets logic
-        buckets_result = list_buckets()
-        print(f'[{timestamp}] Buckets check: {buckets_result["bucket_count"]} buckets found')
-
-        # Sleep between requests
-        time.sleep(interval)
-
-    elapsed = time.time() - start_time
-    print(
-        f'Traffic generation completed. Total iterations: {iteration}, Elapsed time: {elapsed:.2f}s'
-    )
+    # Call buckets logic
+    buckets_result = list_buckets()
+    print(f'Buckets check: {buckets_result["bucket_count"]} buckets found')
 
     return {
         'statusCode': 200,
         'body': json.dumps(
             {
-                'message': 'Traffic generation completed',
-                'iterations': iteration,
-                'elapsed_seconds': elapsed,
+                'message': 'Execution completed',
+                'health': health_result,
+                'buckets': buckets_result,
             }
         ),
     }
