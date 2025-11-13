@@ -23,26 +23,19 @@ from evals.core import (
     Captor,
     GitDiffCaptor,
     LLMJudgeValidator,
-    Task,
     ToolCallsCaptor,
     ToolResultsCaptor,
     ValidationPromptType,
     Validator,
 )
+from evals.tasks.applicationsignals import (
+    SAMPLES_ROOT,
+    ApplicationSignalsTask,
+)
 from loguru import logger
 from pathlib import Path
 from typing import Optional
 
-
-# MCP server file path
-SERVER_PATH = (
-    Path(__file__).parent.parent.parent.parent
-    / 'awslabs'
-    / 'cloudwatch_applicationsignals_mcp_server'
-    / 'server.py'
-)
-# MCP server working directory (cloudwatch-applicationsignals-mcp-server root)
-SERVER_CWD = Path(__file__).parent.parent.parent.parent
 
 # Prompt templates
 ENABLEMENT_PROMPT = """Enable Application Signals for my {language} {framework} on {platform}.
@@ -51,7 +44,7 @@ My infrastructure as code directory is: {iac_abs_path}
 My application directory is: {app_abs_path}"""
 
 
-class EnablementTask(Task):
+class EnablementTask(ApplicationSignalsTask):
     """Task for evaluating Application Signals enablement.
 
     Tests whether the agent can:
@@ -109,27 +102,12 @@ class EnablementTask(Task):
         self.modifies_code = modifies_code
 
     def get_working_directory(self):
-        """Return path to Application Signals samples directory.
+        """Return path to enablement guide samples directory.
 
         Returns:
-            Path to cloudwatch-appplicationsignals-mcp samples directory
+            Path to get-enablement-guide-samples directory
         """
-        # Calculate path to samples: enablement_tasks.py -> get_enablement_guide/ -> tasks/
-        # -> evals/ -> cloudwatch-applicationsignals-mcp-server/ -> src/ -> mcp/ -> samples/
-        return (
-            Path(__file__).parent.parent.parent.parent.parent.parent
-            / 'samples'
-            / 'cloudwatch-appplicationsignals-mcp'
-            / 'get-enablement-guide-samples'
-        )
-
-    def get_server_file(self) -> Path:
-        """Return MCP server file path."""
-        return SERVER_PATH
-
-    def get_server_root_directory(self) -> Path:
-        """Return MCP server root directory."""
-        return SERVER_CWD
+        return SAMPLES_ROOT / 'get-enablement-guide-samples'
 
     def get_prompt(self, working_directory: Path) -> str:
         """Return enablement prompt with absolute paths.
