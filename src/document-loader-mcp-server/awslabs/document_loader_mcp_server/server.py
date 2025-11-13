@@ -13,15 +13,22 @@
 # limitations under the License.
 """Document Loader MCP Server."""
 
+import os
+import sys
 import pdfplumber
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
+from loguru import logger
 from markitdown import MarkItDown
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional
 
+
+# Set up logging
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Initialize FastMCP server with a unique name to avoid old tool registry
 mcp = FastMCP('Document Loader')
@@ -89,7 +96,9 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         return None  # Validation passed
 
     except Exception as e:
-        return f'Error validating file path {file_path}: {str(e)}'
+        error_msg = f'Error validating file path {file_path}: {str(e)}'
+        logger.error(error_msg)
+        return error_msg
 
 
 async def _convert_with_markitdown(
@@ -115,11 +124,15 @@ async def _convert_with_markitdown(
 
     except FileNotFoundError:
         error_msg = f'Could not find {file_type} at {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
         return DocumentReadResponse(
             status='error', content='', file_path=file_path, error_message=error_msg
         )
     except Exception as e:
         error_msg = f'Error reading {file_type} {file_path}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
         return DocumentReadResponse(
             status='error', content='', file_path=file_path, error_message=error_msg
         )
@@ -151,11 +164,15 @@ async def _read_pdf_content(ctx: Context, file_path: str) -> DocumentReadRespons
 
     except FileNotFoundError:
         error_msg = f'Could not find PDF file at {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
         return DocumentReadResponse(
             status='error', content='', file_path=file_path, error_message=error_msg
         )
     except Exception as e:
         error_msg = f'Error reading PDF file {file_path}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
         return DocumentReadResponse(
             status='error', content='', file_path=file_path, error_message=error_msg
         )
@@ -224,6 +241,8 @@ async def read_image(
 
     except Exception as e:
         error_msg = f'Error loading image {file_path}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
 
 

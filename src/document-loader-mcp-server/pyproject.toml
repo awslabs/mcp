@@ -8,6 +8,7 @@ dependencies = [
     "fastmcp>=2.11.1",
     "pdfplumber>=0.10.0",
     "markitdown[docx,xlsx,pptx]>=0.1.2",
+    "loguru>=0.7.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE"]

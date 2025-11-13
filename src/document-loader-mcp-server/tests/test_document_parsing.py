@@ -49,6 +49,10 @@ class MockContext:
         if exception:
             print(f'Exception: {exception}')
 
+    async def error(self, message: str):
+        """Mock async error reporting for FastMCP compatibility."""
+        print(f'Mock Context Async Error: {message}')
+
 
 async def _read_pdf_helper(file_path: str) -> DocumentReadResponse:
     """Helper function to test PDF reading functionality using the actual server logic."""
