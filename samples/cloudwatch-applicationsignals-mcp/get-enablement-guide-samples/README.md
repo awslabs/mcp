@@ -48,9 +48,12 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   .
 ```
 
-| Language-Framework | App Directory            | ECR Repo     |
-|--------------------|--------------------------|--------------|
-| python-flask       | docker-apps/python/flask | python-flask |
+| Language-Framework | App Directory                | ECR Repo        |
+|--------------------|------------------------------|-----------------|
+| python-flask       | docker-apps/python/flask     | python-flask    |
+| python-django      | docker-apps/python/django    | python-django   |
+| java-springboot    | docker-apps/java/spring-boot | java-springboot |
+| nodejs-express     | docker-apps/nodejs/express   | nodejs-express  |
 
 ##### Deploy & Cleanup Containerized Infrastructure
 
@@ -67,26 +70,9 @@ cdk deploy <stack-name>
 cdk destroy <stack-name>
 ```
 
-| Language-Framework | Stack Name          |
-|--------------------|---------------------|
-| python-flask       | PythonFlaskCdkStack |
-
-**Using Terraform:**
-
-```shell
-cd infrastructure/ec2/terraform
-
-# Initialize Terraform (first time only)
-terraform init
-
-terraform apply -var-file="config/<config-file>"
-
-terraform destroy -var-file="config/<config-file>"
-```
-
-| Language-Framework | Config File                   |
-|--------------------|-------------------------------|
-| python-flask       | config/python-flask.tfvars    |
-| python-django      | config/python-django.tfvars   |
-| nodejs-express     | config/nodejs-express.tfvars  |
-| java-springboot    | config/java-springboot.tfvars |
+| Language-Framework | Stack Name             |
+|--------------------|------------------------|
+| python-flask       | PythonFlaskCdkStack    |
+| python-django      | PythonDjangoCdkStack   |
+| java-springboot    | JavaSpringBootCdkStack |
+| nodejs-express     | NodejsExpressCdkStack  |
