@@ -11,22 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, TypeAlias, TypedDict
 
+"""Application Signals evaluation tasks."""
 
-class DataSource(TypedDict):
-    """A data source for a knowledge base."""
+from .base import ApplicationSignalsTask, SAMPLES_ROOT
 
-    id: str
-    name: str
-
-
-class KnowledgeBase(TypedDict):
-    """A knowledge base."""
-
-    name: str
-    description: str
-    data_sources: List[DataSource]
-
-
-KnowledgeBaseMapping: TypeAlias = Dict[str, KnowledgeBase]
+__all__ = ['ApplicationSignalsTask', 'SAMPLES_ROOT']
