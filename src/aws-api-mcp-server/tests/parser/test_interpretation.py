@@ -1,10 +1,10 @@
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError, ConnectionError
 from awslabs.aws_api_mcp_server.core.parser.interpretation import (
-    _should_retry_error,
     _execute_with_custom_retry,
+    _should_retry_error,
 )
+from botocore.exceptions import ClientError, ConnectionError
+from unittest.mock import MagicMock, Mock, patch
 
 
 def create_client_error(status_code: int, error_code: str = 'TestError') -> ClientError:
@@ -215,9 +215,9 @@ class TestInterpretIntegration:
     @patch('awslabs.aws_api_mcp_server.core.parser.interpretation.time.sleep')
     def test_non_paginated_operation_with_retry(self, mock_sleep, mock_boto3):
         """Test full flow through interpret() for non-paginated operation with retry."""
-        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
         from awslabs.aws_api_mcp_server.core.common.command import IRCommand
         from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
+        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
 
         # Setup mock client
         mock_client = MagicMock()
@@ -250,7 +250,7 @@ class TestInterpretIntegration:
         result = interpret(
             ir=ir,
             access_key_id='test_key',
-            secret_access_key='test_secret',
+            secret_access_key='test_secret',  # pragma: allowlist secret
             session_token=None,
             region='us-east-1',
         )
@@ -263,9 +263,9 @@ class TestInterpretIntegration:
     @patch('awslabs.aws_api_mcp_server.core.parser.interpretation.boto3')
     def test_non_paginated_operation_no_retry_on_503(self, mock_boto3):
         """Test that 503 errors don't retry (DR-A-3 compliance)."""
-        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
         from awslabs.aws_api_mcp_server.core.common.command import IRCommand
         from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
+        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
 
         # Setup mock client
         mock_client = MagicMock()
@@ -295,7 +295,7 @@ class TestInterpretIntegration:
             interpret(
                 ir=ir,
                 access_key_id='test_key',
-                secret_access_key='test_secret',
+                secret_access_key='test_secret',  # pragma: allowlist secret
                 session_token=None,
                 region='us-east-1',
             )
@@ -308,9 +308,9 @@ class TestInterpretIntegration:
     @patch('awslabs.aws_api_mcp_server.core.parser.interpretation.time.sleep')
     def test_paginated_operation_with_retry(self, mock_sleep, mock_boto3, mock_build_result):
         """Test full flow through interpret() for paginated operation with retry."""
-        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
         from awslabs.aws_api_mcp_server.core.common.command import IRCommand
         from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
+        from awslabs.aws_api_mcp_server.core.parser.interpretation import interpret
 
         # Setup mock client and paginator
         mock_client = MagicMock()
@@ -342,7 +342,7 @@ class TestInterpretIntegration:
         result = interpret(
             ir=ir,
             access_key_id='test_key',
-            secret_access_key='test_secret',
+            secret_access_key='test_secret',  # pragma: allowlist secret
             session_token=None,
             region='us-east-1',
         )
