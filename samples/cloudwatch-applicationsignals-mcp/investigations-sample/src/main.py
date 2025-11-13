@@ -11,6 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.10'
+from fastapi import FastAPI
+from src.api import router
+from src.config import settings
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description='Document management API with S3 storage and DynamoDB metadata',
+)
+
+app.include_router(router)
+
+
+@app.get('/')
+async def root():
+    """Root endpoint returning API information."""
+    return {'name': settings.app_name, 'version': settings.app_version, 'docs': '/docs'}
+
+
+@app.get('/health')
+async def health_check():
+    """Health check endpoint."""
+    return {'status': 'healthy'}
