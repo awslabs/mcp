@@ -1,0 +1,5 @@
+__pycache__
+.env
+.instance.id
+.role.name
+.sg.id

@@ -11,6 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs Bedrock Knowledge Base Retrieval MCP Server"""
+"""Type definitions for the MCP testing framework."""
 
-__version__ = '1.0.10'
+from enum import Enum
+
+
+class TestType(Enum):
+    """Enum for different types of MCP tests."""
+
+    TOOL_CALL = 'tool_call'
+    RESOURCE_READ = 'resource_read'
+    PROMPT_GET = 'prompt_get'
+
+
+# Prevent pytest from collecting this as a test class
+TestType.__test__ = False
