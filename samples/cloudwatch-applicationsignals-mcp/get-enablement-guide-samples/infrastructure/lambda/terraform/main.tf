@@ -50,6 +50,12 @@ resource "aws_iam_role_policy_attachment" "lambda_s3" {
 
 # Lambda function
 resource "aws_lambda_function" "function" {
+  #checkov:skip=CKV_AWS_115:VPC not required - function accesses only public AWS services (S3)
+  #checkov:skip=CKV_AWS_116:DLQ not required - synchronous invocations with immediate failure visibility via CloudWatch Logs and monitoring
+  #checkov:skip=CKV_AWS_117:VPC not required - no private resource dependencies
+  #checkov:skip=CKV_AWS_272:Code signing not required - internal deployment with controlled artifact sources
+  #checkov:skip=CKV_AWS_173:Environment variable encryption not required - no sensitive data stored in environment variables
+  #checkov:skip=CKV_AWS_50:X-Ray tracing is optional - monitoring and observability handled through CloudWatch Logs and metrics
   filename         = "${path.module}/${local.config.artifactPath}"
   function_name    = local.config.functionName
   role            = aws_iam_role.lambda_role.arn

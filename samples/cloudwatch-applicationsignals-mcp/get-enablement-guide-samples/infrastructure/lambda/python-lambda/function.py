@@ -23,6 +23,7 @@ s3 = boto3.client('s3')
 
 def lambda_handler(event, context):
     """Self-contained Lambda function that generates internal traffic.
+
     Runs for ~10 minutes, calling application functions in a loop.
     """
     print('Starting self-contained traffic generation')
