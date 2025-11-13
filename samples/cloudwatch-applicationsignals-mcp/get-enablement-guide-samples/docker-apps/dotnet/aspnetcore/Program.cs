@@ -24,11 +24,14 @@ var app = builder.Build();
 
 var awsRegion = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1";
 
-app.MapGet("/health", (ILogger<Program> logger) =>
+app.MapGet("/", (ILogger<Program> logger) => HealthCheck(logger));
+app.MapGet("/health", (ILogger<Program> logger) => HealthCheck(logger));
+
+static IResult HealthCheck(ILogger<Program> logger)
 {
     logger.LogInformation("Health check endpoint called");
     return Results.Json(new { status = "healthy" });
-});
+}
 
 app.MapGet("/api/buckets", async (IAmazonS3 s3Client, ILogger<Program> logger) =>
 {
