@@ -34,6 +34,8 @@ export class LambdaStack extends cdk.Stack {
     // Map runtime string to Lambda Runtime object
     const runtimeMap: { [key: string]: lambda.Runtime } = {
       'python3.13': lambda.Runtime.PYTHON_3_13,
+      'nodejs20.x': lambda.Runtime.NODEJS_20_X,
+      'java17': lambda.Runtime.JAVA_17,
     };
 
     const lambdaRuntime = runtimeMap[config.runtime];

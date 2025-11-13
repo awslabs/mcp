@@ -1,0 +1,11 @@
+{
+  "artifactPath": "../builds/java-lambda.zip",
+  "environment": {
+    "LOG_LEVEL": "INFO"
+  },
+  "functionName": "JavaLambdaTerraform",
+  "handler": "com.example.LambdaHandler::handleRequest",
+  "memorySize": 512,
+  "runtime": "java17",
+  "timeout": 620
+}

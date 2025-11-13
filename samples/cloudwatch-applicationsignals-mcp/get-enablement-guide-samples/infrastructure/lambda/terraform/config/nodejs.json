@@ -1,0 +1,11 @@
+{
+  "artifactPath": "../builds/nodejs-lambda.zip",
+  "environment": {
+    "LOG_LEVEL": "INFO"
+  },
+  "functionName": "NodejsLambdaTerraform",
+  "handler": "index.handler",
+  "memorySize": 512,
+  "runtime": "nodejs20.x",
+  "timeout": 620
+}
