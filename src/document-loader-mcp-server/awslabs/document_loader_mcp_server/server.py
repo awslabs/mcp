@@ -13,6 +13,8 @@
 # limitations under the License.
 """Document Loader MCP Server."""
 
+import asyncio
+import functools
 import os
 import sys
 import pdfplumber
@@ -36,6 +38,11 @@ mcp = FastMCP('Document Loader')
 
 # Security Constants
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+
+# Timeout Constants
+DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
+MAX_TIMEOUT_SECONDS = 300     # 5 minute maximum timeout
+MIN_TIMEOUT_SECONDS = 5       # 5 second minimum timeout
 ALLOWED_EXTENSIONS = {
     '.pdf',
     '.docx',
@@ -63,6 +70,30 @@ class DocumentReadResponse(BaseModel):
     content: str = Field(..., description='Extracted content from the document')
     file_path: str = Field(..., description='Path to the processed file')
     error_message: Optional[str] = Field(None, description='Error message if operation failed')
+
+
+def _extract_pdf_text_sync(file_path: str) -> str:
+    """Synchronous PDF text extraction for thread pool execution."""
+    text_content = ''
+    with pdfplumber.open(file_path) as pdf:
+        for page_num, page in enumerate(pdf.pages, 1):
+            text_content += f'\n--- Page {page_num} ---\n'
+            page_text = page.extract_text()
+            if page_text:
+                text_content += page_text
+    return text_content.strip()
+
+
+def _convert_document_sync(file_path: str) -> str:
+    """Synchronous document conversion for thread pool execution."""
+    md = MarkItDown()
+    result = md.convert(file_path)
+    return result.text_content
+
+
+def _load_image_sync(file_path: str) -> Image:
+    """Synchronous image loading for thread pool execution."""
+    return Image(path=file_path)
 
 
 def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
@@ -102,7 +133,7 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
 
 
 async def _convert_with_markitdown(
-    ctx: Context, file_path: str, file_type: str
+    ctx: Context, file_path: str, file_type: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
 ) -> DocumentReadResponse:
     """Helper function to convert documents to markdown using MarkItDown."""
     # Validate file path for security
@@ -113,15 +144,24 @@ async def _convert_with_markitdown(
         )
 
     try:
-        # Initialize MarkItDown
-        md = MarkItDown()
-        # Convert the document to markdown
-        result = md.convert(file_path)
-
-        return DocumentReadResponse(
-            status='success', content=result.text_content, file_path=file_path, error_message=None
+        # Run conversion in thread pool with timeout
+        loop = asyncio.get_event_loop()
+        content = await asyncio.wait_for(
+            loop.run_in_executor(None, _convert_document_sync, file_path),
+            timeout=timeout_seconds
         )
 
+        return DocumentReadResponse(
+            status='success', content=content, file_path=file_path, error_message=None
+        )
+
+    except asyncio.TimeoutError:
+        error_msg = f'{file_type} conversion timed out after {timeout_seconds} seconds for {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return DocumentReadResponse(
+            status='error', content='', file_path=file_path, error_message=error_msg
+        )
     except FileNotFoundError:
         error_msg = f'Could not find {file_type} at {file_path}'
         logger.error(error_msg)
@@ -138,7 +178,7 @@ async def _convert_with_markitdown(
         )
 
 
-async def _read_pdf_content(ctx: Context, file_path: str) -> DocumentReadResponse:
+async def _read_pdf_content(ctx: Context, file_path: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> DocumentReadResponse:
     """Helper function to read PDF content using pdfplumber."""
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
@@ -148,20 +188,24 @@ async def _read_pdf_content(ctx: Context, file_path: str) -> DocumentReadRespons
         )
 
     try:
-        text_content = ''
-
-        # Open the PDF file with pdfplumber
-        with pdfplumber.open(file_path) as pdf:
-            for page_num, page in enumerate(pdf.pages, 1):
-                text_content += f'\n--- Page {page_num} ---\n'
-                page_text = page.extract_text()
-                if page_text:
-                    text_content += page_text
-
-        return DocumentReadResponse(
-            status='success', content=text_content.strip(), file_path=file_path, error_message=None
+        # Run PDF extraction in thread pool with timeout
+        loop = asyncio.get_event_loop()
+        text_content = await asyncio.wait_for(
+            loop.run_in_executor(None, _extract_pdf_text_sync, file_path),
+            timeout=timeout_seconds
         )
 
+        return DocumentReadResponse(
+            status='success', content=text_content, file_path=file_path, error_message=None
+        )
+
+    except asyncio.TimeoutError:
+        error_msg = f'PDF processing timed out after {timeout_seconds} seconds for {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return DocumentReadResponse(
+            status='error', content='', file_path=file_path, error_message=error_msg
+        )
     except FileNotFoundError:
         error_msg = f'Could not find PDF file at {file_path}'
         logger.error(error_msg)
@@ -185,6 +229,12 @@ async def read_document(
     file_type: str = Field(
         ..., description="Type of document: 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', or 'ppt'"
     ),
+    timeout_seconds: int = Field(
+        DEFAULT_TIMEOUT_SECONDS,
+        description='Timeout in seconds (min: 5, max: 300)',
+        ge=5,
+        le=300
+    ),
 ) -> DocumentReadResponse:
     """Extract content from various document formats (PDF, Word, Excel, PowerPoint)."""
     # Normalize file_type to lowercase
@@ -202,15 +252,15 @@ async def read_document(
 
     # Handle PDF files with pdfplumber
     if file_type == 'pdf':
-        return await _read_pdf_content(ctx, file_path)
+        return await _read_pdf_content(ctx, file_path, timeout_seconds)
 
     # Handle Office documents with markitdown
     elif file_type in {'docx', 'doc'}:
-        return await _convert_with_markitdown(ctx, file_path, 'Word document')
+        return await _convert_with_markitdown(ctx, file_path, 'Word document', timeout_seconds)
     elif file_type in {'xlsx', 'xls'}:
-        return await _convert_with_markitdown(ctx, file_path, 'Excel file')
+        return await _convert_with_markitdown(ctx, file_path, 'Excel file', timeout_seconds)
     elif file_type in {'pptx', 'ppt'}:
-        return await _convert_with_markitdown(ctx, file_path, 'PowerPoint file')
+        return await _convert_with_markitdown(ctx, file_path, 'PowerPoint file', timeout_seconds)
 
     # This should never be reached due to validation above, but pyright needs explicit return
     return DocumentReadResponse(
@@ -228,6 +278,12 @@ async def read_image(
         ...,
         description='Absolute path to the image file (supports PNG, JPG, JPEG, GIF, BMP, TIFF, WEBP)',
     ),
+    timeout_seconds: int = Field(
+        DEFAULT_TIMEOUT_SECONDS,
+        description='Timeout in seconds (min: 5, max: 300)',
+        ge=5,
+        le=300
+    ),
 ) -> Image:
     """Load an image file and return it to the LLM for viewing and analysis."""
     # Validate file path for security
@@ -236,9 +292,19 @@ async def read_image(
         raise ValueError(validation_error)
 
     try:
-        # Create and return Image object using FastMCP's Image helper
-        return Image(path=file_path)
+        # Run image loading in thread pool with timeout
+        loop = asyncio.get_event_loop()
+        image = await asyncio.wait_for(
+            loop.run_in_executor(None, _load_image_sync, file_path),
+            timeout=timeout_seconds
+        )
+        return image
 
+    except asyncio.TimeoutError:
+        error_msg = f'Image loading timed out after {timeout_seconds} seconds for {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
     except Exception as e:
         error_msg = f'Error loading image {file_path}: {str(e)}'
         logger.error(error_msg)

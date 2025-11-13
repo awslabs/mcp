@@ -83,11 +83,11 @@ async def call_mcp_tool(tool_name: str, file_path: str, file_type: str = None):
 
         # Handle different tool signatures
         if tool_name == 'read_document' and file_type:
-            return await fn(ctx, file_path, file_type)
+            return await fn(ctx, file_path, file_type, 30)  # Use default timeout
         elif tool_name == 'read_image':
-            return await fn(ctx, file_path)
+            return await fn(ctx, file_path, 30)  # Use default timeout
         else:
-            return await fn(ctx, file_path)
+            return await fn(ctx, file_path, 30)  # Use default timeout
     else:
         raise ValueError(f'Cannot find callable function for tool {tool_name}')
 
