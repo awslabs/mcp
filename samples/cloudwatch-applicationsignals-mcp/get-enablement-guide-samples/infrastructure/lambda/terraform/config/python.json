@@ -3,7 +3,7 @@
   "environment": {
     "LOG_LEVEL": "INFO"
   },
-  "functionName": "PythonLambda",
+  "functionName": "PythonLambdaTerraform",
   "handler": "function.lambda_handler",
   "memorySize": 512,
   "runtime": "python3.13",

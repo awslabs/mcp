@@ -113,23 +113,6 @@ cd infrastructure/lambda/<language>-lambda
 
 ##### Step 2: Deploy Lambda Infrastructure
 
-**Using Terraform:**
-
-```shell
-cd infrastructure/lambda/terraform
-
-# Initialize Terraform (first time only)
-terraform init
-
-terraform apply -var="config_file=<config-file>"
-
-terraform destroy -var="config_file=<config-file>"
-```
-
-| Language | Config File  | Function Name | Build Output              |
-|----------|--------------|---------------|---------------------------|
-| python   | python.json  | PythonLambda  | builds/python-lambda.zip  |
-
 **Using CDK:**
 
 ```shell
@@ -143,8 +126,25 @@ cdk deploy <stack-name>
 cdk destroy <stack-name>
 ```
 
-| Language | Config File  | Stack Name           | Function Name    | Build Output              |
-|----------|--------------|----------------------|------------------|---------------------------|
-| python   | python.json  | PythonLambdaCdkStack | PythonLambdaCdk  | builds/python-lambda.zip  |
+| Language | Config File  | Stack Name           | Function Name   | Build Output              |
+|----------|--------------|----------------------|-----------------|---------------------------|
+| python   | python.json  | PythonLambdaCdkStack | PythonLambdaCdk | builds/python-lambda.zip  |
+
+**Using Terraform:**
+
+```shell
+cd infrastructure/lambda/terraform
+
+# Initialize Terraform (first time only)
+terraform init
+
+terraform apply -var="config_file=<config-file>"
+
+terraform destroy -var="config_file=<config-file>"
+```
+
+| Language | Config File  | Function Name          | Build Output              |
+|----------|--------------|------------------------|---------------------------|
+| python   | python.json  | PythonLambdaTerraform  | builds/python-lambda.zip  |
 
 **Note:** You must run the build script before deploying. If you modify Lambda code or dependencies, rebuild before redeploying.
