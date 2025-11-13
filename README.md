@@ -1014,6 +1014,35 @@ For Windows:
   }
 }
 ```
+
+> **Note for Windows users**
+>
+> The "Install on VS Code" one-click buttons on this page currently generate a `uvx`-based configuration that is correct for macOS/Linux but not for Windows. On Windows, please use the `uv tool run ... .exe` pattern shown above (for `awslabs.core-mcp-server`) and adapt it to the specific MCP server, for example:
+>
+```json
+{
+  "mcpServers": {
+    "AWS Pricing MCP Server": {
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-pricing-mcp-server@latest",
+        "awslabs.aws-pricing-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": [],
+      "type": "stdio"
+    }
+  }
+}
+```
 </details>
 
 ### Getting Started with Claude Code
