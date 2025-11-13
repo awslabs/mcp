@@ -1,3 +1,5 @@
+#checkov:skip=CKV_DOCKER_2:HEALTHCHECK not applicable - container only used to build deployment artifact
+#checkov:skip=CKV_DOCKER_3:USER not required - container only used to build deployment artifact, not for runtime
 FROM public.ecr.aws/lambda/python:3.13
 
 # Install build tools
