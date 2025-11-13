@@ -9,7 +9,6 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
 }
 
 # Data source to get current AWS account ID and region
@@ -35,12 +34,25 @@ data "aws_subnet" "default" {
   id       = each.value
 }
 
-# Get public subnets only
+# Get private and public subnets
 locals {
+  # Prefer private subnets for security, fallback to public if no private subnets available
+  private_subnet_ids = [
+    for subnet in data.aws_subnet.default :
+    subnet.id if !subnet.map_public_ip_on_launch
+  ]
+
   public_subnet_ids = [
     for subnet in data.aws_subnet.default :
     subnet.id if subnet.map_public_ip_on_launch
   ]
+
+  # Use private subnets for ECS tasks (more secure), public subnets for ALB
+  ecs_subnet_ids = length(local.private_subnet_ids) > 0 ? local.private_subnet_ids : local.public_subnet_ids
+  alb_subnet_ids = local.public_subnet_ids
+
+  # Determine if we need public IP based on subnet type (only if using public subnets as fallback)
+  assign_public_ip = length(local.private_subnet_ids) == 0
 
   ecr_image_uri = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/${var.image_name}:latest"
 
@@ -57,7 +69,8 @@ locals {
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "app_log_group" {
   name              = "/ecs/${var.app_name}"
-  retention_in_days = 7
+  retention_in_days = var.log_retention_in_days
+  kms_key_id        = var.kms_key_id
 
   tags = {
     Name        = "${var.app_name}-log-group"
@@ -130,6 +143,11 @@ resource "aws_iam_role_policy_attachment" "task_role_s3_policy" {
 resource "aws_ecs_cluster" "main" {
   name = "${var.app_name}-cluster"
 
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+
   tags = {
     Name        = "${var.app_name}-cluster"
     Application = var.app_name
@@ -147,12 +165,17 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.task_execution_role.arn
   task_role_arn           = aws_iam_role.task_role.arn
 
+  volume {
+    name = "tmp"
+  }
+
   container_definitions = jsonencode([
     {
-      name      = "application"
-      image     = local.ecr_image_uri
-      essential = true
-      memory    = 512
+      name                = "application"
+      image               = local.ecr_image_uri
+      essential           = true
+      memory              = 512
+      readonlyRootFilesystem = true
 
       environment = [
         {
@@ -165,6 +188,14 @@ resource "aws_ecs_task_definition" "app" {
         {
           containerPort = var.port
           protocol      = "tcp"
+        }
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "tmp"
+          containerPath = "/tmp"
+          readOnly      = false
         }
       ]
 
@@ -189,16 +220,27 @@ resource "aws_ecs_task_definition" "app" {
 # Security Group for ALB
 resource "aws_security_group" "alb" {
   name_prefix = "${var.app_name}-alb-"
+  description = "Security group for Application Load Balancer - allows inbound HTTP and HTTPS traffic"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = var.port
-    to_port     = var.port
+    description = "Allow inbound HTTP traffic from internet to ALB"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow inbound HTTPS traffic from internet to ALB"
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
+    description = "Allow all outbound traffic from ALB"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -214,9 +256,11 @@ resource "aws_security_group" "alb" {
 # Security Group for ECS Service
 resource "aws_security_group" "ecs_service" {
   name_prefix = "${var.app_name}-ecs-"
+  description = "Security group for ECS service - allows inbound traffic from ALB"
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
+    description     = "Allow inbound traffic from Application Load Balancer to ECS tasks"
     from_port       = var.port
     to_port         = var.port
     protocol        = "tcp"
@@ -224,6 +268,7 @@ resource "aws_security_group" "ecs_service" {
   }
 
   egress {
+    description = "Allow all outbound traffic from ECS tasks"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -233,6 +278,73 @@ resource "aws_security_group" "ecs_service" {
   tags = {
     Name        = "${var.app_name}-ecs-sg"
     Application = var.app_name
+  }
+}
+
+# WAF v2 WebACL for ALB protection
+resource "aws_wafv2_web_acl" "main" {
+  name  = "${var.app_name}-waf"
+  description = "WAF for ${var.app_name} Application Load Balancer protection"
+  scope = "REGIONAL"
+
+  default_action {
+    allow {}
+  }
+
+  rule {
+    name     = "AWSManagedRulesCommonRuleSet"
+    priority = 1
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesCommonRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                 = "${var.app_name}-CommonRuleSetMetric"
+      sampled_requests_enabled    = true
+    }
+  }
+
+  rule {
+    name     = "AWSManagedRulesKnownBadInputsRuleSet"
+    priority = 2
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                 = "${var.app_name}-KnownBadInputsMetric"
+      sampled_requests_enabled    = true
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                 = "${var.app_name}-WAF"
+    sampled_requests_enabled    = true
+  }
+
+  tags = {
+    Name        = "${var.app_name}-waf"
+    Application = var.app_name
+    Language    = var.language
   }
 }
 
@@ -249,6 +361,12 @@ resource "aws_lb" "main" {
     Application = var.app_name
     Language    = var.language
   }
+}
+
+# Associate WAF with ALB
+resource "aws_wafv2_web_acl_association" "main" {
+  resource_arn = aws_lb.main.arn
+  web_acl_arn  = aws_wafv2_web_acl.main.arn
 }
 
 # Target Group
@@ -278,11 +396,49 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
-# Load Balancer Listener
-resource "aws_lb_listener" "app" {
+# HTTP Listener - Redirect to HTTPS if certificate is provided, otherwise forward directly
+resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
-  port              = var.port
+  port              = "80"
   protocol          = "HTTP"
+
+  default_action {
+    type = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "redirect" : "forward"
+
+    dynamic "redirect" {
+      for_each = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+
+    dynamic "forward" {
+      for_each = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? [] : [1]
+      content {
+        target_group {
+          arn = aws_lb_target_group.app.arn
+        }
+      }
+    }
+  }
+
+  tags = {
+    Name        = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "${var.app_name}-http-redirect-listener" : "${var.app_name}-http-listener"
+    Application = var.app_name
+  }
+}
+
+# HTTPS Listener - Only create if certificate is provided
+resource "aws_lb_listener" "https" {
+  count = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.ssl_certificate_arn
 
   default_action {
     type             = "forward"
@@ -290,7 +446,7 @@ resource "aws_lb_listener" "app" {
   }
 
   tags = {
-    Name        = "${var.app_name}-listener"
+    Name        = "${var.app_name}-https-listener"
     Application = var.app_name
   }
 }
@@ -305,8 +461,8 @@ resource "aws_ecs_service" "app" {
 
   network_configuration {
     security_groups  = [aws_security_group.ecs_service.id]
-    subnets         = local.public_subnet_ids
-    assign_public_ip = true
+    subnets         = local.ecs_subnet_ids
+    assign_public_ip = local.assign_public_ip
   }
 
   load_balancer {
@@ -315,7 +471,10 @@ resource "aws_ecs_service" "app" {
     container_port   = var.port
   }
 
-  depends_on = [aws_lb_listener.app]
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.https
+  ]
 
   tags = {
     Name        = "${var.app_name}-service"

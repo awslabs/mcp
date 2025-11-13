@@ -15,12 +15,25 @@ output "load_balancer_dns" {
 
 output "health_check_url" {
   description = "Health Check Endpoint URL"
-  value       = "http://${aws_lb.main.dns_name}:${var.port}${var.health_check_path}"
+  value       = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "https://${aws_lb.main.dns_name}${var.health_check_path}" : "http://${aws_lb.main.dns_name}${var.health_check_path}"
 }
 
 output "buckets_api_url" {
   description = "Buckets API Endpoint URL"
-  value       = "http://${aws_lb.main.dns_name}:${var.port}/api/buckets"
+  value       = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "https://${aws_lb.main.dns_name}/api/buckets" : "http://${aws_lb.main.dns_name}/api/buckets"
+}
+
+output "base_url" {
+  description = "Application Base URL"
+  value       = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "https://${aws_lb.main.dns_name}" : "http://${aws_lb.main.dns_name}"
+}
+
+output "alb_listener_ports" {
+  description = "ALB Listener Ports"
+  value = {
+    http  = "80"
+    https = var.enable_https && var.ssl_certificate_arn != null && var.ssl_certificate_arn != "" ? "443" : "disabled"
+  }
 }
 
 output "ecr_image_uri" {
