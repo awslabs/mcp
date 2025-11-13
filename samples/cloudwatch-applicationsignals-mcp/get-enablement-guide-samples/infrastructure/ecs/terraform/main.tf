@@ -69,6 +69,19 @@ resource "aws_cloudwatch_log_group" "app_log_group" {
   }
 }
 
+# CloudWatch Log Group for curl sidecar
+resource "aws_cloudwatch_log_group" "curl_log_group" {
+  name              = "/ecs/${var.app_name}-curl"
+  retention_in_days = var.log_retention_in_days
+  kms_key_id        = var.kms_key_id
+
+  tags = {
+    Name        = "${var.app_name}-curl-log-group"
+    Application = var.app_name
+    Language    = var.language
+  }
+}
+
 # IAM Task Execution Role
 resource "aws_iam_role" "task_execution_role" {
   name = "${var.app_name}-task-execution-role"
@@ -136,11 +149,13 @@ resource "aws_ecs_cluster" "main" {
     value = "enabled"
   }
 
-  # Checkov CKV_AWS_65: Ensure container insights are enabled on ECS cluster
   configuration {
     execute_command_configuration {
+      kms_key_id = var.kms_key_id
+
       log_configuration {
-        cloud_watch_log_group_name = aws_cloudwatch_log_group.ecs_exec_logs.name
+        cloud_watch_log_group_name     = aws_cloudwatch_log_group.ecs_exec_logs.name
+        cloud_watch_encryption_enabled = true
       }
       logging = "OVERRIDE"
     }
@@ -218,6 +233,33 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-stream-prefix" = "app"
         }
       }
+    },
+    {
+      name      = "curl-sidecar"
+      image     = "curlimages/curl:8.1.2"
+      essential = false
+      memory    = 128
+
+      command = [
+        "sh", "-c",
+        "echo 'Starting curl sidecar...'; sleep 30; while true; do echo \"$(date): Curling localhost:${var.port}/api/buckets\"; curl -f localhost:${var.port}/api/buckets || echo 'Curl failed'; sleep 60; done"
+      ]
+
+      dependsOn = [
+        {
+          containerName = "application"
+          condition     = "START"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.curl_log_group.name
+          "awslogs-region"        = data.aws_region.current.name
+          "awslogs-stream-prefix" = "curl"
+        }
+      }
     }
   ])
 
@@ -231,15 +273,42 @@ resource "aws_ecs_task_definition" "app" {
 # Security Group for ECS Service
 resource "aws_security_group" "ecs_service" {
   name_prefix = "${var.app_name}-ecs-"
-  description = "Security group for ECS service - allows outbound internet access"
+  description = "Security group for ECS service - allows limited outbound access for ECS operations"
   vpc_id      = data.aws_vpc.default.id
 
-  # Allow all outbound traffic for ECS tasks to access ECR, AWS services, and application dependencies
+  # HTTPS for ECR image pulls and AWS API calls
   egress {
-    description = "Allow all outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS for ECR and AWS APIs"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # HTTP for package downloads (if needed)
+  egress {
+    description = "HTTP for package downloads"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # DNS resolution
+  egress {
+    description = "DNS UDP"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # DNS resolution TCP (for large queries)
+  egress {
+    description = "DNS TCP"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
