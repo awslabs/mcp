@@ -10,13 +10,56 @@ on:
       - edited
       - labeled
       - unlabeled
+  merge_group:
 
 permissions: {}
 
 env:
   DO_NOT_MERGE_LABEL: hold-merging
+  HALT_MERGES: ${{ vars.HALT_MERGES }}
 
 jobs:
+  check-merge-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" == "merge_group" ]; then
+            PR_NUMBER=$(echo "${{ github.event.merge_group.head_ref }}" | sed -n 's/.*pr-\([0-9]\)-.*/\1/p')
+          else
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          fi
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+      - name: Check if merges are allowed
+        run: |
+          PR_NUMBER="${{ steps.pr.outputs.number }}"
+          
+          # Default to 0 (allow all) if not set
+          if [ -z "$HALT_MERGES" ]; then
+            HALT_MERGES=0
+          fi
+          
+          echo "HALT_MERGES value: $HALT_MERGES"
+          echo "This PR number: $PR_NUMBER"
+          
+          if [ "$HALT_MERGES" = "0" ]; then
+            echo "✅ All merges are allowed (HALT_MERGES=0)"
+            exit 0
+          elif [ "$HALT_MERGES" = "$PR_NUMBER" ]; then
+            echo "✅ This PR #$PR_NUMBER is explicitly allowed"
+            exit 0
+          else
+            echo "❌ Merges are blocked. HALT_MERGES is set to $HALT_MERGES"
+            if [ "$HALT_MERGES" -lt 0 ]; then
+              echo "   All merges are blocked (negative value)"
+            else
+              echo "   Only PR #$HALT_MERGES is allowed to merge"
+            fi
+            exit 1
+          fi
+
+  
   fail-by-label:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
