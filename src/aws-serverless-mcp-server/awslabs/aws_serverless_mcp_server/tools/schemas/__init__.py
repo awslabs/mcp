@@ -18,4 +18,4 @@ from .list_registries import ListRegistriesTool
 from .search_schema import SearchSchemaTool
 from .describe_schema import DescribeSchemaTool
 
-__all__ = [ListRegistriesTool, SearchSchemaTool, DescribeSchemaTool]
+__all__ = ['ListRegistriesTool', 'SearchSchemaTool', 'DescribeSchemaTool']
