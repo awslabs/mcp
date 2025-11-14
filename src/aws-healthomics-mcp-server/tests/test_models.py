@@ -796,7 +796,7 @@ def test_container_registry_map_serialization():
     registry_map = ContainerRegistryMap(
         registryMappings=[
             RegistryMapping(
-                upstreamRegistryUrl='docker.io',
+                upstreamRegistryUrl='registry-url',
                 ecrRepositoryPrefix='my-prefix',
                 upstreamRepositoryPrefix='library',
                 ecrAccountId='123456789012',
@@ -820,7 +820,7 @@ def test_container_registry_map_serialization():
     # Test JSON serialization
     json_str = registry_map.model_dump_json()
     assert isinstance(json_str, str)
-    assert 'docker.io' in json_str
+    assert 'registry-url' in json_str
     assert 'nginx:latest' in json_str
 
 
