@@ -84,7 +84,6 @@ NOTICE                                           @awslabs/mcp-admins
 
 ## Samples
 
-/samples/cloudwatch-applicationsignals-mcp       @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon @vastin @wangzlei
 ## Secure the CODEOWNERS file
 
 /.github/CODEOWNERS                              @awslabs/mcp-admins
