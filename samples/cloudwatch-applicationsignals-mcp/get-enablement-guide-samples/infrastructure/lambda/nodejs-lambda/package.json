@@ -1,0 +1,12 @@
+{
+  "name": "nodejs-lambda",
+  "version": "1.0.0",
+  "description": "Node.js Lambda function for CloudWatch Application Signals",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

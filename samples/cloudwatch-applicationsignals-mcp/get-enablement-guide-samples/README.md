@@ -136,6 +136,8 @@ cdk destroy <stack-name>
 | Language | Config File  | Stack Name           | Function Name   | Build Output              |
 |----------|--------------|----------------------|-----------------|---------------------------|
 | python   | python.json  | PythonLambdaCdkStack | PythonLambdaCdk | builds/python-lambda.zip  |
+| nodejs   | nodejs.json  | NodejsLambdaCdkStack | NodejsLambdaCdk | builds/nodejs-lambda.zip  |
+| java     | java.json    | JavaLambdaCdkStack   | JavaLambdaCdk   | builds/java-lambda.zip    |
 
 **Using Terraform:**
 
@@ -153,6 +155,8 @@ terraform destroy -var="config_file=<config-file>"
 | Language | Config File  | Function Name          | Build Output              |
 |----------|--------------|------------------------|---------------------------|
 | python   | python.json  | PythonLambdaTerraform  | builds/python-lambda.zip  |
+| nodejs   | nodejs.json  | NodejsLambdaTerraform  | builds/nodejs-lambda.zip  |
+| java     | java.json    | JavaLambdaTerraform    | builds/java-lambda.zip    |
 
 **Note:** You must run the build script before deploying. If you modify Lambda code or dependencies, rebuild before redeploying.
 
@@ -163,9 +167,13 @@ After deployment, manually invoke the Lambda function to start generating intern
 ```shell
 # For CDK:
 aws lambda invoke --function-name PythonLambdaCdk --invocation-type Event /dev/stdout
+aws lambda invoke --function-name NodejsLambdaCdk --invocation-type Event /dev/stdout
+aws lambda invoke --function-name JavaLambdaCdk --invocation-type Event /dev/stdout
 
 # For Terraform:
 aws lambda invoke --function-name PythonLambdaTerraform --invocation-type Event /dev/stdout
+aws lambda invoke --function-name NodejsLambdaTerraform --invocation-type Event /dev/stdout
+aws lambda invoke --function-name JavaLambdaTerraform --invocation-type Event /dev/stdout
 ```
 
 Each invocation executes quickly, listing S3 buckets. Invoke multiple times to generate more traffic. Execution logs can be monitored in CloudWatch Logs.

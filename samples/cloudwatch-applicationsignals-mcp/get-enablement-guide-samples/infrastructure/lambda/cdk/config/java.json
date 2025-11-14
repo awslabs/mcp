@@ -1,0 +1,8 @@
+{
+  "artifactPath": "../builds/java-lambda.zip",
+  "functionName": "JavaLambdaCdk",
+  "handler": "com.example.LambdaHandler::handleRequest",
+  "memorySize": 512,
+  "runtime": "java17",
+  "timeout": 620
+}
