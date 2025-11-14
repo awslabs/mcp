@@ -1,0 +1,7 @@
+{
+  "appName": "PythonDjangoCdk",
+  "healthCheckPath": "/health",
+  "imageName": "python-django",
+  "language": "python",
+  "port": 8000
+}
