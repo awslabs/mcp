@@ -125,7 +125,7 @@ docker run -p 8000:8000 document-loader-mcp-server
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/document-loader-mcp-server/LICENSE) file for details.
 
 ## Contributing
 

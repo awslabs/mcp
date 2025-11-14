@@ -21,7 +21,8 @@
       "**/*.ts",
       "**/*.cs",
       "**/*.properties",
-      "**/*.xml"
+      "**/*.xml",
+      "samples/**"
     ],
     "include": [
       "**/*.py",
