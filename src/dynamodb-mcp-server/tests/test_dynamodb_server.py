@@ -637,7 +637,7 @@ async def test_dynamodb_data_model_validation_mcp_integration():
 
     assert validation_tool is not None
     assert validation_tool.description is not None
-    assert 'validates dynamodb data model' in validation_tool.description.lower()
+    assert 'validates and tests dynamodb data models' in validation_tool.description.lower()
 
 
 # Integration tests
