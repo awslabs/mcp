@@ -16,6 +16,8 @@ import os
 from .config import (
     ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS,
     ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY,
+    DISABLE_LOCAL_FILE_ACCESS,
+    DISABLE_LOCAL_FILE_ACCESS_KEY,
     WORKING_DIRECTORY,
 )
 from awscli.paramfile import get_file
@@ -40,8 +42,12 @@ def validate_file_path(file_path: str) -> str:
         The validated absolute path
 
     Raises:
-        ValueError: If the path is outside the working directory and unrestricted access is not allowed
+        ValueError: If local file access is disabled or the path is outside the working directory and unrestricted access is not allowed
     """
+    if DISABLE_LOCAL_FILE_ACCESS:
+        # Reject local file paths
+        raise ValueError(f'Local file access is disabled via {DISABLE_LOCAL_FILE_ACCESS_KEY}')
+
     if ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS:
         return file_path
 

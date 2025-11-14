@@ -52,6 +52,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.file_operations import extract_file_paths_from_parameters
 from ..common.file_system_controls import validate_file_path
 from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
@@ -711,28 +712,6 @@ def _run_custom_validations(service: str, operation: str, parameters: dict[str, 
         validate_ec2_parameter_values(parameters)
 
 
-def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
-    if operation != 'cp':
-        return
-
-    paths = parameters.get('--paths')
-    if not paths or not isinstance(paths, list) or len(paths) < 2:
-        return
-
-    source_path, dest_path = paths
-
-    if source_path == '-' or dest_path == '-':
-        file_path = source_path if source_path == '-' else dest_path
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason="streaming file ('-') is not allowed",
-        )
-    _validate_file_path(source_path, service, operation)
-    _validate_file_path(dest_path, service, operation)
-
-
 def _validate_request_serialization(
     operation: str,
     service_model: ServiceModel,
@@ -754,50 +733,75 @@ def _validate_request_serialization(
         ) from err
 
 
+def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
+    if operation not in ('cp', 'sync', 'mv'):
+        return
+
+    paths = parameters.get('--paths')
+    if not paths or not isinstance(paths, list) or len(paths) < 2:
+        return
+
+    source_path, dest_path = paths
+    _validate_s3_file_path(source_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation)
+
+
+def _validate_s3_file_path(file_path: str, service: str, operation: str):
+    if file_path == '-':
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason="streaming file ('-') is not allowed",
+        )
+
+    if not file_path.startswith('s3://'):
+        _validate_file_path(file_path, service, operation)
+
+
 def _validate_file_paths(
     command_metadata: CommandMetadata,
     parsed_args: ParsedOperationArgs | None,
     parameters: dict[str, Any],
 ):
     """Validate all file paths in the command."""
-    from ..common.file_operations import extract_file_paths_from_parameters
-
-    # Validate --outfile parameter for streaming operations
+    # Validate positional outfile argument for streaming operations
     if command_metadata.has_streaming_output and parsed_args:
         output_file_path = parsed_args.operation_args.outfile
-        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an absolute path')
-
         if output_file_path != '-':
-            validate_file_path(output_file_path)
+            _validate_file_path(
+                output_file_path,
+                service=command_metadata.service_sdk_name,
+                operation=command_metadata.operation_sdk_name,
+            )
 
     # Extract and validate all file paths using comprehensive detection
     file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
     for file_path in file_paths:
-        validate_file_path(file_path)
-
-
-def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
-    if command_metadata.has_streaming_output:
-        output_file_path = parsed_args.operation_args.outfile
-        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an absolute path')
-
-        # Validate file path is within working directory
-        if output_file_path != '-':
-            validate_file_path(output_file_path)
+        _validate_file_path(
+            file_path,
+            service=command_metadata.service_sdk_name,
+            operation=command_metadata.operation_sdk_name,
+        )
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
-    if file_path == '-' or file_path.startswith('s3://'):
-        return
-
     if not os.path.isabs(Path(file_path)):
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
             reason='should be an absolute path',
+        )
+
+    try:
+        validate_file_path(file_path)
+    except ValueError as e:
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason=str(e),
         )
 
 

@@ -4,6 +4,7 @@ from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetad
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
+    CommandValidationError,
     ExpectedArgumentError,
     FileParameterError,
     InvalidChoiceForParameterError,
@@ -22,10 +23,9 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
     _validate_endpoint,
-    _validate_output_file,
     parse,
 )
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -613,7 +613,7 @@ def test_client_side_filter_error():
 
 def test_valid_expand_user_home_directory():
     """Test that tilde or user home directory is invalid path."""
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(FileParameterError) as exc_info:
         parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
 
     error_message = str(exc_info.value)
@@ -669,84 +669,9 @@ def test_validate_output_file_raises_error_for_relative_paths(
     command, expected_service, expected_operation, expected_file_path
 ):
     """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
-    expected_message = f'{expected_file_path} should be an absolute path'
-    with pytest.raises(ValueError, match=expected_message):
+    expected_message = f"Invalid file parameter '{expected_file_path}' for service '{expected_service}' and operation '{expected_operation}': should be an absolute path"
+    with pytest.raises(FileParameterError, match=expected_message):
         parse(command)
-
-
-def test_validate_output_file_no_streaming_output():
-    """Test that _validate_output_file does nothing when has_streaming_output is False."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = False
-    parsed_args = Mock()
-
-    # Should not raise any exception
-    _validate_output_file(command_metadata, parsed_args)
-
-
-def test_validate_output_file_with_dash_output():
-    """Test that _validate_output_file allows '-' as output file."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '-'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    # Should not raise any exception
-    _validate_output_file(command_metadata, parsed_args)
-
-
-def test_validate_output_file_with_relative_path():
-    """Test that _validate_output_file raises ValueError for relative paths."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = 'relative/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    with pytest.raises(ValueError, match='relative/path.txt should be an absolute path'):
-        _validate_output_file(command_metadata, parsed_args)
-
-
-@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
-def test_validate_output_file_with_absolute_path(mock_validate_file_path):
-    """Test that _validate_output_file calls validate_file_path for absolute paths."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '/absolute/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    _validate_output_file(command_metadata, parsed_args)
-
-    mock_validate_file_path.assert_called_once_with('/absolute/path.txt')
-
-
-@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
-def test_validate_output_file_propagates_validate_file_path_error(mock_validate_file_path):
-    """Test that _validate_output_file propagates errors from validate_file_path."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '/absolute/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    mock_validate_file_path.side_effect = ValueError('File validation error')
-
-    with pytest.raises(ValueError, match='File validation error'):
-        _validate_output_file(command_metadata, parsed_args)
 
 
 @pytest.mark.parametrize(
@@ -814,3 +739,108 @@ def test_validate_endpoint_non_http_protocols():
     """Test that non-HTTP protocols with localhost are accepted."""
     _validate_endpoint('ftp://localhost:8080')
     _validate_endpoint('ws://127.0.0.1:8080')
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key',
+        f'aws s3 cp s3://bucket/key {WORKING_DIRECTORY}/file.txt',
+        f'aws s3 sync {WORKING_DIRECTORY}/folder s3://bucket/prefix',
+        f'aws s3 mv {WORKING_DIRECTORY}/file.txt s3://bucket/key',
+        f'aws s3api get-object --bucket bucket --key file.txt {WORKING_DIRECTORY}/file.txt',
+        f'aws lambda invoke --function-name MyFunction {WORKING_DIRECTORY}/result.json',
+    ],
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_disable_local_file_access_rejects_commands_with_local_paths(command):
+    """Test that commands with local paths are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+    with pytest.raises(
+        FileParameterError,
+        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+    ):
+        parse(command)
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        f'aws lambda invoke --function-name MyFunction --payload file://{WORKING_DIRECTORY}/payload.json -',
+        f'aws rekognition detect-text --image-bytes fileb://{WORKING_DIRECTORY}/test.jpg',
+    ],
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_disable_local_file_access_rejects_file_blob_arguments(command):
+    """Test that commands with file:// and fileb:// arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+    with pytest.raises(
+        CommandValidationError,
+        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+    ):
+        parse(command)
+
+
+@pytest.mark.parametrize(
+    'command,expected_service,expected_operation',
+    [
+        ('aws s3 cp s3://source-bucket/key s3://dest-bucket/key', 's3', 'cp'),
+        ('aws s3 sync s3://source-bucket/prefix s3://dest-bucket/prefix', 's3', 'sync'),
+        ('aws s3 mv s3://source-bucket/key s3://dest-bucket/key', 's3', 'mv'),
+        ('aws s3api get-object --bucket bucket --key file.txt -', 's3', 'get-object'),
+        (
+            'aws lambda invoke --function-name MyFunction --payload \'{"key": "value"}\' -',
+            'lambda',
+            'invoke',
+        ),
+    ],
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_disable_local_file_access_allowed_commands(command, expected_service, expected_operation):
+    """Test that S3 URIs, stdout redirect, and blob arguments are allowed when DISABLE_LOCAL_FILE_ACCESS is True."""
+    result = parse(command)
+    assert result.command_metadata.service_sdk_name == expected_service
+    assert result.operation_cli_name == expected_operation
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    True,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_disable_takes_precedence_over_allow_unrestricted_for_s3():
+    """Test that DISABLE_LOCAL_FILE_ACCESS takes precedence over ALLOW_UNRESTRICTED for S3 commands."""
+    # Even with ALLOW_UNRESTRICTED=True, DISABLE should still reject local files
+    command = f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key'
+    with pytest.raises(
+        FileParameterError,
+        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+    ):
+        parse(command)
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    False,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_allow_unrestricted_works_when_disable_is_false():
+    """Test that ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS works when DISABLE_LOCAL_FILE_ACCESS is False."""
+    # With DISABLE=False and ALLOW_UNRESTRICTED=True, local files should be allowed
+    command = 'aws s3 cp /tmp/file.txt s3://bucket/key'
+    # Should not raise any exception about file access
+    result = parse(command)
+    assert result.command_metadata.service_sdk_name == 's3'

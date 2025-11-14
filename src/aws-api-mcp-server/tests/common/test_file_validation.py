@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import pytest
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
-from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.file_operations import (
     extract_file_paths_from_parameters,
     is_binary_output_operation,
@@ -80,35 +77,6 @@ def test_file_path_extraction_binary_operations():
     file_paths = extract_file_paths_from_parameters(metadata, parameters)
     assert 'response.json' in file_paths
     assert 'my-function' not in file_paths  # Function name should be excluded
-
-
-def test_comprehensive_validation_blocks_unsafe_paths():
-    """Test that comprehensive validation blocks unsafe file paths."""
-    # Test S3 download to unsafe location
-    with pytest.raises(ValueError) as exc_info:
-        parse('aws s3 cp s3://bucket/key /tmp/unsafe.txt')
-
-    assert 'is outside the allowed working directory' in str(exc_info.value)
-
-    # Test Lambda invoke to unsafe location
-    with pytest.raises(ValueError) as exc_info:
-        parse('aws lambda invoke --function-name test /home/user/unsafe.json')
-
-    assert 'is outside the allowed working directory' in str(exc_info.value)
-
-
-def test_comprehensive_validation_allows_safe_paths():
-    """Test that comprehensive validation allows safe file paths."""
-    safe_file = os.path.join(WORKING_DIRECTORY, 'safe.txt')
-
-    # Test S3 download to safe location
-    result = parse(f'aws s3 cp s3://bucket/key {safe_file}')
-    assert result is not None
-
-    # Test Lambda invoke to safe location
-    safe_json = os.path.join(WORKING_DIRECTORY, 'response.json')
-    result = parse(f'aws lambda invoke --function-name test {safe_json}')
-    assert result is not None
 
 
 @patch(
