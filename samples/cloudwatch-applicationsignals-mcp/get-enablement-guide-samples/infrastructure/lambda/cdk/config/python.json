@@ -1,8 +1,0 @@
-{
-  "artifactPath": "../builds/python-lambda.zip",
-  "functionName": "PythonLambdaCdk",
-  "handler": "function.lambda_handler",
-  "memorySize": 512,
-  "runtime": "python3.13",
-  "timeout": 30
-}
