@@ -94,6 +94,32 @@ class TaskResult:
             error=error,
         )
 
+    def get_captured_data_str(self) -> str:
+        """Get string representation of captured_data for debug reporting.
+
+        Returns:
+            Formatted string representation of all captured data
+        """
+        import json
+
+        if not self.captured_data:
+            return 'No captured data'
+
+        lines = ['Captured Data:', '=' * 40]
+
+        for key, value in self.captured_data.items():
+            lines.append(f'\n{key}:')
+            lines.append('-' * 40)
+            try:
+                if isinstance(value, (dict, list)):
+                    lines.append(json.dumps(value, indent=2, default=str))
+                else:
+                    lines.append(str(value))
+            except Exception as e:
+                lines.append(f'<Error formatting data: {e}>')
+
+        return '\n'.join(lines)
+
     def __str__(self) -> str:
         """Format result as a human-readable string."""
         lines = [
@@ -156,6 +182,8 @@ class TaskResult:
                     for criterion_result in criteria_results:
                         status_text = criterion_result['status']
                         lines.append(f'    [{status_text}] {criterion_result["criterion"]}')
+                        if criterion_result.get('reasoning'):
+                            lines.append(f'      Reasoning: {criterion_result["reasoning"]}')
 
         status = '✅ PASS' if self.success else '❌ FAIL'
         lines.extend(
