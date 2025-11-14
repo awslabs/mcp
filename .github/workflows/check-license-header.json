@@ -33,7 +33,8 @@
   },
   {
     "exclude": [
-      "docusaurus/**"
+      "docusaurus/**",
+      "samples/**"
     ],
     "include": [
       "**/*.java",
@@ -44,6 +45,9 @@
     "license": "./.github/workflows/check-license-header-slash.txt"
   },
   {
+    "exclude": [
+      "samples/**"
+    ],
     "include": [
       "**/*.md",
       "**/LICENSE",
