@@ -5,10 +5,6 @@ infrastructure/ec2/cdk/node_modules
 infrastructure/ec2/cdk/cdk.out
 infrastructure/ec2/cdk/.cdk.staging
 
-# Un-ignore the lib/ directory (override root .gitignore)
-!infrastructure/ec2/cdk/lib/
-!infrastructure/ec2/cdk/lib/**
-
 # EC2 Terraform files
 infrastructure/ec2/terraform/.terraform/
 infrastructure/ec2/terraform/*.tfstate
@@ -19,3 +15,30 @@ infrastructure/ec2/terraform/override.tf
 infrastructure/ec2/terraform/override.tf.json
 infrastructure/ec2/terraform/*_override.tf
 infrastructure/ec2/terraform/*_override.tf.json
+
+# Un-ignore the lib/ directory (override root .gitignore)
+!infrastructure/ec2/cdk/lib/
+!infrastructure/ec2/cdk/lib/**
+
+# Lambda Terraform
+infrastructure/lambda/terraform/.terraform/
+infrastructure/lambda/terraform/.terraform.lock.hcl
+infrastructure/lambda/terraform/.terraform.tfstate.lock.info
+infrastructure/lambda/terraform/terraform.tfstate
+infrastructure/lambda/terraform/terraform.tfstate.backup
+infrastructure/lambda/terraform/*.tfvars
+
+# Lambda CDK TypeScript compilation output
+infrastructure/lambda/cdk/**/*.js
+infrastructure/lambda/cdk/**/*.d.ts
+infrastructure/lambda/cdk/node_modules
+infrastructure/lambda/cdk/cdk.out
+infrastructure/lambda/cdk/.cdk.staging
+
+# Un-ignore the Lambda CDK lib/ directory
+!infrastructure/lambda/cdk/lib/
+!infrastructure/lambda/cdk/lib/**
+
+# Lambda build artifacts
+infrastructure/lambda/builds/
+infrastructure/lambda/*/build/

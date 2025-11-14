@@ -1,0 +1,11 @@
+#checkov:skip=CKV_DOCKER_2:HEALTHCHECK not applicable - build container only, not a runtime service
+#checkov:skip=CKV_DOCKER_3:USER not required - build container with short-lived execution for creating deployment artifacts
+FROM public.ecr.aws/lambda/python:3.13
+
+# Install build tools
+RUN dnf install -y zip && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Set working directory
+WORKDIR /var/task
