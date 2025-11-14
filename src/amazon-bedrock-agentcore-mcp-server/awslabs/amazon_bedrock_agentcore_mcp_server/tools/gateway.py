@@ -14,7 +14,7 @@
 
 """AgentCore Gateway Tool - Manage MCP Gateway lifecycle and operations.
 
-Comprehensive gateway operations including create, configure, list, get, and destroy.
+Comprehensive gateway operations including create, configure, list, get, and delete.
 """
 
 from typing import Any, Dict
@@ -147,7 +147,7 @@ Get Target Details:
 CLEANUP COMMANDS:
 
 Delete Gateway Target:
-    agentcore gateway destroy-target --name MyGateway --target-name MyTarget
+    agentcore gateway delete-target --name MyGateway --target-name MyTarget
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
@@ -158,15 +158,16 @@ Delete Gateway Target:
     --target-name TEXT             Target name to delete (will look up ID)
 
 Delete Gateway:
-    agentcore gateway destroy --name MyGateway
+    agentcore gateway delete --name MyGateway
     
-    Note: Gateway must have zero targets before deletion
+    Note: Gateway must have zero targets before deletion, unless --force is used
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID to delete
     --name TEXT                    Gateway name to delete (will look up ID)
     --arn TEXT                     Gateway ARN to delete (will extract ID)
+    --force                        Delete all targets before deleting the gateway
 
 AUTHENTICATION & AUTHORIZATION:
 
@@ -255,13 +256,14 @@ Complete Gateway Setup:
         --credentials '{"api_key": "key123", "credential_location": "header", "credential_parameter_name": "Authorization"}'  # pragma: allowlist secret
 
 Gateway Cleanup:
-    # 1. List and delete all targets first
+    # Option 1: Delete targets individually, then gateway
     agentcore gateway list-targets --name ProductionGateway
-    agentcore gateway destroy-target --name ProductionGateway --target-name LambdaProcessor
-    agentcore gateway destroy-target --name ProductionGateway --target-name ExternalAPI
+    agentcore gateway delete-target --name ProductionGateway --target-name LambdaProcessor
+    agentcore gateway delete-target --name ProductionGateway --target-name ExternalAPI
+    agentcore gateway delete --name ProductionGateway
     
-    # 2. Delete the gateway
-    agentcore gateway destroy --name ProductionGateway
+    # Option 2: Force delete gateway and all targets at once
+    agentcore gateway delete --name ProductionGateway --force
 
 KEY POINTS:
 - Gateways provide centralized MCP endpoint management
