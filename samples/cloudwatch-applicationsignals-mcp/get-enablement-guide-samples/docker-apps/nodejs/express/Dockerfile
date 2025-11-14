@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Use the official Node.js image as the base
-FROM node:20-alpine
+FROM node:22-alpine@sha256:b2358485e3e33bc3a33114d2b1bdb18cdbe4df01bd2b257198eb51beb1f026c5
 
 # Install curl
 RUN apk add --no-cache curl

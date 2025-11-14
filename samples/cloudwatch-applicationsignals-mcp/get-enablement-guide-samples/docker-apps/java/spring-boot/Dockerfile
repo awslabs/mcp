@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM public.ecr.aws/docker/library/maven:3.9-amazoncorretto-17 AS build
+FROM maven:3.9-amazoncorretto-21@sha256:daf9403d1ca69cc5b1fc34559c39096c47a3c96343197ab9c2c57a5fbb130124 AS build
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ RUN mvn dependency:go-offline
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-FROM public.ecr.aws/docker/library/amazoncorretto:17-alpine
+FROM amazoncorretto:21-alpine@sha256:801b86a5da334ca9dfa60008e6e1171cf364ca6e81061fa161c681721c1c7018
 
 RUN apk add --no-cache curl bash && \
     addgroup -g 1001 -S appuser && \
