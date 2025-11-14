@@ -1,0 +1,7 @@
+{
+  "appName": "DotnetAspnetcoreCdk",
+  "healthCheckPath": "/health",
+  "imageName": "dotnet-aspnetcore",
+  "language": "dotnet",
+  "port": 5000
+}
