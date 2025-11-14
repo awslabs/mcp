@@ -1,18 +1,17 @@
 [project]
-name = "awslabs.cloudwatch-applicationsignals-mcp-server"
-version = "0.1.14"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Application Signals"
+name = "awslabs.document-loader-mcp-server"
+version = "1.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for document parsing"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.40.41",
-    "httpx>=0.24.0",
-    "loguru>=0.7.3",
-    "mcp[cli]>=1.11.0",
-    "pydantic>=2.11.1",
+    "fastmcp>=2.11.1",
+    "pdfplumber>=0.10.0",
+    "markitdown[docx,xlsx,pptx]>=0.1.2",
+    "loguru>=0.7.0",
 ]
 license = {text = "Apache-2.0"}
-license-files = ["LICENSE", "NOTICE" ]
+license-files = ["LICENSE", "NOTICE"]
 
 authors = [
     {name = "Amazon Web Services"},
@@ -30,28 +29,21 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.cloudwatch-applicationsignals-mcp-server" = "awslabs.cloudwatch_applicationsignals_mcp_server.server:main"
+"awslabs.document-loader-mcp-server" = "awslabs.document_loader_mcp_server.server:main"
+
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.398",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
+]
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/cloudwatch-applicationsignals-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/document-loader-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-applicationsignals-mcp-server/CHANGELOG.md"
-
-[dependency-groups]
-dev = [
-    "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.37.24",
-    "commitizen>=4.4.1",
-    "moto>=5.0.0",
-    "pre-commit>=4.2.0",
-    "pyright>=1.1.398",
-    "ruff>=0.11.2",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.1",
-    "pytest-cov>=4.1.0",
-    "bandit>=1.8.6",
-]
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/document-loader-mcp-server/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
@@ -59,6 +51,24 @@ build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "reportlab>=4.0.0",
+    "python-docx>=1.1.0",
+    "pillow>=10.0.0",
+    "bandit>=1.8.6",
+]
 
 [tool.ruff]
 line-length = 99
@@ -100,27 +110,28 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.0"
+version = "1.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cloudwatch_applicationsignals_mcp_server/__init__.py:__version__"
+    "awslabs/document_loader_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
-[tool.hatch.build.targets.wheel]
-packages = ["awslabs"]
+[tool.pytest.ini_options]
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
 
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-python_classes = "Test*"
-python_functions = "test_*"
-asyncio_mode = "auto"
-
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.pyright]
+include = ["awslabs"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
