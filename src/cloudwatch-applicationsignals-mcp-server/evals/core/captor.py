@@ -86,12 +86,14 @@ class GitDiffCaptor(Captor):
                 result = self.process_executor.run(
                     ['git', 'diff', '--'] + full_paths,
                     timeout=10,
+                    cwd=str(project_root),
                 )
             else:
                 # Capture all changes if no specific paths provided
                 result = self.process_executor.run(
                     ['git', 'diff'],
                     timeout=10,
+                    cwd=str(project_root),
                 )
             return {GIT_DIFF: result.stdout}
         except Exception as e:

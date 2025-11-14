@@ -232,7 +232,7 @@ async def run_conversation(
                         tool_input = tool_use['input']
                         tool_use_id = tool_use['toolUseId']
 
-                        logger.debug(f'Tool requested: {tool_name}')
+                        logger.debug(f'Tool requested: {tool_name} with {tool_input}')
 
                         tool_input['toolUseId'] = tool_use_id
                         result = await execute_tool(

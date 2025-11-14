@@ -24,6 +24,7 @@ from typing import Any, Dict, List
 FILE_TOOL_LIST_FILES = 'list_files'
 FILE_TOOL_READ_FILE = 'read_file'
 FILE_TOOL_WRITE_FILE = 'write_file'
+PERMITTED_FILE_TOOLS = {FILE_TOOL_LIST_FILES, FILE_TOOL_READ_FILE, FILE_TOOL_WRITE_FILE}
 
 
 def get_file_tools() -> List[Dict[str, Any]]:

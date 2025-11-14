@@ -25,6 +25,7 @@ from .captor import (
     ROLE_USER,
     TOOL_CALLS,
 )
+from .file_tools import PERMITTED_FILE_TOOLS
 from .llm_provider import LLMProvider
 from .validation_prompts import ValidationPromptType
 from abc import ABC, abstractmethod
@@ -233,6 +234,86 @@ class LLMJudgeValidator(Validator):
                 )
 
         return criteria_results
+
+
+class ToolCallValidator(Validator):
+    """Validator that checks tool call ordering."""
+
+    def __init__(self, expected_tool_calls: List[List[str]], ignore_file_tools: bool = False):
+        """Initialize tool call validator.
+
+        Args:
+            expected_tool_calls: List of possible tool call sequences (list of lists).
+                                Only one sequence needs to match exactly.
+            ignore_file_tools: If True, filter out file-related tools before validation
+        """
+        self.expected_tool_calls = expected_tool_calls
+        self.ignore_file_tools = ignore_file_tools
+
+    def get_name(self) -> str:
+        """Return validator name."""
+        return 'Tool Call'
+
+    async def validate(
+        self,
+        captured_data: Dict[str, Any],
+    ) -> ValidationResult:
+        """Validate tool calls match one of the expected sequences."""
+        logger.info('Validating tool calls...')
+
+        tool_calls = captured_data.get(TOOL_CALLS, [])
+        called_tools = [call['name'] for call in tool_calls]
+
+        # Filter out file tools if requested
+        if self.ignore_file_tools:
+            called_tools = [tool for tool in called_tools if tool not in PERMITTED_FILE_TOOLS]
+
+        # Check if any expected sequence matches
+        matched_sequence = None
+        for expected_sequence in self.expected_tool_calls:
+            if called_tools == expected_sequence:
+                matched_sequence = expected_sequence
+                break
+
+        if matched_sequence is not None:
+            return {
+                'validator_name': self.get_name(),
+                'overall_pass': True,
+                'criteria_results': [
+                    {
+                        'criterion': 'Tools called in one of expected orders',
+                        'status': 'PASS',
+                        'reasoning': f'Matched sequence: {" → ".join(matched_sequence)}',
+                    }
+                ],
+                'raw_validation_output': {
+                    'expected_tool_calls': self.expected_tool_calls,
+                    'called_tools': called_tools,
+                    'matched_sequence': matched_sequence,
+                    'ignore_file_tools': self.ignore_file_tools,
+                },
+            }
+        else:
+            expected_sequences_str = ' OR '.join(
+                [f'[{" → ".join(seq)}]' for seq in self.expected_tool_calls]
+            )
+            return {
+                'validator_name': self.get_name(),
+                'overall_pass': False,
+                'criteria_results': [
+                    {
+                        'criterion': 'Tools called in one of expected orders',
+                        'status': 'FAIL',
+                        'reasoning': f'Expected one of: {expected_sequences_str}, got: [{" → ".join(called_tools)}]',
+                    }
+                ],
+                'raw_validation_output': {
+                    'expected_tool_calls': self.expected_tool_calls,
+                    'called_tools': called_tools,
+                    'matched_sequence': None,
+                    'ignore_file_tools': self.ignore_file_tools,
+                },
+            }
 
 
 class BuildValidator(Validator):
