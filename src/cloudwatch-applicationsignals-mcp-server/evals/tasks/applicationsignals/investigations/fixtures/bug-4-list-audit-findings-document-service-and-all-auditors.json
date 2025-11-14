@@ -1,0 +1,118 @@
+{
+  "AuditFindings": [
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "TRACE",
+          "Description": "Traces show the long latency are caused by a dependency invocation with `ClientError`, see a [sample trace](<#xray:transaction-search/1-69150dce-0eb8d0cb7d63698d0bb72b73~85ac3a08c6833c33?~(context~(timeRange~(start~'2024-11-12T22*3A35*3A00Z~end~'2024-11-12T22*3A45*3A00Z)))&segmentName=document-manager>).  \n* **Dependency**: AWS::DynamoDB::Table *documents-1762982132*  \n* **Invoked operation**: `GetItem`&nbsp;\n\n**Exception message**:\n```\nAn error occurred (ValidationException) when calling the GetItem operation: One or more parameter values were invalid: Size of hashkey has exceeded the maximum size limit of2048 bytes\n```\n**Stack trace**:\n```\n_make_api_call /usr/local/lib/python3.11/site-packages/botocore/client.py:1078)\nwrapper /usr/local/lib/python3.11/site-packages/botocore/context.py:123)\npatched_api_call /usr/local/lib/python3.11/site-packages/amazon/opentelemetry/distro/patches/_botocore_patches.py:510)\nstart_as_current_span /usr/local/lib/python3.11/site-packages/opentelemetry/sdk/trace/__init__.py:1105)\nuse_span /usr/local/lib/python3.11/site-packages/opentelemetry/trace/__init__.py:587)\n```",
+          "Severity": "HIGH"
+        }
+      ],
+      "DependencyGraph": {
+        "Edges": [
+          {
+            "ConnectionType": "DIRECT",
+            "DestinationNodeId": "NodeId1",
+            "SourceNodeId": "NodeId2"
+          }
+        ],
+        "Nodes": [
+          {
+            "Duration": 0.7416026592254639,
+            "KeyAttributes": {
+              "Environment": "ec2:default",
+              "Name": "document-manager",
+              "Type": "Service"
+            },
+            "Name": "document-manager",
+            "NodeId": "NodeId2",
+            "Operation": "GET /documents/{document_id}",
+            "Status": "Fault",
+            "Type": "Service"
+          },
+          {
+            "Duration": 0.010304927825927734,
+            "KeyAttributes": {
+              "Identifier": "documents-1762982132",
+              "ResourceType": "AWS::DynamoDB::Table",
+              "Type": "AWS::Resource"
+            },
+            "Name": "DynamoDB",
+            "NodeId": "NodeId1",
+            "Operation": "GetItem",
+            "Status": "Error",
+            "Type": "AWS::Resource"
+          }
+        ]
+      },
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricGraph": {
+        "EndTime": "2024-11-12 14:35:00-08:00",
+        "MetricDataQueries": [
+          {
+            "AccountId": "123456789012",
+            "Id": "m1",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "GET /documents/{document_id}"
+                  },
+                  {
+                    "Name": "Service",
+                    "Value": "document-manager"
+                  },
+                  {
+                    "Name": "Environment",
+                    "Value": "ec2:default"
+                  }
+                ],
+                "MetricName": "Latency",
+                "Namespace": "ApplicationSignals"
+              },
+              "Period": 600,
+              "Stat": "p99"
+            },
+            "Period": 600,
+            "ReturnData": true
+          }
+        ],
+        "StartTime": "2024-11-12 14:35:00-08:00"
+      },
+      "Operation": "GET /documents/{document_id}",
+      "Type": "Latency"
+    },
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "SERVICE_QUOTA",
+          "Description": "This service is hosted in EC2, and the relevant service quotas are from EC2, dynamodb and s3. The current utilization of EC2 quota: Running On-Demand DL instances is at 0.0%. No action needed.",
+          "Severity": "LOW"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricGraph": {}
+    }
+  ],
+  "ResponseMetadata": {
+    "HTTPHeaders": {
+      "connection": "keep-alive",
+      "content-length": "3298",
+      "content-type": "application/json",
+      "date": "Wed, 12 Nov 2024 23:55:08 GMT",
+      "x-amzn-requestid": "59de5426-c165-4b86-8a6b-aa92d6c379f0"
+    },
+    "HTTPStatusCode": 200,
+    "RequestId": "59de5426-c165-4b86-8a6b-aa92d6c379f0",
+    "RetryAttempts": 0
+  }
+}

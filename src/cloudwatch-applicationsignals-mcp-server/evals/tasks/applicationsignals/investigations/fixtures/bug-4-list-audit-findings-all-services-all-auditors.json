@@ -1,0 +1,133 @@
+{
+  "AuditFindings": [
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "TRACE",
+          "Description": "Traces show the long latency are caused by a dependency invocation with `ClientError`, see a [sample trace](<#xray:transaction-search/1-69151164-50b148fe995414c6b0a3eea3~2c66420220e1a982?~(context~(timeRange~(start~'2024-11-12T22*3A50*3A00Z~end~'2024-11-12T23*3A00*3A00Z)))&segmentName=document-manager>).  \n* **Dependency**: AWS::DynamoDB::Table *documents-1762982132*  \n* **Invoked operation**: `GetItem`&nbsp;\n\n**Exception message**:\n```\nAn error occurred (ValidationException) when calling the GetItem operation: One or more parameter values were invalid: Size of hashkey has exceeded the maximum size limit of2048 bytes\n```\n**Stack trace**:\n```\n_make_api_call /usr/local/lib/python3.11/site-packages/botocore/client.py:1078)\nwrapper /usr/local/lib/python3.11/site-packages/botocore/context.py:123)\npatched_api_call /usr/local/lib/python3.11/site-packages/amazon/opentelemetry/distro/patches/_botocore_patches.py:510)\nstart_as_current_span /usr/local/lib/python3.11/site-packages/opentelemetry/sdk/trace/__init__.py:1105)\nuse_span /usr/local/lib/python3.11/site-packages/opentelemetry/trace/__init__.py:587)\n```",
+          "Severity": "HIGH"
+        }
+      ],
+      "DependencyGraph": {
+        "Edges": [
+          {
+            "ConnectionType": "DIRECT",
+            "DestinationNodeId": "NodeId1",
+            "SourceNodeId": "NodeId2"
+          }
+        ],
+        "Nodes": [
+          {
+            "Duration": 0.7426395416259766,
+            "KeyAttributes": {
+              "Environment": "ec2:default",
+              "Name": "document-manager",
+              "Type": "Service"
+            },
+            "Name": "document-manager",
+            "NodeId": "NodeId2",
+            "Operation": "GET /documents/{document_id}",
+            "Status": "Fault",
+            "Type": "Service"
+          },
+          {
+            "Duration": 0.008713245391845703,
+            "KeyAttributes": {
+              "Identifier": "documents-1762982132",
+              "ResourceType": "AWS::DynamoDB::Table",
+              "Type": "AWS::Resource"
+            },
+            "Name": "DynamoDB",
+            "NodeId": "NodeId1",
+            "Operation": "GetItem",
+            "Status": "Error",
+            "Type": "AWS::Resource"
+          }
+        ]
+      },
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricGraph": {
+        "EndTime": "2024-11-12 14:50:00-08:00",
+        "MetricDataQueries": [
+          {
+            "AccountId": "123456789012",
+            "Id": "m1",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "GET /documents/{document_id}"
+                  },
+                  {
+                    "Name": "Service",
+                    "Value": "document-manager"
+                  },
+                  {
+                    "Name": "Environment",
+                    "Value": "ec2:default"
+                  }
+                ],
+                "MetricName": "Latency",
+                "Namespace": "ApplicationSignals"
+              },
+              "Period": 600,
+              "Stat": "p99"
+            },
+            "Period": 600,
+            "ReturnData": true
+          }
+        ],
+        "StartTime": "2024-11-12 14:50:00-08:00"
+      },
+      "Operation": "GET /documents/{document_id}",
+      "Type": "Latency"
+    },
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "SERVICE_QUOTA",
+          "Description": "This service is hosted in EC2, and the relevant service quotas are from EC2, dynamodb and s3. The current utilization of S3 quota: General purpose buckets is at 0.22%. No action needed.",
+          "Severity": "LOW"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricGraph": {}
+    },
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "SERVICE_QUOTA",
+          "Description": "This service is hosted in EC2, and the relevant service quotas are from EC2. The current utilization of EC2 quota: Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances is at 0.17%. No action needed.",
+          "Severity": "LOW"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "scanner_service",
+        "Type": "Service"
+      },
+      "MetricGraph": {}
+    }
+  ],
+  "ResponseMetadata": {
+    "HTTPHeaders": {
+      "connection": "keep-alive",
+      "content-length": "3905",
+      "content-type": "application/json",
+      "date": "Wed, 12 Nov 2024 23:52:42 GMT",
+      "x-amzn-requestid": "682877ce-20e2-44a9-a88f-d3c4afe14bda"
+    },
+    "HTTPStatusCode": 200,
+    "RequestId": "682877ce-20e2-44a9-a88f-d3c4afe14bda",
+    "RetryAttempts": 0
+  }
+}
