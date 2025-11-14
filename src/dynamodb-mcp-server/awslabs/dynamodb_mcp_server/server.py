@@ -370,17 +370,24 @@ async def execute_access_patterns(
 async def dynamodb_data_model_validation(
     ctx: Optional[Context] = Field(default=None, description='Execution context'),
 ) -> str:
-    """Validates DynamoDB data model or provides JSON generation guidance.
+    """Validates and tests DynamoDB data models against DynamoDB Local.
 
-    This tool serves as the entry point after completing data model design with the dynamodb_data_modeling tool.
+    Use this tool to validate, test, and verify your DynamoDB data model after completing the design phase.
+    This tool automatically checks that all access patterns work correctly by executing them against a local
+    DynamoDB instance.
 
-    WORKFLOW:
-    1. Call this tool after finishing your data model design
-    2. If dynamodb_data_model.json doesn't exist:
+    WHEN TO USE:
+    - After completing data model design with dynamodb_data_modeling tool
+    - When user asks to "validate", "test", "check", or "verify" their DynamoDB data model
+    - To ensure all access patterns execute correctly before deploying to production
+
+    WHAT IT DOES:
+    1. If dynamodb_data_model.json doesn't exist:
        - Returns complete JSON generation guide from json_generation_guide.md
        - Follow the guide to create the JSON file with tables, items, and access_patterns
        - Call this tool again after creating the JSON to validate
-    3. If dynamodb_data_model.json exists:
+
+    2. If dynamodb_data_model.json exists:
        - Validates the JSON structure (checks for required keys: tables, items, access_patterns)
        - Sets up DynamoDB Local environment (Docker/Podman/Finch/nerdctl or Java fallback)
        - Cleans up existing tables from previous validation runs
