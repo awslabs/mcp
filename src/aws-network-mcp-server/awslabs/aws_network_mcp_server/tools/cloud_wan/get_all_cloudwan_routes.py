@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Any, Optional, Dict
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_all_cloudwan_routes(
     cloudwan_region: Annotated[
-        str, Field(..., description="AWS region where the Cloud WAN is deployed.")
+        str, Field(..., description='AWS region where the Cloud WAN is deployed.')
     ],
-    core_network_id: Annotated[str, Field(..., description="Cloud WAN Core Network ID.")],
+    core_network_id: Annotated[str, Field(..., description='Cloud WAN Core Network ID.')],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -63,56 +63,56 @@ async def get_all_cloudwan_routes(
     3. Use get_cloudwan_routes() for focused segment-specific queries
     """
 
-    cloudwan_client = get_aws_client("networkmanager", cloudwan_region, profile_name)
+    cloudwan_client = get_aws_client('networkmanager', cloudwan_region, profile_name)
 
     try:
         core_network = cloudwan_client.get_core_network(CoreNetworkId=core_network_id)
 
-        segments = core_network["CoreNetwork"].get("Segments", [])
-        edges = core_network["CoreNetwork"].get("Edges", [])
+        segments = core_network['CoreNetwork'].get('Segments', [])
+        edges = core_network['CoreNetwork'].get('Edges', [])
 
-        result = {"core_network_id": core_network_id, "regions": {}}
+        result = {'core_network_id': core_network_id, 'regions': {}}
     except Exception as e:
-        raise ToolError(f"Error getting Cloud WAN routes. VALIDATE parameters. Error: {str(e)}")
+        raise ToolError(f'Error getting Cloud WAN routes. VALIDATE parameters. Error: {str(e)}')
 
     for edge in edges:
-        edge_location = edge["EdgeLocation"]
-        result["regions"][edge_location] = {"segments": {}}
+        edge_location = edge['EdgeLocation']
+        result['regions'][edge_location] = {'segments': {}}
 
         for segment in segments:
-            segment_name = segment["Name"]
+            segment_name = segment['Name']
 
             try:
                 routes_response = cloudwan_client.get_network_routes(
-                    GlobalNetworkId=core_network["CoreNetwork"]["GlobalNetworkId"],
+                    GlobalNetworkId=core_network['CoreNetwork']['GlobalNetworkId'],
                     RouteTableIdentifier={
-                        "CoreNetworkSegmentEdge": {
-                            "CoreNetworkId": core_network_id,
-                            "EdgeLocation": edge_location,
-                            "SegmentName": segment_name,
+                        'CoreNetworkSegmentEdge': {
+                            'CoreNetworkId': core_network_id,
+                            'EdgeLocation': edge_location,
+                            'SegmentName': segment_name,
                         }
                     },
                 )
 
                 routes = []
-                for route in routes_response.get("NetworkRoutes", []):
+                for route in routes_response.get('NetworkRoutes', []):
                     target = None
-                    if route.get("Destinations"):
-                        dest = route["Destinations"][0]
-                        target = dest.get("CoreNetworkAttachmentId") or dest.get("ResourceId")
+                    if route.get('Destinations'):
+                        dest = route['Destinations'][0]
+                        target = dest.get('CoreNetworkAttachmentId') or dest.get('ResourceId')
 
                     routes.append(
                         {
-                            "destination": route.get("DestinationCidrBlock"),
-                            "target": target,
-                            "type": route.get("Type", "").lower(),
-                            "state": route.get("State", "").lower(),
+                            'destination': route.get('DestinationCidrBlock'),
+                            'target': target,
+                            'type': route.get('Type', '').lower(),
+                            'state': route.get('State', '').lower(),
                         }
                     )
 
-                result["regions"][edge_location]["segments"][segment_name] = {"routes": routes}
+                result['regions'][edge_location]['segments'][segment_name] = {'routes': routes}
 
             except Exception:
-                result["regions"][edge_location]["segments"][segment_name] = {"routes": []}
+                result['regions'][edge_location]['segments'][segment_name] = {'routes': []}
 
     return result

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List, Literal, Optional
 from pydantic.dataclasses import dataclass
+from typing import Any, Dict, List, Literal, Optional
 
 
 @dataclass
@@ -28,7 +28,7 @@ class RouteDict:
 @dataclass
 class RouteTableDict:
     id: str
-    type: Literal["main", "custom"]
+    type: Literal['main', 'custom']
     associated_subnets: List[str]
     routes: List[RouteDict]
 
@@ -38,7 +38,7 @@ class SubnetDict:
     id: str
     cidr: str
     az: str
-    type: Literal["public", "private"]
+    type: Literal['public', 'private']
     route_table_id: str
 
 
@@ -70,7 +70,7 @@ class NatGatewayDict:
 class NetworkAclRuleDict:
     rule_number: int
     protocol: str
-    action: Literal["allow", "deny"]
+    action: Literal['allow', 'deny']
     cidr: str
     port_range: str
 
@@ -107,29 +107,29 @@ class VpcNetworkDetailsDict:
 def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
     result = []
     # Process route tables
-    for rt in route_tables["RouteTables"]:
-        is_main = any(assoc.get("Main", False) for assoc in rt.get("Associations", []))
+    for rt in route_tables['RouteTables']:
+        is_main = any(assoc.get('Main', False) for assoc in rt.get('Associations', []))
         associated_subnets = [
-            assoc["SubnetId"] for assoc in rt.get("Associations", []) if "SubnetId" in assoc
+            assoc['SubnetId'] for assoc in rt.get('Associations', []) if 'SubnetId' in assoc
         ]
 
         routes: List[RouteDict] = []
-        for route in rt["Routes"]:
+        for route in rt['Routes']:
             routes.append(
                 RouteDict(
                     **{
-                        "destination": route.get("DestinationCidrBlock")
-                        or route.get("DestinationIpv6CidrBlock", ""),
-                        "target": (
-                            route.get("GatewayId")
-                            or route.get("NatGatewayId")
-                            or route.get("TransitGatewayId")
-                            or route.get("VpcPeeringConnectionId")
-                            or route.get("NetworkInterfaceId")
-                            or route.get("EgressOnlyInternetGatewayId")
+                        'destination': route.get('DestinationCidrBlock')
+                        or route.get('DestinationIpv6CidrBlock', ''),
+                        'target': (
+                            route.get('GatewayId')
+                            or route.get('NatGatewayId')
+                            or route.get('TransitGatewayId')
+                            or route.get('VpcPeeringConnectionId')
+                            or route.get('NetworkInterfaceId')
+                            or route.get('EgressOnlyInternetGatewayId')
                         ),
-                        "state": route.get("State"),
-                        "origin": route.get("Origin"),
+                        'state': route.get('State'),
+                        'origin': route.get('Origin'),
                     }
                 )
             )
@@ -137,10 +137,10 @@ def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
         result.append(
             RouteTableDict(
                 **{
-                    "id": rt["RouteTableId"],
-                    "type": "main" if is_main else "custom",
-                    "associated_subnets": associated_subnets,
-                    "routes": routes,
+                    'id': rt['RouteTableId'],
+                    'type': 'main' if is_main else 'custom',
+                    'associated_subnets': associated_subnets,
+                    'routes': routes,
                 }
             )
         )
@@ -150,37 +150,37 @@ def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
 def process_subnets(subnets: Dict[str, Any], route_tables: Dict[str, Any]) -> List[SubnetDict]:
     result = []
     # Process subnets
-    for subnet in subnets["Subnets"]:
+    for subnet in subnets['Subnets']:
         # Find associated route table
         subnet_to_rt = {}
         main_rt_id = {}
-        for rt in route_tables["RouteTables"]:
-            for assoc in rt.get("Associations", []):
-                if "SubnetId" in assoc:
-                    subnet_to_rt[assoc["SubnetId"]] = rt["RouteTableId"]
-                elif assoc.get("Main"):
-                    main_rt_id = rt["RouteTableId"]
+        for rt in route_tables['RouteTables']:
+            for assoc in rt.get('Associations', []):
+                if 'SubnetId' in assoc:
+                    subnet_to_rt[assoc['SubnetId']] = rt['RouteTableId']
+                elif assoc.get('Main'):
+                    main_rt_id = rt['RouteTableId']
 
-        rt_id = subnet_to_rt.get(subnet["SubnetId"], main_rt_id)
+        rt_id = subnet_to_rt.get(subnet['SubnetId'], main_rt_id)
 
         # Determine if public or private
-        subnet_type = "private"
+        subnet_type = 'private'
         if rt_id:
-            for rt in route_tables["RouteTables"]:
-                if rt["RouteTableId"] == rt_id:
-                    for route in rt["Routes"]:
-                        if route.get("GatewayId", "").startswith("igw-"):
-                            subnet_type = "public"
+            for rt in route_tables['RouteTables']:
+                if rt['RouteTableId'] == rt_id:
+                    for route in rt['Routes']:
+                        if route.get('GatewayId', '').startswith('igw-'):
+                            subnet_type = 'public'
                             break
 
         result.append(
             SubnetDict(
                 **{
-                    "id": subnet["SubnetId"],
-                    "cidr": subnet["CidrBlock"],
-                    "az": subnet["AvailabilityZone"],
-                    "type": subnet_type,
-                    "route_table_id": rt_id if rt_id else "",
+                    'id': subnet['SubnetId'],
+                    'cidr': subnet['CidrBlock'],
+                    'az': subnet['AvailabilityZone'],
+                    'type': subnet_type,
+                    'route_table_id': rt_id if rt_id else '',
                 }
             )
         )
@@ -188,44 +188,44 @@ def process_subnets(subnets: Dict[str, Any], route_tables: Dict[str, Any]) -> Li
 
 
 def process_igws(igws: Dict[str, Any]) -> InternetGatewayDict:
-    internet_gateways = igws.get("InternetGateways", [])
+    internet_gateways = igws.get('InternetGateways', [])
 
-    if internet_gateways and internet_gateways[0].get("Attachments"):
+    if internet_gateways and internet_gateways[0].get('Attachments'):
         igw = internet_gateways[0]
         return InternetGatewayDict(
             **{
-                "id": igw["InternetGatewayId"],
-                "type": "Internet gateway",
-                "state": igw["Attachments"][0]["State"],
+                'id': igw['InternetGatewayId'],
+                'type': 'Internet gateway',
+                'state': igw['Attachments'][0]['State'],
             }
         )
 
     return InternetGatewayDict(
         **{
-            "id": "",
-            "type": "Internet gateway",
-            "state": "",
+            'id': '',
+            'type': 'Internet gateway',
+            'state': '',
         }
     )
 
 
 def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
     result = []
-    for nat in nat_gateways["NatGateways"]:
+    for nat in nat_gateways['NatGateways']:
         gw = NatGatewayDict(
             **{
-                "id": nat["NatGatewayId"],
-                "type": "NAT Gateway",
-                "state": nat["State"],
-                "subnet_id": nat["SubnetId"],
-                "private_ips": [],
-                "public_ips": [],
+                'id': nat['NatGatewayId'],
+                'type': 'NAT Gateway',
+                'state': nat['State'],
+                'subnet_id': nat['SubnetId'],
+                'private_ips': [],
+                'public_ips': [],
             }
         )
 
-        for address in nat["NatGatewayAddresses"]:
-            gw.private_ips.append(address["PrivateIp"])
-            gw.public_ips.append(address["PublicIp"])
+        for address in nat['NatGatewayAddresses']:
+            gw.private_ips.append(address['PrivateIp'])
+            gw.public_ips.append(address['PublicIp'])
 
         result.append(gw)
 
@@ -235,32 +235,32 @@ def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
 def process_nacls(nacls: Dict[str, Any]) -> List[NetworkAclDict]:
     result: List[NetworkAclDict] = []
     # Process network ACLs
-    for acl in nacls["NetworkAcls"]:
+    for acl in nacls['NetworkAcls']:
         associations = []
-        for assoc in acl.get("Associations", []):
-            associations.append(assoc["SubnetId"])
+        for assoc in acl.get('Associations', []):
+            associations.append(assoc['SubnetId'])
 
         rules = []
-        for entry in acl["Entries"]:
-            port_range = ""
-            if entry.get("PortRange"):
-                port_range = f"{entry['PortRange']['From']}-{entry['PortRange']['To']}"
+        for entry in acl['Entries']:
+            port_range = ''
+            if entry.get('PortRange'):
+                port_range = f'{entry["PortRange"]["From"]}-{entry["PortRange"]["To"]}'
 
             rules.append(
                 NetworkAclRuleDict(
                     **{
-                        "rule_number": entry["RuleNumber"],
-                        "protocol": entry["Protocol"],
-                        "action": "allow" if entry["RuleAction"] == "allow" else "deny",
-                        "cidr": entry.get("CidrBlock", ""),
-                        "port_range": port_range,
+                        'rule_number': entry['RuleNumber'],
+                        'protocol': entry['Protocol'],
+                        'action': 'allow' if entry['RuleAction'] == 'allow' else 'deny',
+                        'cidr': entry.get('CidrBlock', ''),
+                        'port_range': port_range,
                     }
                 )
             )
 
         result.append(
             NetworkAclDict(
-                **{"id": acl["NetworkAclId"], "associations": associations, "rules": rules}
+                **{'id': acl['NetworkAclId'], 'associations': associations, 'rules': rules}
             )
         )
     return result
@@ -268,31 +268,31 @@ def process_nacls(nacls: Dict[str, Any]) -> List[NetworkAclDict]:
 
 def process_vpc_endpoints(endpoints: Dict[str, Any]) -> List[VpcEndpointDict]:
     result: List[VpcEndpointDict] = []
-    for endpoint in endpoints["VpcEndpoints"]:
-        if endpoint["VpcEndpointType"] == "Interface":
+    for endpoint in endpoints['VpcEndpoints']:
+        if endpoint['VpcEndpointType'] == 'Interface':
             result.append(
                 VpcEndpointDict(
                     **{
-                        "id": endpoint["VpcEndpointId"],
-                        "type": endpoint["VpcEndpointType"],
-                        "state": endpoint["State"],
-                        "service_name": endpoint["ServiceName"],
-                        "subnet_ids": endpoint["SubnetIds"],
-                        "policy_document": endpoint["PolicyDocument"],
-                        "tags": endpoint["Tags"],
+                        'id': endpoint['VpcEndpointId'],
+                        'type': endpoint['VpcEndpointType'],
+                        'state': endpoint['State'],
+                        'service_name': endpoint['ServiceName'],
+                        'subnet_ids': endpoint['SubnetIds'],
+                        'policy_document': endpoint['PolicyDocument'],
+                        'tags': endpoint['Tags'],
                     }
                 )
             )
-        elif endpoint["VpcEndpointType"] == "GatewayLoadBalancer":
+        elif endpoint['VpcEndpointType'] == 'GatewayLoadBalancer':
             result.append(
                 VpcEndpointDict(
                     **{
-                        "id": endpoint["VpcEndpointId"],
-                        "type": endpoint["VpcEndpointType"],
-                        "state": endpoint["State"],
-                        "service_name": endpoint["ServiceName"],
-                        "subnet_ids": endpoint["SubnetIds"],
-                        "tags": endpoint["Tags"],
+                        'id': endpoint['VpcEndpointId'],
+                        'type': endpoint['VpcEndpointType'],
+                        'state': endpoint['State'],
+                        'service_name': endpoint['ServiceName'],
+                        'subnet_ids': endpoint['SubnetIds'],
+                        'tags': endpoint['Tags'],
                     }
                 )
             )

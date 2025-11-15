@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import getenv
 from boto3 import Session, client
+from os import getenv
 
 
 def get_aws_client(
@@ -23,10 +23,10 @@ def get_aws_client(
     profile_name: str | None = None,
 ):
     if region_name is None:
-        region_name = getenv("AWS_REGION", "us-east-1")
+        region_name = getenv('AWS_REGION', 'us-east-1')
 
     if profile_name is None:
-        profile_name = getenv("AWS_PROFILE", None)
+        profile_name = getenv('AWS_PROFILE', None)
 
     if profile_name:
         session = Session(profile_name=profile_name)
@@ -38,6 +38,6 @@ def get_aws_client(
 def get_account_id(profile_name: str | None = None) -> str:
     if profile_name:
         session = Session(profile_name=profile_name)
-        return session.client("sts").get_caller_identity()["Account"]
+        return session.client('sts').get_caller_identity()['Account']
     else:
-        return client("sts").get_caller_identity()["Account"]
+        return client('sts').get_caller_identity()['Account']

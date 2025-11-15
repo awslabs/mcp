@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Any, Dict, Optional
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_cloudwan_peering_details(
-    peering_id: Annotated[str, Field(..., description="Cloud WAN Peering ID")],
+    peering_id: Annotated[str, Field(..., description='Cloud WAN Peering ID')],
     core_network_region: Annotated[
-        str, Field(..., description="Region where Cloud WAN core network is deployed")
+        str, Field(..., description='Region where Cloud WAN core network is deployed')
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -63,58 +63,58 @@ async def get_cloudwan_peering_details(
     """
 
     try:
-        nm_client = get_aws_client("networkmanager", core_network_region, profile_name)
+        nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 
         # Get Cloud WAN peering details
         peering_response = nm_client.get_transit_gateway_peering(PeeringId=peering_id)
-        peering = peering_response["TransitGatewayPeering"]
+        peering = peering_response['TransitGatewayPeering']
 
         # Extract TGW ARN and region
-        tgw_arn = peering["TransitGatewayArn"]
-        tgw_region = tgw_arn.split(":")[3]
-        tgw_id = tgw_arn.split("/")[-1]
+        tgw_arn = peering['TransitGatewayArn']
+        tgw_region = tgw_arn.split(':')[3]
+        tgw_id = tgw_arn.split('/')[-1]
 
         # Get Transit Gateway details and route tables
-        ec2_client = get_aws_client("ec2", tgw_region, profile_name)
+        ec2_client = get_aws_client('ec2', tgw_region, profile_name)
         tgw_response = ec2_client.describe_transit_gateways(TransitGatewayIds=[tgw_id])
 
         # Get peering attachment ID from the peering response
-        peering_attachment_id = peering.get("TransitGatewayPeeringAttachmentId")
+        peering_attachment_id = peering.get('TransitGatewayPeeringAttachmentId')
 
         # Find the route table associated with the peering attachment
         peering_route_table_id = None
         if peering_attachment_id:
             # Get all route tables and check associations
             route_tables_response = ec2_client.describe_transit_gateway_route_tables(
-                Filters=[{"Name": "transit-gateway-id", "Values": [tgw_id]}]
+                Filters=[{'Name': 'transit-gateway-id', 'Values': [tgw_id]}]
             )
             print(route_tables_response)
-            for rt in route_tables_response.get("TransitGatewayRouteTables", []):
+            for rt in route_tables_response.get('TransitGatewayRouteTables', []):
                 associations_response = ec2_client.get_transit_gateway_route_table_associations(
-                    TransitGatewayRouteTableId=rt["TransitGatewayRouteTableId"]
+                    TransitGatewayRouteTableId=rt['TransitGatewayRouteTableId']
                 )
-                for assoc in associations_response.get("Associations", []):
-                    if assoc.get("TransitGatewayAttachmentId") == peering_attachment_id:
-                        peering_route_table_id = rt["TransitGatewayRouteTableId"]
+                for assoc in associations_response.get('Associations', []):
+                    if assoc.get('TransitGatewayAttachmentId') == peering_attachment_id:
+                        peering_route_table_id = rt['TransitGatewayRouteTableId']
                         break
                 if peering_route_table_id:
                     break
 
         # Get Cloud WAN segment information from peering response
-        segment_info = peering["Peering"].get("SegmentName")
-        edge_location = peering["Peering"].get("EdgeLocation")
+        segment_info = peering['Peering'].get('SegmentName')
+        edge_location = peering['Peering'].get('EdgeLocation')
 
         return {
-            "cloudwan_peering": peering,
-            "cloudwan_segment": segment_info,
-            "cloudwan_edge_location": edge_location,
-            "transit_gateway": tgw_response["TransitGateways"][0]
-            if tgw_response["TransitGateways"]
+            'cloudwan_peering': peering,
+            'cloudwan_segment': segment_info,
+            'cloudwan_edge_location': edge_location,
+            'transit_gateway': tgw_response['TransitGateways'][0]
+            if tgw_response['TransitGateways']
             else None,
-            "peering_route_table_id": peering_route_table_id,
-            "peering_attachment_id": peering_attachment_id,
+            'peering_route_table_id': peering_route_table_id,
+            'peering_attachment_id': peering_attachment_id,
         }
     except Exception as e:
         raise ToolError(
-            f"Error getting Cloud WAN peering details with error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error getting Cloud WAN peering details with error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

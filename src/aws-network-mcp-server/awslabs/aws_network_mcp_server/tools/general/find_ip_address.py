@@ -14,33 +14,33 @@
 # limitations under the License.
 
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def find_ip_address(
-    ip_address: Annotated[str, Field(..., description="IP address")],
+    ip_address: Annotated[str, Field(..., description='IP address')],
     region: Annotated[
         str,
         Field(
             ...,
-            description="AWS Region where to find the IP address. If all_regions is set, then thiss will be ignored.",
+            description='AWS Region where to find the IP address. If all_regions is set, then thiss will be ignored.',
         ),
     ],
     all_regions: Annotated[
         bool,
         Field(
             ...,
-            description="If set to true, this tool will loop through all regions in the account to find the IP address. False by default",
+            description='If set to true, this tool will loop through all regions in the account to find the IP address. False by default',
         ),
     ] = False,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -74,55 +74,55 @@ async def find_ip_address(
         - Attachment: Information about attached resource (EC2, Lambda, etc.)
     """
 
-    ec2_client = get_aws_client("ec2", region, profile_name)
+    ec2_client = get_aws_client('ec2', region, profile_name)
 
     if not all_regions:
         try:
             response = ec2_client.describe_network_interfaces(
-                Filters=[{"Name": "private-ip-address", "Values": [ip_address]}]
+                Filters=[{'Name': 'private-ip-address', 'Values': [ip_address]}]
             )
 
-            if response["NetworkInterfaces"]:
-                return response["NetworkInterfaces"][0]
+            if response['NetworkInterfaces']:
+                return response['NetworkInterfaces'][0]
 
             # Try public IP if private IP not found
             response = ec2_client.describe_network_interfaces(
-                Filters=[{"Name": "association.public-ip", "Values": [ip_address]}]
+                Filters=[{'Name': 'association.public-ip', 'Values': [ip_address]}]
             )
 
-            if response["NetworkInterfaces"]:
-                return response["NetworkInterfaces"][0]
+            if response['NetworkInterfaces']:
+                return response['NetworkInterfaces'][0]
 
             raise ToolError(
-                f"IP address {ip_address} not found in region {region}. VALIDATE PARAMETERS BEFORE CONTINUING."
+                f'IP address {ip_address} not found in region {region}. VALIDATE PARAMETERS BEFORE CONTINUING.'
             )
 
         except Exception as e:
             raise ToolError(
-                f"Error searching IP address: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+                f'Error searching IP address: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
             )
     else:
         response = ec2_client.describe_regions()
-        regions = [region["RegionName"] for region in response["Regions"]]
+        regions = [region['RegionName'] for region in response['Regions']]
 
         error = None
         for region in regions:
-            ec2_client = get_aws_client("ec2", region, profile_name)
+            ec2_client = get_aws_client('ec2', region, profile_name)
             try:
                 response = ec2_client.describe_network_interfaces(
-                    Filters=[{"Name": "private-ip-address", "Values": [ip_address]}]
+                    Filters=[{'Name': 'private-ip-address', 'Values': [ip_address]}]
                 )
 
-                if response["NetworkInterfaces"]:
-                    return response["NetworkInterfaces"][0]
+                if response['NetworkInterfaces']:
+                    return response['NetworkInterfaces'][0]
 
                 # Try public IP if private IP not found
                 response = ec2_client.describe_network_interfaces(
-                    Filters=[{"Name": "association.public-ip", "Values": [ip_address]}]
+                    Filters=[{'Name': 'association.public-ip', 'Values': [ip_address]}]
                 )
 
-                if response["NetworkInterfaces"]:
-                    return response["NetworkInterfaces"][0]
+                if response['NetworkInterfaces']:
+                    return response['NetworkInterfaces'][0]
 
             except Exception as e:
                 error = str(e)
@@ -131,7 +131,7 @@ async def find_ip_address(
         # Return error if we got one during the search to not hide it.
         if error:
             raise ToolError(
-                f"Error searching IP address in all regions: {error}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+                f'Error searching IP address in all regions: {error}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
             )
 
-        raise ToolError("IP address was not found in any region")
+        raise ToolError('IP address was not found in any region')

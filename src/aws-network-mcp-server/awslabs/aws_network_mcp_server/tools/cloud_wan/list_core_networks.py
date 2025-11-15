@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def list_core_networks(
     region: Annotated[
         Optional[str],
-        Field(..., description="AWS region where the Cloud WAN core network is deployed."),
+        Field(..., description='AWS region where the Cloud WAN core network is deployed.'),
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -54,23 +54,23 @@ async def list_core_networks(
         ToolError: If no core networks found or AWS API call fails
     """
     try:
-        client = get_aws_client("networkmanager", region, profile_name)
+        client = get_aws_client('networkmanager', region, profile_name)
         response = client.list_core_networks()
 
-        core_networks = response.get("CoreNetworks", [])
+        core_networks = response.get('CoreNetworks', [])
 
         if not core_networks:
             raise ToolError(
-                f"No CloudWAN core networks found in the specified region: {region}. VALIDATE PARAMETERS BEFORE CONTINUING"
+                f'No CloudWAN core networks found in the specified region: {region}. VALIDATE PARAMETERS BEFORE CONTINUING'
             )
 
         return {
-            "core_networks": core_networks,
-            "region": region,
-            "total_count": len(core_networks),
+            'core_networks': core_networks,
+            'region': region,
+            'total_count': len(core_networks),
         }
 
     except Exception as e:
         raise ToolError(
-            f"Error listing CloudWAN core networks: Error :{str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error listing CloudWAN core networks: Error :{str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

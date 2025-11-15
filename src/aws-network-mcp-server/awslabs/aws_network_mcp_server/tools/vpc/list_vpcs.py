@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def list_vpcs(
     region: Annotated[
         Optional[str],
-        Field(..., description="AWS region where the Cloud WAN core network is deployed."),
+        Field(..., description='AWS region where the Cloud WAN core network is deployed.'),
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -60,15 +60,15 @@ async def list_vpcs(
     - IsDefault: Whether this is the default VPC
     """
     try:
-        client = get_aws_client("ec2", region, profile_name)
+        client = get_aws_client('ec2', region, profile_name)
         response = client.describe_vpcs()
 
         return {
-            "vpcs": response.get("Vpcs", []),
-            "region": region,
-            "total_count": len(response.get("Vpcs", [])),
+            'vpcs': response.get('Vpcs', []),
+            'region': region,
+            'total_count': len(response.get('Vpcs', [])),
         }
     except Exception as e:
         raise ToolError(
-            f"Error listing VPCs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error listing VPCs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

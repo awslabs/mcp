@@ -13,13 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
-from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
-from fastmcp.exceptions import ToolError
-from datetime import datetime, timedelta, timezone
-import time
 import json
+import time
+from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from datetime import datetime, timedelta, timezone
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_cloudwan_logs(
@@ -27,17 +27,17 @@ async def get_cloudwan_logs(
         Optional[int],
         Field(
             ...,
-            description="How many minutes into history to get the logs for. By default this is 180 minutes",
+            description='How many minutes into history to get the logs for. By default this is 180 minutes',
         ),
     ] = 180,
     event_type: Annotated[
-        Optional[str], Field(..., description="Event type to filter logs")
+        Optional[str], Field(..., description='Event type to filter logs')
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -74,75 +74,75 @@ async def get_cloudwan_logs(
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(minutes=time_period if time_period else 180)
 
-    query_string = "fields @timestamp, @message"
-    sort = " | sort @timestamp desc"
+    query_string = 'fields @timestamp, @message'
+    sort = ' | sort @timestamp desc'
 
     filter = None
     if event_type:
-        if event_type == "Network Manager Topology Change":
+        if event_type == 'Network Manager Topology Change':
             filter = ' | filter @message like /"detail-type":"Network Manager Topology Change"/'
-        elif event_type == "Network Manager Routing Update":
+        elif event_type == 'Network Manager Routing Update':
             filter = ' | filter @message like /"detail-type":"Network Manager Routing Update"/'
         else:
             raise ToolError(
-                f"Event type {event_type} is not supported. Supported types are: Network Manager Topology Change, Network Manager Routing Update"
+                f'Event type {event_type} is not supported. Supported types are: Network Manager Topology Change, Network Manager Routing Update'
             )
 
-    query_string = query_string + (filter or "") + sort
+    query_string = query_string + (filter or '') + sort
 
     try:
-        logs_client = get_aws_client("logs", "us-west-2", profile_name)
+        logs_client = get_aws_client('logs', 'us-west-2', profile_name)
 
         response = logs_client.start_query(
-            logGroupName="/aws/events/networkmanagerloggroup",
+            logGroupName='/aws/events/networkmanagerloggroup',
             startTime=int(start_time.timestamp()),
             endTime=int(end_time.timestamp()),
             queryString=query_string,
             limit=10,
         )
 
-        query_id = response["queryId"]
+        query_id = response['queryId']
 
         while True:
             query_response = logs_client.get_query_results(queryId=query_id)
-            if query_response["status"] == "Complete":
-                if query_response["results"] == []:
+            if query_response['status'] == 'Complete':
+                if query_response['results'] == []:
                     raise ToolError(
-                        "No flow logs found for the AWS Network Firewall. REQUIRED TO VALIDATE PARAMETERS BEFORE CONTINUING"
+                        'No flow logs found for the AWS Network Firewall. REQUIRED TO VALIDATE PARAMETERS BEFORE CONTINUING'
                     )
                 else:
                     break
-            elif query_response["status"] == "Failed" or query_response["status"] == "Timeout":
+            elif query_response['status'] == 'Failed' or query_response['status'] == 'Timeout':
                 raise ToolError(
-                    f"There was an error with the query. Query status: {query_response['status']}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+                    f'There was an error with the query. Query status: {query_response["status"]}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
                 )
             else:
                 time.sleep(1)
 
     except Exception as e:
         raise ToolError(
-            f"There was an error getting AWS Cloud WAN logs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'There was an error getting AWS Cloud WAN logs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )
 
     logs_result = []
-    for result in query_response["results"]:
+    for result in query_response['results']:
         for field in result:
-            if field.get("field") == "@message":
-                logs_result.append(json.loads(field.get("value")))
+            if field.get('field') == '@message':
+                logs_result.append(json.loads(field.get('value')))
 
     # Group and format logs
     grouped = {}
-    summary = {"total_events": len(logs_result), "by_change_type": {}, "by_edge_location": {}}
+    summary = {'total_events': len(logs_result), 'by_change_type': {}, 'by_edge_location': {}}
 
     for log in logs_result:
-        detail = log.get("detail", {})
-        change_type = detail.get("changeType", "UNKNOWN")
-        edge_location = detail.get("edgeLocation", "UNKNOWN")
+        detail = log.get('detail', {})
+        change_type = detail.get('changeType', 'UNKNOWN')
+        edge_location = detail.get('edgeLocation', 'UNKNOWN')
 
         # Update summary
-        summary["by_change_type"][change_type] = summary["by_change_type"].get(change_type, 0) + 1
-        summary["by_edge_location"][edge_location] = (
-            summary["by_edge_location"].get(edge_location, 0) + 1
+        summary['by_change_type'][change_type] = summary['by_change_type'].get(change_type, 0) + 1
+        summary['by_edge_location'][edge_location] = (
+            summary['by_edge_location'].get(edge_location, 0) + 1
         )
 
         # Group by edge location
@@ -151,13 +151,13 @@ async def get_cloudwan_logs(
 
         grouped[edge_location].append(
             {
-                "timestamp": log.get("time"),
-                "change_type": change_type,
-                "description": detail.get("changeDescription"),
-                "segment": detail.get("segmentName"),
-                "attachment_arn": detail.get("attachmentArn"),
-                "core_network_arn": detail.get("coreNetworkArn"),
+                'timestamp': log.get('time'),
+                'change_type': change_type,
+                'description': detail.get('changeDescription'),
+                'segment': detail.get('segmentName'),
+                'attachment_arn': detail.get('attachmentArn'),
+                'core_network_arn': detail.get('coreNetworkArn'),
             }
         )
 
-    return {"summary": summary, "events_by_location": grouped}
+    return {'summary': summary, 'events_by_location': grouped}

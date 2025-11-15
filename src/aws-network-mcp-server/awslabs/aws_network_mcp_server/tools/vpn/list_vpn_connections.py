@@ -14,19 +14,19 @@
 # limitations under the License.
 
 
-from typing import Annotated, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Optional
 
 
 async def list_vpn_connections(
-    vpn_region: Annotated[str, Field(..., description="AWS region where the VPNs are deployed.")],
+    vpn_region: Annotated[str, Field(..., description='AWS region where the VPNs are deployed.')],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ):
@@ -54,17 +54,16 @@ async def list_vpn_connections(
 
     Note: CustomerGatewayConfiguration is excluded from results for security.
     """
-
     try:
-        ec2_client = get_aws_client("ec2", vpn_region, profile_name)
+        ec2_client = get_aws_client('ec2', vpn_region, profile_name)
         response = ec2_client.describe_vpn_connections()
 
         # Remove CustomerGatewayConfiguration from each VPN connection
-        for vpn in response["VpnConnections"]:
-            vpn.pop("CustomerGatewayConfiguration", None)
+        for vpn in response['VpnConnections']:
+            vpn.pop('CustomerGatewayConfiguration', None)
 
-        return response["VpnConnections"]
+        return response['VpnConnections']
     except Exception as e:
         raise ToolError(
-            f"Error listing VPN connections. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error listing VPN connections. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

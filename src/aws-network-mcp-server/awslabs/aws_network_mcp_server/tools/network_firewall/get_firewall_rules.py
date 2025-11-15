@@ -13,27 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from awslabs.aws_network_mcp_server.utils.formatters import (
-    format_stateless_rule,
     format_stateful_rule,
+    format_stateless_rule,
     parse_suricata_rule,
 )
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_firewall_rules(
-    firewall_name: Annotated[str, Field(..., description="AWS Network Firewall name")],
+    firewall_name: Annotated[str, Field(..., description='AWS Network Firewall name')],
     region: Annotated[
-        Optional[str], Field(..., description="AWS Region where the network firewall is located")
+        Optional[str], Field(..., description='AWS Region where the network firewall is located')
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -73,11 +73,11 @@ async def get_firewall_rules(
     """
 
     try:
-        anfw_client = get_aws_client("network-firewall", region, profile_name)
+        anfw_client = get_aws_client('network-firewall', region, profile_name)
 
         # Get firewall details
         firewall = anfw_client.describe_firewall(FirewallName=firewall_name)
-        policy_arn = firewall["Firewall"]["FirewallPolicyArn"]
+        policy_arn = firewall['Firewall']['FirewallPolicyArn']
 
         # Get firewall policy
         policy = anfw_client.describe_firewall_policy(FirewallPolicyArn=policy_arn)
@@ -86,50 +86,50 @@ async def get_firewall_rules(
         stateful_rules = []
 
         # Process stateless rule groups
-        for rule_group_ref in policy["FirewallPolicy"].get("StatelessRuleGroupReferences", []):
-            rg = anfw_client.describe_rule_group(RuleGroupArn=rule_group_ref["ResourceArn"])
-            rules_source = rg["RuleGroup"].get("RulesSource", {})
+        for rule_group_ref in policy['FirewallPolicy'].get('StatelessRuleGroupReferences', []):
+            rg = anfw_client.describe_rule_group(RuleGroupArn=rule_group_ref['ResourceArn'])
+            rules_source = rg['RuleGroup'].get('RulesSource', {})
 
-            if "StatelessRulesAndCustomActions" in rules_source:
-                for rule in rules_source["StatelessRulesAndCustomActions"]["StatelessRules"]:
-                    formatted_rule = format_stateless_rule(rule, rule["Priority"])
+            if 'StatelessRulesAndCustomActions' in rules_source:
+                for rule in rules_source['StatelessRulesAndCustomActions']['StatelessRules']:
+                    formatted_rule = format_stateless_rule(rule, rule['Priority'])
                     stateless_rules.append(formatted_rule)
 
         # Process stateful rule groups
-        for rule_group_ref in policy["FirewallPolicy"].get("StatefulRuleGroupReferences", []):
-            rg = anfw_client.describe_rule_group(RuleGroupArn=rule_group_ref["ResourceArn"])
-            rules_source = rg["RuleGroup"].get("RulesSource", {})
-            rule_group_name = rg["RuleGroup"].get("RuleGroupName", "Unknown")
+        for rule_group_ref in policy['FirewallPolicy'].get('StatefulRuleGroupReferences', []):
+            rg = anfw_client.describe_rule_group(RuleGroupArn=rule_group_ref['ResourceArn'])
+            rules_source = rg['RuleGroup'].get('RulesSource', {})
+            rule_group_name = rg['RuleGroup'].get('RuleGroupName', 'Unknown')
 
             # Handle Suricata rules string
-            if "RulesString" in rules_source:
-                rules_string = rules_source["RulesString"]
+            if 'RulesString' in rules_source:
+                rules_string = rules_source['RulesString']
                 # Split by newlines and parse each rule
-                for line in rules_string.split("\n"):
+                for line in rules_string.split('\n'):
                     line = line.strip()
-                    if line and not line.startswith("#"):
+                    if line and not line.startswith('#'):
                         parsed_rule = parse_suricata_rule(line)
                         if parsed_rule:
-                            parsed_rule["rule_group_name"] = rule_group_name
+                            parsed_rule['rule_group_name'] = rule_group_name
                             stateful_rules.append(parsed_rule)
 
             # Handle individual stateful rules
-            if "StatefulRules" in rules_source:
-                for i, rule in enumerate(rules_source["StatefulRules"], 1):
+            if 'StatefulRules' in rules_source:
+                for i, rule in enumerate(rules_source['StatefulRules'], 1):
                     formatted_rule = format_stateful_rule(rule, str(i))
-                    formatted_rule["rule_group_name"] = rule_group_name
+                    formatted_rule['rule_group_name'] = rule_group_name
                     stateful_rules.append(formatted_rule)
     except Exception as e:
         raise ToolError(
-            f"There was an error getting AWS Network Firewall rules. Error: {e}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'There was an error getting AWS Network Firewall rules. Error: {e}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )
 
     return {
-        "firewall_name": firewall_name,
-        "summary": {
-            "total_stateless_rules": len(stateless_rules),
-            "total_stateful_rules": len(stateful_rules),
+        'firewall_name': firewall_name,
+        'summary': {
+            'total_stateless_rules': len(stateless_rules),
+            'total_stateful_rules': len(stateful_rules),
         },
-        "stateless_rules": stateless_rules,
-        "stateful_rules": stateful_rules,
+        'stateless_rules': stateless_rules,
+        'stateful_rules': stateful_rules,
     }

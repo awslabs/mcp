@@ -13,30 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
+import json
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
-import json
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_cloudwan_details(
-    core_network_id: Annotated[str, Field(..., description="AWS Cloud WAN core network ID")],
+    core_network_id: Annotated[str, Field(..., description='AWS Cloud WAN core network ID')],
     core_network_region: Annotated[
-        str, Field(..., description="AWS region where the Cloud WAN is deployed")
+        str, Field(..., description='AWS region where the Cloud WAN is deployed')
     ],
     next_token: Annotated[
         Optional[str],
         Field(
             ...,
-            description="Next token for Core Network Attachment pagination. If this is provided, tool will only return the next page of attachment details.",
+            description='Next token for Core Network Attachment pagination. If this is provided, tool will only return the next page of attachment details.',
         ),
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -73,33 +73,33 @@ async def get_cloudwan_details(
     """
 
     try:
-        nm_client = get_aws_client("networkmanager", core_network_region, profile_name)
+        nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 
         if next_token:
             attachments = nm_client.list_attachments(
                 CoreNetworkId=core_network_id, NextToken=next_token
             )
             return {
-                "attachments": attachments["Attachments"],
-                "next_token": attachments.get("NextToken", None),
+                'attachments': attachments['Attachments'],
+                'next_token': attachments.get('NextToken', None),
             }
 
-        core_network = nm_client.get_core_network(CoreNetworkId=core_network_id)["CoreNetwork"]
+        core_network = nm_client.get_core_network(CoreNetworkId=core_network_id)['CoreNetwork']
 
-        policy = nm_client.get_core_network_policy(CoreNetworkId=core_network_id, Alias="LIVE")
-        live_policy = json.loads(policy["CoreNetworkPolicy"]["PolicyDocument"])
+        policy = nm_client.get_core_network_policy(CoreNetworkId=core_network_id, Alias='LIVE')
+        live_policy = json.loads(policy['CoreNetworkPolicy']['PolicyDocument'])
 
         # Get Attachments
         attachments = nm_client.list_attachments(CoreNetworkId=core_network_id)
 
     except Exception as e:
         raise ToolError(
-            f"There was an error getting AWS Core Network details. VALIDATE parameter information before continuing. Error: {str(e)}"
+            f'There was an error getting AWS Core Network details. VALIDATE parameter information before continuing. Error: {str(e)}'
         )
 
     return {
-        "core_network": core_network,
-        "live_policy": live_policy,
-        "attachments": attachments["Attachments"],
-        "next_token": attachments.get("NextToken", None),
+        'core_network': core_network,
+        'live_policy': live_policy,
+        'attachments': attachments['Attachments'],
+        'next_token': attachments.get('NextToken', None),
     }

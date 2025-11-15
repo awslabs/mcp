@@ -13,33 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Annotated, Dict, Optional
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from awslabs.aws_network_mcp_server.utils.vcp_details import (
+    process_igws,
+    process_nacls,
+    process_nat_gateways,
     process_route_tables,
     process_subnets,
-    process_igws,
-    process_nat_gateways,
-    process_nacls,
     process_vpc_endpoints,
 )
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_vpc_network_details(
     vpc_id: Annotated[
         Optional[str],
-        Field(..., description="VPC ID for which to return route table information "),
+        Field(..., description='VPC ID for which to return route table information '),
     ] = None,
     region: Annotated[
-        Optional[str], Field(..., description="AWS region where the VPC is located")
+        Optional[str], Field(..., description='AWS region where the VPC is located')
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -83,43 +83,43 @@ async def get_vpc_network_details(
 
     # Get VPC details
     try:
-        ec2_client = get_aws_client("ec2", region, profile_name)
+        ec2_client = get_aws_client('ec2', region, profile_name)
         vpc_resp = ec2_client.describe_vpcs(VpcIds=[vpc_id])
-        vpc = vpc_resp["Vpcs"][0]
+        vpc = vpc_resp['Vpcs'][0]
     except Exception as e:
         raise ToolError(
-            f"VPC with id {vpc_id} could not be found. Error: {str(e)}. VALIDATE PARAMETERS BEFORE CONTINUING."
+            f'VPC with id {vpc_id} could not be found. Error: {str(e)}. VALIDATE PARAMETERS BEFORE CONTINUING.'
         )
 
     try:
         rt_resp = ec2_client.describe_route_tables(
-            Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
-        subnet_resp = ec2_client.describe_subnets(Filters=[{"Name": "vpc-id", "Values": [vpc_id]}])
+        subnet_resp = ec2_client.describe_subnets(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
         endpoint_resp = ec2_client.describe_vpc_endpoints(
-            Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
         igw_resp = ec2_client.describe_internet_gateways(
-            Filters=[{"Name": "attachment.vpc-id", "Values": [vpc_id]}]
+            Filters=[{'Name': 'attachment.vpc-id', 'Values': [vpc_id]}]
         )
         acl_resp = ec2_client.describe_network_acls(
-            Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
         nat_resp = ec2_client.describe_nat_gateways(
-            Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
     except Exception as e:
         raise ToolError(
-            f"Failure reading VPC details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Failure reading VPC details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )
 
     # Build result structure
     return {
-        "vpc": {"id": vpc["VpcId"], "cidr": vpc["CidrBlock"], "region": region or "us-east-1"},
-        "route_tables": process_route_tables(rt_resp),
-        "subnets": process_subnets(subnet_resp, rt_resp),
-        "internet_gateway": process_igws(igw_resp),
-        "nat_gateways": process_nat_gateways(nat_resp),
-        "network_acls": process_nacls(acl_resp),
-        "vpc_endpoints": process_vpc_endpoints(endpoint_resp),
+        'vpc': {'id': vpc['VpcId'], 'cidr': vpc['CidrBlock'], 'region': region or 'us-east-1'},
+        'route_tables': process_route_tables(rt_resp),
+        'subnets': process_subnets(subnet_resp, rt_resp),
+        'internet_gateway': process_igws(igw_resp),
+        'nat_gateways': process_nat_gateways(nat_resp),
+        'network_acls': process_nacls(acl_resp),
+        'vpc_endpoints': process_vpc_endpoints(endpoint_resp),
     }

@@ -13,20 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def detect_tgw_inspection(
-    transit_gateway_id: Annotated[str, Field(..., description="Transit Gateway ID")],
-    region: Annotated[str, Field(..., description="AWS region where TGW is deployed")],
+    transit_gateway_id: Annotated[str, Field(..., description='Transit Gateway ID')],
+    region: Annotated[str, Field(..., description='AWS region where TGW is deployed')],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -61,32 +61,32 @@ async def detect_tgw_inspection(
         - inspection_summary: Human-readable summary of findings
     """
     try:
-        ec2_client = get_aws_client("ec2", region, profile_name)
-        nfw_client = get_aws_client("network-firewall", region, profile_name)
+        ec2_client = get_aws_client('ec2', region, profile_name)
+        nfw_client = get_aws_client('network-firewall', region, profile_name)
 
         # Get AWS Network Firewalls (VPC-attached)
-        aws_firewalls = nfw_client.list_firewalls()["Firewalls"]
-        aws_firewall_vpcs = {fw["VpcId"] for fw in aws_firewalls}
+        aws_firewalls = nfw_client.list_firewalls()['Firewalls']
+        aws_firewall_vpcs = {fw['VpcId'] for fw in aws_firewalls}
 
         # Get all TGW attachments (VPC and Network Function)
         all_attachments = ec2_client.describe_transit_gateway_attachments(
             Filters=[
-                {"Name": "transit-gateway-id", "Values": [transit_gateway_id]},
-                {"Name": "state", "Values": ["available"]},
+                {'Name': 'transit-gateway-id', 'Values': [transit_gateway_id]},
+                {'Name': 'state', 'Values': ['available']},
             ]
-        )["TransitGatewayAttachments"]
+        )['TransitGatewayAttachments']
 
         # Separate VPC and Network Function attachments
-        vpc_attachments = [att for att in all_attachments if att["ResourceType"] == "vpc"]
+        vpc_attachments = [att for att in all_attachments if att['ResourceType'] == 'vpc']
         nf_attachments = [
-            att for att in all_attachments if att["ResourceType"] == "network-function"
+            att for att in all_attachments if att['ResourceType'] == 'network-function'
         ]
 
-        attached_vpc_ids = [att["ResourceId"] for att in vpc_attachments]
+        attached_vpc_ids = [att['ResourceId'] for att in vpc_attachments]
 
         # Find VPC-attached AWS firewall attachments
         vpc_firewall_attachments = [
-            att for att in vpc_attachments if att["ResourceId"] in aws_firewall_vpcs
+            att for att in vpc_attachments if att['ResourceId'] in aws_firewall_vpcs
         ]
 
         # Find TGW-attached AWS Network Firewalls
@@ -94,19 +94,19 @@ async def detect_tgw_inspection(
         for nf_att in nf_attachments:
             # Check if this is a Network Firewall attachment
             try:
-                firewall_arn = nf_att.get("ResourceId", "")
-                if "network-firewall" in firewall_arn:
+                firewall_arn = nf_att.get('ResourceId', '')
+                if 'network-firewall' in firewall_arn:
                     # Get firewall details
-                    firewall_name = firewall_arn.split("/")[-1]
+                    firewall_name = firewall_arn.split('/')[-1]
                     firewall_details = nfw_client.describe_firewall(FirewallName=firewall_name)
                     tgw_firewall_attachments.append(
                         {
-                            "attachment_id": nf_att["TransitGatewayAttachmentId"],
-                            "firewall_arn": firewall_arn,
-                            "firewall_name": firewall_name,
-                            "attachment_state": nf_att["State"],
-                            "firewall_status": firewall_details["Firewall"]["FirewallStatus"][
-                                "Status"
+                            'attachment_id': nf_att['TransitGatewayAttachmentId'],
+                            'firewall_arn': firewall_arn,
+                            'firewall_name': firewall_name,
+                            'attachment_state': nf_att['State'],
+                            'firewall_status': firewall_details['Firewall']['FirewallStatus'][
+                                'Status'
                             ],
                         }
                     )
@@ -114,10 +114,10 @@ async def detect_tgw_inspection(
                 # If we can't get firewall details, still record the attachment
                 tgw_firewall_attachments.append(
                     {
-                        "attachment_id": nf_att["TransitGatewayAttachmentId"],
-                        "resource_id": nf_att.get("ResourceId", ""),
-                        "attachment_state": nf_att["State"],
-                        "note": "Network function attachment - unable to verify if Network Firewall",
+                        'attachment_id': nf_att['TransitGatewayAttachmentId'],
+                        'resource_id': nf_att.get('ResourceId', ''),
+                        'attachment_state': nf_att['State'],
+                        'note': 'Network function attachment - unable to verify if Network Firewall',
                     }
                 )
 
@@ -128,53 +128,53 @@ async def detect_tgw_inspection(
             # Find GWLB endpoints in attached VPCs
             vpc_endpoints = ec2_client.describe_vpc_endpoints(
                 Filters=[
-                    {"Name": "vpc-id", "Values": attached_vpc_ids},
-                    {"Name": "vpc-endpoint-type", "Values": ["GatewayLoadBalancer"]},
-                    {"Name": "state", "Values": ["available"]},
+                    {'Name': 'vpc-id', 'Values': attached_vpc_ids},
+                    {'Name': 'vpc-endpoint-type', 'Values': ['GatewayLoadBalancer']},
+                    {'Name': 'state', 'Values': ['available']},
                 ]
-            )["VpcEndpoints"]
+            )['VpcEndpoints']
 
             for endpoint in vpc_endpoints:
                 # Get the target GWLB details
-                gwlb_arn = endpoint.get("ServiceName", "")
-                if gwlb_arn.startswith("com.amazonaws.vpce."):
+                gwlb_arn = endpoint.get('ServiceName', '')
+                if gwlb_arn.startswith('com.amazonaws.vpce.'):
                     # Extract service name and get GWLB details
                     try:
-                        elbv2_client = get_aws_client("elbv2", region, profile_name)
+                        elbv2_client = get_aws_client('elbv2', region, profile_name)
                         # Parse GWLB name from service name
-                        service_parts = gwlb_arn.split(".")
+                        service_parts = gwlb_arn.split('.')
                         if len(service_parts) >= 4:
                             gwlb_name = service_parts[-1]
 
                             # Get GWLB details
                             gwlbs = elbv2_client.describe_load_balancers(Names=[gwlb_name])[
-                                "LoadBalancers"
+                                'LoadBalancers'
                             ]
 
                             if gwlbs:
                                 gwlb = gwlbs[0]
                                 gwlb_firewalls.append(
                                     {
-                                        "vpc_endpoint_id": endpoint["VpcEndpointId"],
-                                        "vpc_id": endpoint["VpcId"],
-                                        "gwlb_arn": gwlb["LoadBalancerArn"],
-                                        "gwlb_name": gwlb["LoadBalancerName"],
-                                        "gwlb_dns": gwlb["DNSName"],
-                                        "gwlb_scheme": gwlb["Scheme"],
-                                        "gwlb_type": gwlb["Type"],
-                                        "endpoint_state": endpoint["State"],
-                                        "service_name": endpoint["ServiceName"],
+                                        'vpc_endpoint_id': endpoint['VpcEndpointId'],
+                                        'vpc_id': endpoint['VpcId'],
+                                        'gwlb_arn': gwlb['LoadBalancerArn'],
+                                        'gwlb_name': gwlb['LoadBalancerName'],
+                                        'gwlb_dns': gwlb['DNSName'],
+                                        'gwlb_scheme': gwlb['Scheme'],
+                                        'gwlb_type': gwlb['Type'],
+                                        'endpoint_state': endpoint['State'],
+                                        'service_name': endpoint['ServiceName'],
                                     }
                                 )
                     except Exception:
                         # If GWLB details can't be retrieved, still record the endpoint
                         gwlb_firewalls.append(
                             {
-                                "vpc_endpoint_id": endpoint["VpcEndpointId"],
-                                "vpc_id": endpoint["VpcId"],
-                                "service_name": endpoint["ServiceName"],
-                                "endpoint_state": endpoint["State"],
-                                "gwlb_details": "Unable to retrieve GWLB details",
+                                'vpc_endpoint_id': endpoint['VpcEndpointId'],
+                                'vpc_id': endpoint['VpcId'],
+                                'service_name': endpoint['ServiceName'],
+                                'endpoint_state': endpoint['State'],
+                                'gwlb_details': 'Unable to retrieve GWLB details',
                             }
                         )
 
@@ -182,20 +182,20 @@ async def detect_tgw_inspection(
         total_firewalls = total_aws_firewalls + len(gwlb_firewalls)
 
         return {
-            "transit_gateway_id": transit_gateway_id,
-            "region": region,
-            "vpc_firewall_attachments": vpc_firewall_attachments,
-            "tgw_firewall_attachments": tgw_firewall_attachments,
-            "gwlb_firewalls": gwlb_firewalls,
-            "has_firewalls": total_firewalls > 0,
-            "total_vpc_firewalls": len(vpc_firewall_attachments),
-            "total_tgw_firewalls": len(tgw_firewall_attachments),
-            "total_gwlb_firewalls": len(gwlb_firewalls),
-            "total_firewalls": total_firewalls,
-            "inspection_summary": f"Found {len(vpc_firewall_attachments)} VPC firewalls, {len(tgw_firewall_attachments)} TGW firewalls, and {len(gwlb_firewalls)} GWLB firewalls",
+            'transit_gateway_id': transit_gateway_id,
+            'region': region,
+            'vpc_firewall_attachments': vpc_firewall_attachments,
+            'tgw_firewall_attachments': tgw_firewall_attachments,
+            'gwlb_firewalls': gwlb_firewalls,
+            'has_firewalls': total_firewalls > 0,
+            'total_vpc_firewalls': len(vpc_firewall_attachments),
+            'total_tgw_firewalls': len(tgw_firewall_attachments),
+            'total_gwlb_firewalls': len(gwlb_firewalls),
+            'total_firewalls': total_firewalls,
+            'inspection_summary': f'Found {len(vpc_firewall_attachments)} VPC firewalls, {len(tgw_firewall_attachments)} TGW firewalls, and {len(gwlb_firewalls)} GWLB firewalls',
         }
 
     except Exception as e:
         raise ToolError(
-            f"Error detecting firewall attachments: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error detecting firewall attachments: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

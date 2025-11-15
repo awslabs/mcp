@@ -13,24 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Any, Dict, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_tgw_details(
     transit_gateway_id: Annotated[
-        str, Field(..., description="Transit Gateway ID for which to get the details.")
+        str, Field(..., description='Transit Gateway ID for which to get the details.')
     ],
     region: Annotated[
-        str, Field(..., description="AWS region where the Transit Gateway is deployed into")
+        str, Field(..., description='AWS region where the Transit Gateway is deployed into')
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -79,48 +79,48 @@ async def get_tgw_details(
         - tags: Key-value pairs of resource tags
     """
     try:
-        ec2_client = get_aws_client("ec2", region, profile_name)
+        ec2_client = get_aws_client('ec2', region, profile_name)
 
         response = ec2_client.describe_transit_gateways(TransitGatewayIds=[transit_gateway_id])
 
-        if not response["TransitGateways"]:
+        if not response['TransitGateways']:
             raise ToolError(
-                "Transit Gateway was not found with the given details. VALIDATE PARAMETERS BEFORE CONTINUING."
+                'Transit Gateway was not found with the given details. VALIDATE PARAMETERS BEFORE CONTINUING.'
             )
 
-        tgw = response["TransitGateways"][0]
+        tgw = response['TransitGateways'][0]
 
-        options = tgw["Options"]
+        options = tgw['Options']
 
         return {
-            "transit_gateway_id": tgw["TransitGatewayId"],
-            "transit_gateway_arn": tgw.get("TransitGatewayArn", ""),
-            "state": tgw["State"],
-            "owner_id": tgw["OwnerId"],
-            "description": tgw.get("Description", ""),
-            "creation_time": tgw["CreationTime"].isoformat(),
-            "amazon_side_asn": options["AmazonSideAsn"],
-            "default_route_table_association": options["DefaultRouteTableAssociation"],
-            "default_route_table_propagation": options["DefaultRouteTablePropagation"],
-            "association_default_route_table_id": options.get(
-                "AssociationDefaultRouteTableId", ""
+            'transit_gateway_id': tgw['TransitGatewayId'],
+            'transit_gateway_arn': tgw.get('TransitGatewayArn', ''),
+            'state': tgw['State'],
+            'owner_id': tgw['OwnerId'],
+            'description': tgw.get('Description', ''),
+            'creation_time': tgw['CreationTime'].isoformat(),
+            'amazon_side_asn': options['AmazonSideAsn'],
+            'default_route_table_association': options['DefaultRouteTableAssociation'],
+            'default_route_table_propagation': options['DefaultRouteTablePropagation'],
+            'association_default_route_table_id': options.get(
+                'AssociationDefaultRouteTableId', ''
             ),
-            "propagation_default_route_table_id": options.get(
-                "PropagationDefaultRouteTableId", ""
+            'propagation_default_route_table_id': options.get(
+                'PropagationDefaultRouteTableId', ''
             ),
-            "auto_accept_shared_attachments": options.get(
-                "AutoAcceptSharedAttachments", "disable"
+            'auto_accept_shared_attachments': options.get(
+                'AutoAcceptSharedAttachments', 'disable'
             ),
-            "dns_support": options.get("DnsSupport", "enable"),
-            "vpn_ecmp_support": options.get("VpnEcmpSupport", "enable"),
-            "multicast_support": options.get("MulticastSupport", "disable"),
-            "security_group_referencing_support": options.get(
-                "SecurityGroupReferencingSupport", "disable"
+            'dns_support': options.get('DnsSupport', 'enable'),
+            'vpn_ecmp_support': options.get('VpnEcmpSupport', 'enable'),
+            'multicast_support': options.get('MulticastSupport', 'disable'),
+            'security_group_referencing_support': options.get(
+                'SecurityGroupReferencingSupport', 'disable'
             ),
-            "transit_gateway_cidr_blocks": options.get("TransitGatewayCidrBlocks", []),
-            "tags": {tag["Key"]: tag["Value"] for tag in tgw.get("Tags", [])},
+            'transit_gateway_cidr_blocks': options.get('TransitGatewayCidrBlocks', []),
+            'tags': {tag['Key']: tag['Value'] for tag in tgw.get('Tags', [])},
         }
     except Exception as e:
         raise ToolError(
-            f"There was an error getting AWS Transit Gateway details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'There was an error getting AWS Transit Gateway details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

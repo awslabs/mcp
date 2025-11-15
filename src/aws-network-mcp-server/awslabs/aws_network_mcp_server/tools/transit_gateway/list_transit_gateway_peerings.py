@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, List, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, List, Optional
 
 
 async def list_tgw_peerings(
-    transit_gateway_id: Annotated[str, Field(..., description="Transit Gateway ID")],
+    transit_gateway_id: Annotated[str, Field(..., description='Transit Gateway ID')],
     transit_gateway_region: Annotated[
-        str, Field(..., description="AWS region where Transit Gateway is deployed")
+        str, Field(..., description='AWS region where Transit Gateway is deployed')
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> List[Dict[str, Any]]:
@@ -60,14 +60,14 @@ async def list_tgw_peerings(
         - Tags: Resource tags for identification
     """
     try:
-        ec2_client = get_aws_client("ec2", transit_gateway_region, profile_name)
+        ec2_client = get_aws_client('ec2', transit_gateway_region, profile_name)
 
         response = ec2_client.describe_transit_gateway_peering_attachments(
-            Filters=[{"Name": "transit-gateway-id", "Values": [transit_gateway_id]}]
+            Filters=[{'Name': 'transit-gateway-id', 'Values': [transit_gateway_id]}]
         )
 
-        return response.get("TransitGatewayPeeringAttachments", [])
+        return response.get('TransitGatewayPeeringAttachments', [])
     except Exception as e:
         raise ToolError(
-            f"Error listing Transit Gateway peerings. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error listing Transit Gateway peerings. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

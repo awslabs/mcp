@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Annotated, Dict, Optional
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_tgw_routes(
@@ -24,36 +24,36 @@ async def get_tgw_routes(
         str,
         Field(
             ...,
-            description="Region for the Cloud WAN Global Network where the Transit Gateway is registered to.",
+            description='Region for the Cloud WAN Global Network where the Transit Gateway is registered to.',
         ),
     ],
     transit_gateway_id: Annotated[
         str,
         Field(
             ...,
-            description="Transit Gateway ID to get the routes",
+            description='Transit Gateway ID to get the routes',
         ),
     ],
     route_table_id: Annotated[
         str,
-        Field(..., description="Transit Gateway Route Table ID for which to get the routes."),
+        Field(..., description='Transit Gateway Route Table ID for which to get the routes.'),
     ],
     route_state: Annotated[
         Optional[str],
         Field(
             ...,
-            description="Filter based on active or blackhole routes. Valid values ACTIVE / BLACKHOLE",
+            description='Filter based on active or blackhole routes. Valid values ACTIVE / BLACKHOLE',
         ),
     ] = None,
     route_type: Annotated[
         Optional[str],
-        Field(..., description="Filter based on the route type. Valid values PROPAGATED / STATIC"),
+        Field(..., description='Filter based on the route type. Valid values PROPAGATED / STATIC'),
     ] = None,
     cloudwan_account_profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the account where Cloud WAN is deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the account where Cloud WAN is deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -91,19 +91,19 @@ async def get_tgw_routes(
 
     try:
         cloudwan_client = get_aws_client(
-            "networkmanager", global_network_region, cloudwan_account_profile_name
+            'networkmanager', global_network_region, cloudwan_account_profile_name
         )
 
         # Validate that the Transit Gateway is registered to the Cloud WAN Global Network
         global_network_ids = []
-        for core_network in cloudwan_client.list_core_networks()["CoreNetworks"]:
-            if core_network["State"] == "AVAILABLE":
-                global_network_ids.append(core_network["GlobalNetworkId"])
+        for core_network in cloudwan_client.list_core_networks()['CoreNetworks']:
+            if core_network['State'] == 'AVAILABLE':
+                global_network_ids.append(core_network['GlobalNetworkId'])
                 break
 
         if global_network_ids == []:
             raise ToolError(
-                "No Cloud WAN Global Networks found in this account and region. VALIDATE PARAMETERS BEFORE CONTINUING."
+                'No Cloud WAN Global Networks found in this account and region. VALIDATE PARAMETERS BEFORE CONTINUING.'
             )
 
         registered_global_net = None
@@ -113,31 +113,31 @@ async def get_tgw_routes(
             reg_resp = cloudwan_client.get_transit_gateway_registrations(
                 GlobalNetworkId=global_net_id,
             )
-            for tgw in reg_resp["TransitGatewayRegistrations"]:
-                if tgw["TransitGatewayArn"].endswith(transit_gateway_id):
+            for tgw in reg_resp['TransitGatewayRegistrations']:
+                if tgw['TransitGatewayArn'].endswith(transit_gateway_id):
                     registered_global_net = global_net_id
-                    transit_gateway_region = tgw["TransitGatewayArn"].split(":")[3]
-                    transit_gateway_account_id = tgw["TransitGatewayArn"].split(":")[4]
+                    transit_gateway_region = tgw['TransitGatewayArn'].split(':')[3]
+                    transit_gateway_account_id = tgw['TransitGatewayArn'].split(':')[4]
                 break
 
         if not registered_global_net:
             raise ToolError(
-                "Transit Gateway is not registered to Cloud WAN Global Network and route discovery is only possible for registered transit gateway. Request user to check that the transit gateway is registered to Cloud WAN Global Network. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+                'Transit Gateway is not registered to Cloud WAN Global Network and route discovery is only possible for registered transit gateway. Request user to check that the transit gateway is registered to Cloud WAN Global Network. REQUIRED TO REMEDIATE BEFORE CONTINUING'
             )
 
-        states = ["ACTIVE", "BLACKHOLE"]
+        states = ['ACTIVE', 'BLACKHOLE']
         if route_state:
             if route_state not in states:
                 raise ToolError(
-                    "Route state value not valid. Only ACTIVE and BLACKHOLE are allowed. VALIDATE PARAMETERS BEFORE CONTINUING."
+                    'Route state value not valid. Only ACTIVE and BLACKHOLE are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.'
                 )
             else:
                 states = [route_state]
-        types = ["PROPAGATED", "STATIC"]
+        types = ['PROPAGATED', 'STATIC']
         if route_type:
             if route_type not in types:
                 raise ToolError(
-                    "Route type value not valid. Only PROPAGATED and STATIC are allowed. VALIDATE PARAMETERS BEFORE CONTINUING."
+                    'Route type value not valid. Only PROPAGATED and STATIC are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.'
                 )
             else:
                 types = [route_type]
@@ -145,34 +145,34 @@ async def get_tgw_routes(
         tgw_rt_resp = cloudwan_client.get_network_routes(
             GlobalNetworkId=registered_global_net,
             RouteTableIdentifier={
-                "TransitGatewayRouteTableArn": f"arn:aws:ec2:{transit_gateway_region}:{transit_gateway_account_id}:transit-gateway-route-table/{route_table_id}"
+                'TransitGatewayRouteTableArn': f'arn:aws:ec2:{transit_gateway_region}:{transit_gateway_account_id}:transit-gateway-route-table/{route_table_id}'
             },
             States=states,
             Types=types,
         )
 
-        routes = {route_table_id: {"routes": []}}
-        for route in tgw_rt_resp["NetworkRoutes"]:
-            routes[route_table_id]["routes"].append(
+        routes = {route_table_id: {'routes': []}}
+        for route in tgw_rt_resp['NetworkRoutes']:
+            routes[route_table_id]['routes'].append(
                 {
-                    "destination": route.get("DestinationCidrBlock"),
-                    "attachment_id": route["Destinations"][0]["TransitGatewayAttachmentId"],
-                    "resource_type": route["Destinations"][0]["ResourceType"],
-                    "type": route["Type"].lower(),
-                    "state": route["State"].lower(),
+                    'destination': route.get('DestinationCidrBlock'),
+                    'attachment_id': route['Destinations'][0]['TransitGatewayAttachmentId'],
+                    'resource_type': route['Destinations'][0]['ResourceType'],
+                    'type': route['Type'].lower(),
+                    'state': route['State'].lower(),
                 }
             )
 
-        route_count = sum(len(routes[rt]["routes"]) for rt in routes)
+        route_count = sum(len(routes[rt]['routes']) for rt in routes)
 
         return {
-            "transit_gateway_id": transit_gateway_id,
-            "global_network_id": registered_global_net,
-            "global_network_region": global_network_region,
-            "route_count": route_count,
-            "routes": routes,
+            'transit_gateway_id': transit_gateway_id,
+            'global_network_id': registered_global_net,
+            'global_network_region': global_network_region,
+            'route_count': route_count,
+            'routes': routes,
         }
     except Exception as e:
         raise ToolError(
-            f"Error getting Transit Gateway routes. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error getting Transit Gateway routes. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

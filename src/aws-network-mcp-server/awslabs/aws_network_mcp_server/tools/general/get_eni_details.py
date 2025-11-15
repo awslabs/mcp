@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, Optional
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, Optional
 
 
 async def get_eni_details(
-    eni_id: Annotated[str, Field(..., description="AWS Interface ID")],
+    eni_id: Annotated[str, Field(..., description='AWS Interface ID')],
     region: Annotated[
-        Optional[str], Field(..., description="AWS Region where the network interface is located")
+        Optional[str], Field(..., description='AWS Region where the network interface is located')
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -67,84 +67,84 @@ async def get_eni_details(
 
     """
     try:
-        ec2_client = get_aws_client("ec2", region, profile_name)
+        ec2_client = get_aws_client('ec2', region, profile_name)
 
         # Get ENI details
         eni_response = ec2_client.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
-        eni = eni_response["NetworkInterfaces"][0]
+        eni = eni_response['NetworkInterfaces'][0]
 
-        subnet_id = eni["SubnetId"]
-        vpc_id = eni["VpcId"]
+        subnet_id = eni['SubnetId']
+        vpc_id = eni['VpcId']
 
         # Get security groups and rules
-        sg_ids = [sg["GroupId"] for sg in eni["Groups"]]
+        sg_ids = [sg['GroupId'] for sg in eni['Groups']]
         sg_response = ec2_client.describe_security_groups(GroupIds=sg_ids)
 
         # Get route tables for subnet
         rt_response = ec2_client.describe_route_tables(
-            Filters=[{"Name": "association.subnet-id", "Values": [subnet_id]}]
+            Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
         )
 
         # If no explicit association, get main route table
-        if not rt_response["RouteTables"]:
+        if not rt_response['RouteTables']:
             rt_response = ec2_client.describe_route_tables(
                 Filters=[
-                    {"Name": "vpc-id", "Values": [vpc_id]},
-                    {"Name": "association.main", "Values": ["true"]},
+                    {'Name': 'vpc-id', 'Values': [vpc_id]},
+                    {'Name': 'association.main', 'Values': ['true']},
                 ]
             )
 
         # Get NACLs for subnet
         nacl_response = ec2_client.describe_network_acls(
-            Filters=[{"Name": "association.subnet-id", "Values": [subnet_id]}]
+            Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
         )
     except Exception as e:
         raise ToolError(
-            f"There was an error getting AWS ENI details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'There was an error getting AWS ENI details. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )
 
     # Format output
     result = {
-        "basic_info": {
-            "id": eni["NetworkInterfaceId"],
-            "type": eni["InterfaceType"],
-            "status": eni["Status"],
-            "private_ip": eni["PrivateIpAddress"],
-            "public_ip": eni.get("Association", {}).get("PublicIp"),
-            "subnet_id": subnet_id,
-            "vpc_id": vpc_id,
-            "availability_zone": eni["AvailabilityZone"],
+        'basic_info': {
+            'id': eni['NetworkInterfaceId'],
+            'type': eni['InterfaceType'],
+            'status': eni['Status'],
+            'private_ip': eni['PrivateIpAddress'],
+            'public_ip': eni.get('Association', {}).get('PublicIp'),
+            'subnet_id': subnet_id,
+            'vpc_id': vpc_id,
+            'availability_zone': eni['AvailabilityZone'],
         },
-        "security_groups": [],
-        "network_acls": [],
-        "route_tables": [],
+        'security_groups': [],
+        'network_acls': [],
+        'route_tables': [],
     }
 
     # Add security group rules
-    for sg in sg_response["SecurityGroups"]:
+    for sg in sg_response['SecurityGroups']:
         sg_info = {
-            "group_id": sg["GroupId"],
-            "inbound_rules": sg["IpPermissions"],
-            "outbound_rules": sg["IpPermissionsEgress"],
+            'group_id': sg['GroupId'],
+            'inbound_rules': sg['IpPermissions'],
+            'outbound_rules': sg['IpPermissionsEgress'],
         }
-        result["security_groups"].append(sg_info)
+        result['security_groups'].append(sg_info)
 
     # Add NACL rules
-    for nacl in nacl_response["NetworkAcls"]:
+    for nacl in nacl_response['NetworkAcls']:
         nacl_info = {
-            "network_acl_id": nacl["NetworkAclId"],
-            "inbound_rules": [e for e in nacl["Entries"] if not e["Egress"]],
-            "outbound_rules": [e for e in nacl["Entries"] if e["Egress"]],
+            'network_acl_id': nacl['NetworkAclId'],
+            'inbound_rules': [e for e in nacl['Entries'] if not e['Egress']],
+            'outbound_rules': [e for e in nacl['Entries'] if e['Egress']],
         }
-        result["network_acls"].append(nacl_info)
+        result['network_acls'].append(nacl_info)
 
     # Add route table
-    for rt in rt_response["RouteTables"]:
+    for rt in rt_response['RouteTables']:
         rt_info = {
-            "route_table_id": rt["RouteTableId"],
-            "routes": rt["Routes"],
-            "associations": rt["Associations"],
+            'route_table_id': rt['RouteTableId'],
+            'routes': rt['Routes'],
+            'associations': rt['Associations'],
         }
-        result["route_tables"].append(rt_info)
+        result['route_tables'].append(rt_info)
 
     return result

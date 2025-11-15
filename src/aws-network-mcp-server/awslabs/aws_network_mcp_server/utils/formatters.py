@@ -13,70 +13,70 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict
 import re
+from typing import Any, Dict
 
 
 def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]:
-    match_attrs = rule.get("MatchAttributes", {})
+    match_attrs = rule.get('MatchAttributes', {})
 
-    source = match_attrs.get("Sources")
-    dest = match_attrs.get("Destinations")
-    protocol = match_attrs.get("Protocols")
+    source = match_attrs.get('Sources')
+    dest = match_attrs.get('Destinations')
+    protocol = match_attrs.get('Protocols')
 
-    if source == "0.0.0.0/0":
-        source = "0.0.0.0/0 (anywhere)"
-    if dest == "0.0.0.0/0":
-        dest = "0.0.0.0/0 (anywhere)"
+    if source == '0.0.0.0/0':
+        source = '0.0.0.0/0 (anywhere)'
+    if dest == '0.0.0.0/0':
+        dest = '0.0.0.0/0 (anywhere)'
 
     formatted = {
-        "priority": priority,
-        "action": rule.get("RuleDefinition", {}).get("Actions")[0],
-        "protocol": protocol,
-        "source": source,
-        "destination": dest,
+        'priority': priority,
+        'action': rule.get('RuleDefinition', {}).get('Actions')[0],
+        'protocol': protocol,
+        'source': source,
+        'destination': dest,
     }
     return formatted
 
 
 def format_stateful_rule(rule: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
     """Format standard stateful rules (not Suricata)"""
-    header = rule.get("Header", {})
+    header = rule.get('Header', {})
 
     formatted = {
-        "rule_id": rule_id,
-        "type": "standard",
-        "action": rule.get("Action"),
-        "protocol": header.get("Protocol"),
-        "source": {"network": header.get("Source"), "port": header.get("SourcePort")},
-        "destination": {
-            "network": header.get("Destination"),
-            "port": header.get("DestinationPort"),
+        'rule_id': rule_id,
+        'type': 'standard',
+        'action': rule.get('Action'),
+        'protocol': header.get('Protocol'),
+        'source': {'network': header.get('Source'), 'port': header.get('SourcePort')},
+        'destination': {
+            'network': header.get('Destination'),
+            'port': header.get('DestinationPort'),
         },
-        "direction": header.get("Direction"),
-        "rule_options": rule.get("RuleOptions", []),
+        'direction': header.get('Direction'),
+        'rule_options': rule.get('RuleOptions', []),
     }
     return formatted
 
 
 def format_routes(routes_data: dict[str, Any], core_net_id: str):
-    output = {"core_network_id": core_net_id, "segments": {}}
+    output = {'core_network_id': core_net_id, 'segments': {}}
     for key, routes in routes_data.items():
-        segment, region = key.split("/")
-        if segment not in output["segments"]:
-            output["segments"][segment] = {"regions": {}}
-        if region not in output["segments"][segment]["regions"]:
-            output["segments"][segment]["regions"][region] = {"routes": []}
+        segment, region = key.split('/')
+        if segment not in output['segments']:
+            output['segments'][segment] = {'regions': {}}
+        if region not in output['segments'][segment]['regions']:
+            output['segments'][segment]['regions'][region] = {'routes': []}
 
         for route in routes:
-            dest = route.get("Destinations", [{}])[0]
-            target = dest.get("TransitGatewayAttachmentId") or dest.get("CoreNetworkAttachmentId")
-            output["segments"][segment]["regions"][region]["routes"].append(
+            dest = route.get('Destinations', [{}])[0]
+            target = dest.get('TransitGatewayAttachmentId') or dest.get('CoreNetworkAttachmentId')
+            output['segments'][segment]['regions'][region]['routes'].append(
                 {
-                    "destination": route["DestinationCidrBlock"],
-                    "target": target,
-                    "target_type": route.get("Type", "unknown"),
-                    "state": route.get("State", "unknown"),
+                    'destination': route['DestinationCidrBlock'],
+                    'target': target,
+                    'target_type': route.get('Type', 'unknown'),
+                    'state': route.get('State', 'unknown'),
                 }
             )
     return output
@@ -85,7 +85,7 @@ def format_routes(routes_data: dict[str, Any], core_net_id: str):
 def parse_suricata_rule(rule_string: str) -> Dict[str, Any] | None:
     """Parse a Suricata rule string into structured format"""
     # Basic regex to parse Suricata rule format
-    pattern = r"(\w+)\s+(\w+)\s+([^\s]+)\s+([^\s]+)\s+([<>-]+)\s+([^\s]+)\s+([^\s]+)\s+\(([^)]+)\)"
+    pattern = r'(\w+)\s+(\w+)\s+([^\s]+)\s+([^\s]+)\s+([<>-]+)\s+([^\s]+)\s+([^\s]+)\s+\(([^)]+)\)'
     match = re.match(pattern, rule_string.strip())
 
     if not match:
@@ -98,25 +98,25 @@ def parse_suricata_rule(rule_string: str) -> Dict[str, Any] | None:
     rule_id = None
 
     # Split options by semicolon
-    options = [opt.strip() for opt in options_str.split(";") if opt.strip()]
+    options = [opt.strip() for opt in options_str.split(';') if opt.strip()]
 
     for option in options:
-        if ":" in option:
-            key, value = option.split(":", 1)
+        if ':' in option:
+            key, value = option.split(':', 1)
             conditions[key.strip()] = value.strip()
-            if key.strip() == "sid":
+            if key.strip() == 'sid':
                 rule_id = value.strip()
         else:
             conditions[option] = True
 
     return {
-        "rule_id": rule_id,
-        "type": "suricata",
-        "action": action.lower(),
-        "protocol": protocol.lower(),
-        "source": {"network": src_net, "port": src_port},
-        "destination": {"network": dst_net, "port": dst_port},
-        "direction": direction,
-        "conditions": conditions,
-        "parsed_rule": rule_string.strip(),
+        'rule_id': rule_id,
+        'type': 'suricata',
+        'action': action.lower(),
+        'protocol': protocol.lower(),
+        'source': {'network': src_net, 'port': src_port},
+        'destination': {'network': dst_net, 'port': dst_port},
+        'direction': direction,
+        'conditions': conditions,
+        'parsed_rule': rule_string.strip(),
     }

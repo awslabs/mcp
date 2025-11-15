@@ -13,22 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Any, Optional, Dict, List
-from pydantic import Field
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, List, Optional
 
 
 async def list_cloudwan_peerings(
-    core_network_id: Annotated[str, Field(..., description="Cloud WAN Core Network ID.")],
+    core_network_id: Annotated[str, Field(..., description='Cloud WAN Core Network ID.')],
     core_network_region: Annotated[
-        str, Field(..., description="Region where Cloud WAN core network is deployed.")
+        str, Field(..., description='Region where Cloud WAN core network is deployed.')
     ],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> List[Dict[str, Any]]:
@@ -58,28 +58,28 @@ async def list_cloudwan_peerings(
     """
 
     try:
-        nm_client = get_aws_client("networkmanager", core_network_region, profile_name)
+        nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 
         peerings = []
         next_token = None
 
         while True:
-            params = {"CoreNetworkId": core_network_id}
+            params = {'CoreNetworkId': core_network_id}
             if next_token:
-                params["NextToken"] = next_token
+                params['NextToken'] = next_token
 
             response = nm_client.list_peerings(**params)
 
-            for peering in response.get("Peerings", []):
-                if peering.get("PeeringType") == "TRANSIT_GATEWAY":
+            for peering in response.get('Peerings', []):
+                if peering.get('PeeringType') == 'TRANSIT_GATEWAY':
                     peerings.append(peering)
 
-            next_token = response.get("NextToken")
+            next_token = response.get('NextToken')
             if not next_token:
                 break
     except Exception as e:
         raise ToolError(
-            f"Error getting Cloud WAN peerings. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error getting Cloud WAN peerings. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )
 
     return peerings

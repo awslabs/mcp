@@ -13,31 +13,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, List, Optional
-from pydantic import Field
-from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
-from fastmcp.exceptions import ToolError
-from datetime import datetime, timedelta, timezone
 import time
+from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
+from datetime import datetime, timedelta, timezone
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, List, Optional
 
 
 async def get_tgw_flow_logs(
-    tgw_id: Annotated[str, Field(..., description="Transit Gateway ID to search flow logs for.")],
+    tgw_id: Annotated[str, Field(..., description='Transit Gateway ID to search flow logs for.')],
     region: Annotated[
         Optional[str],
-        Field(..., description="AWS region to search the Transit Gateway and Logs from"),
+        Field(..., description='AWS region to search the Transit Gateway and Logs from'),
     ] = None,
     entry_limit: Annotated[
         Optional[str],
         Field(
-            ..., description="How many entries of flow logs to try to get. Default 100 entries."
+            ..., description='How many entries of flow logs to try to get. Default 100 entries.'
         ),
     ] = None,
     time_period: Annotated[
         Optional[int],
         Field(
             ...,
-            description="How many minutes in to the past to search logs from. By default searching for past 60 minutes",
+            description='How many minutes in to the past to search logs from. By default searching for past 60 minutes',
         ),
     ] = None,
     start_time: Annotated[
@@ -51,31 +51,31 @@ async def get_tgw_flow_logs(
         Optional[str],
         Field(
             ...,
-            description="Source IP address to filter the flow logs. IP Address needs to be in IPv4 or IPv6 format",
+            description='Source IP address to filter the flow logs. IP Address needs to be in IPv4 or IPv6 format',
         ),
     ] = None,
     dstaddr: Annotated[
         Optional[str],
         Field(
             ...,
-            description="Destination IP address to filter the flow logs. IP Address needs to be in IPv4 or IPv6 format",
+            description='Destination IP address to filter the flow logs. IP Address needs to be in IPv4 or IPv6 format',
         ),
     ] = None,
     srcport: Annotated[
-        Optional[int], Field(..., description="Source port to filter the flow logs.")
+        Optional[int], Field(..., description='Source port to filter the flow logs.')
     ] = None,
     dstport: Annotated[
-        Optional[int], Field(..., description="Destination port to filter the flow logs.")
+        Optional[int], Field(..., description='Destination port to filter the flow logs.')
     ] = None,
     tgw_attachment_id: Annotated[
         Optional[str],
-        Field(..., description="Transit Gateway Attachment ID to filter the flow logs."),
+        Field(..., description='Transit Gateway Attachment ID to filter the flow logs.'),
     ] = None,
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> List[str]:
@@ -127,59 +127,59 @@ async def get_tgw_flow_logs(
     """
 
     try:
-        ec2_client = get_aws_client("ec2", region, profile_name)
+        ec2_client = get_aws_client('ec2', region, profile_name)
 
         response = ec2_client.describe_flow_logs(
             Filters=[
-                {"Name": "resource-id", "Values": [tgw_id]},
+                {'Name': 'resource-id', 'Values': [tgw_id]},
             ]
         )
 
-        if response.get("FlowLogs") is None:
+        if response.get('FlowLogs') is None:
             raise ToolError(
-                f"There are no flow logs for the Transit Gateway {tgw_id}. VALIDATE PARAMETERS BEFORE CONTINUING."
+                f'There are no flow logs for the Transit Gateway {tgw_id}. VALIDATE PARAMETERS BEFORE CONTINUING.'
             )
 
         log_group_name = None
-        for flow_log in response["FlowLogs"]:
-            if flow_log.get("LogDestinationType") == "cloud-watch-logs":
-                log_group_name = flow_log.get("LogGroupName")
+        for flow_log in response['FlowLogs']:
+            if flow_log.get('LogDestinationType') == 'cloud-watch-logs':
+                log_group_name = flow_log.get('LogGroupName')
                 break
 
         if not log_group_name:
             raise ToolError(
-                f"The flow log for the Transit Gateway {tgw_id} is not stored in CloudWatch Logs. VALIDATE PARAMETERS BEFORE CONTINUING."
+                f'The flow log for the Transit Gateway {tgw_id} is not stored in CloudWatch Logs. VALIDATE PARAMETERS BEFORE CONTINUING.'
             )
 
-        logs_client = get_aws_client("logs", region)
+        logs_client = get_aws_client('logs', region)
 
         time_period = time_period if time_period else 60
 
         if start_time:
-            end_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            end_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
         else:
             end_time = datetime.now(timezone.utc)
 
         start_time_dt = end_time - timedelta(minutes=time_period)
 
-        query_string = "fields @timestamp, @message | parse @message /(?<version>\\d+) (?<resource_type>\\S+) (?<account_id>\\S+) (?<tgw_id>\\S+) (?<tgw_attachment_id>\\S+) (?<tgw_src_vpc_account_id>\\S+) (?<tgw_dst_vpc_account_id>\\S+) (?<tgw_src_vpc_id>\\S+) (?<tgw_dst_vpc_id>\\S+) (?<tgw_src_subnet_id>\\S+) (?<tgw_dst_subnet_id>\\S+) (?<tgw_src_eni>\\S+) (?<tgw_dst_eni>\\S+) (?<tgw_src_az_id>\\S+) (?<tgw_dst_az_id>\\S+) (?<tgw_pair_attachment_id>\\S+) (?<srcaddr>\\S+) (?<dstaddr>\\S+) (?<srcport>\\d+) (?<dstport>\\d+) (?<protocol>\\d+) (?<packets>\\d+) (?<bytes>\\d+) (?<start>\\d+) (?<end>\\d+) (?<log_status>\\S+) (?<type>\\S+) (?<packets_lost_no_route>\\d+) (?<packets_lost_blackhole>\\d+) (?<packets_lost_mtu_exceeded>\\d+) (?<packets_lost_ttl_expired>\\d+)/"
+        query_string = 'fields @timestamp, @message | parse @message /(?<version>\\d+) (?<resource_type>\\S+) (?<account_id>\\S+) (?<tgw_id>\\S+) (?<tgw_attachment_id>\\S+) (?<tgw_src_vpc_account_id>\\S+) (?<tgw_dst_vpc_account_id>\\S+) (?<tgw_src_vpc_id>\\S+) (?<tgw_dst_vpc_id>\\S+) (?<tgw_src_subnet_id>\\S+) (?<tgw_dst_subnet_id>\\S+) (?<tgw_src_eni>\\S+) (?<tgw_dst_eni>\\S+) (?<tgw_src_az_id>\\S+) (?<tgw_dst_az_id>\\S+) (?<tgw_pair_attachment_id>\\S+) (?<srcaddr>\\S+) (?<dstaddr>\\S+) (?<srcport>\\d+) (?<dstport>\\d+) (?<protocol>\\d+) (?<packets>\\d+) (?<bytes>\\d+) (?<start>\\d+) (?<end>\\d+) (?<log_status>\\S+) (?<type>\\S+) (?<packets_lost_no_route>\\d+) (?<packets_lost_blackhole>\\d+) (?<packets_lost_mtu_exceeded>\\d+) (?<packets_lost_ttl_expired>\\d+)/'
 
-        filter = ""
+        filter = ''
         if srcaddr:
             filter += f"{'and ' if filter else ''}srcaddr = '{srcaddr}' "
         if dstaddr:
             filter += f"{'and ' if filter else ''}dstaddr = '{dstaddr}' "
         if srcport:
-            filter += f"{'and ' if filter else ''}srcport = {srcport} "
+            filter += f'{"and " if filter else ""}srcport = {srcport} '
         if dstport:
-            filter += f"{'and ' if filter else ''}dstport = {dstport} "
+            filter += f'{"and " if filter else ""}dstport = {dstport} '
         if tgw_attachment_id:
             filter += f"{'and ' if filter else ''}tgw_attachment_id = '{tgw_attachment_id}' "
 
         if filter:
-            query_string += f" | filter {filter}"
+            query_string += f' | filter {filter}'
 
-        query_string += " | sort @timestamp desc"
+        query_string += ' | sort @timestamp desc'
 
         response = logs_client.start_query(
             logGroupName=log_group_name,
@@ -189,62 +189,62 @@ async def get_tgw_flow_logs(
             limit=entry_limit if entry_limit else 100,
         )
 
-        query_id = response["queryId"]
+        query_id = response['queryId']
 
         while True:
             query_response = logs_client.get_query_results(queryId=query_id)
-            if query_response["status"] == "Complete":
-                if query_response["results"] == []:
+            if query_response['status'] == 'Complete':
+                if query_response['results'] == []:
                     raise ToolError(
-                        "No flow logs found for the Transit Gateway with given parameters. VALIDATE PARAMETERS BEFORE CONTINUING."
+                        'No flow logs found for the Transit Gateway with given parameters. VALIDATE PARAMETERS BEFORE CONTINUING.'
                     )
                 else:
                     break
-            elif query_response["status"] == "Failed" or query_response["status"] == "Timeout":
+            elif query_response['status'] == 'Failed' or query_response['status'] == 'Timeout':
                 raise ToolError(
-                    f"There was an error with the query. Query status: {query_response['status']}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+                    f'There was an error with the query. Query status: {query_response["status"]}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
                 )
             else:
                 time.sleep(1)
 
         logs_result = []
-        for result in query_response["results"]:
+        for result in query_response['results']:
             for field in result:
-                if field.get("field") == "@message":
-                    message = field.get("value")
-                    message = message.split(" ")
+                if field.get('field') == '@message':
+                    message = field.get('value')
+                    message = message.split(' ')
                     message = {
-                        "version": message[0],
-                        "resource_type": message[1],
-                        "account_id": message[2],
-                        "tgw_id": message[3],
-                        "tgw_attachment_id": message[4],
-                        "tgw_src_vpc_account_id": message[5],
-                        "tgw_dst_vpc_account_id": message[6],
-                        "tgw_src_vpc_id": message[7],
-                        "tgw_dst_vpc_id": message[8],
-                        "tgw_src_subnet_id": message[9],
-                        "tgw_dst_subnet_id": message[10],
-                        "tgw_src_eni": message[11],
-                        "tgw_dst_eni": message[12],
-                        "tgw_src_az_id": message[13],
-                        "tgw_dst_az_id": message[14],
-                        "tgw_pair_attachment_id": message[15],
-                        "srcaddr": message[16],
-                        "dstaddr": message[17],
-                        "srcport": message[18],
-                        "dstport": message[19],
-                        "protocol": message[20],
-                        "packets": message[21],
-                        "bytes": message[22],
-                        "start": message[23],
-                        "end": message[24],
-                        "log_status": message[25],
-                        "type": message[26],
-                        "packets_lost_no_route": message[27],
-                        "packets_lost_blackhole": message[28],
-                        "packets_lost_mtu_exceeded": message[29],
-                        "packets_lost_ttl_expired": message[30],
+                        'version': message[0],
+                        'resource_type': message[1],
+                        'account_id': message[2],
+                        'tgw_id': message[3],
+                        'tgw_attachment_id': message[4],
+                        'tgw_src_vpc_account_id': message[5],
+                        'tgw_dst_vpc_account_id': message[6],
+                        'tgw_src_vpc_id': message[7],
+                        'tgw_dst_vpc_id': message[8],
+                        'tgw_src_subnet_id': message[9],
+                        'tgw_dst_subnet_id': message[10],
+                        'tgw_src_eni': message[11],
+                        'tgw_dst_eni': message[12],
+                        'tgw_src_az_id': message[13],
+                        'tgw_dst_az_id': message[14],
+                        'tgw_pair_attachment_id': message[15],
+                        'srcaddr': message[16],
+                        'dstaddr': message[17],
+                        'srcport': message[18],
+                        'dstport': message[19],
+                        'protocol': message[20],
+                        'packets': message[21],
+                        'bytes': message[22],
+                        'start': message[23],
+                        'end': message[24],
+                        'log_status': message[25],
+                        'type': message[26],
+                        'packets_lost_no_route': message[27],
+                        'packets_lost_blackhole': message[28],
+                        'packets_lost_mtu_exceeded': message[29],
+                        'packets_lost_ttl_expired': message[30],
                     }
                     logs_result.append(message)
                     break
@@ -252,5 +252,5 @@ async def get_tgw_flow_logs(
         return logs_result
     except Exception as e:
         raise ToolError(
-            f"Error getting Transit Gateway flow logs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING"
+            f'Error getting Transit Gateway flow logs. Error: {str(e)}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
         )

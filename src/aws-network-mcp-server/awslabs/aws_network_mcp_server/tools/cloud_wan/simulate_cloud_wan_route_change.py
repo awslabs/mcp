@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Annotated, Dict, Any, List, Optional
-from pydantic import Field
-from fastmcp.exceptions import ToolError
 import copy
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from awslabs.aws_network_mcp_server.utils.formatters import format_routes
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+from typing import Annotated, Any, Dict, List, Optional
 
 
 async def simulate_cloud_wan_route_change(
@@ -30,17 +30,17 @@ async def simulate_cloud_wan_route_change(
         ),
     ],
     region: Annotated[
-        str, Field(..., description="AWS region for which the route simulation should be done")
+        str, Field(..., description='AWS region for which the route simulation should be done')
     ],
     cloudwan_region: Annotated[
-        str, Field(..., description="AWS region where the Cloud WAN is located")
+        str, Field(..., description='AWS region where the Cloud WAN is located')
     ],
-    core_network_id: Annotated[str, Field(..., description="AWS Cloud WAN core network ID")],
+    core_network_id: Annotated[str, Field(..., description='AWS Cloud WAN core network ID')],
     profile_name: Annotated[
         Optional[str],
         Field(
             ...,
-            description="AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration",
+            description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
 ) -> Dict[str, Any]:
@@ -80,47 +80,47 @@ async def simulate_cloud_wan_route_change(
     """
 
     try:
-        nm_client = get_aws_client("networkmanager", cloudwan_region, profile_name)
+        nm_client = get_aws_client('networkmanager', cloudwan_region, profile_name)
 
-        core_network = nm_client.get_core_network(CoreNetworkId=core_network_id)["CoreNetwork"]
-        global_network_id = core_network["GlobalNetworkId"]
+        core_network = nm_client.get_core_network(CoreNetworkId=core_network_id)['CoreNetwork']
+        global_network_id = core_network['GlobalNetworkId']
     except Exception as e:
         raise ToolError(
-            f"There was an error when trying to get the core network details. Error: {str(e)}."
+            f'There was an error when trying to get the core network details. Error: {str(e)}.'
         )
 
     all_routes = {}
     routes_to_change = []
 
-    for segment in core_network["Segments"]:
-        if region not in segment["EdgeLocations"]:
+    for segment in core_network['Segments']:
+        if region not in segment['EdgeLocations']:
             continue
 
         routes = nm_client.get_network_routes(
             GlobalNetworkId=global_network_id,
             RouteTableIdentifier={
-                "CoreNetworkSegmentEdge": {
-                    "CoreNetworkId": core_network_id,
-                    "SegmentName": segment["Name"],
-                    "EdgeLocation": region,
+                'CoreNetworkSegmentEdge': {
+                    'CoreNetworkId': core_network_id,
+                    'SegmentName': segment['Name'],
+                    'EdgeLocation': region,
                 }
             },
-        )["NetworkRoutes"]
+        )['NetworkRoutes']
 
-        key = f"{segment['Name']}/{region}"
+        key = f'{segment["Name"]}/{region}'
         all_routes[key] = routes
         for route in routes:
-            dest = route.get("Destinations", [{}])[0]
-            attachment = dest.get("TransitGatewayAttachmentId") or dest.get(
-                "CoreNetworkAttachmentId"
+            dest = route.get('Destinations', [{}])[0]
+            attachment = dest.get('TransitGatewayAttachmentId') or dest.get(
+                'CoreNetworkAttachmentId'
             )
             for change in changes:
-                if attachment == change["attachment_id"]:
+                if attachment == change['attachment_id']:
                     routes_to_change.append(
                         {
-                            "route": route,
-                            "segment": segment["Name"],
-                            "new_segment": change.get("segment"),
+                            'route': route,
+                            'segment': segment['Name'],
+                            'new_segment': change.get('segment'),
                         }
                     )
                     break
@@ -130,60 +130,60 @@ async def simulate_cloud_wan_route_change(
     segment_changes = {}
 
     for item in routes_to_change:
-        route = item["route"]
-        old_segment = item["segment"]
-        new_segment = item["new_segment"]
-        destination_cidr = route["DestinationCidrBlock"]
-        dest = route.get("Destinations", [{}])[0]
-        attachment = dest.get("TransitGatewayAttachmentId") or dest.get("CoreNetworkAttachmentId")
+        route = item['route']
+        old_segment = item['segment']
+        new_segment = item['new_segment']
+        destination_cidr = route['DestinationCidrBlock']
+        dest = route.get('Destinations', [{}])[0]
+        attachment = dest.get('TransitGatewayAttachmentId') or dest.get('CoreNetworkAttachmentId')
 
-        old_key = f"{old_segment}/{region}"
+        old_key = f'{old_segment}/{region}'
         modified_routes[old_key] = [
-            r for r in modified_routes[old_key] if r["DestinationCidrBlock"] != destination_cidr
+            r for r in modified_routes[old_key] if r['DestinationCidrBlock'] != destination_cidr
         ]
 
         if new_segment:
-            new_key = f"{new_segment}/{region}"
+            new_key = f'{new_segment}/{region}'
             if new_key not in modified_routes:
                 modified_routes[new_key] = []
             modified_routes[new_key].append(route)
 
             changes.append(
                 {
-                    "action": "moved",
-                    "destination": destination_cidr,
-                    "attachment": attachment,
-                    "from": old_segment,
-                    "to": new_segment,
+                    'action': 'moved',
+                    'destination': destination_cidr,
+                    'attachment': attachment,
+                    'from': old_segment,
+                    'to': new_segment,
                 }
             )
 
             if new_segment not in segment_changes:
-                segment_changes[new_segment] = {"removed": 0, "added": 0}
-            segment_changes[new_segment]["added"] += 1
+                segment_changes[new_segment] = {'removed': 0, 'added': 0}
+            segment_changes[new_segment]['added'] += 1
         else:
             changes.append(
                 {
-                    "action": "removed",
-                    "destination": destination_cidr,
-                    "attachment": attachment,
-                    "from": old_segment,
+                    'action': 'removed',
+                    'destination': destination_cidr,
+                    'attachment': attachment,
+                    'from': old_segment,
                 }
             )
 
         if old_segment not in segment_changes:
-            segment_changes[old_segment] = {"removed": 0, "added": 0}
-        segment_changes[old_segment]["removed"] += 1
+            segment_changes[old_segment] = {'removed': 0, 'added': 0}
+        segment_changes[old_segment]['removed'] += 1
 
     return {
-        "summary": {
-            "total_routes_moved": len(routes_to_change),
-            "region": region,
-            "segment_changes": segment_changes,
+        'summary': {
+            'total_routes_moved': len(routes_to_change),
+            'region': region,
+            'segment_changes': segment_changes,
         },
-        "changes": changes,
-        "route_tables": {
-            "before": format_routes(all_routes, core_network_id),
-            "after": format_routes(modified_routes, core_network_id),
+        'changes': changes,
+        'route_tables': {
+            'before': format_routes(all_routes, core_network_id),
+            'after': format_routes(modified_routes, core_network_id),
         },
     }
