@@ -406,6 +406,28 @@
     },
     {
       "category": "AI & Machine Learning",
+      "description": "Model Context Protocol (MCP) server for document parsing and content extraction",
+      "icon": "\ud83e\udd16",
+      "id": "document-loader-mcp-server",
+      "name": "Document Loader MCP Server",
+      "source_path": "src/document-loader-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "ai-ml",
+        "document-processing",
+        "content-extraction",
+        "pdf-parsing",
+        "office-documents",
+        "image-analysis",
+        "conversational",
+        "content-processing"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
       "description": "AI image generation with text and color guidance",
       "icon": "\ud83e\udd16",
       "id": "nova-canvas-mcp-server",
