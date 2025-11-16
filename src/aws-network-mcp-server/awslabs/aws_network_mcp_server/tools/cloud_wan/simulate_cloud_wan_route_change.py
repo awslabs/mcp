@@ -78,7 +78,6 @@ async def simulate_cloud_wan_route_change(
         List of dict: Original Cloud WAN route tables
         List of dict: Modified Cloud WAN route tables
     """
-
     try:
         nm_client = get_aws_client('networkmanager', cloudwan_region, profile_name)
 

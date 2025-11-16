@@ -71,7 +71,6 @@ async def get_firewall_rules(
         - stateless_rules: List of stateless rules with priorities and actions
         - stateful_rules: List of stateful rules with match criteria and actions
     """
-
     try:
         anfw_client = get_aws_client('network-firewall', region, profile_name)
 

@@ -22,11 +22,11 @@ from .list_transit_gateway_peerings import list_tgw_peerings
 from .list_transit_gateways import list_transit_gateways
 
 __all__ = [
-    "detect_tgw_inspection",
-    "get_all_tgw_routes",
-    "get_tgw_details",
-    "get_tgw_routes",
-    "get_tgw_flow_logs",
-    "list_tgw_peerings",
-    "list_transit_gateways",
+    'detect_tgw_inspection',
+    'get_all_tgw_routes',
+    'get_tgw_details',
+    'get_tgw_routes',
+    'get_tgw_flow_logs',
+    'list_tgw_peerings',
+    'list_transit_gateways',
 ]

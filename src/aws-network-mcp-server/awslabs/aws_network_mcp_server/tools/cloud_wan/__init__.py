@@ -25,14 +25,14 @@ from .list_core_networks import list_core_networks
 from .simulate_cloud_wan_route_change import simulate_cloud_wan_route_change
 
 __all__ = [
-    "detect_cloudwan_inspection",
-    "get_all_cloudwan_routes",
-    "get_cloudwan_routes",
-    "get_cloudwan_attachment_details",
-    "get_cloudwan_details",
-    "get_cloudwan_logs",
-    "get_cloudwan_peering_details",
-    "list_cloudwan_peerings",
-    "list_core_networks",
-    "simulate_cloud_wan_route_change",
+    'detect_cloudwan_inspection',
+    'get_all_cloudwan_routes',
+    'get_cloudwan_routes',
+    'get_cloudwan_attachment_details',
+    'get_cloudwan_details',
+    'get_cloudwan_logs',
+    'get_cloudwan_peering_details',
+    'list_cloudwan_peerings',
+    'list_core_networks',
+    'simulate_cloud_wan_route_change',
 ]

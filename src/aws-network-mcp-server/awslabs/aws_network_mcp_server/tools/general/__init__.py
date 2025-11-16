@@ -17,4 +17,4 @@ from .get_path_trace_methodology import get_path_trace_methodology
 from .find_ip_address import find_ip_address
 from .get_eni_details import get_eni_details
 
-__all__ = ["get_path_trace_methodology", "find_ip_address", "get_eni_details"]
+__all__ = ['get_path_trace_methodology', 'find_ip_address', 'get_eni_details']

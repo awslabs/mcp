@@ -17,4 +17,4 @@ from .get_vpc_flow_logs import get_vpc_flow_logs
 from .get_vpc_network_details import get_vpc_network_details
 from .list_vpcs import list_vpcs
 
-__all__ = ["get_vpc_flow_logs", "get_vpc_network_details", "list_vpcs"]
+__all__ = ['get_vpc_flow_logs', 'get_vpc_network_details', 'list_vpcs']

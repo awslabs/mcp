@@ -54,8 +54,8 @@ async def get_cloudwan_routes(
     3. Analyze route targets (attachment IDs) and states (active/blackhole)
 
     Returns route table with destination CIDRs, targets (attachment IDs),
-    route types (propagated/static), and states (active/blackhole)."""
-
+    route types (propagated/static), and states (active/blackhole).
+    """
     if not any([segment, network_function_group]):
         raise ToolError('Please provide a segment or network_function_group as parameter.')
 

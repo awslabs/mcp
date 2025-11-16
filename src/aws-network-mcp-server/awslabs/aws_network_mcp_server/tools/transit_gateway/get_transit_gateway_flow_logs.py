@@ -79,8 +79,7 @@ async def get_tgw_flow_logs(
         ),
     ] = None,
 ) -> List[str]:
-    """
-    Retrieve Transit Gateway flow logs from CloudWatch Logs for traffic analysis and troubleshooting.
+    """Retrieve Transit Gateway flow logs from CloudWatch Logs for traffic analysis and troubleshooting.
 
     Use this tool when:
     - Investigating connectivity issues through a Transit Gateway
@@ -125,7 +124,6 @@ async def get_tgw_flow_logs(
     - Requires flow logs to be stored in CloudWatch Logs
     - Flow logs have ~5-15 minute delay from actual traffic
     """
-
     try:
         ec2_client = get_aws_client('ec2', region, profile_name)
 

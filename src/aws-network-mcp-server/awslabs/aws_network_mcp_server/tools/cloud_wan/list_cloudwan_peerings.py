@@ -56,7 +56,6 @@ async def list_cloudwan_peerings(
         - ResourceArn: Full ARN of the peering resource
         - Tags: Associated resource tags
     """
-
     try:
         nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 

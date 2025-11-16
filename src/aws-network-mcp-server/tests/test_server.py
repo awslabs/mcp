@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,70 +15,53 @@
 
 """Tests for the aws-network MCP Server."""
 
-import pytest
-from awslabs.aws_network_mcp_server.server import example_tool
-from awslabs.aws_network_mcp_server.server import math_tool
+from awslabs.aws_network_mcp_server.server import main, mcp
+from unittest.mock import patch
 
-@pytest.mark.asyncio
-async def test_example_tool():
-    # Arrange
-    test_query = "test query"
-    expected_project_name = "awslabs aws-network MCP Server"
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this with your tool's logic"
 
-    # Act
-    result = await example_tool(test_query)
+class TestMcpServer:
+    """Test cases for the MCP server."""
 
-    # Assert
-    assert result == expected_response
+    def test_server_initialization(self):
+        """Test that the MCP server is properly initialized."""
+        assert mcp is not None
+        assert mcp.name == 'awslabs.aws-core-network-mcp-server'
+        assert mcp.version == '1.0.0'
+        assert mcp.instructions is not None
 
-@pytest.mark.asyncio
-async def test_example_tool_failure():
-    # Arrange
-    test_query = "test query"
-    expected_project_name = "awslabs aws-network MCP Server"
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this your tool's new logic"
+    def test_server_instructions_contain_required_content(self):
+        """Test that server instructions contain required content."""
+        instructions = mcp.instructions
 
-    # Act
-    result = await example_tool(test_query)
+        # Should contain critical workflow steps
+        assert 'get_path_trace_methodology' in instructions
+        assert 'CRITICAL FIRST STEP' in instructions
 
-    # Assert
-    assert result != expected_response
+        # Should mention main service areas
+        assert 'Cloud WAN' in instructions
+        assert 'Transit Gateway' in instructions
+        assert 'VPC' in instructions
+        assert 'Network Firewall' in instructions
 
-@pytest.mark.asyncio
-class TestMathTool:
-    async def test_addition(self):
-        # Test integer addition
-        assert await math_tool('add', 2, 3) == 5
-        # Test float addition
-        assert await math_tool('add', 2.5, 3.5) == 6.0
+    @patch('awslabs.aws_network_mcp_server.server.mcp.run')
+    def test_main_function(self, mock_run):
+        """Test the main function calls mcp.run()."""
+        main()
+        mock_run.assert_called_once()
 
-    async def test_subtraction(self):
-        # Test integer subtraction
-        assert await math_tool('subtract', 5, 3) == 2
-        # Test float subtraction
-        assert await math_tool('subtract', 5.5, 2.5) == 3.0
+    def test_tools_registration(self):
+        """Test that tools are properly registered."""
+        # Check that tools are registered by checking if the mcp instance has tools
+        # FastMCP stores tools differently - we'll verify by checking that key tools are importable
+        from awslabs.aws_network_mcp_server.tools.general import find_ip_address, get_eni_details
+        from awslabs.aws_network_mcp_server.tools.vpc import list_vpcs
 
-    async def test_multiplication(self):
-        # Test integer multiplication
-        assert await math_tool('multiply', 4, 3) == 12
-        # Test float multiplication
-        assert await math_tool('multiply', 2.5, 2) == 5.0
+        # If we can import these without errors, the tools are properly structured
+        assert callable(find_ip_address)
+        assert callable(get_eni_details)
+        assert callable(list_vpcs)
 
-    async def test_division(self):
-        # Test integer division
-        assert await math_tool('divide', 6, 2) == 3.0
-        # Test float division
-        assert await math_tool('divide', 5.0, 2.0) == 2.5
-
-    async def test_division_by_zero(self):
-        # Test division by zero raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('divide', 5, 0)
-        assert str(exc_info.value) == 'The denominator 0 cannot be zero.'
-
-    async def test_invalid_operation(self):
-        # Test invalid operation raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('power', 2, 3)
-        assert 'Invalid operation: power' in str(exc_info.value)
+        # Verify the MCP instance is properly configured
+        assert hasattr(mcp, 'name')
+        assert hasattr(mcp, 'version')
+        assert hasattr(mcp, 'instructions')

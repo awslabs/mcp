@@ -88,7 +88,6 @@ async def get_tgw_routes(
     3. Check for blackhole routes if connectivity fails
     4. Verify expected routes are present and active
     """
-
     try:
         cloudwan_client = get_aws_client(
             'networkmanager', global_network_region, cloudwan_account_profile_name

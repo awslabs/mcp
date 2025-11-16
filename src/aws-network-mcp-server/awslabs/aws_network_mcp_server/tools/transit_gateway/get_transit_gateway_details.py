@@ -34,8 +34,7 @@ async def get_tgw_details(
         ),
     ] = None,
 ) -> Dict[str, Any]:
-    """
-    Get basic configuration and operational details of an AWS Transit Gateway.
+    """Get basic configuration and operational details of an AWS Transit Gateway.
 
     Use this tool when:
     - Starting Transit Gateway troubleshooting to understand its configuration

@@ -61,7 +61,6 @@ async def get_cloudwan_peering_details(
         - peering_route_table_id: TGW route table associated with peering
         - peering_attachment_id: Attachment ID for the peering connection
     """
-
     try:
         nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 

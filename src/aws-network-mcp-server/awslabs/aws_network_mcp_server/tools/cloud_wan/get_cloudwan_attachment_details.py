@@ -47,7 +47,6 @@ async def get_cloudwan_attachment_details(
 
     Returns comprehensive attachment details specific to each attachment type.
     """
-
     nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 
     response = nm_client.get_vpc_attachment(AttachmentId=attachment_id)

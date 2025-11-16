@@ -15,4 +15,4 @@
 
 from .list_vpn_connections import list_vpn_connections
 
-__all__ = ["list_vpn_connections"]
+__all__ = ['list_vpn_connections']

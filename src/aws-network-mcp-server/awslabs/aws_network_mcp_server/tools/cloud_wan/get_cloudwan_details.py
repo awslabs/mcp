@@ -71,7 +71,6 @@ async def get_cloudwan_details(
         - attachments: List of all attachments (VPC, VPN, peering, Connect)
         - next_token: Pagination token if more attachments exist (None if complete)
     """
-
     try:
         nm_client = get_aws_client('networkmanager', core_network_region, profile_name)
 

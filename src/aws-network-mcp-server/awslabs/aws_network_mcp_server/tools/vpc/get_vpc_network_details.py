@@ -80,7 +80,6 @@ async def get_vpc_network_details(
     Note: This tool provides network configuration only. For traffic flow validation, use get_vpc_flow_logs.
     For security group rules on specific instances, use get_eni_details.
     """
-
     # Get VPC details
     try:
         ec2_client = get_aws_client('ec2', region, profile_name)

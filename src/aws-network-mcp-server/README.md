@@ -123,7 +123,7 @@ For Windows users, the MCP server configuration format is slightly different:
 
 Preferred authentication method is [AWS Named Profiles](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html). This MCP is able to do fast account switching by using named profiles.
 
-AWS Credentials in environment variables will also work but allows only single account usage. 
+AWS Credentials in environment variables will also work but allows only single account usage.
 
 #### Required IAM Permissions
 

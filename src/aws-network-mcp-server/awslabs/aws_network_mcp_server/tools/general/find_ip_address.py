@@ -44,8 +44,7 @@ async def find_ip_address(
         ),
     ] = None,
 ) -> Dict[str, Any]:
-    """
-    Locate an AWS Elastic Network Interface (ENI) by its IP address.
+    """Locate an AWS Elastic Network Interface (ENI) by its IP address.
 
     Use this tool when:
     - Starting network troubleshooting to find where an IP address is located
@@ -73,7 +72,6 @@ async def find_ip_address(
         - Groups: Security groups attached to the ENI
         - Attachment: Information about attached resource (EC2, Lambda, etc.)
     """
-
     ec2_client = get_aws_client('ec2', region, profile_name)
 
     if not all_regions:

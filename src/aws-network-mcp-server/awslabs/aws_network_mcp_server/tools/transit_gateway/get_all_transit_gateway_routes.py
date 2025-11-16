@@ -83,7 +83,6 @@ async def get_all_tgw_routes(
             - state: Route table state (available, etc.)
             - routes: List of route objects with destination, attachment_id, resource_type, type, state
     """
-
     try:
         cloudwan_client = get_aws_client(
             'networkmanager', global_network_region, cloudwan_account_profile_name

@@ -70,7 +70,6 @@ async def get_cloudwan_logs(
         - summary: Event counts by change type and edge location
         - events_by_location: Grouped events with timestamps, change descriptions, segments, and ARNs
     """
-
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(minutes=time_period if time_period else 180)
 

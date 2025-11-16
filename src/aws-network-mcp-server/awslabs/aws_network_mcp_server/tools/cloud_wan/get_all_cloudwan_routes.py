@@ -62,7 +62,6 @@ async def get_all_cloudwan_routes(
     2. Use this tool for comprehensive routing analysis
     3. Use get_cloudwan_routes() for focused segment-specific queries
     """
-
     cloudwan_client = get_aws_client('networkmanager', cloudwan_region, profile_name)
 
     try:
