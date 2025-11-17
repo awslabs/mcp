@@ -62,6 +62,7 @@ const sidebars: SidebarsConfig = {
             'servers/bedrock-kb-retrieval-mcp-server',
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
+            'servers/document-loader-mcp-server',
             'servers/nova-canvas-mcp-server',
             'servers/aws-bedrock-custom-model-import-mcp-server',
             'servers/amazon-bedrock-agentcore-mcp-server'
@@ -144,7 +145,6 @@ const sidebars: SidebarsConfig = {
       label: 'Samples',
       collapsed: false,
       items: [
-        'samples/cloudwatch-applicationsignals-mcp',
         'samples/mcp-integration-with-kb',
         'samples/mcp-integration-with-nova-canvas',
         'samples/stepfunctions-tool-mcp-server',
