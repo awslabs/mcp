@@ -17,9 +17,14 @@ from typing import Dict, List, Any, Optional
 from dateutil import parser as dateutil_parser
 import json
 import boto3
+import botocore.config
 
 # CloudFormation's source IP in CloudTrail events
 CLOUDTRAIL_SOURCE_IP_FOR_CLOUDFORMATION = 'cloudformation.amazonaws.com'
+
+session_config = botocore.config.Config(
+    user_agent_extra='iac-mcp-server/1.0.0',
+)
 
 
 class DeploymentTroubleshooter:
@@ -45,8 +50,8 @@ class DeploymentTroubleshooter:
     """
     def __init__(self, region: str = 'us-east-1'):
         self.region = region
-        self.cfn_client = boto3.client('cloudformation', region_name=region)
-        self.cloudtrail_client = boto3.client('cloudtrail', region_name=region)
+        self.cfn_client = boto3.client('cloudformation', region_name=region, config=session_config)
+        self.cloudtrail_client = boto3.client('cloudtrail', region_name=region, config=session_config)
 
     def filter_cloudtrail_events(self, cloudtrail_events: List[Dict], root_cause_event: Dict) -> Dict[str, Any]:
         """Filter CloudTrail events based on CFN Console logic.
