@@ -29,21 +29,20 @@ def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]
     if dest == '0.0.0.0/0':
         dest = '0.0.0.0/0 (anywhere)'
 
-    formatted = {
+    return {
         'priority': priority,
         'action': rule.get('RuleDefinition', {}).get('Actions')[0],
         'protocol': protocol,
         'source': source,
         'destination': dest,
     }
-    return formatted
 
 
 def format_stateful_rule(rule: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
-    """Format standard stateful rules (not Suricata)"""
+    """Format standard stateful rules (not Suricata)."""
     header = rule.get('Header', {})
 
-    formatted = {
+    return {
         'rule_id': rule_id,
         'type': 'standard',
         'action': rule.get('Action'),
@@ -56,7 +55,6 @@ def format_stateful_rule(rule: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
         'direction': header.get('Direction'),
         'rule_options': rule.get('RuleOptions', []),
     }
-    return formatted
 
 
 def format_routes(routes_data: dict[str, Any], core_net_id: str):
