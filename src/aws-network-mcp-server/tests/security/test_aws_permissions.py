@@ -163,9 +163,6 @@ class TestAwsPermissionsSecurity:
             for tool_name in module.__all__:
                 tool_func = getattr(module, tool_name)
 
-                # Check docstring mentions read-only behavior
-                docstring = tool_func.__doc__ or ''
-
                 # Our tools should not contain any write/modify language
                 write_operations = [
                     'create',
