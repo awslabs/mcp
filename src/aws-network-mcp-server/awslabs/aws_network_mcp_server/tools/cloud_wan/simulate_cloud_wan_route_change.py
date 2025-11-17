@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,6 +44,7 @@ async def simulate_cloud_wan_route_change(
     ] = None,
 ) -> Dict[str, Any]:
     """Simulate Cloud WAN network changes for a single region. Provide list of attachment IDs and the segments where to put them.
+
     This script will get the active route tables from Cloud WAN for single region and then simulate how the route tables would look like when attachemnt routes are changed.
 
     RELATED TOOLS:
