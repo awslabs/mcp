@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-documentation-mcp-server"
-version = "1.1.9"
+version = "1.1.11"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documentation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -123,3 +123,18 @@ exclude_dirs = ["venv","tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.pyright]
+exclude = [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "dist",
+    "build"
+]
+extraPaths = ["../../../"]
+include = ["."]
+reportMissingImports = "none"
+reportMissingTypeStubs = false
+typeCheckingMode = "basic"
+useLibraryCodeForTypes = true
