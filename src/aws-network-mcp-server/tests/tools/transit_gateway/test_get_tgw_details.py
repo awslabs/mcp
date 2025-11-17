@@ -16,9 +16,11 @@
 """Test cases for the get_tgw_details tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details import (
+    get_tgw_details,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details import get_tgw_details
+from unittest.mock import MagicMock, patch
 
 
 class TestGetTgwDetails:
@@ -33,6 +35,7 @@ class TestGetTgwDetails:
     def sample_tgw_data(self):
         """Sample Transit Gateway data fixture."""
         from datetime import datetime
+
         return {
             'TransitGatewayId': 'tgw-12345678',
             'TransitGatewayArn': 'arn:aws:ec2:us-east-1:123456789012:transit-gateway/tgw-12345678',
@@ -48,26 +51,27 @@ class TestGetTgwDetails:
                 'DnsSupport': 'enable',
                 'MulticastSupport': 'disable',
                 'AssociationDefaultRouteTableId': 'tgw-rtb-association-123',
-                'PropagationDefaultRouteTableId': 'tgw-rtb-propagation-123'
+                'PropagationDefaultRouteTableId': 'tgw-rtb-propagation-123',
             },
             'Tags': [
                 {'Key': 'Name', 'Value': 'test-tgw'},
-                {'Key': 'Environment', 'Value': 'test'}
-            ]
+                {'Key': 'Environment', 'Value': 'test'},
+            ],
         }
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
-    async def test_get_tgw_details_success(self, mock_get_client, mock_ec2_client, sample_tgw_data):
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
+    async def test_get_tgw_details_success(
+        self, mock_get_client, mock_ec2_client, sample_tgw_data
+    ):
         """Test successful Transit Gateway details retrieval."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_transit_gateways.return_value = {
             'TransitGateways': [sample_tgw_data]
         }
 
-        result = await get_tgw_details(
-            transit_gateway_id='tgw-12345678',
-            region='us-east-1'
-        )
+        result = await get_tgw_details(transit_gateway_id='tgw-12345678', region='us-east-1')
 
         # Verify the formatted result structure
         assert result['transit_gateway_id'] == 'tgw-12345678'
@@ -83,21 +87,25 @@ class TestGetTgwDetails:
             TransitGatewayIds=['tgw-12345678']
         )
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
     async def test_get_tgw_details_not_found(self, mock_get_client, mock_ec2_client):
         """Test error handling when Transit Gateway is not found."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_transit_gateways.return_value = {'TransitGateways': []}
 
         with pytest.raises(ToolError) as exc_info:
-            await get_tgw_details(
-                transit_gateway_id='tgw-nonexistent',
-                region='us-east-1'
-            )
+            await get_tgw_details(transit_gateway_id='tgw-nonexistent', region='us-east-1')
 
-        assert 'Transit Gateway was not found with the given details. VALIDATE PARAMETERS BEFORE CONTINUING.' in str(exc_info.value)
+        assert (
+            'Transit Gateway was not found with the given details. VALIDATE PARAMETERS BEFORE CONTINUING.'
+            in str(exc_info.value)
+        )
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
     async def test_get_tgw_details_with_profile(
         self, mock_get_client, mock_ec2_client, sample_tgw_data
     ):
@@ -108,9 +116,7 @@ class TestGetTgwDetails:
         }
 
         result = await get_tgw_details(
-            transit_gateway_id='tgw-12345678',
-            region='us-west-2',
-            profile_name='test-profile'
+            transit_gateway_id='tgw-12345678', region='us-west-2', profile_name='test-profile'
         )
 
         # Check formatted output, not raw input
@@ -118,33 +124,39 @@ class TestGetTgwDetails:
         assert result['state'] == 'available'
         mock_get_client.assert_called_once_with('ec2', 'us-west-2', 'test-profile')
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
     async def test_get_tgw_details_aws_error(self, mock_get_client, mock_ec2_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_ec2_client
-        mock_ec2_client.describe_transit_gateways.side_effect = Exception('InvalidTransitGatewayID.NotFound')
+        mock_ec2_client.describe_transit_gateways.side_effect = Exception(
+            'InvalidTransitGatewayID.NotFound'
+        )
 
         with pytest.raises(ToolError) as exc_info:
-            await get_tgw_details(
-                transit_gateway_id='tgw-invalid',
-                region='us-east-1'
-            )
+            await get_tgw_details(transit_gateway_id='tgw-invalid', region='us-east-1')
 
-        assert 'There was an error getting AWS Transit Gateway details. Error: InvalidTransitGatewayID.NotFound' in str(exc_info.value)
+        assert (
+            'There was an error getting AWS Transit Gateway details. Error: InvalidTransitGatewayID.NotFound'
+            in str(exc_info.value)
+        )
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
     async def test_get_tgw_details_access_denied(self, mock_get_client, mock_ec2_client):
         """Test access denied error handling."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_transit_gateways.side_effect = Exception('UnauthorizedOperation')
 
         with pytest.raises(ToolError) as exc_info:
-            await get_tgw_details(
-                transit_gateway_id='tgw-12345678',
-                region='us-east-1'
-            )
+            await get_tgw_details(transit_gateway_id='tgw-12345678', region='us-east-1')
 
-        assert 'There was an error getting AWS Transit Gateway details. Error: UnauthorizedOperation' in str(exc_info.value)
+        assert (
+            'There was an error getting AWS Transit Gateway details. Error: UnauthorizedOperation'
+            in str(exc_info.value)
+        )
 
     async def test_parameter_validation(self):
         """Test parameter validation for required fields."""

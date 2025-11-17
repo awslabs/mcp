@@ -16,9 +16,9 @@
 """Test cases for the list_vpcs tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.tools.vpc.list_vpcs import list_vpcs
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestListVpcs:
@@ -39,7 +39,7 @@ class TestListVpcs:
                 'CidrBlock': '10.0.0.0/16',
                 'DhcpOptionsId': 'dopt-12345678',
                 'InstanceTenancy': 'default',
-                'IsDefault': False
+                'IsDefault': False,
             },
             {
                 'VpcId': 'vpc-87654321',
@@ -47,8 +47,8 @@ class TestListVpcs:
                 'CidrBlock': '172.16.0.0/16',
                 'DhcpOptionsId': 'dopt-87654321',
                 'InstanceTenancy': 'default',
-                'IsDefault': True
-            }
+                'IsDefault': True,
+            },
         ]
 
     @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
@@ -84,10 +84,7 @@ class TestListVpcs:
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_vpcs.return_value = {'Vpcs': sample_vpcs}
 
-        await list_vpcs(
-            region='eu-central-1',
-            profile_name='test-profile'
-        )
+        await list_vpcs(region='eu-central-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('ec2', 'eu-central-1', 'test-profile')
 

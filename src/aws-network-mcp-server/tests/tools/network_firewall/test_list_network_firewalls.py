@@ -16,9 +16,11 @@
 """Test cases for the list_network_firewalls tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls import (
+    list_network_firewalls,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls import list_network_firewalls
+from unittest.mock import MagicMock, patch
 
 
 class TestListNetworkFirewalls:
@@ -35,23 +37,23 @@ class TestListNetworkFirewalls:
         return [
             {
                 'FirewallName': 'prod-firewall',
-                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/prod-firewall'
+                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/prod-firewall',
             },
             {
                 'FirewallName': 'staging-firewall',
-                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/staging-firewall'
-            }
+                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/staging-firewall',
+            },
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
     async def test_list_network_firewalls_success(
         self, mock_get_client, mock_nfw_client, sample_firewalls
     ):
         """Test successful network firewalls listing."""
         mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.return_value = {
-            'Firewalls': sample_firewalls
-        }
+        mock_nfw_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
 
         result = await list_network_firewalls(region='us-east-1')
 
@@ -63,7 +65,9 @@ class TestListNetworkFirewalls:
         mock_get_client.assert_called_once_with('network-firewall', 'us-east-1', None)
         mock_nfw_client.list_firewalls.assert_called_once()
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
     async def test_list_network_firewalls_empty(self, mock_get_client, mock_nfw_client):
         """Test listing when no network firewalls exist."""
         mock_get_client.return_value = mock_nfw_client
@@ -74,24 +78,23 @@ class TestListNetworkFirewalls:
         assert result['firewalls'] == []
         assert result['total_count'] == 0
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
     async def test_list_network_firewalls_with_profile(
         self, mock_get_client, mock_nfw_client, sample_firewalls
     ):
         """Test network firewalls listing with specific AWS profile."""
         mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.return_value = {
-            'Firewalls': sample_firewalls
-        }
+        mock_nfw_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
 
-        await list_network_firewalls(
-            region='eu-west-1',
-            profile_name='test-profile'
-        )
+        await list_network_firewalls(region='eu-west-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('network-firewall', 'eu-west-1', 'test-profile')
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
     async def test_list_network_firewalls_aws_error(self, mock_get_client, mock_nfw_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_nfw_client
@@ -103,7 +106,9 @@ class TestListNetworkFirewalls:
         # Check for the actual error message format from implementation
         assert 'Error listing Network Firewalls:' in str(exc_info.value)
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
     async def test_list_network_firewalls_access_denied(self, mock_get_client, mock_nfw_client):
         """Test access denied error handling."""
         mock_get_client.return_value = mock_nfw_client

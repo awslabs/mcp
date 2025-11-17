@@ -16,8 +16,8 @@
 """Test cases for the aws_common utils module."""
 
 import pytest
+from awslabs.aws_network_mcp_server.utils.aws_common import get_account_id, get_aws_client
 from unittest.mock import MagicMock, patch
-from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client, get_account_id
 
 
 class TestAwsCommon:
@@ -54,7 +54,9 @@ class TestAwsCommon:
     @patch('awslabs.aws_network_mcp_server.utils.aws_common.client')
     def test_get_aws_client_default_region_from_env(self, mock_client, mock_getenv):
         """Test get_aws_client with default region from environment."""
-        mock_getenv.side_effect = lambda key, default: 'eu-central-1' if key == 'AWS_REGION' else default
+        mock_getenv.side_effect = (
+            lambda key, default: 'eu-central-1' if key == 'AWS_REGION' else default
+        )
         mock_boto_client = MagicMock()
         mock_client.return_value = mock_boto_client
 
@@ -81,7 +83,9 @@ class TestAwsCommon:
     @patch('awslabs.aws_network_mcp_server.utils.aws_common.Session')
     def test_get_aws_client_profile_from_env(self, mock_session_class, mock_getenv):
         """Test get_aws_client with profile from environment."""
-        mock_getenv.side_effect = lambda key, default: 'env-profile' if key == 'AWS_PROFILE' else default
+        mock_getenv.side_effect = (
+            lambda key, default: 'env-profile' if key == 'AWS_PROFILE' else default
+        )
         mock_session = MagicMock()
         mock_session_client = MagicMock()
         mock_session.client.return_value = mock_session_client

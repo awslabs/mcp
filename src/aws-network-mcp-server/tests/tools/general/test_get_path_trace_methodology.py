@@ -15,8 +15,9 @@
 
 """Test cases for the get_path_trace_methodology tool."""
 
-import pytest
-from awslabs.aws_network_mcp_server.tools.general.get_path_trace_methodology import get_path_trace_methodology
+from awslabs.aws_network_mcp_server.tools.general.get_path_trace_methodology import (
+    get_path_trace_methodology,
+)
 
 
 class TestGetPathTraceMethodology:
@@ -111,7 +112,9 @@ class TestGetPathTraceMethodology:
         assert 'security group' in methodology_text.lower() or 'nacl' in methodology_text.lower()
 
         # Should mention access denied scenarios which are security-related
-        assert 'access_denied' in methodology_text.lower() or 'authorized' in methodology_text.lower()
+        assert (
+            'access_denied' in methodology_text.lower() or 'authorized' in methodology_text.lower()
+        )
 
     async def test_methodology_contains_tool_references(self):
         """Test that methodology references actual tool functions."""
@@ -146,9 +149,17 @@ class TestGetPathTraceMethodology:
 
         # Should not contain any credentials, keys, or sensitive data
         sensitive_patterns = [
-            'aws_access_key', 'aws_secret', 'password', 'token', 'credential',
-            'arn:aws:iam::', 'account-id', 'secret-key'
+            'aws_access_key',
+            'aws_secret',
+            'password',
+            'token',
+            'credential',
+            'arn:aws:iam::',
+            'account-id',
+            'secret-key',
         ]
 
         for pattern in sensitive_patterns:
-            assert pattern not in methodology_text, f"Found potentially sensitive pattern: {pattern}"
+            assert pattern not in methodology_text, (
+                f'Found potentially sensitive pattern: {pattern}'
+            )

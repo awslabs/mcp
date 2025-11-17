@@ -15,9 +15,8 @@
 
 """Integration test cases for the MCP server."""
 
-import pytest
-from unittest.mock import MagicMock, patch
 from awslabs.aws_network_mcp_server.server import mcp
+from unittest.mock import patch
 
 
 class TestMcpServerIntegration:
@@ -60,24 +59,47 @@ class TestMcpServerIntegration:
         tool_names = set(tools.keys())
 
         # Expected tools from all modules
-        expected_general_tools = {'get_path_trace_methodology', 'find_ip_address', 'get_eni_details'}
+        expected_general_tools = {
+            'get_path_trace_methodology',
+            'find_ip_address',
+            'get_eni_details',
+        }
         expected_cloudwan_tools = {
-            'detect_cloudwan_inspection', 'get_all_cloudwan_routes', 'get_cloudwan_routes',
-            'get_cloudwan_attachment_details', 'get_cloudwan_details', 'get_cloudwan_logs',
-            'get_cloudwan_peering_details', 'list_cloudwan_peerings', 'list_core_networks',
-            'simulate_cloud_wan_route_change'
+            'detect_cloudwan_inspection',
+            'get_all_cloudwan_routes',
+            'get_cloudwan_routes',
+            'get_cloudwan_attachment_details',
+            'get_cloudwan_details',
+            'get_cloudwan_logs',
+            'get_cloudwan_peering_details',
+            'list_cloudwan_peerings',
+            'list_core_networks',
+            'simulate_cloud_wan_route_change',
         }
         expected_vpc_tools = {'get_vpc_flow_logs', 'get_vpc_network_details', 'list_vpcs'}
         expected_tgw_tools = {
-            'detect_tgw_inspection', 'get_all_tgw_routes', 'get_tgw_details',
-            'get_tgw_routes', 'get_tgw_flow_logs', 'list_tgw_peerings', 'list_transit_gateways'
+            'detect_tgw_inspection',
+            'get_all_tgw_routes',
+            'get_tgw_details',
+            'get_tgw_routes',
+            'get_tgw_flow_logs',
+            'list_tgw_peerings',
+            'list_transit_gateways',
         }
-        expected_nfw_tools = {'get_firewall_rules', 'get_network_firewall_flow_logs', 'list_network_firewalls'}
+        expected_nfw_tools = {
+            'get_firewall_rules',
+            'get_network_firewall_flow_logs',
+            'list_network_firewalls',
+        }
         expected_vpn_tools = {'list_vpn_connections'}
 
         all_expected_tools = (
-            expected_general_tools | expected_cloudwan_tools | expected_vpc_tools |
-            expected_tgw_tools | expected_nfw_tools | expected_vpn_tools
+            expected_general_tools
+            | expected_cloudwan_tools
+            | expected_vpc_tools
+            | expected_tgw_tools
+            | expected_nfw_tools
+            | expected_vpn_tools
         )
 
         # Verify all expected tools are registered
@@ -96,7 +118,9 @@ class TestMcpServerIntegration:
             tool_func = tool_info.get('func') or tool_info.get('handler')
             if tool_func:
                 assert tool_func.__doc__ is not None, f"Tool '{tool_name}' missing docstring"
-                assert len(tool_func.__doc__.strip()) > 0, f"Tool '{tool_name}' has empty docstring"
+                assert len(tool_func.__doc__.strip()) > 0, (
+                    f"Tool '{tool_name}' has empty docstring"
+                )
 
     def test_server_main_function(self):
         """Test the main function exists and is callable."""
@@ -127,8 +151,19 @@ class TestMcpServerIntegration:
         tools = mcp._tools
 
         dangerous_operations = [
-            'create', 'delete', 'update', 'modify', 'change', 'write',
-            'put', 'post', 'patch', 'remove', 'add', 'attach', 'detach'
+            'create',
+            'delete',
+            'update',
+            'modify',
+            'change',
+            'write',
+            'put',
+            'post',
+            'patch',
+            'remove',
+            'add',
+            'attach',
+            'detach',
         ]
 
         for tool_name in tools.keys():
@@ -140,7 +175,9 @@ class TestMcpServerIntegration:
                 for dangerous_op in dangerous_operations:
                     if dangerous_op in tool_name_lower:
                         # Only allow 'get' operations which are read-only
-                        assert 'get' in tool_name_lower, f"Tool '{tool_name}' may perform write operations"
+                        assert 'get' in tool_name_lower, (
+                            f"Tool '{tool_name}' may perform write operations"
+                        )
 
     def test_error_messages_security(self):
         """Test that error messages follow security best practices."""

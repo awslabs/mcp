@@ -16,9 +16,9 @@
 """Test cases for the list_vpn_connections tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections import list_vpn_connections
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestListVpnConnections:
@@ -40,7 +40,7 @@ class TestListVpnConnections:
                 'CustomerGatewayId': 'cgw-12345678',
                 'VpnGatewayId': 'vgw-12345678',
                 'TransitGatewayId': 'tgw-12345678',
-                'CustomerGatewayConfiguration': '<xml>sensitive-config</xml>'
+                'CustomerGatewayConfiguration': '<xml>sensitive-config</xml>',
             }
         ]
 
@@ -54,7 +54,7 @@ class TestListVpnConnections:
                 'Type': 'ipsec.1',
                 'CustomerGatewayId': 'cgw-12345678',
                 'VpnGatewayId': 'vgw-12345678',
-                'TransitGatewayId': 'tgw-12345678'
+                'TransitGatewayId': 'tgw-12345678',
                 # Note: CustomerGatewayConfiguration removed for security
             }
         ]

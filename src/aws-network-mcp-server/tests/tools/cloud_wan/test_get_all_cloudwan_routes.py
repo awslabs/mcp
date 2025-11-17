@@ -16,9 +16,11 @@
 """Test cases for the get_all_cloudwan_routes tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes import (
+    get_all_cloudwan_routes,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes import get_all_cloudwan_routes
+from unittest.mock import MagicMock, patch
 
 
 class TestGetAllCloudwanRoutes:
@@ -33,6 +35,5 @@ class TestGetAllCloudwanRoutes:
 
         with pytest.raises(ToolError):
             await get_all_cloudwan_routes(
-                cloudwan_region='us-east-1',
-                core_network_id='core-network-12345678'
+                cloudwan_region='us-east-1', core_network_id='core-network-12345678'
             )

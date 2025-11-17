@@ -16,9 +16,11 @@
 """Test cases for the list_transit_gateway_peerings tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings import (
+    list_tgw_peerings,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings import list_tgw_peerings
+from unittest.mock import MagicMock, patch
 
 
 class TestListTransitGatewayPeerings:
@@ -35,19 +37,15 @@ class TestListTransitGatewayPeerings:
         return [
             {
                 'TransitGatewayPeeringAttachmentId': 'tgw-attach-peering-12345678',
-                'RequesterTgwInfo': {
-                    'TransitGatewayId': 'tgw-12345678',
-                    'Region': 'us-east-1'
-                },
-                'AccepterTgwInfo': {
-                    'TransitGatewayId': 'tgw-87654321',
-                    'Region': 'us-west-2'
-                },
-                'State': 'available'
+                'RequesterTgwInfo': {'TransitGatewayId': 'tgw-12345678', 'Region': 'us-east-1'},
+                'AccepterTgwInfo': {'TransitGatewayId': 'tgw-87654321', 'Region': 'us-west-2'},
+                'State': 'available',
             }
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings.get_aws_client'
+    )
     async def test_list_tgw_peerings_success(
         self, mock_get_client, mock_ec2_client, sample_peerings
     ):
@@ -65,11 +63,15 @@ class TestListTransitGatewayPeerings:
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
         mock_ec2_client.describe_transit_gateway_peering_attachments.assert_called_once()
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateway_peerings.get_aws_client'
+    )
     async def test_list_tgw_peerings_aws_error(self, mock_get_client, mock_ec2_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_ec2_client
-        mock_ec2_client.describe_transit_gateway_peering_attachments.side_effect = Exception('AccessDenied')
+        mock_ec2_client.describe_transit_gateway_peering_attachments.side_effect = Exception(
+            'AccessDenied'
+        )
 
         with pytest.raises(ToolError):
             await list_tgw_peerings(region='us-east-1')

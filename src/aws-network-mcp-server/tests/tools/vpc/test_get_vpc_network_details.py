@@ -16,9 +16,11 @@
 """Test cases for the get_vpc_network_details tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details import (
+    get_vpc_network_details,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details import get_vpc_network_details
+from unittest.mock import MagicMock, patch
 
 
 class TestGetVpcNetworkDetails:
@@ -40,12 +42,12 @@ class TestGetVpcNetworkDetails:
                 {
                     'AssociationId': 'vpc-cidr-assoc-12345678',
                     'CidrBlock': '10.0.0.0/16',
-                    'CidrBlockState': {'State': 'associated'}
+                    'CidrBlockState': {'State': 'associated'},
                 }
             ],
             'DhcpOptionsId': 'dopt-12345678',
             'InstanceTenancy': 'default',
-            'IsDefault': False
+            'IsDefault': False,
         }
 
     @pytest.fixture
@@ -58,7 +60,7 @@ class TestGetVpcNetworkDetails:
                 'CidrBlock': '10.0.1.0/24',
                 'AvailabilityZone': 'us-east-1a',
                 'State': 'available',
-                'MapPublicIpOnLaunch': True
+                'MapPublicIpOnLaunch': True,
             },
             {
                 'SubnetId': 'subnet-87654321',
@@ -66,8 +68,8 @@ class TestGetVpcNetworkDetails:
                 'CidrBlock': '10.0.2.0/24',
                 'AvailabilityZone': 'us-east-1b',
                 'State': 'available',
-                'MapPublicIpOnLaunch': False
-            }
+                'MapPublicIpOnLaunch': False,
+            },
         ]
 
     @pytest.fixture
@@ -81,22 +83,22 @@ class TestGetVpcNetworkDetails:
                     {
                         'DestinationCidrBlock': '10.0.0.0/16',
                         'GatewayId': 'local',
-                        'State': 'active'
+                        'State': 'active',
                     },
                     {
                         'DestinationCidrBlock': '0.0.0.0/0',
                         'GatewayId': 'igw-12345678',
-                        'State': 'active'
-                    }
+                        'State': 'active',
+                    },
                 ],
                 'Associations': [
                     {
                         'RouteTableAssociationId': 'rtbassoc-12345678',
                         'RouteTableId': 'rtb-12345678',
                         'SubnetId': 'subnet-12345678',
-                        'Main': False
+                        'Main': False,
                     }
-                ]
+                ],
             }
         ]
 
@@ -107,12 +109,7 @@ class TestGetVpcNetworkDetails:
             {
                 'InternetGatewayId': 'igw-12345678',
                 'State': 'available',
-                'Attachments': [
-                    {
-                        'State': 'available',
-                        'VpcId': 'vpc-12345678'
-                    }
-                ]
+                'Attachments': [{'State': 'available', 'VpcId': 'vpc-12345678'}],
             }
         ]
 
@@ -129,9 +126,9 @@ class TestGetVpcNetworkDetails:
                         'RuleNumber': 100,
                         'Protocol': '6',
                         'RuleAction': 'allow',
-                        'CidrBlock': '0.0.0.0/0'
+                        'CidrBlock': '0.0.0.0/0',
                     }
-                ]
+                ],
             }
         ]
 
@@ -144,14 +141,21 @@ class TestGetVpcNetworkDetails:
                 'VpcId': 'vpc-12345678',
                 'ServiceName': 'com.amazonaws.us-east-1.s3',
                 'VpcEndpointType': 'Gateway',
-                'State': 'Available'
+                'State': 'Available',
             }
         ]
 
     @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
     async def test_get_vpc_network_details_success(
-        self, mock_get_client, mock_ec2_client, sample_vpc_data,
-        sample_subnets, sample_route_tables, sample_igws, sample_nacls, sample_vpc_endpoints
+        self,
+        mock_get_client,
+        mock_ec2_client,
+        sample_vpc_data,
+        sample_subnets,
+        sample_route_tables,
+        sample_igws,
+        sample_nacls,
+        sample_vpc_endpoints,
     ):
         """Test successful VPC network details retrieval."""
         mock_get_client.return_value = mock_ec2_client
@@ -162,12 +166,11 @@ class TestGetVpcNetworkDetails:
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': sample_route_tables}
         mock_ec2_client.describe_internet_gateways.return_value = {'InternetGateways': sample_igws}
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': sample_nacls}
-        mock_ec2_client.describe_vpc_endpoints.return_value = {'VpcEndpoints': sample_vpc_endpoints}
+        mock_ec2_client.describe_vpc_endpoints.return_value = {
+            'VpcEndpoints': sample_vpc_endpoints
+        }
 
-        result = await get_vpc_network_details(
-            vpc_id='vpc-12345678',
-            region='us-east-1'
-        )
+        result = await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
         # Verify the complete result structure
         assert 'vpc_details' in result
@@ -209,10 +212,7 @@ class TestGetVpcNetworkDetails:
         mock_ec2_client.describe_vpcs.return_value = {'Vpcs': []}
 
         with pytest.raises(ToolError) as exc_info:
-            await get_vpc_network_details(
-                vpc_id='vpc-nonexistent',
-                region='us-east-1'
-            )
+            await get_vpc_network_details(vpc_id='vpc-nonexistent', region='us-east-1')
 
         assert 'VPC vpc-nonexistent not found' in str(exc_info.value)
 
@@ -223,10 +223,7 @@ class TestGetVpcNetworkDetails:
         mock_ec2_client.describe_vpcs.side_effect = Exception('InvalidVpc.NotFound')
 
         with pytest.raises(ToolError) as exc_info:
-            await get_vpc_network_details(
-                vpc_id='vpc-invalid',
-                region='us-east-1'
-            )
+            await get_vpc_network_details(vpc_id='vpc-invalid', region='us-east-1')
 
         assert 'Error getting VPC network details: InvalidVpc.NotFound' in str(exc_info.value)
 
@@ -244,9 +241,7 @@ class TestGetVpcNetworkDetails:
         mock_ec2_client.describe_vpc_endpoints.return_value = {'VpcEndpoints': []}
 
         await get_vpc_network_details(
-            vpc_id='vpc-12345678',
-            region='eu-central-1',
-            profile_name='test-profile'
+            vpc_id='vpc-12345678', region='eu-central-1', profile_name='test-profile'
         )
 
         mock_get_client.assert_called_with('ec2', 'eu-central-1', 'test-profile')
@@ -263,10 +258,7 @@ class TestGetVpcNetworkDetails:
         mock_ec2_client.describe_subnets.side_effect = Exception('InternalError')
 
         with pytest.raises(ToolError) as exc_info:
-            await get_vpc_network_details(
-                vpc_id='vpc-12345678',
-                region='us-east-1'
-            )
+            await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
         assert 'Error getting VPC network details: InternalError' in str(exc_info.value)
 

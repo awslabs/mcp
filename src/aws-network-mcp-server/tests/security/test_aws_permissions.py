@@ -16,12 +16,18 @@
 """Security test cases for AWS permissions and access control."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
+from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details import (
+    get_cloudwan_details,
+)
 from awslabs.aws_network_mcp_server.tools.general.find_ip_address import find_ip_address
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details import get_cloudwan_details
-from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details import get_vpc_network_details
-from awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details import get_tgw_details
+from awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details import (
+    get_tgw_details,
+)
+from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details import (
+    get_vpc_network_details,
+)
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestAwsPermissionsSecurity:
@@ -37,11 +43,7 @@ class TestAwsPermissionsSecurity:
         )
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_address(
-                ip_address='10.0.1.100',
-                region='us-east-1',
-                all_regions=False
-            )
+            await find_ip_address(ip_address='10.0.1.100', region='us-east-1', all_regions=False)
 
         # Verify error is properly propagated with security context
         assert 'Error searching IP address:' in str(exc_info.value)
@@ -58,8 +60,7 @@ class TestAwsPermissionsSecurity:
 
         with pytest.raises(ToolError) as exc_info:
             await get_cloudwan_details(
-                core_network_id='core-network-12345678',
-                core_network_region='us-east-1'
+                core_network_id='core-network-12345678', core_network_region='us-east-1'
             )
 
         assert 'There was an error getting AWS Core Network details' in str(exc_info.value)
@@ -75,24 +76,20 @@ class TestAwsPermissionsSecurity:
         )
 
         with pytest.raises(ToolError) as exc_info:
-            await get_vpc_network_details(
-                vpc_id='vpc-12345678',
-                region='us-east-1'
-            )
+            await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
         assert 'Error getting VPC network details:' in str(exc_info.value)
         assert 'not authorized' in str(exc_info.value)
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
+    )
     async def test_no_credentials_error_handling(self, mock_get_client):
         """Test handling when AWS credentials are not configured."""
         mock_get_client.side_effect = Exception('NoCredentialsError: Unable to locate credentials')
 
         with pytest.raises(ToolError) as exc_info:
-            await get_tgw_details(
-                transit_gateway_id='tgw-12345678',
-                region='us-east-1'
-            )
+            await get_tgw_details(transit_gateway_id='tgw-12345678', region='us-east-1')
 
         assert 'Error getting Transit Gateway details:' in str(exc_info.value)
         assert 'credentials' in str(exc_info.value).lower()
@@ -100,14 +97,16 @@ class TestAwsPermissionsSecurity:
     @patch('awslabs.aws_network_mcp_server.tools.general.find_ip_address.get_aws_client')
     async def test_invalid_profile_handling(self, mock_get_client):
         """Test handling of invalid AWS profile names."""
-        mock_get_client.side_effect = Exception('ProfileNotFound: The config profile (invalid-profile) could not be found')
+        mock_get_client.side_effect = Exception(
+            'ProfileNotFound: The config profile (invalid-profile) could not be found'
+        )
 
         with pytest.raises(ToolError) as exc_info:
             await find_ip_address(
                 ip_address='10.0.1.100',
                 region='us-east-1',
                 all_regions=False,
-                profile_name='invalid-profile'
+                profile_name='invalid-profile',
             )
 
         assert 'Error searching IP address:' in str(exc_info.value)
@@ -118,13 +117,12 @@ class TestAwsPermissionsSecurity:
         """Test handling of AWS rate limiting errors."""
         mock_ec2_client = MagicMock()
         mock_get_client.return_value = mock_ec2_client
-        mock_ec2_client.describe_vpcs.side_effect = Exception('Throttling: Request was denied due to request throttling')
+        mock_ec2_client.describe_vpcs.side_effect = Exception(
+            'Throttling: Request was denied due to request throttling'
+        )
 
         with pytest.raises(ToolError) as exc_info:
-            await get_vpc_network_details(
-                vpc_id='vpc-12345678',
-                region='us-east-1'
-            )
+            await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
         assert 'Error getting VPC network details:' in str(exc_info.value)
         assert 'Throttling' in str(exc_info.value)
@@ -139,11 +137,7 @@ class TestAwsPermissionsSecurity:
         )
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_address(
-                ip_address='10.0.1.100',
-                region='us-east-1',
-                all_regions=False
-            )
+            await find_ip_address(ip_address='10.0.1.100', region='us-east-1', all_regions=False)
 
         assert 'Error searching IP address:' in str(exc_info.value)
         assert 'ServiceUnavailable' in str(exc_info.value)
@@ -154,7 +148,14 @@ class TestAwsPermissionsSecurity:
         # We verify this by checking that no tool function contains write operations
 
         # Import all tool modules
-        from awslabs.aws_network_mcp_server.tools import general, cloud_wan, vpc, transit_gateway, network_firewall, vpn
+        from awslabs.aws_network_mcp_server.tools import (
+            cloud_wan,
+            general,
+            network_firewall,
+            transit_gateway,
+            vpc,
+            vpn,
+        )
 
         modules = [general, cloud_wan, vpc, transit_gateway, network_firewall, vpn]
 
@@ -167,8 +168,19 @@ class TestAwsPermissionsSecurity:
 
                 # Our tools should not contain any write/modify language
                 write_operations = [
-                    'create', 'delete', 'update', 'modify', 'change', 'write',
-                    'put', 'post', 'patch', 'remove', 'add', 'attach', 'detach'
+                    'create',
+                    'delete',
+                    'update',
+                    'modify',
+                    'change',
+                    'write',
+                    'put',
+                    'post',
+                    'patch',
+                    'remove',
+                    'add',
+                    'attach',
+                    'detach',
                 ]
 
                 # Check function name doesn't contain write operations
@@ -177,4 +189,6 @@ class TestAwsPermissionsSecurity:
 
                 # Exception for get_cloudwan_logs and simulate_cloud_wan_route_change which are read-only
                 if tool_name not in ['get_cloudwan_logs', 'simulate_cloud_wan_route_change']:
-                    assert not dangerous_operations, f"Tool {tool_name} may perform write operations: {dangerous_operations}"
+                    assert not dangerous_operations, (
+                        f'Tool {tool_name} may perform write operations: {dangerous_operations}'
+                    )

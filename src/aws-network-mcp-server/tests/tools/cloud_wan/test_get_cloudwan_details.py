@@ -17,9 +17,11 @@
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details import (
+    get_cloudwan_details,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details import get_cloudwan_details
+from unittest.mock import MagicMock, patch
 
 
 class TestGetCloudwanDetails:
@@ -40,12 +42,12 @@ class TestGetCloudwanDetails:
             'State': 'AVAILABLE',
             'Segments': [
                 {'Name': 'production', 'EdgeLocations': ['us-east-1', 'us-west-2']},
-                {'Name': 'staging', 'EdgeLocations': ['us-east-1']}
+                {'Name': 'staging', 'EdgeLocations': ['us-east-1']},
             ],
             'Edges': [
                 {'EdgeLocation': 'us-east-1', 'Asn': 64512},
-                {'EdgeLocation': 'us-west-2', 'Asn': 64513}
-            ]
+                {'EdgeLocation': 'us-west-2', 'Asn': 64513},
+            ],
         }
 
     @pytest.fixture
@@ -55,22 +57,19 @@ class TestGetCloudwanDetails:
             'version': '2021.12',
             'core-network-configuration': {
                 'asn-ranges': ['64512-65534'],
-                'edge-locations': [
-                    {'location': 'us-east-1'},
-                    {'location': 'us-west-2'}
-                ]
+                'edge-locations': [{'location': 'us-east-1'}, {'location': 'us-west-2'}],
             },
             'segments': [
                 {'name': 'production', 'require-attachment-acceptance': False},
-                {'name': 'staging', 'require-attachment-acceptance': True}
+                {'name': 'staging', 'require-attachment-acceptance': True},
             ],
             'segment-actions': [
                 {
                     'action': 'create-route',
                     'segment': 'production',
-                    'destination-cidr-blocks': ['10.0.0.0/8']
+                    'destination-cidr-blocks': ['10.0.0.0/8'],
                 }
-            ]
+            ],
         }
 
     @pytest.fixture
@@ -83,7 +82,7 @@ class TestGetCloudwanDetails:
                 'AttachmentType': 'VPC',
                 'State': 'AVAILABLE',
                 'ResourceArn': 'arn:aws:ec2:us-east-1:123456789012:vpc/vpc-12345678',
-                'SegmentName': 'production'
+                'SegmentName': 'production',
             },
             {
                 'AttachmentId': 'attachment-87654321',
@@ -91,32 +90,33 @@ class TestGetCloudwanDetails:
                 'AttachmentType': 'SITE_TO_SITE_VPN',
                 'State': 'AVAILABLE',
                 'ResourceArn': 'arn:aws:ec2:us-west-2:123456789012:vpn-connection/vpn-12345678',
-                'SegmentName': 'staging'
-            }
+                'SegmentName': 'staging',
+            },
         ]
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
     async def test_get_cloudwan_details_success(
-        self, mock_get_client, mock_nm_client, sample_core_network,
-        sample_policy_document, sample_attachments
+        self,
+        mock_get_client,
+        mock_nm_client,
+        sample_core_network,
+        sample_policy_document,
+        sample_attachments,
     ):
         """Test successful Cloud WAN details retrieval."""
         mock_get_client.return_value = mock_nm_client
 
         mock_nm_client.get_core_network.return_value = {'CoreNetwork': sample_core_network}
         mock_nm_client.get_core_network_policy.return_value = {
-            'CoreNetworkPolicy': {
-                'PolicyDocument': json.dumps(sample_policy_document)
-            }
+            'CoreNetworkPolicy': {'PolicyDocument': json.dumps(sample_policy_document)}
         }
         mock_nm_client.list_attachments.return_value = {
             'Attachments': sample_attachments,
-            'NextToken': None
+            'NextToken': None,
         }
 
         result = await get_cloudwan_details(
-            core_network_id='core-network-12345678',
-            core_network_region='us-east-1'
+            core_network_id='core-network-12345678', core_network_region='us-east-1'
         )
 
         assert 'core_network' in result
@@ -130,11 +130,15 @@ class TestGetCloudwanDetails:
         assert result['next_token'] is None
 
         mock_get_client.assert_called_once_with('networkmanager', 'us-east-1', None)
-        mock_nm_client.get_core_network.assert_called_once_with(CoreNetworkId='core-network-12345678')
+        mock_nm_client.get_core_network.assert_called_once_with(
+            CoreNetworkId='core-network-12345678'
+        )
         mock_nm_client.get_core_network_policy.assert_called_once_with(
             CoreNetworkId='core-network-12345678', Alias='LIVE'
         )
-        mock_nm_client.list_attachments.assert_called_once_with(CoreNetworkId='core-network-12345678')
+        mock_nm_client.list_attachments.assert_called_once_with(
+            CoreNetworkId='core-network-12345678'
+        )
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
     async def test_get_cloudwan_details_with_next_token(
@@ -145,13 +149,13 @@ class TestGetCloudwanDetails:
 
         mock_nm_client.list_attachments.return_value = {
             'Attachments': sample_attachments[1:],  # Second page of results
-            'NextToken': None  # No more pages
+            'NextToken': None,  # No more pages
         }
 
         result = await get_cloudwan_details(
             core_network_id='core-network-12345678',
             core_network_region='us-east-1',
-            next_token='some-token'
+            next_token='some-token',
         )
 
         # Should only return attachments when next_token is provided
@@ -172,42 +176,47 @@ class TestGetCloudwanDetails:
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
     async def test_get_cloudwan_details_with_profile(
-        self, mock_get_client, mock_nm_client, sample_core_network,
-        sample_policy_document, sample_attachments
+        self,
+        mock_get_client,
+        mock_nm_client,
+        sample_core_network,
+        sample_policy_document,
+        sample_attachments,
     ):
         """Test Cloud WAN details retrieval with AWS profile."""
         mock_get_client.return_value = mock_nm_client
 
         mock_nm_client.get_core_network.return_value = {'CoreNetwork': sample_core_network}
         mock_nm_client.get_core_network_policy.return_value = {
-            'CoreNetworkPolicy': {
-                'PolicyDocument': json.dumps(sample_policy_document)
-            }
+            'CoreNetworkPolicy': {'PolicyDocument': json.dumps(sample_policy_document)}
         }
         mock_nm_client.list_attachments.return_value = {
             'Attachments': sample_attachments,
-            'NextToken': 'next-page-token'
+            'NextToken': 'next-page-token',
         }
 
         result = await get_cloudwan_details(
             core_network_id='core-network-12345678',
             core_network_region='us-west-2',
-            profile_name='test-profile'
+            profile_name='test-profile',
         )
 
         assert result['next_token'] == 'next-page-token'
         mock_get_client.assert_called_once_with('networkmanager', 'us-west-2', 'test-profile')
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
-    async def test_get_cloudwan_details_core_network_not_found(self, mock_get_client, mock_nm_client):
+    async def test_get_cloudwan_details_core_network_not_found(
+        self, mock_get_client, mock_nm_client
+    ):
         """Test error handling when core network is not found."""
         mock_get_client.return_value = mock_nm_client
-        mock_nm_client.get_core_network.side_effect = Exception('CoreNetworkNotFoundException: Core network not found')
+        mock_nm_client.get_core_network.side_effect = Exception(
+            'CoreNetworkNotFoundException: Core network not found'
+        )
 
         with pytest.raises(ToolError) as exc_info:
             await get_cloudwan_details(
-                core_network_id='core-network-nonexistent',
-                core_network_region='us-east-1'
+                core_network_id='core-network-nonexistent', core_network_region='us-east-1'
             )
 
         assert 'There was an error getting AWS Core Network details' in str(exc_info.value)
@@ -223,15 +232,12 @@ class TestGetCloudwanDetails:
 
         mock_nm_client.get_core_network.return_value = {'CoreNetwork': sample_core_network}
         mock_nm_client.get_core_network_policy.return_value = {
-            'CoreNetworkPolicy': {
-                'PolicyDocument': 'invalid-json{'
-            }
+            'CoreNetworkPolicy': {'PolicyDocument': 'invalid-json{'}
         }
 
         with pytest.raises(ToolError) as exc_info:
             await get_cloudwan_details(
-                core_network_id='core-network-12345678',
-                core_network_region='us-east-1'
+                core_network_id='core-network-12345678', core_network_region='us-east-1'
             )
 
         assert 'There was an error getting AWS Core Network details' in str(exc_info.value)
@@ -240,12 +246,13 @@ class TestGetCloudwanDetails:
     async def test_get_cloudwan_details_access_denied(self, mock_get_client, mock_nm_client):
         """Test error handling for access denied."""
         mock_get_client.return_value = mock_nm_client
-        mock_nm_client.get_core_network.side_effect = Exception('AccessDenied: User not authorized')
+        mock_nm_client.get_core_network.side_effect = Exception(
+            'AccessDenied: User not authorized'
+        )
 
         with pytest.raises(ToolError) as exc_info:
             await get_cloudwan_details(
-                core_network_id='core-network-12345678',
-                core_network_region='us-east-1'
+                core_network_id='core-network-12345678', core_network_region='us-east-1'
             )
 
         assert 'There was an error getting AWS Core Network details' in str(exc_info.value)
@@ -260,18 +267,12 @@ class TestGetCloudwanDetails:
 
         mock_nm_client.get_core_network.return_value = {'CoreNetwork': sample_core_network}
         mock_nm_client.get_core_network_policy.return_value = {
-            'CoreNetworkPolicy': {
-                'PolicyDocument': json.dumps(sample_policy_document)
-            }
+            'CoreNetworkPolicy': {'PolicyDocument': json.dumps(sample_policy_document)}
         }
-        mock_nm_client.list_attachments.return_value = {
-            'Attachments': [],
-            'NextToken': None
-        }
+        mock_nm_client.list_attachments.return_value = {'Attachments': [], 'NextToken': None}
 
         result = await get_cloudwan_details(
-            core_network_id='core-network-12345678',
-            core_network_region='us-east-1'
+            core_network_id='core-network-12345678', core_network_region='us-east-1'
         )
 
         assert result['attachments'] == []

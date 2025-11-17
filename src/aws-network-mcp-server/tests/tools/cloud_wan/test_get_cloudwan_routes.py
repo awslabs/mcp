@@ -16,9 +16,9 @@
 """Test cases for the get_cloudwan_routes tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes import get_cloudwan_routes
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestGetCloudwanRoutes:
@@ -32,7 +32,4 @@ class TestGetCloudwanRoutes:
         mock_nm_client.get_route_analysis.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError):
-            await get_cloudwan_routes(
-                core_network_id='core-network-12345678',
-                region='us-east-1'
-            )
+            await get_cloudwan_routes(core_network_id='core-network-12345678', region='us-east-1')

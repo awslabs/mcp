@@ -16,15 +16,19 @@
 """Test cases for the detect_cloudwan_inspection tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection import (
+    detect_cloudwan_inspection,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection import detect_cloudwan_inspection
+from unittest.mock import MagicMock, patch
 
 
 class TestDetectCloudwanInspection:
     """Test cases for detect_cloudwan_inspection function."""
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection.get_aws_client'
+    )
     async def test_detect_cloudwan_inspection_aws_error(self, mock_get_client):
         """Test AWS API error handling."""
         mock_nm_client = MagicMock()
@@ -33,6 +37,5 @@ class TestDetectCloudwanInspection:
 
         with pytest.raises(ToolError):
             await detect_cloudwan_inspection(
-                core_network_id='core-network-12345678',
-                region='us-east-1'
+                core_network_id='core-network-12345678', region='us-east-1'
             )

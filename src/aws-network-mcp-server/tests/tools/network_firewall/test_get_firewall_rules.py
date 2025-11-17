@@ -16,9 +16,11 @@
 """Test cases for the get_firewall_rules tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules import (
+    get_firewall_rules,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules import get_firewall_rules
+from unittest.mock import MagicMock, patch
 
 
 class TestGetFirewallRules:
@@ -29,7 +31,9 @@ class TestGetFirewallRules:
         """Mock Network Firewall client fixture."""
         return MagicMock()
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
+    )
     async def test_get_firewall_rules_success(self, mock_get_client, mock_nfw_client):
         """Test successful firewall rules retrieval."""
         mock_get_client.return_value = mock_nfw_client
@@ -39,26 +43,22 @@ class TestGetFirewallRules:
             'Firewall': {
                 'FirewallName': 'test-firewall',
                 'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/test-firewall',
-                'FirewallPolicyArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/test-policy'
+                'FirewallPolicyArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/test-policy',
             }
         }
 
-        result = await get_firewall_rules(
-            firewall_name='test-firewall',
-            region='us-east-1'
-        )
+        result = await get_firewall_rules(firewall_name='test-firewall', region='us-east-1')
 
         assert 'firewall_info' in result
         mock_get_client.assert_called_once_with('network-firewall', 'us-east-1', None)
 
-    @patch('awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
+    )
     async def test_get_firewall_rules_aws_error(self, mock_get_client, mock_nfw_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_nfw_client
         mock_nfw_client.describe_firewall.side_effect = Exception('ResourceNotFoundException')
 
         with pytest.raises(ToolError):
-            await get_firewall_rules(
-                firewall_name='nonexistent-firewall',
-                region='us-east-1'
-            )
+            await get_firewall_rules(firewall_name='nonexistent-firewall', region='us-east-1')

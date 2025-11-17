@@ -16,12 +16,12 @@
 """Test cases for the vcp_details utils module."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 from awslabs.aws_network_mcp_server.utils.vcp_details import (
+    process_igws,
     process_route_tables,
     process_subnets,
-    process_igws,
 )
+from unittest.mock import MagicMock
 
 
 class TestVcpDetails:
@@ -41,7 +41,7 @@ class TestVcpDetails:
             'CidrBlock': '10.0.0.0/16',
             'DhcpOptionsId': 'dopt-12345678',
             'InstanceTenancy': 'default',
-            'IsDefault': False
+            'IsDefault': False,
         }
 
     def test_process_route_tables_basic(self):
@@ -56,10 +56,10 @@ class TestVcpDetails:
                             'DestinationCidrBlock': '10.0.0.0/16',
                             'GatewayId': 'local',
                             'State': 'active',
-                            'Origin': 'CreateRouteTable'
+                            'Origin': 'CreateRouteTable',
                         }
                     ],
-                    'Associations': []
+                    'Associations': [],
                 }
             ]
         }
@@ -79,7 +79,7 @@ class TestVcpDetails:
                     'VpcId': 'vpc-12345678',
                     'CidrBlock': '10.0.1.0/24',
                     'AvailabilityZone': 'us-east-1a',
-                    'MapPublicIpOnLaunch': True
+                    'MapPublicIpOnLaunch': True,
                 }
             ]
         }
@@ -98,7 +98,7 @@ class TestVcpDetails:
                 {
                     'InternetGatewayId': 'igw-12345678',
                     'State': 'available',
-                    'Attachments': [{'VpcId': 'vpc-12345678', 'State': 'available'}]
+                    'Attachments': [{'VpcId': 'vpc-12345678', 'State': 'available'}],
                 }
             ]
         }

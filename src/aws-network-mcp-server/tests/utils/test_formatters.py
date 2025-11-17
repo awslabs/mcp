@@ -15,11 +15,10 @@
 
 """Test cases for the formatters utils module."""
 
-import pytest
 from awslabs.aws_network_mcp_server.utils.formatters import (
-    format_stateless_rule,
-    format_stateful_rule,
     format_routes,
+    format_stateful_rule,
+    format_stateless_rule,
     parse_suricata_rule,
 )
 
@@ -33,11 +32,9 @@ class TestFormatters:
             'MatchAttributes': {
                 'Sources': ['10.0.0.0/8'],
                 'Destinations': '0.0.0.0/0',  # String, not list
-                'Protocols': [6]
+                'Protocols': [6],
             },
-            'RuleDefinition': {
-                'Actions': ['aws:pass']
-            }
+            'RuleDefinition': {'Actions': ['aws:pass']},
         }
 
         result = format_stateless_rule(rule, '100')
@@ -54,11 +51,9 @@ class TestFormatters:
             'MatchAttributes': {
                 'Sources': '0.0.0.0/0',
                 'Destinations': ['192.168.1.0/24'],
-                'Protocols': [17]
+                'Protocols': [17],
             },
-            'RuleDefinition': {
-                'Actions': ['aws:drop']
-            }
+            'RuleDefinition': {'Actions': ['aws:drop']},
         }
 
         result = format_stateless_rule(rule, '200')
@@ -76,11 +71,9 @@ class TestFormatters:
                 'SourcePort': '80',
                 'Destination': '192.168.1.0/24',
                 'DestinationPort': '443',
-                'Direction': 'FORWARD'
+                'Direction': 'FORWARD',
             },
-            'RuleOptions': [
-                {'Keyword': 'sid', 'Value': '12345'}
-            ]
+            'RuleOptions': [{'Keyword': 'sid', 'Value': '12345'}],
         }
 
         result = format_stateful_rule(rule, 'rule-001')
@@ -103,7 +96,7 @@ class TestFormatters:
                     'DestinationCidrBlock': '10.0.0.0/16',
                     'Destinations': [{'TransitGatewayAttachmentId': 'tgw-attach-123'}],
                     'Type': 'PROPAGATED',
-                    'State': 'ACTIVE'
+                    'State': 'ACTIVE',
                 }
             ]
         }
@@ -127,16 +120,16 @@ class TestFormatters:
                 {
                     'DestinationCidrBlock': '10.1.0.0/16',
                     'Destinations': [{'CoreNetworkAttachmentId': 'cn-attach-prod'}],
-                    'State': 'ACTIVE'
+                    'State': 'ACTIVE',
                 }
             ],
             'staging/us-west-2': [
                 {
                     'DestinationCidrBlock': '10.2.0.0/16',
                     'Destinations': [{'CoreNetworkAttachmentId': 'cn-attach-stage'}],
-                    'State': 'ACTIVE'
+                    'State': 'ACTIVE',
                 }
-            ]
+            ],
         }
 
         result = format_routes(routes_data, 'core-network-456')
@@ -155,7 +148,9 @@ class TestFormatters:
 
     def test_parse_suricata_rule_valid_rule(self):
         """Test parsing a valid Suricata rule."""
-        rule_string = 'drop tcp any any -> 10.0.0.0/8 80 (msg:"Block HTTP to internal"; sid:1001; rev:1;)'
+        rule_string = (
+            'drop tcp any any -> 10.0.0.0/8 80 (msg:"Block HTTP to internal"; sid:1001; rev:1;)'
+        )
 
         result = parse_suricata_rule(rule_string)
 
@@ -218,7 +213,7 @@ class TestFormatters:
                 {
                     'DestinationCidrBlock': '10.0.0.0/16',
                     'Destinations': [{}],  # Empty destination
-                    'State': 'ACTIVE'
+                    'State': 'ACTIVE',
                 }
             ]
         }
@@ -232,9 +227,7 @@ class TestFormatters:
         """Test stateless rule formatting with missing attributes."""
         rule = {
             'MatchAttributes': {},  # Empty match attributes
-            'RuleDefinition': {
-                'Actions': ['aws:forward_to_sfe']
-            }
+            'RuleDefinition': {'Actions': ['aws:forward_to_sfe']},
         }
 
         result = format_stateless_rule(rule, '300')
@@ -247,10 +240,7 @@ class TestFormatters:
 
     def test_format_stateful_rule_missing_header(self):
         """Test stateful rule formatting with missing header."""
-        rule = {
-            'Action': 'DROP',
-            'RuleOptions': []
-        }
+        rule = {'Action': 'DROP', 'RuleOptions': []}
 
         result = format_stateful_rule(rule, 'rule-missing-header')
 

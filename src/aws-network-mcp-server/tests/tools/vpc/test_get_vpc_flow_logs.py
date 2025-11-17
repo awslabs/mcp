@@ -16,9 +16,9 @@
 """Test cases for the get_vpc_flow_logs tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs import get_vpc_flow_logs
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestGetVpcFlowLogs:
@@ -36,15 +36,10 @@ class TestGetVpcFlowLogs:
 
         # Mock successful response
         mock_logs_client.describe_log_groups.return_value = {
-            'logGroups': [
-                {'logGroupName': 'vpc-flow-logs-group'}
-            ]
+            'logGroups': [{'logGroupName': 'vpc-flow-logs-group'}]
         }
 
-        result = await get_vpc_flow_logs(
-            vpc_id='vpc-12345678',
-            region='us-east-1'
-        )
+        result = await get_vpc_flow_logs(vpc_id='vpc-12345678', region='us-east-1')
 
         # Basic structure check - actual implementation may vary
         assert isinstance(result, dict)
@@ -57,7 +52,4 @@ class TestGetVpcFlowLogs:
         mock_logs_client.describe_log_groups.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError):
-            await get_vpc_flow_logs(
-                vpc_id='vpc-12345678',
-                region='us-east-1'
-            )
+            await get_vpc_flow_logs(vpc_id='vpc-12345678', region='us-east-1')

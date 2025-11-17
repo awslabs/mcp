@@ -16,9 +16,11 @@
 """Test cases for the list_transit_gateways tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways import (
+    list_transit_gateways,
+)
 from fastmcp.exceptions import ToolError
-from awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways import list_transit_gateways
+from unittest.mock import MagicMock, patch
 
 
 class TestListTransitGateways:
@@ -33,22 +35,18 @@ class TestListTransitGateways:
     def sample_tgws(self):
         """Sample Transit Gateways fixture."""
         return [
-            {
-                'TransitGatewayId': 'tgw-12345678',
-                'State': 'available',
-                'OwnerId': '123456789012'
-            }
+            {'TransitGatewayId': 'tgw-12345678', 'State': 'available', 'OwnerId': '123456789012'}
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways.get_aws_client'
+    )
     async def test_list_transit_gateways_success(
         self, mock_get_client, mock_ec2_client, sample_tgws
     ):
         """Test successful Transit Gateways listing."""
         mock_get_client.return_value = mock_ec2_client
-        mock_ec2_client.describe_transit_gateways.return_value = {
-            'TransitGateways': sample_tgws
-        }
+        mock_ec2_client.describe_transit_gateways.return_value = {'TransitGateways': sample_tgws}
 
         result = await list_transit_gateways(region='us-east-1')
 
@@ -58,7 +56,9 @@ class TestListTransitGateways:
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
         mock_ec2_client.describe_transit_gateways.assert_called_once()
 
-    @patch('awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways.get_aws_client'
+    )
     async def test_list_transit_gateways_aws_error(self, mock_get_client, mock_ec2_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_ec2_client

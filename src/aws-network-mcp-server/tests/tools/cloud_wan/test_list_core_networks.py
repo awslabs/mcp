@@ -16,9 +16,9 @@
 """Test cases for the list_core_networks tool."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from fastmcp.exceptions import ToolError
 from awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks import list_core_networks
+from fastmcp.exceptions import ToolError
+from unittest.mock import MagicMock, patch
 
 
 class TestListCoreNetworks:
@@ -37,14 +37,14 @@ class TestListCoreNetworks:
                 'CoreNetworkId': 'core-network-12345678',
                 'CoreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-network-12345678',
                 'Description': 'Production core network',
-                'State': 'AVAILABLE'
+                'State': 'AVAILABLE',
             },
             {
                 'CoreNetworkId': 'core-network-87654321',
                 'CoreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-network-87654321',
                 'Description': 'Staging core network',
-                'State': 'CREATING'
-            }
+                'State': 'CREATING',
+            },
         ]
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
@@ -53,9 +53,7 @@ class TestListCoreNetworks:
     ):
         """Test successful core networks listing."""
         mock_get_client.return_value = mock_nm_client
-        mock_nm_client.list_core_networks.return_value = {
-            'CoreNetworks': sample_core_networks
-        }
+        mock_nm_client.list_core_networks.return_value = {'CoreNetworks': sample_core_networks}
 
         result = await list_core_networks(region='us-east-1')
 
@@ -86,14 +84,9 @@ class TestListCoreNetworks:
     ):
         """Test core networks listing with specific AWS profile."""
         mock_get_client.return_value = mock_nm_client
-        mock_nm_client.list_core_networks.return_value = {
-            'CoreNetworks': sample_core_networks
-        }
+        mock_nm_client.list_core_networks.return_value = {'CoreNetworks': sample_core_networks}
 
-        await list_core_networks(
-            region='eu-west-1',
-            profile_name='test-profile'
-        )
+        await list_core_networks(region='eu-west-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('networkmanager', 'eu-west-1', 'test-profile')
 
@@ -106,18 +99,25 @@ class TestListCoreNetworks:
         with pytest.raises(ToolError) as exc_info:
             await list_core_networks(region='us-east-1')
 
-        assert 'Error listing CloudWAN core networks: Error :ServiceUnavailableException' in str(exc_info.value)
+        assert 'Error listing CloudWAN core networks: Error :ServiceUnavailableException' in str(
+            exc_info.value
+        )
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
     async def test_list_core_networks_access_denied(self, mock_get_client, mock_nm_client):
         """Test access denied error handling."""
         mock_get_client.return_value = mock_nm_client
-        mock_nm_client.list_core_networks.side_effect = Exception('AccessDenied: User not authorized')
+        mock_nm_client.list_core_networks.side_effect = Exception(
+            'AccessDenied: User not authorized'
+        )
 
         with pytest.raises(ToolError) as exc_info:
             await list_core_networks(region='us-east-1')
 
-        assert 'Error listing CloudWAN core networks: Error :AccessDenied: User not authorized' in str(exc_info.value)
+        assert (
+            'Error listing CloudWAN core networks: Error :AccessDenied: User not authorized'
+            in str(exc_info.value)
+        )
 
     async def test_parameter_validation(self):
         """Test parameter validation for required fields."""
