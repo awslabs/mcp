@@ -21,6 +21,7 @@ def get_aws_client(
     region_name: str | None = None,
     profile_name: str | None = None,
 ):
+    """AWS Client handler."""
     if region_name is None:
         region_name = getenv('AWS_REGION', 'us-east-1')
 
@@ -35,6 +36,7 @@ def get_aws_client(
 
 
 def get_account_id(profile_name: str | None = None) -> str:
+    """AWS Account ID handler."""
     if profile_name:
         session = Session(profile_name=profile_name)
         return session.client('sts').get_caller_identity()['Account']

@@ -17,6 +17,8 @@ from typing import Any, Dict
 
 
 def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]:
+    """Format Network Firewall stateless rules for better LLM usage."""
+    priority = int(priority)
     match_attrs = rule.get('MatchAttributes', {})
 
     source = match_attrs.get('Sources')
@@ -38,7 +40,7 @@ def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]
 
 
 def format_stateful_rule(rule: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
-    """Format standard stateful rules (not Suricata)."""
+    """Format Network Firewall stateful rule for better LLM consumption."""
     header = rule.get('Header', {})
 
     return {
@@ -57,6 +59,7 @@ def format_stateful_rule(rule: Dict[str, Any], rule_id: str) -> Dict[str, Any]:
 
 
 def format_routes(routes_data: dict[str, Any], core_net_id: str):
+    """Format Cloud WAN route details for better LLM consumption."""
     output = {'core_network_id': core_net_id, 'segments': {}}
     for key, routes in routes_data.items():
         segment, region = key.split('/')
@@ -80,7 +83,7 @@ def format_routes(routes_data: dict[str, Any], core_net_id: str):
 
 
 def parse_suricata_rule(rule_string: str) -> Dict[str, Any] | None:
-    """Parse a Suricata rule string into structured format"""
+    """Parse a Suricata rule string into structured format."""
     # Basic regex to parse Suricata rule format
     pattern = r'(\w+)\s+(\w+)\s+([^\s]+)\s+([^\s]+)\s+([<>-]+)\s+([^\s]+)\s+([^\s]+)\s+\(([^)]+)\)'
     match = re.match(pattern, rule_string.strip())

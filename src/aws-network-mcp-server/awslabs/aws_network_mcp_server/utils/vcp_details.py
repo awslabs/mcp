@@ -18,6 +18,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 @dataclass
 class RouteDict:
+    """VPC Route Table entry."""
+
     destination: str
     target: str
     state: str
@@ -26,6 +28,8 @@ class RouteDict:
 
 @dataclass
 class RouteTableDict:
+    """VPC Route Table dataclass."""
+
     id: str
     type: Literal['main', 'custom']
     associated_subnets: List[str]
@@ -34,6 +38,8 @@ class RouteTableDict:
 
 @dataclass
 class SubnetDict:
+    """VPC Subnet dataclass."""
+
     id: str
     cidr: str
     az: str
@@ -43,6 +49,8 @@ class SubnetDict:
 
 @dataclass
 class VpcDict:
+    """VPC dataclass."""
+
     id: str
     cidr: str
     region: str
@@ -50,6 +58,8 @@ class VpcDict:
 
 @dataclass
 class InternetGatewayDict:
+    """Internet Gateway dataclass."""
+
     id: str
     type: str
     state: str
@@ -57,6 +67,8 @@ class InternetGatewayDict:
 
 @dataclass
 class NatGatewayDict:
+    """NAT Gateway dataclass."""
+
     id: str
     type: str
     state: str
@@ -67,6 +79,8 @@ class NatGatewayDict:
 
 @dataclass
 class NetworkAclRuleDict:
+    """VPC Network ACL entry dataclass."""
+
     rule_number: int
     protocol: str
     action: Literal['allow', 'deny']
@@ -76,6 +90,8 @@ class NetworkAclRuleDict:
 
 @dataclass
 class NetworkAclDict:
+    """VPC Network ACL dataclass."""
+
     id: str
     associations: List[str]
     rules: List[NetworkAclRuleDict]
@@ -83,6 +99,8 @@ class NetworkAclDict:
 
 @dataclass
 class VpcEndpointDict:
+    """VPC Endpoint dataclass."""
+
     id: str
     type: str
     state: str
@@ -94,6 +112,8 @@ class VpcEndpointDict:
 
 @dataclass
 class VpcNetworkDetailsDict:
+    """VPC Network details dataclass."""
+
     vpc: VpcDict
     route_tables: List[RouteTableDict]
     subnets: List[SubnetDict]
@@ -104,6 +124,7 @@ class VpcNetworkDetailsDict:
 
 
 def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
+    """Format VPC Network details for better LLM usage."""
     result = []
     # Process route tables
     for rt in route_tables['RouteTables']:
@@ -147,6 +168,7 @@ def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
 
 
 def process_subnets(subnets: Dict[str, Any], route_tables: Dict[str, Any]) -> List[SubnetDict]:
+    """Format VPC Subnet details for better LLM usage."""
     result = []
     # Process subnets
     for subnet in subnets['Subnets']:
@@ -187,6 +209,7 @@ def process_subnets(subnets: Dict[str, Any], route_tables: Dict[str, Any]) -> Li
 
 
 def process_igws(igws: Dict[str, Any]) -> InternetGatewayDict:
+    """Format VPC Internet Gateway details for better LLM usage."""
     internet_gateways = igws.get('InternetGateways', [])
 
     if internet_gateways and internet_gateways[0].get('Attachments'):
@@ -209,6 +232,7 @@ def process_igws(igws: Dict[str, Any]) -> InternetGatewayDict:
 
 
 def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
+    """Format VPC NAT gateway details for better LLM usage."""
     result = []
     for nat in nat_gateways['NatGateways']:
         gw = NatGatewayDict(
@@ -232,6 +256,7 @@ def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
 
 
 def process_nacls(nacls: Dict[str, Any]) -> List[NetworkAclDict]:
+    """Format VPC Network Access List details for better LLM usage."""
     result: List[NetworkAclDict] = []
     # Process network ACLs
     for acl in nacls['NetworkAcls']:
@@ -266,6 +291,7 @@ def process_nacls(nacls: Dict[str, Any]) -> List[NetworkAclDict]:
 
 
 def process_vpc_endpoints(endpoints: Dict[str, Any]) -> List[VpcEndpointDict]:
+    """Format VPC Endpoint details for better LLM usage."""
     result: List[VpcEndpointDict] = []
     for endpoint in endpoints['VpcEndpoints']:
         if endpoint['VpcEndpointType'] == 'Interface':
