@@ -20,8 +20,15 @@ from .config import (
     DISABLE_LOCAL_FILE_ACCESS_KEY,
     WORKING_DIRECTORY,
 )
+from awscli.arguments import CLIArgument
 from awscli.paramfile import get_file
 from pathlib import Path
+
+
+def is_streaming_blob_argument(cli_argument: CLIArgument) -> bool:
+    """Streaming blob arguments accept only file paths."""
+    argument_model = cli_argument.argument_model
+    return argument_model.type_name == 'blob' and argument_model.serialization.get('streaming')
 
 
 def get_file_validated(prefix, path, mode):

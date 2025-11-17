@@ -675,6 +675,23 @@ def test_validate_output_file_raises_error_for_relative_paths(
 
 
 @pytest.mark.parametrize(
+    'command',
+    [
+        'aws lambda invoke --function-name MyFunction --payload file://relative/path/payload.json -',
+        'aws rekognition detect-text --image-bytes fileb://relative/path/test.jpg',
+        'aws s3api put-object --bucket bucket --key file.txt --body pyproject.toml',
+    ],
+)
+def test_parse_raises_error_for_relative_paths_in_blob_args(command):
+    """Test that _validate_output_file raises CommandValidationError for blob args with relative paths."""
+    with pytest.raises(
+        CommandValidationError,
+        match='is outside the allowed working directory',
+    ):
+        parse(command)
+
+
+@pytest.mark.parametrize(
     'endpoint',
     [
         None,
@@ -769,6 +786,8 @@ def test_disable_local_file_access_rejects_commands_with_local_paths(command):
     'command',
     [
         f'aws lambda invoke --function-name MyFunction --payload file://{WORKING_DIRECTORY}/payload.json -',
+        f'aws lambda update-function-code --function-name MyFunction --zip-file fileb://{WORKING_DIRECTORY}/test.jpg',
+        f'aws apigatewayv2 import-api --body file://{WORKING_DIRECTORY}/api.yaml',
         f'aws rekognition detect-text --image-bytes fileb://{WORKING_DIRECTORY}/test.jpg',
     ],
 )
@@ -778,6 +797,30 @@ def test_disable_local_file_access_rejects_commands_with_local_paths(command):
 )
 def test_disable_local_file_access_rejects_file_blob_arguments(command):
     """Test that commands with file:// and fileb:// arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+    with pytest.raises(
+        CommandValidationError,
+        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+    ):
+        parse(command)
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        f'aws s3api put-object --bucket bucket --key file.txt --body {WORKING_DIRECTORY}/test-file.txt',
+        f'aws s3api upload-part --bucket bucket --key file.txt --body {WORKING_DIRECTORY}/part.bin --part-number 1 --upload-id x',
+        f'aws lambda invoke-async --function-name MyFunction --invoke-args {WORKING_DIRECTORY}/args.json',
+    ],
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_disable_local_file_access_rejects_streaming_blob_arguments(command):
+    """Test that commands with streaming blob arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True.
+
+    Streaming blob arguments accept only file paths.
+    """
     with pytest.raises(
         CommandValidationError,
         match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
