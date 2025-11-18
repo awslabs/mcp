@@ -19,7 +19,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from loguru import logger
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 # Constants
@@ -300,7 +300,7 @@ def expand_service_wildcard_patterns(
     next_token: Optional[str] = None,
     max_results: int = 5,
     applicationsignals_client=None,
-) -> tuple[List[dict], Optional[str], List[str]]:
+) -> Tuple[List[dict], Optional[str], List[str]]:
     """Expand wildcard patterns for service targets with pagination support.
 
     Args:
@@ -503,7 +503,7 @@ def expand_slo_wildcard_patterns(
     next_token: Optional[str] = None,
     max_results: int = 5,
     applicationsignals_client=None,
-) -> tuple[List[dict], Optional[str], List[str]]:
+) -> Tuple[List[dict], Optional[str], List[str]]:
     """Expand wildcard patterns for SLO targets with pagination support.
 
     Args:
@@ -610,7 +610,7 @@ def expand_service_operation_wildcard_patterns(
     next_token: Optional[str] = None,
     max_results: int = 5,
     applicationsignals_client=None,
-) -> tuple[List[dict], Optional[str], List[str]]:
+) -> Tuple[List[dict], Optional[str], List[str]]:
     """Expand wildcard patterns for service operation targets with pagination support.
 
     Args:
