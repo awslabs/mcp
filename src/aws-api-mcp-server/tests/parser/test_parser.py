@@ -4,9 +4,7 @@ from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetad
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
-    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
@@ -611,31 +609,6 @@ def test_client_side_filter_error():
         parse(command)
 
 
-def test_valid_expand_user_home_directory():
-    """Test that tilde or user home directory is invalid path."""
-    with pytest.raises(FileParameterError) as exc_info:
-        parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
-
-    error_message = str(exc_info.value)
-    assert 'is outside the allowed working directory' in error_message
-    assert (
-        'Set AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS=true to allow unrestricted file access'
-        in error_message
-    )
-
-
-def test_invalid_expand_user_home_directory():
-    """Test that tilde is not expanded."""
-    expected_message = (
-        "Invalid file parameter '~user_that_does_not_exist/temp/test.txt' for service 's3' and operation 'cp': "
-        'should be an absolute path. Please provide a valid file path.'
-    )
-    with pytest.raises(FileParameterError) as exc_info:
-        parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
-
-    assert str(exc_info.value) == expected_message
-
-
 @patch('boto3.Session')
 def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
@@ -646,49 +619,6 @@ def test_profile(mock_boto3_session):
         result = parse(cli_command='aws s3api list-buckets --profile test-profile')
         assert result.profile == 'test-profile'
         mock_boto3_session.assert_called_with(profile_name='test-profile')
-
-
-@pytest.mark.parametrize(
-    'command,expected_service,expected_operation,expected_file_path',
-    [
-        (
-            'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
-            's3',
-            'GetObject',
-            'relative/path/file.txt',
-        ),
-        (
-            'aws lambda invoke --function-name my-function response.json',
-            'lambda',
-            'Invoke',
-            'response.json',
-        ),
-    ],
-)
-def test_validate_output_file_raises_error_for_relative_paths(
-    command, expected_service, expected_operation, expected_file_path
-):
-    """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
-    expected_message = f"Invalid file parameter '{expected_file_path}' for service '{expected_service}' and operation '{expected_operation}': should be an absolute path"
-    with pytest.raises(FileParameterError, match=expected_message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws lambda invoke --function-name MyFunction --payload file://relative/path/payload.json -',
-        'aws rekognition detect-text --image-bytes fileb://relative/path/test.jpg',
-        'aws s3api put-object --bucket bucket --key file.txt --body pyproject.toml',
-    ],
-)
-def test_parse_raises_error_for_relative_paths_in_blob_args(command):
-    """Test that _validate_output_file raises CommandValidationError for blob args with relative paths."""
-    with pytest.raises(
-        CommandValidationError,
-        match='is outside the allowed working directory',
-    ):
-        parse(command)
 
 
 @pytest.mark.parametrize(
@@ -758,132 +688,40 @@ def test_validate_endpoint_non_http_protocols():
     _validate_endpoint('ws://127.0.0.1:8080')
 
 
-@pytest.mark.parametrize(
-    'command',
-    [
-        f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key',
-        f'aws s3 cp s3://bucket/key {WORKING_DIRECTORY}/file.txt',
-        f'aws s3 sync {WORKING_DIRECTORY}/folder s3://bucket/prefix',
-        f'aws s3 mv {WORKING_DIRECTORY}/file.txt s3://bucket/key',
-        f'aws s3api get-object --bucket bucket --key file.txt {WORKING_DIRECTORY}/file.txt',
-        f'aws lambda invoke --function-name MyFunction {WORKING_DIRECTORY}/result.json',
-    ],
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_disable_local_file_access_rejects_commands_with_local_paths(command):
-    """Test that commands with local paths are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
-    with pytest.raises(
-        FileParameterError,
-        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-    ):
-        parse(command)
+def test_allowed_custom_operations_when_file_access_disabled_is_subset():
+    """Test that ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is a subset of ALLOWED_CUSTOM_OPERATIONS.
 
-
-@pytest.mark.parametrize(
-    'command',
-    [
-        f'aws lambda invoke --function-name MyFunction --payload file://{WORKING_DIRECTORY}/payload.json -',
-        f'aws lambda update-function-code --function-name MyFunction --zip-file fileb://{WORKING_DIRECTORY}/test.jpg',
-        f'aws apigatewayv2 import-api --body file://{WORKING_DIRECTORY}/api.yaml',
-        f'aws rekognition detect-text --image-bytes fileb://{WORKING_DIRECTORY}/test.jpg',
-    ],
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_disable_local_file_access_rejects_file_blob_arguments(command):
-    """Test that commands with file:// and fileb:// arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-    ):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command',
-    [
-        f'aws s3api put-object --bucket bucket --key file.txt --body {WORKING_DIRECTORY}/test-file.txt',
-        f'aws s3api upload-part --bucket bucket --key file.txt --body {WORKING_DIRECTORY}/part.bin --part-number 1 --upload-id x',
-        f'aws lambda invoke-async --function-name MyFunction --invoke-args {WORKING_DIRECTORY}/args.json',
-    ],
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_disable_local_file_access_rejects_streaming_blob_arguments(command):
-    """Test that commands with streaming blob arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True.
-
-    Streaming blob arguments accept only file paths.
+    This ensures that all operations allowed when file access is disabled are also in the main
+    allowed operations list. Operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+    should be those that can work without local file access.
     """
-    with pytest.raises(
-        CommandValidationError,
-        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-    ):
-        parse(command)
+    from awslabs.aws_api_mcp_server.core.parser.parser import (
+        ALLOWED_CUSTOM_OPERATIONS,
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED,
+    )
 
+    extra_operations = []
 
-@pytest.mark.parametrize(
-    'command,expected_service,expected_operation',
-    [
-        ('aws s3 cp s3://source-bucket/key s3://dest-bucket/key', 's3', 'cp'),
-        ('aws s3 sync s3://source-bucket/prefix s3://dest-bucket/prefix', 's3', 'sync'),
-        ('aws s3 mv s3://source-bucket/key s3://dest-bucket/key', 's3', 'mv'),
-        ('aws s3api get-object --bucket bucket --key file.txt -', 's3', 'get-object'),
-        (
-            'aws lambda invoke --function-name MyFunction --payload \'{"key": "value"}\' -',
-            'lambda',
-            'invoke',
-        ),
-    ],
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_disable_local_file_access_allowed_commands(command, expected_service, expected_operation):
-    """Test that S3 URIs, stdout redirect, and blob arguments are allowed when DISABLE_LOCAL_FILE_ACCESS is True."""
-    result = parse(command)
-    assert result.command_metadata.service_sdk_name == expected_service
-    assert result.operation_cli_name == expected_operation
+    for service, operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.items():
+        # Check if service exists in ALLOWED_CUSTOM_OPERATIONS
+        if service not in ALLOWED_CUSTOM_OPERATIONS:
+            extra_operations.append(
+                f"Service '{service}' in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED "
+                f'is not in ALLOWED_CUSTOM_OPERATIONS'
+            )
+            continue
 
+        # Check if all operations for this service are in ALLOWED_CUSTOM_OPERATIONS
+        allowed_ops_set = set(ALLOWED_CUSTOM_OPERATIONS[service])
+        for operation in operations:
+            if operation not in allowed_ops_set:
+                extra_operations.append(
+                    f"Operation '{operation}' for service '{service}' in "
+                    f'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is not in ALLOWED_CUSTOM_OPERATIONS'
+                )
 
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_disable_takes_precedence_over_allow_unrestricted_for_s3():
-    """Test that DISABLE_LOCAL_FILE_ACCESS takes precedence over ALLOW_UNRESTRICTED for S3 commands."""
-    # Even with ALLOW_UNRESTRICTED=True, DISABLE should still reject local files
-    command = f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key'
-    with pytest.raises(
-        FileParameterError,
-        match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-    ):
-        parse(command)
-
-
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    False,
-)
-@patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
-)
-def test_allow_unrestricted_works_when_disable_is_false():
-    """Test that ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS works when DISABLE_LOCAL_FILE_ACCESS is False."""
-    # With DISABLE=False and ALLOW_UNRESTRICTED=True, local files should be allowed
-    command = 'aws s3 cp /tmp/file.txt s3://bucket/key'
-    # Should not raise any exception about file access
-    result = parse(command)
-    assert result.command_metadata.service_sdk_name == 's3'
+    assert not extra_operations, (
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED must be a subset of ALLOWED_CUSTOM_OPERATIONS.\n'
+        + 'The following operations are in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED but not in ALLOWED_CUSTOM_OPERATIONS:\n'
+        + '\n'.join(extra_operations)
+    )

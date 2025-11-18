@@ -15,7 +15,11 @@
 import os
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
-from awslabs.aws_api_mcp_server.core.common.file_system_controls import validate_file_path
+from awslabs.aws_api_mcp_server.core.common.file_system_controls import (
+    CUSTOM_FILE_PATH_ARGUMENTS,
+    validate_file_path,
+)
+from awslabs.aws_api_mcp_server.core.parser.parser import ALLOWED_CUSTOM_OPERATIONS
 from unittest.mock import patch
 
 
@@ -42,3 +46,39 @@ def test_unrestricted_access_allows_unsafe_path():
     unsafe_path = '/tmp/unsafe_file.txt'
     result = validate_file_path(unsafe_path)
     assert result == unsafe_path
+
+
+def test_all_custom_operations_have_file_path_arguments_entry():
+    """Test that all custom commands must have explicitly listed file path arguments.
+
+    This ensures that every custom operation in ALLOWED_CUSTOM_OPERATIONS has a corresponding
+    entry in CUSTOM_FILE_PATH_ARGUMENTS, even if it's an empty list. This is important for
+    maintaining awareness of which custom operations accept file paths and which don't.
+    """
+    missing_entries = []
+
+    for service, operations in ALLOWED_CUSTOM_OPERATIONS.items():
+        # Skip the wildcard service
+        if service == '*':
+            continue
+
+        # Check if service exists in CUSTOM_FILE_PATH_ARGUMENTS
+        if service not in CUSTOM_FILE_PATH_ARGUMENTS:
+            missing_entries.append(
+                f"Service '{service}' is missing from CUSTOM_FILE_PATH_ARGUMENTS"
+            )
+            continue
+
+        # Check if all operations for this service have entries
+        for operation in operations:
+            if operation not in CUSTOM_FILE_PATH_ARGUMENTS[service]:
+                missing_entries.append(
+                    f"Operation '{operation}' for service '{service}' is missing from CUSTOM_FILE_PATH_ARGUMENTS"
+                )
+
+    assert not missing_entries, (
+        'The following custom operations are missing from CUSTOM_FILE_PATH_ARGUMENTS:\n'
+        + '\n'.join(missing_entries)
+        + '\n\nAll custom operations must have an explicit entry in CUSTOM_FILE_PATH_ARGUMENTS, '
+        + "even if it's an empty list (for operations that don't accept file paths)."
+    )
