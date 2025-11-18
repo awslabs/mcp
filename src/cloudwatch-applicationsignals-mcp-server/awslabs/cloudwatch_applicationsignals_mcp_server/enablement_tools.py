@@ -27,7 +27,7 @@ async def get_enablement_guide(
     """Get enablement guide for AWS Application Signals.
 
     Use this tool when the user wants to:
-    - Enable Application Signals for their AWS service
+    - Enable observability, monitoring, or Application Signals for their AWS service
     - Set up automatic instrumentation for their application on AWS
     - Instrument their service running on EC2, ECS, Lambda, or EKS
 
