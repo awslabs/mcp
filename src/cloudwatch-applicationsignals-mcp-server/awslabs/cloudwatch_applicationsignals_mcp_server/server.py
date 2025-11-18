@@ -52,6 +52,7 @@ from .service_tools import (
     list_service_operations,
     query_service_metrics,
 )
+from .enablement_tools import get_enablement_guide
 from .slo_tools import get_slo, list_slos
 from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
 from .utils import parse_timestamp
@@ -1471,7 +1472,7 @@ mcp.tool()(list_slos)
 mcp.tool()(search_transaction_spans)
 mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
-mcp.tool()(analyze_canary_failures)
+mcp.tool()(get_enablement_guide)
 
 
 def main():
