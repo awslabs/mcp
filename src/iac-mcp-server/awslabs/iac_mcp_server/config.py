@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SERVER_VERSION = "0.1.0"
-DEFAULT_REGION = ["us-east-1"]
+SERVER_VERSION = '0.1.0'
+DEFAULT_REGION = ['us-east-1']
 VALIDATION_TIMEOUT_SECONDS = 30
 MAX_TEMPLATE_SIZE_BYTES = 500_000
-MCP_PROTOCOL_VERSION = "2024-11-05"
+MCP_PROTOCOL_VERSION = '2024-11-05'

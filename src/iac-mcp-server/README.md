@@ -129,7 +129,7 @@ After a successful `docker build -t awslabs/iac-mcp-server .`:
         "--rm",
         "--interactive",
         "--env",
-        "AWS_PROFILE=your-aws-profile",
+        "AWS_PROFILE=your-aws-profile",  # pragma: allowlist secret
         "--env",
         "FASTMCP_LOG_LEVEL=ERROR",
         "--volume",

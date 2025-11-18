@@ -111,7 +111,7 @@ rule S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED when %s3_buckets_level_public_acce
 #
 
 let s3_buckets_bucket_logging_enabled = Resources.*[ Type == 'AWS::S3::Bucket'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "W35"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "S3_BUCKET_LOGGING_ENABLED"
@@ -197,7 +197,7 @@ rule S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION when %s3_bucket_policy_no_allow_p
 #
 # Rule Parameters:
 #   NA
-# 
+#
 # CFN_NAG Rule Id:
 #   F9
 #
@@ -212,12 +212,12 @@ rule S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION when %s3_bucket_policy_no_allow_p
 
 #
 # Select all S3 BucketPolicy resources from incoming template (payload)
-# 
+#
 let aws_s3_bucketpolicy_resources = Resources.*[ Type == 'AWS::S3::BucketPolicy'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F9"
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL" 
+  Metadata.guard.SuppressedRules.* != "S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL"
 ]
 
 rule S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL when %aws_s3_bucketpolicy_resources !empty {
@@ -587,7 +587,7 @@ rule S3_BUCKET_REPLICATION_ENABLED when %s3_buckets_replication_enabled !empty {
 #
 
 let s3_buckets_server_side_encryption = Resources.*[ Type == 'AWS::S3::Bucket'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "W41"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED"
@@ -742,7 +742,7 @@ rule S3_DEFAULT_ENCRYPTION_KMS when %s3_buckets_s3_default_encryption !empty {
 #    EBS_OPTIMIZED_INSTANCE
 #
 # Description:
-#    Checks whether EBS optimization is enabled for your EC2 instances that can be EBS-optimized 
+#    Checks whether EBS optimization is enabled for your EC2 instances that can be EBS-optimized
 #
 # Reports on:
 #    AWS::EC2::Instance
@@ -762,7 +762,7 @@ rule S3_DEFAULT_ENCRYPTION_KMS when %s3_buckets_s3_default_encryption !empty {
 #
 # Select all AWS EC2 Instance resources from incoming template (payload)
 #
-let ec2_ebs_optimized_instances = Resources.*[ Type == 'AWS::EC2::Instance' 
+let ec2_ebs_optimized_instances = Resources.*[ Type == 'AWS::EC2::Instance'
 	Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "EBS_OPTIMIZED_INSTANCE"
 ]
@@ -827,7 +827,7 @@ rule EBS_VOLUME_ENCRYPTION_KEY_RULE when %ebs_volume_encryption_key_rule !empty 
 #    EC2_INSTANCE_DETAILED_MONITORING_ENABLED
 #
 # Description:
-#    Checks if detailed monitoring is enabled for EC2 instances. 
+#    Checks if detailed monitoring is enabled for EC2 instances.
 #
 # Reports on:
 #    AWS::EC2::Instance
@@ -847,13 +847,13 @@ rule EBS_VOLUME_ENCRYPTION_KEY_RULE when %ebs_volume_encryption_key_rule !empty 
 #
 # Select all EC2 Instance resources from incoming template (payload)
 #
-let ec2_instances_detailed_monitoring_enabled = Resources.*[ Type == 'AWS::EC2::Instance' 
+let ec2_instances_detailed_monitoring_enabled = Resources.*[ Type == 'AWS::EC2::Instance'
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_DETAILED_MONITORING_ENABLED"
 ]
 
 rule EC2_INSTANCE_DETAILED_MONITORING_ENABLED when %ec2_instances_detailed_monitoring_enabled !empty {
-    %ec2_instances_detailed_monitoring_enabled.Properties.Monitoring == true 
+    %ec2_instances_detailed_monitoring_enabled.Properties.Monitoring == true
     <<
       Violation: EC2 Instance Monitoring must be enabled on all EC2 instances
       Fix: set the Monitoring property to true
@@ -866,7 +866,7 @@ rule EC2_INSTANCE_DETAILED_MONITORING_ENABLED when %ec2_instances_detailed_monit
 #    EC2_INSTANCE_NO_PUBLIC_IP
 #
 # Description:
-#    Checks whether Amazon Elastic Compute Cloud (Amazon EC2) instances have a public IP association. 
+#    Checks whether Amazon Elastic Compute Cloud (Amazon EC2) instances have a public IP association.
 #
 # Reports on:
 #    AWS::EC2::Instance
@@ -888,17 +888,17 @@ rule EC2_INSTANCE_DETAILED_MONITORING_ENABLED when %ec2_instances_detailed_monit
 # Select all EC2 Instance resources from incoming template (payload)
 #
 let ec2_instances_no_public_ip = Resources.*[Type == 'AWS::EC2::Instance'
-	Properties.NetworkInterfaces[*] !empty 
+	Properties.NetworkInterfaces[*] !empty
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_NO_PUBLIC_IP"
 ]
 
 rule EC2_INSTANCE_NO_PUBLIC_IP when %ec2_instances_no_public_ip !empty {
 	%ec2_instances_no_public_ip.Properties.NetworkInterfaces[*] {
-		AssociatePublicIpAddress !exists OR 
+		AssociatePublicIpAddress !exists OR
 		AssociatePublicIpAddress == false
 		<<
-    	Violation: EC2 Instances cannot have public IP addresses associated with their network interfaces 
+    	Violation: EC2 Instances cannot have public IP addresses associated with their network interfaces
     	Fix: remove the AssociatePublicIpAddress property from NetworkInterfaces list or set it to false
   	>>
 	}
@@ -912,7 +912,7 @@ rule EC2_INSTANCE_NO_PUBLIC_IP when %ec2_instances_no_public_ip !empty {
 #    EC2_INSTANCE_PROFILE_ATTACHED
 #
 # Description:
-#    Checks if an Amazon Elastic Compute Cloud (Amazon EC2) instance has an Identity and Access Management (IAM) profile attached to it. 
+#    Checks if an Amazon Elastic Compute Cloud (Amazon EC2) instance has an Identity and Access Management (IAM) profile attached to it.
 #
 # Reports on:
 #    AWS::EC2::Instance
@@ -924,15 +924,15 @@ rule EC2_INSTANCE_NO_PUBLIC_IP when %ec2_instances_no_public_ip !empty {
 #    NA
 #
 # Scenarios:
-# a) SKIP: when no EC2 Instance resources are present 
-# b) PASS: when all EC2 Instace resources have an associated IAM instance profile 
+# a) SKIP: when no EC2 Instance resources are present
+# b) PASS: when all EC2 Instace resources have an associated IAM instance profile
 # d) FAIL: when any EC2 Instace resources do not have an associated IAM instance profile
 # e) SKIP: hen metadata includes the suppression for rule EC2_INSTANCE_PROFILE_ATTACHED
 
 #
 # Select all EC2 Instance resources from incoming template (payload)
 #
-let ec2_instances_profile_attached = Resources.*[ Type == 'AWS::EC2::Instance' 
+let ec2_instances_profile_attached = Resources.*[ Type == 'AWS::EC2::Instance'
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_PROFILE_ATTACHED"
 ]
@@ -972,8 +972,8 @@ rule EC2_INSTANCE_PROFILE_ATTACHED when %ec2_instances_profile_attached !empty {
 #
 # Select all ECS Instance resources from incoming template (payload)
 #
-let ec2_instances_in_vpc = Resources.*[ Type == 'AWS::EC2::Instance' 
-  Metadata.guard.SuppressedRules not exists or 
+let ec2_instances_in_vpc = Resources.*[ Type == 'AWS::EC2::Instance'
+  Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "EC2_INSTANCES_IN_VPC"
 ]
 
@@ -1321,7 +1321,7 @@ rule EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE when %ec2_security_group_ingr
 #    ENCRYPTED_VOLUMES
 #
 # Description:
-#    Checks if the EBS volumes that are in an attached state are encrypted. 
+#    Checks if the EBS volumes that are in an attached state are encrypted.
 #
 # Reports on:
 #    AWS::EC2::Volume
@@ -1337,15 +1337,15 @@ rule EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE when %ec2_security_group_ingr
 #
 # Scenarios:
 # a) SKIP: when there are no EBS volume resources present
-# b) PASS: when all EBS volumes have the KmsKeyId property set or the Encrypted property set to true 
+# b) PASS: when all EBS volumes have the KmsKeyId property set or the Encrypted property set to true
 # c) FAIL: when any EC2 volumes do not have the KmsKeyId or Encrypted property set
 # e) SKIP: hen metadata includes the suppression for rule ENCRYPTED_VOLUMES
 
 #
 # Select all EC2 Instance resources from incoming template (payload)
 #
-let ebs_volumes_encrypted = Resources.*[ Type == 'AWS::EC2::Volume' 
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+let ebs_volumes_encrypted = Resources.*[ Type == 'AWS::EC2::Volume'
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F1"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "ENCRYPTED_VOLUMES"
@@ -1360,8 +1360,8 @@ rule ENCRYPTED_VOLUMES when %ebs_volumes_encrypted !empty {
   %violations empty
   <<
     Violation: EBS volumes in an attached state must be encrypted.
-    Fix: Set the KmsKeyId property to a key ID, key alias, key ARN, or alias ARN 
-		or set the Encrypted property to true to encrypt the volume with the account default key or AWS managed key. 
+    Fix: Set the KmsKeyId property to a key ID, key alias, key ARN, or alias ARN
+		or set the Encrypted property to true to encrypt the volume with the account default key or AWS managed key.
   >>
 }#
 #####################################
@@ -1371,7 +1371,7 @@ rule ENCRYPTED_VOLUMES when %ebs_volumes_encrypted !empty {
 #    NO_UNRESTRICTED_ROUTE_TO_IGW
 #
 # Description:
-#    Checks if there are public routes in the route table to an Internet Gateway (IGW). 
+#    Checks if there are public routes in the route table to an Internet Gateway (IGW).
 #
 # Reports on:
 #    AWS::EC2::Route
@@ -1386,15 +1386,15 @@ rule ENCRYPTED_VOLUMES when %ebs_volumes_encrypted !empty {
 # a) SKIP: when no EC2 Route resources are present
 # b) SKIP: when there are no EC2 Routes to an Internet Gateway (no GatewayId property)
 # c) PASS: when all EC2 Routes to an Internet Gateway have a restricted destination CIDR block (not '0.0.0.0/0' or '::/0')
-# d) FAIL: when any EC2 Routes to an Internet Gateway have a destination CIDR block of '0.0.0.0/0' or '::/0' 
+# d) FAIL: when any EC2 Routes to an Internet Gateway have a destination CIDR block of '0.0.0.0/0' or '::/0'
 # e) SKIP: hen metadata includes the suppression for rule NO_UNRESTRICTED_ROUTE_TO_IGW
 
 #
 # Select all EC2 Route resources from incoming template (payload)
 #
-let routes_no_unrestricted_to_igw = Resources.*[ Type == 'AWS::EC2::Route' 
+let routes_no_unrestricted_to_igw = Resources.*[ Type == 'AWS::EC2::Route'
 	Properties.GatewayId exists
-	Metadata.guard.SuppressedRules not exists or	
+	Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "NO_UNRESTRICTED_ROUTE_TO_IGW"
 ]
 
@@ -1403,7 +1403,7 @@ rule NO_UNRESTRICTED_ROUTE_TO_IGW when %routes_no_unrestricted_to_igw !empty {
 		Properties {
 			DestinationCidrBlock not in ['0.0.0.0/0', '::/0']
 			<<
-				Violation: EC2 Routes to an IGW cannot have a destination CIDR block of '0.0.0.0/0' or '::/0' 
+				Violation: EC2 Routes to an IGW cannot have a destination CIDR block of '0.0.0.0/0' or '::/0'
 				Fix: Remove routes to an IGW (with the GatewayId property defined) or modify the DestinationCidrBlock property to a more restricted CIDR block
 			>>
 		}
@@ -1416,7 +1416,7 @@ rule NO_UNRESTRICTED_ROUTE_TO_IGW when %routes_no_unrestricted_to_igw !empty {
 #    RESTRICTED_INCOMING_TRAFFIC
 #
 # Description:
-#    Checks if the security groups in use do not allow unrestricted incoming TCP traffic to the specified ports. 
+#    Checks if the security groups in use do not allow unrestricted incoming TCP traffic to the specified ports.
 #
 # Reports on:
 #    AWS::EC2::SecurityGroup
@@ -1437,7 +1437,7 @@ rule NO_UNRESTRICTED_ROUTE_TO_IGW when %routes_no_unrestricted_to_igw !empty {
 #
 # Select all Security Group resources from incoming template (payload)
 #
-let aws_security_groups_restricted_incoming_traffic = Resources.*[ Type == 'AWS::EC2::SecurityGroup' 
+let aws_security_groups_restricted_incoming_traffic = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
 	some Properties.SecurityGroupIngress[*] {
 		IpProtocol in ['tcp', 'udp']
 	}
@@ -1453,10 +1453,10 @@ rule RESTRICTED_INCOMING_TRAFFIC when %aws_security_groups_restricted_incoming_t
       ToPort in [ 20, 21, 3389, 3306, 4333 ]
 		}
 	]
-	%violations empty 
+	%violations empty
 	<<
 		Violation: Security groups must not allow unrestricted incoming TCP/UDP traffic to the specified ports [20, 21, 3389, 3306, 4333].
-		Fix: change the FromPort and ToPort properties in the SecurityGroupIngress list 
+		Fix: change the FromPort and ToPort properties in the SecurityGroupIngress list
 	>>
 }#
 #####################################
@@ -1466,7 +1466,7 @@ rule RESTRICTED_INCOMING_TRAFFIC when %aws_security_groups_restricted_incoming_t
 #    INCOMING_SSH_DISABLED
 #
 # Description:
-#    Checks if the incoming SSH traffic for the security groups is accessible. 
+#    Checks if the incoming SSH traffic for the security groups is accessible.
 #
 # Reports on:
 #    AWS::EC2::SecurityGroup
@@ -1481,13 +1481,13 @@ rule RESTRICTED_INCOMING_TRAFFIC when %aws_security_groups_restricted_incoming_t
 # a) SKIP: when no Security Group resources are present
 # b) SKIP: when no SSH ingress is defined (port 22)
 # c) PASS: when all Security Groups resources restrict the IP address of the incoming SSH traffic
-# d) FAIL: when a Security Group allows SSH traffic from any IP address (0.0.0.0/0). 
+# d) FAIL: when a Security Group allows SSH traffic from any IP address (0.0.0.0/0).
 # e) SKIP: hen metadata includes the suppression for rule INCOMING_SSH_DISABLED
 
 #
 # Select all Security Group resources from incoming template (payload)
 #
-let aws_security_groups_restricted_ssh = Resources.*[ 
+let aws_security_groups_restricted_ssh = Resources.*[
 	Type == 'AWS::EC2::SecurityGroup'
 	some Properties.SecurityGroupIngress[*] {
 		ToPort == 22
@@ -2009,7 +2009,7 @@ rule SECURITY_GROUP_MISSING_EGRESS_RULE when %security_group_missing_egress_rule
 #    SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED
 #
 # Description:
-#    Checks if Amazon Virtual Private Cloud (Amazon VPC) subnets are assigned a public IP address.  
+#    Checks if Amazon Virtual Private Cloud (Amazon VPC) subnets are assigned a public IP address.
 #
 # Reports on:
 #    AWS::EC2::Subnet
@@ -2029,8 +2029,8 @@ rule SECURITY_GROUP_MISSING_EGRESS_RULE when %security_group_missing_egress_rule
 #
 # Select all EC2 Subnet resources from incoming template (payload)
 #
-let ec2_subnets_auto_assign_public_ip_disabled = Resources.*[ Type == 'AWS::EC2::Subnet' 
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+let ec2_subnets_auto_assign_public_ip_disabled = Resources.*[ Type == 'AWS::EC2::Subnet'
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "W33"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED"
@@ -2120,7 +2120,7 @@ rule AURORA_MYSQL_BACKTRACKING_ENABLED when %aws_rds_clusters_aurora_mysql_backt
 #
 
 let aws_rds_instances_db_instance_backup_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "W75"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "DB_INSTANCE_BACKUP_ENABLED"
@@ -2338,7 +2338,7 @@ rule RDS_ENHANCED_MONITORING_ENABLED when %aws_rds_instances_enhanced_monitoring
 # Select all RDS instance resources from incoming template (payload)
 #
 let aws_rds_instances_deletion_protection_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F80"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "RDS_INSTANCE_DELETION_PROTECTION_ENABLED"
@@ -2382,7 +2382,7 @@ rule RDS_INSTANCE_DELETION_PROTECTION_ENABLED when %aws_rds_instances_deletion_p
 # Select all RDS instance resources from incoming template (payload)
 #
 let aws_rds_instances_not_public = Resources.*[ Type == 'AWS::RDS::DBInstance'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F22"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "RDS_INSTANCE_PUBLIC_ACCESS_CHECK"
@@ -2392,7 +2392,7 @@ rule RDS_INSTANCE_PUBLIC_ACCESS_CHECK when %aws_rds_instances_not_public !empty 
   # ALL RDS instances must have PubliclyAccessible set to false
   %aws_rds_instances_not_public.Properties.PubliclyAccessible == false
   <<
-    Violation: All RDS instances must not be publicly accessible. 
+    Violation: All RDS instances must not be publicly accessible.
     Fix: The default depends on the VPC configuration, so it is recommended to eplicitly set PubliclyAccessible to false.
   >>
 }
@@ -2679,7 +2679,7 @@ rule RDS_MULTI_AZ_SUPPORT when %aws_rds_instances_multi_az_support !empty {
 # Select all RDS instance resources from incoming template (payload)
 #
 let aws_rds_instances_storage_encrypted = Resources.*[ Type in [ /AWS::RDS::DBInstance/, /AWS::RDS::DBCluster/ ]
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id !in [ "F26", "F27" ]
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "RDS_STORAGE_ENCRYPTED"
@@ -2728,12 +2728,12 @@ rule RDS_STORAGE_ENCRYPTED when %aws_rds_instances_storage_encrypted !empty {
 
 #
 # Select all IAM Managed Policy resources from incoming template (payload)
-# 
+#
 let aws_iam_managed_policies = Resources.*[ Type == 'AWS::IAM::ManagedPolicy'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F5"
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS" 
+  Metadata.guard.SuppressedRules.* != "IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS"
 ]
 
 rule IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS when %aws_iam_managed_policies !empty {
@@ -2754,7 +2754,7 @@ rule IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS when %aws_iam_managed_poli
 ##           Gherkin               ##
 #####################################
 # Rule Identifier:
-#   IAM_NO_INLINE_POLICY_CHECK 
+#   IAM_NO_INLINE_POLICY_CHECK
 #
 # Description:
 #   Checks that inline policy feature is not in use.
@@ -2783,7 +2783,7 @@ let aws_iam_entities_no_inline_policy = Resources.*[
   Type in [ /AWS::IAM::User/,
             /AWS::IAM::Role/,
             /AWS::IAM::Group/ ]
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F10"
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "IAM_NO_INLINE_POLICY_CHECK"
@@ -2921,7 +2921,7 @@ rule IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE when %iam_policydocument_no_wildcar
 #   IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
 #
 # Description:
-#   Checks the IAM policies that you create for Allow statements that grant permissions to all actions on all resources. 
+#   Checks the IAM policies that you create for Allow statements that grant permissions to all actions on all resources.
 #
 # Reports on:
 #   AWS::IAM::Policy
@@ -2940,15 +2940,15 @@ rule IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE when %iam_policydocument_no_wildcar
 
 #
 # Select all IAM Policy resources from incoming template (payload)
-# 
-let aws_iam_policies_no_statements_with_admin_access = Resources.*[ Type == 'AWS::IAM::Policy' 
+#
+let aws_iam_policies_no_statements_with_admin_access = Resources.*[ Type == 'AWS::IAM::Policy'
   Metadata.guard.SuppressedRules not exists or
   Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS"
 ]
 
 rule IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS when %aws_iam_policies_no_statements_with_admin_access !empty {
   let violations = Resources.*[
-    Type == 'AWS::IAM::Policy' 
+    Type == 'AWS::IAM::Policy'
     some Properties.PolicyDocument.Statement[*] {
       some Action[*] == "*"
       Effect == "Allow"
@@ -2960,7 +2960,7 @@ rule IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS when %aws_iam_policies_no_statem
     Violation: One or more IAM policies contain allow statements that grant permissions to all actions on all resources
     Fix: Remove policy statements that match {"Effect": "Allow", "Action": "*", "Resource": "*"}
   >>
-} 
+}
 
 
 #
@@ -2993,12 +2993,12 @@ rule IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS when %aws_iam_policies_no_statem
 
 #
 # Select all IAM Policy resources from incoming template (payload)
-# 
+#
 let aws_iam_policies = Resources.*[ Type == 'AWS::IAM::Policy'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F4"
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS" 
+  Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS"
 ]
 
 rule IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS when %aws_iam_policies !empty {
@@ -3292,7 +3292,7 @@ rule IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL when %aws_iam_role_resources !empty {
 #
 # Rule Parameters:
 #   NA
-# 
+#
 # CFN_NAG Rule Id:
 #   F2
 #
@@ -3304,12 +3304,12 @@ rule IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL when %aws_iam_role_resources !empty {
 
 #
 # Select all IAM Role resources from incoming template (payload)
-# 
+#
 let aws_iam_role_no_full_acess_on_trust_policy = Resources.*[ Type == 'AWS::IAM::Role'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F2"
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY" 
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY"
 ]
 
 rule IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY when %aws_iam_role_no_full_acess_on_trust_policy !empty {
@@ -3342,7 +3342,7 @@ rule IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY when %aws_iam_role_no_full_acess_on
 #
 # Rule Parameters:
 #   NA
-# 
+#
 # CFN_NAG Rule Id:
 #   F3
 #
@@ -3354,12 +3354,12 @@ rule IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY when %aws_iam_role_no_full_acess_on
 
 #
 # Select all IAM Role resources from incoming template (payload)
-# 
+#
 let aws_iam_role_no_wildcard_actions_on_permissions = Resources.*[ Type == 'AWS::IAM::Role'
-  Metadata.cfn_nag.rules_to_suppress not exists or 
+  Metadata.cfn_nag.rules_to_suppress not exists or
   Metadata.cfn_nag.rules_to_suppress.*.id != "F3"
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS" 
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS"
 ]
 
 rule IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS when %aws_iam_role_no_wildcard_actions_on_permissions !empty {
@@ -3679,7 +3679,7 @@ rule IAM_USER_LOGIN_PROFILE_PASSWORD_RESET_RULE when %iam_user_login_profile_pas
     OR
     Properties.LoginProfile.PasswordResetRequired !exists
     OR
-    Properties.LoginProfile.PasswordResetRequired == 'false'
+    Properties.LoginProfile.PasswordResetRequired == 'false'  # pragma: allowlist secret
     OR
     Properties.LoginProfile.PasswordResetRequired == false
   ]
@@ -3743,7 +3743,7 @@ rule IAM_USER_MISSING_GROUP_RULE when %iam_user_missing_group_rule !empty {
 #   IAM_USER_NO_POLICIES_CHECK
 #
 # Description:
-#   Checks that none of your IAM users have policies attached. IAM users must inherit permissions from IAM groups or roles. 
+#   Checks that none of your IAM users have policies attached. IAM users must inherit permissions from IAM groups or roles.
 #
 # Reports on:
 #   AWS::IAM::User
@@ -3762,16 +3762,16 @@ rule IAM_USER_MISSING_GROUP_RULE when %iam_user_missing_group_rule !empty {
 
 #
 # Select all IAM User resources from incoming template (payload)
-# 
+#
 let aws_iam_users_no_policies = Resources.*[ Type == 'AWS::IAM::User'
   Metadata.guard.SuppressedRules not exists or
-  Metadata.guard.SuppressedRules.* != "IAM_USER_NO_POLICIES_CHECK" 
+  Metadata.guard.SuppressedRules.* != "IAM_USER_NO_POLICIES_CHECK"
 ]
 
 rule IAM_USER_NO_POLICIES_CHECK when %aws_iam_users_no_policies !empty {
   %aws_iam_users_no_policies.Properties.Policies empty
   <<
   	Violation: Inline policies are not allowed on IAM Users. IAM users must inherit permissions from IAM groups or roles.
-  	Fix: Remove the Policies list property from any IAM Users. 
+  	Fix: Remove the Policies list property from any IAM Users.
   >>
 }
