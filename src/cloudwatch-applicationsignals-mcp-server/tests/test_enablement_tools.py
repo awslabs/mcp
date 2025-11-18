@@ -25,8 +25,7 @@ class TestGetEnablementGuide:
             app_directory=ABSOLUTE_PATHS['app'],
         )
 
-        assert '# Application Signals Enablement Guide' in result
-        assert 'Placeholder content just to verify the tool can fetch the file.' in result
+        assert '# Task: Enable AWS Application Signals for Python on EC2' in result
         assert ABSOLUTE_PATHS['iac'] in result
         assert ABSOLUTE_PATHS['app'] in result
 
@@ -46,7 +45,7 @@ class TestGetEnablementGuide:
             # Should either succeed or say template not found with friendly message
             assert (
                 'Enablement guide not available' in result
-                or '# Application Signals Enablement Guide' in result
+                or '# Task: Enable AWS Application Signals' in result
             )
 
     @pytest.mark.asyncio
@@ -65,7 +64,7 @@ class TestGetEnablementGuide:
             # Should either succeed or say template not found with friendly message
             assert (
                 'Enablement guide not available' in result
-                or '# Application Signals Enablement Guide' in result
+                or '# Task: Enable AWS Application Signals' in result
             )
 
     @pytest.mark.asyncio
@@ -104,7 +103,7 @@ class TestGetEnablementGuide:
             app_directory=ABSOLUTE_PATHS['app'],
         )
 
-        assert '# Application Signals Enablement Guide' in result
+        assert '# Task: Enable AWS Application Signals for Python on EC2' in result
         assert ABSOLUTE_PATHS['iac'] in result
         assert ABSOLUTE_PATHS['app'] in result
 
@@ -149,7 +148,7 @@ class TestGetEnablementGuide:
         # Should work the same as lowercase
         assert 'Error: iac_directory and app_directory must be absolute paths' not in result
         assert (
-            '# Application Signals Enablement Guide' in result
+            '# Task: Enable AWS Application Signals' in result
             or 'Enablement guide not available' in result
         )
 
@@ -166,7 +165,7 @@ class TestGetEnablementGuide:
         # Should work the same as lowercase
         assert 'Error: iac_directory and app_directory must be absolute paths' not in result
         assert (
-            '# Application Signals Enablement Guide' in result
+            '# Task: Enable AWS Application Signals' in result
             or 'Enablement guide not available' in result
         )
 
@@ -183,7 +182,7 @@ class TestGetEnablementGuide:
         # Should work the same as trimmed input
         assert 'Error: iac_directory and app_directory must be absolute paths' not in result
         assert (
-            '# Application Signals Enablement Guide' in result
+            '# Task: Enable AWS Application Signals' in result
             or 'Enablement guide not available' in result
         )
 
