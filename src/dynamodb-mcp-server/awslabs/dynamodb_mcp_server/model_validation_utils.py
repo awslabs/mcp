@@ -55,8 +55,8 @@ class ContainerTools:
 class DynamoDBClientConfig:
     """Configuration for DynamoDB client setup."""
 
-    DUMMY_ACCESS_KEY = 'FakeAccessKeyID'  # pragma: allowlist secret
-    DUMMY_SECRET_KEY = 'FakeSecretAccessKey'  # pragma: allowlist secret
+    DUMMY_ACCESS_KEY = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+    DUMMY_SECRET_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
     DEFAULT_REGION = 'us-east-1'
 
 
@@ -95,6 +95,31 @@ def _run_subprocess_safely(
     Returns:
         Optional[subprocess.CompletedProcess]: Result if successful, None if failed
     """
+    # Safeguards against direct calls
+    if not cmd or not isinstance(cmd, list):
+        logger.warning('Invalid command format')
+        return None
+
+    # Restrict to only allowed commands used in this codebase
+    allowed_commands = {
+        'docker',
+        'finch',
+        'podman',
+        'nerdctl',  # Container tools
+        'java',  # Java executable
+    }
+
+    # Extract base command name (handle both full paths and command names)
+    base_cmd = os.path.basename(cmd[0]) if cmd else ''
+
+    # Remove .exe extension for Windows compatibility
+    if base_cmd.endswith('.exe'):
+        base_cmd = base_cmd[:-4]
+
+    if base_cmd not in allowed_commands:
+        logger.warning(f'Command not allowed: {base_cmd}')
+        return None
+
     try:
         return subprocess.run(
             cmd, check=True, timeout=timeout, capture_output=True, text=True, **kwargs

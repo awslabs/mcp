@@ -309,8 +309,10 @@ async def execute_dynamodb_command(
 
     # Configure environment with fake AWS credentials if endpoint_url is present
     if endpoint_url:
-        os.environ['AWS_ACCESS_KEY_ID'] = 'FakeAccessKeyID'  # pragma: allowlist secret
-        os.environ['AWS_SECRET_ACCESS_KEY'] = 'FakeSecretAccessKey'  # pragma: allowlist secret
+        os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+        os.environ['AWS_SECRET_ACCESS_KEY'] = (
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+        )
         os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
         command += f' --endpoint-url {endpoint_url}'
 

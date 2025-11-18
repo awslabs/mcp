@@ -14,7 +14,6 @@
 
 import os
 import pytest
-import subprocess
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
     _extract_port_from_cmdline,
     _safe_extract_members,
@@ -498,8 +497,67 @@ class TestDynamoDBLocalSetup:
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = FileNotFoundError('Command not found')
 
-            result = _run_subprocess_safely(['nonexistent_command'])
+            result = _run_subprocess_safely(['docker', 'ps'])
             assert result is None
+
+    def test_run_subprocess_safely_allowed_commands(self):
+        """Test _run_subprocess_safely allows whitelisted commands."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        allowed_commands = [
+            ['docker', 'ps'],
+            ['/usr/bin/docker', 'ps'],
+            ['finch', 'ps'],
+            ['podman', 'ps'],
+            ['nerdctl', 'ps'],
+            ['java', '-version'],
+            ['/usr/bin/java', '-version'],
+            ['docker.exe', 'ps'],  # Windows
+        ]
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock()
+
+            for cmd in allowed_commands:
+                result = _run_subprocess_safely(cmd)
+                assert result is not None
+
+    def test_run_subprocess_safely_blocked_commands(self):
+        """Test _run_subprocess_safely blocks non-whitelisted commands."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        blocked_commands = [
+            ['rm', '-rf', '/'],
+            ['curl', 'http://malicious.com'],
+            ['wget', 'http://evil.com'],
+            ['bash', '-c', 'rm -rf /'],
+            ['python', 'malicious_script.py'],
+            ['node', 'malware.js'],
+            ['arbitrary_command'],
+        ]
+
+        with patch('subprocess.run') as mock_run:
+            for cmd in blocked_commands:
+                result = _run_subprocess_safely(cmd)
+                assert result is None
+                mock_run.assert_not_called()
+
+    def test_run_subprocess_safely_invalid_input(self):
+        """Test _run_subprocess_safely with invalid input."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        invalid_inputs = [
+            None,
+            [],
+            'not_a_list',
+            123,
+        ]
+
+        with patch('subprocess.run') as mock_run:
+            for invalid_input in invalid_inputs:
+                result = _run_subprocess_safely(invalid_input)
+                assert result is None
+                mock_run.assert_not_called()
 
     def test_start_java_process_success(self):
         """Test Java process start success."""
@@ -932,20 +990,28 @@ class TestGetContainerPath:
 
     def test_get_container_path_docker_available(self):
         """Test when Docker is available and working."""
-        with patch('shutil.which') as mock_which, patch('subprocess.run') as mock_run:
+        with (
+            patch('shutil.which') as mock_which,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+            ) as mock_run_safe,
+        ):
             mock_which.side_effect = lambda tool: '/usr/bin/docker' if tool == 'docker' else None
-            mock_run.return_value = MagicMock()
+            mock_run_safe.return_value = MagicMock()
 
             result = get_container_path()
             assert result == '/usr/bin/docker'
 
-            mock_run.assert_called_once_with(
-                ['/usr/bin/docker', 'ps'], check=True, timeout=5, capture_output=True, text=True
-            )
+            mock_run_safe.assert_called_once_with(['/usr/bin/docker', 'ps'])
 
     def test_get_container_path_finch_available(self):
         """Test when Docker fails but Finch is available."""
-        with patch('shutil.which') as mock_which, patch('subprocess.run') as mock_run:
+        with (
+            patch('shutil.which') as mock_which,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+            ) as mock_run_safe,
+        ):
 
             def which_side_effect(tool):
                 if tool == 'docker':
@@ -957,14 +1023,14 @@ class TestGetContainerPath:
             mock_which.side_effect = which_side_effect
 
             # Docker fails, Finch succeeds
-            mock_run.side_effect = [
-                subprocess.CalledProcessError(1, 'docker ps', stderr='Docker daemon not running'),
+            mock_run_safe.side_effect = [
+                None,  # Docker fails
                 MagicMock(),  # Finch succeeds
             ]
 
             result = get_container_path()
             assert result == '/usr/bin/finch'
-            assert mock_run.call_count == 2
+            assert mock_run_safe.call_count == 2
 
     def test_get_container_path_no_tools_found(self):
         """Test when no container tools are found in PATH."""
@@ -975,20 +1041,19 @@ class TestGetContainerPath:
             assert result is None
 
     def test_get_container_path_all_tools_fail(self):
-        """Test when all container tools are found but none work (includes timeout scenarios)."""
-        with patch('shutil.which') as mock_which, patch('subprocess.run') as mock_run:
+        """Test when all container tools are found but none work."""
+        with (
+            patch('shutil.which') as mock_which,
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils._run_subprocess_safely'
+            ) as mock_run_safe,
+        ):
             mock_which.return_value = '/usr/bin/tool'  # All tools found
-            # Mix of different failure types including timeout
-            mock_run.side_effect = [
-                subprocess.CalledProcessError(1, 'ps', stderr='Connection failed'),
-                subprocess.TimeoutExpired('ps', 5),
-                subprocess.CalledProcessError(1, 'ps', stderr='Daemon not running'),
-                subprocess.CalledProcessError(1, 'ps', stderr='Permission denied'),
-            ]
+            mock_run_safe.return_value = None  # All tools fail
 
             result = get_container_path()
             assert result is None
-            assert mock_run.call_count == 4  # All 4 tools tried
+            assert mock_run_safe.call_count == 4  # All 4 tools tried
 
 
 class TestGetJavaPath:
@@ -1300,8 +1365,8 @@ class TestCheckDynamodbReadiness:
             mock_boto3.assert_called_once_with(
                 'dynamodb',
                 endpoint_url='http://localhost:8000',
-                aws_access_key_id='FakeAccessKeyID',  # pragma: allowlist secret
-                aws_secret_access_key='FakeSecretAccessKey',  # pragma: allowlist secret
+                aws_access_key_id='AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+                aws_secret_access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',  # pragma: allowlist secret
                 region_name='eu-west-1',
             )
 

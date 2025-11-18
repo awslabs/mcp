@@ -376,11 +376,12 @@ async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
             )
 
             assert (
-                os.environ['AWS_ACCESS_KEY_ID'] == 'FakeAccessKeyID'  # pragma: allowlist secret
+                os.environ['AWS_ACCESS_KEY_ID']
+                == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
             )
             assert (
                 os.environ['AWS_SECRET_ACCESS_KEY']
-                == 'FakeSecretAccessKey'  # pragma: allowlist secret
+                == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
             )
             assert 'AWS_DEFAULT_REGION' in os.environ
     finally:
