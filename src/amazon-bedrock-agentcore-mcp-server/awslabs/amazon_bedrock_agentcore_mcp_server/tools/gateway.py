@@ -57,6 +57,7 @@ Step 2: Create MCP Gateway
     --role-arn TEXT                IAM role ARN to use (creates one if not provided)
     --authorizer-config TEXT       Serialized authorizer config JSON (creates one if not provided)
     --enable_semantic_search       Enable semantic search tool (defaults to True)
+    -sem                           Short flag for --enable_semantic_search
     
     Example:
     agentcore gateway create-mcp-gateway --name MyGateway --region us-east-1
@@ -96,26 +97,27 @@ Step 3: Add Gateway Targets
     --role-arn TEXT                IAM role ARN of the created gateway (required)
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --name TEXT                    Name of the target (defaults to TestGatewayTarget)
-    --target-type TEXT             Type: 'lambda', 'openApiSchema', or 'smithyModel' (defaults to 'lambda')
+    --target-type TEXT             Type: 'lambda', 'openApiSchema', 'mcpServer', or 'smithyModel' (defaults to 'lambda')
     --target-payload TEXT          Target specification JSON (required for openApiSchema targets)
     --credentials TEXT             Credentials JSON for target access (API key or OAuth2, for openApiSchema targets)
 
 MANAGEMENT COMMANDS:
 
 List Gateways:
-    agentcore gateway list
+    agentcore gateway list-mcp-gateways
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --name TEXT                    Filter by gateway name
-    --max-results INTEGER          Maximum number of results to return (defaults to 50)
+    --max-results INTEGER          Maximum number of results to return (defaults to 50, max 1000)
+    -m INTEGER                     Short flag for --max-results
 
 Get Gateway Details:
-    agentcore gateway get --name MyGateway
+    agentcore gateway get-mcp-gateway --name MyGateway
     # OR
-    agentcore gateway get --id gateway-id
+    agentcore gateway get-mcp-gateway --id gateway-id
     # OR
-    agentcore gateway get --arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id
+    agentcore gateway get-mcp-gateway --arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
@@ -124,17 +126,18 @@ Get Gateway Details:
     --arn TEXT                     Gateway ARN (will extract ID)
 
 List Gateway Targets:
-    agentcore gateway list-targets --name MyGateway
+    agentcore gateway list-mcp-gateway-targets --name MyGateway
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID
     --name TEXT                    Gateway name (will look up ID)
     --arn TEXT                     Gateway ARN (will extract ID)
-    --max-results INTEGER          Maximum number of results to return (defaults to 50)
+    --max-results INTEGER          Maximum number of results to return (defaults to 50, max 1000)
+    -m INTEGER                     Short flag for --max-results
 
 Get Target Details:
-    agentcore gateway get-target --name MyGateway --target-name MyTarget
+    agentcore gateway get-mcp-gateway-target --name MyGateway --target-name MyTarget
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
@@ -147,7 +150,7 @@ Get Target Details:
 CLEANUP COMMANDS:
 
 Delete Gateway Target:
-    agentcore gateway delete-target --name MyGateway --target-name MyTarget
+    agentcore gateway delete-mcp-gateway-target --name MyGateway --target-name MyTarget
     
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
@@ -158,7 +161,7 @@ Delete Gateway Target:
     --target-name TEXT             Target name to delete (will look up ID)
 
 Delete Gateway:
-    agentcore gateway delete --name MyGateway
+    agentcore gateway delete-mcp-gateway --name MyGateway
     
     Note: Gateway must have zero targets before deletion, unless --force is used
     
@@ -226,7 +229,12 @@ TARGET TYPES:
    - Supports API key and OAuth2 authentication
    - Automatically creates credential providers
 
-3. Smithy Model Target:
+3. MCP Server Target:
+   - Connects to existing MCP servers
+   - Enables integration with external MCP-compatible services
+   - Requires appropriate authentication configuration
+
+4. Smithy Model Target:
    - Uses pre-configured Smithy models (e.g., DynamoDB)
    - Automatically selects appropriate model for region
    - No additional configuration required
@@ -257,13 +265,13 @@ Complete Gateway Setup:
 
 Gateway Cleanup:
     # Option 1: Delete targets individually, then gateway
-    agentcore gateway list-targets --name ProductionGateway
-    agentcore gateway delete-target --name ProductionGateway --target-name LambdaProcessor
-    agentcore gateway delete-target --name ProductionGateway --target-name ExternalAPI
-    agentcore gateway delete --name ProductionGateway
+    agentcore gateway list-mcp-gateway-targets --name ProductionGateway
+    agentcore gateway delete-mcp-gateway-target --name ProductionGateway --target-name LambdaProcessor
+    agentcore gateway delete-mcp-gateway-target --name ProductionGateway --target-name ExternalAPI
+    agentcore gateway delete-mcp-gateway --name ProductionGateway
     
     # Option 2: Force delete gateway and all targets at once
-    agentcore gateway delete --name ProductionGateway --force
+    agentcore gateway delete-mcp-gateway --name ProductionGateway --force
 
 KEY POINTS:
 - Gateways provide centralized MCP endpoint management
