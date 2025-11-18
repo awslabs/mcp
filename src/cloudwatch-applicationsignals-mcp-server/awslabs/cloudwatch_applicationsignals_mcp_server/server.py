@@ -170,7 +170,7 @@ async def audit_services(
     ),
     max_services: int = Field(
         default=5,
-        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
@@ -372,15 +372,19 @@ async def audit_services(
         # Expand wildcard patterns using paginated utility when wildcards are present
         service_names_in_batch = []
         returned_next_token = None
+        filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
 
         if has_wildcards:
             logger.debug('Wildcard patterns detected - applying paginated service expansion')
-            (
-                provided,
-                returned_next_token,
-                service_names_in_batch,
-            ) = expand_service_wildcard_patterns(
-                provided, unix_start, unix_end, next_token, max_services, applicationsignals_client
+            (provided, returned_next_token, service_names_in_batch, filtering_stats) = (
+                expand_service_wildcard_patterns(
+                    provided,
+                    unix_start,
+                    unix_end,
+                    next_token,
+                    max_services,
+                    applicationsignals_client,
+                )
             )
             logger.debug(f'Paginated wildcard expansion completed - {len(provided)} total targets')
 
@@ -409,6 +413,10 @@ async def audit_services(
             f'🎯 Scope: {len(normalized_targets)} service target(s) | Region: {region}\n'
             f'⏰ Time: {unix_start}–{unix_end}\n'
         )
+
+        # Add filtering statistics if services were filtered
+        if filtering_stats['total_services'] > 0:
+            banner += f'🔍 Service Filtering: {filtering_stats["instrumented_services"]} instrumented out of {filtering_stats["total_services"]} total services ({filtering_stats["filtered_out"]} filtered out)\n'
 
         if len(normalized_targets) > BATCH_SIZE_THRESHOLD:
             banner += f'📦 Batching: Processing {len(normalized_targets)} targets in batches of {BATCH_SIZE_THRESHOLD}\n'
@@ -473,7 +481,7 @@ async def audit_slos(
     ),
     max_slos: int = Field(
         default=5,
-        description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5). This controls pagination size for SLO discovery.',
+        description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for SLO discovery.',
     ),
 ) -> str:
     """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
@@ -727,7 +735,7 @@ async def audit_service_operations(
     ),
     max_services: int = Field(
         default=5,
-        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
     """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
@@ -875,6 +883,7 @@ async def audit_service_operations(
         # Expand wildcard patterns using shared utility with pagination support
         service_names_in_batch = []
         returned_next_token = None
+        filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
 
         if has_wildcards:
             logger.debug(
@@ -884,6 +893,7 @@ async def audit_service_operations(
                 operation_only_targets,
                 returned_next_token,
                 service_names_in_batch,
+                filtering_stats,
             ) = expand_service_operation_wildcard_patterns(
                 operation_only_targets,
                 unix_start,
@@ -913,6 +923,10 @@ async def audit_service_operations(
             f'🎯 Scope: {len(operation_only_targets)} operation target(s) | Region: {region}\n'
             f'⏰ Time: {unix_start}–{unix_end}\n'
         )
+
+        # Add filtering statistics if services were filtered
+        if filtering_stats['total_services'] > 0:
+            banner += f'🔍 Service Filtering: {filtering_stats["instrumented_services"]} instrumented out of {filtering_stats["total_services"]} total services ({filtering_stats["filtered_out"]} filtered out)\n'
 
         if len(operation_only_targets) > BATCH_SIZE_THRESHOLD:
             banner += f'📦 Batching: Processing {len(operation_only_targets)} targets in batches of {BATCH_SIZE_THRESHOLD}\n'

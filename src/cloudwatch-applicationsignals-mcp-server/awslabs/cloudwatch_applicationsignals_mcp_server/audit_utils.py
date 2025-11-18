@@ -172,9 +172,8 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             )
 
             batch_error_result = {
-                'batch_index': batch_idx,
                 'error': f'API call failed: {error_msg}',
-                'targets_count': len(batch_targets),
+                'targets': batch_targets,
             }
             all_batch_results.append(batch_error_result)
             continue
@@ -185,10 +184,9 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
 
     # Aggregate the findings from all successful batches
     aggregated_findings = []
-    total_targets_processed = 0
     failed_batches = 0
 
-    for batch_result in all_batch_results:
+    for batch_idx, batch_result in enumerate(all_batch_results):
         if isinstance(batch_result, dict):
             if 'error' in batch_result:
                 failed_batches += 1
@@ -197,25 +195,9 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             batch_findings = batch_result.get('AuditFindings', [])
             aggregated_findings.extend(batch_findings)
 
-            # Count targets processed (this batch)
-            # Get the batch size from the original targets list
-            current_batch_size = min(
-                DEFAULT_BATCH_SIZE,
-                len(targets)
-                - (len(aggregated_findings) // DEFAULT_BATCH_SIZE) * DEFAULT_BATCH_SIZE,
-            )
-            total_targets_processed += current_batch_size
-
     # Create final aggregated response
     final_result = {
         'AuditFindings': aggregated_findings,
-        'BatchSummary': {
-            'TotalBatches': len(target_batches),
-            'SuccessfulBatches': len(target_batches) - failed_batches,
-            'FailedBatches': failed_batches,
-            'TotalTargetsProcessed': total_targets_processed,
-            'TotalFindingsCount': len(aggregated_findings),
-        },
     }
 
     # Add any error information if there were failed batches
@@ -225,12 +207,11 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             if isinstance(batch_result, dict) and 'error' in batch_result:
                 error_details.append(
                     {
-                        'batch': batch_result['batch_index'],
                         'error': batch_result['error'],
-                        'targets_count': batch_result['targets_count'],
+                        'targets': batch_result['targets'],
                     }
                 )
-        final_result['BatchErrors'] = error_details
+        final_result['ListAuditFindingsErrors'] = error_details
 
     final_observation_text = json.dumps(final_result, indent=2, default=str)
     return banner + final_observation_text
@@ -252,6 +233,161 @@ def _create_service_target(
         'Type': 'service',
         'Data': {'Service': service_config},
     }
+
+
+def _filter_instrumented_services(all_services: List[Any]) -> List[Dict[str, Any]]:
+    """Filter out uninstrumented and aws native services.
+
+    Args:
+        all_services: List of service summaries from list_services API
+    Returns:
+        List of services that are instrumented
+    """
+    instrumented_services = []
+
+    for service in all_services:
+        service_attrs = service.get('KeyAttributes', {})
+        service_name = service_attrs.get('Name', '')
+        service_type = service_attrs.get('Type', '')
+        environment = service_attrs.get('Environment', '')
+
+        # Filter out services without proper names or that are not actual services
+        if not service_name or service_name == 'Unknown' or service_type != 'Service':
+            logger.debug(
+                f"Skipping service: Name='{service_name}', Type='{service_type}', Environment='{environment}'"
+            )
+            continue
+
+        # Check InstrumentationType in AttributeMaps to filter out UNINSTRUMENTED and AWS_NATIVE services
+        attribute_maps = service.get('AttributeMaps', [])
+        is_instrumented = True
+
+        for attr_map in attribute_maps:
+            if isinstance(attr_map, dict) and 'InstrumentationType' in attr_map:
+                instrumentation_type = attr_map['InstrumentationType']
+                if (
+                    instrumentation_type == 'UNINSTRUMENTED'
+                    or instrumentation_type == 'AWS_NATIVE'
+                ):
+                    is_instrumented = False
+                    logger.debug(
+                        f"Filtering out uninstrumented service: Name='{service_name}', InstrumentationType='{instrumentation_type}'"
+                    )
+                    break
+
+        if is_instrumented:
+            instrumented_services.append(service)
+            logger.debug(
+                f"Including instrumented service: Name='{service_name}', Environment='{environment}'"
+            )
+
+    logger.info(
+        f'Filtered services: {len(instrumented_services)} instrumented out of {len(all_services)} total services'
+    )
+    return instrumented_services
+
+
+def _fetch_instrumented_services_with_pagination(
+    unix_start: int,
+    unix_end: int,
+    next_token: Optional[str] = None,
+    max_results: int = 5,
+    applicationsignals_client=None,
+) -> tuple[List[Dict[str, Any]], Optional[str], List[str], Dict[str, int]]:
+    """Common pagination logic for fetching instrumented services.
+
+    Args:
+        unix_start: Start time as unix timestamp
+        unix_end: End time as unix timestamp
+        next_token: Token for pagination from previous list_services call
+        max_results: Maximum number of services to return per batch
+        applicationsignals_client: AWS Application Signals client
+    Returns:
+        Tuple of (instrumented_services, next_token, all_service_names, filtering_stats)
+        filtering_stats contains: {'total_services': int, 'instrumented_services': int, 'filtered_out': int}
+    """
+    if applicationsignals_client is None:
+        from .aws_clients import applicationsignals_client
+
+    all_service_names = []
+    filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
+
+    # Initialize variables for the loop
+    current_next_token = next_token
+    total_services_viewed = 0
+    total_filtered_out = 0
+    instrumented_services = []
+    returned_next_token = None
+
+    # Loop until we find instrumented services or run out of pages
+    while True:
+        # Build list_services parameters
+        list_services_params = {
+            'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
+            'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
+            'MaxResults': max_results,
+        }
+
+        # Add NextToken if provided for pagination
+        if current_next_token:
+            list_services_params['NextToken'] = current_next_token
+
+        logger.info(f'Fetching batch (viewed so far: {total_services_viewed} services)')
+
+        services_response = applicationsignals_client.list_services(**list_services_params)
+        services_batch = services_response.get('ServiceSummaries', [])
+        returned_next_token = services_response.get('NextToken')
+
+        # Collect all service names from this batch (no filtering)
+        for service in services_batch:
+            service_attrs = service.get('KeyAttributes', {})
+            service_name = service_attrs.get('Name', '')
+            all_service_names.append(service_name)
+
+        # Update total services viewed
+        total_services_viewed += len(services_batch)
+
+        logger.debug(
+            f'Retrieved {len(services_batch)} services in this batch, NextToken: {returned_next_token is not None}'
+        )
+
+        # Filter out uninstrumented services using the helper function
+        instrumented_services = _filter_instrumented_services(services_batch)
+
+        # Update totals
+        batch_filtered_out = len(services_batch) - len(instrumented_services)
+        total_filtered_out += batch_filtered_out
+
+        logger.info(
+            f'Fetch instrumented services batch results: {len(services_batch)} total, {len(instrumented_services)} instrumented, {batch_filtered_out} filtered out'
+        )
+        logger.info(
+            f'Fetch instrumented services cumulative: {total_services_viewed} total viewed, {total_filtered_out} filtered out'
+        )
+
+        # Check if we found instrumented services - if so, exit the loop immediately
+        if len(instrumented_services) > 0:
+            logger.info(
+                f'Found {len(instrumented_services)} instrumented services, proceeding with expansion'
+            )
+            break
+        elif not returned_next_token:
+            logger.warning(
+                f'No instrumented services found after viewing {total_services_viewed} total services across all pages'
+            )
+            break
+        else:
+            logger.info(
+                'No instrumented services in this batch, continuing to next page (next_token available)'
+            )
+            current_next_token = returned_next_token
+
+    # Update filtering stats with final totals
+    filtering_stats['total_services'] = total_services_viewed
+    filtering_stats['instrumented_services'] = len(instrumented_services)
+    filtering_stats['filtered_out'] = total_filtered_out
+
+    return (instrumented_services, returned_next_token, all_service_names, filtering_stats)
 
 
 def parse_auditors(
@@ -300,7 +436,7 @@ def expand_service_wildcard_patterns(
     next_token: Optional[str] = None,
     max_results: int = 5,
     applicationsignals_client=None,
-) -> Tuple[List[dict], Optional[str], List[str]]:
+) -> Tuple[List[dict], Optional[str], List[str], Dict[str, int]]:
     """Expand wildcard patterns for service targets with pagination support.
 
     Args:
@@ -310,8 +446,10 @@ def expand_service_wildcard_patterns(
         next_token: Token for pagination from previous list_services call
         max_results: Maximum number of services to return
         applicationsignals_client: AWS Application Signals client
+
     Returns:
-        Tuple of (expanded_targets, next_token, service_names_in_batch)
+        Tuple of (expanded_targets, next_token, all_service_names, filtering_stats)
+        filtering_stats contains: {'total_services': int, 'instrumented_services': int, 'filtered_out': int}
     """
     from .utils import calculate_name_similarity
 
@@ -321,7 +459,8 @@ def expand_service_wildcard_patterns(
     expanded_targets = []
     service_patterns = []
     service_fuzzy_matches = []
-    service_names_in_batch = []
+    all_service_names = []
+    filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
 
     logger.debug(
         f'expand_service_wildcard_patterns_paginated: Processing {len(targets)} targets with max_results={max_results}'
@@ -377,68 +516,41 @@ def expand_service_wildcard_patterns(
             f'Expanding {len(service_patterns)} service wildcard patterns and {len(service_fuzzy_matches)} fuzzy matches with pagination'
         )
         try:
-            # Build list_services parameters
-            list_services_params = {
-                'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
-                'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
-                'MaxResults': max_results,
-            }
-
-            # Add NextToken if provided for pagination
-            if next_token:
-                list_services_params['NextToken'] = next_token
-
-            services_response = applicationsignals_client.list_services(**list_services_params)
-            services_batch = services_response.get('ServiceSummaries', [])
-            returned_next_token = services_response.get('NextToken')
-
-            # Collect all service names from this batch (no filtering)
-            for service in services_batch:
-                service_attrs = service.get('KeyAttributes', {})
-                service_name = service_attrs.get('Name', '')
-                service_names_in_batch.append(service_name)
-
-            logger.debug(
-                f'Retrieved {len(services_batch)} services, NextToken: {returned_next_token is not None}'
+            # Use the common pagination function
+            instrumented_services, returned_next_token, all_service_names, filtering_stats = (
+                _fetch_instrumented_services_with_pagination(
+                    unix_start, unix_end, next_token, max_results, applicationsignals_client
+                )
             )
-            logger.debug(f'Service names in batch: {service_names_in_batch}')
 
             # Handle wildcard patterns
             for original_target, pattern in service_patterns:
                 search_term = pattern.strip('*').lower() if pattern != '*' else ''
                 matches_found = 0
 
-                for service in services_batch:
+                for service in instrumented_services:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
-                    service_type = service_attrs.get('Type', '')
                     environment = service_attrs.get('Environment', '')
-
-                    # Filter out services without proper names or that are not actual services
-                    if not service_name or service_name == 'Unknown' or service_type != 'Service':
-                        logger.debug(
-                            f"Skipping service: Name='{service_name}', Type='{service_type}', Environment='{environment}'"
-                        )
-                        continue
 
                     # Apply search filter
                     if search_term == '' or search_term in service_name.lower():
                         expanded_targets.append(_create_service_target(service_name, environment))
                         matches_found += 1
                         logger.debug(
-                            f"Added service: Name='{service_name}', Environment='{environment}'"
+                            f"Added instrumented service: Name='{service_name}', Environment='{environment}'"
                         )
 
                 logger.debug(
-                    f"Service pattern '{pattern}' expanded to {matches_found} targets in this batch"
+                    f"Service pattern '{pattern}' expanded to {matches_found} instrumented targets in this batch"
                 )
 
             # Handle fuzzy matches for inexact service names
             for original_target, inexact_name in service_fuzzy_matches:
                 best_matches = []
 
-                # Calculate similarity scores for services in this batch
-                for service in services_batch:
+                # Calculate similarity scores for all instrumented services
+                for service in instrumented_services:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
                     if not service_name:
@@ -463,7 +575,7 @@ def expand_service_wildcard_patterns(
                         matched_services = best_matches[:3]
 
                     logger.info(
-                        f"Fuzzy matching service '{inexact_name}' found {len(matched_services)} candidates in this batch:"
+                        f"Fuzzy matching service '{inexact_name}' found {len(matched_services)} instrumented candidates in this batch:"
                     )
                     for service_name, environment, score in matched_services:
                         logger.info(f"  - '{service_name}' in '{environment}' (score: {score})")
@@ -475,11 +587,7 @@ def expand_service_wildcard_patterns(
                     # Keep the original target - let the API handle the error
                     expanded_targets.append(original_target)
 
-            return (
-                expanded_targets,
-                returned_next_token,
-                service_names_in_batch,
-            )
+            return (expanded_targets, returned_next_token, all_service_names, filtering_stats)
 
         except Exception as e:
             logger.warning(f'Failed to expand service patterns and fuzzy matches: {e}')
@@ -495,7 +603,7 @@ def expand_service_wildcard_patterns(
                     f'Error: {str(e)}'
                 )
 
-    return expanded_targets, None, service_names_in_batch
+    return expanded_targets, None, all_service_names, filtering_stats
 
 
 def expand_slo_wildcard_patterns(
@@ -511,6 +619,7 @@ def expand_slo_wildcard_patterns(
         next_token: Token for pagination from previous list_service_level_objectives call
         max_results: Maximum number of SLOs to return
         applicationsignals_client: AWS Application Signals client
+
     Returns:
         Tuple of (expanded_targets, next_token, slo_names_in_batch)
     """
@@ -610,7 +719,7 @@ def expand_service_operation_wildcard_patterns(
     next_token: Optional[str] = None,
     max_results: int = 5,
     applicationsignals_client=None,
-) -> Tuple[List[dict], Optional[str], List[str]]:
+) -> Tuple[List[dict], Optional[str], List[str], Dict[str, int]]:
     """Expand wildcard patterns for service operation targets with pagination support.
 
     Args:
@@ -620,15 +729,18 @@ def expand_service_operation_wildcard_patterns(
         next_token: Token for pagination from previous list_services call
         max_results: Maximum number of services to return
         applicationsignals_client: AWS Application Signals client
+
     Returns:
-        Tuple of (expanded_targets, next_token, service_names_in_batch)
+        Tuple of (expanded_targets, next_token, all_service_names, filtering_stats)
+        filtering_stats contains: {'total_services': int, 'instrumented_services': int, 'filtered_out': int}
     """
     if applicationsignals_client is None:
         from .aws_clients import applicationsignals_client
 
     expanded_targets = []
     wildcard_patterns = []
-    service_names_in_batch = []
+    all_service_names = []
+    filtering_stats = {'total_services': 0, 'instrumented_services': 0, 'filtered_out': 0}
 
     for target in targets:
         if isinstance(target, dict):
@@ -656,31 +768,12 @@ def expand_service_operation_wildcard_patterns(
             f'Expanding {len(wildcard_patterns)} service operation wildcard patterns with pagination'
         )
         try:
-            # Build list_services parameters with pagination support
-            list_services_params = {
-                'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
-                'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
-                'MaxResults': max_results,
-            }
-
-            # Add NextToken if provided for pagination
-            if next_token:
-                list_services_params['NextToken'] = next_token
-
-            services_response = applicationsignals_client.list_services(**list_services_params)
-            services_batch = services_response.get('ServiceSummaries', [])
-            returned_next_token = services_response.get('NextToken')
-
-            # Collect all service names from this batch (no filtering)
-            for service in services_batch:
-                service_attrs = service.get('KeyAttributes', {})
-                service_name = service_attrs.get('Name', '')
-                service_names_in_batch.append(service_name)
-
-            logger.debug(
-                f'Retrieved {len(services_batch)} services, NextToken: {returned_next_token is not None}'
+            # Use the common pagination function
+            instrumented_services, returned_next_token, all_service_names, filtering_stats = (
+                _fetch_instrumented_services_with_pagination(
+                    unix_start, unix_end, next_token, max_results, applicationsignals_client
+                )
             )
-            logger.debug(f'Service names in batch: {service_names_in_batch}')
 
             for original_target, service_pattern, operation_pattern in wildcard_patterns:
                 service_search_term = (
@@ -695,16 +788,11 @@ def expand_service_operation_wildcard_patterns(
                 service_op_data = original_target.get('Data', {}).get('ServiceOperation', {})
                 metric_type = service_op_data.get('MetricType', 'Latency')
 
-                # Find matching services from this batch
+                # Find matching services from instrumented services only
                 matching_services = []
-                for service in services_batch:
+                for service in instrumented_services:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
-                    service_type = service_attrs.get('Type', '')
-
-                    # Filter out services without proper names or that are not actual services
-                    if not service_name or service_name == 'Unknown' or service_type != 'Service':
-                        continue
 
                     # Check if service matches the pattern
                     if '*' not in service_pattern:
@@ -720,7 +808,7 @@ def expand_service_operation_wildcard_patterns(
                             matching_services.append(service)
 
                 logger.debug(
-                    f"Found {len(matching_services)} services matching pattern '{service_pattern}'"
+                    f"Found {len(matching_services)} instrumented services matching pattern '{service_pattern}'"
                 )
 
                 # For each matching service, get operations and expand operation patterns
@@ -813,11 +901,12 @@ def expand_service_operation_wildcard_patterns(
             return (
                 expanded_targets,
                 returned_next_token,
-                service_names_in_batch,
+                all_service_names,
+                filtering_stats,
             )
 
         except Exception as e:
             logger.warning(f'Failed to expand service operation patterns: {e}')
             raise ValueError(f'Failed to expand service operation wildcard patterns. {str(e)}')
 
-    return expanded_targets, None, service_names_in_batch
+    return expanded_targets, None, all_service_names, filtering_stats

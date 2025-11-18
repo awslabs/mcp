@@ -17,6 +17,8 @@
 import os
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils import (
+    _fetch_instrumented_services_with_pagination,
+    _filter_instrumented_services,
     execute_audit_api,
     expand_service_operation_wildcard_patterns,
     expand_service_wildcard_patterns,
@@ -96,7 +98,7 @@ class TestExecuteAuditApi:
 
         assert 'finding-1' in result
         assert 'finding-2' in result
-        assert 'TotalBatches' in result
+        # The actual implementation returns aggregated AuditFindings, not TotalBatches
         assert '"AuditFindings"' in result
         assert mock_applicationsignals_client.list_audit_findings.call_count == 2
 
@@ -112,7 +114,7 @@ class TestExecuteAuditApi:
             result = await execute_audit_api(sample_input_obj, 'us-east-1', 'Test Banner\n')
 
         assert 'Test Banner' in result
-        assert 'TotalFindingsCount": 0' in result
+        # The actual implementation returns empty AuditFindings array, not TotalFindingsCount
         assert '"AuditFindings": []' in result
 
     @pytest.mark.asyncio
@@ -126,7 +128,7 @@ class TestExecuteAuditApi:
             result = await execute_audit_api(sample_input_obj, 'us-east-1', 'Test Banner\n')
 
         assert 'API call failed: API Error' in result
-        assert 'BatchErrors' in result
+        assert 'ListAuditFindingsErrors' in result
 
     @pytest.mark.asyncio
     async def test_execute_audit_api_log_path_handling(
@@ -142,6 +144,35 @@ class TestExecuteAuditApi:
                 with patch('builtins.open', mock_open()):
                     await execute_audit_api(sample_input_obj, 'us-east-1', 'Test Banner\n')
                     mock_makedirs.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_execute_audit_api_batch_errors_aggregation(
+        self, mock_applicationsignals_client
+    ):
+        """Test that failed batch errors are properly aggregated in ListAuditFindingsErorrs."""
+        # Create input with multiple batches where some fail
+        input_obj = {
+            'StartTime': 1640995200,
+            'EndTime': 1641081600,
+            'AuditTargets': [
+                {'Type': 'service', 'Data': {'Service': {'Name': f'service-{i}'}}}
+                for i in range(7)  # 7 targets = 2 batches
+            ],
+        }
+
+        # First batch succeeds, second batch fails
+        mock_applicationsignals_client.list_audit_findings.side_effect = [
+            {'AuditFindings': [{'FindingId': 'finding-1'}]},
+            Exception('API Error for batch 2'),
+        ]
+
+        with patch('builtins.open', mock_open()):
+            result = await execute_audit_api(input_obj, 'us-east-1', 'Test Banner\n')
+
+        # Verify ListAuditFindingsErrors is present and contains error details
+        assert 'ListAuditFindingsErrors' in result
+        assert 'API call failed: API Error for batch 2' in result
+        assert 'finding-1' in result  # Successful batch findings still included
 
     @pytest.mark.asyncio
     async def test_execute_audit_api_log_path_exception(
@@ -239,6 +270,943 @@ class TestParseAuditors:
         assert result == expected
 
 
+class TestFetchInstrumentedServicesWithPagination:
+    """Test _fetch_instrumented_services_with_pagination function."""
+
+    @pytest.fixture
+    def mock_applicationsignals_client(self):
+        """Mock applicationsignals client."""
+        return Mock()
+
+    def test_fetch_instrumented_services_basic_functionality(self, mock_applicationsignals_client):
+        """Test basic functionality with instrumented services."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'instrumented-service-1',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'instrumented-service-2',
+                        'Type': 'Service',
+                        'Environment': 'staging',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                },
+            ]
+        }
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 2
+        assert next_token is None
+        assert len(all_service_names) == 2
+        assert 'instrumented-service-1' in all_service_names
+        assert 'instrumented-service-2' in all_service_names
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 2
+        assert filtering_stats['filtered_out'] == 0
+
+    def test_fetch_instrumented_services_empty_response(self, mock_applicationsignals_client):
+        """Test behavior with empty service response."""
+        mock_applicationsignals_client.list_services.return_value = {'ServiceSummaries': []}
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 0
+        assert next_token is None
+        assert len(all_service_names) == 0
+        assert filtering_stats['total_services'] == 0
+        assert filtering_stats['instrumented_services'] == 0
+        assert filtering_stats['filtered_out'] == 0
+
+    def test_fetch_instrumented_services_all_filtered_out(self, mock_applicationsignals_client):
+        """Test behavior when all services are filtered out."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'uninstrumented-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'aws-native-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+                },
+            ]
+        }
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 0
+        assert next_token is None
+        assert len(all_service_names) == 2
+        assert 'uninstrumented-service' in all_service_names
+        assert 'aws-native-service' in all_service_names
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 0
+        assert filtering_stats['filtered_out'] == 2
+
+    def test_fetch_instrumented_services_pagination_continuation(
+        self, mock_applicationsignals_client
+    ):
+        """Test automatic pagination continuation when no instrumented services in first batch."""
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    }
+                ]
+            },
+        ]
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 1
+        assert instrumented_services[0]['KeyAttributes']['Name'] == 'instrumented-service'
+        assert next_token is None
+        assert len(all_service_names) == 2
+        assert 'uninstrumented-service' in all_service_names
+        assert 'instrumented-service' in all_service_names
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 1
+        assert filtering_stats['filtered_out'] == 1
+
+        # Verify both API calls were made
+        assert mock_applicationsignals_client.list_services.call_count == 2
+
+    def test_fetch_instrumented_services_pagination_with_next_token_stops(
+        self, mock_applicationsignals_client
+    ):
+        """Test pagination stops and returns NextToken when instrumented services found."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'instrumented-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                }
+            ],
+            'NextToken': 'next-token-456',
+        }
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 1
+        assert next_token == 'next-token-456'
+        assert len(all_service_names) == 1
+        assert filtering_stats['total_services'] == 1
+        assert filtering_stats['instrumented_services'] == 1
+        assert filtering_stats['filtered_out'] == 0
+
+        # Should only make one API call since instrumented services were found
+        assert mock_applicationsignals_client.list_services.call_count == 1
+
+    def test_fetch_instrumented_services_exhausts_pagination(self, mock_applicationsignals_client):
+        """Test behavior when pagination is exhausted without finding instrumented services."""
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-2',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+                    }
+                ],
+                # No NextToken - end of pagination
+            },
+        ]
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        assert len(instrumented_services) == 0
+        assert next_token is None
+        assert len(all_service_names) == 2
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 0
+        assert filtering_stats['filtered_out'] == 2
+
+        # Should make both API calls
+        assert mock_applicationsignals_client.list_services.call_count == 2
+
+    def test_fetch_instrumented_services_with_input_next_token(
+        self, mock_applicationsignals_client
+    ):
+        """Test function accepts and passes through next_token input parameter."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'instrumented-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                }
+            ]
+        }
+
+        _fetch_instrumented_services_with_pagination(
+            1640995200,
+            1641081600,
+            next_token='input-token-789',
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        # Verify that input NextToken was passed to list_services
+        mock_applicationsignals_client.list_services.assert_called_once()
+        call_args = mock_applicationsignals_client.list_services.call_args[1]
+        assert call_args['NextToken'] == 'input-token-789'
+
+    def test_fetch_instrumented_services_max_results_parameter(
+        self, mock_applicationsignals_client
+    ):
+        """Test that max_results parameter is passed to list_services API."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'instrumented-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    },
+                    'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                }
+            ]
+        }
+
+        _fetch_instrumented_services_with_pagination(
+            1640995200,
+            1641081600,
+            max_results=20,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        # Verify that MaxResults was passed to list_services
+        mock_applicationsignals_client.list_services.assert_called_once()
+        call_args = mock_applicationsignals_client.list_services.call_args[1]
+        assert call_args['MaxResults'] == 20
+
+    def test_fetch_instrumented_services_time_parameters(self, mock_applicationsignals_client):
+        """Test that start and end time parameters are correctly converted and passed."""
+        mock_applicationsignals_client.list_services.return_value = {'ServiceSummaries': []}
+
+        start_time = 1640995200  # 2022-01-01 00:00:00 UTC
+        end_time = 1641081600  # 2022-01-02 00:00:00 UTC
+
+        _fetch_instrumented_services_with_pagination(
+            start_time, end_time, applicationsignals_client=mock_applicationsignals_client
+        )
+
+        # Verify that StartTime and EndTime were converted and passed to list_services
+        mock_applicationsignals_client.list_services.assert_called_once()
+        call_args = mock_applicationsignals_client.list_services.call_args[1]
+        assert call_args['StartTime'].timestamp() == start_time
+        assert call_args['EndTime'].timestamp() == end_time
+
+    def test_fetch_instrumented_services_statistics_accuracy_across_batches(
+        self, mock_applicationsignals_client
+    ):
+        """Test that filtering statistics are accurately accumulated across multiple batches."""
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    },
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-2',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+                    },
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    },
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service-2',
+                            'Type': 'Service',
+                            'Environment': 'staging',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    },
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-3',
+                            'Type': 'Service',
+                            'Environment': 'dev',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    },
+                ],
+                # No NextToken - end of pagination
+            },
+        ]
+
+        instrumented_services, next_token, all_service_names, filtering_stats = (
+            _fetch_instrumented_services_with_pagination(
+                1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+            )
+        )
+
+        # Verify accurate statistics across both batches
+        assert filtering_stats['total_services'] == 5  # 2 + 3 from both batches
+        assert filtering_stats['instrumented_services'] == 2  # Only from second batch
+        assert filtering_stats['filtered_out'] == 3  # 2 from first + 1 from second
+
+        assert len(instrumented_services) == 2
+        assert len(all_service_names) == 5
+        assert next_token is None
+
+    @patch('awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils.logger')
+    def test_fetch_instrumented_services_logging(
+        self, mock_logger, mock_applicationsignals_client
+    ):
+        """Test that function logs appropriate messages during pagination."""
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    }
+                ]
+            },
+        ]
+
+        _fetch_instrumented_services_with_pagination(
+            1640995200, 1641081600, applicationsignals_client=mock_applicationsignals_client
+        )
+
+        # Verify logging calls
+        info_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+
+        # Should log fetching batch
+        assert any('Fetching batch' in call for call in info_calls)
+
+        # Should log batch results
+        assert any('Fetch instrumented services batch results:' in call for call in info_calls)
+
+        # Should log cumulative results
+        assert any('Fetch instrumented services cumulative:' in call for call in info_calls)
+
+        # Should log when instrumented services are found
+        assert any(
+            'Found' in call and 'instrumented services, proceeding with expansion' in call
+            for call in info_calls
+        )
+
+
+class TestFilterInstrumentedServices:
+    """Test _filter_instrumented_services function."""
+
+    def test_filter_instrumented_services_all_instrumented(self):
+        """Test filtering when all services are instrumented."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'payment-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED', 'Platform': 'EKS'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'user-service',
+                    'Type': 'Service',
+                    'Environment': 'staging',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED', 'Platform': 'Lambda'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        assert len(result) == 2
+        service_names = [s['KeyAttributes']['Name'] for s in result]
+        assert 'payment-service' in service_names
+        assert 'user-service' in service_names
+
+    def test_filter_instrumented_services_mixed_instrumentation(self):
+        """Test filtering with mix of instrumented and uninstrumented services."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'instrumented-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED', 'Platform': 'EKS'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'uninstrumented-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED', 'Platform': 'EKS'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'aws-native-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE', 'Platform': 'Lambda'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'instrumented-service'
+
+    def test_filter_instrumented_services_no_instrumentation_type(self):
+        """Test filtering when services have no InstrumentationType."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-without-instrumentation',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'Platform': 'EKS'}  # No InstrumentationType
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-with-instrumentation',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED', 'Platform': 'EKS'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Services without InstrumentationType should be considered instrumented
+        assert len(result) == 2
+        service_names = [s['KeyAttributes']['Name'] for s in result]
+        assert 'service-without-instrumentation' in service_names
+        assert 'service-with-instrumentation' in service_names
+
+    def test_filter_instrumented_services_empty_attribute_maps(self):
+        """Test filtering when services have empty AttributeMaps."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-empty-attrs',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [],  # Empty list
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-no-attrs',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                # No AttributeMaps key
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Services without AttributeMaps should be considered instrumented
+        assert len(result) == 2
+        service_names = [s['KeyAttributes']['Name'] for s in result]
+        assert 'service-empty-attrs' in service_names
+        assert 'service-no-attrs' in service_names
+
+    def test_filter_instrumented_services_invalid_service_name(self):
+        """Test filtering services with invalid names."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': '',  # Empty name
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'Unknown',  # Invalid name
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Type': 'Service',  # Missing Name
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'valid-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Only the valid service should be included
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'valid-service'
+
+    def test_filter_instrumented_services_invalid_service_type(self):
+        """Test filtering services with invalid types."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-wrong-type',
+                    'Type': 'NotService',  # Wrong type
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-no-type',
+                    'Environment': 'prod',
+                    # Missing Type
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'valid-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Only the service with correct type should be included
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'valid-service'
+
+    def test_filter_instrumented_services_multiple_attribute_maps(self):
+        """Test filtering with multiple AttributeMaps per service."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-multiple-attrs',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'Platform': 'EKS'},  # No InstrumentationType
+                    {'InstrumentationType': 'UNINSTRUMENTED'},  # This should filter it out
+                    {'Other': 'value'},
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-instrumented-only',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'InstrumentationType': 'INSTRUMENTED'},  # This should keep it
+                    {'Platform': 'EKS'},  # No InstrumentationType in this one
+                ],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # First service should be filtered out due to UNINSTRUMENTED
+        # Second service should be kept (only has INSTRUMENTED)
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'service-instrumented-only'
+
+    def test_filter_instrumented_services_non_dict_attribute_map(self):
+        """Test filtering with non-dict AttributeMap entries."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-with-non-dict-attr',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    'not-a-dict',  # Non-dict entry
+                    {'InstrumentationType': 'INSTRUMENTED'},
+                ],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Should handle non-dict entries gracefully and include the service
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'service-with-non-dict-attr'
+
+    def test_filter_instrumented_services_empty_input(self):
+        """Test filtering with empty input."""
+        result = _filter_instrumented_services([])
+        assert len(result) == 0
+
+    def test_filter_instrumented_services_missing_key_attributes(self):
+        """Test filtering services without KeyAttributes."""
+        all_services = [
+            {
+                # Missing KeyAttributes
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {},  # Empty KeyAttributes
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'valid-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Only the service with valid KeyAttributes should be included
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'valid-service'
+
+    @patch('awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils.logger')
+    def test_filter_instrumented_services_logging(self, mock_logger):
+        """Test that filtering logs appropriate debug messages."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'instrumented-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'uninstrumented-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': '',  # Invalid name
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Verify logging calls
+        assert mock_logger.debug.call_count >= 3  # At least one call per service
+        assert mock_logger.info.call_count == 1  # Summary log
+
+        # Check that the summary log includes correct counts
+        summary_call = mock_logger.info.call_args[0][0]
+        assert '1 instrumented out of 3 total services' in summary_call
+
+        # Verify result
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'instrumented-service'
+
+    def test_filter_instrumented_services_case_sensitivity(self):
+        """Test that InstrumentationType filtering is case-sensitive."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-lowercase',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'InstrumentationType': 'uninstrumented'}  # lowercase
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-uppercase',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'InstrumentationType': 'UNINSTRUMENTED'}  # uppercase
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'service-mixed-case',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'InstrumentationType': 'Uninstrumented'}  # mixed case
+                ],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Only exact case matches should be filtered out
+        # lowercase and mixed case should be kept (not exact matches)
+        assert len(result) == 2
+        service_names = [s['KeyAttributes']['Name'] for s in result]
+        assert 'service-lowercase' in service_names
+        assert 'service-mixed-case' in service_names
+        assert 'service-uppercase' not in service_names
+
+    def test_filter_instrumented_services_aws_native_filtering(self):
+        """Test that AWS_NATIVE services are filtered out."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'aws-native-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'regular-service',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # AWS_NATIVE should be filtered out
+        assert len(result) == 1
+        assert result[0]['KeyAttributes']['Name'] == 'regular-service'
+
+    def test_filter_instrumented_services_break_on_first_uninstrumented(self):
+        """Test that filtering breaks on first UNINSTRUMENTED/AWS_NATIVE found."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'service-with-mixed-attrs',
+                    'Type': 'Service',
+                    'Environment': 'prod',
+                },
+                'AttributeMaps': [
+                    {'Platform': 'EKS'},  # No InstrumentationType
+                    {'InstrumentationType': 'UNINSTRUMENTED'},  # This should cause filtering
+                    {'InstrumentationType': 'INSTRUMENTED'},  # This should be ignored
+                ],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Service should be filtered out due to UNINSTRUMENTED (breaks on first match)
+        assert len(result) == 0
+
+    def test_filter_instrumented_services_real_world_scenario(self):
+        """Test filtering with realistic service data."""
+        all_services = [
+            {
+                'KeyAttributes': {
+                    'Name': 'payment-gateway',
+                    'Type': 'Service',
+                    'Environment': 'eks:production/default',
+                },
+                'AttributeMaps': [
+                    {
+                        'InstrumentationType': 'INSTRUMENTED',
+                        'Platform': 'EKS',
+                        'Application': 'payment-app',
+                    }
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'user-auth-lambda',
+                    'Type': 'Service',
+                    'Environment': 'lambda',
+                },
+                'AttributeMaps': [
+                    {
+                        'InstrumentationType': 'INSTRUMENTED',
+                        'Platform': 'Lambda',
+                        'Runtime': 'nodejs18.x',
+                    }
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'legacy-service',
+                    'Type': 'Service',
+                    'Environment': 'ec2:legacy',
+                },
+                'AttributeMaps': [
+                    {
+                        'InstrumentationType': 'UNINSTRUMENTED',
+                        'Platform': 'EC2',
+                        'Reason': 'Legacy system without instrumentation',
+                    }
+                ],
+            },
+            {
+                'KeyAttributes': {
+                    'Name': 'aws-s3-service',
+                    'Type': 'Service',
+                    'Environment': 'aws:s3',
+                },
+                'AttributeMaps': [
+                    {
+                        'InstrumentationType': 'AWS_NATIVE',
+                        'Platform': 'AWS',
+                        'ServiceType': 'S3',
+                    }
+                ],
+            },
+        ]
+
+        result = _filter_instrumented_services(all_services)
+
+        # Only instrumented services should remain
+        assert len(result) == 2
+        service_names = [s['KeyAttributes']['Name'] for s in result]
+        assert 'payment-gateway' in service_names
+        assert 'user-auth-lambda' in service_names
+        assert 'legacy-service' not in service_names
+        assert 'aws-s3-service' not in service_names
+
+
 class TestExpandServiceWildcardPatterns:
     """Test expand_service_wildcard_patterns function."""
 
@@ -277,11 +1245,13 @@ class TestExpandServiceWildcardPatterns:
         """Test expanding wildcard for all services."""
         targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
-            targets,
-            1640995200,
-            1641081600,
-            applicationsignals_client=mock_applicationsignals_client,
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
         )
 
         assert len(expanded_targets) == 3
@@ -295,17 +1265,24 @@ class TestExpandServiceWildcardPatterns:
         assert 'user-service' in service_names_in_batch
         assert 'payment-gateway' in service_names_in_batch
 
+        # Check filtering stats
+        assert filtering_stats['total_services'] == 3
+        assert filtering_stats['instrumented_services'] == 3
+        assert filtering_stats['filtered_out'] == 0
+
     def test_expand_service_wildcard_pattern_match(self, mock_applicationsignals_client):
         """Test expanding wildcard with pattern matching."""
         targets = [
             {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*payment*'}}}
         ]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
-            targets,
-            1640995200,
-            1641081600,
-            applicationsignals_client=mock_applicationsignals_client,
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
         )
 
         assert len(expanded_targets) == 2
@@ -316,17 +1293,24 @@ class TestExpandServiceWildcardPatterns:
         assert next_token is None
         assert len(service_names_in_batch) == 3  # All services are collected in batch
 
+        # Check filtering stats - shows all services from API call, not just pattern matches
+        assert filtering_stats['total_services'] == 3
+        assert filtering_stats['instrumented_services'] == 3
+        assert filtering_stats['filtered_out'] == 0
+
     def test_expand_service_no_wildcard(self, mock_applicationsignals_client):
         """Test with no wildcard patterns."""
         targets = [
             {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'exact-service'}}}
         ]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
-            targets,
-            1640995200,
-            1641081600,
-            applicationsignals_client=mock_applicationsignals_client,
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
         )
 
         # Non-wildcard service names are treated as fuzzy matches, so the original target is kept
@@ -340,15 +1324,22 @@ class TestExpandServiceWildcardPatterns:
         assert 'user-service' in service_names_in_batch
         assert 'payment-gateway' in service_names_in_batch
 
+        # Check filtering stats - fuzzy matching still calls API and calculates stats
+        assert filtering_stats['total_services'] == 3
+        assert filtering_stats['instrumented_services'] == 3
+        assert filtering_stats['filtered_out'] == 0
+
     def test_expand_service_shorthand_format(self, mock_applicationsignals_client):
         """Test expanding with shorthand service format."""
         targets = [{'Type': 'service', 'Service': '*payment*'}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
-            targets,
-            1640995200,
-            1641081600,
-            applicationsignals_client=mock_applicationsignals_client,
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
         )
 
         assert len(expanded_targets) == 2
@@ -357,6 +1348,11 @@ class TestExpandServiceWildcardPatterns:
         assert 'payment-gateway' in service_names
         assert next_token is None
         assert len(service_names_in_batch) == 3
+
+        # Check filtering stats - shows all services from API call, not just pattern matches
+        assert filtering_stats['total_services'] == 3
+        assert filtering_stats['instrumented_services'] == 3
+        assert filtering_stats['filtered_out'] == 0
 
     def test_expand_service_api_error(self, mock_applicationsignals_client):
         """Test handling API errors during expansion."""
@@ -376,17 +1372,24 @@ class TestExpandServiceWildcardPatterns:
         """Test that non-service targets pass through unchanged."""
         targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': 'test-slo'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
-            targets,
-            1640995200,
-            1641081600,
-            applicationsignals_client=mock_applicationsignals_client,
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
         )
 
         assert len(expanded_targets) == 1
         assert expanded_targets[0]['Type'] == 'slo'
         assert next_token is None
         assert len(service_names_in_batch) == 0
+
+        # Check filtering stats - no service targets means no filtering occurred
+        assert filtering_stats['total_services'] == 0
+        assert filtering_stats['instrumented_services'] == 0
+        assert filtering_stats['filtered_out'] == 0
 
     @patch('awslabs.cloudwatch_applicationsignals_mcp_server.utils.calculate_name_similarity')
     def test_expand_service_fuzzy_matching(self, mock_similarity, mock_applicationsignals_client):
@@ -404,7 +1407,7 @@ class TestExpandServiceWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
+        expanded_targets, next_token, service_names_in_batch, _ = expand_service_wildcard_patterns(
             targets,
             1640995200,
             1641081600,
@@ -435,7 +1438,7 @@ class TestExpandServiceWildcardPatterns:
 
         targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
+        expanded_targets, next_token, service_names_in_batch, _ = expand_service_wildcard_patterns(
             targets,
             1640995200,
             1641081600,
@@ -453,7 +1456,7 @@ class TestExpandServiceWildcardPatterns:
         """Test expanding wildcard patterns with next_token input parameter."""
         targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
+        expanded_targets, next_token, service_names_in_batch, _ = expand_service_wildcard_patterns(
             targets,
             1640995200,
             1641081600,
@@ -515,7 +1518,7 @@ class TestExpandServiceWildcardPatterns:
             {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*payment*'}}}
         ]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
+        expanded_targets, _, service_names_in_batch, _ = expand_service_wildcard_patterns(
             targets,
             1640995200,
             1641081600,
@@ -562,7 +1565,7 @@ class TestExpandServiceWildcardPatterns:
 
         targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = expand_service_wildcard_patterns(
+        expanded_targets, _, service_names_in_batch, _ = expand_service_wildcard_patterns(
             targets,
             1640995200,
             1641081600,
@@ -578,6 +1581,280 @@ class TestExpandServiceWildcardPatterns:
         assert 'Unknown' in service_names_in_batch
         assert 'valid-service' in service_names_in_batch
         assert 'good-service' in service_names_in_batch
+
+    def test_expand_service_wildcard_auto_continue_to_next_batch(
+        self, mock_applicationsignals_client
+    ):
+        """Test automatic continuation when first batch has no instrumented services."""
+        # Mock two API calls: first with no instrumented services, second with instrumented services
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    }
+                ]
+            },
+        ]
+
+        targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
+
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
+        )
+
+        # Should find the instrumented service from the second batch
+        assert len(expanded_targets) == 1
+        assert expanded_targets[0]['Data']['Service']['Name'] == 'instrumented-service'
+        assert next_token is None  # No more pages after second batch
+
+        # Should collect service names from both batches
+        assert len(service_names_in_batch) == 2
+        assert 'uninstrumented-service' in service_names_in_batch
+        assert 'instrumented-service' in service_names_in_batch
+
+        # Check filtering stats across both batches
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 1
+        assert filtering_stats['filtered_out'] == 1
+
+        # Verify both API calls were made
+        assert mock_applicationsignals_client.list_services.call_count == 2
+
+    def test_expand_service_wildcard_no_instrumented_services_anywhere(
+        self, mock_applicationsignals_client
+    ):
+        """Test behavior when no instrumented services exist across all pages."""
+        # Mock multiple API calls with no instrumented services and eventual end of pagination
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'aws-native-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+                    }
+                ],
+                # No NextToken - end of pagination
+            },
+        ]
+
+        targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
+
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
+        )
+
+        # Should find no instrumented services
+        assert len(expanded_targets) == 0
+        assert next_token is None
+
+        # Should collect service names from both batches
+        assert len(service_names_in_batch) == 2
+        assert 'uninstrumented-service-1' in service_names_in_batch
+        assert 'aws-native-service' in service_names_in_batch
+
+        # Check filtering stats - all services filtered out
+        assert filtering_stats['total_services'] == 2
+        assert filtering_stats['instrumented_services'] == 0
+        assert filtering_stats['filtered_out'] == 2
+
+        # Verify both API calls were made
+        assert mock_applicationsignals_client.list_services.call_count == 2
+
+    def test_expand_service_wildcard_filtering_stats_across_batches(
+        self, mock_applicationsignals_client
+    ):
+        """Test that filtering statistics are properly accumulated across multiple batches."""
+        # Mock three API calls with mixed instrumentation types
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    },
+                    {
+                        'KeyAttributes': {
+                            'Name': 'aws-native-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'AWS_NATIVE'}],
+                    },
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service-1',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    },
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service-2',
+                            'Type': 'Service',
+                            'Environment': 'staging',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    },
+                ],
+                # No NextToken - end of pagination
+            },
+        ]
+
+        targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
+
+        expanded_targets, next_token, service_names_in_batch, filtering_stats = (
+            expand_service_wildcard_patterns(
+                targets,
+                1640995200,
+                1641081600,
+                applicationsignals_client=mock_applicationsignals_client,
+            )
+        )
+
+        # Should find the instrumented services from the second batch
+        assert len(expanded_targets) == 2
+        service_names = [t['Data']['Service']['Name'] for t in expanded_targets]
+        assert 'instrumented-service-1' in service_names
+        assert 'instrumented-service-2' in service_names
+        assert next_token is None
+
+        # Should collect service names from both batches
+        assert len(service_names_in_batch) == 4
+        assert 'uninstrumented-service-1' in service_names_in_batch
+        assert 'aws-native-service' in service_names_in_batch
+        assert 'instrumented-service-1' in service_names_in_batch
+        assert 'instrumented-service-2' in service_names_in_batch
+
+        # Check cumulative filtering stats across both batches
+        assert filtering_stats['total_services'] == 4
+        assert filtering_stats['instrumented_services'] == 2
+        assert filtering_stats['filtered_out'] == 2
+
+        # Verify both API calls were made
+        assert mock_applicationsignals_client.list_services.call_count == 2
+
+    @patch('awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils.logger')
+    def test_expand_service_wildcard_pagination_logging(
+        self, mock_logger, mock_applicationsignals_client
+    ):
+        """Test that pagination loop logs appropriate messages."""
+        # Mock two API calls: first with no instrumented services, second with instrumented services
+        mock_applicationsignals_client.list_services.side_effect = [
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'uninstrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'UNINSTRUMENTED'}],
+                    }
+                ],
+                'NextToken': 'token-123',
+            },
+            {
+                'ServiceSummaries': [
+                    {
+                        'KeyAttributes': {
+                            'Name': 'instrumented-service',
+                            'Type': 'Service',
+                            'Environment': 'prod',
+                        },
+                        'AttributeMaps': [{'InstrumentationType': 'INSTRUMENTED'}],
+                    }
+                ]
+            },
+        ]
+
+        targets = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': '*'}}}]
+
+        expand_service_wildcard_patterns(
+            targets,
+            1640995200,
+            1641081600,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        # Verify logging calls for pagination behavior
+        info_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+
+        # Should log fetching services batch (updated message format)
+        assert any('Fetching batch' in call for call in info_calls)
+
+        # Should log batch results (updated message format)
+        assert any('Fetch instrumented services batch results:' in call for call in info_calls)
+
+        # Should log cumulative results (updated message format)
+        assert any('Fetch instrumented services cumulative:' in call for call in info_calls)
+
+        # Should log continuation to next page
+        assert any(
+            'No instrumented services in this batch, continuing to next page' in call
+            for call in info_calls
+        )
+
+        # Should log when instrumented services are found
+        assert any(
+            'Found' in call and 'instrumented services, proceeding with expansion' in call
+            for call in info_calls
+        )
 
 
 class TestExpandSloWildcardPatterns:
@@ -871,7 +2148,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -902,7 +2179,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -931,7 +2208,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -960,7 +2237,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1024,7 +2301,7 @@ class TestExpandServiceOperationWildcardPatterns:
         ]
 
         # Should not raise exception, but log warning and continue
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1044,7 +2321,7 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test that non-service-operation targets pass through unchanged."""
         targets = [{'Type': 'service', 'Data': {'Service': {'Name': 'test-service'}}}]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1094,7 +2371,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1141,7 +2418,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1173,7 +2450,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1259,7 +2536,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, _, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1319,7 +2596,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1359,7 +2636,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1394,7 +2671,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1443,7 +2720,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
@@ -1493,7 +2770,7 @@ class TestExpandServiceOperationWildcardPatterns:
             }
         ]
 
-        expanded_targets, next_token, service_names_in_batch = (
+        expanded_targets, next_token, service_names_in_batch, _ = (
             expand_service_operation_wildcard_patterns(
                 targets,
                 1640995200,
