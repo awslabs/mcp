@@ -170,7 +170,7 @@ async def audit_services(
     ),
     max_services: int = Field(
         default=5,
-        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
@@ -481,7 +481,7 @@ async def audit_slos(
     ),
     max_slos: int = Field(
         default=5,
-        description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5). This controls pagination size for SLO discovery.',
+        description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for SLO discovery.',
     ),
 ) -> str:
     """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
@@ -735,7 +735,7 @@ async def audit_service_operations(
     ),
     max_services: int = Field(
         default=5,
-        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5, max: 10). This controls pagination size for service discovery.',
     ),
 ) -> str:
     """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
