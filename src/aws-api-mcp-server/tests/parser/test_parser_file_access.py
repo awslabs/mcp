@@ -56,8 +56,9 @@ environment for file operations.
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.errors import (
-    CommandValidationError,
     FileParameterError,
+    FilePathValidationError,
+    LocalFileAccessDisabledError,
     OperationNotAllowedError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import parse
@@ -110,7 +111,7 @@ class TestDefaultFileAccessBehavior:
         """Test that tilde is not expanded."""
         expected_message = (
             "Invalid file parameter '~user_that_does_not_exist/temp/test.txt' for service 's3' and operation 'cp': "
-            'should be an absolute path. Please provide a valid file path.'
+            'should be an absolute path.'
         )
         with pytest.raises(FileParameterError) as exc_info:
             parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
@@ -153,7 +154,7 @@ class TestDefaultFileAccessBehavior:
     def test_parse_raises_error_for_relative_paths_in_blob_args(self, command):
         """Test that _validate_output_file raises CommandValidationError for blob args with relative paths."""
         with pytest.raises(
-            CommandValidationError,
+            FilePathValidationError,
             match='is outside the allowed working directory',
         ):
             parse(command)
@@ -222,7 +223,7 @@ class TestDisabledLocalFileAccess:
         """Test that commands with local paths are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
         with pytest.raises(
             FileParameterError,
-            match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+            match='local file system access is disabled',
         ):
             parse(command)
 
@@ -237,10 +238,7 @@ class TestDisabledLocalFileAccess:
     )
     def test_rejects_file_blob_arguments(self, command):
         """Test that commands with file:// and fileb:// arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
-        with pytest.raises(
-            CommandValidationError,
-            match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-        ):
+        with pytest.raises(LocalFileAccessDisabledError):
             parse(command)
 
     @pytest.mark.parametrize(
@@ -256,10 +254,7 @@ class TestDisabledLocalFileAccess:
 
         Streaming blob arguments accept only file paths.
         """
-        with pytest.raises(
-            CommandValidationError,
-            match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
-        ):
+        with pytest.raises(LocalFileAccessDisabledError):
             parse(command)
 
     @pytest.mark.parametrize(
@@ -294,7 +289,7 @@ class TestDisabledLocalFileAccess:
         command = f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key'
         with pytest.raises(
             FileParameterError,
-            match='Local file access is disabled via AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS',
+            match='local file system access is disabled',
         ):
             parse(command)
 

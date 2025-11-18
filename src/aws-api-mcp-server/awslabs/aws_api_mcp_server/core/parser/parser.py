@@ -33,11 +33,13 @@ from ..common.errors import (
     DeniedGlobalArgumentsError,
     ExpectedArgumentError,
     FileParameterError,
+    FilePathValidationError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
+    LocalFileAccessDisabledError,
     MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
@@ -860,12 +862,12 @@ def _validate_file_path(file_path: str, service: str, operation: str):
 
     try:
         validate_file_path(file_path)
-    except ValueError as e:
+    except (FilePathValidationError, LocalFileAccessDisabledError) as e:
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason=str(e),
+            reason=e._reason,
         )
 
 

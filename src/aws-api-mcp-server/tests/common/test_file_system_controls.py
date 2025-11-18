@@ -15,6 +15,7 @@
 import os
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+from awslabs.aws_api_mcp_server.core.common.errors import FilePathValidationError
 from awslabs.aws_api_mcp_server.core.common.file_system_controls import (
     CUSTOM_FILE_PATH_ARGUMENTS,
     validate_file_path,
@@ -33,7 +34,7 @@ def test_safe_path_allowed():
 def test_unsafe_path_blocked():
     """Test that files outside working directory are blocked."""
     unsafe_path = '/tmp/unsafe_file.txt'
-    with pytest.raises(ValueError):
+    with pytest.raises(FilePathValidationError):
         validate_file_path(unsafe_path)
 
 
