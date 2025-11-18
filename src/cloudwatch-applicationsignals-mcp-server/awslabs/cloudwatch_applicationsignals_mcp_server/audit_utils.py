@@ -19,7 +19,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from loguru import logger
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 # Constants
@@ -294,9 +294,25 @@ def parse_auditors(
 
 
 def expand_service_wildcard_patterns(
-    targets: List[dict], unix_start: int, unix_end: int, applicationsignals_client=None
-) -> List[dict]:
-    """Expand wildcard patterns for service targets only."""
+    targets: List[dict],
+    unix_start: int,
+    unix_end: int,
+    next_token: Optional[str] = None,
+    max_results: int = 5,
+    applicationsignals_client=None,
+) -> Tuple[List[dict], Optional[str], List[str]]:
+    """Expand wildcard patterns for service targets with pagination support.
+
+    Args:
+        targets: List of target dictionaries
+        unix_start: Start time as unix timestamp
+        unix_end: End time as unix timestamp
+        next_token: Token for pagination from previous list_services call
+        max_results: Maximum number of services to return
+        applicationsignals_client: AWS Application Signals client
+    Returns:
+        Tuple of (expanded_targets, next_token, service_names_in_batch)
+    """
     from .utils import calculate_name_similarity
 
     if applicationsignals_client is None:
@@ -305,8 +321,12 @@ def expand_service_wildcard_patterns(
     expanded_targets = []
     service_patterns = []
     service_fuzzy_matches = []
+    service_names_in_batch = []
 
-    logger.debug(f'expand_service_wildcard_patterns: Processing {len(targets)} targets')
+    logger.debug(
+        f'expand_service_wildcard_patterns_paginated: Processing {len(targets)} targets with max_results={max_results}'
+    )
+    logger.debug(f'Received next_token: {next_token is not None}')
 
     # First pass: identify patterns and collect non-wildcard targets
     for i, target in enumerate(targets):
@@ -351,25 +371,44 @@ def expand_service_wildcard_patterns(
             logger.debug(f'Target {i} is not a service target, passing through')
             expanded_targets.append(target)
 
-    # Expand service patterns and fuzzy matches
+    # Expand service patterns and fuzzy matches with pagination
     if service_patterns or service_fuzzy_matches:
         logger.debug(
-            f'Expanding {len(service_patterns)} service wildcard patterns and {len(service_fuzzy_matches)} fuzzy matches'
+            f'Expanding {len(service_patterns)} service wildcard patterns and {len(service_fuzzy_matches)} fuzzy matches with pagination'
         )
         try:
-            services_response = applicationsignals_client.list_services(
-                StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
-                EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
-                MaxResults=100,
+            # Build list_services parameters
+            list_services_params = {
+                'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                'MaxResults': max_results,
+            }
+
+            # Add NextToken if provided for pagination
+            if next_token:
+                list_services_params['NextToken'] = next_token
+
+            services_response = applicationsignals_client.list_services(**list_services_params)
+            services_batch = services_response.get('ServiceSummaries', [])
+            returned_next_token = services_response.get('NextToken')
+
+            # Collect all service names from this batch (no filtering)
+            for service in services_batch:
+                service_attrs = service.get('KeyAttributes', {})
+                service_name = service_attrs.get('Name', '')
+                service_names_in_batch.append(service_name)
+
+            logger.debug(
+                f'Retrieved {len(services_batch)} services, NextToken: {returned_next_token is not None}'
             )
-            all_services = services_response.get('ServiceSummaries', [])
+            logger.debug(f'Service names in batch: {service_names_in_batch}')
 
             # Handle wildcard patterns
             for original_target, pattern in service_patterns:
                 search_term = pattern.strip('*').lower() if pattern != '*' else ''
                 matches_found = 0
 
-                for service in all_services:
+                for service in services_batch:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
                     service_type = service_attrs.get('Type', '')
@@ -390,14 +429,16 @@ def expand_service_wildcard_patterns(
                             f"Added service: Name='{service_name}', Environment='{environment}'"
                         )
 
-                logger.debug(f"Service pattern '{pattern}' expanded to {matches_found} targets")
+                logger.debug(
+                    f"Service pattern '{pattern}' expanded to {matches_found} targets in this batch"
+                )
 
             # Handle fuzzy matches for inexact service names
             for original_target, inexact_name in service_fuzzy_matches:
                 best_matches = []
 
-                # Calculate similarity scores for all services
-                for service in all_services:
+                # Calculate similarity scores for services in this batch
+                for service in services_batch:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
                     if not service_name:
@@ -422,17 +463,23 @@ def expand_service_wildcard_patterns(
                         matched_services = best_matches[:3]
 
                     logger.info(
-                        f"Fuzzy matching service '{inexact_name}' found {len(matched_services)} candidates:"
+                        f"Fuzzy matching service '{inexact_name}' found {len(matched_services)} candidates in this batch:"
                     )
                     for service_name, environment, score in matched_services:
                         logger.info(f"  - '{service_name}' in '{environment}' (score: {score})")
                         expanded_targets.append(_create_service_target(service_name, environment))
                 else:
                     logger.warning(
-                        f"No fuzzy matches found for service name '{inexact_name}' (no candidates above threshold)"
+                        f"No fuzzy matches found for service name '{inexact_name}' (no candidates above threshold) in this batch"
                     )
                     # Keep the original target - let the API handle the error
                     expanded_targets.append(original_target)
+
+            return (
+                expanded_targets,
+                returned_next_token,
+                service_names_in_batch,
+            )
 
         except Exception as e:
             logger.warning(f'Failed to expand service patterns and fuzzy matches: {e}')
@@ -448,18 +495,31 @@ def expand_service_wildcard_patterns(
                     f'Error: {str(e)}'
                 )
 
-    return expanded_targets
+    return expanded_targets, None, service_names_in_batch
 
 
 def expand_slo_wildcard_patterns(
-    targets: List[dict], applicationsignals_client=None
-) -> List[dict]:
-    """Expand wildcard patterns for SLO targets only."""
+    targets: List[dict],
+    next_token: Optional[str] = None,
+    max_results: int = 5,
+    applicationsignals_client=None,
+) -> Tuple[List[dict], Optional[str], List[str]]:
+    """Expand wildcard patterns for SLO targets with pagination support.
+
+    Args:
+        targets: List of target dictionaries
+        next_token: Token for pagination from previous list_service_level_objectives call
+        max_results: Maximum number of SLOs to return
+        applicationsignals_client: AWS Application Signals client
+    Returns:
+        Tuple of (expanded_targets, next_token, slo_names_in_batch)
+    """
     if applicationsignals_client is None:
         from .aws_clients import applicationsignals_client
 
     expanded_targets = []
     wildcard_patterns = []
+    slo_names_in_batch = []
 
     for target in targets:
         if isinstance(target, dict):
@@ -497,17 +557,31 @@ def expand_slo_wildcard_patterns(
     if wildcard_patterns:
         logger.debug(f'Expanding {len(wildcard_patterns)} SLO wildcard patterns')
         try:
-            # Get all SLOs to expand patterns
-            slos_response = applicationsignals_client.list_service_level_objectives(
-                MaxResults=50, IncludeLinkedAccounts=True
-            )
-            all_slos = slos_response.get('SloSummaries', [])
+            list_slos_params = {
+                'MaxResults': max_results,
+                'IncludeLinkedAccounts': True,
+            }
 
+            if next_token:
+                list_slos_params['NextToken'] = next_token
+
+            slos_response = applicationsignals_client.list_service_level_objectives(
+                **list_slos_params
+            )
+            slos_batch = slos_response.get('SloSummaries', [])
+            returned_next_token = slos_response.get('NextToken')
+
+            # Collect all SLO names from this batch
+            for slo in slos_batch:
+                slo_name = slo.get('Name', '')
+                slo_names_in_batch.append(slo_name)
+
+            # Handle wildcard patterns
             for original_target, pattern in wildcard_patterns:
                 search_term = pattern.strip('*').lower() if pattern != '*' else ''
                 matches_found = 0
 
-                for slo in all_slos:
+                for slo in slos_batch:
                     slo_name = slo.get('Name', '')
                     if search_term == '' or search_term in slo_name.lower():
                         expanded_targets.append(
@@ -521,23 +595,40 @@ def expand_slo_wildcard_patterns(
                         matches_found += 1
 
                 logger.debug(f"SLO pattern '{pattern}' expanded to {matches_found} targets")
-
+            return expanded_targets, returned_next_token, slo_names_in_batch
         except Exception as e:
             logger.warning(f'Failed to expand SLO patterns: {e}')
             raise ValueError(f'Failed to expand SLO wildcard patterns. {str(e)}')
 
-    return expanded_targets
+    return expanded_targets, None, slo_names_in_batch
 
 
 def expand_service_operation_wildcard_patterns(
-    targets: List[dict], unix_start: int, unix_end: int, applicationsignals_client=None
-) -> List[dict]:
-    """Expand wildcard patterns for service operation targets only."""
+    targets: List[dict],
+    unix_start: int,
+    unix_end: int,
+    next_token: Optional[str] = None,
+    max_results: int = 5,
+    applicationsignals_client=None,
+) -> Tuple[List[dict], Optional[str], List[str]]:
+    """Expand wildcard patterns for service operation targets with pagination support.
+
+    Args:
+        targets: List of target dictionaries
+        unix_start: Start time as unix timestamp
+        unix_end: End time as unix timestamp
+        next_token: Token for pagination from previous list_services call
+        max_results: Maximum number of services to return
+        applicationsignals_client: AWS Application Signals client
+    Returns:
+        Tuple of (expanded_targets, next_token, service_names_in_batch)
+    """
     if applicationsignals_client is None:
         from .aws_clients import applicationsignals_client
 
     expanded_targets = []
     wildcard_patterns = []
+    service_names_in_batch = []
 
     for target in targets:
         if isinstance(target, dict):
@@ -561,15 +652,35 @@ def expand_service_operation_wildcard_patterns(
 
     # Expand wildcard patterns for service operations
     if wildcard_patterns:
-        logger.debug(f'Expanding {len(wildcard_patterns)} service operation wildcard patterns')
+        logger.debug(
+            f'Expanding {len(wildcard_patterns)} service operation wildcard patterns with pagination'
+        )
         try:
-            # Get all services to expand patterns
-            services_response = applicationsignals_client.list_services(
-                StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
-                EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
-                MaxResults=100,
+            # Build list_services parameters with pagination support
+            list_services_params = {
+                'StartTime': datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                'EndTime': datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                'MaxResults': max_results,
+            }
+
+            # Add NextToken if provided for pagination
+            if next_token:
+                list_services_params['NextToken'] = next_token
+
+            services_response = applicationsignals_client.list_services(**list_services_params)
+            services_batch = services_response.get('ServiceSummaries', [])
+            returned_next_token = services_response.get('NextToken')
+
+            # Collect all service names from this batch (no filtering)
+            for service in services_batch:
+                service_attrs = service.get('KeyAttributes', {})
+                service_name = service_attrs.get('Name', '')
+                service_names_in_batch.append(service_name)
+
+            logger.debug(
+                f'Retrieved {len(services_batch)} services, NextToken: {returned_next_token is not None}'
             )
-            all_services = services_response.get('ServiceSummaries', [])
+            logger.debug(f'Service names in batch: {service_names_in_batch}')
 
             for original_target, service_pattern, operation_pattern in wildcard_patterns:
                 service_search_term = (
@@ -584,9 +695,9 @@ def expand_service_operation_wildcard_patterns(
                 service_op_data = original_target.get('Data', {}).get('ServiceOperation', {})
                 metric_type = service_op_data.get('MetricType', 'Latency')
 
-                # Find matching services
+                # Find matching services from this batch
                 matching_services = []
-                for service in all_services:
+                for service in services_batch:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
                     service_type = service_attrs.get('Type', '')
@@ -699,8 +810,14 @@ def expand_service_operation_wildcard_patterns(
                     f"Service operation pattern '{service_pattern}' + '{operation_pattern}' expanded to {matches_found} targets"
                 )
 
+            return (
+                expanded_targets,
+                returned_next_token,
+                service_names_in_batch,
+            )
+
         except Exception as e:
             logger.warning(f'Failed to expand service operation patterns: {e}')
             raise ValueError(f'Failed to expand service operation wildcard patterns. {str(e)}')
 
-    return expanded_targets
+    return expanded_targets, None, service_names_in_batch

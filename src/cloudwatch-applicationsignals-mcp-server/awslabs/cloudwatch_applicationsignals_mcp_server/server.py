@@ -19,6 +19,7 @@ import os
 import re
 import sys
 import tempfile
+from .audit_presentation_utils import format_pagination_info
 from .audit_utils import (
     execute_audit_api,
     expand_service_operation_wildcard_patterns,
@@ -163,6 +164,14 @@ async def audit_services(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'slo,operation_metric,dependency_metric'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
+    next_token: Optional[str] = Field(
+        default=None,
+        description='Optional. Token for pagination through services from list_services API. Use this to continue from where the previous call left off when processing wildcard patterns.',
+    ),
+    max_services: int = Field(
+        default=5,
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
+    ),
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
@@ -260,14 +269,25 @@ async def audit_services(
     21. **Audit quota usage of tier 1 services**:
         `service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*tier1*"}}}]'` + `auditors="service_quota,operation_metric"`
 
+    **PAGINATION SUPPORT FOR WILDCARD PATTERNS:**
+    - **Automatic Pagination**: Wildcard patterns now process services in batches of 5 (configurable with `max_services`)
+    - **Continue Processing**: Use `next_token` from previous response to continue auditing remaining services
+    - **Example Pagination Workflow**:
+      1. First call: `audit_services(service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]')`
+      2. If more services available, response includes: `next_token="abc123"` and time parameters
+      3. Continue: `audit_services(service_targets='[...]', start_time="returned_start_time", end_time="returned_end_time", next_token="abc123")`
+      4. Repeat until no more `next_token` returned
+
     **TYPICAL SERVICE AUDIT WORKFLOWS:**
     1. **Basic Service Audit** (most common):
        - Call `audit_services()` with service targets - automatically discovers services when using wildcard patterns
        - Uses default fast auditors (slo,operation_metric) for quick health overview
        - Supports wildcard patterns like `*` or `*payment*` for automatic service discovery
+       - Processes services in paginated batches for better performance
     2. **Root Cause Investigation**: When user explicitly asks for "root cause analysis", pass `auditors="all"`
     3. **Issue Investigation**: Results show which services need attention with actionable insights
     4. **Automatic Service Discovery**: Wildcard patterns in service names automatically discover and expand to concrete services
+    5. **Paginated Processing**: For large service lists, continue with `next_token` to audit remaining services
 
     **AUDIT RESULTS INCLUDE:**
     - **Prioritized findings** by severity (critical, warning, info)
@@ -349,17 +369,28 @@ async def audit_services(
 
         logger.debug(f'audit_services: has_wildcards = {has_wildcards}')
 
-        # Expand wildcard patterns using shared utility
+        # Expand wildcard patterns using paginated utility when wildcards are present
+        service_names_in_batch = []
+        returned_next_token = None
+
         if has_wildcards:
-            logger.debug('Wildcard patterns detected - applying service expansion')
-            provided = expand_service_wildcard_patterns(
-                provided, unix_start, unix_end, applicationsignals_client
+            logger.debug('Wildcard patterns detected - applying paginated service expansion')
+            (
+                provided,
+                returned_next_token,
+                service_names_in_batch,
+            ) = expand_service_wildcard_patterns(
+                provided, unix_start, unix_end, next_token, max_services, applicationsignals_client
             )
-            logger.debug(f'Wildcard expansion completed - {len(provided)} total targets')
+            logger.debug(f'Paginated wildcard expansion completed - {len(provided)} total targets')
 
             # Check if wildcard expansion resulted in no services
             if not provided:
                 return 'Error: No services found matching the wildcard pattern. Use list_monitored_services() to see available services.'
+        else:
+            # For non-wildcard targets, validate next_token parameter
+            if next_token:
+                return 'Error: next_token parameter is only supported when using wildcard patterns in service names.'
 
         # Normalize and validate service targets using shared utility
         normalized_targets = normalize_service_targets(provided)
@@ -396,6 +427,19 @@ async def audit_services(
         # Execute audit API using shared utility
         result = await execute_audit_api(input_obj, region, banner)
 
+        # Add prominent pagination information when wildcards were used
+        result += format_pagination_info(
+            has_wildcards,
+            service_names_in_batch,
+            returned_next_token,
+            unix_start,
+            unix_end,
+            'audit_services',
+            'max_services',
+            max_services,
+            'services',
+        )
+
         elapsed = timer() - start_time_perf
         logger.debug(f'audit_services completed in {elapsed:.3f}s (region={region})')
         return result
@@ -422,6 +466,14 @@ async def audit_slos(
     auditors: Optional[str] = Field(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo' for fast SLO compliance auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
+    ),
+    next_token: Optional[str] = Field(
+        default=None,
+        description='Optional. Token for pagination through SLOs from list_service_level_objectives API. Use this to continue from where the previous call left off when processing wildcard patterns.',
+    ),
+    max_slos: int = Field(
+        default=5,
+        description='Optional. Maximum number of SLOs to process per call when using wildcard patterns (default: 5). This controls pagination size for SLO discovery.',
     ),
 ) -> str:
     """PRIMARY SLO AUDIT TOOL - The #1 tool for comprehensive SLO compliance monitoring and breach analysis.
@@ -476,6 +528,15 @@ async def audit_slos(
 
     14. **Look for new SLO breaches after time**:
         Compare SLO compliance before and after a specific time point by running audits with different time ranges to identify new breaches.
+
+    **PAGINATION SUPPORT FOR WILDCARD PATTERNS:**
+    - **Automatic Pagination**: Wildcard patterns now process SLOs in batches of 5 (configurable with `max_slos`)
+    - **Continue Processing**: Use `next_token` from previous response to continue auditing remaining SLOs
+    - **Example Pagination Workflow**:
+      1. First call: `audit_slos(slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]')`
+      2. If more SLOs available, response includes: `next_token="abc123"` and time parameters
+      3. Continue: `audit_slos(slo_targets='[...]', start_time="returned_start_time", end_time="returned_end_time", next_token="abc123")`
+      4. Repeat until no more `next_token` returned
 
     **TYPICAL SLO AUDIT WORKFLOWS:**
     1. **SLO Root Cause Investigation** (RECOMMENDED):
@@ -563,13 +624,18 @@ async def audit_slos(
                         f"Ignoring target of type '{ttype}' in audit_slos (expected 'slo')"
                     )
 
-        # Expand wildcard patterns for SLOs using shared utility
+        # Expand wildcard patterns for SLOs using shared utility with pagination
+        slo_names_in_batch = []
+        returned_next_token = None
+
         if wildcard_patterns:
             logger.debug(f'Expanding {len(wildcard_patterns)} SLO wildcard patterns')
             try:
-                # Use the shared utility function
-                expanded_slo_targets = expand_slo_wildcard_patterns(
-                    provided, applicationsignals_client
+                # Use the paginated utility function
+                expanded_slo_targets, returned_next_token, slo_names_in_batch = (
+                    expand_slo_wildcard_patterns(
+                        provided, next_token, max_slos, applicationsignals_client
+                    )
                 )
                 # Filter to get only SLO targets
                 slo_only_targets = [
@@ -581,6 +647,10 @@ async def audit_slos(
             except Exception as e:
                 logger.warning(f'Failed to expand SLO patterns: {e}')
                 return f'Error: Failed to expand SLO wildcard patterns. {str(e)}'
+        else:
+            # For non-wildcard targets, validate next_token parameter
+            if next_token:
+                return 'Error: next_token parameter is only supported when using wildcard patterns in SLO names.'
 
         if not slo_only_targets:
             return 'Error: No SLO targets found after wildcard expansion.'
@@ -611,6 +681,19 @@ async def audit_slos(
         # Execute audit API using shared utility
         result = await execute_audit_api(input_obj, region, banner)
 
+        # Add prominent pagination information when wildcards were used
+        result += format_pagination_info(
+            bool(wildcard_patterns),
+            slo_names_in_batch,
+            returned_next_token,
+            unix_start,
+            unix_end,
+            'audit_slos',
+            'max_slos',
+            max_slos,
+            'SLOs',
+        )
+
         elapsed = timer() - start_time_perf
         logger.debug(f'audit_slos completed in {elapsed:.3f}s (region={region})')
         return result
@@ -637,6 +720,14 @@ async def audit_service_operations(
     auditors: Optional[str] = Field(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'operation_metric,trace,log'). Defaults to 'operation_metric' for fast operation-level auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
+    ),
+    next_token: Optional[str] = Field(
+        default=None,
+        description='Optional. Token for pagination through services from list_services API. Use this to continue from where the previous call left off when processing wildcard patterns.',
+    ),
+    max_services: int = Field(
+        default=5,
+        description='Optional. Maximum number of services to process per call when using wildcard patterns (default: 5). This controls pagination size for service discovery.',
     ),
 ) -> str:
     """🥇 PRIMARY OPERATION AUDIT TOOL - The #1 RECOMMENDED tool for operation-specific analysis and performance investigation.
@@ -698,14 +789,25 @@ async def audit_service_operations(
     5. **Trace latency in query operations**:
         `operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*query*","MetricType":"Latency"}}}]'` + `auditors="all"`
 
+    **PAGINATION SUPPORT FOR WILDCARD PATTERNS:**
+    - **Automatic Pagination**: Wildcard patterns now process services in batches of 5 (configurable with `max_services`)
+    - **Continue Processing**: Use `next_token` from previous response to continue auditing remaining services
+    - **Example Pagination Workflow**:
+      1. First call: `audit_service_operations(operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]')`
+      2. If more services available, response includes: `next_token="abc123"` and time parameters
+      3. Continue: `audit_service_operations(operation_targets='[...]', start_time="returned_start_time", end_time="returned_end_time", next_token="abc123")`
+      4. Repeat until no more `next_token` returned
+
     **TYPICAL OPERATION AUDIT WORKFLOWS:**
     1. **Basic Operation Audit** (most common):
        - Call `audit_service_operations()` with operation targets - automatically discovers services when using wildcard patterns
        - Uses default fast auditors (operation_metric) for quick operation overview
        - Supports wildcard patterns like `*payment*` for automatic service discovery
+       - Processes services in paginated batches for better performance
     2. **Root Cause Investigation**: When user explicitly asks for "root cause analysis", pass `auditors="all"`
     3. **Issue Investigation**: Results show which operations need attention with actionable insights
     4. **Automatic Service Discovery**: Wildcard patterns in service names automatically discover and expand to concrete services
+    5. **Paginated Processing**: For large service lists, continue with `next_token` to audit remaining services
 
     **AUDIT RESULTS INCLUDE:**
     - **Prioritized findings** by severity (critical, warning, info)
@@ -770,15 +872,33 @@ async def audit_service_operations(
         # Filter operation targets and check for wildcards using helper function
         operation_only_targets, has_wildcards = _filter_operation_targets(provided)
 
-        # Expand wildcard patterns using shared utility
+        # Expand wildcard patterns using shared utility with pagination support
+        service_names_in_batch = []
+        returned_next_token = None
+
         if has_wildcards:
-            logger.debug('Wildcard patterns detected in service operations - applying expansion')
-            operation_only_targets = expand_service_operation_wildcard_patterns(
-                operation_only_targets, unix_start, unix_end, applicationsignals_client
+            logger.debug(
+                'Wildcard patterns detected in service operations - applying paginated expansion'
+            )
+            (
+                operation_only_targets,
+                returned_next_token,
+                service_names_in_batch,
+            ) = expand_service_operation_wildcard_patterns(
+                operation_only_targets,
+                unix_start,
+                unix_end,
+                next_token,
+                max_services,
+                applicationsignals_client,
             )
             logger.debug(
-                f'Wildcard expansion completed - {len(operation_only_targets)} total targets'
+                f'Paginated wildcard expansion completed - {len(operation_only_targets)} total targets'
             )
+        else:
+            # For non-wildcard targets, validate next_token parameter
+            if next_token:
+                return 'Error: next_token parameter is only supported when using wildcard patterns in service names.'
 
         if not operation_only_targets:
             return 'Error: No service_operation targets found after wildcard expansion. Use list_monitored_services() to see available services.'
@@ -810,6 +930,19 @@ async def audit_service_operations(
 
         # Execute audit API using shared utility
         result = await execute_audit_api(input_obj, region, banner)
+
+        # Add prominent pagination information when wildcards were used
+        result += format_pagination_info(
+            has_wildcards,
+            service_names_in_batch,
+            returned_next_token,
+            unix_start,
+            unix_end,
+            'audit_service_operations',
+            'max_services',
+            max_services,
+            'services',
+        )
 
         elapsed = timer() - start_time_perf
         logger.debug(f'audit_service_operations completed in {elapsed:.3f}s (region={region})')
