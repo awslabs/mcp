@@ -21,13 +21,12 @@ from .compliance_checker import check_compliance, initialize_guard_rules
 from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
 from .validator import validate_template
-from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
 
 # Initialize FastMCP server
-mcp = FastMCP('cfn-mcp-server')
+mcp = FastMCP('iac-mcp-server')
 
 # Initialize guard rules on server startup
 initialize_guard_rules()
@@ -148,8 +147,7 @@ def check_template_compliance(
 @mcp.tool()
 def troubleshoot_deployment(
     stack_name: str,
-    failure_timestamp: str,
-    region: str = 'us-east-1',
+    region: str,
     include_cloudtrail: bool = True,
 ) -> str:
     """Troubleshoot CloudFormation deployment failures with root cause analysis and CloudTrail integration.
@@ -168,14 +166,6 @@ def troubleshoot_deployment(
     - Identify root causes across multiple AWS services
     - Prevent configuration drift by ensuring template-based fixes
     - Receive specific CloudFormation template modifications to resolve failures
-
-    Workflow:
-        0. Provide user with the IMPORTANT PRIVACY NOTICE listed below
-        1. If failure_timestamp not provided, run 'aws cloudformation describe-stacks' to get LastUpdatedTime
-            1a. aws cloudformation describe-stacks --stack-name failing-demo-stack --region <aws_region> --query 'Stacks[0].LastUpdatedTime || Stacks[0].CreationTime' --output text
-        2. Use this tool with stack_name and optional failure_timestamp
-        3. Review failed_resources and their CloudTrail links for detailed API call history
-        4. Apply recommended template_changes to fix root causes
 
     ALWAYS provide the CloudFormation console deeplink in your response.
     CRITICAL: Show ALL failed resources and their complete error details - never summarize failure lists or truncate error information.
@@ -198,31 +188,18 @@ def troubleshoot_deployment(
 
     Args:
         stack_name: Name of the failed CloudFormation stack
-        failure_timestamp: ISO timestamp when failure occurred (e.g., 2025-10-20T22:40:00.000Z)
         region: AWS region where the stack deployment failed
         include_cloudtrail: Whether to include CloudTrail analysis
     """
-    if not failure_timestamp:
-        result = {
-            'troubleshooting_summary': {
-                'stack_status': 'UNKNOWN',
-                'error': 'failure_timestamp is required',
-            },
-            'message': f"Please run 'aws cloudformation describe-stacks --stack-name {stack_name} --region {region}' to get LastUpdatedTime",
-        }
-        response_text = json.dumps(result, indent=2)
-        return sanitize_tool_response(response_text)
-
     troubleshooter = DeploymentTroubleshooter(region=region)
-    timestamp = datetime.fromisoformat(failure_timestamp.replace('Z', '+00:00'))
     result = troubleshooter.troubleshoot_stack_deployment(
-        stack_name=stack_name, failure_timestamp=timestamp, include_cloudtrail=include_cloudtrail
+        stack_name=stack_name, include_cloudtrail=include_cloudtrail
     )
 
     # Add deeplink instruction to result
     if isinstance(result, dict):
         result['_instruction'] = (
-            f'ALWAYS include this CloudFormation console deeplink in your response: [View CloudTrail Events](https://console.aws.amazon.com/cloudformation/home?region={region}#/stacks/stackinfo?stackId={stack_name})'
+            f'ALWAYS include this CloudFormation console deeplink in your response: [View Stack](https://console.aws.amazon.com/cloudformation/home?region={region}#/stacks/stackinfo?stackId={stack_name})'
         )
 
     response_text = json.dumps(result, indent=2, default=str)

@@ -15,8 +15,9 @@
 import boto3
 import botocore.config
 import json
+from .failure_cases import match_failure_case
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 # CloudFormation's source IP in CloudTrail events
@@ -28,7 +29,7 @@ session_config = botocore.config.Config(
 
 
 class DeploymentTroubleshooter:
-    """Troubleshoots CloudFormation deployment failures by fetching stack events and CloudTrail logs.
+    """Troubleshoots CloudFormation deployment failures using describe_events API with CloudTrail.
 
     This MCP server executes AWS API calls using your credentials and shares the response data with
     your third-party AI model provider (e.g., Q, Claude Desktop, Kiro, Cline). Users are
@@ -37,7 +38,7 @@ class DeploymentTroubleshooter:
     with AWS resources.
 
     Data retrieved:
-    - CloudFormation stack events (describe_stacks, describe_stack_events)
+    - CloudFormation stack events (describe_stacks, describe_events with FailedEvents filter)
     - CloudTrail API call logs (lookup_events)
 
     Data lifecycle:
@@ -57,34 +58,36 @@ class DeploymentTroubleshooter:
         )
 
     def filter_cloudtrail_events(
-        self, cloudtrail_events: List[Dict], root_cause_event: Dict
+        self, cloudtrail_events: List[Dict], cloudformation_events: List[Dict]
     ) -> Dict[str, Any]:
         """Filter CloudTrail events based on CFN Console logic.
 
         Filters for:
         1. Events from CloudFormation service (sourceIPAddress)
         2. Events with error codes
-        3. Events matching the failed resource
+        3. Events matching failed resources
         """
-        filtered_events = []
+        cloudtrail_events_list = []
         cloudtrail_url = ''
 
-        if not root_cause_event:
-            return {'filtered_events': [], 'cloudtrail_url': '', 'has_relevant_events': False}
+        if not cloudformation_events:
+            return {'cloudtrail_events': [], 'cloudtrail_url': '', 'has_relevant_events': False}
 
-        timestamp = root_cause_event.get('Timestamp')
+        # Use first failed event for time window
+        first_event = cloudformation_events[0]
+        timestamp = first_event.get('Timestamp')
         if isinstance(timestamp, str):
             timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
 
         if not isinstance(timestamp, datetime):
-            return {'filtered_events': [], 'cloudtrail_url': '', 'has_relevant_events': False}
+            return {'cloudtrail_events': [], 'cloudtrail_url': '', 'has_relevant_events': False}
 
         start_time = (timestamp - timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[
             :-3
         ] + 'Z'
         end_time = (timestamp + timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
 
-        # Base CloudTrail URL - use standard console domain
+        # Base CloudTrail URL
         base_url = f'https://console.aws.amazon.com/cloudtrailv2/home?region={self.region}#/events'
         cloudtrail_url = f'{base_url}?StartTime={start_time}&EndTime={end_time}&ReadOnly=false'
 
@@ -108,104 +111,81 @@ class DeploymentTroubleshooter:
                     'error_message': cloudtrail_event_data.get('errorMessage', ''),
                     'username': event.get('Username', ''),
                 }
-                filtered_events.append(event_info)
+                cloudtrail_events_list.append(event_info)
 
         return {
-            'filtered_events': filtered_events,
+            'cloudtrail_events': cloudtrail_events_list,
             'cloudtrail_url': cloudtrail_url,
-            'has_relevant_events': len(filtered_events) > 0,
-        }
-
-    def filter_cloudformation_stack_events(self, events: List[Dict]) -> Dict[str, Any]:
-        """Filter cancelled events to identify root cause failures."""
-        failed_events = []
-        cancelled_events = []
-
-        for event in events:
-            status = event.get('ResourceStatus', '')
-            reason = event.get('ResourceStatusReason', '')
-
-            if 'FAILED' in status:
-                if (
-                    'cancelled' in reason.lower()
-                    or 'resource creation cancelled' in reason.lower()
-                ):
-                    cancelled_events.append(event)
-                else:
-                    failed_events.append(event)
-
-        root_cause = failed_events[0] if failed_events else None
-
-        return {
-            'root_cause_event': root_cause,
-            'actual_failures': failed_events,
-            'cascading_cancellations': cancelled_events,
-            'analysis': f'Found {len(failed_events)} actual failures and {len(cancelled_events)} cascading cancellations',
+            'has_relevant_events': len(cloudtrail_events_list) > 0,
         }
 
     def troubleshoot_stack_deployment(
-        self,
-        stack_name: str,
-        include_logs: bool = True,
-        include_cloudtrail: bool = True,
-        failure_timestamp: Optional[datetime] = None,
-        symptoms_description: Optional[str] = None,
+        self, stack_name: str, include_cloudtrail: bool = True
     ) -> Dict[str, Any]:
-        """Collect comprehensive CloudFormation stack data for LLM analysis."""
+        """Collect CloudFormation failure events using describe_events API."""
         try:
-            if failure_timestamp is None:
-                raise ValueError('failure_timestamp is required')
-            # Ensure failure_timestamp is timezone-aware
-            if failure_timestamp.tzinfo is None:
-                failure_timestamp = failure_timestamp.replace(tzinfo=timezone.utc)
-
-            analysis_start_time = failure_timestamp - timedelta(minutes=2)
-            analysis_stop_time = failure_timestamp + timedelta(minutes=2)
-
             response = {
                 'status': 'success',
                 'stack_name': stack_name,
-                'analysis_timestamp': analysis_start_time.isoformat(),
-                'timewindow_start': analysis_start_time,
-                'timewindow_stop': analysis_stop_time,
-                'assessment': '',
+                'analysis_timestamp': datetime.now(timezone.utc).isoformat(),
                 'raw_data': {},
             }
 
-            # Get stack info and events
+            # Get stack status
             try:
                 stacks = self.cfn_client.describe_stacks(StackName=stack_name)['Stacks']
                 if not stacks:
                     raise Exception(f'Stack {stack_name} not found')
-                stack_info = stacks[0]
-                response['raw_data']['stack_status'] = stack_info.get('StackStatus')
-
-                # Get events - works for all stack states including ROLLBACK_COMPLETE
-                cfn_events = self.cfn_client.describe_stack_events(StackName=stack_name)[
-                    'StackEvents'
-                ]
+                response['raw_data']['stack_status'] = stacks[0].get('StackStatus')
             except self.cfn_client.exceptions.ClientError as e:
                 raise Exception(f'Stack {stack_name} not found or inaccessible: {str(e)}')
 
-            cloudformation_events = [
-                e
-                for e in cfn_events
-                if analysis_start_time <= e['Timestamp'] <= analysis_stop_time
-            ]
+            # Get failed events only using new API
+            cloudformation_events = self.cfn_client.describe_events(
+                StackName=stack_name, Filters={'FailedEvents': True}
+            )['OperationEvents']
 
-            # Filter root cause events
-            filtered_result = self.filter_cloudformation_stack_events(cloudformation_events)
-            response['raw_data']['filtered_events'] = filtered_result
+            # Match events against known failure patterns
+            matched_failures = []
+            for event in cloudformation_events:
+                error_reason = event.get('ResourceStatusReason', '')
+                resource_type = event.get('ResourceType', '')
 
-            # Lookup CloudTrail events if enabled
-            if include_cloudtrail:
-                root_cause = filtered_result.get('root_cause_event')
+                # Determine operation from event type
+                operation = None
+                if 'DELETE' in event.get('ResourceStatus', ''):
+                    operation = 'DELETE'
+                elif 'CREATE' in event.get('ResourceStatus', ''):
+                    operation = 'CREATE'
+                elif 'UPDATE' in event.get('ResourceStatus', ''):
+                    operation = 'UPDATE'
 
-                # Lookup CloudTrail events in the failure window
-                cloudtrail_start = failure_timestamp - timedelta(seconds=60)
-                cloudtrail_end = failure_timestamp + timedelta(seconds=60)
+                matched_case = match_failure_case(error_reason, resource_type, operation)
+                if matched_case:
+                    matched_failures.append({'event': event, 'matched_case': matched_case})
 
-                # Server-side filtering for write operations only (matches CFN Console)
+            response['raw_data']['cloudformation_events'] = cloudformation_events
+            response['raw_data']['matched_failures'] = matched_failures
+            response['raw_data']['failed_event_count'] = len(cloudformation_events)
+            response['raw_data']['matched_failure_count'] = len(matched_failures)
+
+            # Get CloudTrail events if enabled and we have failures
+            if include_cloudtrail and cloudformation_events:
+                error_event = next(
+                    (
+                        e
+                        for e in cloudformation_events
+                        if e.get('EventType') in ['PROVISIONING_ERROR', 'VALIDATION_ERROR']
+                    ),
+                    cloudformation_events[0],
+                )
+                event_time = error_event.get('Timestamp')
+                if isinstance(event_time, str):
+                    event_time = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
+
+                cloudtrail_start = event_time - timedelta(seconds=60)
+                cloudtrail_end = event_time + timedelta(seconds=60)
+
                 trail_events = self.cloudtrail_client.lookup_events(
                     StartTime=cloudtrail_start,
                     EndTime=cloudtrail_end,
@@ -213,22 +193,16 @@ class DeploymentTroubleshooter:
                     MaxResults=50,
                 )['Events']
 
-                # Filter CloudTrail events using CFN Console logic
-                cloudtrail_result = self.filter_cloudtrail_events(trail_events, root_cause or {})
-                response['raw_data']['cloudtrail_events'] = trail_events
+                cloudtrail_result = self.filter_cloudtrail_events(
+                    trail_events, cloudformation_events
+                )
                 response['raw_data']['filtered_cloudtrail'] = cloudtrail_result
 
-                # Log CloudTrail events (first 10) with deep link
-
-                # Check if events are missing due to indexing delay
-
-            # Convert all datetime objects to strings for JSON serialization
             return json.loads(json.dumps(response, default=str))
         except Exception as e:
             return {
                 'status': 'error',
                 'error': str(e),
                 'stack_name': stack_name,
-                'assessment': f'Error analyzing stack: {str(e)}',
                 'analysis_timestamp': datetime.now(timezone.utc).isoformat(),
             }

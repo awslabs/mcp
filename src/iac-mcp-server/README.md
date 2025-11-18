@@ -1,6 +1,6 @@
 # AWS Infrastructure as Code MCP Server
 
-MCP server for CloudFormation template validation, compliance checking, and deployment troubleshooting with pattern matching against 40+ known failure cases.
+MCP server for CloudFormation template validation, compliance checking, and deployment troubleshooting with pattern matching against 30+ known failure cases.
 
 ## Features
 
@@ -14,7 +14,7 @@ MCP server for CloudFormation template validation, compliance checking, and depl
 
 ### Deployment Troubleshooting
 - **Intelligent Failure Analysis** - Analyze and resolve CloudFormation deployment failures
-- Pattern matching against 40+ known failure cases with CloudTrail deep links
+- Pattern matching against 30+ known failure cases with CloudTrail deep links
 
 ## Available MCP Tools
 
@@ -45,12 +45,13 @@ Validates templates against security and compliance rules using cfn-guard.
 Analyzes failed CloudFormation stacks and provides resolution guidance.
 
 **Use this tool to:**
-- Diagnose deployment failures with pattern matching against 40+ known cases
+- Diagnose deployment failures with pattern matching against 30+ known cases
 - Get CloudTrail deep links and specific resolution steps
 
 **Parameters:**
 - `stack_name` (required): Name of the failed CloudFormation stack
-- `region` (optional): AWS region where the stack exists (defaults to AWS_REGION env var)
+- `region` (required): AWS region where the stack exists
+- `include_cloudtrail` (optional): Whether to include CloudTrail analysis (defaults to true)
 
 ## Prerequisites
 

@@ -68,13 +68,13 @@ class TestFilterCloudTrailEvents:
                 ),
             }
         ]
-        root_cause = {'Timestamp': datetime.now(timezone.utc)}
+        cloudformation_events = [{'Timestamp': datetime.now(timezone.utc)}]
 
-        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, root_cause)
+        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, cloudformation_events)
 
         assert result['has_relevant_events'] is True
-        assert len(result['filtered_events']) == 1
-        assert result['filtered_events'][0]['error_code'] == 'BucketAlreadyExists'
+        assert len(result['cloudtrail_events']) == 1
+        assert result['cloudtrail_events'][0]['error_code'] == 'BucketAlreadyExists'
         assert 'cloudtrail_url' in result
 
     def test_filter_cloudtrail_events_no_errors(self):
@@ -92,32 +92,32 @@ class TestFilterCloudTrailEvents:
                 ),
             }
         ]
-        root_cause = {'Timestamp': datetime.now(timezone.utc)}
+        cloudformation_events = [{'Timestamp': datetime.now(timezone.utc)}]
 
-        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, root_cause)
+        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, cloudformation_events)
 
         assert result['has_relevant_events'] is False
-        assert len(result['filtered_events']) == 0
+        assert len(result['cloudtrail_events']) == 0
 
     def test_filter_cloudtrail_events_empty_list(self):
         """Test with empty event list."""
         troubleshooter = DeploymentTroubleshooter()
 
         result = troubleshooter.filter_cloudtrail_events(
-            [], {'Timestamp': datetime.now(timezone.utc)}
+            [], [{'EventTime': datetime.now(timezone.utc)}]
         )
 
         assert result['has_relevant_events'] is False
-        assert len(result['filtered_events']) == 0
+        assert len(result['cloudtrail_events']) == 0
 
     def test_filter_cloudtrail_events_no_root_cause(self):
         """Test when root_cause_event is None."""
         troubleshooter = DeploymentTroubleshooter()
 
-        result = troubleshooter.filter_cloudtrail_events([], {})
+        result = troubleshooter.filter_cloudtrail_events([], [])
 
         assert result['has_relevant_events'] is False
-        assert result['filtered_events'] == []
+        assert result['cloudtrail_events'] == []
         assert result['cloudtrail_url'] == ''
 
     def test_filter_cloudtrail_events_non_cfn_source(self):
@@ -136,68 +136,12 @@ class TestFilterCloudTrailEvents:
                 ),
             }
         ]
-        root_cause = {'Timestamp': datetime.now(timezone.utc)}
+        cloudformation_events = [{'Timestamp': datetime.now(timezone.utc)}]
 
-        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, root_cause)
+        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, cloudformation_events)
 
         assert result['has_relevant_events'] is False
-        assert len(result['filtered_events']) == 0
-
-
-class TestFilterCloudFormationStackEvents:
-    """Test CloudFormation stack event filtering."""
-
-    def test_filter_stack_events_with_failures(self):
-        """Test identifying root cause vs cascading failures."""
-        troubleshooter = DeploymentTroubleshooter()
-
-        events = [
-            {
-                'ResourceStatus': 'CREATE_FAILED',
-                'ResourceStatusReason': 'Bucket already exists',
-                'LogicalResourceId': 'MyBucket',
-            },
-            {
-                'ResourceStatus': 'CREATE_FAILED',
-                'ResourceStatusReason': 'Resource creation cancelled',
-                'LogicalResourceId': 'MyTable',
-            },
-        ]
-
-        result = troubleshooter.filter_cloudformation_stack_events(events)
-
-        assert result['root_cause_event'] is not None
-        assert result['root_cause_event']['LogicalResourceId'] == 'MyBucket'
-        assert len(result['actual_failures']) == 1
-        assert len(result['cascading_cancellations']) == 1
-
-    def test_filter_stack_events_only_cancelled(self):
-        """Test when only cancelled events exist."""
-        troubleshooter = DeploymentTroubleshooter()
-
-        events = [
-            {
-                'ResourceStatus': 'CREATE_FAILED',
-                'ResourceStatusReason': 'Resource creation cancelled',
-                'LogicalResourceId': 'MyTable',
-            }
-        ]
-
-        result = troubleshooter.filter_cloudformation_stack_events(events)
-
-        assert result['root_cause_event'] is None
-        assert len(result['actual_failures']) == 0
-        assert len(result['cascading_cancellations']) == 1
-
-    def test_filter_stack_events_empty_list(self):
-        """Test with empty event list."""
-        troubleshooter = DeploymentTroubleshooter()
-
-        result = troubleshooter.filter_cloudformation_stack_events([])
-
-        assert result['root_cause_event'] is None
-        assert len(result['actual_failures']) == 0
-        assert len(result['cascading_cancellations']) == 0
+        assert len(result['cloudtrail_events']) == 0
 
 
 class TestCloudTrailUrlGeneration:
@@ -208,11 +152,160 @@ class TestCloudTrailUrlGeneration:
         troubleshooter = DeploymentTroubleshooter(region='us-west-2')
 
         cloudtrail_events = []
-        root_cause = {'Timestamp': datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)}
+        cloudformation_events = [
+            {'Timestamp': datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)}
+        ]
 
-        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, root_cause)
+        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, cloudformation_events)
 
         assert 'us-west-2' in result['cloudtrail_url']
         assert 'cloudtrailv2' in result['cloudtrail_url']
         assert 'StartTime=' in result['cloudtrail_url']
         assert 'EndTime=' in result['cloudtrail_url']
+
+
+class TestPatternMatching:
+    """Test failure case pattern matching."""
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_pattern_matching_s3_bucket_not_empty(self, mock_boto_client):
+        """Test pattern matching for S3 bucket not empty error."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        # Mock stack response
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'DELETE_FAILED'}]}
+
+        # Mock failed event with S3 bucket not empty error
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'test-event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'DELETE_FAILED',
+                    'ResourceStatusReason': 'The bucket you tried to delete is not empty',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['matched_failure_count'] == 1
+        assert (
+            result['raw_data']['matched_failures'][0]['matched_case']['case_id']
+            == 'S3_BUCKET_NOT_EMPTY'
+        )
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_pattern_matching_security_group_dependency(self, mock_boto_client):
+        """Test pattern matching for security group dependency error."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'DELETE_FAILED'}]}
+
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'test-event-2',
+                    'ResourceType': 'AWS::EC2::SecurityGroup',
+                    'ResourceStatus': 'DELETE_FAILED',
+                    'ResourceStatusReason': 'resource sg-12345 has a dependent object',
+                    'LogicalResourceId': 'MySecurityGroup',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['matched_failure_count'] == 1
+        assert (
+            result['raw_data']['matched_failures'][0]['matched_case']['case_id']
+            == 'SECURITY_GROUP_DEPENDENCY'
+        )
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_pattern_matching_no_match(self, mock_boto_client):
+        """Test when error doesn't match any known pattern."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'test-event-3',
+                    'ResourceType': 'AWS::EC2::Instance',
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Some unknown error that does not match any pattern',
+                    'LogicalResourceId': 'MyInstance',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['matched_failure_count'] == 0
+        assert result['raw_data']['failed_event_count'] == 1
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_pattern_matching_multiple_failures(self, mock_boto_client):
+        """Test pattern matching with multiple failures."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'DELETE_FAILED'}]}
+
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'test-event-4',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'DELETE_FAILED',
+                    'ResourceStatusReason': 'The bucket you tried to delete is not empty',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                },
+                {
+                    'EventId': 'test-event-5',
+                    'ResourceType': 'AWS::EC2::SecurityGroup',
+                    'ResourceStatus': 'DELETE_FAILED',
+                    'ResourceStatusReason': 'resource sg-12345 has a dependent object',
+                    'LogicalResourceId': 'MySecurityGroup',
+                    'Timestamp': datetime.now(timezone.utc),
+                },
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['matched_failure_count'] == 2
+        assert result['raw_data']['failed_event_count'] == 2
+        case_ids = [m['matched_case']['case_id'] for m in result['raw_data']['matched_failures']]
+        assert 'S3_BUCKET_NOT_EMPTY' in case_ids
+        assert 'SECURITY_GROUP_DEPENDENCY' in case_ids
