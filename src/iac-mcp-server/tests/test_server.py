@@ -187,9 +187,9 @@ class TestGetTemplateExamples:
         parsed = json.loads(result)
 
         # Check for expected content
-        assert 'github.com' in parsed['template_examples_repository']['url']
+        assert parsed['template_examples_repository']['url'].startswith('https://github.com/')
         assert (
-            'docs.aws.amazon.com'
+            'https://docs.aws.amazon.com'
             in parsed['architectural_best_practices']['general_best_practices']
         )
 

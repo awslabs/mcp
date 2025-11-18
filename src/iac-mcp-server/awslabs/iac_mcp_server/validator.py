@@ -17,16 +17,7 @@ from __future__ import annotations
 from .config import DEFAULT_REGION, MAX_TEMPLATE_SIZE_BYTES
 from cfnlint.api import lint as cfn_lint
 from cfnlint.match import Match
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as pkg_version
 from typing import Any, Sequence
-
-
-def _get_cfn_lint_version() -> str:
-    try:
-        return pkg_version('cfn-lint')
-    except PackageNotFoundError:
-        return 'unknown'
 
 
 def validate_template(

@@ -17,7 +17,7 @@
 from awslabs.iac_mcp_server.validator import _format_results, _map_level
 from cfnlint.match import Match
 from cfnlint.rules import CloudFormationLintRule
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 
 class TestMapLevel:
@@ -72,26 +72,3 @@ class TestFormatResults:
         assert result['validation_results']['error_count'] == 0
         assert len(result['issues']) == 1
         assert result['issues'][0]['level'] == 'info'
-
-
-class TestCfnLintVersionHandling:
-    """Test cfn-lint version detection."""
-
-    @patch('awslabs.iac_mcp_server.validator.pkg_version')
-    def test_cfn_lint_version_found(self, mock_pkg_version):
-        """Test when cfn-lint version is found."""
-        from awslabs.iac_mcp_server.validator import _get_cfn_lint_version
-
-        mock_pkg_version.return_value = '1.2.3'
-        version = _get_cfn_lint_version()
-        assert version == '1.2.3'
-
-    @patch('awslabs.iac_mcp_server.validator.pkg_version')
-    def test_cfn_lint_version_not_found(self, mock_pkg_version):
-        """Test when cfn-lint package is not found."""
-        from awslabs.iac_mcp_server.validator import _get_cfn_lint_version
-        from importlib.metadata import PackageNotFoundError
-
-        mock_pkg_version.side_effect = PackageNotFoundError('cfn-lint')
-        version = _get_cfn_lint_version()
-        assert version == 'unknown'
