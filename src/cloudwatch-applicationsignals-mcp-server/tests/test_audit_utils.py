@@ -128,7 +128,7 @@ class TestExecuteAuditApi:
             result = await execute_audit_api(sample_input_obj, 'us-east-1', 'Test Banner\n')
 
         assert 'API call failed: API Error' in result
-        assert 'BatchErrors' in result
+        assert 'ListAuditFindingsErrors' in result
 
     @pytest.mark.asyncio
     async def test_execute_audit_api_log_path_handling(
@@ -144,6 +144,35 @@ class TestExecuteAuditApi:
                 with patch('builtins.open', mock_open()):
                     await execute_audit_api(sample_input_obj, 'us-east-1', 'Test Banner\n')
                     mock_makedirs.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_execute_audit_api_batch_errors_aggregation(
+        self, mock_applicationsignals_client
+    ):
+        """Test that failed batch errors are properly aggregated in ListAuditFindingsErorrs."""
+        # Create input with multiple batches where some fail
+        input_obj = {
+            'StartTime': 1640995200,
+            'EndTime': 1641081600,
+            'AuditTargets': [
+                {'Type': 'service', 'Data': {'Service': {'Name': f'service-{i}'}}}
+                for i in range(7)  # 7 targets = 2 batches
+            ],
+        }
+
+        # First batch succeeds, second batch fails
+        mock_applicationsignals_client.list_audit_findings.side_effect = [
+            {'AuditFindings': [{'FindingId': 'finding-1'}]},
+            Exception('API Error for batch 2'),
+        ]
+
+        with patch('builtins.open', mock_open()):
+            result = await execute_audit_api(input_obj, 'us-east-1', 'Test Banner\n')
+
+        # Verify ListAuditFindingsErrors is present and contains error details
+        assert 'ListAuditFindingsErrors' in result
+        assert 'API call failed: API Error for batch 2' in result
+        assert 'finding-1' in result  # Successful batch findings still included
 
     @pytest.mark.asyncio
     async def test_execute_audit_api_log_path_exception(

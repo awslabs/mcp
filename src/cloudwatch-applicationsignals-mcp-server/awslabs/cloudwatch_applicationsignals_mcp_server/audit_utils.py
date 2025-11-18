@@ -172,9 +172,8 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             )
 
             batch_error_result = {
-                'batch_index': batch_idx,
                 'error': f'API call failed: {error_msg}',
-                'targets_count': len(batch_targets),
+                'targets': batch_targets,
             }
             all_batch_results.append(batch_error_result)
             continue
@@ -185,7 +184,6 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
 
     # Aggregate the findings from all successful batches
     aggregated_findings = []
-    total_targets_processed = 0
     failed_batches = 0
 
     for batch_idx, batch_result in enumerate(all_batch_results):
@@ -197,21 +195,9 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             batch_findings = batch_result.get('AuditFindings', [])
             aggregated_findings.extend(batch_findings)
 
-            # Count targets processed (this batch)
-            # Use the actual batch size from target_batches
-            current_batch_size = len(target_batches[batch_idx])
-            total_targets_processed += current_batch_size
-
     # Create final aggregated response
     final_result = {
         'AuditFindings': aggregated_findings,
-        'BatchSummary': {
-            'TotalBatches': len(target_batches),
-            'SuccessfulBatches': len(target_batches) - failed_batches,
-            'FailedBatches': failed_batches,
-            'TotalTargetsProcessed': total_targets_processed,
-            'TotalFindingsCount': len(aggregated_findings),
-        },
     }
 
     # Add any error information if there were failed batches
@@ -221,12 +207,11 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             if isinstance(batch_result, dict) and 'error' in batch_result:
                 error_details.append(
                     {
-                        'batch': batch_result['batch_index'],
                         'error': batch_result['error'],
-                        'targets_count': batch_result['targets_count'],
+                        'targets': batch_result['targets'],
                     }
                 )
-        final_result['BatchErrors'] = error_details
+        final_result['ListAuditFindingsErrors'] = error_details
 
     final_observation_text = json.dumps(final_result, indent=2, default=str)
     return banner + final_observation_text
