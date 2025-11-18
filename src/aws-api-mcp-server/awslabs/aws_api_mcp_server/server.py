@@ -393,12 +393,10 @@ def main():
 
     if TRANSPORT == 'stdio':
         server.run(
-            log_level=FASTMCP_LOG_LEVEL,
             transport=TRANSPORT,
         )
     else:  # streamable-http or other HTTP transports
         server.run(
-            log_level=FASTMCP_LOG_LEVEL,
             transport=TRANSPORT,
             host=HOST,
             port=PORT,
