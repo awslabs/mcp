@@ -188,7 +188,7 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
     total_targets_processed = 0
     failed_batches = 0
 
-    for batch_result in all_batch_results:
+    for batch_idx, batch_result in enumerate(all_batch_results):
         if isinstance(batch_result, dict):
             if 'error' in batch_result:
                 failed_batches += 1
@@ -198,12 +198,8 @@ async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str)
             aggregated_findings.extend(batch_findings)
 
             # Count targets processed (this batch)
-            # Get the batch size from the original targets list
-            current_batch_size = min(
-                DEFAULT_BATCH_SIZE,
-                len(targets)
-                - (len(aggregated_findings) // DEFAULT_BATCH_SIZE) * DEFAULT_BATCH_SIZE,
-            )
+            # Use the actual batch size from target_batches
+            current_batch_size = len(target_batches[batch_idx])
             total_targets_processed += current_batch_size
 
     # Create final aggregated response
