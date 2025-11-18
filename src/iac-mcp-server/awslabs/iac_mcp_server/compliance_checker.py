@@ -19,7 +19,7 @@ import json
 import os
 import re
 import yaml
-from typing import Any
+from typing import Any, Optional
 
 
 # Global cache for remediation mappings
@@ -28,7 +28,7 @@ _RULES_CONTENT_CACHE = None
 _TEMPLATE_RESOURCES = {}
 
 
-def initialize_guard_rules(rules_file_path: str = None) -> bool:
+def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
     """Initialize guard rules and cache remediation mappings on server startup.
 
     Args:
@@ -42,9 +42,9 @@ def initialize_guard_rules(rules_file_path: str = None) -> bool:
     # Use absolute path to default guard rules if none provided
     if rules_file_path is None or rules_file_path == 'default_guard_rules.guard':
         try:
-            import cfnmcpprototype
+            import awslabs.iac_mcp_server
 
-            package_dir = os.path.dirname(cfnmcpprototype.__file__)
+            package_dir = os.path.dirname(awslabs.iac_mcp_server.__file__)
             rules_file_path = os.path.join(package_dir, 'default_guard_rules.guard')
         except Exception:
             return False
@@ -147,7 +147,7 @@ def _extract_resource_info(node: dict, template_resources: dict) -> tuple[str, s
 
 def check_compliance(
     template_content: str,
-    rules_file_path: str = None,
+    rules_file_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Validate CloudFormation template against cfn-guard rules using guardpycfn."""
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
@@ -175,7 +175,7 @@ def check_compliance(
     template_resources = _parse_template_resources(template_content)
 
     try:
-        guard_result = guardpycfn.validate_with_guard(
+        guard_result = guardpycfn.validate_with_guard(  # type: ignore[attr-defined]
             template_content, _RULES_CONTENT_CACHE, verbose=True
         )
 

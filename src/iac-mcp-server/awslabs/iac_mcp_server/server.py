@@ -22,7 +22,7 @@ from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
 from .validator import validate_template
 from datetime import datetime
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
 
@@ -283,5 +283,10 @@ def get_template_examples() -> str:
     return json.dumps(context, indent=2)
 
 
-if __name__ == '__main__':
+def main():
+    """Run the MCP server."""
     mcp.run()
+
+
+if __name__ == '__main__':
+    main()

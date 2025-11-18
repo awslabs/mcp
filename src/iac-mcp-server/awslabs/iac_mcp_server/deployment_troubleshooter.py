@@ -76,6 +76,9 @@ class DeploymentTroubleshooter:
         if isinstance(timestamp, str):
             timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
 
+        if not isinstance(timestamp, datetime):
+            return {'filtered_events': [], 'cloudtrail_url': '', 'has_relevant_events': False}
+
         start_time = (timestamp - timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[
             :-3
         ] + 'Z'
@@ -145,11 +148,13 @@ class DeploymentTroubleshooter:
         stack_name: str,
         include_logs: bool = True,
         include_cloudtrail: bool = True,
-        failure_timestamp: datetime = None,
+        failure_timestamp: Optional[datetime] = None,
         symptoms_description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Collect comprehensive CloudFormation stack data for LLM analysis."""
         try:
+            if failure_timestamp is None:
+                raise ValueError('failure_timestamp is required')
             # Ensure failure_timestamp is timezone-aware
             if failure_timestamp.tzinfo is None:
                 failure_timestamp = failure_timestamp.replace(tzinfo=timezone.utc)
@@ -209,7 +214,7 @@ class DeploymentTroubleshooter:
                 )['Events']
 
                 # Filter CloudTrail events using CFN Console logic
-                cloudtrail_result = self.filter_cloudtrail_events(trail_events, root_cause)
+                cloudtrail_result = self.filter_cloudtrail_events(trail_events, root_cause or {})
                 response['raw_data']['cloudtrail_events'] = trail_events
                 response['raw_data']['filtered_cloudtrail'] = cloudtrail_result
 

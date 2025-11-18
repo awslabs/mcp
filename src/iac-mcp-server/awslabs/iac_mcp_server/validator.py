@@ -68,7 +68,7 @@ def validate_template(
         matches = cfn_lint(
             s=template_content,
             regions=None,
-            config=manual_args,
+            config=manual_args,  # type: ignore[arg-type]
         )
         return _format_results(matches)
 

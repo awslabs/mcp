@@ -1,9 +1,16 @@
-"""ST-008: Input Validation Unit Tests.
-
-Tests M-001: Validate all tool parameters against schemas
-
-Tests oversized templates (>500KB), malformed JSON/YAML, invalid parameters, timeout handling
-"""
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import json
 import pytest
@@ -67,7 +74,7 @@ Resources:
     def test_non_string_template(self):
         """Test non-string template input."""
         # Validator handles None gracefully with error response
-        result = validate_template(None)
+        result = validate_template(None)  # type: ignore[arg-type]
         assert isinstance(result, dict)
         assert (
             result.get('valid') is False
@@ -76,13 +83,13 @@ Resources:
 
         # Validator raises AttributeError for integers (no .strip() method)
         with pytest.raises(AttributeError):
-            validate_template(123)
+            validate_template(123)  # type: ignore[arg-type]
 
     def test_binary_data(self):
         """Test binary data as template."""
         binary_data = b'\x00\x01\x02\x03'
         # Validator handles binary data gracefully
-        result = validate_template(binary_data)
+        result = validate_template(binary_data)  # type: ignore[arg-type]
         assert isinstance(result, dict)
         assert result['validation_results']['is_valid'] is False
 
@@ -210,7 +217,7 @@ class TestParameterValidation:
     def test_missing_required_template_content(self):
         """Test that missing required parameter raises error."""
         with pytest.raises(TypeError):
-            validate_template()
+            validate_template()  # type: ignore[call-arg]
 
     def test_valid_minimal_parameters(self):
         """Test valid minimal parameters."""
