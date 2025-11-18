@@ -112,6 +112,11 @@ class TestInvalidParameters:
 
     def test_invalid_rules_file_path(self):
         """Test non-existent rules file path."""
+        # Reset the global cache to force re-initialization
+        import awslabs.iac_mcp_server.compliance_checker as cc
+
+        cc._RULES_CONTENT_CACHE = None
+
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
         result = check_compliance(template, rules_file_path='/nonexistent/path/rules.guard')
         assert isinstance(result, dict)

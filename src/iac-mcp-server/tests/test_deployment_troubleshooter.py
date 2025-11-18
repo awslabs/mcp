@@ -164,6 +164,189 @@ class TestCloudTrailUrlGeneration:
         assert 'EndTime=' in result['cloudtrail_url']
 
 
+class TestCloudTrailIntegration:
+    """Test CloudTrail integration in troubleshoot_stack_deployment."""
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_cloudtrail_integration_enabled(self, mock_boto_client):
+        """Test CloudTrail integration when enabled."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Bucket already exists',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                    'EventType': 'PROVISIONING_ERROR',
+                }
+            ]
+        }
+
+        mock_cloudtrail.lookup_events.return_value = {
+            'Events': [
+                {
+                    'EventName': 'CreateBucket',
+                    'EventTime': datetime.now(timezone.utc),
+                    'Username': 'test-user',
+                    'CloudTrailEvent': json.dumps(
+                        {
+                            'sourceIPAddress': 'cloudformation.amazonaws.com',
+                            'errorCode': 'BucketAlreadyExists',
+                            'errorMessage': 'Bucket already exists',
+                        }
+                    ),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=True
+        )
+
+        assert result['status'] == 'success'
+        assert 'filtered_cloudtrail' in result['raw_data']
+        assert result['raw_data']['filtered_cloudtrail']['has_relevant_events'] is True
+        mock_cloudtrail.lookup_events.assert_called_once()
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_cloudtrail_integration_disabled(self, mock_boto_client):
+        """Test CloudTrail integration when disabled."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Bucket already exists',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert 'filtered_cloudtrail' not in result['raw_data']
+        mock_cloudtrail.lookup_events.assert_not_called()
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_stack_not_found_error(self, mock_boto_client):
+        """Test error handling when stack doesn't exist."""
+        from botocore.exceptions import ClientError
+
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+
+        # Mock the exceptions attribute
+        mock_cfn.exceptions = Mock()
+        mock_cfn.exceptions.ClientError = ClientError
+
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationError', 'Message': 'Stack does not exist'}},
+            'DescribeStacks',
+        )
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment('nonexistent-stack')
+
+        assert result['status'] == 'error'
+        assert 'nonexistent-stack' in result['error']
+        assert result['stack_name'] == 'nonexistent-stack'
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_no_failed_events(self, mock_boto_client):
+        """Test when stack has no failed events."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_COMPLETE'}]}
+
+        mock_cfn.describe_events.return_value = {'OperationEvents': []}
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=True
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['failed_event_count'] == 0
+        assert 'filtered_cloudtrail' not in result['raw_data']
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_timestamp_as_string(self, mock_boto_client):
+        """Test CloudTrail integration with timestamp as string."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+
+        # Timestamp as string (ISO format)
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Error',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': '2025-01-15T12:00:00Z',
+                    'EventType': 'PROVISIONING_ERROR',
+                }
+            ]
+        }
+
+        mock_cloudtrail.lookup_events.return_value = {'Events': []}
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=True
+        )
+
+        assert result['status'] == 'success'
+        mock_cloudtrail.lookup_events.assert_called_once()
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_invalid_timestamp_type(self, mock_boto_client):
+        """Test handling of invalid timestamp type."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+
+        # Test with invalid timestamp (not datetime or string)
+        cloudtrail_events = []
+        cloudformation_events = [{'Timestamp': 12345}]  # Invalid: integer
+
+        result = troubleshooter.filter_cloudtrail_events(cloudtrail_events, cloudformation_events)
+
+        assert result['cloudtrail_events'] == []
+        assert result['has_relevant_events'] is False
+
+
 class TestPatternMatching:
     """Test failure case pattern matching."""
 
