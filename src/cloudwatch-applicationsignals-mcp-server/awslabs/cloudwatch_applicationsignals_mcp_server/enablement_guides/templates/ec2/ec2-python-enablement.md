@@ -196,7 +196,7 @@ const role = new iam.Role(this, 'AppRole', {
 
 ### Step 4: Modify UserData - Add Prerequisites
 
-**CRITICAL:** Add system dependencies at the BEGINNING of the UserData script, BEFORE any other commands.
+Add a CloudWatch Agent installation command to the UserData script.
 
 **CRITICAL for Terraform Users:** When modifying Terraform `user_data` heredocs, you MUST preserve the EXACT indentation of existing lines. Terraform's `<<-EOF` syntax strips leading whitespace, but only if indentation is consistent. When adding new bash commands:
 - Count the leading spaces/tabs on existing lines in the heredoc
@@ -206,14 +206,17 @@ const role = new iam.Role(this, 'AppRole', {
 If indentation is inconsistent, Terraform will NOT strip the whitespace, causing the deployed script to have leading spaces before `#!/bin/bash`, which will cause cloud-init to fail.
 
 **CDK TypeScript example:**
-
 ```typescript
 instance.userData.addCommands(
-  'dnf update -y',  // Use dnf for AL2023, yum for AL2
-  'dnf install -y docker python3-pip amazon-cloudwatch-agent',
+  'dnf install -y amazon-cloudwatch-agent',  // Use dnf for AL2023, yum for AL2
   // ... rest of UserData follows
 );
 ```
+
+**Placement:** Add this command early in the UserData script:
+- If system update commands exist (like `dnf update -y`, `apt-get update`), add it immediately after those
+- If no system update commands exist, add it at the very beginning of UserData
+- This should come before any application dependency installations or application setup commands
 
 **For other Linux distributions:** CloudWatch Agent may not be available via the OS package manager. Refer to [AWS CloudWatch Agent installation docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/manual-installation.html) for distribution-specific instructions.
 
@@ -558,17 +561,34 @@ For Django with uWSGI:
 
 ## Completion
 
-Application Signals enablement is complete. Please review the modified files and redeploy your application.
+**Tell the user:**
 
-**Files Modified:**
-- IaC files (IAM role, CloudWatch Agent, environment variables)
-- Docker: Dockerfile (if applicable)
-- WSGI: Configuration files (if applicable)
+"I've completed the Application Signals enablement for your Python application. Here's what I modified:
+
+**Files Changed:**
+- IAM role: Added CloudWatchAgentServerPolicy
+- UserData: Installed and configured CloudWatch Agent
+- UserData: Installed ADOT Python SDK
+- UserData/Service file: Added OpenTelemetry environment variables and instrumentation wrapper
+- Dockerfile: Installed ADOT Python SDK and modified CMD with instrumentation wrapper (if using Docker)
+- WSGI configuration: Added worker instrumentation (if using Gunicorn/uWSGI)
 
 **Next Steps:**
-1. Review changes with `git diff`
-2. Deploy using your standard process (e.g., `cdk deploy`, `terraform apply`)
-3. Wait 5-10 minutes for telemetry data to appear in CloudWatch Application Signals
+1. Review the changes I made using `git diff`
+2. Deploy your infrastructure:
+   - For CDK: `cdk deploy`
+   - For Terraform: `terraform apply`
+   - For CloudFormation: Deploy your stack
+3. After deployment, wait 5-10 minutes for telemetry data to start flowing
 
 **Verification:**
-After deployment, navigate to AWS CloudWatch Console → Application Signals → Services to verify your service appears and is collecting telemetry data.
+Once deployed, you can verify Application Signals is working by:
+- Opening the AWS CloudWatch Console
+- Navigating to Application Signals → Services
+- Looking for your service (named: {{SERVICE_NAME}})
+- Checking that traces and metrics are being collected
+
+**Monitor Application Health:**
+After enablement, you can monitor your application's operational health using Application Signals dashboards. For more information, see [Monitor the operational health of your applications with Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Services.html).
+
+Let me know if you'd like me to make any adjustments before you deploy!"
