@@ -187,3 +187,34 @@ const dotnetFunction = new lambda.Function(this, 'DotNetFunction', {
   },
 });
 ```
+
+## Completion
+
+**Tell the user:**
+
+"I've completed the Application Signals enablement for your .NET Lambda function. Here's what I modified:
+
+**Configuration Changes:**
+- X-Ray Tracing: Enabled active tracing
+- ADOT Layer: Added AWSOpenTelemetryDistroDotNet layer
+- Environment Variable: Set AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument
+
+**Next Steps:**
+1. Review the changes I made using `git diff`
+2. Deploy your infrastructure:
+   - For CDK: `cdk deploy`
+   - For Terraform: `terraform apply`
+   - For CloudFormation: Deploy your stack
+3. After deployment, invoke your Lambda function to generate telemetry data
+
+**Verification:**
+Once deployed, you can verify Application Signals is working by:
+- Opening the AWS CloudWatch Console
+- Navigating to Application Signals → Services
+- Looking for your Lambda function service
+- Checking that traces and metrics are being collected
+
+**Monitor Application Health:**
+After enablement, you can monitor your Lambda function's operational health using Application Signals dashboards. For more information, see [Monitor the operational health of your applications with Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Services.html).
+
+Let me know if you'd like me to make any adjustments before you deploy!"
