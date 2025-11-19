@@ -29,6 +29,12 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
 
 Use this tool to enable AWS Application Signals through agentic enablement. The tool returns a curated guide that the AI agent follows to autonomously make necessary code changes to your IaC, Dockerfiles, and dependency files. The guide is customized for your service platform (EC2, ECS, Lambda, EKS) and programming language (Python, Node.js, Java).
 
+**Prerequisites:**
+- **Enable Start Discovery** in your AWS account and region before using this tool
+  - This is a one-time setup that creates the **AWSServiceRoleForCloudWatchApplicationSignals** service-linked role
+  - Navigate to CloudWatch console → Services → "Start discovering your Services" → Enable Application Signals
+  - See the [enablement guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html) for detailed steps
+
 **How it works:**
 - Returns a curated enablement guide as a prompt for the AI agent
 - The AI agent follows the guide to autonomously modify your code
