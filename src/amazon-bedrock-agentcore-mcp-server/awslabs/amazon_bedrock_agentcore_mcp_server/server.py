@@ -14,7 +14,7 @@
 
 """awslabs AWS Bedrock AgentCore MCP Server implementation."""
 
-from .tools import docs, memory, runtime, gateway
+from .tools import docs, gateway, memory, runtime
 from .utils import cache
 from mcp.server.fastmcp import FastMCP
 
@@ -28,6 +28,7 @@ mcp.tool()(docs.fetch_agentcore_doc)
 mcp.tool()(runtime.manage_agentcore_runtime)
 mcp.tool()(memory.manage_agentcore_memory)
 mcp.tool()(gateway.manage_agentcore_gateway)
+
 
 def main() -> None:
     """Main entry point for the MCP server.

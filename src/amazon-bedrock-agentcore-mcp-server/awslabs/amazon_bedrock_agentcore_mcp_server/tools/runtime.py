@@ -19,18 +19,18 @@ Comprehensive runtime operations including configure, launch, invoke, status, an
 
 from typing import Any, Dict
 
+
 def manage_agentcore_runtime() -> Dict[str, Any]:
     """Provides comprehensive information on how to deploy and manage agents in AgentCore Runtime.
-    
+
     This tool returns detailed documentation about:
     - Code requirements before deployment
     - Step-by-step CLI deployment workflow
     - Validation checklist for agent code and dependencies
     - Common issues and how to avoid them
-    
+
     Use this tool to understand the complete process of deploying agents to AgentCore Runtime.
     """
-    
     deployment_guide = """
 AGENTCORE RUNTIME DEPLOYMENT GUIDE
 ===================================
@@ -42,15 +42,15 @@ Before deploying to AgentCore Runtime, your agent code must follow this structur
    ```python
    from bedrock_agentcore import BedrockAgentCoreApp
    from strands import Agent  # or your framework
-   
+
    app = BedrockAgentCoreApp()
-   
+
    @app.entrypoint
    def invoke(payload, context):
        user_message = payload.get("prompt", "Hello!")
        # Your agent logic here
        return {"result": result}
-   
+
    if __name__ == "__main__":
        app.run()
    ```
@@ -72,27 +72,27 @@ Step 1: Install CLI
 
 Step 2: Validate Agent Code Format
     Before configuring, verify your agent code follows the required pattern:
-    
+
     REQUIRED CHECKS:
     ✓ Python file imports BedrockAgentCoreApp:
       from bedrock_agentcore import BedrockAgentCoreApp
-    
+
     ✓ App is initialized:
       app = BedrockAgentCoreApp()
-    
+
     ✓ Entrypoint function has @app.entrypoint decorator:
       @app.entrypoint
       def invoke(payload, context):
-    
+
     ✓ App runs at the end:
       if __name__ == "__main__":
           app.run()
-    
+
     ✓ requirements.txt exists and includes:
       - bedrock-agentcore (REQUIRED)
       - Your agent framework (e.g., strands-agents if using strands), langgraph)
       - All other dependencies (strands-agents-tools if using strands tools)
-      
+
     COMMON ISSUES:
     ✗ Missing BedrockAgentCoreApp import
     ✗ Missing @app.entrypoint decorator
@@ -102,7 +102,7 @@ Step 2: Validate Agent Code Format
 
 Step 3: Configure Agent
     agentcore configure --entrypoint agent.py --non-interactive
-    
+
     Available flags:
     --entrypoint, -e TEXT          Python file of agent (required)
     --name, -n TEXT                Agent name (defaults to Python file name)
@@ -129,7 +129,7 @@ Step 3: Configure Agent
 
 Step 4: Deploy to AWS
     agentcore launch
-    
+
     Available flags:
     --agent, -a TEXT               Agent name
     --local, -l                    Build and run locally (requires Docker/Finch/Podman)
@@ -139,7 +139,7 @@ Step 4: Deploy to AWS
 
 Step 5: Test Deployed Agent
     agentcore invoke '{"prompt": "Hello world!"}'
-    
+
     Available flags:
     --agent, -a TEXT               Agent name
     --session-id, -s TEXT          Session ID
@@ -150,21 +150,21 @@ Step 5: Test Deployed Agent
 
 Step 6: Check Status
     agentcore status
-    
+
     Available flags:
     --agent, -a TEXT               Agent name
     --verbose, -v                  Verbose JSON output of config, agent, and endpoint status
 
 Step 7: Manage Sessions
     agentcore stop-session
-    
+
     Available flags:
     --session-id, -s TEXT          Specific session ID to stop (optional)
     --agent, -a TEXT               Agent name
 
 Step 8: Clean Up
     agentcore destroy
-    
+
     Available flags:
     --agent, -a TEXT               Agent name
     --dry-run                      Show what would be destroyed without actually destroying
@@ -183,7 +183,5 @@ KEY POINTS:
 - ARM64 architecture required (handled automatically by CodeBuild)
 - Configuration stored in .bedrock_agentcore.yaml
 """
-    
-    return {
-        "deployment_guide": deployment_guide
-    }
+
+    return {'deployment_guide': deployment_guide}

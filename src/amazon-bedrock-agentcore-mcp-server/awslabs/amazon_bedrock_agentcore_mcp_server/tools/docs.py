@@ -14,8 +14,8 @@
 
 """AgentCore documentation search and retrieval tools."""
 
-from typing import Any, Dict, List
 from ..utils import cache, text_processor
+from typing import Any, Dict, List
 
 
 def search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:

@@ -19,19 +19,19 @@ Comprehensive gateway operations including create, configure, list, get, and del
 
 from typing import Any, Dict
 
+
 def manage_agentcore_gateway() -> Dict[str, Any]:
     """Provides comprehensive information on how to deploy and manage MCP Gateways in AgentCore.
-    
+
     This tool returns detailed documentation about:
     - Gateway creation and configuration requirements
     - Step-by-step CLI deployment workflow
     - Target management for Lambda, OpenAPI, and Smithy models
     - Authentication and authorization setup
     - Common issues and troubleshooting
-    
+
     Use this tool to understand the complete process of deploying and managing MCP Gateways.
     """
-    
     deployment_guide = """
 AGENTCORE GATEWAY DEPLOYMENT GUIDE
 ===================================
@@ -50,7 +50,7 @@ Step 1: Install CLI
 
 Step 2: Create MCP Gateway
     agentcore gateway create-mcp-gateway
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --name TEXT                    Name of the gateway (defaults to TestGateway)
@@ -58,13 +58,13 @@ Step 2: Create MCP Gateway
     --authorizer-config TEXT       Serialized authorizer config JSON (creates one if not provided)
     --enable_semantic_search       Enable semantic search tool (defaults to True)
     -sem                           Short flag for --enable_semantic_search
-    
+
     Example:
     agentcore gateway create-mcp-gateway --name MyGateway --region us-east-1
 
 Step 3: Add Gateway Targets
     Create targets to connect your gateway to actual services:
-    
+
     A. Lambda Target (Default):
     agentcore gateway create-mcp-gateway-target \\
         --gateway-arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id \\
@@ -72,7 +72,7 @@ Step 3: Add Gateway Targets
         --role-arn arn:aws:iam::account:role/role-name \\
         --name MyLambdaTarget \\
         --target-type lambda
-    
+
     B. OpenAPI Schema Target:
     agentcore gateway create-mcp-gateway-target \\
         --gateway-arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id \\
@@ -82,7 +82,7 @@ Step 3: Add Gateway Targets
         --target-type openApiSchema \\
         --target-payload '{"openApiSchema": {"uri": "https://api.example.com/openapi.json"}}' \\
         --credentials '{"api_key": "your-api-key", "credential_location": "header", "credential_parameter_name": "X-API-Key"}'  # pragma: allowlist secret
-    
+
     C. Smithy Model Target:
     agentcore gateway create-mcp-gateway-target \\
         --gateway-arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id \\
@@ -90,7 +90,7 @@ Step 3: Add Gateway Targets
         --role-arn arn:aws:iam::account:role/role-name \\
         --name MySmithyTarget \\
         --target-type smithyModel
-    
+
     Available flags for create-mcp-gateway-target:
     --gateway-arn TEXT             ARN of the created gateway (required)
     --gateway-url TEXT             URL of the created gateway (required)
@@ -105,7 +105,7 @@ MANAGEMENT COMMANDS:
 
 List Gateways:
     agentcore gateway list-mcp-gateways
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --name TEXT                    Filter by gateway name
@@ -118,7 +118,7 @@ Get Gateway Details:
     agentcore gateway get-mcp-gateway --id gateway-id
     # OR
     agentcore gateway get-mcp-gateway --arn arn:aws:bedrock-agentcore:region:account:gateway/gateway-id
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID
@@ -127,7 +127,7 @@ Get Gateway Details:
 
 List Gateway Targets:
     agentcore gateway list-mcp-gateway-targets --name MyGateway
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID
@@ -138,7 +138,7 @@ List Gateway Targets:
 
 Get Target Details:
     agentcore gateway get-mcp-gateway-target --name MyGateway --target-name MyTarget
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID
@@ -151,7 +151,7 @@ CLEANUP COMMANDS:
 
 Delete Gateway Target:
     agentcore gateway delete-mcp-gateway-target --name MyGateway --target-name MyTarget
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID
@@ -162,9 +162,9 @@ Delete Gateway Target:
 
 Delete Gateway:
     agentcore gateway delete-mcp-gateway --name MyGateway
-    
+
     Note: Gateway must have zero targets before deletion, unless --force is used
-    
+
     Available flags:
     --region TEXT                  AWS region to use (defaults to us-west-2)
     --id TEXT                      Gateway ID to delete
@@ -244,7 +244,7 @@ COMMON PATTERNS:
 Complete Gateway Setup:
     # 1. Create gateway
     agentcore gateway create-mcp-gateway --name ProductionGateway --region us-east-1
-    
+
     # 2. Add Lambda target
     agentcore gateway create-mcp-gateway-target \\
         --gateway-arn <gateway-arn> \\
@@ -252,7 +252,7 @@ Complete Gateway Setup:
         --role-arn <role-arn> \\
         --name LambdaProcessor \\
         --target-type lambda
-    
+
     # 3. Add API target
     agentcore gateway create-mcp-gateway-target \\
         --gateway-arn <gateway-arn> \\
@@ -269,7 +269,7 @@ Gateway Cleanup:
     agentcore gateway delete-mcp-gateway-target --name ProductionGateway --target-name LambdaProcessor
     agentcore gateway delete-mcp-gateway-target --name ProductionGateway --target-name ExternalAPI
     agentcore gateway delete-mcp-gateway --name ProductionGateway
-    
+
     # Option 2: Force delete gateway and all targets at once
     agentcore gateway delete-mcp-gateway --name ProductionGateway --force
 
@@ -282,7 +282,5 @@ KEY POINTS:
 - Gateway must be empty (no targets) before deletion
 - IAM roles and Cognito resources created automatically if not provided
 """
-    
-    return {
-        "deployment_guide": deployment_guide
-    }
+
+    return {'deployment_guide': deployment_guide}
