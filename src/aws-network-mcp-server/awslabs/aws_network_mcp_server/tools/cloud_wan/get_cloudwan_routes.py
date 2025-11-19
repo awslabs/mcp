@@ -100,7 +100,7 @@ async def get_cloudwan_routes(
         )
 
         if not routes_response.get('NetworkRoutes'):
-            result['Segment'] = {
+            result['segment'] = {
                 'name': segment,
                 'routes': 'No network routes found with the given parameters.',
             }
