@@ -9,6 +9,18 @@ This guide shows how to modify the existing CDK and Terraform infrastructure cod
 - Node.js application containerized and pushed to ECR
 - AWS CLI configured with appropriate permissions
 
+## Critical Requirements
+
+**Error Handling:**
+- If you cannot determine required values from the IaC, STOP and ask the user
+- For multiple EC2 instances, ask which one(s) to modify
+- Preserve all existing UserData commands; add new ones in sequence
+
+**Do NOT:**
+- Run deployment commands automatically (`cdk deploy`, `terraform apply`, etc.)
+- Remove existing application startup logic
+- Skip the user approval step before deployment
+
 ## CDK Implementation
 
 ### 1. Enable Application Signals Discovery (Optional)
@@ -39,8 +51,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 const cloudwatchRole = new iam.Role(this, 'CloudWatchAgentAddOnRole', {
   assumedBy: new iam.OpenIdConnectPrincipal(cluster.openIdConnectProvider),
   managedPolicies: [
-    iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy'),
-    iam.ManagedPolicy.fromAwsManagedPolicyName('AWSXRayWriteOnlyAccess')
+    iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchAgentServerPolicy')
   ],
 });
 
@@ -100,21 +111,26 @@ const deployment = {
 
 ### 1. Add CloudWatch Agent IAM Permissions
 
-Update the node role to include CloudWatch permissions:
+Add the CloudWatch policy to the node role:
 
 ```hcl
-resource "aws_iam_role_policy_attachment" "node_policy" {
-  for_each = toset([
-    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-    "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
-    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-    "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
-    "arn:aws:iam::aws:policy/AWSXRayWriteOnlyAccess"
-  ])
-  policy_arn = each.value
+# Additional IAM policies for Application Signals
+resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
   role       = aws_iam_role.node_role.name
+}
+```
+
+**Important:** Add this policy attachment to your node group's `depends_on` block:
+
+```hcl
+resource "aws_eks_node_group" "app_nodes" {
+  # ... existing configuration ...
+  
+  depends_on = [
+    aws_iam_role_policy_attachment.node_policy,
+    aws_iam_role_policy_attachment.cloudwatch_agent_policy
+  ]
 }
 ```
 
@@ -136,69 +152,19 @@ resource "aws_eks_addon" "cloudwatch_observability" {
 
 ### 3. Add Node.js Instrumentation Annotation
 
-Update the Kubernetes deployment to include the Node.js instrumentation annotation:
+Update your Kubernetes deployment template to include the Node.js instrumentation annotation:
 
 ```hcl
-# Kubernetes Deployment with Application Signals
-resource "kubernetes_deployment" "app" {
+template {
   metadata {
-    name = var.app_name
-  }
-
-  spec {
-    replicas = 1
-
-    selector {
-      match_labels = {
-        app = var.app_name
-      }
+    labels = {
+      app = var.app_name
     }
-
-    template {
-      metadata {
-        labels = {
-          app = var.app_name
-        }
-        annotations = {
-          "instrumentation.opentelemetry.io/inject-nodejs" = "true"
-        }
-      }
-
-      spec {
-        container {
-          image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/${var.image_name}:latest"
-          name  = var.app_name
-
-          port {
-            container_port = var.port
-          }
-
-          env {
-            name  = "PORT"
-            value = tostring(var.port)
-          }
-
-          env {
-            name  = "AWS_REGION"
-            value = data.aws_region.current.name
-          }
-
-          lifecycle {
-            post_start {
-              exec {
-                command = ["sh", "-c", "nohup bash /app/generate-traffic.sh > /dev/null 2>&1 &"]
-              }
-            }
-          }
-        }
-      }
+    annotations = {
+      "instrumentation.opentelemetry.io/inject-nodejs" = "true"
     }
   }
-
-  depends_on = [
-    aws_eks_node_group.app_nodes,
-    aws_eks_addon.cloudwatch_observability
-  ]
+  # ... rest of your template configuration
 }
 ```
 
@@ -240,3 +206,34 @@ After deployment, verify Application Signals is working:
 - The Node.js instrumentation annotation will cause pods to restart automatically
 - For Node.js applications with ESM module format, see [special configuration requirements](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-EKS.html#EKS-NodeJs-ESM) in the AWS documentation
 - It may take a few minutes for data to appear in the Application Signals console after deployment
+
+## Completion
+
+**Tell the user:**
+
+"I've completed the Application Signals enablement for your Node.js application. Here's what I modified:
+
+**Files Changed:**
+- IAM role: Added CloudWatchAgentServerPolicy
+- CloudWatch Observability EKS add-on: Added to the EKS Cluster
+- Kubernetes Deployment: Instrumentation annotation added with inject-nodejs set to true
+
+**Next Steps:**
+1. Review the changes I made using `git diff`
+2. Deploy your infrastructure:
+   - For CDK: `cdk deploy`
+   - For Terraform: `terraform apply`
+   - For CloudFormation: Deploy your stack
+3. After deployment, wait 5-10 minutes for telemetry data to start flowing
+
+**Verification:**
+Once deployed, you can verify Application Signals is working by:
+- Opening the AWS CloudWatch Console
+- Navigating to Application Signals → Services
+- Looking for your service (named: {{SERVICE_NAME}})
+- Checking that traces and metrics are being collected
+
+**Monitor Application Health:**
+After enablement, you can monitor your application's operational health using Application Signals dashboards. For more information, see [Monitor the operational health of your applications with Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Services.html).
+
+Let me know if you'd like me to make any adjustments before you deploy!"
