@@ -13,21 +13,23 @@ Currently used for evaluating CloudWatch Application Signals MCP tools. Designed
 
 ### Running Evals
 
+Run the below commands from the `src/cloudwatch-applicationsignals-mcp-server` directory.
+
 ```bash
 # List all available tasks
-python -m evals applicationsignals --list
+python -m evals tasks --list
 
 # Run specific task by ID
-python -m evals applicationsignals --task-id <task_id>
+python -m evals tasks --task-id <task_id>
 
 # Run all tasks from a task file
-python -m evals applicationsignals --task <task_file>
+python -m evals tasks --task <task_file>
 
 # Run with verbose logging
-python -m evals applicationsignals --task-id <task_id> -v
+python -m evals tasks --task-id <task_id> -v
 
 # Skip cleanup (useful for inspecting changes)
-python -m evals applicationsignals --task-id <task_id> --no-cleanup
+python -m evals tasks --task-id <task_id> --no-cleanup
 ```
 
 ### Configuration
@@ -49,7 +51,7 @@ Example:
 export MCP_EVAL_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
 export MCP_EVAL_MAX_TURNS=30
 export MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL=DEBUG  # For debugging server issues
-python -m evals applicationsignals --task-id my_task
+python -m evals tasks --task-id my_task
 ```
 
 ### Creating Task Files
