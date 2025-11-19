@@ -28,6 +28,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
+# Regex pattern for file:// or fileb:// prefixes used in blob arguments
+FILE_BLOB_PREFIX_PATTERN = r'^fileb?://'
+
 # Custom operation arguments that accept file paths
 # This includes empty entries for all allowed customizations that don't accept file paths
 # to make sure that no opearation is overlooked
@@ -86,9 +89,6 @@ CUSTOM_BLOB_ARGUMENTS = {
     'emr': {
         'create-cluster': [
             '--configurations',
-        ],
-        'add-steps': [
-            '--steps',
             '--bootstrap-actions',
             '--ec2-attributes',
             '--instance-groups',
@@ -99,6 +99,9 @@ CUSTOM_BLOB_ARGUMENTS = {
             '--auto-termination-policy',
             '--additional-info',
             '--emrfs',
+        ],
+        'add-steps': [
+            '--steps',
         ],
     },
 }
@@ -206,15 +209,15 @@ def extract_file_paths_from_parameters(
         elif param_name in blob_args:
             if isinstance(param_value, str):
                 # Remove file:// or fileb:// prefix if present
-                if re.match(r'^fileb?://', param_value):
-                    cleaned_path = re.sub(r'^fileb?://', '', param_value)
+                if re.match(FILE_BLOB_PREFIX_PATTERN, param_value):
+                    cleaned_path = re.sub(FILE_BLOB_PREFIX_PATTERN, '', param_value)
                     file_paths.append(cleaned_path)
             elif isinstance(param_value, list):
                 file_paths.extend(
                     [
-                        re.sub(r'^fileb?://', '', item)
+                        re.sub(FILE_BLOB_PREFIX_PATTERN, '', item)
                         for item in param_value
-                        if isinstance(item, str) and re.match(r'^fileb?://', item)
+                        if isinstance(item, str) and re.match(FILE_BLOB_PREFIX_PATTERN, item)
                     ]
                 )
 

@@ -14,10 +14,12 @@
 
 import os
 import pytest
+from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.errors import FilePathValidationError
 from awslabs.aws_api_mcp_server.core.common.file_system_controls import (
     CUSTOM_FILE_PATH_ARGUMENTS,
+    extract_file_paths_from_parameters,
     validate_file_path,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import ALLOWED_CUSTOM_OPERATIONS
@@ -83,3 +85,56 @@ def test_all_custom_operations_have_file_path_arguments_entry():
         + '\n\nAll custom operations must have an explicit entry in CUSTOM_FILE_PATH_ARGUMENTS, '
         + "even if it's an empty list (for operations that don't accept file paths)."
     )
+
+
+def test_extract_file_paths_service_non_custom_operation():
+    """Test extract_file_paths_from_parameters with non-custom operation."""
+    command_metadata = CommandMetadata(
+        service_sdk_name='lambda', service_full_sdk_name='AWS Lambda', operation_sdk_name='Invoke'
+    )
+
+    parameters = {
+        'FunctionName': 'MyFunction',
+        'Payload': '{"key": "value"}',
+    }
+
+    result = extract_file_paths_from_parameters(command_metadata, parameters)
+
+    assert result == []
+
+
+def test_extract_file_paths_param_value_is_list():
+    """Test extract_file_paths_from_parameters when param_value is a list for file path arguments."""
+    command_metadata = CommandMetadata(
+        service_sdk_name='s3', service_full_sdk_name='s3', operation_sdk_name='sync'
+    )
+
+    parameters = {
+        '--paths': [
+            '/local/file1.txt',
+            's3://bucket/key1',
+        ],
+        '--other-param': 'value',
+    }
+
+    result = extract_file_paths_from_parameters(command_metadata, parameters)
+
+    # Should extract only the local file paths (remote paths are filtered out)
+    expected = ['/local/file1.txt']
+    assert result == expected
+
+
+def test_extract_file_paths_parameter_none_value():
+    """Test extract_file_paths_from_parameters with emr create-cluster and --configurations parameter set to None."""
+    command_metadata = CommandMetadata(
+        service_sdk_name='emr', service_full_sdk_name='emr', operation_sdk_name='create-cluster'
+    )
+
+    parameters = {
+        '--configurations': None,
+        '--name': 'MyCluster',
+    }
+
+    result = extract_file_paths_from_parameters(command_metadata, parameters)
+
+    assert result == []

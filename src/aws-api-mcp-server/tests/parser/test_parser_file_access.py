@@ -184,6 +184,7 @@ class TestDefaultFileAccessBehavior:
             'aws deploy push --application-name my-app --s3-location s3://my-bucket/app.zip --source /tmp/app',
             # EMR custom blob arguments outside WORKING_DIRECTORY
             'aws emr create-cluster --name my-cluster --release-label emr-5.30.0 --configurations file:///tmp/config.json --instance-type m5.xlarge --instance-count 3',
+            'aws emr create-cluster --name my-cluster --release-label emr-5.30.0 --configurations InstanceCount=3,InstanceGroupType=MASTER --instance-fleets file:///tmp/fleets.json',
             'aws emr add-steps --cluster-id j-123456 --steps file:///tmp/steps.json',
         ],
     )
@@ -343,6 +344,11 @@ class TestDisabledLocalFileAccess:
                 'modify-cluster-attributes',
             ),
             ('aws emr create-default-roles', 'emr', 'create-default-roles'),
+            (
+                'aws emr add-steps --cluster-id j-XXXXXXXX --steps Type=CUSTOM_JAR,Name=CustomJAR,ActionOnFailure=CONTINUE,Jar=s3://amzn-s3-demo-bucket/mytest.jar,Args=arg1,arg2,arg3',
+                'emr',
+                'add-steps',
+            ),
             # EMR Containers operations
             (
                 'aws emr-containers update-role-trust-policy --cluster-name my-cluster --namespace default --role-name my-role',
