@@ -131,14 +131,11 @@ The tool is backed by expert-engineered context that helps reasoning models guid
 
 ### Data Model Validation
 
-<<<<<<< HEAD
 **Prerequisites for Data Model Validation:**
 To use the data model validation tool, you need one of the following:
 - **Container Runtime**: Docker, Podman, Finch, or nerdctl with a running daemon
 - **Java Runtime**: Java JRE version 17 or newer (set `JAVA_HOME` or ensure `java` is in your system PATH)
 
-=======
->>>>>>> 6c636f76 (feat(dynamodb): Create dynamodb data model validation tool)
 After completing your data model design, use the `dynamodb_data_model_validation` tool to automatically test your data model against DynamoDB Local. The validation tool closes the loop between generation and execution by creating an iterative validation cycle.
 
 **How It Works:**
