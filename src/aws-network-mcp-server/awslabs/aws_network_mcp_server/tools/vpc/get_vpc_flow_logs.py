@@ -17,7 +17,7 @@ from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from datetime import datetime, timedelta, timezone
 from fastmcp.exceptions import ToolError
 from pydantic import Field
-from typing import Annotated, List, Optional
+from typing import Annotated, Dict, List, Optional
 
 
 async def get_vpc_flow_logs(
