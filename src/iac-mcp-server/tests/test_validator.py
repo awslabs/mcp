@@ -76,6 +76,40 @@ class TestFormatResults:
         assert len(result['issues']) == 1
         assert result['issues'][0]['level'] == 'info'
 
+    def test_format_results_with_warning_level(self):
+        """Test formatting matches with warning level."""
+        mock_rule = Mock(spec=CloudFormationLintRule)
+        mock_rule.id = 'W1234'
+        mock_rule.shortdesc = 'Warning message'
+        mock_rule.description = 'Warning description'
+
+        match = Match(
+            linenumber=5,
+            columnnumber=10,
+            linenumberend=5,
+            columnnumberend=25,
+            filename='template.yaml',
+            rule=mock_rule,
+            message='This is a warning',
+        )
+
+        result = _format_results([match])
+
+        assert result['validation_results']['warning_count'] == 1
+        assert result['validation_results']['error_count'] == 0
+        assert result['validation_results']['info_count'] == 0
+        assert result['message'] == 'Template has 1 warnings. Review and address as needed.'
+
+    def test_format_results_no_issues(self):
+        """Test formatting with no matches returns valid template message."""
+        result = _format_results([])
+
+        assert result['validation_results']['error_count'] == 0
+        assert result['validation_results']['warning_count'] == 0
+        assert result['validation_results']['info_count'] == 0
+        assert result['message'] == 'Template is valid.'
+        assert result['validation_results']['is_valid'] is True
+
 
 class TestOversizedTemplates:
     """Test handling of oversized templates (>500KB)."""

@@ -241,31 +241,6 @@ def check_compliance(
 
         def get_resource_for_rule(rule_name, template_resources):
             """Get appropriate resource for a rule based on rule name patterns."""
-            if 'S3' in rule_name:
-                s3_resources = [
-                    (name, rtype) for name, rtype in template_resources.items() if 'S3' in rtype
-                ]
-                if s3_resources:
-                    return s3_resources[0]
-            elif 'SECURITY_GROUP' in rule_name:
-                sg_resources = [
-                    (name, rtype)
-                    for name, rtype in template_resources.items()
-                    if 'SecurityGroup' in rtype
-                ]
-                if sg_resources:
-                    return sg_resources[0]
-            elif 'IAM' in rule_name:
-                iam_resources = [
-                    (name, rtype) for name, rtype in template_resources.items() if 'IAM' in rtype
-                ]
-                if iam_resources:
-                    return iam_resources[0]
-
-            # Return first resource if no specific match
-            if template_resources:
-                return next(iter(template_resources.items()))
-
             return 'Unknown', 'Unknown'
 
         def create_violation(rule_id, resource, resource_type, message):

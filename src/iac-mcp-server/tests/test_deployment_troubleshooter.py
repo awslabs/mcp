@@ -492,3 +492,50 @@ class TestPatternMatching:
         case_ids = [m['matched_case']['case_id'] for m in result['raw_data']['matched_failures']]
         assert 'S3_BUCKET_NOT_EMPTY' in case_ids
         assert 'SECURITY_GROUP_DEPENDENCY' in case_ids
+
+
+class TestAnalyzeDeploymentEdgeCases:
+    """Test edge cases in troubleshoot_stack_deployment."""
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_empty_stacks_response(self, mock_boto_client):
+        """Test when describe_stacks returns empty list."""
+        from botocore.exceptions import ClientError
+
+        mock_cfn = Mock()
+        mock_cfn.describe_stacks.return_value = {'Stacks': []}
+        mock_cfn.exceptions.ClientError = ClientError
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        troubleshooter = DeploymentTroubleshooter()
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'error'
+        assert 'not found' in result['error']
+
+    @patch('awslabs.iac_mcp_server.deployment_troubleshooter.boto3.client')
+    def test_create_operation_detection(self, mock_boto_client):
+        """Test CREATE operation is detected from ResourceStatus."""
+        mock_cfn = Mock()
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Test error',
+                    'ResourceType': 'AWS::S3::Bucket',
+                }
+            ]
+        }
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        troubleshooter = DeploymentTroubleshooter()
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
