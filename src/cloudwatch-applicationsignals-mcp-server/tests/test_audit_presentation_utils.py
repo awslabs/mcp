@@ -20,6 +20,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.audit_presentation_utils i
     extract_findings_summary,
     format_detailed_finding_analysis,
     format_findings_summary,
+    format_pagination_info,
 )
 
 
@@ -359,3 +360,176 @@ class TestFormatDetailedFindingAnalysis:
 
         # Empty description should not create description section
         assert '**Issue Description:**' not in result
+
+
+class TestFormatPaginationInfo:
+    """Test cases for format_pagination_info helper function."""
+
+    def test_format_pagination_info_no_wildcards(self):
+        """Test format_pagination_info returns empty string when no wildcards."""
+        result = format_pagination_info(
+            has_wildcards=False,
+            names_in_batch=['service1', 'service2'],
+            returned_next_token='token123',
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+        assert result == ''
+
+    def test_format_pagination_info_empty_names(self):
+        """Test format_pagination_info returns empty string when no names in batch."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=[],
+            returned_next_token='token123',
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+        assert result == ''
+
+    def test_format_pagination_info_with_next_token(self):
+        """Test format_pagination_info with next_token (more pages available)."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=['service1', 'service2', 'service3'],
+            returned_next_token='token123',
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        assert '📊 Processed 3 services in this batch:' in result
+        assert '   • service1' in result
+        assert '   • service2' in result
+        assert '   • service3' in result
+        assert '🔄 PAGINATION: More services available!' in result
+        assert 'audit_services(' in result
+        assert 'start_time="1640995200"' in result
+        assert 'end_time="1641081600"' in result
+        assert 'next_token="token123"' in result
+        assert 'max_services=5' in result
+
+    def test_format_pagination_info_no_next_token(self):
+        """Test format_pagination_info without next_token (last page)."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=['service1', 'service2'],
+            returned_next_token=None,
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        assert '✅ PAGINATION: Complete! This was the last batch of services.' in result
+        assert '📊 Processed 2 services in final batch:' in result
+        assert '   • service1' in result
+        assert '   • service2' in result
+        assert 'audit_services(' not in result  # No continuation instructions
+
+    def test_format_pagination_info_slos(self):
+        """Test format_pagination_info with SLOs item type."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=['slo1', 'slo2'],
+            returned_next_token='slo_token',
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_slos',
+            max_param_name='max_slos',
+            max_param_value=3,
+            item_type='SLOs',
+        )
+
+        assert '📊 Processed 2 SLOs in this batch:' in result
+        assert '🔄 PAGINATION: More SLOs available!' in result
+        assert 'audit_slos(' in result
+        assert 'max_slos=3' in result
+
+    def test_format_pagination_info_operations(self):
+        """Test format_pagination_info with operations (uses services item type)."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=['payment-service', 'order-service'],
+            returned_next_token='op_token',
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_service_operations',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        assert '📊 Processed 2 services in this batch:' in result
+        assert 'audit_service_operations(' in result
+
+    def test_format_pagination_info_empty_string_token(self):
+        """Test format_pagination_info with empty string token."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=['service1'],
+            returned_next_token='',  # Empty string
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        # Empty string should be treated as falsy, so should show completion
+        assert '✅ PAGINATION: Complete!' in result
+
+    def test_format_pagination_info_special_characters_in_names(self):
+        """Test format_pagination_info with special characters in service names."""
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=[
+                'service-with-dashes',
+                'service_with_underscores',
+                'service.with.dots',
+            ],
+            returned_next_token=None,
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        assert '   • service-with-dashes' in result
+        assert '   • service_with_underscores' in result
+        assert '   • service.with.dots' in result
+
+    def test_format_pagination_info_long_service_names(self):
+        """Test format_pagination_info with very long service names."""
+        long_name = (
+            'very-long-service-name-that-exceeds-normal-length-limits-and-continues-for-a-while'
+        )
+        result = format_pagination_info(
+            has_wildcards=True,
+            names_in_batch=[long_name],
+            returned_next_token=None,
+            unix_start=1640995200,
+            unix_end=1641081600,
+            tool_name='audit_services',
+            max_param_name='max_services',
+            max_param_value=5,
+            item_type='services',
+        )
+
+        assert f'   • {long_name}' in result

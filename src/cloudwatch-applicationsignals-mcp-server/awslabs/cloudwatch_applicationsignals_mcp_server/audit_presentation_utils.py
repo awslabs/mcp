@@ -16,7 +16,7 @@
 
 import json
 from loguru import logger
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def extract_findings_summary(audit_result: str) -> Tuple[List[Dict[str, Any]], str]:
@@ -229,3 +229,60 @@ def format_detailed_finding_analysis(finding: Dict[str, Any], detailed_result: s
     analysis += detailed_result
 
     return analysis
+
+
+def format_pagination_info(
+    has_wildcards: bool,
+    names_in_batch: list,
+    returned_next_token: Optional[str],
+    unix_start: int,
+    unix_end: int,
+    tool_name: str,
+    max_param_name: str,
+    max_param_value: int,
+    item_type: str = 'services',
+) -> str:
+    """Helper function to format pagination information for audit tools.
+
+    Args:
+        has_wildcards: Whether wildcards were used
+        names_in_batch: List of item names processed in this batch
+        returned_next_token: Token for next batch, if any
+        unix_start: Start time as unix timestamp
+        unix_end: End time as unix timestamp
+        tool_name: Name of the audit tool (e.g., 'audit_services')
+        max_param_name: Name of the max parameter (e.g., 'max_services')
+        max_param_value: Value of the max parameter
+        item_type: Type of items being processed (e.g., 'services', 'SLOs')
+
+    Returns:
+        Formatted pagination information string
+    """
+    if not has_wildcards or not names_in_batch:
+        return ''
+
+    result = ''
+
+    if returned_next_token:
+        # Convert unix timestamps to string format
+        start_time_str = str(unix_start)
+        end_time_str = str(unix_end)
+        result += f'\n\n📊 Processed {len(names_in_batch)} {item_type} in this batch:\n'
+        for name in names_in_batch:
+            result += f'   • {name}\n'
+
+        result += f'\n\n🔄 PAGINATION: More {item_type} available!\n'
+        result += f'⚠️ IMPORTANT: To continue auditing remaining {item_type}, use:\n'
+        result += f'   {tool_name}(\n'
+        result += f'       start_time="{start_time_str}",\n'
+        result += f'       end_time="{end_time_str}",\n'
+        result += f'       next_token="{returned_next_token}",\n'
+        result += f'       {max_param_name}={max_param_value}\n'
+        result += '   )\n'
+    else:
+        result += f'\n\n✅ PAGINATION: Complete! This was the last batch of {item_type}.\n'
+        result += f'📊 Processed {len(names_in_batch)} {item_type} in final batch:\n'
+        for name in names_in_batch:
+            result += f'   • {name}\n'
+
+    return result
