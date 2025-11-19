@@ -165,6 +165,11 @@ class TestAuditServices:
                 ],
                 'next_token_123',
                 ['payment-service-1', 'payment-service-2'],
+                {
+                    'total_services': 2,
+                    'instrumented_services': 2,
+                    'filtered_out': 0,
+                },
             )
             mock_normalize.return_value = [
                 {
@@ -232,6 +237,11 @@ class TestAuditServices:
                 ],
                 None,  # No next_token
                 ['final-service'],
+                {
+                    'total_services': 1,
+                    'instrumented_services': 1,
+                    'filtered_out': 0,
+                },
             )
             mock_normalize.return_value = [
                 {
@@ -269,7 +279,7 @@ class TestAuditServices:
             'awslabs.cloudwatch_applicationsignals_mcp_server.server.expand_service_wildcard_patterns'
         ) as mock_expand:
             # Mock expansion to return empty results
-            mock_expand.return_value = ([], None, [])
+            mock_expand.return_value = ([], None, [], {})
 
             result = await audit_services(service_targets=service_targets)
 
@@ -297,7 +307,7 @@ class TestAuditServices:
                 'awslabs.cloudwatch_applicationsignals_mcp_server.server.execute_audit_api'
             ) as mock_execute,
         ):
-            mock_expand.return_value = ([], None, [])
+            mock_expand.return_value = ([], None, [], {})
             mock_normalize.return_value = []
             mock_validate.return_value = []
             mock_execute.return_value = 'Results'
@@ -331,7 +341,7 @@ class TestAuditServices:
                 'awslabs.cloudwatch_applicationsignals_mcp_server.server.execute_audit_api'
             ) as mock_execute,
         ):
-            mock_expand.return_value = ([], None, [])
+            mock_expand.return_value = ([], None, [], {})
             mock_normalize.return_value = []
             mock_validate.return_value = []
             mock_execute.return_value = 'Results'
@@ -365,7 +375,7 @@ class TestAuditServices:
                 'awslabs.cloudwatch_applicationsignals_mcp_server.server.execute_audit_api'
             ) as mock_execute,
         ):
-            mock_expand.return_value = ([], None, [])
+            mock_expand.return_value = ([], None, [], {})
             mock_normalize.return_value = []
             mock_validate.return_value = []
             mock_execute.return_value = 'Results'
@@ -409,6 +419,11 @@ class TestAuditServices:
                 ],
                 'token_batch_1',
                 ['service-1', 'service-2'],
+                {
+                    'total_services': 2,
+                    'instrumented_services': 2,
+                    'filtered_out': 0,
+                },
             )
             mock_normalize.return_value = [
                 {
@@ -446,6 +461,11 @@ class TestAuditServices:
                 ],
                 None,  # No more batches
                 ['service-3'],
+                {
+                    'total_services': 1,
+                    'instrumented_services': 1,
+                    'filtered_out': 0,
+                },
             )
             mock_normalize.return_value = [
                 {
@@ -501,6 +521,11 @@ class TestAuditServices:
                 ],
                 'time_token',
                 ['service-1'],
+                {
+                    'total_services': 1,
+                    'instrumented_services': 1,
+                    'filtered_out': 0,
+                },
             )
             mock_normalize.return_value = [
                 {
@@ -792,6 +817,11 @@ class TestAuditServiceOperations:
                 ],
                 'op_token_789',
                 ['payment-service', 'order-service'],
+                {
+                    'total_services': 2,
+                    'instrumented_services': 2,
+                    'filtered_out': 0,
+                },
             )
             mock_execute.return_value = 'Operation audit results'
 
@@ -833,7 +863,7 @@ class TestAuditServiceOperations:
             'awslabs.cloudwatch_applicationsignals_mcp_server.server.expand_service_operation_wildcard_patterns'
         ) as mock_expand:
             # Mock expansion to return empty results
-            mock_expand.return_value = ([], None, [])
+            mock_expand.return_value = ([], None, [], {})
 
             result = await audit_service_operations(operation_targets=operation_targets)
 
@@ -891,6 +921,11 @@ class TestAuditServiceOperations:
                 concrete_targets,
                 None,
                 [f'test-service-{i}' for i in range(7)],
+                {
+                    'total_services': 7,
+                    'instrumented_services': 7,
+                    'filtered_out': 0,
+                },
             )
             mock_execute.return_value = (
                 '[MCP-OPERATION] Application Signals Operation Performance Audit\n'
@@ -968,6 +1003,11 @@ class TestAuditServiceOperations:
                 operation_targets,
                 None,
                 ['payment-service', 'order-service'],
+                {
+                    'total_services': 2,
+                    'instrumented_services': 2,
+                    'filtered_out': 0,
+                },
             )
             mock_execute.return_value = (
                 '[MCP-OPERATION] Application Signals Operation Performance Audit\n'
