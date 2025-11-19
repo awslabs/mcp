@@ -1,4 +1,4 @@
-# Task: Enable Application Signals for Python Applications on Amazon EKS
+# Task: Enable AWS Application Signals for Python Applications on Amazon EKS
 
 This guide shows how to modify the existing CDK and Terraform infrastructure code to enable AWS Application Signals for Python applications running on Amazon EKS.
 
