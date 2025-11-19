@@ -1184,6 +1184,7 @@ class TestDownloadDynamodbLocalJar:
 
             # Mock tar extraction
             mock_tar = MagicMock()
+            mock_tar.getnames.return_value = ['DynamoDBLocal.jar', 'DynamoDBLocal_lib/file.so']
             mock_tarfile.return_value.__enter__.return_value = mock_tar
 
             with patch('builtins.open', mock_open()):
@@ -1231,7 +1232,7 @@ class TestDownloadDynamodbLocalJar:
             mock_rmtree.assert_called_once()
 
     def test_download_dynamodb_local_jar_extraction_failure(self):
-        """Test when JAR is not found after extraction."""
+        """Test when JAR is not found in archive."""
         with (
             patch('tempfile.gettempdir') as mock_tempdir,
             patch('os.path.exists') as mock_exists,
@@ -1249,13 +1250,14 @@ class TestDownloadDynamodbLocalJar:
             mock_urlopen.return_value.__enter__.return_value = mock_response
 
             mock_tar = MagicMock()
+            mock_tar.getnames.return_value = ['other_file.txt']  # JAR not in archive
             mock_tarfile.return_value.__enter__.return_value = mock_tar
 
             with patch('builtins.open', mock_open()):
                 with pytest.raises(RuntimeError) as exc_info:
                     download_dynamodb_local_jar()
 
-            assert 'DynamoDBLocal.jar not found after extraction' in str(exc_info.value)
+            assert 'DynamoDBLocal.jar not found in archive' in str(exc_info.value)
 
     def test_download_jar_with_data_filter(self):
         """Test download_dynamodb_local_jar with tarfile data filter."""
@@ -1277,6 +1279,7 @@ class TestDownloadDynamodbLocalJar:
 
             # Mock tar extraction with data filter
             mock_tar = MagicMock()
+            mock_tar.getnames.return_value = ['DynamoDBLocal.jar', 'DynamoDBLocal_lib/file.so']
             mock_tarfile.return_value.__enter__.return_value = mock_tar
 
             # Mock tarfile module to have data_filter attribute
@@ -1406,28 +1409,25 @@ class TestGetUserWorkingDirectory:
 class TestValidateDownloadUrl:
     """Test cases for _validate_download_url function."""
 
-    def test_validate_download_url_valid_https(self):
-        """Test validation passes for valid HTTPS AWS CloudFront URL."""
-        valid_url = 'https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz'
-        _validate_download_url(valid_url)  # Should not raise
+    def test_validate_download_url_valid_exact_url(self):
+        """Test validation passes for exact DynamoDB Local URL."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import DynamoDBLocalConfig
 
-    def test_validate_download_url_rejects_http(self):
-        """Test validation rejects HTTP URLs."""
-        http_url = 'http://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz'
-        with pytest.raises(ValueError, match='Only HTTPS URLs are allowed'):
-            _validate_download_url(http_url)
+        _validate_download_url(DynamoDBLocalConfig.DOWNLOAD_URL)  # Should not raise
 
-    def test_validate_download_url_rejects_file_scheme(self):
-        """Test validation rejects file:// URLs."""
-        file_url = 'file:///etc/passwd'
-        with pytest.raises(ValueError, match='Only HTTPS URLs are allowed'):
-            _validate_download_url(file_url)
+    def test_validate_download_url_rejects_different_url(self):
+        """Test validation rejects any URL that doesn't match exactly."""
+        different_urls = [
+            'https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/different_file.tar.gz',
+            'http://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz',
+            'https://malicious.example.com/dynamodb_local_latest.tar.gz',
+            'file:///etc/passwd',
+            'https://d1ni2b6xgvw0s0.cloudfront.net/v3.x/dynamodb_local_latest.tar.gz',
+        ]
 
-    def test_validate_download_url_rejects_unknown_domain(self):
-        """Test validation rejects URLs from unknown domains."""
-        malicious_url = 'https://malicious.example.com/malware.tar.gz'
-        with pytest.raises(ValueError, match='URL domain not allowed'):
-            _validate_download_url(malicious_url)
+        for url in different_urls:
+            with pytest.raises(ValueError, match='Only DynamoDB Local download URL is allowed'):
+                _validate_download_url(url)
 
 
 class TestSafeExtractMembers:

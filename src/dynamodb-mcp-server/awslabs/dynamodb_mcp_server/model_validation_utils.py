@@ -239,16 +239,11 @@ def _validate_download_url(url: str) -> None:
     Raises:
         ValueError: If URL is not safe to use
     """
-    if not url.startswith('https://'):
-        raise ValueError(f'Only HTTPS URLs are allowed, got: {url}')
-
-    # Only allow AWS CloudFront domains for DynamoDB Local downloads
-    allowed_domains = ['d1ni2b6xgvw0s0.cloudfront.net']
-    from urllib.parse import urlparse
-
-    parsed = urlparse(url)
-    if parsed.hostname not in allowed_domains:
-        raise ValueError(f'URL domain not allowed: {parsed.hostname}')
+    # Only allow the exact DynamoDB Local download URL
+    if url != DynamoDBLocalConfig.DOWNLOAD_URL:
+        raise ValueError(
+            f'Only DynamoDB Local download URL is allowed: {DynamoDBLocalConfig.DOWNLOAD_URL}'
+        )
 
 
 def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -> None:
@@ -265,11 +260,21 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
         with urllib.request.urlopen(  # nosec B310
             DynamoDBLocalConfig.DOWNLOAD_URL, timeout=DynamoDBLocalConfig.DOWNLOAD_TIMEOUT
         ) as response:
+            # Validate content type
+            content_type = response.headers.get('content-type', '')
+            if content_type and not content_type.startswith(
+                ('application/gzip', 'application/x-gzip', 'application/octet-stream')
+            ):
+                raise ValueError(f'Unexpected content type: {content_type}')
+
             with open(tar_path, 'wb') as f:
                 f.write(response.read())
 
-        # Extract the tar.gz file safely
+        # Validate tar contents before extraction
         with tarfile.open(tar_path, 'r:gz') as tar:
+            if 'DynamoDBLocal.jar' not in tar.getnames():
+                raise RuntimeError('DynamoDBLocal.jar not found in archive')
+
             if hasattr(tarfile, 'data_filter'):
                 tar.extractall(dynamodb_dir, members=_safe_extract_members(tar), filter='data')  # nosec B202
             else:
@@ -277,9 +282,6 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
 
         # Clean up tar file
         os.remove(tar_path)
-
-        if not os.path.exists(jar_path):
-            raise RuntimeError('DynamoDBLocal.jar not found after extraction')
 
         logger.info(f'Downloaded and extracted DynamoDB Local to {jar_path}')
 
@@ -566,6 +568,13 @@ def start_java_process(java_path: str, port: int) -> str:
     ]
 
     try:
+        # Validate command before execution
+        base_cmd = os.path.basename(java_path)
+        if base_cmd.endswith('.exe'):
+            base_cmd = base_cmd[:-4]
+        if base_cmd != 'java':
+            raise RuntimeError(f'Invalid Java executable: {base_cmd}')
+
         logger.info(f'Starting DynamoDB Local with Java on port {port}')
 
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

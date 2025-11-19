@@ -123,7 +123,7 @@ Items:
 }
 ```
 
-##### Pattern 3: Search products by name/keyword
+##### Pattern 3: Search items by name/keyword
 Integration Type: OpenSearch
 Reason: Delegated to external search service due to DynamoDB's limited text search capabilities
 
