@@ -166,7 +166,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             results = response.searchResults
             assert len(results) == 2
             assert results[0].rank_order == 1
@@ -179,13 +181,13 @@ class TestSearchDocumentation:
             assert results[1].context == 'This is test 2.'
             assert response.query_id == 'test-query-id'
             assert response.facets == {
-                'product_filters': ['Amazon S3', 'AWS Lambda'],
-                'guide_filters': ['User Guide', 'API Reference'],
+                'product_types': ['Amazon S3', 'AWS Lambda'],
+                'guide_types': ['User Guide', 'API Reference'],
             }
             assert response.query_id == 'test-query-id'
             assert response.facets == {
-                'product_filters': ['Amazon S3', 'AWS Lambda'],
-                'guide_filters': ['User Guide', 'API Reference'],
+                'product_types': ['Amazon S3', 'AWS Lambda'],
+                'guide_types': ['User Guide', 'API Reference'],
             }
             mock_post.assert_called_once()
 
@@ -236,7 +238,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             search_results = results.searchResults
             assert len(search_results) == 2
             mock_post.assert_called_once()
@@ -266,7 +270,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.HTTPError('Connection error')
 
-            response = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             results = response.searchResults
             assert len(results) == 1
             assert results[0].rank_order == 1
@@ -286,7 +292,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             results = response.searchResults
 
             assert len(results) == 1
@@ -308,7 +316,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             results = response.searchResults
 
             assert len(results) == 1
@@ -330,7 +340,9 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            response = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
             results = response.searchResults
             assert len(results) == 0
             mock_post.assert_called_once()

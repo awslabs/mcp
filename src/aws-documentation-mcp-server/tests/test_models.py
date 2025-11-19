@@ -63,8 +63,8 @@ class TestSearchResponse:
             )
         ]
         facets = {
-            'product_filters': ['Amazon S3', 'AWS Lambda'],
-            'guide_filters': ['User Guide', 'API Reference'],
+            'product_types': ['Amazon S3', 'AWS Lambda'],
+            'guide_types': ['User Guide', 'API Reference'],
         }
 
         response = SearchResponse(

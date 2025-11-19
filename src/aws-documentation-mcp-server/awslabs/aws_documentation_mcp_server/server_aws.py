@@ -171,13 +171,13 @@ async def search_documentation(
         ge=1,
         le=50,
     ),
-    product_filter: Optional[str] = Field(
+    product_types: Optional[List[str]] = Field(
         default=None,
-        description='Filter results by AWS product/service (e.g., "Amazon Simple Storage Service")',
+        description='Filter results by AWS product/service (e.g., ["Amazon Simple Storage Service"])',
     ),
-    guide_filter: Optional[str] = Field(
+    guide_types: Optional[List[str]] = Field(
         default=None,
-        description='Filter results by guide type (e.g., "User Guide", "API Reference", "Developer Guide")',
+        description='Filter results by guide type (e.g., ["User Guide", "API Reference", "Developer Guide"])',
     ),
 ) -> SearchResponse:
     """Search AWS documentation using the official AWS Documentation Search API.
@@ -193,23 +193,16 @@ async def search_documentation(
     - Include service names to narrow results (e.g., "S3 bucket versioning" instead of just "versioning")
     - Use quotes for exact phrase matching (e.g., "AWS Lambda function URLs")
     - Include abbreviations and alternative terms to improve results
-    - Use search_documentation response property "facets" to further refine a user's search if they are looking
-        for a particular service or guide type
-    - After making generic service searches (e.g AWS Lambda, S3 Bucket), ask the user if they want to filter
-      searches by specific products or guide types, and suggest options from the "facets" property
-
-    ## Tips for Filtering by Facets
-
-    ### CRITICAL RULES
-    - Filtered search MUST use identical search_phrase from previous unfiltered search
-    - Only use filters that appeared in previous search facets
-    - Maximum: one product_filter + one guide_filter per search
-
-    ### When to Facets Examples
-    - User asks for specific doc types: "show me API reference" -> use guide_filter
-    - Results too broad and facets available -> ask user if they want to filter and provide options
-    - User consistently asks about same service -> use product_filter
-    - "I want to build...", "I want to learn...", "I want to code..." -> use available guide_filter based on user's needs (e.g Developer Guide, User Guide)
+    - Default: Search without filters first
+    - Use gude_type and product_type filters from search_documentation's "facets" field:
+        - **Only** use product_type names found in search_documentation "facets" response from past searches
+        - Combine product_type + multiple guide_type filters for best results
+        - Filter only for broad search queries with patterns like:
+            - "What is [service]?" → product_types: ["AWS Lambda"] or ["Amazon Simple Storage Service"]
+            - "How to use [service]?" → product_types: ["service name from facets"]
+            - "[service] getting started" → product_types + guide_types: ["User Guide"]
+            - "API reference for [service]" → product_types + guide_types: ["API Reference"]
+        - Infer guide_type filters based on desired content type: "API reference" + "User Guide" -> ["API Reference", "User Guide"]
 
     ## Result Interpretation
 
@@ -219,7 +212,7 @@ async def search_documentation(
         - url: The documentation page URL
         - title: The page title
         - context: A brief excerpt or summary (if available)
-    - facets: Available filters (product_filters, guide_filters) for refining searches
+    - facets: Available filters (product_types, guide_types) for refining searches
     - query_id: Unique identifier for this search session
 
 
@@ -227,8 +220,8 @@ async def search_documentation(
         ctx: MCP context for logging and error handling
         search_phrase: Search phrase to use
         limit: Maximum number of results to return
-        product_filter: Filter by AWS product/service (use when facets suggest it)
-        guide_filter: Filter by guide type (use when facets suggest it)
+        product_types: Filter by AWS product/service
+        guide_types: Filter by guide type
 
     Returns:
         List of search results with URLs, titles, query ID, context snippets, and facets for filtering
@@ -248,14 +241,16 @@ async def search_documentation(
             request_body['contextAttributes'].extend(modifier['domains'])
 
     # Add product and guide filters if provided
-    if product_filter:
-        request_body['contextAttributes'].append(
-            {'key': 'aws-docs-search-product', 'value': product_filter}
-        )
-    if guide_filter:
-        request_body['contextAttributes'].append(
-            {'key': 'aws-docs-search-guide', 'value': guide_filter}
-        )
+    if product_types:
+        for product in product_types:
+            request_body['contextAttributes'].append(
+                {'key': 'aws-docs-search-product', 'value': product}
+            )
+    if guide_types:
+        for guide in guide_types:
+            request_body['contextAttributes'].append(
+                {'key': 'aws-docs-search-guide', 'value': guide}
+            )
 
     search_url_with_session = f'{SEARCH_API_URL}?session={SESSION_UUID}'
 
@@ -301,9 +296,9 @@ async def search_documentation(
             if raw_facets:
                 for key, value in raw_facets.items():
                     if key == 'aws-docs-search-product':
-                        facets['product_filters'] = value
+                        facets['product_types'] = value
                     elif key == 'aws-docs-search-guide':
-                        facets['guide_filters'] = value
+                        facets['guide_types'] = value
                     else:
                         facets[key] = value
         except json.JSONDecodeError as e:

@@ -42,7 +42,7 @@ async def test_search_documentation_live():
     ):
         # Call the search_documentation function
         response = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=5, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
         )
         results = response.searchResults
         # Verify the results
@@ -83,7 +83,7 @@ async def test_search_documentation_empty_results():
     ):
         # Call the search_documentation function
         response = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=5, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
         )
         results = response.searchResults
 
@@ -116,12 +116,12 @@ async def test_search_documentation_limit():
     ):
         # Test with limit=3
         response_small = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=3, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=3, product_types=None, guide_types=None
         )
         results_small = response_small.searchResults
         # Test with limit=10
         response_large = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=10, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
         results_large = response_large.searchResults
 
@@ -139,7 +139,7 @@ async def test_search_documentation_limit():
 
 @pytest.mark.asyncio
 @pytest.mark.live
-async def test_search_documentation_with_product_filter():
+async def test_search_documentation_with_product_type():
     """Test search_documentation with an initial search then use product filter for a second search with same query."""
     search_phrase = 'AWS Lambda'
     ctx = MockContext()
@@ -150,7 +150,7 @@ async def test_search_documentation_with_product_filter():
     ):
         # First search without filters
         first_response = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=10, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
         first_results = first_response.searchResults
         # Verify first search results
@@ -159,19 +159,19 @@ async def test_search_documentation_with_product_filter():
 
         # Get first product filter facet
         assert first_response.facets is not None
-        assert 'product_filters' in first_response.facets
-        product_filters = first_response.facets['product_filters']
-        assert len(product_filters) > 0
+        assert 'product_types' in first_response.facets
+        product_types = first_response.facets['product_types']
+        assert len(product_types) > 0
 
-        first_product_filter = product_filters[0]
+        first_product_type = product_types[0]
 
         # Second search with the product filter
         second_response = await search_documentation(
             ctx,
             search_phrase=search_phrase,
             limit=10,
-            product_filter=first_product_filter,
-            guide_filter=None,
+            product_types=[first_product_type],
+            guide_types=None,
         )
         second_results = second_response.searchResults
 
@@ -183,7 +183,7 @@ async def test_search_documentation_with_product_filter():
 
 @pytest.mark.asyncio
 @pytest.mark.live
-async def test_search_documentation_with_guide_filter():
+async def test_search_documentation_with_guide_type():
     """Test search_documentation with an initial search then use guide filter for a second search with same query."""
     search_phrase = 'AWS Lambda'
     ctx = MockContext()
@@ -194,7 +194,7 @@ async def test_search_documentation_with_guide_filter():
     ):
         # First search without filters
         first_response = await search_documentation(
-            ctx, search_phrase=search_phrase, limit=10, product_filter=None, guide_filter=None
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
         first_results = first_response.searchResults
         # Verify first search results
@@ -203,19 +203,19 @@ async def test_search_documentation_with_guide_filter():
 
         # Get first guide filter facet
         assert first_response.facets is not None
-        assert 'guide_filters' in first_response.facets
-        guide_filters = first_response.facets['guide_filters']
-        assert len(guide_filters) > 0
+        assert 'guide_types' in first_response.facets
+        guide_types = first_response.facets['guide_types']
+        assert len(guide_types) > 0
 
-        first_guide_filter = guide_filters[0]
+        first_guide_type = guide_types[0]
 
         # Second search with the guide filter
         second_response = await search_documentation(
             ctx,
             search_phrase=search_phrase,
             limit=10,
-            product_filter=None,
-            guide_filter=first_guide_filter,
+            product_types=None,
+            guide_types=[first_guide_type],
         )
         second_results = second_response.searchResults
 
