@@ -188,6 +188,45 @@ def test_user_agent_without_telemetry():
     assert 'cfg/scripts#' not in user_agent
 
 
+@patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_user_agent_with_context(mock_get_context):
+    """Test user agent when context is present."""
+    # Create mock context with fastmcp name and client params
+    mock_context = MagicMock()
+    mock_context.fastmcp.name = 'test-fastmcp'
+    mock_context.session.client_params.clientInfo.name = 'test-client'
+    mock_context.session.client_params.clientInfo.version = '1.0.0'
+
+    mock_get_context.return_value = mock_context
+
+    user_agent = get_user_agent_extra()
+
+    # Verify context information is included in user agent
+    assert 'via/test-fastmcp' in user_agent
+    assert 'MCPClient/test-client-1.0.0' in user_agent
+    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_user_agent_with_context_no_client_params(mock_get_context):
+    """Test user agent when context is present but client_params is None."""
+    # Create mock context with fastmcp name but no client params
+    mock_context = MagicMock()
+    mock_context.fastmcp.name = 'test-fastmcp'
+    mock_context.session.client_params = None
+
+    mock_get_context.return_value = mock_context
+
+    user_agent = get_user_agent_extra()
+
+    # Verify fastmcp name is included but client info is not
+    assert 'via/test-fastmcp' in user_agent
+    assert 'MCPClient/' not in user_agent
+    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+
+
 @patch('importlib.metadata.version')
 def test_package_version_fallback_to_unknown(mock_version):
     """Test that PACKAGE_VERSION falls back to 'unknown' when package not found."""

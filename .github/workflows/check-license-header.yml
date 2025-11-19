@@ -2,6 +2,7 @@
 name: Check License Header
 on:
   push:
+  workflow_dispatch:
 permissions: {}
 jobs:
   precheck:
