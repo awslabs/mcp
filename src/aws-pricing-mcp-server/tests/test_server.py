@@ -398,7 +398,7 @@ class TestGetPricing:
         assert result['status'] == 'error'
         assert result['error_type'] == 'result_too_large'
         assert 'exceeding the limit of 10,000' in result['message']
-        assert 'output_options={"pricing_terms": ["OnDemand"]}' in result['message']
+        assert 'output_options={"pricing_terms": ["OnDemand", "FlatRate"]}' in result['message']
         assert 'significantly reduce response size' in result['suggestion']
         assert result['total_count'] == 100
         assert result['max_allowed_characters'] == 10000
@@ -595,6 +595,51 @@ class TestGetPricing:
             assert result['next_token'] == expected_next_token_in_result
         else:
             assert 'next_token' not in result
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_with_alternatives(self, mock_boto3, mock_context):
+        """Test getting pricing for service with alternatives returns alternatives field."""
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AmazonCloudFront', 'us-east-1')
+
+        assert result is not None
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonCloudFront'
+        assert 'alternatives' in result
+        assert isinstance(result['alternatives'], list)
+        assert len(result['alternatives']) > 0
+
+        alternative = result['alternatives'][0]
+        assert alternative['service_code'] == 'CloudFrontPlans'
+        assert 'keywords' in alternative
+        assert 'bundled_services' in alternative
+        assert 'description' in alternative
+
+        assert 'alternatives' in result['message']
+        assert 'CloudFrontPlans' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_without_alternatives(self, mock_boto3, mock_context):
+        """Test getting pricing for service without alternatives has no alternatives field."""
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AmazonEC2', 'us-east-1')
+
+        assert result is not None
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonEC2'
+        assert 'alternatives' not in result
+        assert 'alternatives' not in result['message']
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_global_service_message(self, mock_boto3, mock_context):
+        """Test message format for global services without region."""
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AWSDataTransfer', None)
+
+        assert result is not None
+        assert result['status'] == 'success'
+        assert 'globally' in result['message']
+        assert 'in None' not in result['message']
 
 
 class TestGetBedrockPatterns:

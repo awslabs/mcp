@@ -59,7 +59,7 @@ class OutputOptions(BaseModel):
 
     pricing_terms: Optional[List[str]] = Field(
         None,
-        description='List of pricing terms to include (e.g., ["OnDemand"], ["Reserved"], ["OnDemand", "Reserved"]). Default: include all terms. Use ["OnDemand"] to significantly reduce response size for large services like EC2.',
+        description='List of pricing terms to include (e.g., ["OnDemand", "FlatRate"], ["Reserved"]). Default: include all terms. Use ["OnDemand", "FlatRate"] to significantly reduce response size for large services like EC2.',
     )
 
     product_attributes: Optional[List[str]] = Field(
@@ -101,7 +101,7 @@ EFFECTIVE_DATE_FIELD = Field(
 
 OUTPUT_OPTIONS_FIELD = Field(
     None,
-    description='Optional output filtering options to reduce response size. Use {"pricing_terms": ["OnDemand"]} to significantly reduce response size for large services like EC2.',
+    description='Optional output filtering options to reduce response size. Use {"pricing_terms": ["OnDemand", "FlatRate"]} to significantly reduce response size for large services like EC2.',
 )
 
 MAX_RESULTS_FIELD = Field(
