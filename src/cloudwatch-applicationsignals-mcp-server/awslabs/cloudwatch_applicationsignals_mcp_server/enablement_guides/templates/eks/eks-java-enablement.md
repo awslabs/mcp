@@ -53,7 +53,7 @@ Update your deployment template metadata to include the Java instrumentation ann
 
 ```typescript
 template: {
-  metadata: { 
+  metadata: {
     labels: { app: config.appName },
     annotations: {
       'instrumentation.opentelemetry.io/inject-java': 'true'
@@ -82,7 +82,7 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
 ```hcl
 resource "aws_eks_node_group" "app_nodes" {
   # ... existing configuration ...
-  
+
   depends_on = [
     aws_iam_role_policy_attachment.node_policy,
     aws_iam_role_policy_attachment.cloudwatch_agent_policy
@@ -99,7 +99,7 @@ Add the CloudWatch Observability EKS add-on:
 resource "aws_eks_addon" "cloudwatch_observability" {
   cluster_name = aws_eks_cluster.app_cluster.name
   addon_name   = "amazon-cloudwatch-observability"
-  
+
   depends_on = [
     aws_eks_node_group.app_nodes
   ]
