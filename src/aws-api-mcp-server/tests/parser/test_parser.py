@@ -1,7 +1,7 @@
 import pytest
 import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
-from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
     ExpectedArgumentError,
@@ -415,8 +415,8 @@ def test_should_pass_for_valid_equal_sign_params(command):
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
 )
 def test_should_pass_for_valid_equal_sign_params_with_file_output():
     """Test that valid equal sign parameters with file output are accepted when unrestricted access is enabled."""

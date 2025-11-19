@@ -16,10 +16,10 @@ import os
 import re
 from .command_metadata import CommandMetadata
 from .config import (
-    ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS,
-    ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY,
-    DISABLE_LOCAL_FILE_ACCESS,
+    FILE_ACCESS_MODE,
+    FILE_ACCESS_MODE_KEY,
     WORKING_DIRECTORY,
+    FileAccessMode,
 )
 from .errors import FilePathValidationError, LocalFileAccessDisabledError
 from awscli.arguments import CLIArgument
@@ -134,11 +134,11 @@ def validate_file_path(file_path: str) -> str:
         LocalFileAccessDisabledError: If local file access is disabled
         FilePathValidationError: If the path is outside the working directory and unrestricted access is not allowed
     """
-    if DISABLE_LOCAL_FILE_ACCESS:
+    if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS:
         # Reject local file paths
         raise LocalFileAccessDisabledError(file_path)
 
-    if ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS:
+    if FILE_ACCESS_MODE == FileAccessMode.UNRESTRICTED:
         return file_path
 
     # Convert to absolute path
@@ -151,7 +151,7 @@ def validate_file_path(file_path: str) -> str:
     except ValueError:
         reason = (
             f"is outside the allowed working directory '{WORKING_DIRECTORY}'. "
-            f'Set {ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY}=true to allow unrestricted file access.'
+            f'Set {FILE_ACCESS_MODE_KEY}=unrestricted to allow unrestricted file access.'
         )
         raise FilePathValidationError(file_path, reason)
 

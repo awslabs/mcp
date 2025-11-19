@@ -15,7 +15,7 @@
 import os
 import pytest
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
-from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
 from awslabs.aws_api_mcp_server.core.common.errors import FilePathValidationError
 from awslabs.aws_api_mcp_server.core.common.file_system_controls import (
     CUSTOM_FILE_PATH_ARGUMENTS,
@@ -41,11 +41,11 @@ def test_unsafe_path_blocked():
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
 )
 def test_unrestricted_access_allows_unsafe_path():
-    """Test that unrestricted access allows files outside working directory."""
+    """Test that FILE_ACCESS_MODE.UNRESTRICTED allows files outside working directory."""
     unsafe_path = '/tmp/unsafe_file.txt'
     result = validate_file_path(unsafe_path)
     assert result == unsafe_path

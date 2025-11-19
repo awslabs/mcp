@@ -587,13 +587,13 @@ class FilePathValidationError(CommandValidationError):
 
 
 class LocalFileAccessDisabledError(FilePathValidationError):
-    """Thrown when local file system access is disabled using the AWS_API_MCP_DISABLE_LOCAL_FILE_ACCESS env variable."""
+    """Thrown when local file system access is disabled (no_access mode)."""
 
     _message = 'Cannot accept file path {file_path!r}: {reason}'
 
     def __init__(self, file_path: str):
         """Initialize LocalFileAccessDisabledError with file path."""
-        reason = 'local file system access is disabled'
+        reason = 'local file access is disabled'
         super().__init__(file_path, reason)
 
 

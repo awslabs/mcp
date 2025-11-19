@@ -42,19 +42,20 @@ File paths appear in AWS CLI commands in the following ways:
 
 File Access Control Modes:
 
-By default, only file paths within WORKING_DIRECTORY are allowed. This provides a sandboxed
-environment for file operations.
+The FILE_ACCESS_MODE configuration controls file system access through three modes:
 
-- ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS: When set to true, allows file paths anywhere on the
-  local file system, bypassing the working directory restriction.
+- FileAccessMode.WORKDIR (default): Only file paths within WORKING_DIRECTORY are allowed.
+  This provides a sandboxed environment for file operations.
 
-- DISABLE_LOCAL_FILE_ACCESS: When set to true, completely denies the use of local file paths
-  in commands, regardless of other settings. This takes precedence over ALLOW_UNRESTRICTED.
+- FileAccessMode.UNRESTRICTED: Allows file paths anywhere on the local file system,
+  bypassing the working directory restriction.
+
+- FileAccessMode.NO_ACCESS: Completely denies the use of local file paths in commands.
   S3 URIs (s3://...) and stdout redirect (-) remain allowed.
 """
 
 import pytest
-from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
 from awslabs.aws_api_mcp_server.core.common.errors import (
     FileParameterError,
     FilePathValidationError,
@@ -67,12 +68,12 @@ from unittest.mock import patch
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.parser.parser.DISABLE_LOCAL_FILE_ACCESS',
-    False,
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.WORKDIR,
 )
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    False,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.WORKDIR,
 )
 class TestDefaultFileAccessBehavior:
     """Tests for default file access validation behavior."""
@@ -198,15 +199,15 @@ class TestDefaultFileAccessBehavior:
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.parser.parser.DISABLE_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
 )
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
 )
 class TestDisabledLocalFileAccess:
-    """Tests for when local file access is disabled via DISABLE_LOCAL_FILE_ACCESS."""
+    """Tests for when local file access is disabled via FILE_ACCESS_MODE.NO_ACCESS."""
 
     @pytest.mark.parametrize(
         'command',
@@ -221,10 +222,10 @@ class TestDisabledLocalFileAccess:
         ],
     )
     def test_rejects_commands_with_local_paths(self, command):
-        """Test that commands with local paths are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+        """Test that commands with local paths are rejected when FILE_ACCESS_MODE is NO_ACCESS."""
         with pytest.raises(
             FileParameterError,
-            match='local file system access is disabled',
+            match='local file access is disabled',
         ):
             parse(command)
 
@@ -238,7 +239,7 @@ class TestDisabledLocalFileAccess:
         ],
     )
     def test_rejects_file_blob_arguments(self, command):
-        """Test that commands with file:// and fileb:// arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+        """Test that commands with file:// and fileb:// arguments are rejected when FILE_ACCESS_MODE is NO_ACCESS."""
         with pytest.raises(LocalFileAccessDisabledError):
             parse(command)
 
@@ -251,7 +252,7 @@ class TestDisabledLocalFileAccess:
         ],
     )
     def test_rejects_streaming_blob_arguments(self, command):
-        """Test that commands with streaming blob arguments are rejected when DISABLE_LOCAL_FILE_ACCESS is True.
+        """Test that commands with streaming blob arguments are rejected when FILE_ACCESS_MODE is NO_ACCESS.
 
         Streaming blob arguments accept only file paths.
         """
@@ -275,24 +276,10 @@ class TestDisabledLocalFileAccess:
     def test_allows_s3_uris_and_stdout_redirect(
         self, command, expected_service, expected_operation
     ):
-        """Test that S3 URIs, stdout redirect, and inline values are allowed when DISABLE_LOCAL_FILE_ACCESS is True."""
+        """Test that S3 URIs, stdout redirect, and inline values are allowed when FILE_ACCESS_MODE is NO_ACCESS."""
         result = parse(command)
         assert result.command_metadata.service_sdk_name == expected_service
         assert result.operation_cli_name == expected_operation
-
-    @patch(
-        'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-        True,
-    )
-    def test_disable_takes_precedence_over_allow_unrestricted(self):
-        """Test that DISABLE_LOCAL_FILE_ACCESS takes precedence over ALLOW_UNRESTRICTED."""
-        # Even with ALLOW_UNRESTRICTED=True, DISABLE should still reject local files
-        command = f'aws s3 cp {WORKING_DIRECTORY}/file.txt s3://bucket/key'
-        with pytest.raises(
-            FileParameterError,
-            match='local file system access is disabled',
-        ):
-            parse(command)
 
     @pytest.mark.parametrize(
         'command,expected_service,expected_operation',
@@ -370,7 +357,7 @@ class TestDisabledLocalFileAccess:
     def test_allowed_custom_operations_work_with_disabled_file_access(
         self, command, expected_service, expected_operation
     ):
-        """Test that allowed custom operations work when DISABLE_LOCAL_FILE_ACCESS is True."""
+        """Test that allowed custom operations work when FILE_ACCESS_MODE is NO_ACCESS."""
         result = parse(command)
         assert result.command_metadata.service_sdk_name == expected_service
         assert result.operation_cli_name == expected_operation
@@ -447,7 +434,7 @@ class TestDisabledLocalFileAccess:
     def test_file_based_custom_operations_rejected_with_disabled_file_access(
         self, command, expected_service, expected_operation
     ):
-        """Test that file-based custom operations are rejected when DISABLE_LOCAL_FILE_ACCESS is True."""
+        """Test that file-based custom operations are rejected when FILE_ACCESS_MODE is NO_ACCESS."""
         with pytest.raises(OperationNotAllowedError) as exc_info:
             parse(command)
 
@@ -457,19 +444,15 @@ class TestDisabledLocalFileAccess:
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
 )
 class TestUnrestrictedLocalFileAccess:
     """Tests for when unrestricted local file access is enabled."""
 
-    @patch(
-        'awslabs.aws_api_mcp_server.core.common.file_system_controls.DISABLE_LOCAL_FILE_ACCESS',
-        False,
-    )
-    def test_allows_local_files_when_disable_is_false(self):
-        """Test that ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS works when DISABLE_LOCAL_FILE_ACCESS is False."""
-        # With DISABLE=False and ALLOW_UNRESTRICTED=True, local files should be allowed
+    def test_allows_local_files_in_unrestricted_mode(self):
+        """Test that FILE_ACCESS_MODE.UNRESTRICTED allows local files anywhere on the filesystem."""
+        # With UNRESTRICTED mode, local files should be allowed
         command = 'aws s3 cp /tmp/file.txt s3://bucket/key'
         # Should not raise any exception about file access
         result = parse(command)

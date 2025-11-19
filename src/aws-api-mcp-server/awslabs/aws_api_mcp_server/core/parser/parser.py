@@ -25,7 +25,7 @@ from ..aws.services import (
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
-from ..common.config import AWS_API_MCP_PROFILE_NAME, DISABLE_LOCAL_FILE_ACCESS, get_region
+from ..common.config import AWS_API_MCP_PROFILE_NAME, FILE_ACCESS_MODE, FileAccessMode, get_region
 from ..common.errors import (
     AwsApiMcpError,
     ClientSideFilterError,
@@ -365,7 +365,7 @@ def is_denied_custom_operation(service, operation):
     # Choose the appropriate allowlist based on file access settings
     allowed_operations = (
         ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
-        if DISABLE_LOCAL_FILE_ACCESS
+        if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS
         else ALLOWED_CUSTOM_OPERATIONS
     )
 
