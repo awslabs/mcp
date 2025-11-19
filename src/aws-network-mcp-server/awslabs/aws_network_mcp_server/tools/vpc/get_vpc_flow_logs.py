@@ -82,7 +82,7 @@ async def get_vpc_flow_logs(
             description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
-) -> List[str]:
+) -> List[Dict[str, str]]:
     """Get VPC Flow Logs stored in CloudWatch Logs.
 
     Use this tool when:

@@ -77,7 +77,7 @@ async def get_tgw_flow_logs(
             description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
-) -> List[str]:
+) -> List[Dict[str, Any]]:
     """Retrieve Transit Gateway flow logs from CloudWatch Logs for traffic analysis and troubleshooting.
 
     Use this tool when:
