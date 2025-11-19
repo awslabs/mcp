@@ -1,4 +1,4 @@
-# Enable Application Signals for Python Applications on Amazon EKS
+# Task: Enable Application Signals for Python Applications on Amazon EKS
 
 This guide shows how to modify the existing CDK and Terraform infrastructure code to enable AWS Application Signals for Python applications running on Amazon EKS.
 
@@ -23,23 +23,7 @@ This guide shows how to modify the existing CDK and Terraform infrastructure cod
 
 ## CDK Implementation
 
-### 1. Enable Application Signals Discovery (Optional)
-
-The Application Signals discovery resource creates the service-linked role for Application Signals. This is typically created automatically when you first enable Application Signals in your account, but you can explicitly create it in CDK:
-
-```typescript
-import { aws_applicationsignals as applicationsignals } from 'aws-cdk-lib';
-
-// Optional: Create Application Signals service-linked role
-// Skip this if Application Signals is already enabled in your account
-const cfnDiscovery = new applicationsignals.CfnDiscovery(this,
-  'ApplicationSignalsServiceRole', { }
-);
-```
-
-**Note:** This step can be skipped if Application Signals is already enabled in your AWS account.
-
-### 2. Install CloudWatch Observability Add-on
+### 1. Install CloudWatch Observability Add-on
 
 Create an IAM role and install the CloudWatch Observability add-on:
 
@@ -63,7 +47,7 @@ new eks.CfnAddon(this, 'CloudWatchAddon', {
 });
 ```
 
-### 3. Add Python Instrumentation Annotation
+### 2. Add Python Instrumentation Annotation
 
 Update your deployment template metadata to include the Python instrumentation annotation:
 
@@ -139,39 +123,6 @@ template {
   # ... rest of your template configuration
 }
 ```
-
-## Deployment Steps
-
-### For CDK:
-1. Update your CDK stack with the changes above
-2. Deploy the updated stack:
-   ```bash
-   cd infrastructure/eks/cdk
-   cdk deploy
-   ```
-
-### For Terraform:
-1. Update your `main.tf` with the changes above
-2. Apply the changes:
-   ```bash
-   cd infrastructure/eks/terraform
-   terraform plan -var-file="config/python-flask.tfvars"
-   terraform apply -var-file="config/python-flask.tfvars"
-   ```
-
-## Verification
-
-After deployment, verify Application Signals is working:
-
-1. Check that pods are running with instrumentation:
-   ```bash
-   kubectl get pods
-   kubectl describe pod <pod-name>
-   ```
-
-2. Look for the OpenTelemetry sidecar containers and annotations
-
-3. Navigate to CloudWatch Application Signals in the AWS Console to view metrics and traces
 
 ## Important Notes
 
