@@ -45,6 +45,7 @@ from .canary_utils import (
     get_canary_code,
     get_canary_metrics_and_service_insights,
 )
+from .enablement_tools import get_enablement_guide
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
@@ -1485,7 +1486,7 @@ mcp.tool()(list_slos)
 mcp.tool()(search_transaction_spans)
 mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
-mcp.tool()(analyze_canary_failures)
+mcp.tool()(get_enablement_guide)
 
 
 def main():
