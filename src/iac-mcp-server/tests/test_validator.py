@@ -16,12 +16,11 @@
 
 import json
 import pytest
-from awslabs.iac_mcp_server.validator import _format_results, _map_level
+from awslabs.iac_mcp_server.compliance_checker import check_compliance
+from awslabs.iac_mcp_server.validator import _format_results, _map_level, validate_template
 from cfnlint.match import Match
 from cfnlint.rules import CloudFormationLintRule
 from unittest.mock import Mock
-from awslabs.iac_mcp_server.compliance_checker import check_compliance
-from awslabs.iac_mcp_server.validator import validate_template
 
 
 class TestMapLevel:
@@ -76,6 +75,7 @@ class TestFormatResults:
         assert result['validation_results']['error_count'] == 0
         assert len(result['issues']) == 1
         assert result['issues'][0]['level'] == 'info'
+
 
 class TestOversizedTemplates:
     """Test handling of oversized templates (>500KB)."""

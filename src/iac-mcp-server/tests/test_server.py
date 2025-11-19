@@ -21,6 +21,7 @@ from awslabs.iac_mcp_server.server import (
     validate_cloudformation_template,
 )
 from unittest.mock import Mock, patch
+from urllib.parse import urlparse
 
 
 class TestValidateCloudFormationTemplate:
@@ -186,11 +187,16 @@ class TestGetTemplateExamples:
         result = get_template_examples()
         parsed = json.loads(result)
 
-        # Check for expected content
-        assert parsed['template_examples_repository']['url'].startswith('https://github.com/')
-        assert parsed['architectural_best_practices']['general_best_practices'].startswith(
-            'https://docs.aws.amazon.com'
-        )
+        # Check for expected content - validate URLs by parsing them
+        repo_url = parsed['template_examples_repository']['url']
+        parsed_repo = urlparse(repo_url)
+        assert parsed_repo.scheme == 'https'
+        assert parsed_repo.netloc == 'github.com'
+
+        best_practices_url = parsed['architectural_best_practices']['general_best_practices']
+        parsed_bp = urlparse(best_practices_url)
+        assert parsed_bp.scheme == 'https'
+        assert parsed_bp.netloc == 'docs.aws.amazon.com'
 
 
 class TestMain:
