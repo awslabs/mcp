@@ -30,7 +30,7 @@ class TestFormatters:
         rule = {
             'MatchAttributes': {
                 'Sources': ['10.0.0.0/8'],
-                'Destinations': '0.0.0.0/0',  # String, not list
+                'Destinations': '0.0.0.0/0',
                 'Protocols': [6],
             },
             'RuleDefinition': {'Actions': ['aws:pass']},
@@ -38,7 +38,7 @@ class TestFormatters:
 
         result = format_stateless_rule(rule, '100')
 
-        assert result['priority'] == '100'
+        assert result['priority'] == 100
         assert result['action'] == 'aws:pass'
         assert result['protocol'] == [6]
         assert result['source'] == ['10.0.0.0/8']
@@ -59,6 +59,21 @@ class TestFormatters:
 
         assert result['source'] == '0.0.0.0/0 (anywhere)'
         assert result['destination'] == ['192.168.1.0/24']
+
+    def test_format_stateless_rule_missing_attributes(self):
+        """Test stateless rule formatting with missing attributes."""
+        rule = {
+            'MatchAttributes': {},
+            'RuleDefinition': {'Actions': ['aws:forward_to_sfe']},
+        }
+
+        result = format_stateless_rule(rule, '300')
+
+        assert result['priority'] == 300
+        assert result['action'] == 'aws:forward_to_sfe'
+        assert result['protocol'] is None
+        assert result['source'] is None
+        assert result['destination'] is None
 
     def test_format_stateful_rule_basic(self):
         """Test basic stateful rule formatting."""
@@ -86,6 +101,18 @@ class TestFormatters:
         assert result['destination']['network'] == '192.168.1.0/24'
         assert result['destination']['port'] == '443'
         assert result['direction'] == 'FORWARD'
+
+    def test_format_stateful_rule_missing_header(self):
+        """Test stateful rule formatting with missing header."""
+        rule = {'Action': 'DROP', 'RuleOptions': []}
+
+        result = format_stateful_rule(rule, 'rule-002')
+
+        assert result['rule_id'] == 'rule-002'
+        assert result['action'] == 'DROP'
+        assert result['protocol'] is None
+        assert result['source']['network'] is None
+        assert result['destination']['network'] is None
 
     def test_format_routes_single_segment(self):
         """Test route formatting for single segment."""
@@ -137,13 +164,35 @@ class TestFormatters:
         assert 'production' in result['segments']
         assert 'staging' in result['segments']
 
-        # Check production segment
         prod_route = result['segments']['production']['regions']['us-east-1']['routes'][0]
         assert prod_route['target'] == 'cn-attach-prod'
 
-        # Check staging segment
         stage_route = result['segments']['staging']['regions']['us-west-2']['routes'][0]
         assert stage_route['target'] == 'cn-attach-stage'
+
+    def test_format_routes_empty_data(self):
+        """Test route formatting with empty data."""
+        result = format_routes({}, 'core-network-empty')
+
+        assert result['core_network_id'] == 'core-network-empty'
+        assert result['segments'] == {}
+
+    def test_format_routes_no_destinations(self):
+        """Test route formatting when destinations are empty."""
+        routes_data = {
+            'test/us-east-1': [
+                {
+                    'DestinationCidrBlock': '10.0.0.0/16',
+                    'Destinations': [{}],
+                    'State': 'ACTIVE',
+                }
+            ]
+        }
+
+        result = format_routes(routes_data, 'core-network-test')
+
+        route = result['segments']['test']['regions']['us-east-1']['routes'][0]
+        assert route['target'] is None
 
     def test_parse_suricata_rule_valid_rule(self):
         """Test parsing a valid Suricata rule."""
@@ -166,14 +215,6 @@ class TestFormatters:
         assert result['conditions']['sid'] == '1001'
         assert result['conditions']['rev'] == '1'
 
-    def test_parse_suricata_rule_invalid_format(self):
-        """Test parsing an invalid Suricata rule format."""
-        invalid_rule = 'this is not a valid suricata rule format'
-
-        result = parse_suricata_rule(invalid_rule)
-
-        assert result is None
-
     def test_parse_suricata_rule_minimal_options(self):
         """Test parsing Suricata rule with minimal options."""
         rule_string = 'alert tcp any any -> any 443 (sid:2001;)'
@@ -186,6 +227,14 @@ class TestFormatters:
         assert result['conditions']['sid'] == '2001'
         assert len(result['conditions']) == 1
 
+    def test_parse_suricata_rule_invalid_format(self):
+        """Test parsing an invalid Suricata rule format."""
+        invalid_rule = 'this is not a valid suricata rule format'
+
+        result = parse_suricata_rule(invalid_rule)
+
+        assert result is None
+
     def test_parse_suricata_rule_empty_string(self):
         """Test parsing empty string."""
         result = parse_suricata_rule('')
@@ -197,53 +246,3 @@ class TestFormatters:
         result = parse_suricata_rule('   \n\t   ')
 
         assert result is None
-
-    def test_format_routes_empty_data(self):
-        """Test route formatting with empty data."""
-        result = format_routes({}, 'core-network-empty')
-
-        assert result['core_network_id'] == 'core-network-empty'
-        assert result['segments'] == {}
-
-    def test_format_routes_no_destinations(self):
-        """Test route formatting when destinations are empty."""
-        routes_data = {
-            'test/us-east-1': [
-                {
-                    'DestinationCidrBlock': '10.0.0.0/16',
-                    'Destinations': [{}],  # Empty destination
-                    'State': 'ACTIVE',
-                }
-            ]
-        }
-
-        result = format_routes(routes_data, 'core-network-test')
-
-        route = result['segments']['test']['regions']['us-east-1']['routes'][0]
-        assert route['target'] is None  # Should handle missing attachment ID
-
-    def test_format_stateless_rule_missing_attributes(self):
-        """Test stateless rule formatting with missing attributes."""
-        rule = {
-            'MatchAttributes': {},  # Empty match attributes
-            'RuleDefinition': {'Actions': ['aws:forward_to_sfe']},
-        }
-
-        result = format_stateless_rule(rule, '300')
-
-        assert result['priority'] == '300'
-        assert result['action'] == 'aws:forward_to_sfe'
-        assert result['protocol'] is None
-        assert result['source'] is None
-        assert result['destination'] is None
-
-    def test_format_stateful_rule_missing_header(self):
-        """Test stateful rule formatting with missing header."""
-        rule = {'Action': 'DROP', 'RuleOptions': []}
-
-        result = format_stateful_rule(rule, 'rule-missing-header')
-
-        assert result['rule_id'] == 'rule-missing-header'
-        assert result['action'] == 'DROP'
-        assert result['protocol'] is None
-        assert result['source']['network'] is None

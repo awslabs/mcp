@@ -37,9 +37,11 @@ class TestAwsCommon:
         assert result == mock_session_client
         mock_client.assert_not_called()
 
+    @patch('awslabs.aws_network_mcp_server.utils.aws_common.getenv')
     @patch('awslabs.aws_network_mcp_server.utils.aws_common.client')
-    def test_get_aws_client_without_profile(self, mock_client):
+    def test_get_aws_client_without_profile(self, mock_client, mock_getenv):
         """Test get_aws_client without profile name."""
+        mock_getenv.return_value = None
         mock_boto_client = MagicMock()
         mock_client.return_value = mock_boto_client
 
@@ -67,8 +69,7 @@ class TestAwsCommon:
     @patch('awslabs.aws_network_mcp_server.utils.aws_common.client')
     def test_get_aws_client_default_region_fallback(self, mock_client, mock_getenv):
         """Test get_aws_client with default region fallback."""
-        # Mock getenv to return None for AWS_REGION, None for AWS_PROFILE
-        mock_getenv.side_effect = lambda key, default: default  # Always return the default value
+        mock_getenv.side_effect = lambda key, default: default
         mock_boto_client = MagicMock()
         mock_client.return_value = mock_boto_client
 
@@ -93,6 +94,26 @@ class TestAwsCommon:
 
         mock_session_class.assert_called_once_with(profile_name='env-profile')
         mock_session.client.assert_called_once_with('rds', region_name='ap-southeast-2')
+        assert result == mock_session_client
+
+    @patch('awslabs.aws_network_mcp_server.utils.aws_common.getenv')
+    @patch('awslabs.aws_network_mcp_server.utils.aws_common.Session')
+    def test_get_aws_client_both_env_vars_set(self, mock_session_class, mock_getenv):
+        """Test get_aws_client with both AWS_REGION and AWS_PROFILE from environment."""
+        mock_getenv.side_effect = lambda key, default: {
+            'AWS_REGION': 'ca-central-1',
+            'AWS_PROFILE': 'env-profile',
+        }.get(key, default)
+
+        mock_session = MagicMock()
+        mock_session_client = MagicMock()
+        mock_session.client.return_value = mock_session_client
+        mock_session_class.return_value = mock_session
+
+        result = get_aws_client('dynamodb', None, None)
+
+        mock_session_class.assert_called_once_with(profile_name='env-profile')
+        mock_session.client.assert_called_once_with('dynamodb', region_name='ca-central-1')
         assert result == mock_session_client
 
     @patch('awslabs.aws_network_mcp_server.utils.aws_common.client')
@@ -137,3 +158,17 @@ class TestAwsCommon:
             get_account_id(None)
 
         assert 'NoCredentialsError' in str(exc_info.value)
+
+    @patch('awslabs.aws_network_mcp_server.utils.aws_common.Session')
+    def test_get_account_id_with_profile_error(self, mock_session_class):
+        """Test get_account_id with profile error handling."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.side_effect = Exception('ProfileNotFound')
+        mock_session.client.return_value = mock_sts_client
+        mock_session_class.return_value = mock_session
+
+        with pytest.raises(Exception) as exc_info:
+            get_account_id('invalid-profile')
+
+        assert 'ProfileNotFound' in str(exc_info.value)

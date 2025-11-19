@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections import list_vpn_connections
+from botocore.exceptions import ClientError
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
@@ -28,63 +29,105 @@ class TestListVpnConnections:
         """Mock EC2 client fixture."""
         return MagicMock()
 
-    @pytest.fixture
-    def sample_vpn_connections(self):
-        """Sample VPN connections fixture."""
-        return [
-            {
-                'VpnConnectionId': 'vpn-12345678',
-                'State': 'available',
-                'Type': 'ipsec.1',
-                'CustomerGatewayId': 'cgw-12345678',
-                'VpnGatewayId': 'vgw-12345678',
-                'TransitGatewayId': 'tgw-12345678',
-                'CustomerGatewayConfiguration': '<xml>sensitive-config</xml>',
-            }
-        ]
-
-    @pytest.fixture
-    def expected_vpn_connections(self):
-        """Expected VPN connections after security filtering."""
-        return [
-            {
-                'VpnConnectionId': 'vpn-12345678',
-                'State': 'available',
-                'Type': 'ipsec.1',
-                'CustomerGatewayId': 'cgw-12345678',
-                'VpnGatewayId': 'vgw-12345678',
-                'TransitGatewayId': 'tgw-12345678',
-                # Note: CustomerGatewayConfiguration removed for security
-            }
-        ]
-
     @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
-    async def test_list_vpn_connections_success(
-        self, mock_get_client, mock_ec2_client, sample_vpn_connections, expected_vpn_connections
-    ):
+    async def test_list_vpn_connections_success(self, mock_get_client, mock_ec2_client):
         """Test successful VPN connections listing with security filtering."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_vpn_connections.return_value = {
-            'VpnConnections': sample_vpn_connections.copy()  # Copy to avoid modifying fixture
+            'VpnConnections': [
+                {
+                    'VpnConnectionId': 'vpn-12345678',
+                    'State': 'available',
+                    'Type': 'ipsec.1',
+                    'CustomerGatewayId': 'cgw-12345678',
+                    'VpnGatewayId': 'vgw-12345678',
+                    'CustomerGatewayConfiguration': '<xml>sensitive-config</xml>',
+                }
+            ]
         }
 
         result = await list_vpn_connections(vpn_region='us-east-1')
 
-        # Function returns the list directly, not wrapped in dict
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0]['VpnConnectionId'] == 'vpn-12345678'
-        # CustomerGatewayConfiguration should be removed for security
         assert 'CustomerGatewayConfiguration' not in result[0]
-
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
-        mock_ec2_client.describe_vpn_connections.assert_called_once()
 
     @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
-    async def test_list_vpn_connections_aws_error(self, mock_get_client, mock_ec2_client):
-        """Test AWS API error handling."""
+    async def test_list_vpn_connections_empty(self, mock_get_client, mock_ec2_client):
+        """Test empty VPN connections list."""
         mock_get_client.return_value = mock_ec2_client
-        mock_ec2_client.describe_vpn_connections.side_effect = Exception('AccessDenied')
+        mock_ec2_client.describe_vpn_connections.return_value = {'VpnConnections': []}
 
-        with pytest.raises(ToolError):
+        result = await list_vpn_connections(vpn_region='us-west-2')
+
+        assert result == []
+        mock_get_client.assert_called_once_with('ec2', 'us-west-2', None)
+
+    @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
+    async def test_list_vpn_connections_multiple(self, mock_get_client, mock_ec2_client):
+        """Test multiple VPN connections."""
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_vpn_connections.return_value = {
+            'VpnConnections': [
+                {'VpnConnectionId': 'vpn-1', 'State': 'available'},
+                {
+                    'VpnConnectionId': 'vpn-2',
+                    'State': 'pending',
+                    'CustomerGatewayConfiguration': 'config',
+                },
+            ]
+        }
+
+        result = await list_vpn_connections(vpn_region='eu-west-1')
+
+        assert len(result) == 2
+        assert result[0]['VpnConnectionId'] == 'vpn-1'
+        assert result[1]['VpnConnectionId'] == 'vpn-2'
+        assert 'CustomerGatewayConfiguration' not in result[1]
+
+    @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
+    async def test_list_vpn_connections_with_profile(self, mock_get_client, mock_ec2_client):
+        """Test VPN connections listing with custom profile."""
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_vpn_connections.return_value = {'VpnConnections': []}
+
+        await list_vpn_connections(vpn_region='us-east-1', profile_name='test-profile')
+
+        mock_get_client.assert_called_once_with('ec2', 'us-east-1', 'test-profile')
+
+    @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
+    async def test_list_vpn_connections_client_error(self, mock_get_client, mock_ec2_client):
+        """Test AWS ClientError handling."""
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_vpn_connections.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'DescribeVpnConnections',
+        )
+
+        with pytest.raises(ToolError, match='Error listing VPN connections'):
             await list_vpn_connections(vpn_region='us-east-1')
+
+    @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
+    async def test_list_vpn_connections_generic_error(self, mock_get_client, mock_ec2_client):
+        """Test generic exception handling."""
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_vpn_connections.side_effect = Exception('Network error')
+
+        with pytest.raises(ToolError, match='Error listing VPN connections'):
+            await list_vpn_connections(vpn_region='us-east-1')
+
+    @patch('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections.get_aws_client')
+    async def test_list_vpn_connections_no_customer_config(self, mock_get_client, mock_ec2_client):
+        """Test VPN connection without CustomerGatewayConfiguration."""
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_vpn_connections.return_value = {
+            'VpnConnections': [{'VpnConnectionId': 'vpn-12345678', 'State': 'available'}]
+        }
+
+        result = await list_vpn_connections(vpn_region='us-east-1')
+
+        assert len(result) == 1
+        assert result[0]['VpnConnectionId'] == 'vpn-12345678'
+        assert 'CustomerGatewayConfiguration' not in result[0]

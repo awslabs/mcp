@@ -23,12 +23,171 @@ from unittest.mock import MagicMock, patch
 class TestGetCloudwanRoutes:
     """Test cases for get_cloudwan_routes function."""
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
-    async def test_get_cloudwan_routes_aws_error(self, mock_get_client):
-        """Test AWS API error handling."""
-        mock_nm_client = MagicMock()
-        mock_get_client.return_value = mock_nm_client
-        mock_nm_client.get_route_analysis.side_effect = Exception('AccessDenied')
+    @pytest.fixture
+    def mock_core_network(self):
+        """Mock core network response."""
+        return {
+            'CoreNetwork': {
+                'GlobalNetworkId': 'global-network-123',
+                'Segments': [{'Name': 'segment-a'}, {'Name': 'segment-b'}],
+                'NetworkFunctionGroups': [{'Name': 'nfg-1'}, {'Name': 'nfg-2'}],
+            }
+        }
 
-        with pytest.raises(ToolError):
-            await get_cloudwan_routes(core_network_id='core-network-12345678', region='us-east-1')
+    @pytest.fixture
+    def mock_routes_response(self):
+        """Mock routes response."""
+        return {
+            'NetworkRoutes': [
+                {
+                    'DestinationCidrBlock': '10.0.0.0/16',
+                    'Destinations': [{'CoreNetworkAttachmentId': 'attachment-123'}],
+                    'Type': 'PROPAGATED',
+                    'State': 'ACTIVE',
+                },
+                {
+                    'DestinationCidrBlock': '192.168.0.0/24',
+                    'Destinations': [{'ResourceId': 'resource-456'}],
+                    'Type': 'STATIC',
+                    'State': 'BLACKHOLE',
+                },
+            ]
+        }
+
+    async def test_missing_parameters(self):
+        """Test error when neither segment nor network_function_group provided."""
+        with pytest.raises(ToolError, match='Please provide a segment or network_function_group'):
+            await get_cloudwan_routes(core_network_id='core-network-123', region='us-east-1')
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_aws_error(self, mock_get_client):
+        """Test AWS API error handling."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.side_effect = Exception('AccessDenied')
+
+        with pytest.raises(ToolError, match='There was an error getting AWS Core Network details'):
+            await get_cloudwan_routes(
+                core_network_id='core-network-123', region='us-east-1', segment='segment-a'
+            )
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_invalid_segment(self, mock_get_client, mock_core_network):
+        """Test error when segment not found in core network."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+
+        with pytest.raises(ToolError, match='Segment invalid-segment not found'):
+            await get_cloudwan_routes(
+                core_network_id='core-network-123', region='us-east-1', segment='invalid-segment'
+            )
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_invalid_nfg(self, mock_get_client, mock_core_network):
+        """Test error when network function group not found."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+
+        with pytest.raises(ToolError, match='Network function group invalid-nfg not found'):
+            await get_cloudwan_routes(
+                core_network_id='core-network-123',
+                region='us-east-1',
+                network_function_group='invalid-nfg',
+            )
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_segment_with_routes(
+        self, mock_get_client, mock_core_network, mock_routes_response
+    ):
+        """Test successful segment route retrieval."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = mock_routes_response
+
+        result = await get_cloudwan_routes(
+            core_network_id='core-network-123', region='us-east-1', segment='segment-a'
+        )
+
+        assert result['core_network_id'] == 'core-network-123'
+        assert result['region'] == 'us-east-1'
+        assert result['segment']['name'] == 'segment-a'
+        assert len(result['segment']['routes']) == 2
+        assert result['segment']['routes'][0]['destination'] == '10.0.0.0/16'
+        assert result['segment']['routes'][0]['target'] == 'attachment-123'
+        assert result['segment']['routes'][0]['type'] == 'propagated'
+        assert result['segment']['routes'][0]['state'] == 'active'
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_nfg_with_routes(self, mock_get_client, mock_core_network, mock_routes_response):
+        """Test successful NFG route retrieval."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = mock_routes_response
+
+        result = await get_cloudwan_routes(
+            core_network_id='core-network-123', region='us-east-1', network_function_group='nfg-1'
+        )
+
+        assert result['network_function_group']['name'] == 'nfg-1'
+        assert len(result['network_function_group']['routes']) == 2
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_both_segment_and_nfg(
+        self, mock_get_client, mock_core_network, mock_routes_response
+    ):
+        """Test with both segment and NFG provided."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = mock_routes_response
+
+        result = await get_cloudwan_routes(
+            core_network_id='core-network-123',
+            region='us-east-1',
+            segment='segment-a',
+            network_function_group='nfg-1',
+        )
+
+        assert 'segment' in result
+        assert 'network_function_group' in result
+        assert result['segment']['name'] == 'segment-a'
+        assert result['network_function_group']['name'] == 'nfg-1'
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_no_routes_found(self, mock_get_client, mock_core_network):
+        """Test when no routes are found."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = {'NetworkRoutes': []}
+
+        result = await get_cloudwan_routes(
+            core_network_id='core-network-123', region='us-east-1', segment='segment-a'
+        )
+
+        assert result['segment']['routes'] == 'No network routes found with the given parameters.'
+
+    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes.get_aws_client')
+    async def test_with_profile_name(
+        self, mock_get_client, mock_core_network, mock_routes_response
+    ):
+        """Test with custom profile name."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = mock_routes_response
+
+        await get_cloudwan_routes(
+            core_network_id='core-network-123',
+            region='us-east-1',
+            segment='segment-a',
+            profile_name='test-profile',
+        )
+
+        mock_get_client.assert_called_with(
+            'networkmanager', region_name='us-east-1', profile_name='test-profile'
+        )

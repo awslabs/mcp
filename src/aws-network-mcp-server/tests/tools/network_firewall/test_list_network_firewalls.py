@@ -26,51 +26,40 @@ class TestListNetworkFirewalls:
     """Test cases for list_network_firewalls function."""
 
     @pytest.fixture
-    def mock_nfw_client(self):
-        """Mock Network Firewall client fixture."""
+    def mock_client(self):
+        """Mock Network Firewall client."""
         return MagicMock()
 
     @pytest.fixture
     def sample_firewalls(self):
-        """Sample network firewalls fixture."""
+        """Sample firewall response."""
         return [
             {
-                'FirewallName': 'prod-firewall',
-                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/prod-firewall',
-            },
-            {
-                'FirewallName': 'staging-firewall',
-                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/staging-firewall',
-            },
+                'FirewallName': 'test-firewall',
+                'FirewallArn': 'arn:aws:network-firewall:us-east-1:123456789012:firewall/test-firewall',
+            }
         ]
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
     )
-    async def test_list_network_firewalls_success(
-        self, mock_get_client, mock_nfw_client, sample_firewalls
-    ):
-        """Test successful network firewalls listing."""
-        mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
+    async def test_success(self, mock_get_client, mock_client, sample_firewalls):
+        """Test successful listing."""
+        mock_get_client.return_value = mock_client
+        mock_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
 
         result = await list_network_firewalls(region='us-east-1')
 
-        assert 'firewalls' in result
-        assert result['firewalls'] == sample_firewalls
-        assert 'total_count' in result
-        assert result['total_count'] == 2
-
+        assert result == {'firewalls': sample_firewalls, 'region': 'us-east-1', 'total_count': 1}
         mock_get_client.assert_called_once_with('network-firewall', 'us-east-1', None)
-        mock_nfw_client.list_firewalls.assert_called_once()
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
     )
-    async def test_list_network_firewalls_empty(self, mock_get_client, mock_nfw_client):
-        """Test listing when no network firewalls exist."""
-        mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.return_value = {'Firewalls': []}
+    async def test_empty_response(self, mock_get_client, mock_client):
+        """Test empty firewall list."""
+        mock_get_client.return_value = mock_client
+        mock_client.list_firewalls.return_value = {'Firewalls': []}
 
         result = await list_network_firewalls(region='us-west-2')
 
@@ -80,12 +69,23 @@ class TestListNetworkFirewalls:
     @patch(
         'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
     )
-    async def test_list_network_firewalls_with_profile(
-        self, mock_get_client, mock_nfw_client, sample_firewalls
-    ):
-        """Test network firewalls listing with specific AWS profile."""
-        mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
+    async def test_missing_firewalls_key(self, mock_get_client, mock_client):
+        """Test response without Firewalls key."""
+        mock_get_client.return_value = mock_client
+        mock_client.list_firewalls.return_value = {}
+
+        result = await list_network_firewalls(region='us-east-1')
+
+        assert result['firewalls'] == []
+        assert result['total_count'] == 0
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
+    )
+    async def test_with_profile(self, mock_get_client, mock_client):
+        """Test with profile parameter."""
+        mock_get_client.return_value = mock_client
+        mock_client.list_firewalls.return_value = {'Firewalls': []}
 
         await list_network_firewalls(region='eu-west-1', profile_name='test-profile')
 
@@ -94,31 +94,10 @@ class TestListNetworkFirewalls:
     @patch(
         'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
     )
-    async def test_list_network_firewalls_aws_error(self, mock_get_client, mock_nfw_client):
+    async def test_aws_error(self, mock_get_client, mock_client):
         """Test AWS API error handling."""
-        mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.side_effect = Exception('ServiceUnavailableException')
+        mock_get_client.return_value = mock_client
+        mock_client.list_firewalls.side_effect = Exception('API Error')
 
-        with pytest.raises(ToolError) as exc_info:
+        with pytest.raises(ToolError, match='Error listing Network Firewalls: API Error'):
             await list_network_firewalls(region='us-east-1')
-
-        # Check for the actual error message format from implementation
-        assert 'Error listing Network Firewalls:' in str(exc_info.value)
-
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
-    async def test_list_network_firewalls_access_denied(self, mock_get_client, mock_nfw_client):
-        """Test access denied error handling."""
-        mock_get_client.return_value = mock_nfw_client
-        mock_nfw_client.list_firewalls.side_effect = Exception('AccessDenied: User not authorized')
-
-        with pytest.raises(ToolError) as exc_info:
-            await list_network_firewalls(region='us-east-1')
-
-        assert 'Error listing Network Firewalls:' in str(exc_info.value)
-
-    async def test_parameter_validation(self):
-        """Test parameter validation for required fields."""
-        with pytest.raises(TypeError):
-            await list_network_firewalls()  # Missing required region parameter

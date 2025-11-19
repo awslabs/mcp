@@ -18,21 +18,112 @@ import pytest
 from awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes import (
     get_all_cloudwan_routes,
 )
-from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture
+def mock_client():
+    """Create a mock AWS client."""
+    client = MagicMock()
+    with patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes.get_aws_client',
+        return_value=client,
+    ):
+        yield client
 
 
 class TestGetAllCloudwanRoutes:
     """Test cases for get_all_cloudwan_routes function."""
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes.get_aws_client')
-    async def test_get_all_cloudwan_routes_aws_error(self, mock_get_client):
-        """Test AWS API error handling."""
-        mock_nm_client = MagicMock()
-        mock_get_client.return_value = mock_nm_client
-        mock_nm_client.get_core_network.side_effect = Exception('AccessDenied')
+    async def test_success_with_routes(self, mock_client):
+        """Test successful retrieval with routes."""
+        mock_client.get_core_network.return_value = {
+            'CoreNetwork': {
+                'GlobalNetworkId': 'global-123',
+                'Segments': [{'Name': 'seg-a'}],
+                'Edges': [{'EdgeLocation': 'us-east-1'}],
+            }
+        }
+        mock_client.get_network_routes.return_value = {
+            'NetworkRoutes': [
+                {
+                    'DestinationCidrBlock': '10.0.0.0/16',
+                    'Type': 'PROPAGATED',
+                    'State': 'ACTIVE',
+                    'Destinations': [{'CoreNetworkAttachmentId': 'att-123'}],
+                }
+            ]
+        }
 
-        with pytest.raises(ToolError):
-            await get_all_cloudwan_routes(
-                cloudwan_region='us-east-1', core_network_id='core-network-12345678'
-            )
+        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+
+        assert result['core_network_id'] == 'core-123'
+        routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
+        assert len(routes) == 1
+        assert routes[0]['destination'] == '10.0.0.0/16'
+        assert routes[0]['target'] == 'att-123'
+
+    async def test_empty_segments_and_edges(self, mock_client):
+        """Test handling of empty segments and edges."""
+        mock_client.get_core_network.return_value = {
+            'CoreNetwork': {'GlobalNetworkId': 'global-123', 'Segments': [], 'Edges': []}
+        }
+
+        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+
+        assert result['regions'] == {}
+
+    async def test_no_routes(self, mock_client):
+        """Test handling when segments have no routes."""
+        mock_client.get_core_network.return_value = {
+            'CoreNetwork': {
+                'GlobalNetworkId': 'global-123',
+                'Segments': [{'Name': 'seg-a'}],
+                'Edges': [{'EdgeLocation': 'us-east-1'}],
+            }
+        }
+        mock_client.get_network_routes.return_value = {'NetworkRoutes': []}
+
+        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+
+        assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
+
+    async def test_route_error_handling(self, mock_client):
+        """Test handling of route retrieval errors."""
+        mock_client.get_core_network.return_value = {
+            'CoreNetwork': {
+                'GlobalNetworkId': 'global-123',
+                'Segments': [{'Name': 'seg-a'}],
+                'Edges': [{'EdgeLocation': 'us-east-1'}],
+            }
+        }
+        mock_client.get_network_routes.side_effect = Exception('Access denied')
+
+        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+
+        assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
+
+    async def test_missing_fields(self, mock_client):
+        """Test handling of routes with missing fields."""
+        mock_client.get_core_network.return_value = {
+            'CoreNetwork': {
+                'GlobalNetworkId': 'global-123',
+                'Segments': [{'Name': 'seg-a'}],
+                'Edges': [{'EdgeLocation': 'us-east-1'}],
+            }
+        }
+        mock_client.get_network_routes.return_value = {
+            'NetworkRoutes': [
+                {
+                    'DestinationCidrBlock': '10.0.0.0/16',
+                    # Missing Type, State, and Destinations
+                }
+            ]
+        }
+
+        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+
+        routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
+        assert routes[0]['type'] == ''
+        assert routes[0]['state'] == ''
+        assert routes[0]['target'] is None
