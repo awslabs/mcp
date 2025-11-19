@@ -2,9 +2,10 @@
 
 Your task is to modify Infrastructure as Code (IaC) files to enable AWS Application Signals for Java Lambda functions. You will:
 
-1. Configure X-Ray tracing
-2. Add the ADOT Lambda layer
-3. Set the required environment variables.
+1. Add IAM permissions for Application Signals
+2. Configure X-Ray tracing
+3. Add the ADOT Lambda layer
+4. Set the required environment variables.
 
 If you cannot determine a value (such as AWS Region): Ask the user for clarification before proceeding. Do not guess or make up values.
 
@@ -55,7 +56,86 @@ Select the correct ARN for your region:
 
 ## Instructions
 
-### Step 1: Enable X-Ray Active Tracing
+### Step 1: Add IAM Permissions
+
+Add the AWS managed policy `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` to the Lambda function's execution role.
+
+**CDK:**
+```typescript
+const role = new iam.Role(this, 'LambdaRole', {
+  assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+  managedPolicies: [
+    iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
+    iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLambdaApplicationSignalsExecutionRolePolicy'),
+    // ... keep existing policies
+  ],
+});
+
+const myFunction = new lambda.Function(this, 'MyFunction', {
+  // ... existing configuration
+  role: role,
+});
+```
+
+**Terraform:**
+```hcl
+resource "aws_iam_role" "lambda_role" {
+  name = "lambda-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "application_signals" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
+}
+
+resource "aws_lambda_function" "my_function" {
+  # ... existing configuration
+  role = aws_iam_role.lambda_role.arn
+}
+```
+
+**CloudFormation:**
+```yaml
+LambdaRole:
+  Type: AWS::IAM::Role
+  Properties:
+    AssumeRolePolicyDocument:
+      Version: '2012-10-17'
+      Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+    ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      - arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy
+      # ... keep existing policies
+
+MyFunction:
+  Type: AWS::Lambda::Function
+  Properties:
+    # ... existing configuration
+    Role: !GetAtt LambdaRole.Arn
+```
+
+### Step 2: Enable X-Ray Active Tracing
 
 **CDK:**
 ```typescript
@@ -85,12 +165,18 @@ MyFunction:
       Mode: Active
 ```
 
-### Step 2: Add ADOT Java Lambda Layer
+### Step 3: Add ADOT Java Lambda Layer
 
-Use the layer name `AWSOpenTelemetryDistroJava` and select the appropriate ARN from the region-specific list above. Only add the one necessary Layer ARN from the list above, like the examples below.
+Use the layer name `AWSOpenTelemetryDistroJava` with automatic region detection. The code below includes a complete mapping that will automatically select the correct layer ARN based on your deployment region.
 
 **CDK:**
 ```typescript
+const layerArns: { [region: string]: string } = {
+  'af-south-1': 'arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroJava:8',
+  'ap-east-1': 'arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroJava:8',
+  // ... (see Region-Specific Layer ARNs section above for complete mapping)
+};
+
 const myFunction = new lambda.Function(this, 'MyFunction', {
   // ... existing configuration
   layers: [
@@ -98,7 +184,7 @@ const myFunction = new lambda.Function(this, 'MyFunction', {
     lambda.LayerVersion.fromLayerVersionArn(
       this,
       'AdotLayer',
-      'arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroJava:8'
+      layerArns[this.region]
     ),
   ],
 });
@@ -106,27 +192,46 @@ const myFunction = new lambda.Function(this, 'MyFunction', {
 
 **Terraform:**
 ```hcl
+locals {
+  layer_arns = {
+    "af-south-1"     = "arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroJava:8"
+    "ap-east-1"      = "arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroJava:8"
+    # ... (see Region-Specific Layer ARNs section above for complete mapping)
+  }
+}
+
+data "aws_region" "current" {}
+
 resource "aws_lambda_function" "my_function" {
   # ... existing configuration
   layers = [
     # ... keep existing layers
-    "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroJava:8"
+    local.layer_arns[data.aws_region.current.name]
   ]
 }
 ```
 
 **CloudFormation:**
 ```yaml
-MyFunction:
-  Type: AWS::Lambda::Function
-  Properties:
-    # ... existing configuration
-    Layers:
-      # ... keep existing layers
-      - arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroJava:8
+Mappings:
+  LayerArns:
+    af-south-1:
+      arn: arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroJava:8
+    ap-east-1:
+      arn: arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroJava:8
+    # ... (see Region-Specific Layer ARNs section above for complete mapping)
+
+Resources:
+  MyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      # ... existing configuration
+      Layers:
+        # ... keep existing layers
+        - !FindInMap [LayerArns, !Ref 'AWS::Region', arn]
 ```
 
-### Step 3: Set Environment Variable
+### Step 4: Set Environment Variable
 
 Add the `AWS_LAMBDA_EXEC_WRAPPER` environment variable with value `/opt/otel-instrument`.
 
@@ -170,6 +275,12 @@ MyFunction:
 
 **CDK:**
 ```typescript
+const layerArns: { [region: string]: string } = {
+  'af-south-1': 'arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroJava:8',
+  'ap-east-1': 'arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroJava:8',
+  // ... (see Region-Specific Layer ARNs section above for complete mapping)
+};
+
 const javaFunction = new lambda.Function(this, 'JavaFunction', {
   runtime: lambda.Runtime.JAVA_17,
   handler: 'com.example.Handler::handleRequest',
@@ -179,7 +290,7 @@ const javaFunction = new lambda.Function(this, 'JavaFunction', {
     lambda.LayerVersion.fromLayerVersionArn(
       this,
       'AdotLayer',
-      'arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroJava:8'
+      layerArns[this.region]
     ),
   ],
   environment: {
@@ -195,6 +306,7 @@ const javaFunction = new lambda.Function(this, 'JavaFunction', {
 "I've completed the Application Signals enablement for your Java Lambda function. Here's what I modified:
 
 **Configuration Changes:**
+- IAM Permissions: Added CloudWatchLambdaApplicationSignalsExecutionRolePolicy
 - X-Ray Tracing: Enabled active tracing
 - ADOT Layer: Added AWSOpenTelemetryDistroJava layer
 - Environment Variable: Set AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument
