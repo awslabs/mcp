@@ -65,46 +65,18 @@ new eks.CfnAddon(this, 'CloudWatchAddon', {
 
 ### 3. Add Python Instrumentation Annotation
 
-Modify your deployment manifest to include the Python instrumentation annotation:
+Update your deployment template metadata to include the Python instrumentation annotation:
 
 ```typescript
-const deployment = {
-  apiVersion: 'apps/v1',
-  kind: 'Deployment',
+template: {
   metadata: { 
-    name: config.appName
-  },
-  spec: {
-    replicas: 1,
-    selector: { matchLabels: { app: config.appName } },
-    template: {
-      metadata: { 
-        labels: { app: config.appName },
-        annotations: {
-          'instrumentation.opentelemetry.io/inject-python': 'true'
-        }
-      },
-      spec: {
-        containers: [{
-          name: config.appName,
-          image: ecrImageUri,
-          ports: [{ containerPort: config.port }],
-          env: [
-            { name: 'PORT', value: config.port.toString() },
-            { name: 'AWS_REGION', value: this.region }
-          ],
-          lifecycle: {
-            postStart: {
-              exec: {
-                command: ['sh', '-c', 'nohup bash /app/generate-traffic.sh > /dev/null 2>&1 &']
-              }
-            }
-          }
-        }]
-      }
+    labels: { app: config.appName },
+    annotations: {
+      'instrumentation.opentelemetry.io/inject-python': 'true'
     }
-  }
-};
+  },
+  // ... rest of your template configuration
+}
 ```
 
 ## Terraform Implementation
