@@ -188,9 +188,8 @@ class TestGetTemplateExamples:
 
         # Check for expected content
         assert parsed['template_examples_repository']['url'].startswith('https://github.com/')
-        assert (
+        assert parsed['architectural_best_practices']['general_best_practices'].startswith(
             'https://docs.aws.amazon.com'
-            in parsed['architectural_best_practices']['general_best_practices']
         )
 
 
