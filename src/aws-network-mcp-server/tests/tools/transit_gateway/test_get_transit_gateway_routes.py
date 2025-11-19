@@ -273,7 +273,8 @@ class TestGetTransitGatewayRoutes:
         }
 
         with pytest.raises(
-            ToolError, match='Route state value not valid. Only ACTIVE and BLACKHOLE are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.'
+            ToolError,
+            match='Route state value not valid. Only ACTIVE and BLACKHOLE are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.',
         ):
             await get_tgw_routes(
                 global_network_region='us-west-2',
@@ -296,7 +297,8 @@ class TestGetTransitGatewayRoutes:
         }
 
         with pytest.raises(
-            ToolError, match='Route type value not valid. Only PROPAGATED and STATIC are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.'
+            ToolError,
+            match='Route type value not valid. Only PROPAGATED and STATIC are allowed. VALIDATE PARAMETERS BEFORE CONTINUING.',
         ):
             await get_tgw_routes(
                 global_network_region='us-west-2',

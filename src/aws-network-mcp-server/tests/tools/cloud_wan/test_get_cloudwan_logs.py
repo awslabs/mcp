@@ -36,8 +36,8 @@ class TestGetCloudwanLogs:
                 'edgeLocation': 'us-east-1',
                 'segmentName': 'production',
                 'attachmentArn': 'arn:aws:networkmanager::123456789012:attachment/attachment-123',
-                'coreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-123'
-            }
+                'coreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-123',
+            },
         }
 
     @pytest.fixture
@@ -48,9 +48,9 @@ class TestGetCloudwanLogs:
             'results': [
                 [
                     {'field': '@timestamp', 'value': '2024-01-15 10:30:00.000'},
-                    {'field': '@message', 'value': json.dumps(sample_log_event)}
+                    {'field': '@message', 'value': json.dumps(sample_log_event)},
                 ]
-            ]
+            ],
         }
 
     @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_logs.get_aws_client')
@@ -59,7 +59,7 @@ class TestGetCloudwanLogs:
         """Test successful log retrieval."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -78,7 +78,7 @@ class TestGetCloudwanLogs:
         """Test filtering by topology change event type."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -94,7 +94,7 @@ class TestGetCloudwanLogs:
         """Test filtering by routing update event type."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -116,7 +116,7 @@ class TestGetCloudwanLogs:
         """Test when query returns no results."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = {'status': 'Complete', 'results': []}
 
@@ -129,7 +129,7 @@ class TestGetCloudwanLogs:
         """Test when CloudWatch query fails."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = {'status': 'Failed'}
 
@@ -142,7 +142,7 @@ class TestGetCloudwanLogs:
         """Test when CloudWatch query times out."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = {'status': 'Timeout'}
 
@@ -155,7 +155,7 @@ class TestGetCloudwanLogs:
         """Test with custom time period."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -183,40 +183,40 @@ class TestGetCloudwanLogs:
         """Test grouping of multiple events by edge location."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         events = [
             {
                 'time': '2024-01-15T10:30:00Z',
                 'detail': {
                     'changeType': 'ATTACHMENT_CREATED',
                     'edgeLocation': 'us-east-1',
-                    'segmentName': 'prod'
-                }
+                    'segmentName': 'prod',
+                },
             },
             {
                 'time': '2024-01-15T10:31:00Z',
                 'detail': {
                     'changeType': 'ROUTE_UPDATED',
                     'edgeLocation': 'us-west-2',
-                    'segmentName': 'dev'
-                }
-            }
+                    'segmentName': 'dev',
+                },
+            },
         ]
-        
+
         query_results = {
             'status': 'Complete',
             'results': [
                 [
                     {'field': '@timestamp', 'value': '2024-01-15 10:30:00.000'},
-                    {'field': '@message', 'value': json.dumps(events[0])}
+                    {'field': '@message', 'value': json.dumps(events[0])},
                 ],
                 [
                     {'field': '@timestamp', 'value': '2024-01-15 10:31:00.000'},
-                    {'field': '@message', 'value': json.dumps(events[1])}
-                ]
-            ]
+                    {'field': '@message', 'value': json.dumps(events[1])},
+                ],
+            ],
         }
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -235,7 +235,7 @@ class TestGetCloudwanLogs:
         """Test that the function uses us-west-2 region for logs."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
@@ -249,7 +249,7 @@ class TestGetCloudwanLogs:
         """Test that the function uses correct log group name."""
         mock_logs = MagicMock()
         mock_get_client.return_value = mock_logs
-        
+
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 

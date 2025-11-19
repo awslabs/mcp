@@ -33,10 +33,7 @@ class TestGetCloudwanPeeringDetails:
                 'PeeringId': 'peering-123',
                 'TransitGatewayArn': 'arn:aws:ec2:us-west-2:123456789012:transit-gateway/tgw-123',
                 'TransitGatewayPeeringAttachmentId': 'tgw-attach-123',
-                'Peering': {
-                    'SegmentName': 'production',
-                    'EdgeLocation': 'us-west-2'
-                }
+                'Peering': {'SegmentName': 'production', 'EdgeLocation': 'us-west-2'},
             }
         }
 
@@ -44,36 +41,40 @@ class TestGetCloudwanPeeringDetails:
     def tgw_response(self):
         """Sample Transit Gateway response."""
         return {
-            'TransitGateways': [{
-                'TransitGatewayId': 'tgw-123',
-                'State': 'available',
-                'AmazonSideAsn': 64512
-            }]
+            'TransitGateways': [
+                {'TransitGatewayId': 'tgw-123', 'State': 'available', 'AmazonSideAsn': 64512}
+            ]
         }
 
     @pytest.fixture
     def route_tables_response(self):
         """Sample route tables response."""
         return {
-            'TransitGatewayRouteTables': [{
-                'TransitGatewayRouteTableId': 'tgw-rtb-123',
-                'State': 'available'
-            }]
+            'TransitGatewayRouteTables': [
+                {'TransitGatewayRouteTableId': 'tgw-rtb-123', 'State': 'available'}
+            ]
         }
 
     @pytest.fixture
     def associations_response(self):
         """Sample associations response."""
         return {
-            'Associations': [{
-                'TransitGatewayAttachmentId': 'tgw-attach-123',
-                'State': 'associated'
-            }]
+            'Associations': [
+                {'TransitGatewayAttachmentId': 'tgw-attach-123', 'State': 'associated'}
+            ]
         }
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
-    async def test_success(self, mock_get_client, peering_response, tgw_response, 
-                          route_tables_response, associations_response):
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
+    async def test_success(
+        self,
+        mock_get_client,
+        peering_response,
+        tgw_response,
+        route_tables_response,
+        associations_response,
+    ):
         """Test successful peering details retrieval."""
         mock_nm_client = MagicMock()
         mock_ec2_client = MagicMock()
@@ -82,7 +83,9 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.return_value = peering_response
         mock_ec2_client.describe_transit_gateways.return_value = tgw_response
         mock_ec2_client.describe_transit_gateway_route_tables.return_value = route_tables_response
-        mock_ec2_client.get_transit_gateway_route_table_associations.return_value = associations_response
+        mock_ec2_client.get_transit_gateway_route_table_associations.return_value = (
+            associations_response
+        )
 
         result = await get_cloudwan_peering_details('peering-123', 'us-east-1')
 
@@ -93,7 +96,9 @@ class TestGetCloudwanPeeringDetails:
         assert result['peering_route_table_id'] == 'tgw-rtb-123'
         assert result['peering_attachment_id'] == 'tgw-attach-123'
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
     async def test_no_attachment_id(self, mock_get_client, tgw_response):
         """Test when peering has no attachment ID."""
         mock_nm_client = MagicMock()
@@ -104,10 +109,7 @@ class TestGetCloudwanPeeringDetails:
             'TransitGatewayPeering': {
                 'PeeringId': 'peering-123',
                 'TransitGatewayArn': 'arn:aws:ec2:us-west-2:123456789012:transit-gateway/tgw-123',
-                'Peering': {
-                    'SegmentName': 'production',
-                    'EdgeLocation': 'us-west-2'
-                }
+                'Peering': {'SegmentName': 'production', 'EdgeLocation': 'us-west-2'},
             }
         }
 
@@ -119,7 +121,9 @@ class TestGetCloudwanPeeringDetails:
         assert result['peering_attachment_id'] is None
         assert result['peering_route_table_id'] is None
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
     async def test_no_tgw_found(self, mock_get_client, peering_response):
         """Test when Transit Gateway is not found."""
         mock_nm_client = MagicMock()
@@ -133,9 +137,12 @@ class TestGetCloudwanPeeringDetails:
 
         assert result['transit_gateway'] is None
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
-    async def test_no_route_table_association(self, mock_get_client, peering_response, 
-                                            tgw_response, route_tables_response):
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
+    async def test_no_route_table_association(
+        self, mock_get_client, peering_response, tgw_response, route_tables_response
+    ):
         """Test when no route table is associated with peering attachment."""
         mock_nm_client = MagicMock()
         mock_ec2_client = MagicMock()
@@ -144,13 +151,17 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.return_value = peering_response
         mock_ec2_client.describe_transit_gateways.return_value = tgw_response
         mock_ec2_client.describe_transit_gateway_route_tables.return_value = route_tables_response
-        mock_ec2_client.get_transit_gateway_route_table_associations.return_value = {'Associations': []}
+        mock_ec2_client.get_transit_gateway_route_table_associations.return_value = {
+            'Associations': []
+        }
 
         result = await get_cloudwan_peering_details('peering-123', 'us-east-1')
 
         assert result['peering_route_table_id'] is None
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
     async def test_peering_not_found(self, mock_get_client):
         """Test when peering is not found."""
         mock_nm_client = MagicMock()
@@ -160,7 +171,9 @@ class TestGetCloudwanPeeringDetails:
         with pytest.raises(ToolError, match='Error getting Cloud WAN peering details'):
             await get_cloudwan_peering_details('invalid-peering', 'us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client')
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_peering_details.get_aws_client'
+    )
     async def test_with_profile(self, mock_get_client, peering_response, tgw_response):
         """Test with custom AWS profile."""
         mock_nm_client = MagicMock()

@@ -105,7 +105,7 @@ class TestDetectTgwInspection:
         """Test when no firewalls are detected."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
-        
+
         nfw_client.list_firewalls.return_value = {'Firewalls': []}
         ec2_client.describe_transit_gateway_attachments.return_value = {
             'TransitGatewayAttachments': []
@@ -122,11 +122,13 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_vpc_firewall_detection(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments):
+    async def test_vpc_firewall_detection(
+        self, mock_get_client, mock_clients, sample_firewalls, sample_attachments
+    ):
         """Test VPC-attached firewall detection."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
 
@@ -140,16 +142,16 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_tgw_firewall_detection(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments):
+    async def test_tgw_firewall_detection(
+        self, mock_get_client, mock_clients, sample_firewalls, sample_attachments
+    ):
         """Test TGW-attached firewall detection."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         nfw_client.describe_firewall.return_value = {
-            'Firewall': {
-                'FirewallStatus': {'Status': 'READY'}
-            }
+            'Firewall': {'FirewallStatus': {'Status': 'READY'}}
         }
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
 
@@ -163,11 +165,19 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_gwlb_firewall_detection(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments, sample_vpc_endpoints, sample_gwlb):
+    async def test_gwlb_firewall_detection(
+        self,
+        mock_get_client,
+        mock_clients,
+        sample_firewalls,
+        sample_attachments,
+        sample_vpc_endpoints,
+        sample_gwlb,
+    ):
         """Test GWLB firewall detection."""
         ec2_client, nfw_client, elbv2_client = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client, elbv2_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
         ec2_client.describe_vpc_endpoints.return_value = sample_vpc_endpoints
@@ -182,11 +192,13 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_nfw_describe_error(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments):
+    async def test_nfw_describe_error(
+        self, mock_get_client, mock_clients, sample_firewalls, sample_attachments
+    ):
         """Test handling of Network Firewall describe errors."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         nfw_client.describe_firewall.side_effect = Exception('Firewall not found')
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
@@ -199,11 +211,18 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_gwlb_describe_error(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments, sample_vpc_endpoints):
+    async def test_gwlb_describe_error(
+        self,
+        mock_get_client,
+        mock_clients,
+        sample_firewalls,
+        sample_attachments,
+        sample_vpc_endpoints,
+    ):
         """Test handling of GWLB describe errors."""
         ec2_client, nfw_client, elbv2_client = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client, elbv2_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
         ec2_client.describe_vpc_endpoints.return_value = sample_vpc_endpoints
@@ -221,7 +240,7 @@ class TestDetectTgwInspection:
         """Test with custom profile."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         ec2_client.describe_transit_gateway_attachments.return_value = {
             'TransitGatewayAttachments': []
@@ -246,11 +265,19 @@ class TestDetectTgwInspection:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
-    async def test_all_firewall_types(self, mock_get_client, mock_clients, sample_firewalls, sample_attachments, sample_vpc_endpoints, sample_gwlb):
+    async def test_all_firewall_types(
+        self,
+        mock_get_client,
+        mock_clients,
+        sample_firewalls,
+        sample_attachments,
+        sample_vpc_endpoints,
+        sample_gwlb,
+    ):
         """Test detection of all firewall types together."""
         ec2_client, nfw_client, elbv2_client = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client, elbv2_client]
-        
+
         nfw_client.list_firewalls.return_value = sample_firewalls
         nfw_client.describe_firewall.return_value = {
             'Firewall': {'FirewallStatus': {'Status': 'READY'}}
@@ -266,4 +293,7 @@ class TestDetectTgwInspection:
         assert result['total_tgw_firewalls'] == 1
         assert result['total_gwlb_firewalls'] == 1
         assert result['total_firewalls'] == 3
-        assert 'Found 1 VPC firewalls, 1 TGW firewalls, and 1 GWLB firewalls' in result['inspection_summary']
+        assert (
+            'Found 1 VPC firewalls, 1 TGW firewalls, and 1 GWLB firewalls'
+            in result['inspection_summary']
+        )
