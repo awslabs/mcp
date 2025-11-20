@@ -99,6 +99,7 @@ Step 2: Validate Agent Code Format
     ✗ Missing app.run() call
     ✗ requirements.txt missing bedrock-agentcore
     ✗ Using strands-tools instead of strands-agents-tools
+    ✗ Using strands instead of strands-agents
 
 Step 3: Configure Agent
     agentcore configure --entrypoint agent.py --non-interactive
