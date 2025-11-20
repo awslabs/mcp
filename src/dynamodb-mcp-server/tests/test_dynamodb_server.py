@@ -694,6 +694,72 @@ async def test_execute_dynamodb_command_edge_cases():
 
 
 @pytest.mark.asyncio
+async def test_source_db_analyzer_build_connection_params_exception():
+    """Test source_db_analyzer when build_connection_params raises exception."""
+    with patch(
+        'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.build_connection_params'
+    ) as mock_build:
+        mock_build.side_effect = Exception('Connection params error')
+
+        result = await source_db_analyzer(
+            source_db_type='mysql', database_name='test_db', output_dir='/tmp'
+        )
+
+        # The @handle_exceptions decorator returns the exception as a dict
+        assert isinstance(result, dict)
+        assert result['error'] == 'Connection params error'
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_validate_connection_params_exception():
+    """Test source_db_analyzer when validate_connection_params raises exception."""
+    with patch(
+        'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.validate_connection_params'
+    ) as mock_validate:
+        mock_validate.side_effect = Exception('Validation error')
+
+        result = await source_db_analyzer(
+            source_db_type='mysql', database_name='test_db', output_dir='/tmp'
+        )
+
+        # The @handle_exceptions decorator returns the exception as a dict
+        assert isinstance(result, dict)
+        assert result['error'] == 'Validation error'
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_save_analysis_files_exception():
+    """Test source_db_analyzer when save_analysis_files raises exception."""
+
+    async def mock_analyze_success(connection_params):
+        return {
+            'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
+            'performance_enabled': True,
+            'errors': [],
+        }
+
+    with patch(
+        'awslabs.dynamodb_mcp_server.database_analyzers.MySQLAnalyzer.analyze',
+        mock_analyze_success,
+    ):
+        with patch(
+            'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.save_analysis_files'
+        ) as mock_save:
+            mock_save.side_effect = Exception('Save files error')
+
+            result = await source_db_analyzer(
+                source_db_type='mysql',
+                database_name='test_db',
+                aws_cluster_arn='test-cluster',
+                aws_secret_arn='test-secret',
+                aws_region='us-east-1',
+                output_dir='/tmp',
+            )
+
+            assert 'Analysis failed: Save files error' in result
+
+
+@pytest.mark.asyncio
 async def test_dynamodb_data_model_validation_file_permissions():
     """Test dynamodb_data_model_validation with file permission issues."""
     with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:

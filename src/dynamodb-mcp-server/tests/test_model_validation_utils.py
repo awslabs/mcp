@@ -322,6 +322,13 @@ class TestDynamoDBLocalSetup:
         result = _parse_container_port('8000/tcp')
         assert result is None
 
+    def test_parse_container_port_with_arrow(self):
+        """Test _parse_container_port with arrow present."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _parse_container_port
+
+        result = _parse_container_port('0.0.0.0:8001->8000/tcp')
+        assert result == '8001'
+
     def test_container_exists_no_output(self):
         """Test _container_exists when no container output."""
         from awslabs.dynamodb_mcp_server.model_validation_utils import _container_exists
@@ -436,6 +443,21 @@ class TestDynamoDBLocalSetup:
             result = get_existing_java_dynamodb_local_endpoint()
             assert result is None
 
+    def test_get_existing_java_endpoint_general_exception_in_process_loop(self):
+        """Test get_existing_java_dynamodb_local_endpoint with exception in process loop."""
+        with patch('psutil.process_iter') as mock_process_iter:
+            # Create a mock process that raises exception when accessing info
+            def mock_proc_generator():
+                mock_proc = MagicMock()
+                # Make accessing info raise a general exception
+                type(mock_proc).info = PropertyMock(side_effect=Exception('General error'))
+                yield mock_proc
+
+            mock_process_iter.return_value = mock_proc_generator()
+
+            result = get_existing_java_dynamodb_local_endpoint()
+            assert result is None
+
     def test_start_java_process_failure(self):
         """Test start_java_process when Java process fails to start."""
         with (
@@ -453,6 +475,18 @@ class TestDynamoDBLocalSetup:
 
             with pytest.raises(RuntimeError, match='Java process failed to start: Java error'):
                 start_java_process('/usr/bin/java', 8000)
+
+    def test_start_java_process_invalid_executable(self):
+        """Test start_java_process with invalid Java executable."""
+        with (
+            patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.download_dynamodb_local_jar'
+            ) as mock_download,
+        ):
+            mock_download.return_value = ('DynamoDBLocal.jar', '/tmp/lib')
+
+            with pytest.raises(RuntimeError, match='Invalid Java executable: malicious'):
+                start_java_process('/usr/bin/malicious', 8000)
 
     def test_try_container_setup_runtime_error(self):
         """Test _try_container_setup with RuntimeError."""
@@ -541,6 +575,42 @@ class TestDynamoDBLocalSetup:
                 result = _run_subprocess_safely(cmd)
                 assert result is None
                 mock_run.assert_not_called()
+
+    def test_run_subprocess_safely_windows_exe_handling(self):
+        """Test _run_subprocess_safely handles .exe extension on Windows."""
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value = MagicMock()
+
+            # Test .exe extension is stripped for validation
+            result = _run_subprocess_safely(['docker.exe', 'ps'])
+            assert result is not None
+
+            result = _run_subprocess_safely(['java.exe', '-version'])
+            assert result is not None
+
+    def test_run_subprocess_safely_timeout_expired(self):
+        """Test _run_subprocess_safely handles TimeoutExpired exception."""
+        import subprocess
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(['docker', 'ps'], 5)
+
+            result = _run_subprocess_safely(['docker', 'ps'])
+            assert result is None
+
+    def test_run_subprocess_safely_called_process_error(self):
+        """Test _run_subprocess_safely handles CalledProcessError exception."""
+        import subprocess
+        from awslabs.dynamodb_mcp_server.model_validation_utils import _run_subprocess_safely
+
+        with patch('subprocess.run') as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(1, ['docker', 'ps'])
+
+            result = _run_subprocess_safely(['docker', 'ps'])
+            assert result is None
 
     def test_run_subprocess_safely_invalid_input(self):
         """Test _run_subprocess_safely with invalid input."""
@@ -1291,6 +1361,56 @@ class TestDownloadDynamodbLocalJar:
             assert call_args[0][0] == '/tmp/dynamodb-local-model-validation'
             assert 'members' in call_args[1]
             assert call_args[1]['filter'] == 'data'
+
+    def test_download_jar_invalid_content_type(self):
+        """Test download_dynamodb_local_jar with invalid content type."""
+        with (
+            patch('tempfile.gettempdir') as mock_tempdir,
+            patch('os.path.exists') as mock_exists,
+            patch('os.makedirs'),
+            patch('urllib.request.urlopen') as mock_urlopen,
+            patch('shutil.rmtree') as mock_rmtree,
+        ):
+            mock_tempdir.return_value = '/tmp'
+
+            # Mock exists calls: JAR doesn't exist, lib doesn't exist, then directory exists for cleanup
+            def exists_side_effect(path):
+                if path.endswith('DynamoDBLocal.jar') or path.endswith('DynamoDBLocal_lib'):
+                    return False  # Files don't exist, so download is attempted
+                elif 'dynamodb-local-model-validation' in path:
+                    return True  # Directory exists for cleanup
+                return False
+
+            mock_exists.side_effect = exists_side_effect
+
+            # Mock response with invalid content type
+            mock_response = MagicMock()
+            mock_response.headers.get.return_value = 'text/html'
+            mock_urlopen.return_value.__enter__.return_value = mock_response
+
+            with pytest.raises(RuntimeError) as exc_info:
+                download_dynamodb_local_jar()
+
+            assert 'Failed to download DynamoDB Local' in str(exc_info.value)
+            mock_rmtree.assert_called_once()
+
+    def test_download_jar_already_exists_both_files(self):
+        """Test download_dynamodb_local_jar when both JAR and lib already exist."""
+        with (
+            patch('tempfile.gettempdir') as mock_tempdir,
+            patch('os.path.exists') as mock_exists,
+        ):
+            mock_tempdir.return_value = '/tmp'
+            # Both JAR and lib exist
+            mock_exists.return_value = True
+
+            jar_path, lib_path = download_dynamodb_local_jar()
+
+            expected_jar = '/tmp/dynamodb-local-model-validation/DynamoDBLocal.jar'
+            expected_lib = '/tmp/dynamodb-local-model-validation/DynamoDBLocal_lib'
+
+            assert jar_path == expected_jar
+            assert lib_path == expected_lib
 
 
 class TestCheckDynamodbReadiness:
