@@ -14,33 +14,38 @@
 
 #!/usr/bin/env python3
 
-
+import json
+import os
+from awslabs.aws_api_mcp_server.server import call_aws
 from awslabs.dynamodb_mcp_server.common import handle_exceptions
 from awslabs.dynamodb_mcp_server.database_analyzers import (
     DatabaseAnalyzer,
     DatabaseAnalyzerRegistry,
 )
+from awslabs.dynamodb_mcp_server.model_validation_utils import (
+    create_validation_resources,
+    get_user_working_directory,
+    get_validation_result_transform_prompt,
+    setup_dynamodb_local,
+)
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from pathlib import Path
 from pydantic import Field
 from typing import Optional
 
 
+DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
+DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
 This server provides DynamoDB design and modeling expertise.
 
-When users ask for dynamodb operational tasks, provide EXACTLY these two options:
-Option 1(RECOMMENDED): AWS API MCP Server
-   Migration guide: https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server
-Option 2(NOT RECOMMENDED): Legacy version 1.0.9
-
 Available Tools:
 --------------
 Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
-This tool provides systematic methodology for creating production-ready multi-table design with
+This tool provides systematic methodology for creating multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
 
 Use the `source_db_analyzer` tool to analyze existing MySQL/Aurora databases for DynamoDB Data Modeling:
@@ -49,6 +54,21 @@ Use the `source_db_analyzer` tool to analyze existing MySQL/Aurora databases for
 - Generates timestamped analysis files (JSON format) for use with dynamodb_data_modeling
 - Requires AWS RDS Data API and credentials in Secrets Manager
 - Safe for production use (read-only analysis)
+
+Use the `execute_dynamodb_command` tool to execute AWS CLI DynamoDB commands:
+- Executes AWS CLI commands that start with 'aws dynamodb'
+- Supports both DynamoDB local (with endpoint-url) and AWS DynamoDB
+- Automatically configures fake credentials for DynamoDB local
+- Returns command execution results or error responses
+
+Use the `dynamodb_data_model_validation` tool to validate your DynamoDB data model:
+- Loads and validates dynamodb_data_model.json structure (checks required keys: tables, items, access_patterns)
+- Sets up DynamoDB Local environment automatically (tries containers first: Docker/Podman/Finch/nerdctl, falls back to Java)
+- Cleans up existing tables from previous validation runs
+- Creates tables and inserts test data from your model specification
+- Tests all defined access patterns by executing their AWS CLI implementations
+- Saves detailed validation results to dynamodb_model_validation.json with pattern responses
+- Transforms results to markdown format for comprehensive review
 """
 
 
@@ -68,8 +88,8 @@ app = create_server()
 async def dynamodb_data_modeling() -> str:
     """Retrieves the complete DynamoDB Data Modeling Expert prompt.
 
-    This tool returns a production-ready prompt to help user with data modeling on DynamoDB.
-    The prompt guides through requirements gathering, access pattern analysis, and production-ready
+    This tool returns a prompt to help user with data modeling on DynamoDB.
+    The prompt guides through requirements gathering, access pattern analysis, and
     schema design. The prompt contains:
 
     - Structured 2-phase workflow (requirements → final design)
@@ -264,6 +284,177 @@ async def source_db_analyzer(
     except Exception as e:
         logger.error(f'Analysis failed with exception: {str(e)}')
         return f'Analysis failed: {str(e)}'
+
+
+@app.tool()
+@handle_exceptions
+async def execute_dynamodb_command(
+    command: str = Field(description="AWS CLI DynamoDB command (must start with 'aws dynamodb')"),
+    endpoint_url: Optional[str] = Field(default=None, description='DynamoDB endpoint URL'),
+    ctx: Optional[Context] = Field(default=None, description='Execution context'),
+):
+    """Execute AWSCLI DynamoDB commands.
+
+    Args:
+        command: AWS CLI command string (e.g., "aws dynamodb query --table-name MyTable")
+        endpoint_url: DynamoDB endpoint URL
+        ctx: Execution context
+
+    Returns:
+        AWS CLI command execution results or error response
+    """
+    # Validate command starts with 'aws dynamodb'
+    if not command.strip().startswith('aws dynamodb'):
+        raise ValueError("Command must start with 'aws dynamodb'")
+
+    # Configure environment with fake AWS credentials if endpoint_url is present
+    if endpoint_url:
+        os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+        os.environ['AWS_SECRET_ACCESS_KEY'] = (
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+        )
+        os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
+        command += f' --endpoint-url {endpoint_url}'
+
+    try:
+        return await call_aws(command, ctx)
+    except Exception as e:
+        return e
+
+
+async def execute_access_patterns(
+    access_patterns, endpoint_url: Optional[str] = None, ctx: Optional[Context] = None
+) -> dict:
+    """Execute all data model validation access patterns operations.
+
+    Args:
+        access_patterns: List of access patterns to test
+        endpoint_url: DynamoDB endpoint URL
+        ctx: Execution context
+
+    Returns:
+        Dictionary with all execution results
+    """
+    try:
+        results = []
+        for pattern in access_patterns:
+            if 'implementation' not in pattern:
+                results.append(pattern)
+                continue
+
+            command = pattern['implementation']
+            result = await execute_dynamodb_command(command, endpoint_url, ctx)
+            results.append(
+                {
+                    'pattern_id': pattern.get('pattern'),
+                    'description': pattern.get('description'),
+                    'dynamodb_operation': pattern.get('dynamodb_operation'),
+                    'command': command,
+                    'response': result if isinstance(result, dict) else str(result),
+                }
+            )
+
+        validation_response = {'validation_response': results}
+
+        user_dir = get_user_working_directory()
+        output_file = os.path.join(user_dir, DATA_MODEL_VALIDATION_RESULT_JSON_FILE)
+        with open(output_file, 'w') as f:
+            json.dump(validation_response, f, indent=2)
+
+        return validation_response
+    except Exception as e:
+        logger.error(f'Failed to execute access patterns validation: {e}')
+        return {'validation_response': [], 'error': str(e)}
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_validation(
+    ctx: Optional[Context] = Field(default=None, description='Execution context'),
+) -> str:
+    """Validates and tests DynamoDB data models against DynamoDB Local.
+
+    Use this tool to validate, test, and verify your DynamoDB data model after completing the design phase.
+    This tool automatically checks that all access patterns work correctly by executing them against a local
+    DynamoDB instance.
+
+    WHEN TO USE:
+    - After completing data model design with dynamodb_data_modeling tool
+    - When user asks to "validate", "test", "check", or "verify" their DynamoDB data model
+    - To ensure all access patterns execute correctly before deploying to production
+
+    WHAT IT DOES:
+    1. If dynamodb_data_model.json doesn't exist:
+       - Returns complete JSON generation guide from json_generation_guide.md
+       - Follow the guide to create the JSON file with tables, items, and access_patterns
+       - Call this tool again after creating the JSON to validate
+
+    2. If dynamodb_data_model.json exists:
+       - Validates the JSON structure (checks for required keys: tables, items, access_patterns)
+       - Sets up DynamoDB Local environment (Docker/Podman/Finch/nerdctl or Java fallback)
+       - Cleans up existing tables from previous validation runs
+       - Creates tables and inserts test data from your model specification
+       - Tests all defined access patterns by executing their AWS CLI implementations
+       - Saves detailed validation results to dynamodb_model_validation.json
+       - Transforms results to markdown format for comprehensive review
+
+    Args:
+        ctx: Execution context
+
+    Returns:
+        JSON generation guide (if file missing) or validation results with transformation prompt (if file exists)
+    """
+    try:
+        # Step 1: Get current working directory reliably
+        user_dir = get_user_working_directory()
+        data_model_path = os.path.join(user_dir, DATA_MODEL_JSON_FILE)
+
+        if not os.path.exists(data_model_path):
+            # Return the JSON generation guide to help users create the required file
+            guide_path = Path(__file__).parent / 'prompts' / 'json_generation_guide.md'
+            try:
+                json_guide = guide_path.read_text(encoding='utf-8')
+                return f"""Error: {data_model_path} not found in your working directory.
+
+{json_guide}"""
+            except FileNotFoundError:
+                return f'Error: {data_model_path} not found. Please generate your data model with dynamodb_data_modeling tool first.'
+
+        # Step 2: Load and validate JSON structure
+        logger.info('Loading data model configuration')
+        try:
+            with open(data_model_path, 'r') as f:
+                data_model = json.load(f)
+        except json.JSONDecodeError as e:
+            return f'Error: Invalid JSON in {data_model_path}: {str(e)}'
+
+        # Validate required structure
+        required_keys = ['tables', 'items', 'access_patterns']
+        missing_keys = [key for key in required_keys if key not in data_model]
+        if missing_keys:
+            return f'Error: Missing required keys in data model: {missing_keys}'
+
+        # Step 3: Setup DynamoDB Local
+        logger.info('Setting up DynamoDB Local environment')
+        endpoint_url = setup_dynamodb_local()
+
+        # Step 4: Create resources
+        logger.info('Creating validation resources')
+        create_validation_resources(data_model, endpoint_url)
+
+        # Step 5: Execute access patterns
+        logger.info('Executing access patterns')
+        await execute_access_patterns(data_model.get('access_patterns', []), endpoint_url, ctx)
+
+        # Step 6: Transform validation results to markdown
+        return get_validation_result_transform_prompt()
+
+    except FileNotFoundError as e:
+        logger.error(f'File not found: {e}')
+        return f'Error: Required file not found: {str(e)}'
+    except Exception as e:
+        logger.error(f'Data model validation failed: {e}')
+        return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
 
 
 def main():

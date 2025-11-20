@@ -5,14 +5,16 @@ description = "The official MCP Server for interacting with AWS DynamoDB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3==1.40.5",
+    "boto3>=1.40.5",
     "loguru==0.7.3",
     "mcp[cli]==1.12.4",
+    "psutil==7.1.1",
     "pydantic==2.11.7",
     "typing-extensions==4.14.1",
     "strands-agents>=1.5.0",
     "dspy-ai>=2.6.27",
     "awslabs.mysql-mcp-server==1.0.5",
+    "awslabs-aws-api-mcp-server==1.0.2",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
