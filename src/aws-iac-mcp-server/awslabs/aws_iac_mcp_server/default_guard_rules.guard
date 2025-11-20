@@ -1,0 +1,3777 @@
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_DEFAULT_LOCK_ENABLED
+#
+# Description:
+#   Checks whether Amazon S3 bucket has lock enabled, by default
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources ObjectLockEnabled property is set to true
+# c) FAIL: when all S3 resources do not have the ObjectLockEnabled property is set to true or is missing
+# d) SKIP: when metada has rule suppression for S3_BUCKET_DEFAULT_LOCK_ENABLED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_buckets_default_lock_enabled = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_DEFAULT_LOCK_ENABLED"
+]
+
+rule S3_BUCKET_DEFAULT_LOCK_ENABLED when %s3_buckets_default_lock_enabled !empty {
+  %s3_buckets_default_lock_enabled.Properties.ObjectLockEnabled exists
+  %s3_buckets_default_lock_enabled.Properties.ObjectLockEnabled == true
+  <<
+    Violation: S3 Bucket ObjectLockEnabled must be set to true.
+    Fix: Set the S3 property ObjectLockEnabled parameter to true.
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED
+#
+# Description:
+#   Checks if Amazon Simple Storage Service (Amazon S3) buckets are publicly accessible.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Public Access Block Configuration element is present and properties are set to true
+# c) FAIL: when all S3 resources do not have the Public Access Block Configuration element present or all properties set to true
+# d) SKIP: when metada has rule suppression for S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_buckets_level_public_access_prohibited = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED"
+]
+
+rule S3_BUCKET_LEVEL_PUBLIC_ACCESS_PROHIBITED when %s3_buckets_level_public_access_prohibited !empty {
+  %s3_buckets_level_public_access_prohibited.Properties.PublicAccessBlockConfiguration exists
+  %s3_buckets_level_public_access_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+  %s3_buckets_level_public_access_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+  %s3_buckets_level_public_access_prohibited.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+  %s3_buckets_level_public_access_prohibited.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+  <<
+    Violation: S3 Bucket Public Access controls need to be restricted.
+    Fix: Set S3 Bucket PublicAccessBlockConfiguration properties for BlockPublicAcls, BlockPublicPolicy, IgnorePublicAcls, RestrictPublicBuckets parameters to true.
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_LOGGING_ENABLED
+#
+# Description:
+#   Checks whether logging is enabled for your S3 buckets.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Logging Configuration exists
+# c) FAIL: when all S3 resources have Logging Configuration is not set
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_LOGGING_ENABLED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+
+let s3_buckets_bucket_logging_enabled = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W35"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_LOGGING_ENABLED"
+]
+
+rule S3_BUCKET_LOGGING_ENABLED when %s3_buckets_bucket_logging_enabled  !empty {
+  %s3_buckets_bucket_logging_enabled.Properties.LoggingConfiguration exists
+  <<
+    Violation: S3 Bucket Logging needs to be configured to enable logging.
+    Fix: Set the S3 Bucket property LoggingConfiguration to start logging into S3 bucket.
+  >>
+}## Config Rule Name : s3-bucket-policy-grantee-check
+## Config Rule URL: https://docs.aws.amazon.com/config/latest/developerguide/s3-bucket-policy-grantee-check.html
+
+# Rule Intent: Checks that the access granted by the Amazon S3 bucket is restricted by any of the AWS principals, federated users, service principals, IP addresses, or VPCs that you provide.
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION
+#
+# Description:
+#   Checks that SIMPLE STORAGE SERVICE (S3) TOPIC Policy do not use Allow+NotAction
+#
+# Reports on:
+#   AWS::S3::BucketPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W20
+#
+# Documentation:
+# https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-access-control.html
+#
+# Scenarios:
+# a) SKIP: when there are no S3 Bucket Policies present
+# b) PASS: when all S3 Bucket Policies do not use Allow+NotAction
+# c) FAIL: when any S3 Bucket Policies allow both Effect: Allow and NotAction
+# d) SKIP: when metadata has rule suppression for S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION or CFN_NAG W20
+
+let s3_bucket_policy_no_allow_plus_not_action = Resources.*[ Type == 'AWS::S3::BucketPolicy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W20"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION"
+]
+
+rule S3_BUCKET_POLICY_NO_ALLOW_PLUS_NOT_ACTION when %s3_bucket_policy_no_allow_plus_not_action !empty {
+  let violations = %s3_bucket_policy_no_allow_plus_not_action[
+    Type == 'AWS::S3::BucketPolicy'
+    some Properties.PolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotAction exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: S3 BucketPolicy should not allow Allow+NotAction
+    Fix: Remove S3 Bucket Policies that match {"Effect": "Allow", "NotAction": ... }
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL
+#
+# Description:
+#   Checks that Amazon S3 BucketPolicies do not use Effect:Allow with NotPrincipal
+#
+# Reports on:
+#   AWS::S3::BucketPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F9
+#
+# Documentation:
+# https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_notprincipal.html
+#
+# Scenarios:
+# a) SKIP: when there are no S3 BucketPolicies present
+# b) PASS: when all S3 BucketPolicies do not Allow with NotPrincipal
+# c) FAIL: when any S3 BucketPolicies PolicyDocument statement has both Effect: Allow and NotPrincipal
+# d) SKIP: when metada has rule suppression for S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL or CFN_NAG F9
+
+#
+# Select all S3 BucketPolicy resources from incoming template (payload)
+#
+let aws_s3_bucketpolicy_resources = Resources.*[ Type == 'AWS::S3::BucketPolicy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F9"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL"
+]
+
+rule S3_BUCKETPOLICY_NO_ALLOW_PLUS_NOTPRINCIPAL when %aws_s3_bucketpolicy_resources !empty {
+  let violations = %aws_s3_bucketpolicy_resources[
+    some Properties.PolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotPrincipal exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: S3 Bucket policy should not allow Allow+NotPrincipal
+    Fix: Remove policy statements that match {"Effect": "Allow", "NotPrincipal": ... }
+  >>
+} #
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_POLICY_NO_WILDCARD_ACTION
+#
+# Description:
+#   S3 Bucket policy should not allow * action
+#
+# Reports on:
+#    AWS::S3::BucketPolicy
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F15
+#
+# Scenarios:
+# a) SKIP: when there is no S3 BucketPolicy resource present
+# b) PASS: when no S3 BucketPolicy resources have open Action
+# c) FAIL: when any S3 resources has Action "*"
+# d) SKIP: when metada has rule suppression for S3_BUCKET_POLICY_NO_WILDCARD_ACTION
+
+#
+# Select all S3 BucketPolicy resources from incoming template (payload)
+#
+let s3_bucket_policy_no_wildcard_action = Resources.*[ Type == 'AWS::S3::BucketPolicy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F15"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_POLICY_NO_WILDCARD_ACTION"
+]
+
+rule S3_BUCKET_POLICY_NO_WILDCARD_ACTION when %s3_bucket_policy_no_wildcard_action !empty {
+  let violations = %s3_bucket_policy_no_wildcard_action[
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] in ["*", /^[a-zA-Z0-9]*:\*$/]
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: S3 Bucket policy should not allow * action.
+    Fix: Specify explicit actions in the S3 BucketPolicy
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_POLICY_NO_WILDCARD_PRINCIPAL
+#
+# Description:
+#   S3 Bucket policy should not allow * principal
+#
+# Reports on:
+#    AWS::S3::BucketPolicy
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F16
+#
+# Scenarios:
+# a) SKIP: when there is no S3 BucketPolicy resource present
+# b) PASS: when no S3 BucketPolicy resources have open Principal
+# c) FAIL: when any S3 resources has Principal "*"
+# d) SKIP: when metada has rule suppression for S3_BUCKET_POLICY_NO_WILDCARD_PRINCIPAL
+
+#
+# Select all S3 BucketPolicy resources from incoming template (payload)
+#
+let s3_bucket_policy_no_wildcard_principal = Resources.*[ Type == 'AWS::S3::BucketPolicy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F16"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_POLICY_NO_WILDCARD_PRINCIPAL"
+]
+
+rule S3_BUCKET_POLICY_NO_WILDCARD_PRINCIPAL when %s3_bucket_policy_no_wildcard_principal !empty {
+  let violations = %s3_bucket_policy_no_wildcard_principal[
+    some Properties.PolicyDocument.Statement[*] {
+      Principal == "*"
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: S3 Bucket policy should not allow * principal
+    Fix: Specify explicit principals in the S3 BucketPolicy
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_PUBLIC_READ_ACL
+#
+# Description:
+#   Checks if Amazon Simple Storage Service (Amazon S3) buckets are publicly readable via the public ACL
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W31
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when no S3 resources have PublicRead ACL applied at the bucket level
+# c) FAIL: when any S3 resources has PublicRead ACL
+# d) SKIP: when metadata has rule suppression for S3_BUCKET_PUBLIC_READ_ACL
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_bucket_public_read_acl = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W31"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_PUBLIC_READ_ACL"
+]
+
+rule S3_BUCKET_PUBLIC_READ_ACL when %s3_bucket_public_read_acl !empty {
+  let violations = %s3_bucket_public_read_acl[
+    Properties.AccessControl == 'PublicRead'
+  ]
+  %violations empty
+  <<
+    Violation: S3 Bucket should not have the PublicRead ALC.
+    Fix: Allow Read access only to authorized, authenticated users.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_PUBLIC_READ_PROHIBITED
+#
+# Description:
+#   Checks if your Amazon S3 buckets do not allow public read access. The rule checks the Block Public
+#   Access settings, the bucket policy, and the bucket access control list (ACL).
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Public Access Block Configuration element is present and properties are set to true
+# c) FAIL: when all S3 resources do not have the Public Access Block Configuration element present or all properties set to true
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_PUBLIC_READ_PROHIBITED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_bucket_public_read_prohibited = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_PUBLIC_READ_PROHIBITED"
+]
+
+rule S3_BUCKET_PUBLIC_READ_PROHIBITED when %s3_bucket_public_read_prohibited !empty {
+  %s3_bucket_public_read_prohibited.Properties.PublicAccessBlockConfiguration exists
+  %s3_bucket_public_read_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+  %s3_bucket_public_read_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+  %s3_bucket_public_read_prohibited.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+  %s3_bucket_public_read_prohibited.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+  <<
+    Violation: S3 Bucket Public Write Access controls need to be restricted.
+    Fix: Set S3 Bucket PublicAccessBlockConfiguration properties for BlockPublicAcls, BlockPublicPolicy, IgnorePublicAcls, RestrictPublicBuckets parameters to true.
+  >>
+}#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_NO_PUBLIC_RW_ACL
+#
+# Description:
+#   Checks if Amazon Simple Storage Service (Amazon S3) buckets are publicly readable via the public ACL
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F14
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when no S3 resources have PublicReadWrite ACL applied at the bucket level
+# c) FAIL: when any S3 resources has PublicReadWrite ACL
+# d) SKIP: when metada has rule suppression for S3_BUCKET_NO_PUBLIC_RW_ACL
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_bucket_public_rw_acl = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F14"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_NO_PUBLIC_RW_ACL"
+]
+
+rule S3_BUCKET_NO_PUBLIC_RW_ACL when %s3_bucket_public_rw_acl !empty {
+  %s3_bucket_public_rw_acl.Properties.AccessControl != 'PublicReadWrite'
+  <<
+    Violation: S3 Bucket should not have the PublicReadWrite ACL.
+    Fix: Allow ReadWrite access only to authorized, authenticated users.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+#
+# Description:
+#   Checks if your Amazon S3 buckets do not allow public write access. The rule checks the Block Public
+#   Access settings, the bucket policy, and the bucket access control list (ACL).
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Public Access Block Configuration element is present and properties are set to true
+# c) FAIL: when all S3 resources do not have the Public Access Block Configuration element present or all properties set to true
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_buckets_public_write_prohibited = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_PUBLIC_WRITE_PROHIBITED"
+]
+
+rule S3_BUCKET_PUBLIC_WRITE_PROHIBITED when %s3_buckets_public_write_prohibited !empty {
+  %s3_buckets_public_write_prohibited.Properties.PublicAccessBlockConfiguration exists
+  %s3_buckets_public_write_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+  %s3_buckets_public_write_prohibited.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+  %s3_buckets_public_write_prohibited.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+  %s3_buckets_public_write_prohibited.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+  <<
+    Violation: S3 Bucket Public Write Access controls need to be restricted.
+    Fix: Set S3 Bucket PublicAccessBlockConfiguration properties for BlockPublicAcls, BlockPublicPolicy, IgnorePublicAcls, RestrictPublicBuckets parameters to true.
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_REPLICATION_ENABLED
+#
+# Description:
+#   Checks whether the Amazon S3 buckets have cross-region replication enabled.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources replication configuration set status is set to Enabled
+# c) FAIL: when all S3 resources have Versioning Configuration status property not set or set to Suspended
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_REPLICATION_ENABLED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+
+let s3_buckets_replication_enabled = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_REPLICATION_ENABLED"
+]
+
+rule S3_BUCKET_REPLICATION_ENABLED when %s3_buckets_replication_enabled !empty {
+  %s3_buckets_replication_enabled.Properties.ReplicationConfiguration exists
+  <<
+    Violation: S3 Bucket replication should be enabled.
+    Fix: Set S3 Bucket ReplicationConfiguration to another S3 Bucket.
+  >>
+    ## TODO regex to identify cross-region
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+#
+# Description:
+#   Checks if your Amazon S3 bucket either has the Amazon S3 default encryption enabled or that the Amazon S3 bucket policy
+#   explicitly denies put-object requests without server side encryption that uses AES-256 or AWS Key Management Service.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Bucket Encryption ServerSideEncryptionByDefault is set to either "aws:kms" or "AES256"
+# c) FAIL: when all S3 resources have Bucket Encryption ServerSideEncryptionByDefault is not set or does not have "aws:kms" or "AES256" configurations
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+
+let s3_buckets_server_side_encryption = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W41"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED"
+]
+
+rule S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED when %s3_buckets_server_side_encryption !empty {
+  %s3_buckets_server_side_encryption.Properties.BucketEncryption exists
+  %s3_buckets_server_side_encryption.Properties.BucketEncryption.ServerSideEncryptionConfiguration[*].ServerSideEncryptionByDefault.SSEAlgorithm in ["aws:kms","AES256"]
+  <<
+    Violation: S3 Bucket must enable server-side encryption.
+    Fix: Set the S3 Bucket property BucketEncryption.ServerSideEncryptionConfiguration.ServerSideEncryptionByDefault.SSEAlgorithm to either "aws:kms" or "AES256"
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_SSL_REQUESTS_ONLY
+#
+# Description:
+#   Checks if Amazon S3 buckets have policies that require requests to use Secure Socket Layer (SSL).
+#
+# Reports on:
+#    AWS::S3::BucketPolicy
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 Bucket Policy Document resource present
+# b) PASS: when all S3 Bucket Policy Document set to deny if condition SecureTransport not true
+# c) FAIL: when all S3 Bucket Policy Document does not have deny on insecure transport actions
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_SSL_REQUESTS_ONLY
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_buckets_policies_ssl_requests_only = Resources.*[ Type == 'AWS::S3::BucketPolicy'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_SSL_REQUESTS_ONLY"
+]
+
+# Select secure S3 Bucket Policy resources from incoming template
+let ssl_secure_bucket_policies = %s3_buckets_policies_ssl_requests_only[
+  Properties.PolicyDocument {
+    some Statement[*] {
+      Effect == 'Deny'
+      Condition {
+        Bool.'aws:SecureTransport' == false
+      }
+    }
+  }
+]
+
+rule S3_BUCKET_SSL_REQUESTS_ONLY when %s3_buckets_policies_ssl_requests_only !empty {
+  %ssl_secure_bucket_policies !empty
+  <<
+    Violation: Bucket policies must feature a statement to enforce TLS usage.
+    Fix: Set a bucket policy statement to '"Action":"s3:*","Effect":"Deny","Principal":"*","Resource":"*","Condition":{"Bool":{"aws:SecureTransport":false}}' .
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_BUCKET_VERSIONING_ENABLED
+#
+# Description:
+#   Checks if versioning is enabled for your S3 buckets.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources Versioning Configuration status is set to Enabled
+# c) FAIL: when all S3 resources have Versioning Configuration status property not set or set to Suspended
+# d) SKIP: when metadata includes the suppression for rule S3_BUCKET_VERSIONING_ENABLED
+
+#
+# Select all S3 resources from incoming template (payload)
+#
+let s3_buckets_versioning_enabled = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_BUCKET_VERSIONING_ENABLED"
+]
+
+rule S3_BUCKET_VERSIONING_ENABLED when %s3_buckets_versioning_enabled !empty {
+  %s3_buckets_versioning_enabled.Properties.VersioningConfiguration exists
+  %s3_buckets_versioning_enabled.Properties.VersioningConfiguration.Status == 'Enabled'
+  <<
+    Violation: S3 Bucket Versioning must be enabled.
+    Fix: Set the S3 Bucket property VersioningConfiguration.Status to 'Enabled' .
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    S3_DEFAULT_ENCRYPTION_KMS
+#
+# Description:
+#   Checks whether the Amazon S3 buckets are encrypted with AWS Key Management Service(AWS KMS).
+#   The rule is NON_COMPLIANT if the Amazon S3 bucket is not encrypted with AWS KMS key.
+#
+# Reports on:
+#    AWS::S3::Bucket
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no S3 resource present
+# b) PASS: when all S3 resources have ServerSideEncryptionConfiguration property set with values of "aws:kms" or "AES256"
+# c) FAIL: when all S3 resources have ServerSideEncryptionConfiguration property not set or values are not "aws:kms" or "AES256"
+# d) SKIP: when metadata includes the suppression for rule S3_DEFAULT_ENCRYPTION_KMS
+
+#
+# Assignments
+#
+let s3_buckets_s3_default_encryption = Resources.*[ Type == 'AWS::S3::Bucket'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "S3_DEFAULT_ENCRYPTION_KMS"
+]
+
+rule S3_DEFAULT_ENCRYPTION_KMS when %s3_buckets_s3_default_encryption !empty {
+  %s3_buckets_s3_default_encryption.Properties.BucketEncryption exists
+  %s3_buckets_s3_default_encryption.Properties.BucketEncryption.ServerSideEncryptionConfiguration[*].ServerSideEncryptionByDefault.SSEAlgorithm in ["aws:kms","AES256"]
+  <<
+    Violation: S3 Bucket default encryption must be set.
+    Fix: Set the S3 Bucket property BucketEncryption.ServerSideEncryptionConfiguration.ServerSideEncryptionByDefault.SSEAlgorithm to either "aws:kms" or "AES256"
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    EBS_OPTIMIZED_INSTANCE
+#
+# Description:
+#    Checks whether EBS optimization is enabled for your EC2 instances that can be EBS-optimized
+#
+# Reports on:
+#    AWS::EC2::Instance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 resource present
+# b) PASS: when all EC2 resources EbsOptimized property is set to true
+# c) FAIL: when any EC2 resources do not have the EbsOptimized property set to true
+# e) SKIP: hen metadata includes the suppression for rule EBS_OPTIMIZED_INSTANCE
+
+#
+# Select all AWS EC2 Instance resources from incoming template (payload)
+#
+let ec2_ebs_optimized_instances = Resources.*[ Type == 'AWS::EC2::Instance'
+	Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EBS_OPTIMIZED_INSTANCE"
+]
+
+rule EBS_OPTIMIZED_INSTANCE when %ec2_ebs_optimized_instances !empty {
+    %ec2_ebs_optimized_instances.Properties.EbsOptimized == true
+    <<
+			Violation: EBS optimization must be enabled for your EC2 instances
+			Fix: set the EbsOptimized property to true
+    >>
+}#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EBS_VOLUME_ENCRYPTION_KEY_RULE
+#
+# Description:
+#   EBS Volume should specify a KmsKeyId value
+#
+# Reports on:
+#    AWS::EC2::Volume
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W37
+#
+# Scenarios:
+# a) SKIP: when there is no EC2 Volume resource present.
+# b) PASS: when EC2 Volume resources have KmsKeyId Key.
+# c) FAIL: when EC2 Volume resources does not have KmsKeyId Key.
+# d) SKIP: when metadata has rule suppression for EBS_VOLUME_ENCRYPTION_KEY_RULE
+
+#
+# Select all EC2 Volume resources from incoming template (payload)
+#
+let ebs_volume_encryption_key_rule = Resources.*[ Type == 'AWS::EC2::Volume'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W37"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EBS_VOLUME_ENCRYPTION_KEY_RULE"
+]
+
+rule EBS_VOLUME_ENCRYPTION_KEY_RULE when %ebs_volume_encryption_key_rule !empty {
+  %ebs_volume_encryption_key_rule.Type == 'AWS::EC2::Volume'
+  %ebs_volume_encryption_key_rule.Properties.KmsKeyId exists
+  <<
+    Violation: EC2 Volume KmsKeyId does not exist
+    Fix: Specify KmsKeyId value
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    EC2_INSTANCE_DETAILED_MONITORING_ENABLED
+#
+# Description:
+#    Checks if detailed monitoring is enabled for EC2 instances.
+#
+# Reports on:
+#    AWS::EC2::Instance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 resource present
+# b) PASS: when all EC2 resources have the Monitoring property set to true
+# c) FAIL: when any EC2 resources do not have the Monitoring property set to true
+# d) SKIP: hen metadata includes the suppression for rule EC2_INSTANCE_DETAILED_MONITORING_ENABLED
+
+#
+# Select all EC2 Instance resources from incoming template (payload)
+#
+let ec2_instances_detailed_monitoring_enabled = Resources.*[ Type == 'AWS::EC2::Instance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_DETAILED_MONITORING_ENABLED"
+]
+
+rule EC2_INSTANCE_DETAILED_MONITORING_ENABLED when %ec2_instances_detailed_monitoring_enabled !empty {
+    %ec2_instances_detailed_monitoring_enabled.Properties.Monitoring == true
+    <<
+      Violation: EC2 Instance Monitoring must be enabled on all EC2 instances
+      Fix: set the Monitoring property to true
+    >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    EC2_INSTANCE_NO_PUBLIC_IP
+#
+# Description:
+#    Checks whether Amazon Elastic Compute Cloud (Amazon EC2) instances have a public IP association.
+#
+# Reports on:
+#    AWS::EC2::Instance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when no EC2 Instance resources are present
+# b) SKIP: when no EC2 Instances have network interfaces defined
+# c) PASS: when no EC2 Instances with network interfaces have associated public IP addresses
+# d) FAIL: when any EC2 Instances with network interfaces have associated public IP addresses
+# e) SKIP: hen metadata includes the suppression for rule EC2_INSTANCE_NO_PUBLIC_IP
+
+#
+# Select all EC2 Instance resources from incoming template (payload)
+#
+let ec2_instances_no_public_ip = Resources.*[Type == 'AWS::EC2::Instance'
+	Properties.NetworkInterfaces[*] !empty
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_NO_PUBLIC_IP"
+]
+
+rule EC2_INSTANCE_NO_PUBLIC_IP when %ec2_instances_no_public_ip !empty {
+	%ec2_instances_no_public_ip.Properties.NetworkInterfaces[*] {
+		AssociatePublicIpAddress !exists OR
+		AssociatePublicIpAddress == false
+		<<
+    	Violation: EC2 Instances cannot have public IP addresses associated with their network interfaces
+    	Fix: remove the AssociatePublicIpAddress property from NetworkInterfaces list or set it to false
+  	>>
+	}
+}
+
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    EC2_INSTANCE_PROFILE_ATTACHED
+#
+# Description:
+#    Checks if an Amazon Elastic Compute Cloud (Amazon EC2) instance has an Identity and Access Management (IAM) profile attached to it.
+#
+# Reports on:
+#    AWS::EC2::Instance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when no EC2 Instance resources are present
+# b) PASS: when all EC2 Instace resources have an associated IAM instance profile
+# d) FAIL: when any EC2 Instace resources do not have an associated IAM instance profile
+# e) SKIP: hen metadata includes the suppression for rule EC2_INSTANCE_PROFILE_ATTACHED
+
+#
+# Select all EC2 Instance resources from incoming template (payload)
+#
+let ec2_instances_profile_attached = Resources.*[ Type == 'AWS::EC2::Instance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_INSTANCE_PROFILE_ATTACHED"
+]
+
+rule EC2_INSTANCE_PROFILE_ATTACHED when %ec2_instances_profile_attached !empty {
+  %ec2_instances_profile_attached.Properties.IamInstanceProfile EXISTS
+  <<
+    Violation: EC2 Instances must have IAM profile attached to it.
+    Fix: Associate the EC2 Instance property IamInstanceProfile with an IAM Instance Profile.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    EC2_INSTANCES_IN_VPC
+#
+# Description:
+#    Checks if your EC2 instances belong to a virtual private cloud (VPC).
+#
+# Reports on:
+#    AWS::EC2::Instance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 resource present
+# b) PASS: when all EC2 resources have the SubnetId property set
+# c) FAIL: when any EC2 resources do not have the SubnetId property set
+# d) SKIP: when metadata includes the suppression for rule EC2_INSTANCES_IN_VPC
+
+#
+# Select all ECS Instance resources from incoming template (payload)
+#
+let ec2_instances_in_vpc = Resources.*[ Type == 'AWS::EC2::Instance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_INSTANCES_IN_VPC"
+]
+
+rule EC2_INSTANCES_IN_VPC when %ec2_instances_in_vpc !empty {
+  %ec2_instances_in_vpc.Properties.SubnetId !empty
+  <<
+  	Violation: EC2 Instances must belong to a VPC
+  	Fix: set the SubnetId property to a subnet ID
+  >>
+}#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EC2_NETWORK_ACL_ENTRY_INEFFECTIVE_DENY_RULE
+#
+# Description:
+#   NetworkACL Entry Deny rules should affect all CIDR ranges.
+#
+# Reports on:
+#    AWS::EC2::NetworkAclEntry
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W71
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 NetworkACLEntry resource present
+# b) PASS: When all EC2 NetworkACLEntry resources deny affects all CIDR ranges.
+# c) FAIL: When any EC2 NetworkACLEntry resources deny does not affect all CIDR ranges.
+# d) SKIP: when metadata has rule suppression for EC2_NETWORK_ACL_ENTRY_INEFFECTIVE_DENY_RULE
+
+#
+# Select all EC2 NetworkACLEntry resources from incoming template (payload)
+#
+let ec2_network_acl_entry_ineffective_deny_rule = Resources.*[ Type == 'AWS::EC2::NetworkAclEntry'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W71"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_NETWORK_ACL_ENTRY_INEFFECTIVE_DENY_RULE"
+]
+
+rule EC2_NETWORK_ACL_ENTRY_INEFFECTIVE_DENY_RULE when %ec2_network_acl_entry_ineffective_deny_rule !empty {
+  let violations = %ec2_network_acl_entry_ineffective_deny_rule[
+    Type == 'AWS::EC2::NetworkAclEntry'
+    Properties.RuleAction == 'deny'
+    Properties {
+        CidrBlock exists
+        CidrBlock != '0.0.0.0/0'
+    }
+    OR
+    Properties {
+        Ipv6CidrBlock exists
+        Ipv6CidrBlock != '::/0'
+        Ipv6CidrBlock != ':/0'
+    }
+  ]
+
+  %violations empty
+  <<
+    Violation: EC2 NetworkACLEntry resources with ruleAction Deny does not cover all CIDR Ranges.
+    Fix: Cover all CIDR ranges for deny RuleAction.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EC2_NETWORK_ACL_PORT_RANGE_RULE
+#
+# Description:
+#   TCP/UDP protocol NetworkACL entries possibly should not allow all ports.
+#
+# Reports on:
+#    AWS::EC2::NetworkAclEntry
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W67
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 NetworkACLEntry resource present
+# b) PASS: When all EC2 NetworkACLEntry resources does not use all ports for TCP/UDP
+# c) FAIL: When any EC2 NetworkACLEntry resources does not specify range of ports for TCP/UDP
+# d) SKIP: when metadata has rule suppression for EC2_NETWORK_ACL_PORT_RANGE_RULE
+
+#
+# Select all EC2 NetworkACLEntry resources from incoming template (payload)
+#
+let ec2_network_acl_port_range_rule = Resources.*[ Type == 'AWS::EC2::NetworkAclEntry'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W67"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_NETWORK_ACL_PORT_RANGE_RULE"
+]
+
+rule EC2_NETWORK_ACL_PORT_RANGE_RULE when %ec2_network_acl_port_range_rule !empty {
+  let violations = %ec2_network_acl_port_range_rule[
+    Type == 'AWS::EC2::NetworkAclEntry'
+    Properties {
+        Protocol == 6
+        OR
+        Protocol == 17
+    }
+    Properties.PortRange !exists
+    OR
+    Properties.PortRange.From !exists
+    OR
+    Properties.PortRange.To !exists
+    OR
+    Properties {
+        PortRange.From == 0
+        PortRange.To == 65535
+    }
+  ]
+
+  %violations empty
+  <<
+    Violation: EC2 NetworkACLEntry resources does not specify a range of ports for TCP/UDP or specifies complete range from 0 to 65535.
+    Fix: Specify a range of ports for TCP/UDP for EC2 NetworkACLEntry resources.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EC2_NETWORK_ACL_PROTOCOL_RULE
+#
+# Description:
+#   To avoid opening all ports for Allow rules, EC2 NetworkACL Entry Protocol should be either 6 (for TCP), 17 (for UDP), 1 (for ICMP), or 58 (for ICMPv6, which must include an IPv6 CIDR block, ICMP type, and code).
+#
+# Reports on:
+#    AWS::EC2::NetworkAclEntry
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W66
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 NetworkACLEntry resource present
+# b) PASS: When all EC2 NetworkACLEntry resources only uses specific protocol port number 6 (for TCP), 17 (for UDP), 1 (for ICMP), or 58 (for ICMPv6, which must include an IPv6 CIDR block, ICMP type, and code).
+# c) FAIL: When any EC2 NetworkACLEntry resources does not use specific protocol port number 6 (for TCP), 17 (for UDP), 1 (for ICMP), or 58 (for ICMPv6, which must include an IPv6 CIDR block, ICMP type, and code).
+# d) SKIP: when metadata has rule suppression for EC2_NETWORK_ACL_PROTOCOL_RULE
+
+#
+# Select all EC2 NetworkACLEntry resources from incoming template (payload)
+#
+let ec2_network_acl_protocol_rule = Resources.*[ Type == 'AWS::EC2::NetworkAclEntry'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W66"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_NETWORK_ACL_PROTOCOL_RULE"
+]
+
+rule EC2_NETWORK_ACL_PROTOCOL_RULE when %ec2_network_acl_protocol_rule !empty {
+
+  let violations = %ec2_network_acl_protocol_rule[
+    Type == 'AWS::EC2::NetworkAclEntry'
+    Properties.RuleAction == 'allow'
+    Properties {
+        Protocol != 1
+        Protocol != 6
+        Protocol != 17
+        Protocol != 58
+    }
+    OR
+    Properties {
+        Protocol == 58
+        Ipv6CidrBlock !exists
+        OR
+        Icmp !exists
+        OR
+        Icmp.Code !exists
+        OR
+        Icmp.Type !exists
+    }
+  ]
+
+  %violations empty
+  <<
+    Violation: EC2 NetworkACLEntry resources does not use specific protocol port number 6 (for TCP), 17 (for UDP), 1 (for ICMP), or 58 (for ICMPv6, which must include an IPv6 CIDR block, ICMP type, and code).
+    Fix: Use protocol port number 6 (for TCP), 17 (for UDP), 1 (for ICMP), or 58 (for ICMPv6, which must include an IPv6 CIDR block, ICMP type, and code).
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EC2_SECURITY_GROUP_EGRESS_OPEN_TO_WORLD_RULE
+#
+# Description:
+#   Check if cidr FOR ipv4 and ipv6 on security group egress is open or private.
+#
+# Reports on:
+#    AWS::EC2::SecurityGroup, AWS::EC2::SecurityGroupEgress
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W5
+#
+# Scenarios:
+# a) SKIP: when there are no Security Egress Groups resource present
+# b) PASS: When all Security Egress Groups do not use open to world cidr
+# c) FAIL: when any Security Egress Groups uses open to world cidr
+# d) SKIP: when metadata has rule suppression for EC2_SECURITY_GROUP_EGRESS_OPEN_TO_WORLD_RULE
+
+#
+# Select all Security Group Egress resources from incoming template (payload)
+#
+
+let ec2_security_group_ingress_open_to_world_rule_sg_egress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W5"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_SECURITY_GROUP_EGRESS_OPEN_TO_WORLD_RULE"
+]
+
+let ec2_security_group_egress_open_to_world_rule_sge_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupEgress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W5"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_SECURITY_GROUP_EGRESS_OPEN_TO_WORLD_RULE"
+]
+
+rule EC2_SECURITY_GROUP_EGRESS_OPEN_TO_WORLD_RULE when %ec2_security_group_egress_open_to_world_rule_sge_resources !empty OR %ec2_security_group_ingress_open_to_world_rule_sg_egress_resources !empty {
+  let violations_sg = %ec2_security_group_ingress_open_to_world_rule_sg_egress_resources[
+    Type == 'AWS::EC2::SecurityGroup'
+    Properties.SecurityGroupEgress exists
+    some Properties.SecurityGroupEgress[*].CidrIp == '0.0.0.0/0'
+    OR
+    some Properties.SecurityGroupEgress[*].CidrIpv6 == '::/0'
+  ]
+
+  let violations_sge = %ec2_security_group_egress_open_to_world_rule_sge_resources[
+    Type == 'AWS::EC2::SecurityGroupEgress'
+    Properties.CidrIp == '0.0.0.0/0'
+    OR
+    Properties.CidrIpv6 == '::/0'
+  ]
+
+  %violations_sg empty
+  %violations_sge empty
+  <<
+    Violation: Security Group Egress has a range of ports instead of a single port
+    Fix: Use single port instead of range of ports for egress rules
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE
+#
+# Description:
+#   Check if cidr FOR ipv4 and ipv6 on security group ingress is open or private.
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroupIngress, AWS::EC2::SecurityGroup]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W2
+#
+# Scenarios:
+# a) SKIP: when there are no Security Ingress Groups resource present
+# b) PASS: When all Security Ingress Groups do not use open to world cidr
+# c) FAIL: when any Security Ingress Groups uses open to world cidr
+# d) SKIP: when metadata has rule suppression for EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE
+
+#
+# Select all Security Group Ingress resources from incoming template (payload)
+#
+
+let ec2_security_group_ingress_open_to_world_rule_sg_ingress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W2"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE"
+]
+
+let ec2_security_group_ingress_open_to_world_rule_sgi_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W2"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE"
+]
+
+rule EC2_SECURITY_GROUP_INGRESS_OPEN_TO_WORLD_RULE when %ec2_security_group_ingress_open_to_world_rule_sgi_resources !empty OR %ec2_security_group_ingress_open_to_world_rule_sg_ingress_resources !empty {
+  let violations_sg = %ec2_security_group_ingress_open_to_world_rule_sg_ingress_resources[
+    Type == 'AWS::EC2::SecurityGroup'
+    Properties.SecurityGroupIngress exists
+    some Properties.SecurityGroupIngress[*].CidrIp == '0.0.0.0/0'
+    OR
+    some Properties.SecurityGroupIngress[*].CidrIpv6 == '::/0'
+  ]
+
+  let violations_sgi = %ec2_security_group_ingress_open_to_world_rule_sgi_resources[
+    Type == 'AWS::EC2::SecurityGroupIngress'
+    Properties.CidrIp == '0.0.0.0/0'
+    OR
+    Properties.CidrIpv6 == '::/0'
+  ]
+
+  %violations_sg empty
+  %violations_sgi empty
+  <<
+    Violation: Security Group Ingress has a range of ports instead of a single port
+    Fix: Use single port instead of range of ports for ingress rules
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    ENCRYPTED_VOLUMES
+#
+# Description:
+#    Checks if the EBS volumes that are in an attached state are encrypted.
+#
+# Reports on:
+#    AWS::EC2::Volume
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F1
+#
+# Scenarios:
+# a) SKIP: when there are no EBS volume resources present
+# b) PASS: when all EBS volumes have the KmsKeyId property set or the Encrypted property set to true
+# c) FAIL: when any EC2 volumes do not have the KmsKeyId or Encrypted property set
+# e) SKIP: hen metadata includes the suppression for rule ENCRYPTED_VOLUMES
+
+#
+# Select all EC2 Instance resources from incoming template (payload)
+#
+let ebs_volumes_encrypted = Resources.*[ Type == 'AWS::EC2::Volume'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F1"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "ENCRYPTED_VOLUMES"
+]
+
+rule ENCRYPTED_VOLUMES when %ebs_volumes_encrypted !empty {
+  let violations = %ebs_volumes_encrypted[
+    Properties.KmsKeyId empty
+    Properties.Encrypted !exists
+    or Properties.Encrypted != true
+  ]
+  %violations empty
+  <<
+    Violation: EBS volumes in an attached state must be encrypted.
+    Fix: Set the KmsKeyId property to a key ID, key alias, key ARN, or alias ARN
+		or set the Encrypted property to true to encrypt the volume with the account default key or AWS managed key.
+  >>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    NO_UNRESTRICTED_ROUTE_TO_IGW
+#
+# Description:
+#    Checks if there are public routes in the route table to an Internet Gateway (IGW).
+#
+# Reports on:
+#    AWS::EC2::Route
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when no EC2 Route resources are present
+# b) SKIP: when there are no EC2 Routes to an Internet Gateway (no GatewayId property)
+# c) PASS: when all EC2 Routes to an Internet Gateway have a restricted destination CIDR block (not '0.0.0.0/0' or '::/0')
+# d) FAIL: when any EC2 Routes to an Internet Gateway have a destination CIDR block of '0.0.0.0/0' or '::/0'
+# e) SKIP: hen metadata includes the suppression for rule NO_UNRESTRICTED_ROUTE_TO_IGW
+
+#
+# Select all EC2 Route resources from incoming template (payload)
+#
+let routes_no_unrestricted_to_igw = Resources.*[ Type == 'AWS::EC2::Route'
+	Properties.GatewayId exists
+	Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "NO_UNRESTRICTED_ROUTE_TO_IGW"
+]
+
+rule NO_UNRESTRICTED_ROUTE_TO_IGW when %routes_no_unrestricted_to_igw !empty {
+	%routes_no_unrestricted_to_igw {
+		Properties {
+			DestinationCidrBlock not in ['0.0.0.0/0', '::/0']
+			<<
+				Violation: EC2 Routes to an IGW cannot have a destination CIDR block of '0.0.0.0/0' or '::/0'
+				Fix: Remove routes to an IGW (with the GatewayId property defined) or modify the DestinationCidrBlock property to a more restricted CIDR block
+			>>
+		}
+	}
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RESTRICTED_INCOMING_TRAFFIC
+#
+# Description:
+#    Checks if the security groups in use do not allow unrestricted incoming TCP traffic to the specified ports.
+#
+# Reports on:
+#    AWS::EC2::SecurityGroup
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no Security Groups resource present
+# b) SKIP when there are no TCP or UDP ingress rules
+# c) PASS: when all Security Groups do no allow any of the restricted common ports
+# d) FAIL: when a Security Group allows any of the restricted common ports
+# e) SKIP: when metadata includes the suppression for rule RESTRICTED_INCOMING_TRAFFIC
+
+#
+# Select all Security Group resources from incoming template (payload)
+#
+let aws_security_groups_restricted_incoming_traffic = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+	some Properties.SecurityGroupIngress[*] {
+		IpProtocol in ['tcp', 'udp']
+	}
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RESTRICTED_INCOMING_TRAFFIC"
+]
+
+rule RESTRICTED_INCOMING_TRAFFIC when %aws_security_groups_restricted_incoming_traffic !empty {
+	let violations = %aws_security_groups_restricted_incoming_traffic[
+		Type == 'AWS::EC2::SecurityGroup'
+		some Properties.SecurityGroupIngress[*] {
+			FromPort in [ 20, 21, 3389, 3306, 4333 ]
+      ToPort in [ 20, 21, 3389, 3306, 4333 ]
+		}
+	]
+	%violations empty
+	<<
+		Violation: Security groups must not allow unrestricted incoming TCP/UDP traffic to the specified ports [20, 21, 3389, 3306, 4333].
+		Fix: change the FromPort and ToPort properties in the SecurityGroupIngress list
+	>>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    INCOMING_SSH_DISABLED
+#
+# Description:
+#    Checks if the incoming SSH traffic for the security groups is accessible.
+#
+# Reports on:
+#    AWS::EC2::SecurityGroup
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when no Security Group resources are present
+# b) SKIP: when no SSH ingress is defined (port 22)
+# c) PASS: when all Security Groups resources restrict the IP address of the incoming SSH traffic
+# d) FAIL: when a Security Group allows SSH traffic from any IP address (0.0.0.0/0).
+# e) SKIP: hen metadata includes the suppression for rule INCOMING_SSH_DISABLED
+
+#
+# Select all Security Group resources from incoming template (payload)
+#
+let aws_security_groups_restricted_ssh = Resources.*[
+	Type == 'AWS::EC2::SecurityGroup'
+	some Properties.SecurityGroupIngress[*] {
+		ToPort == 22
+		FromPort == 22
+		IpProtocol == "tcp"
+	}
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "INCOMING_SSH_DISABLED"
+]
+
+rule INCOMING_SSH_DISABLED when %aws_security_groups_restricted_ssh !empty {
+	%aws_security_groups_restricted_ssh.Properties.SecurityGroupIngress[*] != {CidrIp:"0.0.0.0/0", ToPort:22, FromPort:22, IpProtocol:"tcp"}
+  <<
+    Violation: IP addresses of the incoming SSH traffic in the security groups are restricted (CIDR other than 0.0.0.0/0)
+    Fix: set SecurityGroupIngress.CidrIp property to a more restrictive CIDR than 0.0.0.0/0
+  >>
+}#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_DESCRIPTION_RULE
+#
+# Description:
+#   Security group rules without a description obscure their purpose and may lead to bad practices in ensuring they only allow traffic from the ports and sources/destinations required.
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroupEgress, AWS::EC2::SecurityGroup, AWS::EC2::SecurityGroupIngress]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W36
+#
+# Scenarios:
+# a) SKIP: when there are no Security Groups, Ingress or Egress resource present.
+# b) PASS: When all Security Groups, Ingress or Egress resources has descriptions.
+# c) FAIL: when any Security Groups, Ingress or Egress resources haas no description.
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_DESCRIPTION_RULE
+
+#
+# Select all Security Group Egress resources from incoming template (payload)
+#
+let security_group_description_rule_sg_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W36"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_DESCRIPTION_RULE"
+]
+
+let security_group_description_rule_sge_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupEgress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W36"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_DESCRIPTION_RULE"
+]
+
+let security_group_description_rule_sgi_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W36"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_DESCRIPTION_RULE"
+]
+
+rule SECURITY_GROUP_DESCRIPTION_RULE when %security_group_description_rule_sg_resources !empty OR %security_group_description_rule_sge_resources !empty OR %security_group_description_rule_sgi_resources !empty {
+  let violations_sg = %security_group_description_rule_sg_resources[
+    Type == 'AWS::EC2::SecurityGroup'
+    Properties {
+        SecurityGroupEgress exists
+        some SecurityGroupEgress[*].Description !exists
+    }
+    OR
+    Properties {
+        SecurityGroupIngress exists
+        some SecurityGroupIngress[*].Description !exists
+    }
+  ]
+
+  let violation_sge = %security_group_description_rule_sge_resources[
+    Type == 'AWS::EC2::SecurityGroupEgress'
+    Properties.Description !exists
+  ]
+
+  let violation_sgi = %security_group_description_rule_sgi_resources[
+    Type == 'AWS::EC2::SecurityGroupIngress'
+    Properties.Description !exists
+  ]
+
+  %violations_sg empty
+  %violation_sge empty
+  %violation_sgi empty
+
+  <<
+    Violation: Security Group or Security Group Egress or Security Group Ingress resources do not have description.
+    Fix: Specify the description for Security Group and Security Group Egress and Security Group Ingress resources.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_EGRESS_ALL_PROTOCOLS_RULE
+#
+# Description:
+#   Check if Security Groups found egress with IpProtocol of -1.
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroup, AWS::EC2::SecurityGroupEgress]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W40
+#
+# Scenarios:
+# a) SKIP: when there are no Security Egress Groups resource present
+# b) PASS: When no Security Egress Groups uses IpProtocol value as -1
+# c) FAIL: when any Security Egress Groups uses IpProtocol value as -1
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_EGRESS_ALL_PROTOCOLS_RULE
+
+#
+# Select all Security Group Egress resources from incoming template (payload)
+#
+
+let security_group_egress_all_protocols_rule_sg_egress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W40"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_EGRESS_ALL_PROTOCOLS_RULE"
+]
+
+let security_group_egress_all_protocols_rule_sge_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupEgress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W40"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_EGRESS_ALL_PROTOCOLS_RULE"
+]
+
+rule SECURITY_GROUP_EGRESS_ALL_PROTOCOLS_RULE when %security_group_egress_all_protocols_rule_sge_resources !empty OR %security_group_egress_all_protocols_rule_sg_egress_resources !empty {
+   let violations_sg = %security_group_egress_all_protocols_rule_sg_egress_resources[
+     Type == 'AWS::EC2::SecurityGroup'
+     Properties.SecurityGroupEgress exists
+     some Properties.SecurityGroupEgress[*] {
+        IpProtocol == '-1'
+        OR
+        IpProtocol == -1
+        CidrIp !exists
+        OR
+        CidrIp != '127.0.0.1/32'
+        CidrIpv6 !exists
+        OR
+        CidrIpv6 != '::1/128'
+        CidrIpv6 !exists
+        OR
+        CidrIpv6 != ':1/128'
+     }
+   ]
+
+   let violations_sge = %security_group_egress_all_protocols_rule_sge_resources[
+     Type == 'AWS::EC2::SecurityGroupEgress'
+     Properties.IpProtocol == '-1'
+     OR
+     Properties.IpProtocol == -1
+     Properties.CidrIp !exists
+     OR
+     Properties.CidrIp != '127.0.0.1/32'
+     Properties.CidrIpv6 !exists
+     OR
+     Properties.CidrIpv6 != '::1/128'
+     Properties.CidrIpv6 !exists
+     OR
+     Properties.CidrIpv6 != ':1/128'
+  ]
+
+  %violations_sg empty
+  %violations_sge empty
+  <<
+    Violation: Security Group Egress has a IpProtocol value of -1.
+    Fix: Update IpProtocol value of -1 as tcp, udp, icmp, or icmpv6 or something else.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_EGRESS_PORT_RANGE_RULE
+#
+# Description:
+#   Check if Security Groups found egress with port range instead of just a single PORT
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroupEgress, AWS::EC2::SecurityGroup]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W29
+#
+# Scenarios:
+# a) SKIP: when there are no Security Egress Groups resource present
+# b) PASS: When all Security Egress Groups uses a single port and not range
+# c) FAIL: when any Security Egress Groups uses a range of ports
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_EGRESS_PORT_RANGE_RULE
+
+#
+# Select all Security Group Egress resources from incoming template (payload)
+#
+let security_group_egress_port_range_rule_sg_egress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W29"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_EGRESS_PORT_RANGE_RULE"
+]
+
+let security_group_egress_port_range_rule_sge_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupEgress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W29"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_EGRESS_PORT_RANGE_RULE"
+]
+
+rule SECURITY_GROUP_EGRESS_PORT_RANGE_RULE when %security_group_egress_port_range_rule_sge_resources !empty OR %security_group_egress_port_range_rule_sg_egress_resources !empty {
+  let violations_sg = %security_group_egress_port_range_rule_sg_egress_resources[
+    Type == 'AWS::EC2::SecurityGroup'
+    Properties.SecurityGroupEgress exists
+    some Properties.SecurityGroupEgress[*] {
+        FromPort exists
+        ToPort exists
+        FromPort not in ToPort
+    }
+  ]
+
+  let violations_sge = %security_group_egress_port_range_rule_sge_resources[
+    Type == 'AWS::EC2::SecurityGroupEgress'
+    Properties.FromPort exists
+    Properties.ToPort exists
+    Properties.FromPort not in Properties.ToPort
+  ]
+
+  %violations_sg empty
+  %violations_sge empty
+  <<
+    Violation: Security Group Egress has a range of ports instead of a single port
+    Fix: Use single port instead of range of ports for egress rules
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_INGRESS_ALL_PROTOCOLS_RULE
+#
+# Description:
+#   Check if Security Groups found ingress has IpProtocol as -1
+#
+# Reports on:
+#    AWS::EC2::SecurityGroupIngress
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W42
+#
+# Scenarios:
+# a) SKIP: when there are no Security Ingress Groups resource present
+# b) PASS: When no Security Ingress Groups uses IpProtocol value as -1
+# c) FAIL: when any Security Ingress Groups uses IpProtocol value as -1
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_INGRESS_ALL_PROTOCOLS_RULE
+
+#
+# Select all Security Group Ingress resources from incoming template (payload)
+#
+
+let security_group_ingress_all_protocols_rule_sg_ingress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W42"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_ALL_PROTOCOLS_RULE"
+]
+
+let security_group_ingress_all_protocols_rule_sgi_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W42"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_ALL_PROTOCOLS_RULE"
+]
+
+rule SECURITY_GROUP_INGRESS_ALL_PROTOCOLS_RULE when %security_group_ingress_all_protocols_rule_sgi_resources !empty OR %security_group_ingress_all_protocols_rule_sg_ingress_resources !empty {
+   let violations_sg = %security_group_ingress_all_protocols_rule_sg_ingress_resources[
+     Type == 'AWS::EC2::SecurityGroup'
+     Properties.SecurityGroupIngress exists
+     some Properties.SecurityGroupIngress[*].IpProtocol == '-1'
+     OR
+     some Properties.SecurityGroupIngress[*].IpProtocol == -1
+   ]
+
+   let violations_sgi = %security_group_ingress_all_protocols_rule_sgi_resources[
+     Type == 'AWS::EC2::SecurityGroupIngress'
+     Properties.IpProtocol == '-1'
+     OR
+     Properties.IpProtocol == -1
+  ]
+
+  %violations_sg empty
+  %violations_sgi empty
+  <<
+    Violation: Security Group Ingress has a IpProtocol value of -1 and
+    Fix: Update IpProtocol value of -1 as tcp, udp, icmp, or icmpv6 or something else.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_INGRESS_CIDR_NON_32_RULE
+#
+# Description:
+#   Check if Security Groups found ingress cidr is not /32
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroup, AWS::EC2::SecurityGroupIngress]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W9
+#
+# Scenarios:
+# a) SKIP: when there are no Security Ingress Groups resource present
+# b) PASS: When all Security Ingress Groups cidr is /32 for ipv4 or /128 for ipv6
+# c) FAIL: when any Security Ingress Groups cidr is not /32 for ipv4 or /128 for ipv6
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_INGRESS_CIDR_NON_32_RULE
+
+#
+# Select all Security Group Ingress resources from incoming template (payload)
+#
+let security_group_ingress_cidr_non_32_rule_sg_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W9"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_CIDR_NON_32_RULE"
+]
+
+let security_group_ingress_cidr_non_32_rule_sgi_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W9"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_CIDR_NON_32_RULE"
+]
+
+rule SECURITY_GROUP_INGRESS_CIDR_NON_32_RULE when %security_group_ingress_cidr_non_32_rule_sgi_resources !empty OR %security_group_ingress_cidr_non_32_rule_sg_resources !empty {
+   let violations_sg = %security_group_ingress_cidr_non_32_rule_sg_resources[
+     Type == 'AWS::EC2::SecurityGroup'
+     Properties.SecurityGroupIngress exists
+     some Properties.SecurityGroupIngress[*].CidrIp != /\/32/
+     OR
+     some Properties.SecurityGroupIngress[*].CidrIpv6 != /\/128/
+   ]
+
+   let violations_sgi = %security_group_ingress_cidr_non_32_rule_sgi_resources[
+     Type == 'AWS::EC2::SecurityGroupIngress'
+     Properties.CidrIp != /\/32/
+     OR
+     Properties.CidrIpv6 != /\/128/
+  ]
+
+  %violations_sg empty
+  %violations_sgi empty
+  <<
+    Violation: Security Group Ingress cidr has ipv4 that is not /32 or ipv6 that is not /128
+    Fix: Use /32 for ipv4 cidr and /128 for ipv6 cidr
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_INGRESS_PORT_RANGE_RULE
+#
+# Description:
+#   Check if Security Groups found ingress with port range instead of just a single PORT
+#
+# Reports on:
+#    [AWS::EC2::SecurityGroup, AWS::EC2::SecurityGroupIngress]
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   W27
+#
+# Scenarios:
+# a) SKIP: when there are no Security Ingress Groups resource present
+# b) PASS: When all Security Ingress Groups uses a single port and not range
+# c) FAIL: when any Security Ingress Groups uses a range of ports
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_INGRESS_PORT_RANGE_RULE
+
+#
+# Select all Security Group Ingress resources from incoming template (payload)
+#
+let security_group_ingress_port_range_rule_sg_ingress_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W27"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_PORT_RANGE_RULE"
+]
+
+let security_group_ingress_port_range_rule_sgi_resources = Resources.*[ Type == 'AWS::EC2::SecurityGroupIngress'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W27"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_INGRESS_PORT_RANGE_RULE"
+]
+
+rule SECURITY_GROUP_INGRESS_PORT_RANGE_RULE when %security_group_ingress_port_range_rule_sgi_resources !empty OR %security_group_ingress_port_range_rule_sg_ingress_resources !empty {
+  let violations_sg = %security_group_ingress_port_range_rule_sg_ingress_resources[
+    Type == 'AWS::EC2::SecurityGroup'
+    Properties.SecurityGroupIngress exists
+    some Properties.SecurityGroupIngress[*] {
+        FromPort exists
+        ToPort exists
+        FromPort not in ToPort
+    }
+  ]
+
+  let violations_sgi = %security_group_ingress_port_range_rule_sgi_resources[
+    Type == 'AWS::EC2::SecurityGroupIngress'
+    Properties.FromPort exists
+    Properties.ToPort exists
+    Properties.FromPort not in Properties.ToPort
+  ]
+
+  %violations_sg empty
+  %violations_sgi empty
+  <<
+    Violation: Security Group Ingress has a range of ports instead of a single port
+    Fix: Use single port instead of range of ports for ingress rules
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#    SECURITY_GROUP_MISSING_EGRESS_RULE
+#
+# Description:
+#   Missing egress rule means all traffic is allowed outbound. Make this explicit if it is desired configuration.
+#
+# Reports on:
+#    AWS::EC2::SecurityGroup
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F1000
+#
+# Scenarios:
+# a) SKIP: when there are no Security Groups resource present
+# b) PASS: When all Security Groups has Egresses specified.
+# c) FAIL: When any Security Groups does not have Egresses specified.
+# d) SKIP: when metadata has rule suppression for SECURITY_GROUP_MISSING_EGRESS_RULE
+
+#
+# Select all Security Group resources from incoming template (payload)
+#
+let security_group_missing_egress_rule = Resources.*[ Type == 'AWS::EC2::SecurityGroup'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F1000"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SECURITY_GROUP_MISSING_EGRESS_RULE"
+]
+
+rule SECURITY_GROUP_MISSING_EGRESS_RULE when %security_group_missing_egress_rule !empty {
+  %security_group_missing_egress_rule.Type == 'AWS::EC2::SecurityGroup'
+  %security_group_missing_egress_rule.Properties.SecurityGroupEgress exists
+  <<
+    Violation: Security Groups resources does not have Egresses specified.
+    Fix: Specify Egresses for all security group resources exists
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED
+#
+# Description:
+#    Checks if Amazon Virtual Private Cloud (Amazon VPC) subnets are assigned a public IP address.
+#
+# Reports on:
+#    AWS::EC2::Subnet
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no EC2 Subnet resource present
+# b) PASS: when all EC2 Subnet resources have the MapPublicIpOnLaunch property set to false or it is missing (default false)
+# c) FAIL: when any EC2 Subnet resources have the MapPublicIpOnLaunch property set to true
+# d) SKIP: hen metadata includes the suppression for rule SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED
+
+#
+# Select all EC2 Subnet resources from incoming template (payload)
+#
+let ec2_subnets_auto_assign_public_ip_disabled = Resources.*[ Type == 'AWS::EC2::Subnet'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W33"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED"
+]
+
+rule SUBNET_AUTO_ASSIGN_PUBLIC_IP_DISABLED when %ec2_subnets_auto_assign_public_ip_disabled !empty {
+	%ec2_subnets_auto_assign_public_ip_disabled.Properties.MapPublicIpOnLaunch !exists
+  OR %ec2_subnets_auto_assign_public_ip_disabled.Properties.MapPublicIpOnLaunch == false
+  <<
+    Violation: VPCs should not have subnets that are assigned a public IP address.
+    Fix: remove the MapPublicIpOnLaucnh property or set it to false
+	>>
+}#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    AURORA_MYSQL_BACKTRACKING_ENABLED
+#
+# Description:
+#    Checks if an Amazon Aurora MySQL cluster has backtracking enabled.
+#
+# Reports on:
+#    AWS::RDS::DBCluster
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all aurora-mysql RDS instances have BacktrackWindow set to greater than 0
+# c) FAIL: when all aurora-mysql RDS instances have BacktrackWindow set to 0
+# d) FAIL: when there are aurora-mysql RDS instances with BacktrackWindow property is not present
+# e) SKIP: hen metadata includes the suppression for rule AURORA_MYSQL_BACKTRACKING_ENABLED
+
+#
+# Select all RDS Clusters resources from incoming template (payload)
+#
+
+let aws_rds_clusters_aurora_mysql_backtracking_enabled = Resources.*[ Type == 'AWS::RDS::DBCluster'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "AURORA_MYSQL_BACKTRACKING_ENABLED"
+]
+
+rule AURORA_MYSQL_BACKTRACKING_ENABLED when %aws_rds_clusters_aurora_mysql_backtracking_enabled !empty {
+    # only eval aurora-mysql engine types
+    when %aws_rds_clusters_aurora_mysql_backtracking_enabled.Properties.Engine == 'aurora-mysql' {
+      %aws_rds_clusters_aurora_mysql_backtracking_enabled.Properties.BacktrackWindow EXISTS
+      %aws_rds_clusters_aurora_mysql_backtracking_enabled.Properties.BacktrackWindow >= 1
+      <<
+        Violation: All MySQL Aurora RDS DB Clusters have backtrack enabled.
+        Fix: Set BacktrackWindow parameter value to greater than 0.
+      >>
+    }
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    DB_INSTANCE_BACKUP_ENABLED
+#
+# Description:
+#    Checks if RDS DB instances have backups enabled.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have BackupRetentionPeriod set to a positive number
+# c) FAIL: when all RDS instances have BackupRetentionPeriod set to 0
+# d) FAIL: when there are RDS instances with BackupRetentionPeriod property is not present
+# e) SKIP: when metadata includes the suppression for rule DB_INSTANCE_BACKUP_ENABLED
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+
+let aws_rds_instances_db_instance_backup_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W75"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "DB_INSTANCE_BACKUP_ENABLED"
+]
+
+
+rule DB_INSTANCE_BACKUP_ENABLED when %aws_rds_instances_db_instance_backup_enabled !empty {
+  let violations = %aws_rds_instances_db_instance_backup_enabled[
+    Properties.BackupRetentionPeriod !EXISTS
+    or
+    Properties.BackupRetentionPeriod < 1
+  ]
+  %violations empty
+  <<
+    Violation: All RDS instances must have automated backup enabled.
+    Fix: Set the BackupRetentionPeriod to values of 1 to 35 to enable backups.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED
+#
+# Description:
+#    Checks whether storage encryption is enabled for your RDS DB instances
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have AutoMinorVersionUpgrade set to true
+# c) FAIL: when all RDS instances have AutoMinorVersionUpgrade set to false
+# d) FAIL: when there are RDS instances with AutoMinorVersionUpgrade property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+
+let aws_rds_instances_minor_version_upgrade_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED"
+]
+
+
+rule RDS_AUTOMATIC_MINOR_VERSION_UPGRADE_ENABLED when %aws_rds_instances_minor_version_upgrade_enabled !empty {
+  %aws_rds_instances_minor_version_upgrade_enabled.Properties.AutoMinorVersionUpgrade EXISTS
+  %aws_rds_instances_minor_version_upgrade_enabled.Properties.AutoMinorVersionUpgrade == true
+  <<
+    Violation: All RDS instances must have automatic minor version upgrade enabled.
+    Fix: Set the AutoMinorVersionUpgrade parameter to true.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   RDS_CLUSTER_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD
+#
+# Description:
+#  RDS Cluster DB instance master user password must not be a plaintext string or a Ref to a Parameter with a Default value.
+#  Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager/ssm-secure value.
+#  with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+#
+# Reports on:
+#   AWS::RDS::DBCluster
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F34
+#
+# Note: this rule works, however it sends the custom message twice for each resource
+#
+# Scenarios:
+# a) SKIP: when there are no AWS::RDS::DBCluster present
+# b) PASS: when all AWS::RDS::DBCluster use passwords from secure sources
+# c) FAIL: when any AWS::RDS::DBCluster has a Password property not using a secure source
+# d) SKIP: when metadata has rule suppression for RDS_CLUSTER_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD or CFN_NAG F34
+
+let rds_cluster_master_user_password_no_plaintext_password = Resources.*[ Type == 'AWS::RDS::DBCluster'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F34"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_CLUSTER_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD"
+]
+
+# Get any AWS::RDS::DBCluster Refs for Password?
+let rds_cluster_master_user_password_refs = %rds_cluster_master_user_password_no_plaintext_password.Properties.MasterUserPassword.'!Ref'
+
+# Rule 1: when rds cluster master user password no plaintext password have Ref to Parameter for Password
+rule RDS_CLUSTER_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER when
+  %rds_cluster_master_user_password_no_plaintext_password not empty
+{
+  Parameters exists
+  Parameters not empty
+  %rds_cluster_master_user_password_refs not empty
+  let parameter_refs = Parameters.%rds_cluster_master_user_password_refs
+  when %parameter_refs !empty {
+    %parameter_refs.Type == 'String'
+    %parameter_refs.NoEcho exists
+    %parameter_refs.NoEcho == true
+    %parameter_refs.Default !exists
+  }
+}
+
+# Rule 2: when rds cluster master user password no plaintext password and above rule did not pass
+rule RDS_CLUSTER_MASTER_USER_PASSWORD_USES_SECURE_SERVICE when
+  %rds_cluster_master_user_password_no_plaintext_password not empty
+  !RDS_CLUSTER_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER
+{
+  %rds_cluster_master_user_password_no_plaintext_password.Properties.MasterUserPassword !exists
+  OR
+  %rds_cluster_master_user_password_no_plaintext_password.Properties.MasterUserPassword in [ /{{resolve\:secretsmanager\:.*}}/, /{{resolve\:ssm-secure\:.*}}/ ]
+  <<
+    Violation: RDS Cluster MasterUserPassword password must not be a plaintext string or a Ref to a Parameter with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+    Fix: Replace plaintext value with a secure one.
+  >>
+}
+
+# One rule to rule them all...
+rule RDS_CLUSTER_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD when
+  %rds_cluster_master_user_password_no_plaintext_password not empty
+{
+  RDS_CLUSTER_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER
+  OR
+  RDS_CLUSTER_MASTER_USER_PASSWORD_USES_SECURE_SERVICE
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_ENHANCED_MONITORING_ENABLED
+#
+# Description:
+#    Checks whether enhanced monitoring is enabled for Amazon Relational Database Service (Amazon RDS) instances.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have MonitoringInterval set to a value of 1, 5, 10, 15, 30, or 60
+# c) FAIL: when all RDS instances have MonitoringInterval set to 0
+# d) FAIL: when there are RDS instances with MonitoringInterval property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_ENHANCED_MONITORING_ENABLED
+
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+
+let aws_rds_instances_enhanced_monitoring_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_ENHANCED_MONITORING_ENABLED"
+]
+
+
+rule RDS_ENHANCED_MONITORING_ENABLED when %aws_rds_instances_enhanced_monitoring_enabled !empty {
+  %aws_rds_instances_enhanced_monitoring_enabled.Properties.MonitoringInterval EXISTS
+  %aws_rds_instances_enhanced_monitoring_enabled.Properties.MonitoringInterval IN [1, 5, 10, 15, 30, 60]
+  <<
+    Violation: RDS Instance enhanced monitoring required.
+    Fix: Specify a value of 1, 5, 10, 15, 30, or 60 for the parameter on the property MonitoringInterval.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_INSTANCE_DELETION_PROTECTION_ENABLED
+#
+# Description:
+#    Checks if an Amazon Relational Database Service (Amazon RDS) instance has deletion protection enabled.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have DeletionProtection set to true
+# c) FAIL: when all RDS instances have DeletionProtection set to false
+# d) FAIL: when there are RDS instances with DeletionProtection property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_INSTANCE_DELETION_PROTECTION_ENABLED
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+let aws_rds_instances_deletion_protection_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F80"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_INSTANCE_DELETION_PROTECTION_ENABLED"
+]
+
+rule RDS_INSTANCE_DELETION_PROTECTION_ENABLED when %aws_rds_instances_deletion_protection_enabled !empty {
+  %aws_rds_instances_deletion_protection_enabled.Properties.DeletionProtection EXISTS
+  %aws_rds_instances_deletion_protection_enabled.Properties.DeletionProtection == true
+  <<
+    Violation: All RDS instances must deletion protection enabled.
+    Fix: Set the parameter for DeletionProtection to true.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+#
+# Description:
+#    Checks if an RDS instances has Publicly Accessible not set.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have PubliclyAccessible set to true
+# c) FAIL: when all RDS instances have PubliclyAccessible set to false
+# d) FAIL: when there are RDS instances with PubliclyAccessible property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+let aws_rds_instances_not_public = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F22"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_INSTANCE_PUBLIC_ACCESS_CHECK"
+]
+
+rule RDS_INSTANCE_PUBLIC_ACCESS_CHECK when %aws_rds_instances_not_public !empty {
+  # ALL RDS instances must have PubliclyAccessible set to false
+  %aws_rds_instances_not_public.Properties.PubliclyAccessible == false
+  <<
+    Violation: All RDS instances must not be publicly accessible.
+    Fix: The default depends on the VPC configuration, so it is recommended to eplicitly set PubliclyAccessible to false.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_INSTANCE_LOGGING_ENABLED
+#
+# Description:
+#    Checks if log types exported to Amazon CloudWatch for an Amazon Relational
+#    Database Service (Amazon RDS) instance are enabled.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have EnableCloudwatchLogsExports set to true
+# c) FAIL: when all RDS instances have EnableCloudwatchLogsExports set to false
+# d) FAIL: when there are RDS instances with EnableCloudwatchLogsExports property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_INSTANCE_LOGGING_ENABLED
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+
+let aws_rds_instances_logging_enabled = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_INSTANCE_LOGGING_ENABLED"
+]
+
+
+rule RDS_INSTANCE_LOGGING_ENABLED when %aws_rds_instances_logging_enabled !empty {
+  %aws_rds_instances_logging_enabled.Properties.EnableCloudwatchLogsExports EXISTS
+  <<
+    Violation: Enable CloudWatch Logs Exports for monitoring and logging.
+    Fix: Provide EnableCloudWatchLogsExports object to start exporting cloudwatch logs.
+  >>
+}
+
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   RDS_MASTER_USER_NAME_NO_PLAINTEXT_PASSWORD
+#
+# Description:
+#  RDS instance master user name must not be a plaintext string or a Ref to a Parameter with a Default value.
+#  Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager/ssm-secure value.
+#  with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+#
+# Reports on:
+#   AWS::RDS::DBInstance
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F24
+#
+# Note: this rule works, however it sends the custom message twice for each resource
+#
+# Scenarios:
+# a) SKIP: when there are no AWS::RDS::DBInstance present
+# b) PASS: when all AWS::RDS::DBInstance use user names from secure sources
+# c) FAIL: when any AWS::RDS::DBInstance has a MasterUserName property not using a secure source
+# d) SKIP: when metadata has rule suppression for RDS_MASTER_USER_NAME_NO_PLAINTEXT_PASSWORD or CFN_NAG F24
+
+let rds_master_user_name_no_plaintext_password = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F24"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_MASTER_USER_NAME_NO_PLAINTEXT_PASSWORD"
+]
+
+# Get any AWS::RDS::DBInstance Refs for Password?
+let rds_master_user_name_refs = %rds_master_user_name_no_plaintext_password.Properties.MasterUsername.'!Ref'
+
+# Rule 1: when rds master user name no plaintext password have Ref to Parameter for Password
+rule RDS_MASTER_USER_NAME_USES_SECURE_PARAMETER when
+  %rds_master_user_name_no_plaintext_password not empty
+{
+  Parameters exists
+  Parameters not empty
+  %rds_master_user_name_refs not empty
+  let parameter_refs = Parameters.%rds_master_user_name_refs
+  when %parameter_refs !empty {
+    %parameter_refs.Type == 'String'
+    %parameter_refs.NoEcho exists
+    %parameter_refs.NoEcho == true
+    %parameter_refs.Default !exists
+  }
+}
+
+# Rule 2: when rds master user name no plaintext password and above rule did not pass
+rule RDS_MASTER_USER_NAME_USES_SECURE_SERVICE when
+  %rds_master_user_name_no_plaintext_password not empty
+  !RDS_MASTER_USER_NAME_USES_SECURE_PARAMETER
+{
+  %rds_master_user_name_no_plaintext_password.Properties.MasterUsername !exists
+  OR
+  %rds_master_user_name_no_plaintext_password.Properties.MasterUsername in [ /{{resolve\:secretsmanager\:.*}}/, /{{resolve\:ssm-secure\:.*}}/ ]
+  <<
+    Violation: RDS MasterUsername must not be a plaintext string or a Ref to a Parameter with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+    Fix: Replace plaintext value with a secure one.
+  >>
+}
+
+# One rule to rule them all...
+rule RDS_MASTER_USER_NAME_NO_PLAINTEXT_PASSWORD when
+  %rds_master_user_name_no_plaintext_password not empty
+{
+  RDS_MASTER_USER_NAME_USES_SECURE_PARAMETER
+  OR
+  RDS_MASTER_USER_NAME_USES_SECURE_SERVICE
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   RDS_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD
+#
+# Description:
+#  RDS instance master user password must not be a plaintext string or a Ref to a Parameter with a Default value.
+#  Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager/ssm-secure value.
+#  with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+#
+# Reports on:
+#   AWS::RDS::DBInstance
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F23
+#
+# Note: this rule works, however it sends the custom message twice for each resource
+#
+# Scenarios:
+# a) SKIP: when there are no AWS::RDS::DBInstance present
+# b) PASS: when all AWS::RDS::DBInstance use passwords from secure sources
+# c) FAIL: when any AWS::RDS::DBInstance has a Password property not using a secure source
+# d) SKIP: when metadata has rule suppression for RDS_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD or CFN_NAG F23
+
+let rds_master_user_password_no_plaintext_password = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F23"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD"
+]
+
+# Get any AWS::RDS::DBInstance Refs for Password?
+let rds_master_user_password_refs = %rds_master_user_password_no_plaintext_password.Properties.MasterUserPassword.'!Ref'
+
+# Rule 1: when rds master user password no plaintext password have Ref to Parameter for Password
+rule RDS_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER when
+  %rds_master_user_password_no_plaintext_password not empty
+{
+  Parameters exists
+  Parameters not empty
+  %rds_master_user_password_refs not empty
+  let parameter_refs = Parameters.%rds_master_user_password_refs
+  when %parameter_refs !empty {
+    %parameter_refs.Type == 'String'
+    %parameter_refs.NoEcho exists
+    %parameter_refs.NoEcho == true
+    %parameter_refs.Default !exists
+  }
+}
+
+# Rule 2: when rds master user password no plaintext password and above rule did not pass
+rule RDS_MASTER_USER_PASSWORD_USES_SECURE_SERVICE when
+  %rds_master_user_password_no_plaintext_password not empty
+  !RDS_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER
+{
+  %rds_master_user_password_no_plaintext_password.Properties.MasterUserPassword !exists
+  OR
+  %rds_master_user_password_no_plaintext_password.Properties.MasterUserPassword in [ /{{resolve\:secretsmanager\:.*}}/, /{{resolve\:ssm-secure\:.*}}/ ]
+  <<
+    Violation: RDS MasterUserPassword Endpoint password must not be a plaintext string or a Ref to a Parameter with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+    Fix: Replace plaintext value with a secure one.
+  >>
+}
+
+# One rule to rule them all...
+rule RDS_MASTER_USER_PASSWORD_NO_PLAINTEXT_PASSWORD when
+  %rds_master_user_password_no_plaintext_password not empty
+{
+  RDS_MASTER_USER_PASSWORD_USES_SECURE_PARAMETER
+  OR
+  RDS_MASTER_USER_PASSWORD_USES_SECURE_SERVICE
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_MULTI_AZ_SUPPORT
+#
+# Description:
+#    In a Multi-AZ deployment, Amazon RDS automatically provisions and maintains a synchronous
+#    standby replica in a different Availability Zone.
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances have MultiAZ set to true
+# c) FAIL: when all RDS instances have MultiAZ set to false
+# d) FAIL: when there are RDS instances with MultiAZ property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_MULTI_AZ_SUPPORT
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+let aws_rds_instances_multi_az_support = Resources.*[ Type == 'AWS::RDS::DBInstance'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_MULTI_AZ_SUPPORT"
+]
+
+rule RDS_MULTI_AZ_SUPPORT when %aws_rds_instances_multi_az_support !empty {
+    %aws_rds_instances_multi_az_support.Properties.MultiAZ EXISTS
+    %aws_rds_instances_multi_az_support.Properties.MultiAZ == true
+  <<
+    Violation: All RDS instances must have MultiAZ support enabled.
+    Fix: Set the MultiAZ parameter to true.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#    RDS_STORAGE_ENCRYPTED
+#
+# Description:
+#    Checks whether storage encryption is enabled for your RDS DB instances.
+#
+#
+# Reports on:
+#    AWS::RDS::DBInstance
+#    AWS::RDS::DBCluster
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# CFN_NAG Rule Id:
+#   F26, F27
+#
+# Scenarios:
+# a) SKIP: when there are no RDS instances present
+# b) PASS: when all RDS instances / clusters have StorageEncrypted set to true
+# c) FAIL: when any RDS instances / clusters have StorageEncrypted set to false
+# d) FAIL: when there are RDS instances / clusters with StorageEncrypted property is not present
+# e) SKIP: when metadata includes the suppression for rule RDS_STORAGE_ENCRYPTED
+
+#
+# Select all RDS instance resources from incoming template (payload)
+#
+let aws_rds_instances_storage_encrypted = Resources.*[ Type in [ /AWS::RDS::DBInstance/, /AWS::RDS::DBCluster/ ]
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in [ "F26", "F27" ]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "RDS_STORAGE_ENCRYPTED"
+]
+
+
+rule RDS_STORAGE_ENCRYPTED when %aws_rds_instances_storage_encrypted !empty {
+  let violations = %aws_rds_instances_storage_encrypted[
+    Properties.StorageEncrypted !EXISTS
+    or
+    Properties.StorageEncrypted != true
+  ]
+  %violations empty
+  <<
+    Violation: All RDS instances must have encrypted storage.
+    Fix: Set the StorageEncrypted parameter to true.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#   IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS
+#
+# Description:
+#   Checks if AWS Identity and Access Management (IAM) managed policies grant permissions to all actions on individual AWS resources.
+#
+# Reports on:
+#   AWS::IAM::ManagedPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F5
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Managed Policies present
+# b) PASS: when all IAM Managed Policies do not allow full access to at least 1 AWS service
+# c) FAIL: when any IAM Managed Policy allows full access to at least 1 AWS service.
+# d) SKIP: when metada has rule suppression for IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS or F5
+
+#
+# Select all IAM Managed Policy resources from incoming template (payload)
+#
+let aws_iam_managed_policies = Resources.*[ Type == 'AWS::IAM::ManagedPolicy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F5"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS"
+]
+
+rule IAM_MANAGEDPOLICY_NO_STATEMENTS_WITH_FULL_ACCESS when %aws_iam_managed_policies !empty {
+  let violations = %aws_iam_managed_policies[
+    Type == 'AWS::IAM::ManagedPolicy'
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] in ["*", /^[a-zA-Z0-9]*:\*$/]
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: One or more IAM Managed Policies allow full access to at least 1 AWS service
+    Fix: Remove policy statements that match {"Effect": "Allow", "Action": "<service-name>:*" ... } or {"Effect": "Allow", "Action": "*" ... }
+  >>
+} #
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#   IAM_NO_INLINE_POLICY_CHECK
+#
+# Description:
+#   Checks that inline policy feature is not in use.
+#
+# Reports on:
+#   AWS::IAM::User
+#   AWS::IAM::Role
+#   AWS::IAM::Group
+#
+# Evaluates:
+#    AWS CloudFormation
+#
+# Rule Parameters:
+#    NA
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Users, Roles, or Groups present
+# b) PASS: when all IAM Users, Roles, or Groups present have no inline policies listed
+# c) FAIL: when any IAM Users, Roles, or Groups present have inline policies listed
+# d) SKIP: when metada has rule suppression for IAM_NO_INLINE_POLICY_CHECK
+
+#
+# Select all IAM User, Role, and Group resources from incoming template (payload)
+#
+let aws_iam_entities_no_inline_policy = Resources.*[
+  Type in [ /AWS::IAM::User/,
+            /AWS::IAM::Role/,
+            /AWS::IAM::Group/ ]
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F10"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_NO_INLINE_POLICY_CHECK"
+]
+
+rule IAM_NO_INLINE_POLICY_CHECK when %aws_iam_entities_no_inline_policy !empty {
+  %aws_iam_entities_no_inline_policy.Properties.Policies empty
+  <<
+    Violation: Inline policies are not allowed on IAM Users, Roles, or Groups.
+    Fix: Remove the Policies list property from any IAM Users, Roles, or Groups.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_NO_POLICY_ON_USER
+#
+# Description:
+#   Checks that IAM Policies are not attached to IAM Users
+#
+# Reports on:
+#   AWS::IAM::Policy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F11, F12
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Policies present
+# b) PASS: when no IAM Policies attach to Users
+# c) FAIL: when any S3 BucketPolicies PolicyDocument statement has both Effect: Allow and NotPrincipal
+# d) SKIP: when metadata has rule suppression for IAM_NO_POLICY_ON_USER or CFN_NAG F11, F12
+
+let applicable_types = [
+  "AWS::IAM::Policy",
+  "AWS::IAM::ManagedPolicy"
+]
+
+let iam_no_policy_on_user = Resources.*[ Type in %applicable_types
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in [ "F11", "F12" ]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_NO_POLICY_ON_USER"
+]
+
+rule IAM_NO_POLICY_ON_USER when %iam_no_policy_on_user !empty {
+  let violations = %iam_no_policy_on_user[
+    Type == 'AWS::IAM::Policy'
+    or
+    Type == 'AWS::IAM::ManagedPolicy'
+    Properties.Users !empty
+  ]
+  %violations empty
+  <<
+    Violation: IAM policy/managedpolicy should not apply directly to users.  Should be on group
+    Fix: Associate the IAM Policy/ManagedPolicy with a Group and make the IAM User a member of the group.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE
+#
+# Description:
+#   Checks that no IAM Role in-line policies use resource: "*"
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W10, W11, W12
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles, Policies, or ManagedPolicies present
+# b) PASS: when all IAM Roles do not use resource: "*"
+# c) FAIL: when any IAM Roles allow a wildcard for a resource
+# d) SKIP: when metadata has rule suppression for IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE or W11, W12, or W13
+
+let applicable_types = [
+  "AWS::IAM::Role",
+  "AWS::IAM::Policy",
+  "AWS::IAM::ManagedPolicy"
+]
+
+let iam_policydocument_no_wildcard_resource = Resources.*[ Type in %applicable_types
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in [ "W11", "W12", "W13" ]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE"
+]
+
+rule IAM_POLICYDOCUMENT_NO_WILDCARD_RESOURCE when %iam_policydocument_no_wildcard_resource not empty {
+  let violations = %iam_policydocument_no_wildcard_resource[
+    some Properties.Policies[*].PolicyDocument.Statement[*] {
+      some Resource[*] == "*"
+      Effect == "Allow"
+    }
+    or
+    some Properties.PolicyDocument.Statement[*] {
+      some Resource[*] == "*"
+      Effect == "Allow"
+    }
+    or
+    some Properties.PolicyDocument.Statement[*] {
+      some Resource[*] == "*"
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM Role inline policy should not allow resource: "*"
+    Fix: Limit resource as specifically as possible within your use case.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#   IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+#
+# Description:
+#   Checks the IAM policies that you create for Allow statements that grant permissions to all actions on all resources.
+#
+# Reports on:
+#   AWS::IAM::Policy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Policies present
+# b) PASS: when all IAM Policies do not grant permissions to all actions on all resources
+# c) FAIL: when any IAM Policies grant permissions to all actions on all resources
+# d) SKIP: when metadata has rule suppression for IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+
+#
+# Select all IAM Policy resources from incoming template (payload)
+#
+let aws_iam_policies_no_statements_with_admin_access = Resources.*[ Type == 'AWS::IAM::Policy'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS"
+]
+
+rule IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS when %aws_iam_policies_no_statements_with_admin_access !empty {
+  let violations = Resources.*[
+    Type == 'AWS::IAM::Policy'
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] == "*"
+      Effect == "Allow"
+      some Resource in ["*"]
+    }
+  ]
+  %violations empty
+	<<
+    Violation: One or more IAM policies contain allow statements that grant permissions to all actions on all resources
+    Fix: Remove policy statements that match {"Effect": "Allow", "Action": "*", "Resource": "*"}
+  >>
+}
+
+
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#   IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS
+#
+# Description:
+#   Checks if AWS Identity and Access Management (IAM) policies grant permissions to all actions on individual AWS resources.
+#
+# Reports on:
+#   AWS::IAM::Policy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F4
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Policies present
+# b) PASS: when all IAM Policies do not allow full access to at least 1 AWS service
+# c) FAIL: when any IAM Policy allows full access to at least 1 AWS service.
+# d) SKIP: when metadata has rule suppression for IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS or F4
+
+#
+# Select all IAM Policy resources from incoming template (payload)
+#
+let aws_iam_policies = Resources.*[ Type == 'AWS::IAM::Policy'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F4"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS"
+]
+
+rule IAM_POLICY_NO_STATEMENTS_WITH_FULL_ACCESS when %aws_iam_policies !empty {
+  let violations = %aws_iam_policies[
+    Type == 'AWS::IAM::Policy'
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] in ["*", /^[a-zA-Z0-9]*:\*$/]
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: One or more IAM Policies allow full access to at least 1 AWS service
+    Fix: Remove policy statements that match {"Effect": "Allow", "Action": "<service-name>:*" ... } or {"Effect": "Allow", "Action": "*" ... }
+  >>
+} #
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_POLICY_NO_WILDCARD_RESOURCE_ON_PASSROLE
+#
+# Description:
+#   IAM policy should not allow * resource with PassRole action on its permissions policy
+#
+# Reports on:
+#   AWS::IAM::Policy
+#   AWS::IAM::ManagedPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F39, F40
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Policies present
+# b) PASS: when no IAM Policies use Resource *
+# c) FAIL: when any IAM Policy allows unrestricted Resource *
+# d) SKIP: when metada has rule suppression for IAM_POLICY_NO_WILDCARD_RESOURCE_ON_PASSROLE or CFN_NAG F39
+
+let iam_policy_no_wildcard_resource_on_passrole = Resources.*[ Type in [ /AWS::IAM::Policy/, /AWS::IAM::ManagedPolicy/ ]
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in [ "F39", "F40" ]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_POLICY_NO_WILDCARD_RESOURCE_ON_PASSROLE"
+]
+
+rule IAM_POLICY_NO_WILDCARD_RESOURCE_ON_PASSROLE when %iam_policy_no_wildcard_resource_on_passrole !empty {
+  let violations = %iam_policy_no_wildcard_resource_on_passrole[
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] == 'iam:PassRole'
+      Resource == "*"
+      Effect == "Allow"
+      Condition not exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM policy should not allow * resource with PassRole action on its permissions policy
+    Fix: Limit the scope of the Resource for iam:PassRole as much as possible
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_ADMINISTRATOR_ACCESS_POLICY_RULE
+#
+# Description:
+#   IAM role should not have AdministratorAccess policy
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W43
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when no IAM Roles have AdministratorAccess policy
+# c) FAIL: when any IAM Roles have AdministratorAccess policy
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_ADMINISTRATOR_ACCESS_POLICY_RULE or CFN_NAG W43
+
+#
+# Select all IAM Role resources from incoming template (payload)
+#
+let iam_role_administrator_access_policy_rule = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W43"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_ADMINISTRATOR_ACCESS_POLICY_RULE"
+]
+
+rule IAM_ROLE_ADMINISTRATOR_ACCESS_POLICY_RULE when %iam_role_administrator_access_policy_rule !empty {
+  let violations = %iam_role_administrator_access_policy_rule[
+    Type == 'AWS::IAM::Role'
+    Properties.ManagedPolicyArns exists
+    some Properties.ManagedPolicyArns[*] == 'arn:aws:iam::aws:policy/AdministratorAccess'
+  ]
+  %violations empty
+  <<
+    Violation: IAM role ManagedPolicyArns has AdministratorAccess policy access.
+    Fix: Remove AdministratorAccess policy access from ManagedPolicyArns in IAM Roles.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_ELEVATED_MANAGED_POLICY_RULE
+#
+# Description:
+#   IAM role should not have Elevated Managed policy
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W44
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when no IAM Roles have Elevated Managed policy
+# c) FAIL: when any IAM Roles have Elevated Managed policy
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_ELEVATED_MANAGED_POLICY_RULE or CFN_NAG W44
+
+#
+# Select all IAM Role resources from incoming template (payload)
+#
+let iam_role_elevated_managed_policy_rule = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W44"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_ELEVATED_MANAGED_POLICY_RULE"
+]
+
+rule IAM_ROLE_ELEVATED_MANAGED_POLICY_RULE when %iam_role_elevated_managed_policy_rule !empty {
+  let violations = %iam_role_elevated_managed_policy_rule[
+    Type == 'AWS::IAM::Role'
+    Properties.ManagedPolicyArns exists
+    some Properties.ManagedPolicyArns[*] == 'arn:aws:iam::aws:policy/PowerUserAccess'
+    OR
+    some Properties.ManagedPolicyArns[*] == 'arn:aws:iam::aws:policy/IAMFullAccess'
+  ]
+  %violations empty
+  <<
+    Violation: IAM role ManagedPolicyArns has Elevated Managed policy access.
+    Fix: Remove Elevated Managed policy access from ManagedPolicyArns in IAM Roles.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_NO_ALLOW_PLUS_NOT_ACTION_ON_TRUST_POLICY
+#
+# Description:
+#   Checks that IDENTITY ACCESS MANAGEMENT (IAM) Role do not use Allow+NotAction on Trust Policy
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W14
+#
+# Documentation:
+# https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_notaction.html
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when all IAM Roles do not use Allow+NotAction on Trust Permission
+# c) FAIL: when any IAM Roles allow both Effect: Allow and NotAction on Trust Permission
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_NO_ALLOW_PLUS_NOT_ACTION_ON_TRUST_POLICY or CFN_NAG W14
+
+let iam_role_no_allow_plus_not_action_on_trust_policy = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W14"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_ALLOW_PLUS_NOT_ACTION_ON_TRUST_POLICY"
+]
+
+rule IAM_ROLE_NO_ALLOW_PLUS_NOT_ACTION_ON_TRUST_POLICY when %iam_role_no_allow_plus_not_action_on_trust_policy !empty {
+  let violations = %iam_role_no_allow_plus_not_action_on_trust_policy[
+    Type == 'AWS::IAM::Role'
+    some Properties.AssumeRolePolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotAction exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM Roles should not allow Allow+NotAction on trust permissions
+    Fix: Remove IAM Roles on trust permissions that match {"Effect": "Allow", "NotAction": ... }
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL
+#
+# Description:
+#   Checks that AWS Identity and Access Management (IAM) roles do not use Allow+NotPrincipal in its trust policy
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F6
+#
+# Documentation:
+# https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_notprincipal.html
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when all IAM Roles do not allow full Action * for at least 1 AWS service
+# c) FAIL: when any IAM Role AssumeRolePolicyDocument statement has both Effect: Allow and NotPrincipal
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL or CFN_NAG F6
+
+#
+# Select all IAM Role resources from incoming template (payload)
+#
+let aws_iam_role_resources = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F6"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL"
+]
+
+rule IAM_ROLE_NO_ALLOW_PLUS_NOT_PRINCIPAL when %aws_iam_role_resources !empty {
+  let violations = %aws_iam_role_resources[
+    Type == 'AWS::IAM::Role'
+    some Properties.AssumeRolePolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotPrincipal exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM role AssumeRolePolicyDocument should not allow Allow+NotPrincipal in its trust policy
+    Fix: Remove policy statements that match {"Effect": "Allow", "NotPrincipal": ... }
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY
+#
+# Description:
+#   Checks if AWS Identity and Access Management (IAM) roles grant permissions to all actions in the trust policy.
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F2
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when all IAM Roles do not allow full access to at least 1 AWS service
+# c) FAIL: when any IAM Role allows full access to at least 1 AWS service.
+# d) SKIP: when metada has rule suppression for IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY or CFN_NAG F2
+
+#
+# Select all IAM Role resources from incoming template (payload)
+#
+let aws_iam_role_no_full_acess_on_trust_policy = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F2"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY"
+]
+
+rule IAM_ROLE_NO_FULL_ACCESS_ON_TRUST_POLICY when %aws_iam_role_no_full_acess_on_trust_policy !empty {
+  let violations = %aws_iam_role_no_full_acess_on_trust_policy[
+    some Properties.AssumeRolePolicyDocument.Statement[*] {
+      some Action[*] in ["*", /^[a-zA-Z0-9]*:\*$/]
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: One or more IAM Roles allow full access in the trust policy
+    Fix: Remove AssumeRole policy statements that match {"Effect": "Allow", "Action": "<service-name>:*" ... } or {"Effect": "Allow", "Action": "*" ... }
+  >>
+} #
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS
+#
+# Description:
+#   Checks if AWS Identity and Access Management (IAM) roles grant Action "*" in it's permission policy.
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F3
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles present
+# b) PASS: when all IAM Roles do not allow full Action * for at least 1 AWS service
+# c) FAIL: when any IAM Role allows Action * access for at least 1 AWS service.
+# d) SKIP: when metada has rule suppression for IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS or CFN_NAG F3
+
+#
+# Select all IAM Role resources from incoming template (payload)
+#
+let aws_iam_role_no_wildcard_actions_on_permissions = Resources.*[ Type == 'AWS::IAM::Role'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F3"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS"
+]
+
+rule IAM_ROLE_NO_WILDCARD_ACTIONS_ON_PERMISSIONS when %aws_iam_role_no_wildcard_actions_on_permissions !empty {
+  let violations = %aws_iam_role_no_wildcard_actions_on_permissions[
+    some Properties.PolicyDocument.Statement[*] {
+      some Action[*] in ["*", /^[a-zA-Z0-9]*:\*$/]
+      Effect == "Allow"
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM role should not allow * action on its permissions policy
+    Fix: Remove policy statements that match {"Effect": "Allow", "Action": "<service-name>:*" ... } or {"Effect": "Allow", "Action": "*" ... }
+  >>
+} #
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_NO_WILDCARD_RESOURCE_ON_PASSROLE
+#
+# Description:
+#   IAM role should not allow * resource with PassRole action on its permissions policy
+#
+# Reports on:
+#   AWS::IAM::Role
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F38
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles that contain Policies present
+# b) PASS: when no IAM Roles with Policies use Resource *
+# c) FAIL: when any IAM Role with a Policy allows Resource *
+# d) SKIP: when metada has rule suppression for IAM_ROLE_NO_WILDCARD_RESOURCE_ON_PASSROLE or CFN_NAG F38
+
+let iam_role_no_wildcard_resource_on_passrole = Resources.*[ Type == /AWS::IAM::Role/
+  Properties.Policies exists
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F38"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_NO_WILDCARD_RESOURCE_ON_PASSROLE"
+]
+
+rule IAM_ROLE_NO_WILDCARD_RESOURCE_ON_PASSROLE when %iam_role_no_wildcard_resource_on_passrole !empty {
+  let violations = %iam_role_no_wildcard_resource_on_passrole[
+    some Properties.Policies[*].PolicyDocument.Statement[*] {
+      some Action[*] == 'iam:PassRole'
+      Resource == "*"
+      Effect == "Allow"
+      Condition not exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM role should not allow * resource with PassRole action on its permissions policy
+    Fix: Limit the scope of the Resource for iam:PassRole as much as possible
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_ACTION
+#
+# Description:
+#   Checks that AWS Identity and Access Management (IAM) roles do not use Allow+NotAction
+#
+# Reports on:
+#   AWS::IAM::Role, AWS::IAM::Policy, AWS::IAM::ManagedPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W15, W16, W17
+#
+# Documentation:
+# https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_notaction.html
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles or Policies present
+# b) PASS: when all IAM Roles and Policies do not use Allow+NotAction
+# c) FAIL: when any IAM Roles or Policies has both Effect: Allow and NotAction
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_ACTION or CFN_NAG W15, W16, W17
+
+let applicable_types = [
+  "AWS::IAM::Role",
+  "AWS::IAM::Policy",
+  "AWS::IAM::ManagedPolicy"
+]
+
+let iam_role_or_policy_no_allow_plus_not_action = Resources.*[ Type in %applicable_types
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in ["W15", "W16", "W17"]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_ACTION"
+]
+
+rule IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_ACTION when %iam_role_or_policy_no_allow_plus_not_action !empty {
+  let violations = %iam_role_or_policy_no_allow_plus_not_action[
+    Type == 'AWS::IAM::Role'
+    or
+    Type == 'AWS::IAM::Policy'
+    or
+    Type == 'AWS::IAM::ManagedPolicy'
+    some Properties.PolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotAction exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM role or policy should not allow Allow+NotAction
+    Fix: Remove roles or policy statements that match {"Effect": "Allow", "NotAction": ... }
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_RESOURCE
+#
+# Description:
+#   Checks that AWS Identity and Access Management (IAM) roles do not use Allow+NotResource
+#
+# Reports on:
+#   AWS::IAM::Role, AWS::IAM::Policy, AWS::IAM::ManagedPolicy
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W21, W22, W23
+#
+# Documentation:
+# https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_notresource.html
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Roles or Policies present
+# b) PASS: when all IAM Roles and Policies do not use Allow+NotResource
+# c) FAIL: when any IAM Roles or Policies has both Effect: Allow and NotResource
+# d) SKIP: when metadata has rule suppression for IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_RESOURCE or CFN_NAG W21, W22, W23
+
+let applicable_types = [
+  "AWS::IAM::Role",
+  "AWS::IAM::Policy",
+  "AWS::IAM::ManagedPolicy"
+]
+
+let iam_role_or_policy_no_allow_plus_not_resource = Resources.*[ Type in %applicable_types
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id !in ["W21", "W22", "W23"]
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_RESOURCE"
+]
+
+rule IAM_ROLE_OR_POLICY_NO_ALLOW_PLUS_NOT_RESOURCE when %iam_role_or_policy_no_allow_plus_not_resource !empty {
+  let violations = %iam_role_or_policy_no_allow_plus_not_resource[
+    Type == 'AWS::IAM::Role'
+    or
+    Type == 'AWS::IAM::Policy'
+    or
+    Type == 'AWS::IAM::ManagedPolicy'
+    some Properties.PolicyDocument.Statement[*] {
+      Effect == "Allow"
+      NotResource exists
+    }
+  ]
+  %violations empty
+  <<
+    Violation: IAM role or policy should not allow Allow+NotResource
+    Fix: Remove roles or policy statements that match {"Effect": "Allow", "NotResource": ... }
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_USER_LOGIN_PROFILE_NO_PLAINTEXT_PASSWORD
+#
+# Description:
+#  IAM User LoginProfile password must not be a plaintext string or a Ref to a Parameter with a Default value.
+#  Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager/ssm-secure value.
+#  with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+#
+# Reports on:
+#   AWS::IAM::User
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F51
+#
+# Note: this rule works, however it sends the custom message twice for each resource
+#
+# Scenarios:
+# a) SKIP: when there are no AWS::IAM::User present
+# b) PASS: when all AWS::IAM::User use passwords from secure sources
+# c) FAIL: when any AWS::IAM::User has a Password property not using a secure source
+# d) SKIP: when metadata has rule suppression for IAM_USER_LOGIN_PROFILE_NO_PLAINTEXT_PASSWORD or CFN_NAG F51
+
+let iam_user_login_profile_no_plaintext_password = Resources.*[ Type == 'AWS::IAM::User'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F51"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_USER_LOGIN_PROFILE_NO_PLAINTEXT_PASSWORD"
+]
+
+# Get any AWS::IAM::User Refs for Password?
+let iam_user_login_profile_password_refs = %iam_user_login_profile_no_plaintext_password.Properties.LoginProfile.Password.'!Ref'
+
+# Rule 1: when IAM User Login Profile password no plaintext password have Ref to Parameter for Password
+rule IAM_USER_LOGIN_PROFILE_USES_SECURE_PARAMETER when
+  %iam_user_login_profile_no_plaintext_password not empty
+{
+  Parameters exists
+  Parameters not empty
+  %iam_user_login_profile_password_refs not empty
+  let parameter_refs = Parameters.%iam_user_login_profile_password_refs
+  when %parameter_refs !empty {
+    %parameter_refs.Type == 'String'
+    %parameter_refs.NoEcho exists
+    %parameter_refs.NoEcho == true
+    %parameter_refs.Default !exists
+  }
+}
+
+# Rule 2: when IAM User Login Profile password no plaintext password and above rule did not pass
+rule IAM_USER_LOGIN_PROFILE_USES_SECURE_SERVICE when
+  %iam_user_login_profile_no_plaintext_password not empty
+  !IAM_USER_LOGIN_PROFILE_USES_SECURE_PARAMETER
+{
+  let violations = %iam_user_login_profile_no_plaintext_password[
+    Properties.LoginProfile exists
+    Properties.LoginProfile.Password !exists
+    OR
+    Properties.LoginProfile.Password not in [ /{{resolve\:secretsmanager\:.*}}/, /{{resolve\:ssm-secure\:.*}}/ ]
+  ]
+
+  %violations empty
+  <<
+    Violation: IAM User Login Profile password must not be a plaintext string or a Ref to a Parameter with a Default value. Can be Ref to a NoEcho Parameter without a Default, or a dynamic reference to a secretsmanager value.
+    Fix: Replace plaintext value with a secure one.
+  >>
+}
+
+# One rule to rule them all...
+rule IAM_USER_LOGIN_PROFILE_NO_PLAINTEXT_PASSWORD when
+  %iam_user_login_profile_no_plaintext_password not empty
+{
+  IAM_USER_LOGIN_PROFILE_USES_SECURE_PARAMETER
+  OR
+  IAM_USER_LOGIN_PROFILE_USES_SECURE_SERVICE
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_USER_LOGIN_PROFILE_PASSWORD_RESET_RULE
+#
+# Description:
+#   IAM User Login Profile should exist and have PasswordResetRequired property set to true.
+#
+# Reports on:
+#   AWS::IAM::User
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   W50
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Users present
+# b) PASS: when all IAM Users have Login Profile and have PasswordResetRequired property set to true.
+# c) FAIL: when any IAM Users do not have Login Profile or have PasswordResetRequired property is not set to true.
+# d) SKIP: when metadata has rule suppression for IAM_USER_LOGIN_PROFILE_PASSWORD_RESET_RULE or CFN_NAG W50
+
+#
+# Select all IAM User resources from incoming template (payload)
+#
+let iam_user_login_profile_password_reset_rule = Resources.*[ Type == 'AWS::IAM::User'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "W50"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_USER_LOGIN_PROFILE_PASSWORD_RESET_RULE"
+]
+
+rule IAM_USER_LOGIN_PROFILE_PASSWORD_RESET_RULE when %iam_user_login_profile_password_reset_rule !empty {
+  let violations = %iam_user_login_profile_password_reset_rule[
+    Type == 'AWS::IAM::User'
+    Properties.LoginProfile !exists
+    OR
+    Properties.LoginProfile.PasswordResetRequired !exists
+    OR
+    Properties.LoginProfile.PasswordResetRequired == 'false'  # pragma: allowlist secret
+    OR
+    Properties.LoginProfile.PasswordResetRequired == false
+  ]
+  %violations empty
+  <<
+    Violation: IAM User Login Profile should exist and have PasswordResetRequired property set to true
+    Fix: Create IAM User LoginProfile and make sure that PasswordResetRequired is set to true.
+  >>
+}
+#
+#####################################
+##          AWS Solutions          ##
+#####################################
+# Rule Identifier:
+#   IAM_USER_MISSING_GROUP_RULE
+#
+# Description:
+#   IAM User is not assigned to a group.
+#
+# Reports on:
+#   AWS::IAM::User
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# CFN_NAG Rule Id:
+#   F2000
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Users present
+# b) PASS: when all IAM Users have been assigned to a group.
+# c) FAIL: when any IAM Users have not been assigned to a group.
+# d) SKIP: when metadata has rule suppression for IAM_USER_MISSING_GROUP_RULE or CFN_NAG F2000
+
+#
+# Select all IAM User resources from incoming template (payload)
+#
+let iam_user_missing_group_rule = Resources.*[ Type == 'AWS::IAM::User'
+  Metadata.cfn_nag.rules_to_suppress not exists or
+  Metadata.cfn_nag.rules_to_suppress.*.id != "F2000"
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_USER_MISSING_GROUP_RULE"
+]
+
+rule IAM_USER_MISSING_GROUP_RULE when %iam_user_missing_group_rule !empty {
+  %iam_user_missing_group_rule.Type == 'AWS::IAM::User'
+  %iam_user_missing_group_rule.Properties.Groups exists
+  <<
+    Violation: IAM Users have not been assigned to a group.
+    Fix: Assign IAM user to a group.
+  >>
+}
+#
+#####################################
+##           Gherkin               ##
+#####################################
+# Rule Identifier:
+#   IAM_USER_NO_POLICIES_CHECK
+#
+# Description:
+#   Checks that none of your IAM users have policies attached. IAM users must inherit permissions from IAM groups or roles.
+#
+# Reports on:
+#   AWS::IAM::User
+#
+# Evaluates:
+#   AWS CloudFormation
+#
+# Rule Parameters:
+#   NA
+#
+# Scenarios:
+# a) SKIP: when there are no IAM Users present
+# b) PASS: when all IAM Users do not have policies attached
+# c) FAIL: when any IAM User have policies attached
+# d) SKIP: when metada has rule suppression for IAM_USER_NO_POLICIES_CHECK
+
+#
+# Select all IAM User resources from incoming template (payload)
+#
+let aws_iam_users_no_policies = Resources.*[ Type == 'AWS::IAM::User'
+  Metadata.guard.SuppressedRules not exists or
+  Metadata.guard.SuppressedRules.* != "IAM_USER_NO_POLICIES_CHECK"
+]
+
+rule IAM_USER_NO_POLICIES_CHECK when %aws_iam_users_no_policies !empty {
+  %aws_iam_users_no_policies.Properties.Policies empty
+  <<
+  	Violation: Inline policies are not allowed on IAM Users. IAM users must inherit permissions from IAM groups or roles.
+  	Fix: Remove the Policies list property from any IAM Users.
+  >>
+}
