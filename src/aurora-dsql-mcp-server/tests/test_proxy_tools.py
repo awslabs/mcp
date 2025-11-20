@@ -99,11 +99,11 @@ async def test_dsql_search_documentation(mock_ctx):
     with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
         mock_proxy.return_value = {'results': []}
         
-        result = await dsql_search_documentation('test query', mock_ctx)
+        result = await dsql_search_documentation('test query', None, mock_ctx)
         
         mock_proxy.assert_called_once_with(
             'dsql_search_documentation',
-            {'query': 'test query'},
+            {'search_phrase': 'test query'},
             mock_ctx
         )
         assert result == {'results': []}
@@ -115,11 +115,11 @@ async def test_dsql_read_documentation(mock_ctx):
     with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
         mock_proxy.return_value = {'content': 'doc content'}
         
-        result = await dsql_read_documentation('getting-started', mock_ctx)
+        result = await dsql_read_documentation('getting-started', None, None, mock_ctx)
         
         mock_proxy.assert_called_once_with(
             'dsql_read_documentation',
-            {'topic': 'getting-started'},
+            {'url': 'getting-started'},
             mock_ctx
         )
         assert result == {'content': 'doc content'}
@@ -135,7 +135,7 @@ async def test_dsql_recommend(mock_ctx):
         
         mock_proxy.assert_called_once_with(
             'dsql_recommend',
-            {'use_case': 'best practices'},
+            {'url': 'best practices'},
             mock_ctx
         )
         assert result == {'recommendations': []}
