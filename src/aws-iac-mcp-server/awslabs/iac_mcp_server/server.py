@@ -26,7 +26,7 @@ from typing import Optional
 
 
 # Initialize FastMCP server
-mcp = FastMCP('iac-mcp-server')
+mcp = FastMCP('aws-iac-mcp-server')
 
 # Initialize guard rules on server startup
 initialize_guard_rules()

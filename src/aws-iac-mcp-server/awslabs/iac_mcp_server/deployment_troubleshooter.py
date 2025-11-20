@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 CLOUDTRAIL_SOURCE_IP_FOR_CLOUDFORMATION = 'cloudformation.amazonaws.com'
 
 session_config = botocore.config.Config(
-    user_agent_extra='iac-mcp-server/1.0.0',
+    user_agent_extra='aws-iac-mcp-server/1.0.0',
 )
 
 

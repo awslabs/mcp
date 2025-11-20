@@ -1,6 +1,6 @@
 [project]
-name = "awslabs.iac-mcp-server"
-version = "0.1.0"
+name = "awslabs.aws-iac-mcp-server"
+version = "0.9223372036854775807.9223372036854775807"
 description = "An Infrastructure as Code MCP server that provides CloudFormation template validation, compliance checking, and deployment troubleshooting capabilities."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,14 +33,14 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.iac-mcp-server" = "awslabs.iac_mcp_server.server:main"
+"awslabs.aws-iac-mcp-server" = "awslabs.iac_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/iac-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-iac-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/iac-mcp-server/CHANGELOG.md"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-iac-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -116,18 +116,14 @@ packages = ["awslabs"]
 exclude_dirs = ["venv","tests"]
 
 [tool.pytest.ini_options]
-minversion = "8.0"
-addopts = "-ra -q --cov=awslabs.iac_mcp_server --cov-report=term-missing"
+addopts = "--cov=awslabs.iac_mcp_server --cov-report=term-missing"
 testpaths = [
     "tests",
 ]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::UserWarning",
-]
+
 asyncio_mode = "auto"
 
 [tool.pyright]

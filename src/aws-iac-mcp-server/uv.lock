@@ -64,8 +64,8 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-iac-mcp-server"
-version = "0.1.0"
+name = "awslabs-aws-iac-mcp-server"
+version = "0.9223372036854775807.9223372036854775807"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

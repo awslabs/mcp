@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SERVER="iac-mcp-server"
+SERVER="aws-iac-mcp-server"
 
 # Check if the server process is running
 if pgrep -P 0 -a -l -x -f "/app/.venv/bin/python3 /app/.venv/bin/awslabs.$SERVER" > /dev/null; then

@@ -2,7 +2,7 @@
 title: AWS IaC MCP Server
 ---
 
-import ReadmeContent from "../../../src/iac-mcp-server/README.md";
+import ReadmeContent from "../../../src/aws-iac-mcp-server/README.md";
 
 <div className="readme-content">
   <style>

@@ -42,7 +42,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Infrastructure & Deployment',
           items: [
-            'servers/iac-mcp-server',
+            'servers/aws-iac-mcp-server',
             'servers/ccapi-mcp-server',
             'servers/cdk-mcp-server',
             'servers/cfn-mcp-server',
