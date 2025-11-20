@@ -19,6 +19,7 @@ from typing import List, Optional
 @dataclass
 class KnowledgeResult:
     """Represents a single knowledge search result."""
+
     rank: int
     title: str
     url: str
@@ -28,6 +29,7 @@ class KnowledgeResult:
 @dataclass
 class KnowledgeResponse:
     """Response from knowledge search containing results or error."""
+
     error: Optional[str]
     results: List[KnowledgeResult]
 
@@ -35,5 +37,6 @@ class KnowledgeResponse:
 @dataclass
 class CDKToolResponse:
     """Response from CDK tools containing knowledge and guidance."""
+
     knowledge_response: KnowledgeResponse
     next_step_guidance: Optional[str]

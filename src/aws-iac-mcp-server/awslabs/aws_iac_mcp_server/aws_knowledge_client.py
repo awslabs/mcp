@@ -26,7 +26,7 @@ class AWSKnowledgeClient:
 
     def __init__(self, endpoint: Optional[str] = None):
         """Initialize the AWS Knowledge client.
-        
+
         Args:
             endpoint: Optional endpoint URL for the knowledge service.
         """
@@ -40,12 +40,12 @@ class AWSKnowledgeClient:
         self, search_phrase: str, topic: str, limit: int = 10
     ) -> KnowledgeResponse:
         """Search AWS documentation.
-        
+
         Args:
             search_phrase: The search query.
             topic: The topic to search within.
             limit: Maximum number of results to return.
-            
+
         Returns:
             KnowledgeResponse containing search results.
         """

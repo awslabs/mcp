@@ -19,13 +19,14 @@ from typing import Callable
 
 def handle_cdk_tool_errors(error_prefix: str) -> Callable:
     """Decorator to handle errors in CDK tools.
-    
+
     Args:
         error_prefix: Prefix to add to error messages.
-        
+
     Returns:
         Decorator function.
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> CDKToolResponse:

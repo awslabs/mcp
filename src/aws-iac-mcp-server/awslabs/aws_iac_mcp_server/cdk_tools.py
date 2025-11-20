@@ -28,10 +28,10 @@ SEARCH_CDK_DOCUMENTATION_TOPIC = 'cdk_docs'
 @handle_cdk_tool_errors('CDK documentation search failed')
 async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     """Search CDK documentation.
-    
+
     Args:
         query: The search query for CDK documentation.
-        
+
     Returns:
         CDKToolResponse containing search results and guidance.
     """
