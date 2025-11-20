@@ -75,7 +75,7 @@ mcp = FastMCP(
     "awslabs-aurora-dsql-mcp-server",
     instructions="""
     # Aurora DSQL MCP server.
-    Provides tools to execute SQL queries on Aurora DSQL cluster'
+    Provides tools to execute SQL queries on Aurora DSQL cluster.
 
     ## Available Tools
 
@@ -321,7 +321,7 @@ async def dsql_search_documentation(
     """Search Aurora DSQL documentation.
 
     Args:
-        query: Search phrase to use
+        search_phrase: Search phrase to use
         limit: Maximum number of results to return (optional)
         ctx: MCP context for logging and state management
 
@@ -351,7 +351,7 @@ async def dsql_read_documentation(
     """Read specific DSQL documentation pages.
 
     Args:
-        topic: Topic or page identifier to read
+        url: URL of the documentation page to read
         start_index: Starting character index (optional)
         max_length: Maximum number of characters to return (optional)
         ctx: MCP context for logging and state management
@@ -373,14 +373,14 @@ async def dsql_read_documentation(
 )
 async def dsql_recommend(
     url: Annotated[
-        str, Field(description="Use case or scenario to get recommendations for")
+        str, Field(description="URL of the documentation page to get recommendations for")
     ],
     ctx: Context,
 ) -> dict:
     """Get recommendations for DSQL best practices.
 
     Args:
-        url: Use case or scenario to get recommendations for
+        url: URL of the documentation page to get recommendations for
         ctx: MCP context for logging and state management
 
     Returns:
