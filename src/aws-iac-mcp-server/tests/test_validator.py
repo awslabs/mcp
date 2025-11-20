@@ -16,8 +16,8 @@
 
 import json
 import pytest
-from awslabs.iac_mcp_server.compliance_checker import check_compliance
-from awslabs.iac_mcp_server.validator import _format_results, _map_level, validate_template
+from awslabs.aws_iac_mcp_server.compliance_checker import check_compliance
+from awslabs.aws_iac_mcp_server.validator import _format_results, _map_level, validate_template
 from cfnlint.match import Match
 from cfnlint.rules import CloudFormationLintRule
 from unittest.mock import Mock
@@ -206,7 +206,7 @@ class TestInvalidParameters:
     def test_invalid_rules_file_path(self):
         """Test non-existent rules file path."""
         # Reset the global cache to force re-initialization
-        import awslabs.iac_mcp_server.compliance_checker as cc
+        import awslabs.aws_iac_mcp_server.compliance_checker as cc
 
         cc._RULES_CONTENT_CACHE = None
 

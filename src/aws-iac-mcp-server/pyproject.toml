@@ -33,7 +33,7 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.aws-iac-mcp-server" = "awslabs.iac_mcp_server.server:main"
+"awslabs.aws-iac-mcp-server" = "awslabs.aws_iac_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
@@ -105,7 +105,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/iac_mcp_server/__init__.py:__version__"
+    "awslabs/aws_iac_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -116,7 +116,7 @@ packages = ["awslabs"]
 exclude_dirs = ["venv","tests"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=awslabs.iac_mcp_server --cov-report=term-missing"
+addopts = "--cov=awslabs.aws_iac_mcp_server --cov-report=term-missing"
 testpaths = [
     "tests",
 ]

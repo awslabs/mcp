@@ -42,9 +42,9 @@ def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
     # Use absolute path to default guard rules if none provided
     if rules_file_path is None or rules_file_path == 'default_guard_rules.guard':
         try:
-            import awslabs.iac_mcp_server
+            import awslabs.aws_iac_mcp_server
 
-            package_dir = os.path.dirname(awslabs.iac_mcp_server.__file__)
+            package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
             rules_file_path = os.path.join(package_dir, 'default_guard_rules.guard')
         except Exception:
             return False

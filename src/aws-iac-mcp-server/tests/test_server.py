@@ -15,7 +15,7 @@
 """Tests for server.py MCP tool definitions."""
 
 import json
-from awslabs.iac_mcp_server.server import (
+from awslabs.aws_iac_mcp_server.server import (
     check_template_compliance,
     troubleshoot_deployment,
     validate_cloudformation_template,
@@ -27,8 +27,8 @@ from urllib.parse import urlparse
 class TestValidateCloudFormationTemplate:
     """Test validate_cloudformation_template tool."""
 
-    @patch('awslabs.iac_mcp_server.server.validate_template')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_success(self, mock_sanitize, mock_validate):
         """Test successful template validation."""
         mock_validate.return_value = {'validation_results': {'is_valid': True}}
@@ -41,8 +41,8 @@ class TestValidateCloudFormationTemplate:
         mock_validate.assert_called_once()
         mock_sanitize.assert_called_once()
 
-    @patch('awslabs.iac_mcp_server.server.validate_template')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_with_regions(self, mock_sanitize, mock_validate):
         """Test validation with specific regions."""
         mock_validate.return_value = {'validation_results': {'is_valid': True}}
@@ -55,8 +55,8 @@ class TestValidateCloudFormationTemplate:
             template_content=template, regions=['us-west-2', 'us-east-1'], ignore_checks=None
         )
 
-    @patch('awslabs.iac_mcp_server.server.validate_template')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_with_ignore_checks(self, mock_sanitize, mock_validate):
         """Test validation with ignored checks."""
         mock_validate.return_value = {'validation_results': {'is_valid': True}}
@@ -73,8 +73,8 @@ class TestValidateCloudFormationTemplate:
 class TestCheckTemplateCompliance:
     """Test check_template_compliance tool."""
 
-    @patch('awslabs.iac_mcp_server.server.check_compliance')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_check_compliance_success(self, mock_sanitize, mock_check):
         """Test successful compliance check."""
         mock_check.return_value = {'compliance_results': {'overall_status': 'PASS'}}
@@ -86,8 +86,8 @@ class TestCheckTemplateCompliance:
         assert result == 'sanitized response'
         mock_check.assert_called_once()
 
-    @patch('awslabs.iac_mcp_server.server.check_compliance')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_check_compliance_with_custom_rules(self, mock_sanitize, mock_check):
         """Test compliance check with custom rules."""
         mock_check.return_value = {'compliance_results': {'overall_status': 'PASS'}}
@@ -104,8 +104,8 @@ class TestCheckTemplateCompliance:
 class TestTroubleshootDeployment:
     """Test troubleshoot_deployment tool."""
 
-    @patch('awslabs.iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_troubleshoot_deployment_success(self, mock_sanitize, mock_troubleshooter_class):
         """Test successful deployment troubleshooting."""
         mock_troubleshooter = Mock()
@@ -122,8 +122,8 @@ class TestTroubleshootDeployment:
         mock_troubleshooter_class.assert_called_once_with(region='us-west-2')
         mock_troubleshooter.troubleshoot_stack_deployment.assert_called_once()
 
-    @patch('awslabs.iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_troubleshoot_deployment_without_cloudtrail(
         self, mock_sanitize, mock_troubleshooter_class
     ):
@@ -142,8 +142,8 @@ class TestTroubleshootDeployment:
             stack_name='test-stack', include_cloudtrail=False
         )
 
-    @patch('awslabs.iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.iac_mcp_server.server.sanitize_tool_response')
+    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_troubleshoot_deployment_adds_deeplink(self, mock_sanitize, mock_troubleshooter_class):
         """Test that deployment troubleshooting adds console deeplink."""
         mock_troubleshooter = Mock()
@@ -169,7 +169,7 @@ class TestGetTemplateExamples:
 
     def test_get_template_examples_returns_json(self):
         """Test that get_template_examples returns valid JSON."""
-        from awslabs.iac_mcp_server.server import get_template_examples
+        from awslabs.aws_iac_mcp_server.server import get_template_examples
 
         result = get_template_examples()
 
@@ -182,7 +182,7 @@ class TestGetTemplateExamples:
 
     def test_get_template_examples_contains_urls(self):
         """Test that template examples contain expected URLs."""
-        from awslabs.iac_mcp_server.server import get_template_examples
+        from awslabs.aws_iac_mcp_server.server import get_template_examples
 
         result = get_template_examples()
         parsed = json.loads(result)
@@ -202,10 +202,10 @@ class TestGetTemplateExamples:
 class TestMain:
     """Test main function."""
 
-    @patch('awslabs.iac_mcp_server.server.mcp')
+    @patch('awslabs.aws_iac_mcp_server.server.mcp')
     def test_main_calls_mcp_run(self, mock_mcp):
         """Test that main() calls mcp.run()."""
-        from awslabs.iac_mcp_server.server import main
+        from awslabs.aws_iac_mcp_server.server import main
 
         main()
 
