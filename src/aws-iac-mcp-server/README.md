@@ -116,9 +116,16 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-### Docker Installation
+or docker after a successful `docker build -t awslabs/aws-iac-mcp-server .`:
 
-After a successful `docker build -t awslabs/aws-iac-mcp-server .`:
+```file
+# fictitious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+```
+
+NOTE: Docker installation is optional
 
 ```json
 {
@@ -144,6 +151,8 @@ After a successful `docker build -t awslabs/aws-iac-mcp-server .`:
   }
 }
 ```
+
+NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Usage Examples
 

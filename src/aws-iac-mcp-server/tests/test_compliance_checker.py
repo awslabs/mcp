@@ -358,7 +358,9 @@ class TestCheckComplianceDetailed:
 
     @patch('awslabs.aws_iac_mcp_server.compliance_checker.guardpycfn.validate_with_guard')
     @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', 'cached rules')
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._REMEDIATION_CACHE', {'TEST_RULE': 'Fix it'})
+    @patch(
+        'awslabs.aws_iac_mcp_server.compliance_checker._REMEDIATION_CACHE', {'TEST_RULE': 'Fix it'}
+    )
     def test_check_compliance_with_violations_full_path(self, mock_validate):
         """Test full compliance check path with violations."""
         # Simulate a guard result with violations
