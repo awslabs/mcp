@@ -23,9 +23,32 @@ from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
 
-# Remove all default handlers then add our own
+def get_fastmcp_log_level() -> str:
+    """Read and validate FASTMCP_LOG_LEVEL from the environment.
+
+    Returns a valid Loguru level string. Falls back to 'INFO' on invalid values.
+    """
+    level = os.getenv('FASTMCP_LOG_LEVEL', 'INFO').upper()
+
+    # Accept common aliases and normalize to Loguru canonical names
+    ALIAS_MAP = {
+        'WARN': 'WARNING',
+        'ERR': 'ERROR',
+        'FATAL': 'CRITICAL',
+    }
+
+    level = ALIAS_MAP.get(level, level)
+
+    valid_levels = {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}
+    if level not in valid_levels:
+        # If invalid, fall back to INFO
+        return 'INFO'
+    return level
+
+
+# Remove all default handlers then add our own using the environment-configured level
 logger.remove()
-logger.add(sys.stderr, level='INFO')
+logger.add(sys.stderr, level=get_fastmcp_log_level())
 
 # Initialize FastMCP
 mcp = FastMCP(
