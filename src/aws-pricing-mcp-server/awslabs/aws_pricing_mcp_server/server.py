@@ -20,6 +20,7 @@ This server provides tools for analyzing AWS service costs across different user
 import re
 import sys
 from awslabs.aws_pricing_mcp_server import consts
+from awslabs.aws_pricing_mcp_server.alternative_pricing import get_pricing_alternatives
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.aws_pricing_mcp_server.models import (
     ATTRIBUTE_NAMES_FIELD,
@@ -109,6 +110,9 @@ mcp = FastMCP(
        # Get bulk pricing data files for historical analysis
        price_list = get_price_list_urls('AmazonEC2', 'us-east-1')
        # Returns: {'arn': '...', 'urls': {'csv': 'https://...', 'json': 'https://...'}}
+
+       # If alternatives are applicable to the use case, retrieve their pricing data (e.g., CloudFrontPlans for AmazonCloudFront)
+       for alt in pricing['alternatives']: get_pricing(alt)
        ```
 
     # USE CASE 2: COST ANALYSIS REPORT GENERATION
@@ -290,7 +294,7 @@ async def analyze_terraform_project_wrapper(
 
     **OUTPUT OPTIONS (Response Size & Performance Control):**
     - **PURPOSE**: Transform and optimize API responses for ALL services, especially critical for large services (EC2, RDS)
-    - **IMMEDIATE COMBINED APPROACH**: `{"pricing_terms": ["OnDemand"], "product_attributes": ["instanceType", "location", "memory"]}`
+    - **IMMEDIATE COMBINED APPROACH**: `{"pricing_terms": ["OnDemand", "FlatRate"], "product_attributes": ["instanceType", "location", "memory"]}`
     - **ATTRIBUTE DISCOVERY**: Use get_pricing_service_attributes() - same names for filters and output_options
     - **SIZE REDUCTION**: 80%+ reduction with combined pricing_terms + product_attributes
     - **exclude_free_products**: Remove products with $0.00 OnDemand pricing (useful when you know service has paid tiers)
@@ -303,10 +307,11 @@ async def analyze_terraform_project_wrapper(
     - **NEVER USE MULTIPLE CALLS**: When ANY_OF can handle it in one call
     - **VERIFY EXISTENCE**: Ensure all filter values exist in the service before querying
     - **FOR "CHEAPEST" QUERIES**: Focus on lower-end options that meet minimum requirements, test incrementally
+    - **EXPLORE ALTERNATIVES**: When response includes "alternatives" field, MUST fetch their pricing if applicable to the use case before answering
 
     **CONSTRAINTS:**
     - **CURRENT PRICING ONLY**: Use get_price_list_urls for historical data
-    - **NO SPOT/SAVINGS PLANS**: Only OnDemand and Reserved Instance pricing available
+    - **NO SPOT/SAVINGS PLANS**: Only OnDemand, FlatRate, and Reserved Instance pricing available (ANY combination possible)
     - **CHARACTER LIMIT**: 100,000 characters default response limit (use output_options to reduce)
     - **REGION AUTO-FILTER**: Region parameter automatically creates regionCode filter
 
@@ -320,6 +325,7 @@ async def analyze_terraform_project_wrapper(
     - DO NOT assume attribute values exist across different services/regions
     - DO NOT skip intermediate tiers: Missing 50GB, 59GB options when testing 32GB → 75GB jump
     - DO NOT set upper bounds too high: Including 500GB+ storage when user needs ≥30GB (wastes character limit)
+    - DO NOT ignore alternatives field or use only ["OnDemand"] in output_options
 
     **EXAMPLE USE CASES:**
 
@@ -345,11 +351,11 @@ async def analyze_terraform_project_wrapper(
 
     **3. Large service with output optimization (recommended approach):**
     ```python
-    output_options = {"pricing_terms": ["OnDemand"], "product_attributes": ["instanceType", "location"], "exclude_free_products": true}
+    output_options = {"pricing_terms": ["OnDemand", "FlatRate"], "product_attributes": ["instanceType", "location"], "exclude_free_products": true}
     pricing = get_pricing('AmazonEC2', 'us-east-1', filters, output_options=output_options)
     ```
 
-    **4. Pattern-Based Discovery with Refinement:**
+    **4. Pattern-Based Discovery:**
     ```python
     # Find all Standard storage tiers except expensive ones
     filters = [
@@ -371,6 +377,7 @@ async def analyze_terraform_project_wrapper(
     - Used exact values from get_pricing_attribute_values()
     - Used ANY_OF for multi-option scenarios instead of multiple calls
     - For cost optimization: tested ALL qualifying tiers exhaustively (in a reasonable range)
+    - Included ["OnDemand", "FlatRate"] in output_options and explored all alternatives
     """,
 )
 async def get_pricing(
@@ -507,26 +514,41 @@ async def get_pricing(
             return await create_error_response(
                 ctx=ctx,
                 error_type='result_too_large',
-                message=f'Query returned {total_characters:,} characters, exceeding the limit of {max_allowed_characters:,}. Use more specific filters or try output_options={{"pricing_terms": ["OnDemand"]}} to reduce response size.',
+                message=f'Query returned {total_characters:,} characters, exceeding the limit of {max_allowed_characters:,}. Use more specific filters or try output_options={{"pricing_terms": ["OnDemand", "FlatRate"]}} to reduce response size.',
                 service_code=service_code,
                 region=region,
                 total_count=total_count,
                 total_characters=total_characters,
                 max_allowed_characters=max_allowed_characters,
                 sample_records=price_list[:3],
-                suggestion='Add more specific filters like instanceType, storageClass, deploymentOption, or engineCode to reduce the number of results. For large services like EC2, consider using output_options={"pricing_terms": ["OnDemand"]} to significantly reduce response size by excluding Reserved Instance pricing.',
+                suggestion='Add more specific filters like instanceType, storageClass, deploymentOption, or engineCode to reduce the number of results. For large services like EC2, consider using output_options={"pricing_terms": ["OnDemand", "FlatRate"]} to significantly reduce response size by excluding Reserved Instance pricing.',
             )
 
     # Success response
     logger.info(f'Successfully retrieved {total_count} pricing items for {service_code}')
     await ctx.info(f'Successfully retrieved pricing for {service_code} in {region}')
 
+    # Add alternative pricing if available
+    alt_pricing = get_pricing_alternatives(service_code)
+
+    # Build message with region and alternatives info
+    region_text = f'in {region}' if region else 'globally'
+    alternatives_text = ''
+    if alt_pricing:
+        plan_codes = ', '.join(
+            alt_pricing_item['service_code'] for alt_pricing_item in alt_pricing
+        )
+        alternatives_text = f' (alternatives: {plan_codes} - see alternatives section)'
+
     result = {
         'status': 'success',
         'service_name': service_code,
         'data': price_list,
-        'message': f'Retrieved pricing for {service_code} in {region} from AWS Pricing API',
+        'message': f'Retrieved pricing for {service_code} {region_text} from AWS Pricing API{alternatives_text}',
     }
+
+    if alt_pricing:
+        result['alternatives'] = alt_pricing
 
     # Include next_token if present for pagination
     if 'NextToken' in response:

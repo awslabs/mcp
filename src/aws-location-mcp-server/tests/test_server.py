@@ -20,6 +20,7 @@ from awslabs.aws_location_server.server import (
     GeoPlacesClient,
     GeoRoutesClient,
     calculate_route,
+    geocode,
     get_place,
     main,
     optimize_waypoints,
@@ -265,6 +266,90 @@ async def test_reverse_geocode_general_exception(mock_boto3_client, mock_context
 
     assert 'error' in result
     assert 'Error in reverse geocoding' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_geocode(mock_boto3_client, mock_context):
+    """Test the geocode tool."""
+    # Set up mock response
+    mock_boto3_client.geocode.return_value = {
+        'ResultItems': [
+            {
+                'Position': [-79.3871, 43.6426],
+                'Address': {'Label': 'CN Tower, 290 Bremner Blvd, Toronto, ON M5V 3L9, Canada'},
+                'PlaceType': 'PointOfInterest',
+            }
+        ]
+    }
+
+    # Patch the geo_places_client in the server module
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        result = await geocode(mock_context, location='CN Tower Toronto')
+
+    # Verify the result
+    assert result['location'] == 'CN Tower Toronto'
+    assert result['coordinates']['longitude'] == -79.3871
+    assert result['coordinates']['latitude'] == 43.6426
+    assert result['address'] == 'CN Tower, 290 Bremner Blvd, Toronto, ON M5V 3L9, Canada'
+    assert result['place_type'] == 'PointOfInterest'
+
+
+@pytest.mark.asyncio
+async def test_geocode_no_results(mock_boto3_client, mock_context):
+    """Test geocode when no results are found."""
+    # Set up geocode to return empty results
+    mock_boto3_client.geocode.return_value = {'ResultItems': []}
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        result = await geocode(mock_context, location='NonexistentPlace')
+
+    assert 'error' in result
+    assert 'No coordinates found for location' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_geocode_error_no_client(mock_context):
+    """Test geocode when client is not initialized."""
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = None
+        result = await geocode(mock_context, location='CN Tower')
+
+    assert 'error' in result
+    assert 'AWS geo-places client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_geocode_client_error(mock_boto3_client, mock_context):
+    """Test geocode when boto3 client raises a ClientError."""
+    from botocore.exceptions import ClientError
+
+    # Set up boto3 client to raise ClientError
+    mock_boto3_client.geocode.side_effect = ClientError(
+        {'Error': {'Code': 'TestException', 'Message': 'Test error message'}}, 'geocode'
+    )
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        result = await geocode(mock_context, location='CN Tower')
+
+    assert 'error' in result
+    assert 'AWS geo-places Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_geocode_general_exception(mock_boto3_client, mock_context):
+    """Test geocode when a general exception occurs."""
+    # Set up boto3 client to raise a general exception
+    mock_boto3_client.geocode.side_effect = Exception('Test general exception')
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+        result = await geocode(mock_context, location='CN Tower')
+
+    assert 'error' in result
+    assert 'Error geocoding location' in result['error']
 
 
 @pytest.mark.asyncio
