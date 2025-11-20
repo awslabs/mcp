@@ -66,10 +66,6 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 server = FastMCP(
     name='AWS-API-MCP',
-    log_level=FASTMCP_LOG_LEVEL,
-    host=HOST,
-    port=PORT,
-    stateless_http=STATELESS_HTTP,
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
@@ -395,7 +391,17 @@ def main():
         logger.warning('Failed to load read operations index: {}', e)
         READ_OPERATIONS_INDEX = None
 
-    server.run(transport=TRANSPORT)
+    if TRANSPORT == 'stdio':
+        server.run(
+            transport=TRANSPORT,
+        )
+    else:  # streamable-http or other HTTP transports
+        server.run(
+            transport=TRANSPORT,
+            host=HOST,
+            port=PORT,
+            stateless_http=STATELESS_HTTP,
+        )
 
 
 if __name__ == '__main__':
