@@ -171,6 +171,12 @@ Use the layer name `AWSOpenTelemetryDistroDotNet` with automatic region detectio
 
 **CDK:**
 ```typescript
+const layerArns: { [region: string]: string } = {
+  'af-south-1': 'arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroDotNet:6',
+  'ap-east-1': 'arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroDotNet:6',
+  // ... (see Region-Specific Layer ARNs section above for complete mapping)
+};
+
 const myFunction = new lambda.Function(this, 'MyFunction', {
   // ... existing configuration
   layers: [
@@ -178,7 +184,7 @@ const myFunction = new lambda.Function(this, 'MyFunction', {
     lambda.LayerVersion.fromLayerVersionArn(
       this,
       'AdotLayer',
-      'arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroDotNet:7'
+      layerArns[this.region]
     ),
   ],
 });
@@ -186,24 +192,43 @@ const myFunction = new lambda.Function(this, 'MyFunction', {
 
 **Terraform:**
 ```hcl
+locals {
+  layer_arns = {
+    "af-south-1"     = "arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroDotNet:6"
+    "ap-east-1"      = "arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroDotNet:6"
+    # ... (see Region-Specific Layer ARNs section above for complete mapping)
+  }
+}
+
+data "aws_region" "current" {}
+
 resource "aws_lambda_function" "my_function" {
   # ... existing configuration
   layers = [
     # ... keep existing layers
-    "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroDotNet:7"
+    local.layer_arns[data.aws_region.current.name]
   ]
 }
 ```
 
 **CloudFormation:**
 ```yaml
-MyFunction:
-  Type: AWS::Lambda::Function
-  Properties:
-    # ... existing configuration
-    Layers:
-      # ... keep existing layers
-      - arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroDotNet:7
+Mappings:
+  LayerArns:
+    af-south-1:
+      arn: arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroDotNet:6
+    ap-east-1:
+      arn: arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroDotNet:6
+    # ... (see Region-Specific Layer ARNs section above for complete mapping)
+
+Resources:
+  MyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      # ... existing configuration
+      Layers:
+        # ... keep existing layers
+        - !FindInMap [LayerArns, !Ref 'AWS::Region', arn]
 ```
 
 ### Step 4: Set Environment Variable
@@ -250,6 +275,12 @@ MyFunction:
 
 **CDK:**
 ```typescript
+const layerArns: { [region: string]: string } = {
+  'af-south-1': 'arn:aws:lambda:af-south-1:904233096616:layer:AWSOpenTelemetryDistroDotNet:6',
+  'ap-east-1': 'arn:aws:lambda:ap-east-1:888577020596:layer:AWSOpenTelemetryDistroDotNet:6',
+  // ... (see Region-Specific Layer ARNs section above for complete mapping)
+};
+
 const dotnetFunction = new lambda.Function(this, 'DotNetFunction', {
   runtime: lambda.Runtime.DOTNET_6,
   handler: 'MyApp::MyApp.Function::FunctionHandler',
@@ -259,7 +290,7 @@ const dotnetFunction = new lambda.Function(this, 'DotNetFunction', {
     lambda.LayerVersion.fromLayerVersionArn(
       this,
       'AdotLayer',
-      'arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroDotNet:7'
+      layerArns[this.region]
     ),
   ],
   environment: {
