@@ -72,9 +72,15 @@ class BedrockLLMProvider(LLMProvider):
         if bedrock_client is None:
             import boto3
             from .eval_config import AWS_REGION
+            from botocore.config import Config
 
             region = region_name or AWS_REGION
-            self.bedrock_client = boto3.client(service_name='bedrock-runtime', region_name=region)
+            config = Config(
+                max_pool_connections=5, retries={'max_attempts': 5, 'mode': 'adaptive'}
+            )
+            self.bedrock_client = boto3.client(
+                service_name='bedrock-runtime', region_name=region, config=config
+            )
         else:
             self.bedrock_client = bedrock_client
         self.model_id = model_id

@@ -34,6 +34,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/aws-dataprocessing-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/aws-diagram-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @MichaelWalker-git
 /src/aws-documentation-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen
+/src/document-loader-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/aws-healthomics-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan
 /src/aws-iot-sitewise-mcp-server                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
 /src/aws-knowledge-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust # @tkaria @animebar
@@ -48,7 +49,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/cdk-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
 /src/cfn-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko @alexa-perlov # @karamvsingh
 /src/cloudtrail-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
-/src/cloudwatch-applicationsignals-mcp-server    @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon @vastin
+/src/cloudwatch-applicationsignals-mcp-server    @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon @vastin @wangzlei @shiyangy-xray
 /src/cloudwatch-appsignals-mcp-server            @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque @thpierce
 /src/cloudwatch-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @gcacace @shri-tambe @agiuliano @goranmod
 /src/code-doc-gen-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
@@ -83,7 +84,6 @@ NOTICE                                           @awslabs/mcp-admins
 
 ## Samples
 
-/samples/cloudwatch-applicationsignals-mcp       @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon @vastin
 ## Secure the CODEOWNERS file
 
 /.github/CODEOWNERS                              @awslabs/mcp-admins
