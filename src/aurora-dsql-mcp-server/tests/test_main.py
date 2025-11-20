@@ -90,9 +90,101 @@ class TestMain:
         source = inspect.getsource(server)
 
         # Check that the module has the if __name__ == '__main__': block
-        assert "if __name__ == '__main__':" in source
+        assert 'if __name__ == "__main__":' in source
         assert 'main()' in source
 
         # This test doesn't actually execute the code, but it ensures
         # that the coverage report includes the if __name__ == '__main__': line
         # by explicitly checking for its presence
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+            '--knowledge-server',
+            'http://insecure.example.com',
+        ],
+    )
+    def test_main_rejects_non_https_knowledge_server(self):
+        """Test that main rejects non-HTTPS knowledge server URLs."""
+        import pytest
+        
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        
+        assert exc_info.value.code == 1
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+            '--knowledge-server',
+            'https://',
+        ],
+    )
+    def test_main_rejects_malformed_knowledge_server_url(self):
+        """Test that main rejects malformed knowledge server URLs."""
+        import pytest
+        
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        
+        assert exc_info.value.code == 1
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+            '--knowledge-timeout',
+            '0',
+        ],
+    )
+    def test_main_rejects_zero_timeout(self):
+        """Test that main rejects zero timeout."""
+        import pytest
+        
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        
+        assert exc_info.value.code == 1
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+            '--knowledge-timeout',
+            '-5.0',
+        ],
+    )
+    def test_main_rejects_negative_timeout(self):
+        """Test that main rejects negative timeout."""
+        import pytest
+        
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        
+        assert exc_info.value.code == 1

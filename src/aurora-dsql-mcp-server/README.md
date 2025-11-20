@@ -7,6 +7,24 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
 - Read-only by default, transactions enabled with `--allow-writes`
 - Connection reuse between requests for improved performance
+- Built-in access to Aurora DSQL documentation, search, and best practice recommendations
+
+## Available Tools
+
+### Database Operations
+
+- **readonly_query** - Execute read-only SQL queries against your DSQL cluster
+- **transact** - Execute write operations in a transaction (requires `--allow-writes`)
+- **get_schema** - Retrieve table schema information
+
+### Documentation & Recommendations
+
+- **dsql_search_documentation** - Search Aurora DSQL documentation
+  - Parameters: `search_phrase` (required), `limit` (optional)
+- **dsql_read_documentation** - Read specific DSQL documentation pages
+  - Parameters: `url` (required), `start_index` (optional), `max_length` (optional)
+- **dsql_recommend** - Get recommendations for DSQL best practices
+  - Parameters: `url` (required)
 
 ## Prerequisites
 
@@ -163,6 +181,32 @@ If neither is provided, the MCP server defaults to using the "default" profile i
 ### `--region`
 
 This is a mandatory parameter to specify the region of your DSQL database.
+
+### `--knowledge-server`
+
+Optional parameter to specify the remote MCP server endpoint for DSQL knowledge tools (documentation search, reading, and recommendations).
+
+Default: `https://dsql-knowledge-mcp.global.api.aws`
+
+Example:
+```bash
+--knowledge-server https://custom-knowledge-server.example.com
+```
+
+**Note:** For security, only use trusted knowledge server endpoints. The server should be an HTTPS endpoint.
+
+### `--knowledge-timeout`
+
+Optional parameter to specify the timeout in seconds for requests to the knowledge server.
+
+Default: `30.0`
+
+Example:
+```bash
+--knowledge-timeout 60.0
+```
+
+Increase this value if you experience timeouts when accessing documentation on slow networks.
 
 ## Development and Testing
 
