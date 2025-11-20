@@ -297,12 +297,13 @@ instance.userData.addCommands(
 - Dockerfile: Downloaded ADOT Java agent JAR (if using Docker)
 
 **Next Steps:**
-1. Review the changes I made using `git diff`
-2. Deploy your infrastructure:
+1. Ensure that [Application Signals is enabled in AWS account](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html).
+2. Review the changes I made using `git diff`
+3. Deploy your infrastructure:
    - For CDK: `cdk deploy`
    - For Terraform: `terraform apply`
    - For CloudFormation: Deploy your stack
-3. After deployment, wait 5-10 minutes for telemetry data to start flowing
+4. After deployment, wait 5-10 minutes for telemetry data to start flowing
 
 **Verification:**
 Once deployed, you can verify Application Signals is working by:
@@ -313,5 +314,8 @@ Once deployed, you can verify Application Signals is working by:
 
 **Monitor Application Health:**
 After enablement, you can monitor your application's operational health using Application Signals dashboards. For more information, see [Monitor the operational health of your applications with Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Services.html).
+
+**Troubleshooting**
+If you encounter any other issues, refer to the [CloudWatch APM troubleshooting guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-Troubleshoot.html).
 
 Let me know if you'd like me to make any adjustments before you deploy!"
