@@ -289,13 +289,13 @@ def test_get_file_access_mode_workdir(monkeypatch, env_value, expected_mode):
 @pytest.mark.parametrize(
     'env_value,expected_mode',
     [
-        ('no_access', FileAccessMode.NO_ACCESS),
-        ('NO_ACCESS', FileAccessMode.NO_ACCESS),
-        ('No_Access', FileAccessMode.NO_ACCESS),
+        ('no-access', FileAccessMode.NO_ACCESS),
+        ('NO-ACCESS', FileAccessMode.NO_ACCESS),
+        ('No-Access', FileAccessMode.NO_ACCESS),
     ],
 )
 def test_get_file_access_mode_no_access(monkeypatch, env_value, expected_mode):
-    """Test that 'no_access' maps to FileAccessMode.NO_ACCESS (case-insensitive)."""
+    """Test that 'no-access' maps to FileAccessMode.NO_ACCESS (case-insensitive)."""
     monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
     result = get_file_access_mode()
     assert result == expected_mode

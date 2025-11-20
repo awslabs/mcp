@@ -41,7 +41,7 @@ class FileAccessMode(str, Enum):
 
     UNRESTRICTED = 'true'
     WORKDIR = 'workdir'
-    NO_ACCESS = 'no_access'
+    NO_ACCESS = 'no-access'
 
 
 def get_region(profile_name: str | None = None) -> str:
@@ -83,7 +83,7 @@ def get_file_access_mode() -> FileAccessMode:
         return FileAccessMode.UNRESTRICTED
     elif value in ['false', 'no', '0', 'workdir']:
         return FileAccessMode.WORKDIR
-    elif value == 'no_access':
+    elif value == 'no-access':
         return FileAccessMode.NO_ACCESS
     else:
         # Default to workdir for unknown values
