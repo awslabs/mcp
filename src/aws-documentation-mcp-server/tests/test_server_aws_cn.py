@@ -131,7 +131,7 @@ class TestGetAvailableServices:
                     'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html' in result
                 )
                 assert '# AWS Services in China\n\nAvailable services list.' in result
-                mock_get.assert_called_once()
+                assert mock_get.call_count == 2
                 mock_extract.assert_called_once()
                 called_url = mock_get.call_args[0][0]
                 assert '?session=' in called_url
@@ -165,7 +165,7 @@ class TestGetAvailableServices:
 
             assert 'Failed to fetch' in result
             assert 'status code 404' in result
-            mock_get.assert_called_once()
+            assert mock_get.call_count == 2
 
     @pytest.mark.asyncio
     async def test_get_available_services_non_html(self):
@@ -188,7 +188,7 @@ class TestGetAvailableServices:
 
                 assert 'AWS Documentation from' in result
                 assert 'Plain text content' in result
-                mock_get.assert_called_once()
+                assert mock_get.call_count == 2
                 mock_is_html.assert_called_once()
 
 

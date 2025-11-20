@@ -189,3 +189,12 @@ Gets a list of available AWS services in China regions.
 ```python
 get_available_services() -> str
 ```
+
+## Development
+
+For getting started with development on the AWS Documentation MCP server, please refer to the awslabs/mcp DEVELOPER_GUIDE first. Everything below this is specific to AWS Documentation MCP Server development.
+
+### Running tests
+
+Unit tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
+Unit tests with integration tests: `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --run-live`
