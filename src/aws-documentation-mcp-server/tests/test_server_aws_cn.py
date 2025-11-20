@@ -117,13 +117,33 @@ class TestGetAvailableServices:
         mock_response.text = '<html><body><h1>AWS Services in China</h1><p>Available services list.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
+        mock_toc_response = MagicMock()
+        mock_toc_response.status_code = 200
+        mock_toc_response.json = lambda: {
+            'contents': [
+                {
+                    'title': 'Documentation by Service',
+                    'href': 'services.html',
+                    'contents': [
+                        {'title': 'Amazon Simple Storage Service', 'href': 's3.html'},
+                        {'title': 'Amazon Simple Queue Service', 'href': 'sqs.html'},
+                    ],
+                }
+            ]
+        }
+        mock_toc_response.headers = {'content-type': 'application/json'}
+
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_response
+            # Set the response for successive calls, first to service.html, second to toc.json
+            mock_get.side_effect = [
+                mock_response,
+                mock_toc_response,
+            ]
+
             with patch(
                 'awslabs.aws_documentation_mcp_server.server_aws_cn.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# AWS Services in China\n\nAvailable services list.'
-
                 result = await get_available_services(ctx)
 
                 assert 'AWS Documentation from' in result
@@ -131,6 +151,11 @@ class TestGetAvailableServices:
                     'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html' in result
                 )
                 assert '# AWS Services in China\n\nAvailable services list.' in result
+                assert 'Amazon Simple Storage Service' in result
+                assert 's3.html' in result
+                assert 'Amazon Simple Queue Service' in result
+                assert 'sqs.html' in result
+
                 assert mock_get.call_count == 2
                 mock_extract.assert_called_once()
                 called_url = mock_get.call_args[0][0]
