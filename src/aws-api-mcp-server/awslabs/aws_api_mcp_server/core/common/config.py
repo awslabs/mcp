@@ -16,6 +16,7 @@ import boto3
 import importlib.metadata
 import os
 import tempfile
+from enum import Enum
 from fastmcp.server.dependencies import get_context
 from loguru import logger
 from pathlib import Path
@@ -32,7 +33,15 @@ TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
 READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
 TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
 REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
-ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+FILE_ACCESS_MODE_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+
+
+class FileAccessMode(str, Enum):
+    """File access control modes for the MCP server."""
+
+    UNRESTRICTED = 'true'
+    WORKDIR = 'workdir'
+    NO_ACCESS = 'no-access'
 
 
 def get_region(profile_name: str | None = None) -> str:
@@ -63,6 +72,22 @@ def get_server_directory():
 def get_env_bool(env_key: str, default: bool) -> bool:
     """Get a boolean value from an environment variable, with a default."""
     return os.getenv(env_key, str(default)).casefold() in TRUTHY_VALUES
+
+
+def get_file_access_mode() -> FileAccessMode:
+    """Parse the file access mode from environment variable."""
+    value = os.getenv(FILE_ACCESS_MODE_KEY, 'workdir').casefold()
+
+    # Map boolean-like values for backward compatibility
+    if value in ['unrestricted', 'true', 'yes', '1']:
+        return FileAccessMode.UNRESTRICTED
+    elif value in ['false', 'no', '0', 'workdir']:
+        return FileAccessMode.WORKDIR
+    elif value == 'no-access':
+        return FileAccessMode.NO_ACCESS
+    else:
+        # Default to workdir for unknown values
+        return FileAccessMode.WORKDIR
 
 
 def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
@@ -121,9 +146,7 @@ ALLOWED_HOSTS = os.getenv('AWS_API_MCP_ALLOWED_HOSTS', HOST)
 ALLOWED_ORIGINS = os.getenv('AWS_API_MCP_ALLOWED_ORIGINS', HOST)
 STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
 CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
-ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS = get_env_bool(
-    ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY, False
-)
+FILE_ACCESS_MODE = get_file_access_mode()
 ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
     'ENDPOINT_SUGGEST_AWS_COMMANDS', 'https://api-mcp.global.api.aws/suggest-aws-commands'
 )

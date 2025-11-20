@@ -157,6 +157,17 @@ def test_s3_mv_with_source_and_dest():
     assert result.parameters['--paths'] == ['s3://source-bucket/file.txt', 's3://dest-bucket/']
 
 
+def test_s3_sync_with_source_and_dest():
+    """Test aws s3 sync with source and destination."""
+    result = parse('aws s3 sync s3://source-bucket/ s3://dest-bucket/')
+
+    assert isinstance(result, IRCommand)
+    assert result.command_metadata.service_sdk_name == 's3'
+    assert result.command_metadata.operation_sdk_name == 'sync'
+    assert result.is_awscli_customization is True
+    assert result.parameters['--paths'] == ['s3://source-bucket/', 's3://dest-bucket/']
+
+
 def test_s3_rm_with_bucket():
     """Test aws s3 rm with a bucket path."""
     result = parse('aws s3 rm s3://my-bucket/file.txt')
@@ -174,7 +185,7 @@ def test_s3_cp_stdin_as_source_blocked():
     """Test that 'aws s3 cp - s3://bucket/key' (stdin) is blocked."""
     expected_message = (
         "Invalid file parameter '-' for service 's3' and operation 'cp': "
-        "streaming file ('-') is not allowed. Please provide a valid file path."
+        "streaming file ('-') is not allowed."
     )
     with pytest.raises(FileParameterError) as exc_info:
         parse('aws s3 cp - s3://my-bucket/file.txt')
@@ -190,7 +201,7 @@ def test_s3_cp_stdout_as_destination_blocked():
     """Test that 'aws s3 cp s3://bucket/key -' (stdout) is blocked."""
     expected_message = (
         "Invalid file parameter '-' for service 's3' and operation 'cp': "
-        "streaming file ('-') is not allowed. Please provide a valid file path."
+        "streaming file ('-') is not allowed."
     )
     with pytest.raises(FileParameterError) as exc_info:
         parse('aws s3 cp s3://my-bucket/file.txt -')
@@ -199,6 +210,70 @@ def test_s3_cp_stdout_as_destination_blocked():
     assert str(error) == expected_message
     assert error._service == 's3'
     assert error._operation == 'cp'
+    assert error._file_path == '-'
+
+
+def test_s3_sync_stdin_as_source_blocked():
+    """Test that 'aws s3 sync - s3://bucket/' (stdin) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'sync': "
+        "streaming file ('-') is not allowed."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 sync - s3://my-bucket/')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'sync'
+    assert error._file_path == '-'
+
+
+def test_s3_sync_stdout_as_destination_blocked():
+    """Test that 'aws s3 sync s3://bucket/ -' (stdout) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'sync': "
+        "streaming file ('-') is not allowed."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 sync s3://my-bucket/ -')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'sync'
+    assert error._file_path == '-'
+
+
+def test_s3_mv_stdin_as_source_blocked():
+    """Test that 'aws s3 mv - s3://bucket/key' (stdin) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'mv': "
+        "streaming file ('-') is not allowed."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 mv - s3://my-bucket/file.txt')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'mv'
+    assert error._file_path == '-'
+
+
+def test_s3_mv_stdout_as_destination_blocked():
+    """Test that 'aws s3 mv s3://bucket/key -' (stdout) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'mv': "
+        "streaming file ('-') is not allowed."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 mv s3://my-bucket/file.txt -')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'mv'
     assert error._file_path == '-'
 
 
@@ -461,7 +536,7 @@ def test_local_file_uri_validation_failure():
     """Test aws command with URI input file parameter outside the working directory."""
     with pytest.raises(
         CommandValidationError,
-        match=r"File path '/etc/hosts' is outside the allowed working directory .*",
+        match=r"Invalid file path '/etc/hosts': is outside the allowed working directory .*",
     ):
         result = parse('aws logs create-log-group --log-group-name file:///etc/hosts')
 

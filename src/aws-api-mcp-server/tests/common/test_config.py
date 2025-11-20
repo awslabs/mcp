@@ -2,6 +2,8 @@ import awslabs.aws_api_mcp_server.core.common.config as config_module
 import importlib
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
+    FileAccessMode,
+    get_file_access_mode,
     get_region,
     get_server_directory,
     get_transport_from_env,
@@ -242,3 +244,82 @@ def test_package_version_fallback_to_unknown(mock_version):
 
     # Restore original state
     config_module.PACKAGE_VERSION = original_version
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('unrestricted', FileAccessMode.UNRESTRICTED),
+        ('true', FileAccessMode.UNRESTRICTED),
+        ('yes', FileAccessMode.UNRESTRICTED),
+        ('1', FileAccessMode.UNRESTRICTED),
+        ('Unrestricted', FileAccessMode.UNRESTRICTED),
+        ('True', FileAccessMode.UNRESTRICTED),
+        ('YES', FileAccessMode.UNRESTRICTED),
+        ('TRUE', FileAccessMode.UNRESTRICTED),
+    ],
+)
+def test_get_file_access_mode_unrestricted(monkeypatch, env_value, expected_mode):
+    """Test that 'true', 'yes', '1' map to FileAccessMode.UNRESTRICTED (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('false', FileAccessMode.WORKDIR),
+        ('no', FileAccessMode.WORKDIR),
+        ('0', FileAccessMode.WORKDIR),
+        ('workdir', FileAccessMode.WORKDIR),
+        ('False', FileAccessMode.WORKDIR),
+        ('NO', FileAccessMode.WORKDIR),
+        ('WORKDIR', FileAccessMode.WORKDIR),
+        ('Workdir', FileAccessMode.WORKDIR),
+    ],
+)
+def test_get_file_access_mode_workdir(monkeypatch, env_value, expected_mode):
+    """Test that 'false', 'no', '0', 'workdir' map to FileAccessMode.WORKDIR (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('no-access', FileAccessMode.NO_ACCESS),
+        ('NO-ACCESS', FileAccessMode.NO_ACCESS),
+        ('No-Access', FileAccessMode.NO_ACCESS),
+    ],
+)
+def test_get_file_access_mode_no_access(monkeypatch, env_value, expected_mode):
+    """Test that 'no-access' maps to FileAccessMode.NO_ACCESS (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+def test_get_file_access_mode_default(monkeypatch):
+    """Test that default value is FileAccessMode.WORKDIR when env var is not set."""
+    monkeypatch.delenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', raising=False)
+    result = get_file_access_mode()
+    assert result == FileAccessMode.WORKDIR
+
+
+@pytest.mark.parametrize(
+    'env_value',
+    [
+        'invalid',
+        'random',
+        'unknown',
+        '',
+        'yes_access',
+    ],
+)
+def test_get_file_access_mode_unknown_defaults_to_workdir(monkeypatch, env_value):
+    """Test that unknown values default to FileAccessMode.WORKDIR."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == FileAccessMode.WORKDIR
