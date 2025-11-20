@@ -1591,11 +1591,16 @@ async def test_search_transaction_spans_code_level_attributes_detected(mock_aws_
         assert 'code.function.name' in result['code_level_attributes_status']['attributes_found']
         assert 'code.line.number' in result['code_level_attributes_status']['attributes_found']
         assert result['code_level_attributes_status']['requested_in_query'] is True
-        assert '✅ Code-Level Attributes Available' in result['code_level_attributes_status']['message']
+        assert (
+            '✅ Code-Level Attributes Available'
+            in result['code_level_attributes_status']['message']
+        )
 
 
 @pytest.mark.asyncio
-async def test_search_transaction_spans_code_level_attributes_requested_but_not_found(mock_aws_clients):
+async def test_search_transaction_spans_code_level_attributes_requested_but_not_found(
+    mock_aws_clients,
+):
     """Test search_transaction_spans when code-level attributes are requested but not in results."""
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
@@ -1627,8 +1632,14 @@ async def test_search_transaction_spans_code_level_attributes_requested_but_not_
         assert 'code_level_attributes_status' in result
         assert result['code_level_attributes_status']['detected'] is False
         assert result['code_level_attributes_status']['requested_in_query'] is True
-        assert 'Code-level attributes not available' in result['code_level_attributes_status']['message']
-        assert 'OTEL_AWS_EXPERIMENTAL_CODE_ATTRIBUTES=true' in result['code_level_attributes_status']['message']
+        assert (
+            'Code-level attributes not available'
+            in result['code_level_attributes_status']['message']
+        )
+        assert (
+            'OTEL_AWS_EXPERIMENTAL_CODE_ATTRIBUTES=true'
+            in result['code_level_attributes_status']['message']
+        )
         assert 'suggestion' in result['code_level_attributes_status']
 
 
