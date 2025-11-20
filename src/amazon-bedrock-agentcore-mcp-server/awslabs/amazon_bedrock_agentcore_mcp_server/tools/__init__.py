@@ -12,28 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import wraps
-from typing import Callable
-
-
-def handle_exceptions(func: Callable) -> Callable:
-    """Decorator to handle exceptions in DynamoDB operations.
-
-    Wraps the function in a try-catch block and returns any exceptions
-    in a standardized error format.
-
-    Args:
-        func: The function to wrap
-
-    Returns:
-        The wrapped function that handles exceptions
-    """
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            return {'error': str(e)}
-
-    return wrapper
+"""AgentCore MCP tools package."""

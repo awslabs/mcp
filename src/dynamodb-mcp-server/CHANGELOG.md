@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2025-11-21
+
+### Added
+
+- **DynamoDB Command Execution:** Added `execute_dynamodb_command` tool that integrates with [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) to execute DynamoDB operations directly without requiring separate AWS API MCP Server configuration.
+
 ## [2.0.0] - 2025-09-11
 
 ### Removed
