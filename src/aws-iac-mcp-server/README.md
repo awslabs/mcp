@@ -241,8 +241,8 @@ uv run pytest --cov=awslabs.aws_iac_mcp_server --cov-report=term-missing
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines on how to contribute to this project.
+See [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for guidelines on how to contribute to this project.
 
 ## License
 
-This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache-2.0 License - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iac-mcp-server/LICENSE) file for details.
