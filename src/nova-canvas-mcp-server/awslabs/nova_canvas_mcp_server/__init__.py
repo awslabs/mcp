@@ -13,4 +13,4 @@
 # limitations under the License.
 """awslabs.nova-canvas-mcp-server"""
 
-__version__ = '1.0.7'
+__version__ = '1.0.8'

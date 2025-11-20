@@ -46,14 +46,14 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@61ce600d5c7fd6584b22b6eac98f9b097aabce11
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@bb62109f04532df81644eb76173ad4f987ab6033
 
       - name: Get Checkout Depth
         id: checkout-depth
         run: |
           # Fetch depth the number of commits in the PR and otherwise 1
           echo "fetch-depth=$(( ${{ (github.event_name == 'pull_request' && github.event.pull_request.commits) || 0 }} + 1 ))" >> "${GITHUB_OUTPUT}"
-          echo "image-name=$( echo "${{ matrix.dockerfile}}" | cut -d'/' -f2 )" >> "${GITHUB_OUTPUT}"
+          echo "image-name=$( echo "${{ matrix.dockerfile}}" | sed 's|^/||; s|^[^/]*/||; s|/Dockerfile$||; s|/|_|g' | head -c128 )" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout code
         id: checkout-code

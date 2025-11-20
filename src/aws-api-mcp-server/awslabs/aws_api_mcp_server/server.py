@@ -37,16 +37,16 @@ from .core.common.config import (
     TRANSPORT,
     WORKING_DIRECTORY,
 )
-from .core.common.errors import AwsApiMcpError
+from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Credentials,
     ProgramInterpretationResponse,
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
+from .middleware.http_header_validation_middleware import HTTPHeaderValidationMiddleware
 from botocore.exceptions import NoCredentialsError
 from fastmcp import Context, FastMCP
 from loguru import logger
@@ -66,10 +66,7 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 server = FastMCP(
     name='AWS-API-MCP',
-    log_level=FASTMCP_LOG_LEVEL,
-    host=HOST,
-    port=PORT,
-    stateless_http=STATELESS_HTTP,
+    middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
@@ -140,13 +137,13 @@ async def suggest_aws_commands(
         ),
     ],
     ctx: Context,
-) -> dict[str, Any] | AwsApiMcpServerErrorResponse:
+) -> dict[str, Any]:
     """Suggest AWS CLI commands based on the provided query."""
     logger.info('Suggesting AWS commands for query: {}', query)
     if not query.strip():
         error_message = 'Empty query provided'
         await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(detail=error_message)
+        raise AwsApiMcpError(error_message)
     try:
         with get_requests_session() as session:
             response = session.post(
@@ -165,7 +162,7 @@ async def suggest_aws_commands(
         logger.error('Error while suggesting commands: {}', str(e))
         error_message = 'Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
         await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(detail=error_message)
+        raise AwsApiMcpError(error_message)
 
 
 @server.tool(
@@ -218,7 +215,7 @@ async def call_aws(
         int | None,
         Field(description='Optional limit for number of results (useful for pagination)'),
     ] = None,
-) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
+) -> ProgramInterpretationResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
     return await call_aws_helper(
         cli_command=cli_command,
@@ -239,7 +236,7 @@ async def call_aws_helper(
     ] = None,
     credentials: Credentials | None = None,
     default_region: str | None = None,
-) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
+) -> ProgramInterpretationResponse | AwsCliAliasResponse:
     """Helper function that actually calls aws."""
     try:
         ir = translate_cli_to_ir(cli_command)
@@ -250,21 +247,14 @@ async def call_aws_helper(
                 f'Error while validating the command: {ir_validation.model_dump_json()}'
             )
             await ctx.error(error_message)
-            return AwsApiMcpServerErrorResponse(
-                detail=error_message,
-            )
+            raise CommandValidationError(error_message)
     except AwsApiMcpError as e:
-        error_message = f'Error while validating the command: {e.as_failure().reason}'
-        await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(
-            detail=error_message,
-        )
+        await ctx.error(e.as_failure().reason)
+        raise
     except Exception as e:
         error_message = f'Error while validating the command: {str(e)}'
         await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(
-            detail=error_message,
-        )
+        raise AwsApiMcpError(error_message)
 
     logger.info(
         'Attempting to execute AWS CLI command: aws {} {} *parameters redacted*',
@@ -280,7 +270,7 @@ async def call_aws_helper(
             if policy_decision == PolicyDecision.DENY:
                 error_message = 'Execution of this operation is denied by security policy.'
                 await ctx.error(error_message)
-                return AwsApiMcpServerErrorResponse(detail=error_message)
+                raise AwsApiMcpError(error_message)
             elif policy_decision == PolicyDecision.ELICIT:
                 await request_consent(cli_command, ctx)
         else:
@@ -290,24 +280,17 @@ async def call_aws_helper(
                     f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
                 )
                 await ctx.error(error_message)
-                return AwsApiMcpServerErrorResponse(
-                    detail=error_message,
-                )
+                raise AwsApiMcpError(error_message)
             elif REQUIRE_MUTATION_CONSENT:
                 await request_consent(cli_command, ctx)
 
         if ir.command and ir.command.is_awscli_customization:
-            response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(
-                    cli_command,
-                    ir.command,
-                    credentials=credentials,
-                    default_region_override=default_region,
-                )
+            return execute_awscli_customization(
+                cli_command,
+                ir.command,
+                credentials=credentials,
+                default_region_override=default_region,
             )
-            if isinstance(response, AwsApiMcpServerErrorResponse):
-                await ctx.error(response.detail)
-            return response
 
         return interpret_command(
             cli_command=cli_command,
@@ -322,21 +305,14 @@ async def call_aws_helper(
             'or set appropriate environment variables.'
         )
         await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(
-            detail=error_message,
-        )
+        raise AwsApiMcpError(error_message)
     except AwsApiMcpError as e:
-        error_message = f'Error while executing the command: {e.as_failure().reason}'
-        await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(
-            detail=error_message,
-        )
+        await ctx.error(e.as_failure().reason)
+        raise
     except Exception as e:
         error_message = f'Error while executing the command: {str(e)}'
         await ctx.error(error_message)
-        return AwsApiMcpServerErrorResponse(
-            detail=error_message,
-        )
+        raise AwsApiMcpError(error_message)
 
 
 # EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
@@ -368,7 +344,7 @@ if ENABLE_AGENT_SCRIPTS:
     async def get_execution_plan(
         script_name: Annotated[str, Field(description='Name of the script to get the plan for')],
         ctx: Context,
-    ) -> str | AwsApiMcpServerErrorResponse:
+    ) -> str:
         """Retrieve full script content given a script name."""
         try:
             script = AGENT_SCRIPTS_MANAGER.get_script(script_name)
@@ -384,7 +360,7 @@ if ENABLE_AGENT_SCRIPTS:
         except Exception as e:
             error_message = f'Error while retrieving execution plan: {str(e)}'
             await ctx.error(error_message)
-            return AwsApiMcpServerErrorResponse(detail=error_message)
+            raise AwsApiMcpError(error_message)
 
 
 def main():
@@ -415,7 +391,17 @@ def main():
         logger.warning('Failed to load read operations index: {}', e)
         READ_OPERATIONS_INDEX = None
 
-    server.run(transport=TRANSPORT)
+    if TRANSPORT == 'stdio':
+        server.run(
+            transport=TRANSPORT,
+        )
+    else:  # streamable-http or other HTTP transports
+        server.run(
+            transport=TRANSPORT,
+            host=HOST,
+            port=PORT,
+            stateless_http=STATELESS_HTTP,
+        )
 
 
 if __name__ == '__main__':

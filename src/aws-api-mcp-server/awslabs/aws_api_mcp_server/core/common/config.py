@@ -16,6 +16,8 @@ import boto3
 import importlib.metadata
 import os
 import tempfile
+from enum import Enum
+from fastmcp.server.dependencies import get_context
 from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
@@ -31,7 +33,15 @@ TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
 READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
 TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
 REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
-ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+FILE_ACCESS_MODE_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+
+
+class FileAccessMode(str, Enum):
+    """File access control modes for the MCP server."""
+
+    UNRESTRICTED = 'true'
+    WORKDIR = 'workdir'
+    NO_ACCESS = 'no-access'
 
 
 def get_region(profile_name: str | None = None) -> str:
@@ -64,6 +74,22 @@ def get_env_bool(env_key: str, default: bool) -> bool:
     return os.getenv(env_key, str(default)).casefold() in TRUTHY_VALUES
 
 
+def get_file_access_mode() -> FileAccessMode:
+    """Parse the file access mode from environment variable."""
+    value = os.getenv(FILE_ACCESS_MODE_KEY, 'workdir').casefold()
+
+    # Map boolean-like values for backward compatibility
+    if value in ['unrestricted', 'true', 'yes', '1']:
+        return FileAccessMode.UNRESTRICTED
+    elif value in ['false', 'no', '0', 'workdir']:
+        return FileAccessMode.WORKDIR
+    elif value == 'no-access':
+        return FileAccessMode.NO_ACCESS
+    else:
+        # Default to workdir for unknown values
+        return FileAccessMode.WORKDIR
+
+
 def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     """Get a transport value from an environment variable, with a default."""
     transport = os.getenv('AWS_API_MCP_TRANSPORT', 'stdio')
@@ -84,6 +110,18 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
 def get_user_agent_extra() -> str:
     """Get the user agent extra string."""
     user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
+
+    try:
+        ctx = get_context()
+        user_agent_extra += f' via/{ctx.fastmcp.name}'
+
+        if client_params := ctx.session.client_params:
+            user_agent_extra += (
+                f' MCPClient/{client_params.clientInfo.name}-{client_params.clientInfo.version}'
+            )
+    except RuntimeError:
+        pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
+
     if not OPT_IN_TELEMETRY:
         return user_agent_extra
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
@@ -104,11 +142,11 @@ ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
 TRANSPORT = get_transport_from_env()
 HOST = os.getenv('AWS_API_MCP_HOST', '127.0.0.1')
 PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))
+ALLOWED_HOSTS = os.getenv('AWS_API_MCP_ALLOWED_HOSTS', HOST)
+ALLOWED_ORIGINS = os.getenv('AWS_API_MCP_ALLOWED_ORIGINS', HOST)
 STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
 CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
-ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS = get_env_bool(
-    ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY, False
-)
+FILE_ACCESS_MODE = get_file_access_mode()
 ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
     'ENDPOINT_SUGGEST_AWS_COMMANDS', 'https://api-mcp.global.api.aws/suggest-aws-commands'
 )
