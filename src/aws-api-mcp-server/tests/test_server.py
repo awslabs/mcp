@@ -787,6 +787,38 @@ def test_main_success_with_read_only_mode(
     mock_server.run.assert_called_once_with(transport='stdio')
 
 
+@patch('awslabs.aws_api_mcp_server.server.os.chdir')
+@patch('awslabs.aws_api_mcp_server.server.server')
+@patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
+@patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', True)
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
+@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.server.HOST', '0.0.0.0')
+@patch('awslabs.aws_api_mcp_server.server.PORT', 8080)
+@patch('awslabs.aws_api_mcp_server.server.STATELESS_HTTP', True)
+def test_main_success_with_http_transport(
+    mock_get_read_only_operations,
+    mock_server,
+    mock_chdir,
+):
+    """Test main function executes successfully with HTTP transport (else branch)."""
+    mock_read_operations = MagicMock()
+    mock_get_read_only_operations.return_value = mock_read_operations
+    mock_server.run = MagicMock()
+
+    main()
+
+    mock_chdir.assert_called_once_with('/tmp')
+    mock_get_read_only_operations.assert_called_once()
+    mock_server.run.assert_called_once_with(
+        transport='streamable-http',
+        host='0.0.0.0',
+        port=8080,
+        stateless_http=True,
+    )
+
+
 @patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
 async def test_get_execution_plan_is_available_when_env_var_is_set():
     """Test get_execution_plan returns script content when script exists."""

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Deprecation warnings for passing transport settings when creating the server (#1772)
+
+## [1.1.5] - 2025-11-13
+
 ### Changed
 
 - Add MCPClient and via to user agent (#1724)
