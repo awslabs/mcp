@@ -1554,6 +1554,217 @@ async def test_search_transaction_spans_complete_with_statistics(mock_aws_client
 
 
 @pytest.mark.asyncio
+async def test_search_transaction_spans_code_level_attributes_detected(mock_aws_clients):
+    """Test search_transaction_spans when code-level attributes are detected in results."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 2},
+            'results': [
+                [
+                    {'field': 'spanId', 'value': 'span1'},
+                    {'field': 'attributes.code.file.path', 'value': '/app/src/handler.py'},
+                    {'field': 'attributes.code.function.name', 'value': 'process_request'},
+                    {'field': 'attributes.code.line.number', 'value': '42'},
+                ]
+            ],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='aws/spans',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, spanId, attributes.code.file.path',
+            limit=100,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        assert 'code_level_attributes_status' in result
+        assert result['code_level_attributes_status']['detected'] is True
+        assert 'code.file.path' in result['code_level_attributes_status']['attributes_found']
+        assert 'code.function.name' in result['code_level_attributes_status']['attributes_found']
+        assert 'code.line.number' in result['code_level_attributes_status']['attributes_found']
+        assert result['code_level_attributes_status']['requested_in_query'] is True
+        assert (
+            '✅ Code-Level Attributes Available'
+            in result['code_level_attributes_status']['message']
+        )
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_code_level_attributes_requested_but_not_found(
+    mock_aws_clients,
+):
+    """Test search_transaction_spans when code-level attributes are requested but not in results."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 1},
+            'results': [
+                [
+                    {'field': 'spanId', 'value': 'span1'},
+                    {'field': '@timestamp', 'value': '2024-01-01 00:00:00'},
+                ]
+            ],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='aws/spans',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, spanId, attributes.code.file.path',
+            limit=100,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        assert 'code_level_attributes_status' in result
+        assert result['code_level_attributes_status']['detected'] is False
+        assert result['code_level_attributes_status']['requested_in_query'] is True
+        assert (
+            'Code-level attributes not available'
+            in result['code_level_attributes_status']['message']
+        )
+        assert (
+            'OTEL_AWS_EXPERIMENTAL_CODE_ATTRIBUTES=true'
+            in result['code_level_attributes_status']['message']
+        )
+        assert 'suggestion' in result['code_level_attributes_status']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_code_level_attributes_not_requested(mock_aws_clients):
+    """Test search_transaction_spans when code-level attributes are not requested."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 1},
+            'results': [
+                [
+                    {'field': 'spanId', 'value': 'span1'},
+                    {'field': '@timestamp', 'value': '2024-01-01 00:00:00'},
+                ]
+            ],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='aws/spans',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, spanId',
+            limit=100,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        assert 'code_level_attributes_status' in result
+        assert result['code_level_attributes_status']['detected'] is False
+        assert result['code_level_attributes_status']['requested_in_query'] is False
+        # Should not have message or suggestion when not requested
+        assert 'suggestion' not in result['code_level_attributes_status']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_code_level_attributes_without_prefix(mock_aws_clients):
+    """Test search_transaction_spans with code-level attributes without 'attributes.' prefix."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 1},
+            'results': [
+                [
+                    {'field': 'spanId', 'value': 'span1'},
+                    {'field': 'code.file.path', 'value': '/app/src/main.py'},
+                    {'field': 'code.function.name', 'value': 'main'},
+                ]
+            ],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='aws/spans',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields spanId, code.file.path, code.function.name',
+            limit=100,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        assert 'code_level_attributes_status' in result
+        assert result['code_level_attributes_status']['detected'] is True
+        assert 'code.file.path' in result['code_level_attributes_status']['attributes_found']
+        assert 'code.function.name' in result['code_level_attributes_status']['attributes_found']
+        assert result['code_level_attributes_status']['requested_in_query'] is True
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_code_level_attributes_mixed_results(mock_aws_clients):
+    """Test search_transaction_spans with mixed results (some with code-level attributes, some without)."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 3},
+            'results': [
+                [
+                    {'field': 'spanId', 'value': 'span1'},
+                    {'field': 'attributes.code.file.path', 'value': '/app/handler.py'},
+                ],
+                [
+                    {'field': 'spanId', 'value': 'span2'},
+                    {'field': '@timestamp', 'value': '2024-01-01 00:00:00'},
+                ],
+                [
+                    {'field': 'spanId', 'value': 'span3'},
+                    {'field': 'code.line.number', 'value': '100'},
+                ],
+            ],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='aws/spans',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields spanId, `attributes.code.file.path`, `code.line.number`',
+            limit=100,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Complete'
+        assert 'code_level_attributes_status' in result
+        assert result['code_level_attributes_status']['detected'] is True
+        # Should detect both attributes found across different results
+        assert 'code.file.path' in result['code_level_attributes_status']['attributes_found']
+        assert 'code.line.number' in result['code_level_attributes_status']['attributes_found']
+        assert len(result['code_level_attributes_status']['attributes_found']) == 2
+
+
+@pytest.mark.asyncio
 async def test_list_slis_general_exception(mock_aws_clients):
     """Test list_slis with general exception."""
     mock_aws_clients['applicationsignals_client'].list_services.side_effect = Exception(
