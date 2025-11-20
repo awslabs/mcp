@@ -269,7 +269,7 @@ async def search_transaction_spans(
                 # Build code-level attributes status
                 code_level_status = {
                     'detected': code_level_detected,
-                    'attributes_found': sorted(list(detected_attributes)),
+                    'attributes_found': sorted(detected_attributes),
                     'requested_in_query': requested_in_query,
                 }
 
@@ -285,7 +285,9 @@ async def search_transaction_spans(
                         code_level_status['suggestion'] = (
                             'Enable code-level attributes if source code is not accessible.'
                         )
-                        logger.debug('Code-level attributes requested in query but not found in data')
+                        logger.debug(
+                            'Code-level attributes requested in query but not found in data'
+                        )
                 else:
                     code_level_status['message'] = (
                         f'✅ Code-Level Attributes Available: {", ".join(sorted(detected_attributes))}'
