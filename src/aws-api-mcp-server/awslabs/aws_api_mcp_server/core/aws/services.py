@@ -57,7 +57,7 @@ class ConfigResult(NamedTuple):
 filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 
 
-def _validate_streaming_blob_path(cli_argument: CLIArgument, value: Any, **kwargs):  # noqa: ARG001
+def _validate_streaming_blob_path(cli_argument: CLIArgument, value: Any, **_kwargs):
     if is_streaming_blob_argument(cli_argument) and isinstance(value, str):
         validate_file_path(value)
 
