@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from awslabs.ecs_mcp_server.modules.aws_knowledge_proxy import (
+    DESIRED_KNOWLEDGE_PROXY_TOOLS,
     ECS_TOOL_GUIDANCE,
     _add_ecs_guidance_to_knowledge_tools,
+    _filter_knowledge_proxy_tools,
     apply_tool_transformations,
     register_ecs_prompts,
     register_proxy,
@@ -242,12 +244,18 @@ class TestApplyToolTransformations:
     @patch(
         "awslabs.ecs_mcp_server.modules.aws_knowledge_proxy._add_ecs_guidance_to_knowledge_tools"
     )
+    @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy._filter_knowledge_proxy_tools")
     @pytest.mark.asyncio
     async def test_apply_tool_transformations_success(
-        self, mock_add_guidance: MagicMock, mock_logger: MagicMock, mock_mcp: MagicMock
+        self,
+        mock_filter_tools: AsyncMock,
+        mock_add_guidance: AsyncMock,
+        mock_logger: MagicMock,
+        mock_mcp: MagicMock,
     ) -> None:
         """Test successful tool transformations application."""
         # Setup mocks
+        mock_filter_tools.return_value = None
         mock_add_guidance.return_value = None
 
         # Call the function
@@ -255,18 +263,25 @@ class TestApplyToolTransformations:
 
         # Verify calls
         mock_logger.info.assert_called_once_with("Applying tool transformations...")
+        mock_filter_tools.assert_called_once_with(mock_mcp)
         mock_add_guidance.assert_called_once_with(mock_mcp)
 
     @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy.logger")
     @patch(
         "awslabs.ecs_mcp_server.modules.aws_knowledge_proxy._add_ecs_guidance_to_knowledge_tools"
     )
+    @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy._filter_knowledge_proxy_tools")
     @pytest.mark.asyncio
     async def test_apply_tool_transformations_exception(
-        self, mock_add_guidance: MagicMock, mock_logger: MagicMock, mock_mcp: MagicMock
+        self,
+        mock_filter_tools: AsyncMock,
+        mock_add_guidance: AsyncMock,
+        mock_logger: MagicMock,
+        mock_mcp: MagicMock,
     ) -> None:
         """Test tool transformations application with exception."""
         # Setup mocks
+        mock_filter_tools.return_value = None
         error_message = "Guidance addition failed"
         mock_add_guidance.side_effect = Exception(error_message)
 
@@ -276,6 +291,7 @@ class TestApplyToolTransformations:
 
         # Verify calls
         mock_logger.info.assert_called_once_with("Applying tool transformations...")
+        mock_filter_tools.assert_called_once_with(mock_mcp)
         mock_add_guidance.assert_called_once_with(mock_mcp)
 
     @pytest.mark.asyncio
@@ -402,6 +418,82 @@ class TestAddEcsGuidanceToKnowledgeTools:
         )
 
 
+class TestFilterKnowledgeProxyTools:
+    """Test the _filter_knowledge_proxy_tools function."""
+
+    @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy.logger")
+    @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy.ToolTransformConfig")
+    @pytest.mark.asyncio
+    async def test_filter_tools_success(
+        self,
+        mock_transform_config: MagicMock,
+        mock_logger: MagicMock,
+        mock_async_mcp: AsyncMock,
+    ) -> None:
+        """Test successful filtering of non-allowlisted tools."""
+        # Setup mocks - include both allowlisted and non-allowlisted tools
+        all_tools = {
+            "aws_knowledge_aws___search_documentation": MagicMock(),
+            "aws_knowledge_aws___read_documentation": MagicMock(),
+            "aws_knowledge_aws___recommend": MagicMock(),
+            "aws_knowledge_aws___list_regions": MagicMock(),  # Should be disabled
+            "aws_knowledge_aws___get_regional_availability": MagicMock(),  # Should be disabled
+            "other_tool": MagicMock(),  # Should not be touched
+        }
+        mock_async_mcp.get_tools.return_value = all_tools
+
+        # Call the function
+        await _filter_knowledge_proxy_tools(mock_async_mcp)
+
+        # Verify tool retrieval
+        mock_async_mcp.get_tools.assert_called_once()
+
+        # Verify only non-allowlisted aws_knowledge tools were disabled
+        disabled_tools = [
+            "aws_knowledge_aws___list_regions",
+            "aws_knowledge_aws___get_regional_availability",
+        ]
+
+        assert mock_async_mcp.add_tool_transformation.call_count == len(disabled_tools)
+
+        # Verify each disabled tool
+        for tool_name in disabled_tools:
+            mock_async_mcp.add_tool_transformation.assert_any_call(
+                tool_name, mock_transform_config.return_value
+            )
+
+        # Verify logging - should have one debug call per disabled tool plus one summary call
+        expected_debug_calls = len(disabled_tools) + 1  # 2 disabled + 1 summary = 3
+        assert mock_logger.debug.call_count == expected_debug_calls
+
+        # Verify the summary log message
+        final_call = mock_logger.debug.call_args_list[-1]
+        assert "Filtered AWS Knowledge tools to allowlist" in str(final_call)
+
+    @patch("awslabs.ecs_mcp_server.modules.aws_knowledge_proxy.logger")
+    @pytest.mark.asyncio
+    async def test_filter_tools_only_allowlisted_present(
+        self, mock_logger: MagicMock, mock_async_mcp: AsyncMock
+    ) -> None:
+        """Test filtering when only allowlisted tools are present."""
+        # Setup mocks - only allowlisted tools
+        allowlisted_tools = {
+            "aws_knowledge_aws___search_documentation": MagicMock(),
+            "aws_knowledge_aws___read_documentation": MagicMock(),
+            "aws_knowledge_aws___recommend": MagicMock(),
+        }
+        mock_async_mcp.get_tools.return_value = allowlisted_tools
+
+        # Call the function
+        await _filter_knowledge_proxy_tools(mock_async_mcp)
+
+        # Verify no tools were disabled
+        mock_async_mcp.add_tool_transformation.assert_not_called()
+
+        # Verify logging
+        mock_logger.debug.assert_called_once()
+
+
 class TestRegisterEcsPrompts:
     """Test the register_ecs_prompts function."""
 
@@ -480,20 +572,14 @@ class TestUpstreamToolDetection:
 
     def test_expected_knowledge_tool_names_referenced(self) -> None:
         """Test that expected AWS Knowledge tool names are properly referenced."""
-        # This test verifies that the hardcoded tool names in the module
-        # match what we expect from the upstream AWS Knowledge MCP Server
-        import inspect
+        # This test verifies that the DESIRED_KNOWLEDGE_PROXY_TOOLS constant
+        # matches what we expect from the upstream AWS Knowledge MCP Server
 
-        from awslabs.ecs_mcp_server.modules.aws_knowledge_proxy import (
-            _add_ecs_guidance_to_knowledge_tools,
-        )
-
-        # Get the source code of the function
-        source = inspect.getsource(_add_ecs_guidance_to_knowledge_tools)
-
-        # Verify expected tool names are present
+        # Verify expected tool names are present in the constant
         for tool_name in EXPECTED_KNOWLEDGE_TOOLS:
-            assert tool_name in source, f"Expected tool {tool_name} not found in source"
+            assert tool_name in DESIRED_KNOWLEDGE_PROXY_TOOLS, (
+                f"Expected tool {tool_name} not found in DESIRED_KNOWLEDGE_PROXY_TOOLS"
+            )
 
     def test_prompt_responses_reference_correct_tools(self, mock_mcp: MagicMock) -> None:
         """Test that prompt responses reference the correct AWS Knowledge tools."""

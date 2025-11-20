@@ -138,12 +138,21 @@ for tool_name in "${EXPECTED_KNOWLEDGE_TOOLS[@]}"; do
     fi
 done
 
-# Now validate exact descriptions (upstream change detection)
+# Now validate exact descriptions (upstream change detection) and tool count
 TOOLS_LIST_RESPONSE=$(get_mcp_tools)
 TOOLS_LIST_EXIT_CODE=$?
 
 TOTAL_TESTS=$((TOTAL_TESTS + 1))
-if [ $tool_availability_count -eq $EXPECTED_NUM_KNOWLEDGE_TOOLS ]; then
+
+# Count total AWS Knowledge tools in the response
+AWS_KNOWLEDGE_TOOL_COUNT=0
+if [ $TOOLS_LIST_EXIT_CODE -eq 0 ]; then
+    AWS_KNOWLEDGE_TOOL_COUNT=$(echo "$TOOLS_LIST_RESPONSE" | jq -r '[.tools[] | select(.name | startswith("aws_knowledge_"))] | length' 2>/dev/null || echo "0")
+fi
+
+echo -e "${BLUE}🔍 Found ${AWS_KNOWLEDGE_TOOL_COUNT} total AWS Knowledge tools (expected ${EXPECTED_NUM_KNOWLEDGE_TOOLS})${NC}"
+
+if [ $tool_availability_count -eq $EXPECTED_NUM_KNOWLEDGE_TOOLS ] && [ $AWS_KNOWLEDGE_TOOL_COUNT -eq $EXPECTED_NUM_KNOWLEDGE_TOOLS ]; then
     echo -e "${GREEN}✅ Exactly ${EXPECTED_NUM_KNOWLEDGE_TOOLS} AWS Knowledge tools are available${NC}"
 
     # Validate exact descriptions
@@ -154,7 +163,11 @@ if [ $tool_availability_count -eq $EXPECTED_NUM_KNOWLEDGE_TOOLS ]; then
     fi
 else
     FAILED_TESTS=$((FAILED_TESTS + 1))
-    echo -e "${RED}❌ ${tool_availability_count} AWS Knowledge tools are available${NC}"
+    if [ $AWS_KNOWLEDGE_TOOL_COUNT -ne $EXPECTED_NUM_KNOWLEDGE_TOOLS ]; then
+        echo -e "${RED}❌ Tool count mismatch: Found ${AWS_KNOWLEDGE_TOOL_COUNT} AWS Knowledge tools, expected ${EXPECTED_NUM_KNOWLEDGE_TOOLS}${NC}"
+    else
+        echo -e "${RED}❌ Only ${tool_availability_count} of ${EXPECTED_NUM_KNOWLEDGE_TOOLS} expected tools are available${NC}"
+    fi
 fi
 echo ""
 
