@@ -55,7 +55,7 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import Annotated, List
+from typing import Annotated, Any, List
 from urllib.parse import urlparse
 
 
@@ -315,7 +315,7 @@ async def dsql_search_documentation(
     limit: Annotated[
         int | None, Field(description="Maximum number of results to return")
     ] = None,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Search Aurora DSQL documentation.
 
@@ -327,7 +327,7 @@ async def dsql_search_documentation(
     Returns:
         Search results from the remote knowledge server
     """
-    params = {"search_phrase": search_phrase}
+    params: dict[str, Any] = {"search_phrase": search_phrase}
     if limit is not None:
         params["limit"] = limit
     return await _proxy_to_knowledge_server("dsql_search_documentation", params, ctx)
@@ -345,7 +345,7 @@ async def dsql_read_documentation(
     max_length: Annotated[
         int | None, Field(description="Maximum number of characters to return")
     ] = None,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Read specific DSQL documentation pages.
 
@@ -358,7 +358,7 @@ async def dsql_read_documentation(
     Returns:
         Documentation content from the remote knowledge server
     """
-    params = {"url": url}
+    params: dict[str, Any] = {"url": url}
     if start_index is not None:
         params["start_index"] = start_index
     if max_length is not None:
@@ -388,7 +388,7 @@ async def dsql_recommend(
     return await _proxy_to_knowledge_server("dsql_recommend", {"url": url}, ctx)
 
 
-async def _proxy_to_knowledge_server(method: str, params: dict, ctx: Context) -> dict:
+async def _proxy_to_knowledge_server(method: str, params: dict[str, Any], ctx: Context | None) -> dict:
     """Proxy a request to the remote knowledge MCP server.
 
     Args:
@@ -424,7 +424,8 @@ async def _proxy_to_knowledge_server(method: str, params: dict, ctx: Context) ->
                 error_msg = result["error"].get(
                     "message", "Unknown error from knowledge server"
                 )
-                await ctx.error(error_msg)
+                if ctx:
+                    await ctx.error(error_msg)
                 raise Exception(error_msg)
 
             return result.get("result", {})
@@ -432,7 +433,8 @@ async def _proxy_to_knowledge_server(method: str, params: dict, ctx: Context) ->
     except httpx.HTTPError as e:
         error_msg = "The DSQL knowledge server is currently unavailable. Please try again later."
         logger.error(f"Knowledge server error: {e}")
-        await ctx.error(error_msg)
+        if ctx:
+            await ctx.error(error_msg)
         raise Exception(error_msg)
 
 
@@ -451,13 +453,13 @@ async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
     if database_user == "admin":
-        return dsql_client.generate_db_connect_admin_auth_token(
+        return dsql_client.generate_db_connect_admin_auth_token(  # pyright: ignore[reportOptionalMemberAccess]
             cluster_endpoint, region
-        )  # pyright: ignore[reportOptionalMemberAccess]
+        )
     else:
-        return dsql_client.generate_db_connect_auth_token(
+        return dsql_client.generate_db_connect_auth_token(  # pyright: ignore[reportOptionalMemberAccess]
             cluster_endpoint, region
-        )  # pyright: ignore[reportOptionalMemberAccess]
+        )
 
 
 async def get_connection(ctx):  # noqa: D103
