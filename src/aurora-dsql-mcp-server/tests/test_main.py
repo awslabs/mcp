@@ -90,7 +90,7 @@ class TestMain:
         source = inspect.getsource(server)
 
         # Check that the module has the if __name__ == '__main__': block
-        assert 'if __name__ == "__main__":' in source
+        assert "if __name__ == '__main__':" in source
         assert 'main()' in source
 
         # This test doesn't actually execute the code, but it ensures
