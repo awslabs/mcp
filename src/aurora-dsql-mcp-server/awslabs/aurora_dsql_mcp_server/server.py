@@ -551,7 +551,7 @@ def main():
     )
     parser.add_argument(
         '--knowledge-server',
-        default='https://https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com',
+        default='https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com',
         help='Remote MCP server endpoint for DSQL knowledge tools',
     )
     parser.add_argument(
@@ -568,7 +568,7 @@ def main():
         if parsed_url.scheme != 'https':
             logger.error(
                 f'Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. '
-                f'Example: https://https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+                f'Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
             )
             sys.exit(1)
         if not parsed_url.netloc:
