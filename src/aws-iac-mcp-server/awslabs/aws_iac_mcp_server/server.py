@@ -252,7 +252,6 @@ async def search_cdk_documentation(query: str) -> str:
 
     Returns JSON with:
     - knowledge_response: Details of the response
-        - error: null if successful, error message if failed
         - results: Array with single result containing:
             - rank: Always 1 for document reads
             - title: Document title or filename
@@ -312,7 +311,6 @@ async def read_cdk_documentation_page(
 
     Returns JSON with:
     - knowledge_response: Details of the response
-      - error: null if successful, error message if failed
       - results: Array with single result containing:
         - rank: Always 1 for document reads
         - title: Document title or filename
@@ -368,7 +366,6 @@ async def search_cloudformation_documentation(query: str) -> str:
 
     Returns JSON with:
     - knowledge_response: Details of the response
-      - error: null if successful, error message if failed
       - results: Array with single result containing:
         - rank: Always 1 for document reads
         - title: Document title or filename
@@ -436,7 +433,6 @@ async def search_cdk_samples_and_constructs(
 
     Returns JSON with:
     - knowledge_response: Details of the response
-      - error: null if successful, error message if failed
       - results: Array with single result containing:
         - rank: Always 1 for document reads
         - title: Document title or filename
