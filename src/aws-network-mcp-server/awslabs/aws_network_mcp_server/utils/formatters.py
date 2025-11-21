@@ -18,7 +18,7 @@ from typing import Any, Dict
 
 def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]:
     """Format Network Firewall stateless rules for better LLM usage."""
-    priority = int(priority)
+    priority_int = int(priority)
     match_attrs = rule.get('MatchAttributes', {})
 
     source = match_attrs.get('Sources')
@@ -31,7 +31,7 @@ def format_stateless_rule(rule: Dict[str, Any], priority: str) -> Dict[str, Any]
         dest = '0.0.0.0/0 (anywhere)'
 
     return {
-        'priority': priority,
+        'priority': priority_int,
         'action': rule.get('RuleDefinition', {}).get('Actions')[0],
         'protocol': protocol,
         'source': source,

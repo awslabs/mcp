@@ -14,14 +14,17 @@
 
 """Test cases for the list_vpn_connections tool."""
 
-import pytest
 import importlib
+import pytest
 from botocore.exceptions import ClientError
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-vpn_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections')
+vpn_list_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.vpn.list_vpn_connections'
+)
 
 
 class TestListVpnConnections:
@@ -96,7 +99,9 @@ class TestListVpnConnections:
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_vpn_connections.return_value = {'VpnConnections': []}
 
-        await vpn_list_module.list_vpn_connections(vpn_region='us-east-1', profile_name='test-profile')
+        await vpn_list_module.list_vpn_connections(
+            vpn_region='us-east-1', profile_name='test-profile'
+        )
 
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', 'test-profile')
 

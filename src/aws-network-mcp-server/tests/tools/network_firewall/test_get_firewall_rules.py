@@ -14,13 +14,16 @@
 
 """Test cases for the get_firewall_rules tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-firewall_rules_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules')
+firewall_rules_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules'
+)
 
 
 class TestGetFirewallRules:
@@ -142,7 +145,9 @@ class TestGetFirewallRules:
 
         mock_nfw_client.describe_rule_group.side_effect = mock_describe_rule_group
 
-        result = await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', region='us-east-1')
+        result = await firewall_rules_module.get_firewall_rules(
+            firewall_name='test-firewall', region='us-east-1'
+        )
 
         assert result['firewall_name'] == 'test-firewall'
         assert result['summary']['total_stateless_rules'] == 1
@@ -192,7 +197,9 @@ class TestGetFirewallRules:
             }
         }
 
-        result = await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', region='us-west-2')
+        result = await firewall_rules_module.get_firewall_rules(
+            firewall_name='test-firewall', region='us-west-2'
+        )
 
         assert result['summary']['total_stateless_rules'] == 0
         assert result['summary']['total_stateful_rules'] == 0
@@ -208,7 +215,9 @@ class TestGetFirewallRules:
         mock_nfw_client.describe_firewall.return_value = firewall_response
         mock_nfw_client.describe_firewall_policy.return_value = {'FirewallPolicy': {}}
 
-        await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', profile_name='custom-profile')
+        await firewall_rules_module.get_firewall_rules(
+            firewall_name='test-firewall', profile_name='custom-profile'
+        )
 
         mock_get_client.assert_called_once_with('network-firewall', None, 'custom-profile')
 

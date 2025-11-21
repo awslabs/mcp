@@ -14,13 +14,16 @@
 
 """Test cases for the get_eni_details tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-eni_details_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.general.get_eni_details')
+eni_details_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.general.get_eni_details'
+)
 
 
 class TestGetEniDetails:
@@ -149,7 +152,9 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': sample_nacls}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': sample_route_tables}
 
-        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(
+            eni_id='eni-12345678', region='us-east-1'
+        )
 
         # Verify the result structure
         assert 'basic_info' in result
@@ -233,7 +238,9 @@ class TestGetEniDetails:
             {'RouteTables': [{'RouteTableId': 'rtb-main', 'Routes': [], 'Associations': []}]},
         ]
 
-        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(
+            eni_id='eni-12345678', region='us-east-1'
+        )
 
         # Verify main route table lookup was called
         assert mock_ec2_client.describe_route_tables.call_count == 2
@@ -258,7 +265,9 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': []}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': []}
 
-        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(
+            eni_id='eni-12345678', region='us-east-1'
+        )
 
         assert result['basic_info']['public_ip'] is None
 
@@ -288,7 +297,9 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': []}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': []}
 
-        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(
+            eni_id='eni-12345678', region='us-east-1'
+        )
 
         # Verify both security groups are called
         mock_ec2_client.describe_security_groups.assert_called_once_with(

@@ -14,13 +14,16 @@
 
 """Test cases for the list_transit_gateways tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-tgw_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways')
+tgw_list_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.transit_gateway.list_transit_gateways'
+)
 
 
 class TestListTransitGateways:
@@ -82,7 +85,9 @@ class TestListTransitGateways:
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_transit_gateways.return_value = {'TransitGateways': []}
 
-        await tgw_list_module.list_transit_gateways(region='eu-west-1', profile_name='test-profile')
+        await tgw_list_module.list_transit_gateways(
+            region='eu-west-1', profile_name='test-profile'
+        )
 
         mock_get_client.assert_called_once_with('ec2', 'eu-west-1', 'test-profile')
 

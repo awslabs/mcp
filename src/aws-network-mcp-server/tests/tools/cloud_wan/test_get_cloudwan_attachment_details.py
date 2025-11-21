@@ -14,13 +14,16 @@
 
 """Test cases for the get_cloudwan_attachment_details tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-attachment_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details')
+attachment_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details'
+)
 
 
 @patch.object(attachment_module, 'get_aws_client')
@@ -183,7 +186,9 @@ async def test_with_profile_name(mock_get_client):
         }
     }
 
-    await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1', 'custom-profile')
+    await attachment_module.get_cloudwan_attachment_details(
+        'attachment-123', 'us-east-1', 'custom-profile'
+    )
 
     mock_get_client.assert_called_with('networkmanager', 'us-east-1', 'custom-profile')
 

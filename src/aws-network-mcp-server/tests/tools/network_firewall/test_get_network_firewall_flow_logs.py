@@ -14,13 +14,16 @@
 
 """Test cases for the get_network_firewall_flow_logs tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-nfw_flow_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.network_firewall.get_network_firewall_flow_logs')
+nfw_flow_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.network_firewall.get_network_firewall_flow_logs'
+)
 
 
 class TestGetNetworkFirewallFlowLogs:
@@ -106,7 +109,9 @@ class TestGetNetworkFirewallFlowLogs:
             ToolError,
             match='flow log for the AWS Network Firewall.*are not stored in CloudWatch Logs',
         ):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch.object(nfw_flow_module, 'get_account_id')
     @patch.object(nfw_flow_module, 'get_aws_client')
@@ -132,7 +137,9 @@ class TestGetNetworkFirewallFlowLogs:
             ToolError,
             match='flow log for the AWS Network Firewall.*are not stored in CloudWatch Logs',
         ):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch.object(nfw_flow_module, 'get_account_id')
     @patch.object(nfw_flow_module, 'get_aws_client')
@@ -219,7 +226,9 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Timeout'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch.object(nfw_flow_module, 'get_account_id')
     @patch.object(nfw_flow_module, 'get_aws_client')
@@ -239,7 +248,9 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Failed'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch.object(nfw_flow_module, 'get_account_id')
     @patch.object(nfw_flow_module, 'get_aws_client')
@@ -259,7 +270,9 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Complete', 'results': []}
 
         with pytest.raises(ToolError, match='No flow logs found'):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch('time.sleep')  # Patch time.sleep directly at source
     @patch.object(nfw_flow_module, 'get_account_id')
@@ -300,7 +313,9 @@ class TestGetNetworkFirewallFlowLogs:
         mock_fw_client.describe_logging_configuration.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='Error getting AWS Network Firewall flow logs'):
-            await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+            await nfw_flow_module.get_network_firewall_flow_logs(
+                firewall_name='test-firewall', region='us-east-1'
+            )
 
     @patch.object(nfw_flow_module, 'get_account_id')
     @patch.object(nfw_flow_module, 'get_aws_client')
@@ -359,7 +374,9 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall', region='us-east-1')
+        await nfw_flow_module.get_network_firewall_flow_logs(
+            firewall_name='test-firewall', region='us-east-1'
+        )
 
         # Verify correct log group is used
         call_args = mock_logs_client.start_query.call_args

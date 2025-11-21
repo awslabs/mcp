@@ -14,13 +14,16 @@
 
 """Test cases for the get_vpc_flow_logs tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-vpc_flow_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs')
+vpc_flow_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs'
+)
 
 
 class TestGetVpcFlowLogs:

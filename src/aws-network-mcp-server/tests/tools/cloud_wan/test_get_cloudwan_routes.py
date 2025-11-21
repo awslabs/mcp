@@ -14,13 +14,16 @@
 
 """Test cases for the get_cloudwan_routes tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-routes_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes')
+routes_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_routes'
+)
 
 
 class TestGetCloudwanRoutes:
@@ -60,7 +63,9 @@ class TestGetCloudwanRoutes:
     async def test_missing_parameters(self):
         """Test error when neither segment nor network_function_group provided."""
         with pytest.raises(ToolError, match='Please provide a segment or network_function_group'):
-            await routes_module.get_cloudwan_routes(core_network_id='core-network-123', region='us-east-1')
+            await routes_module.get_cloudwan_routes(
+                core_network_id='core-network-123', region='us-east-1'
+            )
 
     @patch.object(routes_module, 'get_aws_client')
     async def test_aws_error(self, mock_get_client):

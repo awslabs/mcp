@@ -14,12 +14,15 @@
 
 """Test cases for the get_all_cloudwan_routes tool."""
 
-import pytest
 import importlib
+import pytest
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-routes_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes')
+routes_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes'
+)
 
 
 @pytest.fixture

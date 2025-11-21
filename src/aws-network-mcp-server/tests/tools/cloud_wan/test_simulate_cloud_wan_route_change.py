@@ -13,13 +13,16 @@
 # limitations under the License.
 """Test cases for simulate_cloud_wan_route_change tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-simulate_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change')
+simulate_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change'
+)
 
 
 class TestSimulateCloudWanRouteChange:

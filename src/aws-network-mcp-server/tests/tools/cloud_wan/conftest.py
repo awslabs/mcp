@@ -15,8 +15,8 @@
 """Centralized test fixtures for Cloud WAN tests."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 from botocore.client import BaseClient
+from unittest.mock import MagicMock
 
 
 @pytest.fixture
@@ -33,8 +33,7 @@ def mock_aws_client(monkeypatch):
         return mock_client
 
     monkeypatch.setattr(
-        'awslabs.aws_network_mcp_server.utils.aws_common.get_aws_client',
-        get_mock_client
+        'awslabs.aws_network_mcp_server.utils.aws_common.get_aws_client', get_mock_client
     )
     return mock_client
 

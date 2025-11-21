@@ -14,13 +14,16 @@
 
 """Test cases for the find_ip_address tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-find_ip_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.general.find_ip_address')
+find_ip_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.general.find_ip_address'
+)
 
 
 class TestFindIpAddress:
@@ -94,7 +97,9 @@ class TestFindIpAddress:
         mock_ec2_client.describe_network_interfaces.return_value = {'NetworkInterfaces': []}
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_module.find_ip_address(ip_address='10.0.1.200', region='us-east-1', all_regions=False)
+            await find_ip_module.find_ip_address(
+                ip_address='10.0.1.200', region='us-east-1', all_regions=False
+            )
 
         assert 'IP address 10.0.1.200 not found in region us-east-1' in str(exc_info.value)
         assert 'VALIDATE PARAMETERS BEFORE CONTINUING' in str(exc_info.value)
@@ -165,7 +170,9 @@ class TestFindIpAddress:
         }
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_module.find_ip_address(ip_address='10.0.1.200', region='us-east-1', all_regions=True)
+            await find_ip_module.find_ip_address(
+                ip_address='10.0.1.200', region='us-east-1', all_regions=True
+            )
 
         assert 'IP address was not found in any region' in str(exc_info.value)
 
@@ -178,7 +185,9 @@ class TestFindIpAddress:
         )
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_module.find_ip_address(ip_address='10.0.1.100', region='us-east-1', all_regions=False)
+            await find_ip_module.find_ip_address(
+                ip_address='10.0.1.100', region='us-east-1', all_regions=False
+            )
 
         assert 'Error searching IP address: AccessDenied: User not authorized' in str(
             exc_info.value
@@ -212,7 +221,9 @@ class TestFindIpAddress:
         }
 
         with pytest.raises(ToolError) as exc_info:
-            await find_ip_module.find_ip_address(ip_address='10.0.1.100', region='us-east-1', all_regions=True)
+            await find_ip_module.find_ip_address(
+                ip_address='10.0.1.100', region='us-east-1', all_regions=True
+            )
 
         assert 'Error searching IP address in all regions: Network timeout' in str(exc_info.value)
         assert 'REQUIRED TO REMEDIATE BEFORE CONTINUING' in str(exc_info.value)

@@ -14,14 +14,17 @@
 
 """Test cases for the detect_cloudwan_inspection tool."""
 
+import importlib
 import json
 import pytest
-import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - this works according to debug
-detect_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection')
+detect_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection'
+)
 
 
 # WORKING: Use the actual module for patching and function calls
@@ -63,7 +66,6 @@ async def test_detect_cloudwan_inspection_with_nfgs():
         assert len(result['inspection_nfgs_in_path']) == 1
         assert result['inspection_nfgs_in_path'][0]['nfg_name'] == 'firewall-nfg'
 
-
     @patch(
         'awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection.get_aws_client'
     )
@@ -82,7 +84,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
             'CoreNetworkPolicy': {'PolicyDocument': json.dumps(policy_doc)}
         }
 
-        result = await detect_cloudwan_inspection(
+        result = await detect_module.detect_cloudwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='dev',
@@ -92,7 +94,6 @@ async def test_detect_cloudwan_inspection_with_nfgs():
         assert result['traffic_inspected'] is False
         assert result['total_inspection_nfgs'] == 0
         assert result['inspection_summary'] == 'No inspection NFGs in path - traffic not inspected'
-
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection.get_aws_client'
@@ -112,7 +113,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
             'CoreNetworkPolicy': {'PolicyDocument': json.dumps(policy_doc)}
         }
 
-        result = await detect_cloudwan_inspection(
+        result = await detect_module.detect_cloudwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='invalid',
@@ -121,7 +122,6 @@ async def test_detect_cloudwan_inspection_with_nfgs():
 
         assert result['success'] is False
         assert 'Destination segment "invalid" not found' in result['error']
-
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.cloud_wan.detect_cloudwan_inspection.get_aws_client'
@@ -133,7 +133,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
         mock_nm_client.get_core_network_policy.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='Error detecting inspection in path'):
-            await detect_cloudwan_inspection(
+            await detect_module.detect_cloudwan_inspection(
                 core_network_id='core-network-12345678',
                 source_segment='prod',
                 destination_segment='dev',

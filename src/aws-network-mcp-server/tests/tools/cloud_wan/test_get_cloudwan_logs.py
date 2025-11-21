@@ -14,14 +14,17 @@
 
 """Test cases for the get_cloudwan_logs tool."""
 
+import importlib
 import json
 import pytest
-import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-logs_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_logs')
+logs_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_logs'
+)
 
 
 class TestGetCloudwanLogs:

@@ -14,13 +14,16 @@
 
 """Test cases for the list_core_networks tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-core_networks_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks')
+core_networks_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks'
+)
 
 
 class TestListCoreNetworks:
@@ -68,7 +71,9 @@ class TestListCoreNetworks:
         mock_get_client.return_value = mock_nm_client
         mock_nm_client.list_core_networks.return_value = {'CoreNetworks': sample_core_networks}
 
-        await core_networks_module.list_core_networks(region='eu-west-1', profile_name='test-profile')
+        await core_networks_module.list_core_networks(
+            region='eu-west-1', profile_name='test-profile'
+        )
 
         mock_get_client.assert_called_once_with('networkmanager', 'eu-west-1', 'test-profile')
 

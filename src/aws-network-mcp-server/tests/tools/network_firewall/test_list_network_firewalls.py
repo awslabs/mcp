@@ -14,13 +14,16 @@
 
 """Test cases for the list_network_firewalls tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+
 # Get the actual module - prevents function/module resolution issues
-nfw_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls')
+nfw_list_module = importlib.import_module(
+    'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls'
+)
 
 
 class TestListNetworkFirewalls:
@@ -80,7 +83,9 @@ class TestListNetworkFirewalls:
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': []}
 
-        await nfw_list_module.list_network_firewalls(region='eu-west-1', profile_name='test-profile')
+        await nfw_list_module.list_network_firewalls(
+            region='eu-west-1', profile_name='test-profile'
+        )
 
         mock_get_client.assert_called_once_with('network-firewall', 'eu-west-1', 'test-profile')
 

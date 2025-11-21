@@ -14,10 +14,11 @@
 
 """Test cases for the list_vpcs tool."""
 
-import pytest
 import importlib
+import pytest
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
 
 # Get the actual module - prevents function/module resolution issues
 vpc_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs')
