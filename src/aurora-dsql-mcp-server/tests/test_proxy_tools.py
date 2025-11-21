@@ -110,6 +110,22 @@ async def test_dsql_search_documentation(mock_ctx):
 
 
 @pytest.mark.asyncio
+async def test_dsql_search_documentation_with_limit(mock_ctx):
+    """Test dsql_search_documentation tool with limit parameter."""
+    with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
+        mock_proxy.return_value = {'results': []}
+
+        result = await dsql_search_documentation('test query', 10, mock_ctx)
+
+        mock_proxy.assert_called_once_with(
+            'dsql_search_documentation',
+            {'search_phrase': 'test query', 'limit': 10},
+            mock_ctx
+        )
+        assert result == {'results': []}
+
+
+@pytest.mark.asyncio
 async def test_dsql_read_documentation(mock_ctx):
     """Test dsql_read_documentation tool."""
     with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
@@ -120,6 +136,54 @@ async def test_dsql_read_documentation(mock_ctx):
         mock_proxy.assert_called_once_with(
             'dsql_read_documentation',
             {'url': 'getting-started'},
+            mock_ctx
+        )
+        assert result == {'content': 'doc content'}
+
+
+@pytest.mark.asyncio
+async def test_dsql_read_documentation_with_start_index(mock_ctx):
+    """Test dsql_read_documentation tool with start_index parameter."""
+    with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
+        mock_proxy.return_value = {'content': 'doc content'}
+
+        result = await dsql_read_documentation('getting-started', 100, None, mock_ctx)
+
+        mock_proxy.assert_called_once_with(
+            'dsql_read_documentation',
+            {'url': 'getting-started', 'start_index': 100},
+            mock_ctx
+        )
+        assert result == {'content': 'doc content'}
+
+
+@pytest.mark.asyncio
+async def test_dsql_read_documentation_with_max_length(mock_ctx):
+    """Test dsql_read_documentation tool with max_length parameter."""
+    with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
+        mock_proxy.return_value = {'content': 'doc content'}
+
+        result = await dsql_read_documentation('getting-started', None, 500, mock_ctx)
+
+        mock_proxy.assert_called_once_with(
+            'dsql_read_documentation',
+            {'url': 'getting-started', 'max_length': 500},
+            mock_ctx
+        )
+        assert result == {'content': 'doc content'}
+
+
+@pytest.mark.asyncio
+async def test_dsql_read_documentation_with_all_parameters(mock_ctx):
+    """Test dsql_read_documentation tool with all optional parameters."""
+    with patch('awslabs.aurora_dsql_mcp_server.server._proxy_to_knowledge_server') as mock_proxy:
+        mock_proxy.return_value = {'content': 'doc content'}
+
+        result = await dsql_read_documentation('getting-started', 100, 500, mock_ctx)
+
+        mock_proxy.assert_called_once_with(
+            'dsql_read_documentation',
+            {'url': 'getting-started', 'start_index': 100, 'max_length': 500},
             mock_ctx
         )
         assert result == {'content': 'doc content'}

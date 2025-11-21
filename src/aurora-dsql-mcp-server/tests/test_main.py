@@ -153,6 +153,32 @@ class TestMain:
             'test_user',
             '--region',
             'us-west-2',
+            '--knowledge-server',
+            'https://example.com',
+        ],
+    )
+    @patch('awslabs.aurora_dsql_mcp_server.server.urlparse')
+    def test_main_handles_url_parsing_exception(self, mock_urlparse):
+        """Test that main handles exceptions during URL parsing."""
+        import pytest
+
+        mock_urlparse.side_effect = Exception("URL parsing failed")
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 1
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
             '--knowledge-timeout',
             '0',
         ],
