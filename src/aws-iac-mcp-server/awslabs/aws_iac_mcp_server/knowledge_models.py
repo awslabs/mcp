@@ -27,16 +27,8 @@ class KnowledgeResult:
 
 
 @dataclass
-class KnowledgeResponse:
-    """Response from knowledge search containing results or error."""
-
-    error: Optional[str]
-    results: List[KnowledgeResult]
-
-
-@dataclass
 class CDKToolResponse:
     """Response from CDK tools containing knowledge and guidance."""
 
-    knowledge_response: KnowledgeResponse
+    knowledge_response: List[KnowledgeResult]
     next_step_guidance: Optional[str]

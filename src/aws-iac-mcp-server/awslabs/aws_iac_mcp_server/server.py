@@ -22,6 +22,7 @@ from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import search_cdk_documentation_tool
 from .validator import validate_template
+from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
@@ -266,17 +267,8 @@ async def search_cdk_documentation(query: str) -> str:
     """
     result = await search_cdk_documentation_tool(query)
 
-    # Convert dataclass to dict for JSON serialization
-    response_dict = {
-        'knowledge_response': {
-            'error': result.knowledge_response.error,
-            'results': [
-                {'rank': r.rank, 'title': r.title, 'url': r.url, 'context': r.context}
-                for r in result.knowledge_response.results
-            ],
-        },
-        'next_step_guidance': result.next_step_guidance,
-    }
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
 
     return sanitize_tool_response(json.dumps(response_dict, indent=2))
 

@@ -15,7 +15,7 @@
 """Tests for CDK documentation tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResponse, KnowledgeResult
+from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
 from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_documentation_tool
 from unittest.mock import AsyncMock, patch
 
@@ -26,17 +26,14 @@ class TestSearchCDKDocumentation:
     @pytest.mark.asyncio
     async def test_search_cdk_documentation_success(self):
         """Test successful CDK documentation search."""
-        mock_response = KnowledgeResponse(
-            error=None,
-            results=[
-                KnowledgeResult(
-                    rank=1,
-                    title='AWS CDK Constructs',
-                    url='https://docs.aws.amazon.com/cdk/latest/guide/constructs.html',
-                    context='Learn about CDK constructs and how to use them.',
-                )
-            ],
-        )
+        mock_response = [
+            KnowledgeResult(
+                rank=1,
+                title='AWS CDK Constructs',
+                url='https://docs.aws.amazon.com/cdk/latest/guide/constructs.html',
+                context='Learn about CDK constructs and how to use them.',
+            )
+        ]
         with patch(
             'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
             new_callable=AsyncMock,
@@ -45,9 +42,8 @@ class TestSearchCDKDocumentation:
 
             result = await search_cdk_documentation_tool('constructs')
 
-            assert result.knowledge_response.error is None
-            assert len(result.knowledge_response.results) == 1
-            assert result.knowledge_response.results[0].title == 'AWS CDK Constructs'
+            assert len(result.knowledge_response) == 1
+            assert result.knowledge_response[0].title == 'AWS CDK Constructs'
             assert result.next_step_guidance is not None
             mock_search.assert_called_once_with(
                 search_phrase='constructs', topic='cdk_docs', limit=10
@@ -62,8 +58,5 @@ class TestSearchCDKDocumentation:
         ) as mock_search:
             mock_search.side_effect = Exception('Network error')
 
-            result = await search_cdk_documentation_tool('constructs')
-
-            assert result.knowledge_response.error is not None
-            assert 'CDK documentation search failed' in result.knowledge_response.error
-            assert len(result.knowledge_response.results) == 0
+            with pytest.raises(Exception, match='Network error'):
+                await search_cdk_documentation_tool('constructs')

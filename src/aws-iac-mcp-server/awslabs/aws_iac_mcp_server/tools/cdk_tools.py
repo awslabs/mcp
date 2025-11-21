@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from ..client.aws_knowledge_client import search_documentation
-from ..error_decorators import handle_cdk_tool_errors
 from ..knowledge_models import CDKToolResponse
 
 
@@ -22,7 +21,6 @@ SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for thes
 SEARCH_CDK_DOCUMENTATION_TOPIC = 'cdk_docs'
 
 
-@handle_cdk_tool_errors('CDK documentation search failed')
 async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     """Search CDK documentation.
 

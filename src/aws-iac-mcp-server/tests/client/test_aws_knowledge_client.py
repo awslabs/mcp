@@ -53,9 +53,8 @@ class TestSearchDocumentation:
             'aws___search_documentation',
             {'search_phrase': 'lambda', 'limit': 5, 'topics': ['cdk']},
         )
-        assert result.error is None
-        assert len(result.results) == 1
-        assert result.results[0].title == 'AWS Lambda'
+        assert len(result) == 1
+        assert result[0].title == 'AWS Lambda'
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
@@ -63,14 +62,12 @@ class TestSearchDocumentation:
         """Test client initialization failure is handled gracefully.
 
         Verifies that when the MCP client fails to initialize,
-        the function returns an error response instead of crashing.
+        the function raises the exception.
         """
         mock_client_class.side_effect = Exception('Connection failed')
 
-        result = await search_documentation('lambda', 'cdk')
-
-        assert result.error == 'Connection failed'
-        assert result.results == []
+        with pytest.raises(Exception, match='Connection failed'):
+            await search_documentation('lambda', 'cdk')
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
@@ -78,16 +75,14 @@ class TestSearchDocumentation:
         """Test tool call failure is handled gracefully.
 
         Verifies that when the MCP client tool call fails,
-        the function returns an error response instead of crashing.
+        the function raises the exception.
         """
         mock_client = AsyncMock()
         mock_client_class.return_value = mock_client
         mock_client.call_tool.side_effect = Exception('Tool call failed')
 
-        result = await search_documentation('lambda', 'cdk')
-
-        assert result.error == 'Tool call failed'
-        assert result.results == []
+        with pytest.raises(Exception, match='Tool call failed'):
+            await search_documentation('lambda', 'cdk')
 
 
 class TestParseSearchResult:
@@ -128,12 +123,11 @@ class TestParseSearchResult:
 
         parsed = _parse_search_documentation_result(mock_result)
 
-        assert parsed.error is None
-        assert len(parsed.results) == 2
-        assert parsed.results[0].rank == 1
-        assert parsed.results[0].title == 'AWS Lambda'
-        assert parsed.results[1].rank == 2
-        assert parsed.results[1].title == 'Lambda Functions'
+        assert len(parsed) == 2
+        assert parsed[0].rank == 1
+        assert parsed[0].title == 'AWS Lambda'
+        assert parsed[1].rank == 2
+        assert parsed[1].title == 'Lambda Functions'
 
     def test_empty_results(self):
         """Test parsing of empty search results.
@@ -148,8 +142,7 @@ class TestParseSearchResult:
 
         parsed = _parse_search_documentation_result(mock_result)
 
-        assert parsed.error is None
-        assert parsed.results == []
+        assert parsed == []
 
     def test_is_error_true(self):
         """Test handling of error responses from MCP client.
@@ -161,10 +154,8 @@ class TestParseSearchResult:
         mock_result.is_error = True
         mock_result.content = 'Error occurred'
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Tool call returned an error' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Tool call returned an error'):
+            _parse_search_documentation_result(mock_result)
 
     def test_empty_content(self):
         """Test handling of empty content arrays.
@@ -176,10 +167,8 @@ class TestParseSearchResult:
         mock_result.is_error = False
         mock_result.content = []
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error == 'Empty response from tool'
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Empty response from tool'):
+            _parse_search_documentation_result(mock_result)
 
     def test_none_content(self):
         """Test handling of None content.
@@ -191,10 +180,8 @@ class TestParseSearchResult:
         mock_result.is_error = False
         mock_result.content = None
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error == 'Empty response from tool'
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Empty response from tool'):
+            _parse_search_documentation_result(mock_result)
 
     def test_content_not_text_type(self):
         """Test handling of non-text content types.
@@ -207,10 +194,8 @@ class TestParseSearchResult:
         mock_content = MagicMock()
         mock_result.content = [mock_content]
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Content is not text type' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Content is not text type'):
+            _parse_search_documentation_result(mock_result)
 
     def test_invalid_json(self):
         """Test handling of malformed JSON responses.
@@ -223,10 +208,8 @@ class TestParseSearchResult:
         mock_content = TextContent(type='text', text='invalid json')
         mock_result.content = [mock_content]
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Failed to parse JSON response' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(json.JSONDecodeError):
+            _parse_search_documentation_result(mock_result)
 
     def test_missing_content_key(self):
         """Test handling of responses missing the 'content' key.
@@ -239,10 +222,8 @@ class TestParseSearchResult:
         mock_content = TextContent(type='text', text=json.dumps({}))
         mock_result.content = [mock_content]
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Unexpected response structure' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(KeyError):
+            _parse_search_documentation_result(mock_result)
 
     def test_missing_result_key(self):
         """Test handling of responses missing the 'result' key.
@@ -255,10 +236,8 @@ class TestParseSearchResult:
         mock_content = TextContent(type='text', text=json.dumps({'content': {}}))
         mock_result.content = [mock_content]
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Unexpected response structure' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(KeyError):
+            _parse_search_documentation_result(mock_result)
 
     def test_missing_required_field_in_item(self):
         """Test handling of search result items missing required fields.
@@ -286,10 +265,8 @@ class TestParseSearchResult:
         )
         mock_result.content = [mock_content]
 
-        parsed = _parse_search_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Unexpected response structure' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(KeyError):
+            _parse_search_documentation_result(mock_result)
 
 
 class TestReadDocumentation:
@@ -322,9 +299,8 @@ class TestReadDocumentation:
             'aws___read_documentation',
             {'url': 'https://docs.aws.amazon.com/lambda/', 'start_index': 100},
         )
-        assert result.error is None
-        assert len(result.results) == 1
-        assert result.results[0].context == 'This is the documentation content'
+        assert len(result) == 1
+        assert result[0].context == 'This is the documentation content'
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
@@ -332,14 +308,12 @@ class TestReadDocumentation:
         """Test client initialization failure is handled gracefully.
 
         Verifies that when the MCP client fails to initialize,
-        the function returns an error response instead of crashing.
+        the function raises the exception.
         """
         mock_client_class.side_effect = Exception('Connection failed')
 
-        result = await read_documentation('https://docs.aws.amazon.com/lambda/')
-
-        assert result.error == 'Connection failed'
-        assert result.results == []
+        with pytest.raises(Exception, match='Connection failed'):
+            await read_documentation('https://docs.aws.amazon.com/lambda/')
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_iac_mcp_server.client.aws_knowledge_client.Client')
@@ -347,16 +321,14 @@ class TestReadDocumentation:
         """Test tool call failure is handled gracefully.
 
         Verifies that when the MCP client tool call fails,
-        the function returns an error response instead of crashing.
+        the function raises the exception.
         """
         mock_client = AsyncMock()
         mock_client_class.return_value = mock_client
         mock_client.call_tool.side_effect = Exception('Tool call failed')
 
-        result = await read_documentation('https://docs.aws.amazon.com/lambda/')
-
-        assert result.error == 'Tool call failed'
-        assert result.results == []
+        with pytest.raises(Exception, match='Tool call failed'):
+            await read_documentation('https://docs.aws.amazon.com/lambda/')
 
 
 class TestParseReadResult:
@@ -378,10 +350,9 @@ class TestParseReadResult:
 
         parsed = _parse_read_documentation_result(mock_result)
 
-        assert parsed.error is None
-        assert len(parsed.results) == 1
-        assert parsed.results[0].context == 'This is the documentation content'
-        assert parsed.results[0].rank == 1
+        assert len(parsed) == 1
+        assert parsed[0].context == 'This is the documentation content'
+        assert parsed[0].rank == 1
 
     def test_is_error_true(self):
         """Test handling of error responses from MCP client.
@@ -393,10 +364,8 @@ class TestParseReadResult:
         mock_result.is_error = True
         mock_result.content = 'Error occurred'
 
-        parsed = _parse_read_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Tool call returned an error' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Tool call returned an error'):
+            _parse_read_documentation_result(mock_result)
 
     def test_empty_content(self):
         """Test handling of empty content arrays.
@@ -408,10 +377,8 @@ class TestParseReadResult:
         mock_result.is_error = False
         mock_result.content = []
 
-        parsed = _parse_read_documentation_result(mock_result)
-
-        assert parsed.error == 'Empty response from tool'
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Empty response from tool'):
+            _parse_read_documentation_result(mock_result)
 
     def test_content_not_text_type(self):
         """Test handling of non-text content types.
@@ -424,10 +391,8 @@ class TestParseReadResult:
         mock_content = MagicMock()
         mock_result.content = [mock_content]
 
-        parsed = _parse_read_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Content is not text type' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(Exception, match='Content is not text type'):
+            _parse_read_documentation_result(mock_result)
 
     def test_invalid_json(self):
         """Test handling of malformed JSON responses.
@@ -440,10 +405,8 @@ class TestParseReadResult:
         mock_content = TextContent(type='text', text='invalid json')
         mock_result.content = [mock_content]
 
-        parsed = _parse_read_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Failed to parse JSON response' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(json.JSONDecodeError):
+            _parse_read_documentation_result(mock_result)
 
     def test_missing_content_key(self):
         """Test handling of responses missing the 'content' key.
@@ -456,7 +419,5 @@ class TestParseReadResult:
         mock_content = TextContent(type='text', text=json.dumps({}))
         mock_result.content = [mock_content]
 
-        parsed = _parse_read_documentation_result(mock_result)
-
-        assert parsed.error is not None and 'Unexpected response structure' in parsed.error
-        assert parsed.results == []
+        with pytest.raises(KeyError):
+            _parse_read_documentation_result(mock_result)

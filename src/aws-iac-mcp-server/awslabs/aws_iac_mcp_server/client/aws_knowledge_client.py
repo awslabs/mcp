@@ -15,11 +15,12 @@
 import json
 import os
 import sys
-from ..knowledge_models import KnowledgeResponse, KnowledgeResult
+from ..knowledge_models import KnowledgeResult
 from fastmcp.client import Client
 from fastmcp.client.client import CallToolResult
 from loguru import logger
 from mcp.types import TextContent
+from typing import List
 
 
 logger.remove()
@@ -34,7 +35,7 @@ KNOWLEDGE_MCP_READ_DOCUMENTATION_TOOL = 'aws___read_documentation'
 
 async def search_documentation(
     search_phrase: str, topic: str, limit: int = 10
-) -> KnowledgeResponse:
+) -> List[KnowledgeResult]:
     """Search AWS documentation.
 
     Args:
@@ -43,7 +44,7 @@ async def search_documentation(
         limit: Maximum number of results to return.
 
     Returns:
-        KnowledgeResponse containing search results.
+        List of KnowledgeResult containing search results.
     """
     try:
         aws_knowledge_mcp_client = Client(KNOWLEDGE_MCP_ENDPOINT)
@@ -57,55 +58,39 @@ async def search_documentation(
             logger.info(f'Received result: {result}')
             return _parse_search_documentation_result(result)
     except Exception as e:
+        # For dev team troubleshooting
         logger.error(f'Error searching documentation: {str(e)}')
-        return KnowledgeResponse(error=str(e), results=[])
+        raise e
 
 
-def _parse_search_documentation_result(result: CallToolResult) -> KnowledgeResponse:
-    try:
-        if result.is_error:
-            error_msg = f'Tool call returned an error: {result.content}'
-            logger.error(error_msg)
-            return KnowledgeResponse(error=error_msg, results=[])
+def _parse_search_documentation_result(result: CallToolResult) -> List[KnowledgeResult]:
+    if result.is_error:
+        raise Exception(f'Tool call returned an error: {result.content}')
 
-        if not result.content or len(result.content) == 0:
-            return KnowledgeResponse(error='Empty response from tool', results=[])
+    if not result.content or len(result.content) == 0:
+        raise Exception('Empty response from tool')
 
-        content = result.content[0]
-        if not isinstance(content, TextContent):
-            error_msg = f'Content is not text type: {type(content)}'
-            logger.error(error_msg)
-            return KnowledgeResponse(error=error_msg, results=[])
+    content = result.content[0]
+    if not isinstance(content, TextContent):
+        raise Exception(f'Content is not text type: {type(content)}')
 
-        result_content_json = json.loads(content.text)
-        raw_results = result_content_json['content']['result']
+    result_content_json = json.loads(content.text)
+    raw_results = result_content_json['content']['result']
 
-        results = [
-            KnowledgeResult(
-                rank=item['rank_order'],
-                title=item['title'],
-                url=item['url'],
-                context=item['context'],
-            )
-            for item in raw_results
-        ]
+    results = [
+        KnowledgeResult(
+            rank=item['rank_order'],
+            title=item['title'],
+            url=item['url'],
+            context=item['context'],
+        )
+        for item in raw_results
+    ]
 
-        return KnowledgeResponse(error=None, results=results)
-    except json.JSONDecodeError as e:
-        error_msg = f'Failed to parse JSON response: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
-    except (KeyError, IndexError) as e:
-        error_msg = f'Unexpected response structure: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
-    except Exception as e:
-        error_msg = f'Error parsing result: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
+    return results
 
 
-async def read_documentation(url: str, start_index: int = 0) -> KnowledgeResponse:
+async def read_documentation(url: str, start_index: int = 0) -> List[KnowledgeResult]:
     """Read AWS documentation from a specific URL.
 
     Args:
@@ -113,58 +98,39 @@ async def read_documentation(url: str, start_index: int = 0) -> KnowledgeRespons
         start_index: Starting character index for pagination.
 
     Returns:
-        KnowledgeResponse containing the documentation content.
+        List of KnowledgeResult containing the documentation content.
     """
     try:
         logger.info(f'Connecting to AWS Knowledge MCP at {KNOWLEDGE_MCP_ENDPOINT}')
         aws_knowledge_mcp_client = Client(KNOWLEDGE_MCP_ENDPOINT)
 
         async with aws_knowledge_mcp_client:
-            logger.info(
-                f'Calling tool {KNOWLEDGE_MCP_READ_DOCUMENTATION_TOOL} with url={url}, start_index={start_index}'
-            )
             result = await aws_knowledge_mcp_client.call_tool(
                 KNOWLEDGE_MCP_READ_DOCUMENTATION_TOOL, {'url': url, 'start_index': start_index}
             )
             logger.info(f'Received result: {result}')
             return _parse_read_documentation_result(result)
     except Exception as e:
+        # For dev team troubleshooting
         logger.error(f'Error reading documentation: {str(e)}')
-        return KnowledgeResponse(error=str(e), results=[])
+        raise e
 
 
-def _parse_read_documentation_result(result: CallToolResult) -> KnowledgeResponse:
-    try:
-        if result.is_error:
-            error_msg = f'Tool call returned an error: {result.content}'
-            logger.error(error_msg)
-            return KnowledgeResponse(error=error_msg, results=[])
+def _parse_read_documentation_result(result: CallToolResult) -> List[KnowledgeResult]:
+    if result.is_error:
+        raise Exception(f'Tool call returned an error: {result.content}')
 
-        if not result.content or len(result.content) == 0:
-            return KnowledgeResponse(error='Empty response from tool', results=[])
+    if not result.content or len(result.content) == 0:
+        raise Exception('Empty response from tool')
 
-        content = result.content[0]
-        if not isinstance(content, TextContent):
-            error_msg = f'Content is not text type: {type(content)}'
-            logger.error(error_msg)
-            return KnowledgeResponse(error=error_msg, results=[])
+    content = result.content[0]
+    if not isinstance(content, TextContent):
+        raise Exception(f'Content is not text type: {type(content)}')
 
-        result_content_json = json.loads(content.text)
-        content_str = result_content_json['content']['result']
+    result_content_json = json.loads(content.text)
+    content_str = result_content_json['content']['result']
 
-        # TODO: fix/update response structure
-        results = [KnowledgeResult(rank=1, title='', url='', context=content_str)]
+    # TODO: fix/update response structure
+    results = [KnowledgeResult(rank=1, title='', url='', context=content_str)]
 
-        return KnowledgeResponse(error=None, results=results)
-    except json.JSONDecodeError as e:
-        error_msg = f'Failed to parse JSON response: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
-    except (KeyError, IndexError) as e:
-        error_msg = f'Unexpected response structure: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
-    except Exception as e:
-        error_msg = f'Error parsing result: {str(e)}'
-        logger.error(error_msg)
-        return KnowledgeResponse(error=error_msg, results=[])
+    return results
