@@ -16,17 +16,10 @@
 
 import argparse
 import asyncio
-import sys
-from typing import Annotated, List
-from urllib.parse import urlparse
-
 import boto3
 import httpx
 import psycopg
-from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
-
+import sys
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
@@ -59,6 +52,12 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
+from loguru import logger
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
+from typing import Annotated, List
+from urllib.parse import urlparse
+
 
 # Global variables
 cluster_endpoint = None
@@ -407,7 +406,7 @@ async def _proxy_to_knowledge_server(method: str, params: dict, ctx: Context) ->
 
     payload = {
         "jsonrpc": "2.0",
-        "method": f"tools/call",
+        "method": "tools/call",
         "params": {
             "name": method,
             "arguments": params,
@@ -506,7 +505,8 @@ async def get_connection(ctx):  # noqa: D103
 
 async def execute_query(
     ctx, conn_to_use, query: str, params=None
-) -> List[dict]:  # noqa: D103
+) -> List[dict]:
+    """Execute a SQL query and return results as a list of dictionaries."""
     if conn_to_use is None:
         conn = await get_connection(ctx)
     else:
