@@ -114,10 +114,10 @@ class TestMain:
     def test_main_rejects_non_https_knowledge_server(self):
         """Test that main rejects non-HTTPS knowledge server URLs."""
         import pytest
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
-        
+
         assert exc_info.value.code == 1
 
     @patch(
@@ -137,10 +137,10 @@ class TestMain:
     def test_main_rejects_malformed_knowledge_server_url(self):
         """Test that main rejects malformed knowledge server URLs."""
         import pytest
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
-        
+
         assert exc_info.value.code == 1
 
     @patch(
@@ -160,10 +160,10 @@ class TestMain:
     def test_main_rejects_zero_timeout(self):
         """Test that main rejects zero timeout."""
         import pytest
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
-        
+
         assert exc_info.value.code == 1
 
     @patch(
@@ -183,8 +183,8 @@ class TestMain:
     def test_main_rejects_negative_timeout(self):
         """Test that main rejects negative timeout."""
         import pytest
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
-        
+
         assert exc_info.value.code == 1
