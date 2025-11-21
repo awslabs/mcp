@@ -33,7 +33,7 @@ def _initialize_aws_clients():
     mcp_source = os.environ.get('MCP_RUN_FROM')
     user_agent_suffix = f'/{mcp_source}' if mcp_source else ''
 
-    config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}{user_agent_suffix}')
+    config = Config(user_agent_extra=f'awslabs/cloudwatch-appsignals-mcp-server/{__version__}{user_agent_suffix}')
 
     # Get endpoint URLs from environment variables
     appsignals_endpoint = os.environ.get('MCP_APPSIGNALS_ENDPOINT')
