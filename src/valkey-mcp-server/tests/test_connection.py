@@ -10,7 +10,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
 
     def setUp(self):
         """Reset the singleton instance before each test."""
-        ValkeyConnectionManager._instance = None
+        ValkeyConnectionManager.reset()
 
     def test_basic_connection(self):
         """Test basic connection creation without cluster mode or SSL."""
