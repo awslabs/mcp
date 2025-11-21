@@ -98,7 +98,7 @@ mcp = FastMCP(
     Get recommendations for DSQL best practices.
     """,
     dependencies=[
-        "loguru",
+        'loguru',
     ],
 )
 
@@ -131,7 +131,7 @@ also be supported, as this is a point in time snapshot.
 """,
 )
 async def readonly_query(
-    sql: Annotated[str, Field(description="The SQL query to run")], ctx: Context
+    sql: Annotated[str, Field(description='The SQL query to run')], ctx: Context
 ) -> List[dict]:
     """Runs a read-only SQL query.
 
@@ -143,7 +143,7 @@ async def readonly_query(
         List of rows. Each row is a dictionary with column name as the key and column value as the value.
         Empty list if the SQL execution did not return any results
     """
-    logger.info(f"query: {sql}")
+    logger.info(f'query: {sql}')
 
     if not sql:
         await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
@@ -154,7 +154,7 @@ async def readonly_query(
     mutating_matches = detect_mutating_keywords(sql)
     if mutating_matches:
         logger.warning(
-            f"readonly_query rejected due to mutating keywords: {mutating_matches}, SQL: {sql}"
+            f'readonly_query rejected due to mutating keywords: {mutating_matches}, SQL: {sql}'
         )
         await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
         raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
@@ -163,16 +163,14 @@ async def readonly_query(
     injection_issues = check_sql_injection_risk(sql)
     if injection_issues:
         logger.warning(
-            f"readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}"
+            f'readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}'
         )
-        await ctx.error(f"{ERROR_QUERY_INJECTION_RISK}: {injection_issues}")
-        raise Exception(f"{ERROR_QUERY_INJECTION_RISK}: {injection_issues}")
+        await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+        raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
 
     # Check for transaction bypass attempts (the main vulnerability)
     if detect_transaction_bypass_attempt(sql):
-        logger.warning(
-            f"readonly_query rejected due to transaction bypass attempt, SQL: {sql}"
-        )
+        logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
         raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
@@ -182,7 +180,7 @@ async def readonly_query(
         try:
             await execute_query(ctx, conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
         except Exception as e:
-            logger.error(f"{ERROR_BEGIN_READ_ONLY_TRANSACTION}: {str(e)}")
+            logger.error(f'{ERROR_BEGIN_READ_ONLY_TRANSACTION}: {str(e)}')
             await ctx.error(INTERNAL_ERROR)
             raise Exception(INTERNAL_ERROR)
 
@@ -199,15 +197,15 @@ async def readonly_query(
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as e:
-                logger.error(f"{ERROR_ROLLBACK_TRANSACTION}: {str(e)}")
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
 
     except Exception as e:
-        await ctx.error(f"{ERROR_READONLY_QUERY}: {str(e)}")
-        raise Exception(f"{ERROR_READONLY_QUERY}: {str(e)}")
+        await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
+        raise Exception(f'{ERROR_READONLY_QUERY}: {str(e)}')
 
 
 @mcp.tool(
-    name="transact",
+    name='transact',
     description="""Write or modify data using SQL, in a transaction against the configured Aurora DSQL cluster.
 
 Aurora DSQL is a distributed SQL database with Postgres compatibility. This tool will automatically
@@ -225,9 +223,7 @@ be viewed by running `SELECT * FROM sys.jobs`.
 async def transact(
     sql_list: Annotated[
         List[str],
-        Field(
-            description="List of one or more SQL statements to execute in a transaction"
-        ),
+        Field(description='List of one or more SQL statements to execute in a transaction'),
     ],
     ctx: Context,
 ) -> List[dict]:
@@ -241,7 +237,7 @@ async def transact(
         List of rows. Each row is a dictionary with column name as the key and column value as
         the value. Empty list if the execution of the last SQL did not return any results
     """
-    logger.info(f"transact: {sql_list}")
+    logger.info(f'transact: {sql_list}')
 
     if read_only:
         await ctx.error(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
@@ -257,9 +253,9 @@ async def transact(
         try:
             await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
         except Exception as e:
-            logger.error(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
-            await ctx.error(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
-            raise Exception(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
+            logger.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            await ctx.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            raise Exception(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
 
         try:
             rows = []
@@ -271,17 +267,17 @@ async def transact(
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as re:
-                logger.error(f"{ERROR_ROLLBACK_TRANSACTION}: {str(re)}")
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             raise e
 
     except Exception as e:
-        await ctx.error(f"{ERROR_TRANSACT}: {str(e)}")
-        raise Exception(f"{ERROR_TRANSACT}: {str(e)}")
+        await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
+        raise Exception(f'{ERROR_TRANSACT}: {str(e)}')
 
 
-@mcp.tool(name="get_schema", description="Get the schema of the given table")
+@mcp.tool(name='get_schema', description='Get the schema of the given table')
 async def get_schema(
-    table_name: Annotated[str, Field(description="name of the table")], ctx: Context
+    table_name: Annotated[str, Field(description='name of the table')], ctx: Context
 ) -> List[dict]:
     """Returns the schema of a table.
 
@@ -293,7 +289,7 @@ async def get_schema(
         List of rows. Each row contains column name and type information for a column in the
         table provided in a dictionary form. Empty list is returned if table is not found.
     """
-    logger.info(f"get_schema: {table_name}")
+    logger.info(f'get_schema: {table_name}')
 
     if not table_name:
         await ctx.error(ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA)
@@ -303,8 +299,8 @@ async def get_schema(
         conn = await get_connection(ctx)
         return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
-        await ctx.error(f"{ERROR_GET_SCHEMA}: {str(e)}")
-        raise Exception(f"{ERROR_GET_SCHEMA}: {str(e)}")
+        await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
+        raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
 
 
 @mcp.tool(
@@ -453,14 +449,10 @@ class NoOpCtx:
 async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
-    if database_user == "admin":
-        return dsql_client.generate_db_connect_admin_auth_token(  # pyright: ignore[reportOptionalMemberAccess]
-            cluster_endpoint, region
-        )
+    if database_user == 'admin':
+        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
     else:
-        return dsql_client.generate_db_connect_auth_token(  # pyright: ignore[reportOptionalMemberAccess]
-            cluster_endpoint, region
-        )
+        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
 
 
 async def get_connection(ctx):  # noqa: D103
@@ -483,42 +475,35 @@ async def get_connection(ctx):  # noqa: D103
     password_token = await get_password_token()
 
     conn_params = {
-        "dbname": DSQL_DB_NAME,
-        "user": database_user,
-        "host": cluster_endpoint,
-        "port": DSQL_DB_PORT,
-        "password": password_token,
-        "application_name": DSQL_MCP_SERVER_APPLICATION_NAME,
-        "sslmode": "require",
+        'dbname': DSQL_DB_NAME,
+        'user': database_user,
+        'host': cluster_endpoint,
+        'port': DSQL_DB_PORT,
+        'password': password_token,
+        'application_name': DSQL_MCP_SERVER_APPLICATION_NAME,
+        'sslmode': 'require',
     }
 
-    logger.info(
-        f"Creating new connection to {cluster_endpoint} as user {database_user}"
-    )
+    logger.info(f'Creating new connection to {cluster_endpoint} as user {database_user}')
     try:
         persistent_connection = await psycopg.AsyncConnection.connect(
             **conn_params, autocommit=True
         )
         return persistent_connection
     except Exception as e:
-        logger.error(f"{ERROR_CREATE_CONNECTION} : {e}")
-        await ctx.error(f"{ERROR_CREATE_CONNECTION} : {e}")
+        logger.error(f'{ERROR_CREATE_CONNECTION} : {e}')
+        await ctx.error(f'{ERROR_CREATE_CONNECTION} : {e}')
         raise e
 
 
-async def execute_query(
-    ctx, conn_to_use, query: str, params=None
-) -> List[dict]:
-    """Execute a SQL query and return results as a list of dictionaries."""
+async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]:  # noqa: D103
     if conn_to_use is None:
         conn = await get_connection(ctx)
     else:
         conn = conn_to_use
 
     try:
-        async with conn.cursor(
-            row_factory=psycopg.rows.dict_row
-        ) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
             await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
                 return []
@@ -526,7 +511,7 @@ async def execute_query(
                 return await cur.fetchall()
     except (psycopg.OperationalError, psycopg.InterfaceError) as e:
         # Connection issue - reconnect and retry
-        logger.warning(f"Connection error, reconnecting: {e}")
+        logger.warning(f'Connection error, reconnecting: {e}')
         global persistent_connection
         try:
             if persistent_connection:
@@ -537,40 +522,36 @@ async def execute_query(
 
         # Get a fresh connection and retry
         conn = await get_connection(ctx)
-        async with conn.cursor(
-            row_factory=psycopg.rows.dict_row
-        ) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
             await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
                 return []
             else:
                 return await cur.fetchall()
     except Exception as e:
-        logger.error(f"{ERROR_EXECUTE_QUERY} : {e}")
-        await ctx.error(f"{ERROR_EXECUTE_QUERY} : {e}")
+        logger.error(f'{ERROR_EXECUTE_QUERY} : {e}')
+        await ctx.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         raise e
 
 
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(
-        description="An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
+        description='An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL'
     )
     parser.add_argument(
-        "--cluster_endpoint",
-        required=True,
-        help="Endpoint for your Aurora DSQL cluster",
+        '--cluster_endpoint', required=True, help='Endpoint for your Aurora DSQL cluster'
     )
-    parser.add_argument("--database_user", required=True, help="Database username")
-    parser.add_argument("--region", required=True)
+    parser.add_argument('--database_user', required=True, help='Database username')
+    parser.add_argument('--region', required=True)
     parser.add_argument(
-        "--allow-writes",
-        action="store_true",
-        help="Allow use of tools that may perform write operations such as transact",
+        '--allow-writes',
+        action='store_true',
+        help='Allow use of tools that may perform write operations such as transact',
     )
     parser.add_argument(
-        "--profile",
-        help="AWS profile to use for credentials",
+        '--profile',
+        help='AWS profile to use for credentials',
     )
     parser.add_argument(
         "--knowledge-server",
@@ -639,33 +620,31 @@ def main():
         region,
         database_user,
         args.allow_writes,
-        aws_profile or "default",
+        aws_profile or 'default',
         knowledge_server,
         knowledge_timeout,
     )
 
     global dsql_client
-    session = (
-        boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-    )
-    dsql_client = session.client("dsql", region_name=region)
+    session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+    dsql_client = session.client('dsql', region_name=region)
 
     try:
         # Validate connection by trying to execute a simple query directly
         # Connection errors will be handled in execute_query
         ctx = NoOpCtx()
-        asyncio.run(execute_query(ctx, None, "SELECT 1"))
+        asyncio.run(execute_query(ctx, None, 'SELECT 1'))
     except Exception as e:
         logger.error(
-            f"Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}"
+            f'Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}'
         )
         sys.exit(1)
 
-    logger.success("Successfully validated connection to Aurora DSQL Cluster")
+    logger.success('Successfully validated connection to Aurora DSQL Cluster')
 
-    logger.info("Starting Aurora DSQL MCP server")
+    logger.info('Starting Aurora DSQL MCP server')
     mcp.run()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
