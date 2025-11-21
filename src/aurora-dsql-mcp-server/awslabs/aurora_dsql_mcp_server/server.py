@@ -68,11 +68,11 @@ read_only = False
 dsql_client = None
 persistent_connection = None
 aws_profile = None
-knowledge_server = "https://dsql-knowledge-mcp.global.api.aws"
+knowledge_server = 'https://dsql-knowledge-mcp.global.api.aws'
 knowledge_timeout = 30.0
 
 mcp = FastMCP(
-    "awslabs-aurora-dsql-mcp-server",
+    'awslabs-aurora-dsql-mcp-server',
     instructions="""
     # Aurora DSQL MCP server.
     Provides tools to execute SQL queries on Aurora DSQL cluster.
@@ -104,7 +104,7 @@ mcp = FastMCP(
 
 
 @mcp.tool(
-    name="readonly_query",
+    name='readonly_query',
     description="""Run a read-only SQL query against the configured Aurora DSQL cluster.
 
 Aurora DSQL is distributed SQL database with Postgres compatibility. The following table
@@ -304,14 +304,12 @@ async def get_schema(
 
 
 @mcp.tool(
-    name="dsql_search_documentation",
-    description="Search Aurora DSQL documentation",
+    name='dsql_search_documentation',
+    description='Search Aurora DSQL documentation',
 )
 async def dsql_search_documentation(
-    search_phrase: Annotated[str, Field(description="Search phrase to use")],
-    limit: Annotated[
-        int | None, Field(description="Maximum number of results to return")
-    ] = None,
+    search_phrase: Annotated[str, Field(description='Search phrase to use')],
+    limit: Annotated[int | None, Field(description='Maximum number of results to return')] = None,
     ctx: Context | None = None,
 ) -> dict:
     """Search Aurora DSQL documentation.
@@ -324,23 +322,21 @@ async def dsql_search_documentation(
     Returns:
         Search results from the remote knowledge server
     """
-    params: dict[str, Any] = {"search_phrase": search_phrase}
+    params: dict[str, Any] = {'search_phrase': search_phrase}
     if limit is not None:
-        params["limit"] = limit
-    return await _proxy_to_knowledge_server("dsql_search_documentation", params, ctx)
+        params['limit'] = limit
+    return await _proxy_to_knowledge_server('dsql_search_documentation', params, ctx)
 
 
 @mcp.tool(
-    name="dsql_read_documentation",
-    description="Read specific DSQL documentation pages",
+    name='dsql_read_documentation',
+    description='Read specific DSQL documentation pages',
 )
 async def dsql_read_documentation(
-    url: Annotated[str, Field(description="Specific url to read")],
-    start_index: Annotated[
-        int | None, Field(description="Starting character index")
-    ] = None,
+    url: Annotated[str, Field(description='Specific url to read')],
+    start_index: Annotated[int | None, Field(description='Starting character index')] = None,
     max_length: Annotated[
-        int | None, Field(description="Maximum number of characters to return")
+        int | None, Field(description='Maximum number of characters to return')
     ] = None,
     ctx: Context | None = None,
 ) -> dict:
@@ -355,21 +351,21 @@ async def dsql_read_documentation(
     Returns:
         Documentation content from the remote knowledge server
     """
-    params: dict[str, Any] = {"url": url}
+    params: dict[str, Any] = {'url': url}
     if start_index is not None:
-        params["start_index"] = start_index
+        params['start_index'] = start_index
     if max_length is not None:
-        params["max_length"] = max_length
-    return await _proxy_to_knowledge_server("dsql_read_documentation", params, ctx)
+        params['max_length'] = max_length
+    return await _proxy_to_knowledge_server('dsql_read_documentation', params, ctx)
 
 
 @mcp.tool(
-    name="dsql_recommend",
-    description="Get recommendations for DSQL best practices",
+    name='dsql_recommend',
+    description='Get recommendations for DSQL best practices',
 )
 async def dsql_recommend(
     url: Annotated[
-        str, Field(description="URL of the documentation page to get recommendations for")
+        str, Field(description='URL of the documentation page to get recommendations for')
     ],
     ctx: Context,
 ) -> dict:
@@ -382,10 +378,12 @@ async def dsql_recommend(
     Returns:
         Recommendations from the remote knowledge server
     """
-    return await _proxy_to_knowledge_server("dsql_recommend", {"url": url}, ctx)
+    return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
 
 
-async def _proxy_to_knowledge_server(method: str, params: dict[str, Any], ctx: Context | None) -> dict:
+async def _proxy_to_knowledge_server(
+    method: str, params: dict[str, Any], ctx: Context | None
+) -> dict:
     """Proxy a request to the remote knowledge MCP server.
 
     Args:
@@ -399,16 +397,16 @@ async def _proxy_to_knowledge_server(method: str, params: dict[str, Any], ctx: C
     Raises:
         Exception: If the remote server is unavailable or returns an error
     """
-    logger.info(f"Proxying to knowledge server: {method} with params: {params}")
+    logger.info(f'Proxying to knowledge server: {method} with params: {params}')
 
     payload = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": method,
-            "arguments": params,
+        'jsonrpc': '2.0',
+        'method': 'tools/call',
+        'params': {
+            'name': method,
+            'arguments': params,
         },
-        "id": 1,
+        'id': 1,
     }
 
     try:
@@ -417,19 +415,17 @@ async def _proxy_to_knowledge_server(method: str, params: dict[str, Any], ctx: C
             response.raise_for_status()
             result = response.json()
 
-            if "error" in result:
-                error_msg = result["error"].get(
-                    "message", "Unknown error from knowledge server"
-                )
+            if 'error' in result:
+                error_msg = result['error'].get('message', 'Unknown error from knowledge server')
                 if ctx:
                     await ctx.error(error_msg)
                 raise Exception(error_msg)
 
-            return result.get("result", {})
+            return result.get('result', {})
 
     except httpx.HTTPError as e:
-        error_msg = "The DSQL knowledge server is currently unavailable. Please try again later."
-        logger.error(f"Knowledge server error: {e}")
+        error_msg = 'The DSQL knowledge server is currently unavailable. Please try again later.'
+        logger.error(f'Knowledge server error: {e}')
         if ctx:
             await ctx.error(error_msg)
         raise Exception(error_msg)
@@ -554,42 +550,42 @@ def main():
         help='AWS profile to use for credentials',
     )
     parser.add_argument(
-        "--knowledge-server",
-        default="https://dsql-knowledge-mcp.global.api.aws",
-        help="Remote MCP server endpoint for DSQL knowledge tools",
+        '--knowledge-server',
+        default='https://dsql-knowledge-mcp.global.api.aws',
+        help='Remote MCP server endpoint for DSQL knowledge tools',
     )
     parser.add_argument(
-        "--knowledge-timeout",
+        '--knowledge-timeout',
         type=float,
         default=30.0,
-        help="Timeout in seconds for knowledge server requests (default: 30.0)",
+        help='Timeout in seconds for knowledge server requests (default: 30.0)',
     )
     args = parser.parse_args()
 
     # Validate knowledge server URL
     try:
         parsed_url = urlparse(args.knowledge_server)
-        if parsed_url.scheme != "https":
+        if parsed_url.scheme != 'https':
             logger.error(
-                f"Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. "
-                f"Example: https://dsql-knowledge-mcp.global.api.aws"
+                f'Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. '
+                f'Example: https://dsql-knowledge-mcp.global.api.aws'
             )
             sys.exit(1)
         if not parsed_url.netloc:
             logger.error(
-                f"Knowledge server URL is malformed. Got: {args.knowledge_server}. "
-                f"Example: https://dsql-knowledge-mcp.global.api.aws"
+                f'Knowledge server URL is malformed. Got: {args.knowledge_server}. '
+                f'Example: https://dsql-knowledge-mcp.global.api.aws'
             )
             sys.exit(1)
     except Exception as e:
-        logger.error(f"Invalid knowledge server URL: {e}")
+        logger.error(f'Invalid knowledge server URL: {e}')
         sys.exit(1)
 
     # Validate timeout value
     if args.knowledge_timeout <= 0:
         logger.error(
-            f"Knowledge timeout must be positive. Got: {args.knowledge_timeout}. "
-            f"Example: --knowledge-timeout 30.0"
+            f'Knowledge timeout must be positive. Got: {args.knowledge_timeout}. '
+            f'Example: --knowledge-timeout 30.0'
         )
         sys.exit(1)
 
@@ -615,7 +611,7 @@ def main():
     knowledge_timeout = args.knowledge_timeout
 
     logger.info(
-        "Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}",
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
         cluster_endpoint,
         region,
         database_user,
