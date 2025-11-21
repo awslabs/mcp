@@ -188,3 +188,61 @@ class TestMain:
             main()
 
         assert exc_info.value.code == 1
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+            '--knowledge-server',
+            'https://custom-server.example.com',
+            '--knowledge-timeout',
+            '60.0',
+        ],
+    )
+    def test_main_with_custom_knowledge_parameters(self, mocker):
+        """Test that main accepts custom knowledge server and timeout."""
+        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {'column': 1}
+
+        mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
+
+        main()
+
+        assert awslabs.aurora_dsql_mcp_server.server.knowledge_server == 'https://custom-server.example.com'
+        assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 60.0
+
+        mock_execute_query.assert_called_once()
+        mock_mcp_run.assert_called_once()
+
+    @patch(
+        'sys.argv',
+        [
+            'awslabs.aurora-dsql-mcp-server',
+            '--cluster_endpoint',
+            'test_ce',
+            '--database_user',
+            'test_user',
+            '--region',
+            'us-west-2',
+        ],
+    )
+    def test_main_uses_default_knowledge_parameters(self, mocker):
+        """Test that main uses default knowledge server and timeout when not specified."""
+        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {'column': 1}
+
+        mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
+
+        main()
+
+        assert awslabs.aurora_dsql_mcp_server.server.knowledge_server == 'https://dsql-knowledge-mcp.global.api.aws'
+        assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 30.0
+
+        mock_execute_query.assert_called_once()
+        mock_mcp_run.assert_called_once()
