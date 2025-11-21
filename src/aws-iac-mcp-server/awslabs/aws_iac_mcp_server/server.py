@@ -20,7 +20,13 @@ from .compliance_checker import check_compliance, initialize_guard_rules
 # Add parent directory to path for imports
 from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
-from .tools.cdk_tools import search_cdk_documentation_tool
+from .tools.cdk_tools import (
+    SupportedLanguages,
+    read_cdk_documentation_page_tool,
+    search_cdk_documentation_tool,
+    search_cdk_samples_and_constructs_tool,
+    search_cloudformation_documentation_tool,
+)
 from .validator import validate_template
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
@@ -266,6 +272,189 @@ async def search_cdk_documentation(query: str) -> str:
     List of search results with URLs, titles, and context snippets
     """
     result = await search_cdk_documentation_tool(query)
+
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
+
+
+@mcp.tool()
+async def read_cdk_documentation_page(
+    url: str,
+    starting_index: int = 0,
+) -> str:
+    """Fetch and convert an AWS CDK documentation page to markdown format.
+
+    ## Usage
+
+    This tool retrieves the complete content of a specific CDK documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
+
+    ## When to Use
+
+    - Read complete documentation pages rather than just excerpts
+    - Get the full content of a specific document from search results
+    - Access detailed API documentation for specific constructs
+    - Read module READMEs and interface documentation
+
+    ## Supported Document Types
+
+    - Module READMEs: "aws-cdk-lib/aws_lambda/README.md"
+    - Interface documentation: "aws-cdk-lib/aws_s3/Bucket.json"
+    - API reference pages
+    - Guide and tutorial pages
+
+    ## Pagination
+
+    For long documents, use the starting_index parameter to read content in chunks. Always use the same URL for all pagination calls to maintain consistency.
+
+    ## Result Interpretation
+
+    Returns JSON with:
+    - knowledge_response: Details of the response
+      - error: null if successful, error message if failed
+      - results: Array with single result containing:
+        - rank: Always 1 for document reads
+        - title: Document title or filename
+        - url: Source URL of the document
+        - context: Full or paginated document content
+    - next_step_guidance: If present, suggested next actions to take for answering user query
+
+    For pagination, use starting_index from previous response to continue reading.
+
+    Args:
+        url: URL from search results to read the full page content
+        starting_index: Starting character index for pagination (default: 0)
+
+    Returns:
+        List of search results with URLs, titles, and context snippets
+    """
+    result = await read_cdk_documentation_page_tool(url, starting_index)
+
+    # Convert dataclass to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
+
+
+@mcp.tool()
+async def search_cloudformation_documentation(query: str) -> str:
+    """Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
+
+    ## Usage
+
+    This tool searches AWS CloudFormation documentation to find information about resource types, properties, syntax, and implementation patterns for CloudFormation templates.
+
+    ## When to Use
+
+    - Write CloudFormation templates or modify resources
+    - Find specific information about CloudFormation resource types and properties
+    - Get implementation guidance from official documentation
+    - Look up syntax and examples for CloudFormation patterns
+    - Research best practices and architectural guidelines
+    - Find answers to specific technical questions about CloudFormation
+    - Validate infrastructure templates against security best practices
+
+    ## Search Tips
+
+    - Use specific resource types: "AWS::Lambda::Function", "AWS::S3::Bucket"
+    - Search for properties: "S3 bucket encryption", "Lambda environment variables"
+    - Include service names: "DynamoDB table properties", "API Gateway configuration"
+    - Use boolean operators: "CloudFormation AND parameters", "template OR stack"
+    - Search for specific features: "cross-stack references", "nested stacks"
+    - Include security terms: "IAM policies", "encryption at rest"
+
+    ## Result Interpretation
+
+    Returns JSON with:
+    - knowledge_response: Details of the response
+      - error: null if successful, error message if failed
+      - results: Array with single result containing:
+        - rank: Always 1 for document reads
+        - title: Document title or filename
+        - url: Source URL of the document
+        - context: Full or paginated document content
+    - next_step_guidance: If present, suggested next actions to take for answering user query
+
+
+    Use rank to prioritize results. Check error field first - if not null, the search failed.
+
+    Args:
+        query: Search query for CloudFormation documentation. Examples: "AWS::Lambda::Function", "S3 bucket encryption", "DynamoDB table properties"
+
+    Returns:
+        Documentation results with titles, URLs, and relevant excerpts from official CloudFormation docs.
+    """
+    result = await search_cloudformation_documentation_tool(query)
+
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
+
+
+@mcp.tool()
+async def search_cdk_samples_and_constructs(
+    query: str,
+    language: SupportedLanguages = 'typescript',
+) -> str:
+    """Searches CDK code samples, examples, constructs, and patterns documentation.
+
+    ## Usage
+
+    This tool searches across CDK code samples, community constructs, and implementation patterns to find working examples and reusable components for your CDK projects.
+
+    ## When to Use
+
+    - Find working CDK code examples and samples
+    - Look up implementation patterns for specific use cases
+    - Get sample code for AWS service integrations
+    - Research complete CDK application examples
+    - Find L3 constructs created by the community
+    - Discover construct documentation and usage patterns
+    - Find architectural patterns and best practices
+
+    ## Search Tips
+
+    - Use exact phrases for specific patterns: "serverless API", "microservices architecture"
+    - Combine services with boolean operators: "Lambda AND API Gateway", "S3 OR DynamoDB"
+    - Exclude unwanted results: "TypeScript NOT Python", "L2 NOT L1"
+    - Use wildcards for broader searches: "example*", "*pattern", "*construct"
+    - Search for specific constructs: "aws-s3.Bucket", "aws-lambda.Function"
+    - Include language preferences: "Python examples", "TypeScript patterns"
+    - Target construct levels: "L3 constructs", "higher-level constructs"
+
+    ## Language Filtering
+
+    Specify your preferred programming language to get relevant examples:
+    - typescript (default)
+    - python
+    - java
+    - csharp
+
+    ## Result Interpretation
+
+    Returns JSON with:
+    - knowledge_response: Details of the response
+      - error: null if successful, error message if failed
+      - results: Array with single result containing:
+        - rank: Always 1 for document reads
+        - title: Document title or filename
+        - url: Source URL of the document
+        - context: Full or paginated document content
+    - next_step_guidance: If present, suggested next actions to take for answering user query
+
+
+    Use rank to prioritize results. Check error field first - if not null, the search failed.
+
+    Args:
+        query: Search query for CDK samples and constructs
+        language: Programming language filter (default: "typescript")
+
+    Returns:
+        List of search results with URLs, titles, and context snippets
+    """
+    result = await search_cdk_samples_and_constructs_tool(query, language)
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
