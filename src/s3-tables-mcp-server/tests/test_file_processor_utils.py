@@ -910,7 +910,6 @@ async def test_convert_temporal_fields_fallback_with_individual_column_cast():
     from awslabs.s3_tables_mcp_server.file_processor.utils import (
         convert_temporal_fields_in_table,
     )
-    import pyarrow.compute as pc
 
     # Create a real PyArrow table with mixed types
     real_table = pa.table(
