@@ -20,7 +20,9 @@ from .compliance_checker import check_compliance, initialize_guard_rules
 # Add parent directory to path for imports
 from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
+from .tools.cdk_tools import search_cdk_documentation_tool
 from .validator import validate_template
+from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
@@ -204,6 +206,71 @@ def troubleshoot_deployment(
 
     response_text = json.dumps(result, indent=2, default=str)
     return sanitize_tool_response(response_text)
+
+
+@mcp.tool()
+async def search_cdk_documentation(query: str) -> str:
+    """Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
+
+    ## Usage
+
+    This tool searches across multiple CDK documentation sources to find relevant information about CDK constructs, APIs, and implementation patterns. Always use this tool when you need to write or modify CDK code.
+
+    ## When to Use
+
+    - Write CDK code or modify any construct
+    - Find specific information about CDK constructs and APIs
+    - Get implementation guidance from official documentation
+    - Look up syntax and examples for CDK patterns
+    - Research best practices and architectural guidelines
+    - Find answers to specific technical questions about CDK
+    - Validate infrastructure code against security best practices
+
+    ## Documentation Sources
+
+    This tool searches across:
+    - AWS CDK API Reference
+    - AWS CDK Best Practices Guide
+    - AWS CDK Code Samples & Patterns
+    - CDK-NAG validation rules and security checks
+
+    ## Search Tips
+
+    - Use specific construct names (e.g., "aws-lambda.Function", "aws-s3.Bucket")
+    - Include service names for better targeting (e.g., "S3 AND encryption")
+    - Use boolean operators: "DynamoDB AND table", "Lambda OR Function"
+    - Search for specific properties: "bucket encryption", "lambda environment variables"
+    - Include version-specific terms when needed: "CDK v2", "aws-cdk-lib"
+
+    ## Result Interpretation
+
+    Returns JSON with:
+    - knowledge_response: Details of the response
+        - error: null if successful, error message if failed
+        - results: Array with single result containing:
+            - rank: Always 1 for document reads
+            - title: Document title or filename
+            - url: Source URL of the document
+            - context: Full or paginated document content
+    - next_step_guidance: If present, suggested next actions to take for answering user query
+
+
+    Use rank to prioritize results. Check error field first - if not null, the search failed.
+
+    If a content snippet is relevant to your query but doesn't show all necessary information, use `read_cdk_documentation_page` with the URL to get the complete content.
+
+    Args:
+        query: Search query for CDK documentation (required)
+
+    Returns:
+    List of search results with URLs, titles, and context snippets
+    """
+    result = await search_cdk_documentation_tool(query)
+
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
 
 
 @mcp.resource('cfn://context/template-examples-and-best-practices')
