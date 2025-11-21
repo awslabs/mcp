@@ -270,7 +270,7 @@ async def search_cdk_documentation(query: str) -> str:
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
 
-    return sanitize_tool_response(json.dumps(response_dict, indent=2))
+    return sanitize_tool_response(json.dumps(response_dict))
 
 
 @mcp.resource('cfn://context/template-examples-and-best-practices')
