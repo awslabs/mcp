@@ -1,12 +1,12 @@
-# Task: Enable AWS Application Signals for Node.js Applications on Amazon EKS
+# Task: Enable AWS Application Signals for .NET Applications on Amazon EKS
 
-This guide shows how to modify the existing CDK and Terraform infrastructure code to enable AWS Application Signals for Node.js applications running on Amazon EKS.
+This guide shows how to modify the existing CDK and Terraform infrastructure code to enable AWS Application Signals for .NET applications running on Amazon EKS.
 
 ## Prerequisites
 
 - Application Signals enabled in your AWS account (see [Enable Application Signals in your account](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html))
 - Existing EKS cluster deployed using the provided CDK or Terraform code
-- Node.js application containerized and pushed to ECR
+- .NET application containerized and pushed to ECR
 - AWS CLI configured with appropriate permissions
 
 ## Critical Requirements
@@ -47,16 +47,16 @@ new eks.CfnAddon(this, 'CloudWatchAddon', {
 });
 ```
 
-### 2. Add Node.js Instrumentation Annotation
+### 2. Add .NET Instrumentation Annotation
 
-Update your deployment template metadata to include the Node.js instrumentation annotation:
+Update your deployment template metadata to include the .NET instrumentation annotation:
 
 ```typescript
 template: {
   metadata: {
     labels: { app: config.appName },
     annotations: {
-      'instrumentation.opentelemetry.io/inject-nodejs': 'true'
+      'instrumentation.opentelemetry.io/inject-dotnet': 'true'
     }
   },
   // ... rest of your template configuration
@@ -106,9 +106,9 @@ resource "aws_eks_addon" "cloudwatch_observability" {
 }
 ```
 
-### 3. Add Node.js Instrumentation Annotation
+### 3. Add .NET Instrumentation Annotation
 
-Update your Kubernetes deployment template to include the Node.js instrumentation annotation:
+Update your Kubernetes deployment template to include the .NET instrumentation annotation:
 
 ```hcl
 template {
@@ -117,7 +117,7 @@ template {
       app = var.app_name
     }
     annotations = {
-      "instrumentation.opentelemetry.io/inject-nodejs" = "true"
+      "instrumentation.opentelemetry.io/inject-dotnet" = "true"
     }
   }
   # ... rest of your template configuration
@@ -126,20 +126,20 @@ template {
 
 ## Important Notes
 
-- The Node.js instrumentation annotation will cause pods to restart automatically
-- For Node.js applications with ESM module format, see [special configuration requirements](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-EKS.html#EKS-NodeJs-ESM) in the AWS documentation
+- The .NET instrumentation annotation will cause pods to restart automatically
+- .NET applications require .NET 6.0 or later for Application Signals support
 - It may take a few minutes for data to appear in the Application Signals console after deployment
 
 ## Completion
 
 **Tell the user:**
 
-"I've completed the Application Signals enablement for your Node.js application. Here's what I modified:
+"I've completed the Application Signals enablement for your .NET application. Here's what I modified:
 
 **Files Changed:**
 - IAM role: Added CloudWatchAgentServerPolicy
 - CloudWatch Observability EKS add-on: Added to the EKS Cluster
-- Kubernetes Deployment: Instrumentation annotation added with inject-nodejs set to true
+- Kubernetes Deployment: Instrumentation annotation added with inject-dotnet set to true
 
 **Next Steps:**
 1. Ensure that [Application Signals is enabled in AWS account](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html).

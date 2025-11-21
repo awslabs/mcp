@@ -1,11 +1,11 @@
-# Task: Enable AWS Application Signals for Java on ECS
+# Task: Enable AWS Application Signals for .NET on ECS
 
 ## Overview
 This guide provides complete steps to enable AWS Application Signals for ECS Fargate services, distributed tracing, performance monitoring, and service mapping.
 
 ## Prerequisites
 - Services running on ECS both the ec2 and Fargate launch types.
-- Applications using Java language
+- Applications using .NET language
 
 ## Implementation Steps
 
@@ -72,7 +72,7 @@ const cwAgentContainer = taskDefinition.addContainer('ecs-cwagent-{SERVICE_NAME}
 });
 ```
 
-### Step 2: Add AWS Distro of OpenTelemetry Zero-Code Instrumentation to Main Service
+### Step 2: Add AWS Distro for OpenTelemetry Zero-Code Instrumentation to Main Service
 
 #### 2.1 Add Bind Mount Volumes to Task Definition
 ```typescript
@@ -80,7 +80,7 @@ const taskDefinition = new ecs.FargateTaskDefinition(this, '{SERVICE_NAME}TaskDe
   // Existing configuration...
   volumes: [
     {
-      name: "opentelemetry-auto-instrumentation-java"
+      name: "opentelemetry-auto-instrumentation-dotnet"
     }
   ],
 });
@@ -89,11 +89,11 @@ const taskDefinition = new ecs.FargateTaskDefinition(this, '{SERVICE_NAME}TaskDe
 #### 2.2 Add ADOT Auto-instrumentation Init Container
 ```typescript
 const initContainer = taskDefinition.addContainer('init', {
-  image: ecs.ContainerImage.fromRegistry('public.ecr.aws/aws-observability/adot-autoinstrumentation-java:v2.20.0'),
+  image: ecs.ContainerImage.fromRegistry('public.ecr.aws/aws-observability/adot-autoinstrumentation-dotnet:v1.9.2'),
   essential: false,
   memoryReservationMiB: 64,
   cpu: 32,
-  command: ['cp', '-a', '/javaagent.jar', '/otel-auto-instrumentation-java/javaagent.jar'],
+  command: ['cp', '-a', '/autoinstrumentation/.', '/otel-auto-instrumentation-dotnet'],
   logging: ecs.LogDrivers.awsLogs({
     streamPrefix: 'init-{SERVICE_NAME}',
     logGroup: serviceLogGroup,
@@ -102,26 +102,29 @@ const initContainer = taskDefinition.addContainer('init', {
 
 // Add mount point to init container
 initContainer.addMountPoints({
-  sourceVolume: 'opentelemetry-auto-instrumentation-java',
-  containerPath: '/otel-auto-instrumentation-java',
+  sourceVolume: 'opentelemetry-auto-instrumentation-dotnet',
+  containerPath: '/otel-auto-instrumentation-dotnet',
   readOnly: false,
 });
 ```
 
 #### 2.3 Configure Main Application Container OpenTelemetry Environment Variables
 
-##### Java Application Configuration:
+##### .NET Application Configuration:
 ```typescript
 const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
   // Existing configuration...
   environment: {
     // Existing environment variables...
 
-    // ADOT Configuration for Application Signals
+    // ADOT Configuration for Application Signals - .NET
     OTEL_RESOURCE_ATTRIBUTES: 'service.name={SERVICE_NAME}', // SERVICE_NAME is defined by user
     OTEL_METRICS_EXPORTER: 'none',
     OTEL_LOGS_EXPORTER: 'none',
-    JAVA_TOOL_OPTIONS: ' -javaagent:/otel-auto-instrumentation-java/javaagent.jar',
+    DOTNET_STARTUP_HOOKS: '/otel-auto-instrumentation-dotnet/net/OpenTelemetry.AutoInstrumentation.StartupHook.dll',
+    DOTNET_ADDITIONAL_DEPS: '/otel-auto-instrumentation-dotnet/AdditionalDeps',
+    DOTNET_SHARED_STORE: '/otel-auto-instrumentation-dotnet/store',
+    OTEL_DOTNET_AUTO_HOME: '/otel-auto-instrumentation-dotnet',
     OTEL_TRACES_EXPORTER: 'otlp',
     OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
@@ -135,8 +138,8 @@ const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
 ```typescript
 // Add mount point to main application container
 mainContainer.addMountPoints({
-  sourceVolume: 'opentelemetry-auto-instrumentation-java',
-  containerPath: '/otel-auto-instrumentation-java',
+  sourceVolume: 'opentelemetry-auto-instrumentation-dotnet',
+  containerPath: '/otel-auto-instrumentation-dotnet',
   readOnly: false,
 });
 ```
@@ -159,13 +162,13 @@ mainContainer.addContainerDependencies({
 
 **Tell the user:**
 
-"I've completed the Application Signals enablement for your application. Here's what I modified:
+"I've completed the Application Signals enablement for your .NET application. Here's what I modified:
 
 **Files Changed:**
 - IAM role: Added CloudWatchAgentServerPolicy
 - ECS container: Installed and configured CloudWatch Agent as sidecar
 - ADOT SDK container: Mounted ADOT SDK dependencies into Application container
-- Applicaiton container: Enabled zero-code instrumentation for Application
+- Application container: Enabled zero-code instrumentation for .NET Application
 
 **Next Steps:**
 1. Ensure that [Application Signals is enabled in AWS account](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html).
