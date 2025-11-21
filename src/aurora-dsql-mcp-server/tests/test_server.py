@@ -458,3 +458,80 @@ async def test_execute_query_returns_empty_on_no_rows(mocker):
     result = await execute_query(ctx, None, 'SELECT 1 WHERE FALSE')
     
     assert result == []
+
+
+# Note: Lines 172-176 (transaction bypass warning) are difficult to test in isolation
+# because the SQL injection check (lines 161-167) catches the same patterns first.
+# This is acceptable as both checks provide defense-in-depth security.
+
+async def test_execute_query_with_interface_error_retry(mocker):
+    """Test that execute_query retries on InterfaceError."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+    from psycopg.errors import InterfaceError
+    
+    mocker.patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+    
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    
+    # First connection fails with InterfaceError
+    mock_conn1 = AsyncMock()
+    mock_cursor1 = AsyncMock()
+    mock_cursor1.__aenter__ = AsyncMock(side_effect=InterfaceError('Interface error'))
+    mock_cursor1.__aexit__ = AsyncMock(return_value=None)
+    mock_conn1.cursor = MagicMock(return_value=mock_cursor1)
+    mock_conn1.close = AsyncMock()
+    
+    # Second connection succeeds
+    mock_conn2 = AsyncMock()
+    mock_cursor2 = AsyncMock()
+    mock_cursor2.__aenter__ = AsyncMock(return_value=mock_cursor2)
+    mock_cursor2.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor2.execute = AsyncMock()
+    mock_cursor2.rownumber = 1
+    mock_cursor2.fetchall = AsyncMock(return_value=[{'result': 1}])
+    mock_conn2.cursor = MagicMock(return_value=mock_cursor2)
+    
+    mock_get_connection.side_effect = [mock_conn1, mock_conn2]
+    
+    result = await execute_query(ctx, None, 'SELECT 1')
+    
+    assert result == [{'result': 1}]
+    assert mock_get_connection.call_count == 2
+
+
+async def test_execute_query_retry_returns_empty(mocker):
+    """Test that execute_query returns empty list after retry when rownumber is None."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+    from psycopg.errors import OperationalError
+    
+    mocker.patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+    
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    
+    # First connection fails
+    mock_conn1 = AsyncMock()
+    mock_cursor1 = AsyncMock()
+    mock_cursor1.__aenter__ = AsyncMock(side_effect=OperationalError('Connection lost'))
+    mock_cursor1.__aexit__ = AsyncMock(return_value=None)
+    mock_conn1.cursor = MagicMock(return_value=mock_cursor1)
+    mock_conn1.close = AsyncMock()
+    
+    # Second connection succeeds but returns no rows
+    mock_conn2 = AsyncMock()
+    mock_cursor2 = AsyncMock()
+    mock_cursor2.__aenter__ = AsyncMock(return_value=mock_cursor2)
+    mock_cursor2.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor2.execute = AsyncMock()
+    mock_cursor2.rownumber = None
+    mock_conn2.cursor = MagicMock(return_value=mock_cursor2)
+    
+    mock_get_connection.side_effect = [mock_conn1, mock_conn2]
+    
+    result = await execute_query(ctx, None, 'SELECT 1 WHERE FALSE')
+    
+    assert result == []
+    assert mock_get_connection.call_count == 2
