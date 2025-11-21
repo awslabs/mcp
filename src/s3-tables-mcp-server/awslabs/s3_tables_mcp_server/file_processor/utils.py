@@ -21,7 +21,6 @@ particularly focusing on column name conversion and schema transformation.
 import os
 import pyarrow as pa
 import pyarrow.compute as pc
-from datetime import datetime
 from ..utils import get_s3_client, pyiceberg_load_catalog
 from io import BytesIO
 from pydantic.alias_generators import to_snake
@@ -169,7 +168,7 @@ async def import_file_to_table(
             columns_info = []
             for field in pyarrow_schema:
                 columns_info.append({'name': field.name, 'type': str(field.type)})
-            
+
             return {
                 'status': 'error',
                 'error': f'Table {namespace}.{table_name} does not exist. Please create the table first before importing data.',

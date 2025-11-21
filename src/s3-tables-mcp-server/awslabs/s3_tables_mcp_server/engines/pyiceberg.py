@@ -14,11 +14,11 @@
 
 """Engine for interacting with Iceberg tables using pyiceberg and daft (read-only)."""
 
-from datetime import datetime, time, date
 import pyarrow as pa
 from ..utils import pyiceberg_load_catalog
 from daft import Catalog as DaftCatalog
 from daft.session import Session
+from datetime import datetime
 from pydantic import BaseModel
 
 # pyiceberg and daft imports
@@ -88,13 +88,13 @@ def convert_temporal_fields(rows: list[dict], arrow_schema: pa.Schema) -> list[d
                     if tz_idx > 10:  # Make sure it's not the date separator
                         timestamp_part = value_normalized[:tz_idx]
                         tz_part = value_normalized[tz_idx:]
-                        
+
                         # Truncate fractional seconds to 6 digits
                         if '.' in timestamp_part:
                             parts = timestamp_part.split('.')
                             if len(parts[1]) > 6:
                                 timestamp_part = f'{parts[0]}.{parts[1][:6]}'
-                        
+
                         value_normalized = timestamp_part + tz_part
 
                 # Try different timezone formats
@@ -114,7 +114,7 @@ def convert_temporal_fields(rows: list[dict], arrow_schema: pa.Schema) -> list[d
                         continue
                 else:
                     raise ValueError(
-                        f"Could not parse timestamp with timezone: {value} for field {field_name}"
+                        f'Could not parse timestamp with timezone: {value} for field {field_name}'
                     )
 
             else:

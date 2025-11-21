@@ -301,13 +301,13 @@ async def test_import_file_to_table_success():
     mock_table = MagicMock()
     mock_table.metadata.table_uuid = 'fake-uuid'
     mock_table.append = MagicMock()
-    
+
     # Mock the schema method to return a proper Arrow schema
     mock_iceberg_schema = MagicMock()
     target_schema = pa.schema([pa.field('col_1', pa.string()), pa.field('col_2', pa.string())])
     mock_iceberg_schema.as_arrow.return_value = target_schema
     mock_table.schema.return_value = mock_iceberg_schema
-    
+
     mock_catalog = MagicMock()
     mock_catalog.load_table.side_effect = [mock_table]
     mock_catalog.create_table.side_effect = Exception('Should not be called')  # Should not create
@@ -321,11 +321,11 @@ async def test_import_file_to_table_success():
             # Return a new DummyPyArrowTable with updated schema
             new_schema = pa.schema([pa.field(name, pa.string()) for name in names])
             return DummyPyArrowTable(new_schema, self.num_rows)
-        
+
         def column(self, name):
             # Return a mock column with string data
             return pa.array(['val1', 'val2'], type=pa.string())
-        
+
         def cast(self, target_schema, safe=True):
             # Return self with the target schema
             return DummyPyArrowTable(target_schema, self.num_rows)
@@ -360,7 +360,7 @@ async def test_import_file_to_table_success():
         )
 
     if result['status'] != 'success':
-        print(f"Error: {result.get('error', 'Unknown error')}")
+        print(f'Error: {result.get("error", "Unknown error")}')
     assert result['status'] == 'success'
     assert result['rows_processed'] == 2
     assert result['file_processed'] == 'test.csv'
@@ -667,7 +667,6 @@ async def test_import_file_to_table_general_exception():
     assert 'general failure' in result['error']
 
 
-
 @pytest.mark.asyncio
 async def test_convert_temporal_fields_in_table_date():
     """Test convert_temporal_fields_in_table converts date columns correctly."""
@@ -781,8 +780,6 @@ async def test_convert_temporal_fields_in_table_mixed_columns():
 @pytest.mark.asyncio
 async def test_import_file_to_table_with_temporal_conversion():
     """Test import_file_to_table converts temporal fields when appending to existing table."""
-    from pyiceberg.exceptions import NoSuchTableError
-
     warehouse = 'test-warehouse'
     region = 'us-west-2'
     namespace = 'testns'
