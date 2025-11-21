@@ -38,7 +38,7 @@ Get recommendations for https://docs.aws.amazon.com/aurora-dsql/latest/userguide
 
 ---
 
-## Database Tools (Require DSQL Cluster)
+## Database Tools (Requires DSQL Cluster)
 
 ### 4. get_schema
 **Purpose:** Retrieve table schema information
