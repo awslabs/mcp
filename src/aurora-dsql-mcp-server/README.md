@@ -17,7 +17,7 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 - **transact** - Execute write operations in a transaction (requires `--allow-writes`)
 - **get_schema** - Retrieve table schema information
 
-### Documentation & Recommendations
+### Documentation and Recommendations
 
 - **dsql_search_documentation** - Search Aurora DSQL documentation
   - Parameters: `search_phrase` (required), `limit` (optional)
