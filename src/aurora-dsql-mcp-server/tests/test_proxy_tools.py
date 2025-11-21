@@ -209,23 +209,23 @@ async def test_dsql_recommend(mock_ctx):
 async def test_proxy_uses_configured_server_endpoint(mock_ctx):
     """Test that proxy uses the configured knowledge server endpoint."""
     import awslabs.aurora_dsql_mcp_server.server as server_module
-    
+
     # Set custom server
     original_server = server_module.knowledge_server
     server_module.knowledge_server = 'https://custom.example.com'
-    
+
     try:
         with patch('httpx.AsyncClient') as mock_client:
             mock_response = MagicMock()
             mock_response.json.return_value = {'result': {'data': 'test'}}
             mock_response.raise_for_status = MagicMock()
-            
+
             mock_client.return_value.__aenter__.return_value.post = AsyncMock(
                 return_value=mock_response
             )
-            
+
             await _proxy_to_knowledge_server('test_method', {'param': 'value'}, mock_ctx)
-            
+
             # Verify the custom server was used
             post_call = mock_client.return_value.__aenter__.return_value.post
             post_call.assert_called_once()
