@@ -24,6 +24,13 @@ from fastmcp import FastMCP
 from fastmcp.server.proxy import ProxyClient
 from fastmcp.tools.tool_transform import ToolTransformConfig
 
+# Allowlisted AWS Knowledge tools to expose from the proxy
+DESIRED_KNOWLEDGE_PROXY_TOOLS = [
+    "aws_knowledge_aws___search_documentation",
+    "aws_knowledge_aws___read_documentation",
+    "aws_knowledge_aws___recommend",
+]
+
 # Guidance to append to tool descriptions
 # ruff: noqa: E501
 ECS_TOOL_GUIDANCE = """
@@ -76,21 +83,37 @@ async def apply_tool_transformations(mcp: FastMCP) -> None:
         mcp: The FastMCP server instance to apply transformations to
     """
     logger.info("Applying tool transformations...")
+    await _filter_knowledge_proxy_tools(mcp)
     await _add_ecs_guidance_to_knowledge_tools(mcp)
 
 
-async def _add_ecs_guidance_to_knowledge_tools(mcp: FastMCP) -> None:
-    """Add ECS documentation guidance to specific tools if they exist."""
+async def _filter_knowledge_proxy_tools(mcp: FastMCP) -> None:
+    """Filter AWS Knowledge proxy tools to only expose allowlisted tools."""
     try:
         tools = await mcp.get_tools()
 
-        knowledge_tools = [
-            "aws_knowledge_aws___search_documentation",
-            "aws_knowledge_aws___read_documentation",
-            "aws_knowledge_aws___recommend",
-        ]
+        # Disable tools that are not in the DESIRED_KNOWLEDGE_PROXY_TOOLS allowlist
+        for tool_name in tools.keys():
+            if not tool_name.startswith("aws_knowledge_"):
+                continue
+            if tool_name not in DESIRED_KNOWLEDGE_PROXY_TOOLS:
+                logger.debug(f"Disabling tool {tool_name} from AWS Knowledge proxy")
+                mcp.add_tool_transformation(
+                    tool_name, ToolTransformConfig(name=tool_name, enabled=False)
+                )
 
-        for tool_name in knowledge_tools:
+        logger.debug(f"Filtered AWS Knowledge tools to allowlist: {DESIRED_KNOWLEDGE_PROXY_TOOLS}")
+    except Exception as e:
+        logger.error(f"Error filtering knowledge proxy tools: {e}")
+        raise
+
+
+async def _add_ecs_guidance_to_knowledge_tools(mcp: FastMCP) -> None:
+    """Add ECS documentation guidance to allowlisted knowledge tools."""
+    try:
+        tools = await mcp.get_tools()
+
+        for tool_name in DESIRED_KNOWLEDGE_PROXY_TOOLS:
             if tool_name not in tools:
                 logger.warning(f"Tool {tool_name} not found in MCP tools")
                 continue

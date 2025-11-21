@@ -14,9 +14,24 @@
 
 """Tests for the main function in server.py."""
 
+from unittest.mock import patch
+
 
 class TestMain:
     """Tests for the main function."""
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.mcp')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.cache')
+    def test_main_function(self, mock_cache, mock_mcp):
+        """Test the main function initializes cache and runs the server."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.server import main
+
+        # Act
+        main()
+
+        # Assert
+        mock_cache.ensure_ready.assert_called_once()
+        mock_mcp.run.assert_called_once()
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""

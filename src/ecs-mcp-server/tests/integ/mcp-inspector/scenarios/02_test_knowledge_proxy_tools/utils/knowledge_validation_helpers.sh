@@ -38,7 +38,8 @@ EXPECTED_SEARCH_DESCRIPTION="Search AWS documentation using the official AWS Doc
     This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
 
     New ECS features include:
-    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)"
+    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)"
 
 EXPECTED_READ_DESCRIPTION="Fetch and convert an AWS documentation page to markdown format.
 
@@ -78,7 +79,8 @@ EXPECTED_READ_DESCRIPTION="Fetch and convert an AWS documentation page to markdo
     This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
 
     New ECS features include:
-    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)"
+    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)"
 
 EXPECTED_RECOMMEND_DESCRIPTION="Get content recommendations for an AWS documentation page.
 
@@ -123,7 +125,8 @@ EXPECTED_RECOMMEND_DESCRIPTION="Get content recommendations for an AWS documenta
     This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
 
     New ECS features include:
-    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)"
+    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)"
 
 # Validate that a response is valid JSON
 validate_json() {
