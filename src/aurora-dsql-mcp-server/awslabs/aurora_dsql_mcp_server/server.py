@@ -19,6 +19,7 @@ import asyncio
 import boto3
 import httpx
 import psycopg
+import psycopg.rows
 import sys
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
