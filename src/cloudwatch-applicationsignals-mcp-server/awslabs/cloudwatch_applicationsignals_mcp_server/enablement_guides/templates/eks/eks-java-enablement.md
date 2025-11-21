@@ -163,7 +163,4 @@ After enablement, you can monitor your application's operational health using Ap
 **Troubleshooting**
 If you encounter any other issues, refer to the [CloudWatch APM troubleshooting guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-Troubleshoot.html).
 
-⚠️ **Warning for Django:**
-If your application is built with Django, you must follow [additional steps to prevent startup failures](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-Troubleshoot.html#Application-Signals-troubleshoot-starting).
-
 Let me know if you'd like me to make any adjustments before you deploy!"
