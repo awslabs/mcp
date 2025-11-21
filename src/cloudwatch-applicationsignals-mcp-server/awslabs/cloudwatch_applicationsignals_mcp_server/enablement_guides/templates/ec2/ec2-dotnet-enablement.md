@@ -87,8 +87,7 @@ Determine the operating system to use the correct installation commands.
 - **How to detect:** Look for existing package install commands in UserData (check for `yum`, `dnf`, or `apt`), or look for AMI references containing `al2`, `al2023`, `ubuntu`, etc.
 
 **Windows Server:**
-- Uses PowerShell for installation
-- **How to detect:** Look for PowerShell commands in UserData or Windows AMI references
+- **Not supported yet.** If the customer is using Windows Server-based EC2 instances, inform them that automated enablement is not available yet. Provide them with this link to enable Application Signals manually: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-EC2Main.html
 
 **If unclear:** Look for AMI name/ID in the IaC or ask the user which OS the EC2 instance is running. Do not guess or make up values.
 
@@ -168,17 +167,6 @@ instance.userData.addCommands(
 );
 ```
 
-**For Windows Server instances:**
-
-**CDK TypeScript example:**
-```typescript
-instance.userData.addCommands(
-  'Read-S3Object -BucketName amazoncloudwatch-agent -Key windows/amd64/latest/amazon-cloudwatch-agent.msi -File amazon-cloudwatch-agent.msi',
-  'msiexec /i amazon-cloudwatch-agent.msi /quiet',
-  // ... rest of UserData follows
-);
-```
-
 **Placement:** Add this command early in the UserData script:
 - If system update commands exist (like `dnf update -y`, `apt-get update`), add it immediately after those
 - If no system update commands exist, add it at the very beginning of UserData
@@ -220,32 +208,6 @@ instance.userData.addCommands(
 );
 ```
 
-**For Windows Server instances:**
-
-**CDK TypeScript example:**
-```typescript
-instance.userData.addCommands(
-  '# Create CloudWatch Agent configuration for Application Signals',
-  '@"',
-  '{',
-  '  "traces": {',
-  '    "traces_collected": {',
-  '      "application_signals": {}',
-  '    }',
-  '  },',
-  '  "logs": {',
-  '    "metrics_collected": {',
-  '      "application_signals": {}',
-  '    }',
-  '  }',
-  '}',
-  '"@ | Out-File -FilePath "C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json" -Encoding utf8',
-  '',
-  '# Start CloudWatch Agent with Application Signals configuration',
-  '& "C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1" -a fetch-config -m ec2 -s -c file:"C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json"',
-);
-```
-
 ### Step 6: Install ADOT .NET Auto-Instrumentation
 
 Choose based on deployment type and OS identified in "Before You Start".
@@ -273,24 +235,11 @@ RUN curl -L -O https://github.com/aws-observability/aws-otel-dotnet-instrumentat
     && chmod -R 755 /opt/otel-dotnet-auto
 ```
 
-**For Windows-based containers:**
-
-```dockerfile
-# Download and install ADOT .NET auto-instrumentation
-RUN $module_url = "https://github.com/aws-observability/aws-otel-dotnet-instrumentation/releases/latest/download/AWS.Otel.DotNet.Auto.psm1"; \
-    $download_path = Join-Path $env:temp "AWS.Otel.DotNet.Auto.psm1"; \
-    Invoke-WebRequest -Uri $module_url -OutFile $download_path; \
-    Import-Module $download_path; \
-    Install-OpenTelemetryCore
-```
-
 **Why modify Dockerfile, not UserData:** The ADOT instrumentation must be available inside the container image, not on the EC2 host. UserData commands run on the host and won't affect the containerized application.
 
 #### Option B: Non-Docker Deployment - Modify UserData
 
 For non-Docker deployments, add to UserData AFTER CloudWatch Agent configuration:
-
-**For Linux instances:**
 
 ```typescript
 instance.userData.addCommands(
@@ -302,19 +251,6 @@ instance.userData.addCommands(
   'chmod +x ./aws-otel-dotnet-install.sh',
   'OTEL_DOTNET_AUTO_HOME="/opt/otel-dotnet-auto" ./aws-otel-dotnet-install.sh',
   'chmod -R 755 /opt/otel-dotnet-auto',
-);
-```
-
-**For Windows Server instances:**
-
-```typescript
-instance.userData.addCommands(
-  '# Download and install ADOT .NET auto-instrumentation',
-  '$module_url = "https://github.com/aws-observability/aws-otel-dotnet-instrumentation/releases/latest/download/AWS.Otel.DotNet.Auto.psm1"',
-  '$download_path = Join-Path $env:temp "AWS.Otel.DotNet.Auto.psm1"',
-  'Invoke-WebRequest -Uri $module_url -OutFile $download_path',
-  'Import-Module $download_path',
-  'Install-OpenTelemetryCore',
 );
 ```
 
@@ -351,34 +287,6 @@ instance.userData.addCommands(
 );
 ```
 
-**For Windows-based containers:**
-
-```typescript
-instance.userData.addCommands(
-  '# Run container with Application Signals environment variables',
-  `docker run -d --name {{APP_NAME}} \\`,
-  `  -p {{PORT}}:{{PORT}} \\`,
-  `  -e COR_ENABLE_PROFILING=1 \\`,
-  `  -e COR_PROFILER={918728DD-259F-4A6A-AC2B-B85E1B658318} \\`,
-  `  -e COR_PROFILER_PATH="C:\\Program Files\\OpenTelemetry .NET AutoInstrumentation\\win-x64\\OpenTelemetry.AutoInstrumentation.Native.dll" \\`,
-  `  -e DOTNET_ADDITIONAL_DEPS="C:\\Program Files\\OpenTelemetry .NET AutoInstrumentation\\AdditionalDeps" \\`,
-  `  -e DOTNET_SHARED_STORE="C:\\Program Files\\OpenTelemetry .NET AutoInstrumentation\\store" \\`,
-  `  -e DOTNET_STARTUP_HOOKS="C:\\Program Files\\OpenTelemetry .NET AutoInstrumentation\\net\\OpenTelemetry.AutoInstrumentation.StartupHook.dll" \\`,
-  `  -e OTEL_DOTNET_AUTO_HOME="C:\\Program Files\\OpenTelemetry .NET AutoInstrumentation" \\`,
-  `  -e OTEL_DOTNET_AUTO_PLUGINS="AWS.Distro.OpenTelemetry.AutoInstrumentation.Plugin,AWS.Distro.OpenTelemetry.AutoInstrumentation" \\`,
-  `  -e OTEL_METRICS_EXPORTER=none \\`,
-  `  -e OTEL_LOGS_EXPORTER=none \\`,
-  `  -e OTEL_AWS_APPLICATION_SIGNALS_ENABLED=true \\`,
-  `  -e OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\`,
-  `  -e OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT=http://host.docker.internal:4316/v1/metrics \\`,
-  `  -e OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://host.docker.internal:4316/v1/traces \\`,
-  `  -e OTEL_RESOURCE_ATTRIBUTES=service.name={{SERVICE_NAME}} \\`,
-  `  {{IMAGE_URI}}`,
-);
-```
-
-**Note for Windows containers:** Use `host.docker.internal` instead of `localhost` to reach the EC2 host. Windows containers don't support `--network host`.
-
 #### Option B: Non-Docker Deployment
 
 Find the existing command that starts the .NET application. Add the environment variables BEFORE it:
@@ -396,28 +304,6 @@ instance.userData.addCommands(
   'export OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT=http://localhost:4316/v1/metrics',
   'export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4316/v1/traces',
   'export OTEL_RESOURCE_ATTRIBUTES=service.name={{SERVICE_NAME}}',
-  '',
-  '# Start application (existing command remains unchanged)',
-  '# Example: dotnet run --urls http://0.0.0.0:8080',
-  '# The OTEL environment variables will automatically enable instrumentation',
-);
-```
-
-**For Windows Server instances:**
-
-```typescript
-instance.userData.addCommands(
-  '# Set OpenTelemetry environment variables',
-  '$module_url = "https://github.com/aws-observability/aws-otel-dotnet-instrumentation/releases/latest/download/AWS.Otel.DotNet.Auto.psm1"',
-  '$download_path = Join-Path $env:temp "AWS.Otel.DotNet.Auto.psm1"',
-  'Import-Module $download_path',
-  'Register-OpenTelemetryForCurrentSession -OTelServiceName "{{SERVICE_NAME}}"',
-  '$env:OTEL_METRICS_EXPORTER = "none"',
-  '$env:OTEL_LOGS_EXPORTER = "none"',
-  '$env:OTEL_AWS_APPLICATION_SIGNALS_ENABLED = "true"',
-  '$env:OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"',
-  '$env:OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT = "http://localhost:4316/v1/metrics"',
-  '$env:OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = "http://localhost:4316/v1/traces"',
   '',
   '# Start application (existing command remains unchanged)',
   '# Example: dotnet run --urls http://0.0.0.0:8080',
