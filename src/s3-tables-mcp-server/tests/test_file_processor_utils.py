@@ -841,3 +841,123 @@ async def test_import_file_to_table_with_temporal_conversion():
     # Verify the appended table has the correct schema
     appended_table = mock_table.append.call_args[0][0]
     assert appended_table.schema.field('birth_date').type == pa.date32()
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_fallback_column_by_column():
+    """Test convert_temporal_fields_in_table falls back to column-by-column conversion when direct cast fails."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Create a real PyArrow table with string dates
+    real_table = pa.table(
+        {
+            'id': [1, 2, 3],
+            'birth_date': ['2025-03-14', '1990-01-01', '2000-12-31'],
+            'name': ['Alice', 'Bob', 'Charlie'],
+        }
+    )
+
+    # Target schema with date32 type
+    target_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('birth_date', pa.date32()),
+            pa.field('name', pa.string()),
+        ]
+    )
+
+    # Create a mock table that wraps the real table but fails on cast
+    class MockTableWithFailingCast:
+        def __init__(self, table):
+            self._table = table
+
+        def cast(self, schema, safe=True):
+            # Always raise ArrowInvalid to trigger fallback
+            raise pa.ArrowInvalid('Direct cast failed - triggering fallback')
+
+        def column(self, name):
+            return self._table.column(name)
+
+        @property
+        def schema(self):
+            return self._table.schema
+
+        @property
+        def num_rows(self):
+            return self._table.num_rows
+
+    mock_table = MockTableWithFailingCast(real_table)
+
+    converted_table = convert_temporal_fields_in_table(mock_table, target_schema)
+
+    # Verify the conversion succeeded via fallback path
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 3
+    assert converted_table.column('id').to_pylist() == [1, 2, 3]
+    assert converted_table.column('name').to_pylist() == ['Alice', 'Bob', 'Charlie']
+    # Verify dates were converted
+    dates = converted_table.column('birth_date').to_pylist()
+    assert str(dates[0]) == '2025-03-14'
+    assert str(dates[1]) == '1990-01-01'
+    assert str(dates[2]) == '2000-12-31'
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_fallback_with_individual_column_cast():
+    """Test convert_temporal_fields_in_table uses column-by-column casting in fallback path."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+    import pyarrow.compute as pc
+
+    # Create a real PyArrow table with mixed types
+    real_table = pa.table(
+        {
+            'id': [1, 2, 3],
+            'score': [100.5, 200.5, 300.5],  # float that needs no conversion
+            'name': ['Alice', 'Bob', 'Charlie'],
+        }
+    )
+
+    # Target schema - same types, so casts should succeed
+    target_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('score', pa.float64()),
+            pa.field('name', pa.string()),
+        ]
+    )
+
+    # Create a mock table that wraps the real table but fails on direct cast
+    class MockTableWithFailingCast:
+        def __init__(self, table):
+            self._table = table
+
+        def cast(self, schema, safe=True):
+            # Always fail to force fallback to column-by-column
+            raise pa.ArrowInvalid('Direct cast failed - forcing fallback')
+
+        def column(self, name):
+            return self._table.column(name)
+
+        @property
+        def schema(self):
+            return self._table.schema
+
+        @property
+        def num_rows(self):
+            return self._table.num_rows
+
+    mock_table = MockTableWithFailingCast(real_table)
+
+    # The function should fall back to column-by-column conversion
+    converted_table = convert_temporal_fields_in_table(mock_table, target_schema)
+
+    # Verify the conversion succeeded via fallback path
+    assert converted_table.num_rows == 3
+    assert converted_table.schema == target_schema
+    assert converted_table.column('id').to_pylist() == [1, 2, 3]
+    assert converted_table.column('score').to_pylist() == [100.5, 200.5, 300.5]
+    assert converted_table.column('name').to_pylist() == ['Alice', 'Bob', 'Charlie']
