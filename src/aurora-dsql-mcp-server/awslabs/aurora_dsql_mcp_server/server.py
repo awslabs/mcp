@@ -16,11 +16,18 @@
 
 import argparse
 import asyncio
+import sys
+from typing import Annotated, Any, List
+from urllib.parse import urlparse
+
 import boto3
 import httpx
 import psycopg
 import psycopg.rows
-import sys
+from loguru import logger
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
+
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     BEGIN_TRANSACTION_SQL,
@@ -53,12 +60,6 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
-from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
-from typing import Annotated, Any, List
-from urllib.parse import urlparse
-
 
 # Global variables
 cluster_endpoint = None
@@ -68,11 +69,11 @@ read_only = False
 dsql_client = None
 persistent_connection = None
 aws_profile = None
-knowledge_server = 'https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+knowledge_server = "https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com"
 knowledge_timeout = 30.0
 
 mcp = FastMCP(
-    'awslabs-aurora-dsql-mcp-server',
+    "awslabs-aurora-dsql-mcp-server",
     instructions="""
     # Aurora DSQL MCP server.
     Provides tools to execute SQL queries on Aurora DSQL cluster.
@@ -98,13 +99,13 @@ mcp = FastMCP(
     Get recommendations for DSQL best practices.
     """,
     dependencies=[
-        'loguru',
+        "loguru",
     ],
 )
 
 
 @mcp.tool(
-    name='readonly_query',
+    name="readonly_query",
     description="""Run a read-only SQL query against the configured Aurora DSQL cluster.
 
 Aurora DSQL is distributed SQL database with Postgres compatibility. The following table
@@ -131,7 +132,7 @@ also be supported, as this is a point in time snapshot.
 """,
 )
 async def readonly_query(
-    sql: Annotated[str, Field(description='The SQL query to run')], ctx: Context
+    sql: Annotated[str, Field(description="The SQL query to run")], ctx: Context
 ) -> List[dict]:
     """Runs a read-only SQL query.
 
@@ -143,7 +144,7 @@ async def readonly_query(
         List of rows. Each row is a dictionary with column name as the key and column value as the value.
         Empty list if the SQL execution did not return any results
     """
-    logger.info(f'query: {sql}')
+    logger.info(f"query: {sql}")
 
     if not sql:
         await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
@@ -154,7 +155,7 @@ async def readonly_query(
     mutating_matches = detect_mutating_keywords(sql)
     if mutating_matches:
         logger.warning(
-            f'readonly_query rejected due to mutating keywords: {mutating_matches}, SQL: {sql}'
+            f"readonly_query rejected due to mutating keywords: {mutating_matches}, SQL: {sql}"
         )
         await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
         raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
@@ -163,14 +164,16 @@ async def readonly_query(
     injection_issues = check_sql_injection_risk(sql)
     if injection_issues:
         logger.warning(
-            f'readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}'
+            f"readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}"
         )
-        await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
-        raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+        await ctx.error(f"{ERROR_QUERY_INJECTION_RISK}: {injection_issues}")
+        raise Exception(f"{ERROR_QUERY_INJECTION_RISK}: {injection_issues}")
 
     # Check for transaction bypass attempts (the main vulnerability)
     if detect_transaction_bypass_attempt(sql):
-        logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
+        logger.warning(
+            f"readonly_query rejected due to transaction bypass attempt, SQL: {sql}"
+        )
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
         raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
@@ -180,7 +183,7 @@ async def readonly_query(
         try:
             await execute_query(ctx, conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
         except Exception as e:
-            logger.error(f'{ERROR_BEGIN_READ_ONLY_TRANSACTION}: {str(e)}')
+            logger.error(f"{ERROR_BEGIN_READ_ONLY_TRANSACTION}: {str(e)}")
             await ctx.error(INTERNAL_ERROR)
             raise Exception(INTERNAL_ERROR)
 
@@ -197,15 +200,15 @@ async def readonly_query(
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as e:
-                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
+                logger.error(f"{ERROR_ROLLBACK_TRANSACTION}: {str(e)}")
 
     except Exception as e:
-        await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
-        raise Exception(f'{ERROR_READONLY_QUERY}: {str(e)}')
+        await ctx.error(f"{ERROR_READONLY_QUERY}: {str(e)}")
+        raise Exception(f"{ERROR_READONLY_QUERY}: {str(e)}")
 
 
 @mcp.tool(
-    name='transact',
+    name="transact",
     description="""Write or modify data using SQL, in a transaction against the configured Aurora DSQL cluster.
 
 Aurora DSQL is a distributed SQL database with Postgres compatibility. This tool will automatically
@@ -223,7 +226,9 @@ be viewed by running `SELECT * FROM sys.jobs`.
 async def transact(
     sql_list: Annotated[
         List[str],
-        Field(description='List of one or more SQL statements to execute in a transaction'),
+        Field(
+            description="List of one or more SQL statements to execute in a transaction"
+        ),
     ],
     ctx: Context,
 ) -> List[dict]:
@@ -237,7 +242,7 @@ async def transact(
         List of rows. Each row is a dictionary with column name as the key and column value as
         the value. Empty list if the execution of the last SQL did not return any results
     """
-    logger.info(f'transact: {sql_list}')
+    logger.info(f"transact: {sql_list}")
 
     if read_only:
         await ctx.error(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
@@ -253,9 +258,9 @@ async def transact(
         try:
             await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
         except Exception as e:
-            logger.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            await ctx.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            raise Exception(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            logger.error(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
+            await ctx.error(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
+            raise Exception(f"{ERROR_BEGIN_TRANSACTION}: {str(e)}")
 
         try:
             rows = []
@@ -267,17 +272,17 @@ async def transact(
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as re:
-                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
+                logger.error(f"{ERROR_ROLLBACK_TRANSACTION}: {str(re)}")
             raise e
 
     except Exception as e:
-        await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
-        raise Exception(f'{ERROR_TRANSACT}: {str(e)}')
+        await ctx.error(f"{ERROR_TRANSACT}: {str(e)}")
+        raise Exception(f"{ERROR_TRANSACT}: {str(e)}")
 
 
-@mcp.tool(name='get_schema', description='Get the schema of the given table')
+@mcp.tool(name="get_schema", description="Get the schema of the given table")
 async def get_schema(
-    table_name: Annotated[str, Field(description='name of the table')], ctx: Context
+    table_name: Annotated[str, Field(description="name of the table")], ctx: Context
 ) -> List[dict]:
     """Returns the schema of a table.
 
@@ -289,7 +294,7 @@ async def get_schema(
         List of rows. Each row contains column name and type information for a column in the
         table provided in a dictionary form. Empty list is returned if table is not found.
     """
-    logger.info(f'get_schema: {table_name}')
+    logger.info(f"get_schema: {table_name}")
 
     if not table_name:
         await ctx.error(ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA)
@@ -299,17 +304,19 @@ async def get_schema(
         conn = await get_connection(ctx)
         return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
-        await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
-        raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
+        await ctx.error(f"{ERROR_GET_SCHEMA}: {str(e)}")
+        raise Exception(f"{ERROR_GET_SCHEMA}: {str(e)}")
 
 
 @mcp.tool(
-    name='dsql_search_documentation',
-    description='Search Aurora DSQL documentation',
+    name="dsql_search_documentation",
+    description="Search Aurora DSQL documentation",
 )
 async def dsql_search_documentation(
-    search_phrase: Annotated[str, Field(description='Search phrase to use')],
-    limit: Annotated[int | None, Field(description='Maximum number of results to return')] = None,
+    search_phrase: Annotated[str, Field(description="Search phrase to use")],
+    limit: Annotated[
+        int | None, Field(description="Maximum number of results to return")
+    ] = None,
     ctx: Context | None = None,
 ) -> dict:
     """Search Aurora DSQL documentation.
@@ -322,21 +329,23 @@ async def dsql_search_documentation(
     Returns:
         Search results from the remote knowledge server
     """
-    params: dict[str, Any] = {'search_phrase': search_phrase}
+    params: dict[str, Any] = {"search_phrase": search_phrase}
     if limit is not None:
-        params['limit'] = limit
-    return await _proxy_to_knowledge_server('dsql_search_documentation', params, ctx)
+        params["limit"] = limit
+    return await _proxy_to_knowledge_server("dsql_search_documentation", params, ctx)
 
 
 @mcp.tool(
-    name='dsql_read_documentation',
-    description='Read specific DSQL documentation pages',
+    name="dsql_read_documentation",
+    description="Read specific DSQL documentation pages",
 )
 async def dsql_read_documentation(
-    url: Annotated[str, Field(description='Specific url to read')],
-    start_index: Annotated[int | None, Field(description='Starting character index')] = None,
+    url: Annotated[str, Field(description="Specific url to read")],
+    start_index: Annotated[
+        int | None, Field(description="Starting character index")
+    ] = None,
     max_length: Annotated[
-        int | None, Field(description='Maximum number of characters to return')
+        int | None, Field(description="Maximum number of characters to return")
     ] = None,
     ctx: Context | None = None,
 ) -> dict:
@@ -351,21 +360,22 @@ async def dsql_read_documentation(
     Returns:
         Documentation content from the remote knowledge server
     """
-    params: dict[str, Any] = {'url': url}
+    params: dict[str, Any] = {"url": url}
     if start_index is not None:
-        params['start_index'] = start_index
+        params["start_index"] = start_index
     if max_length is not None:
-        params['max_length'] = max_length
-    return await _proxy_to_knowledge_server('dsql_read_documentation', params, ctx)
+        params["max_length"] = max_length
+    return await _proxy_to_knowledge_server("dsql_read_documentation", params, ctx)
 
 
 @mcp.tool(
-    name='dsql_recommend',
-    description='Get recommendations for DSQL best practices',
+    name="dsql_recommend",
+    description="Get recommendations for DSQL best practices",
 )
 async def dsql_recommend(
     url: Annotated[
-        str, Field(description='URL of the documentation page to get recommendations for')
+        str,
+        Field(description="URL of the documentation page to get recommendations for"),
     ],
     ctx: Context,
 ) -> dict:
@@ -378,7 +388,7 @@ async def dsql_recommend(
     Returns:
         Recommendations from the remote knowledge server
     """
-    return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
+    return await _proxy_to_knowledge_server("dsql_recommend", {"url": url}, ctx)
 
 
 async def _proxy_to_knowledge_server(
@@ -397,16 +407,16 @@ async def _proxy_to_knowledge_server(
     Raises:
         Exception: If the remote server is unavailable or returns an error
     """
-    logger.info(f'Proxying to knowledge server: {method} with params: {params}')
+    logger.info(f"Proxying to knowledge server: {method} with params: {params}")
 
     payload = {
-        'jsonrpc': '2.0',
-        'method': 'tools/call',
-        'params': {
-            'name': method,
-            'arguments': params,
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": method,
+            "arguments": params,
         },
-        'id': 1,
+        "id": 1,
     }
 
     try:
@@ -415,17 +425,19 @@ async def _proxy_to_knowledge_server(
             response.raise_for_status()
             result = response.json()
 
-            if 'error' in result:
-                error_msg = result['error'].get('message', 'Unknown error from knowledge server')
+            if "error" in result:
+                error_msg = result["error"].get(
+                    "message", "Unknown error from knowledge server"
+                )
                 if ctx:
                     await ctx.error(error_msg)
                 raise Exception(error_msg)
 
-            return result.get('result', {})
+            return result.get("result", {})
 
     except httpx.HTTPError as e:
-        error_msg = 'The DSQL knowledge server is currently unavailable. Please try again later.'
-        logger.error(f'Knowledge server error: {e}')
+        error_msg = "The DSQL knowledge server is currently unavailable. Please try again later."
+        logger.error(f"Knowledge server error: {e}")
         if ctx:
             await ctx.error(error_msg)
         raise Exception(error_msg)
@@ -445,10 +457,14 @@ class NoOpCtx:
 async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
-    if database_user == 'admin':
-        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
+    if database_user == "admin":
+        return dsql_client.generate_db_connect_admin_auth_token(
+            cluster_endpoint, region
+        )  # pyright: ignore[reportOptionalMemberAccess]
     else:
-        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
+        return dsql_client.generate_db_connect_auth_token(
+            cluster_endpoint, region
+        )  # pyright: ignore[reportOptionalMemberAccess]
 
 
 async def get_connection(ctx):  # noqa: D103
@@ -471,35 +487,41 @@ async def get_connection(ctx):  # noqa: D103
     password_token = await get_password_token()
 
     conn_params = {
-        'dbname': DSQL_DB_NAME,
-        'user': database_user,
-        'host': cluster_endpoint,
-        'port': DSQL_DB_PORT,
-        'password': password_token,
-        'application_name': DSQL_MCP_SERVER_APPLICATION_NAME,
-        'sslmode': 'require',
+        "dbname": DSQL_DB_NAME,
+        "user": database_user,
+        "host": cluster_endpoint,
+        "port": DSQL_DB_PORT,
+        "password": password_token,
+        "application_name": DSQL_MCP_SERVER_APPLICATION_NAME,
+        "sslmode": "require",
     }
 
-    logger.info(f'Creating new connection to {cluster_endpoint} as user {database_user}')
+    logger.info(
+        f"Creating new connection to {cluster_endpoint} as user {database_user}"
+    )
     try:
         persistent_connection = await psycopg.AsyncConnection.connect(
             **conn_params, autocommit=True
         )
         return persistent_connection
     except Exception as e:
-        logger.error(f'{ERROR_CREATE_CONNECTION} : {e}')
-        await ctx.error(f'{ERROR_CREATE_CONNECTION} : {e}')
+        logger.error(f"{ERROR_CREATE_CONNECTION} : {e}")
+        await ctx.error(f"{ERROR_CREATE_CONNECTION} : {e}")
         raise e
 
 
-async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]:  # noqa: D103
+async def execute_query(
+    ctx, conn_to_use, query: str, params=None
+) -> List[dict]:  # noqa: D103
     if conn_to_use is None:
         conn = await get_connection(ctx)
     else:
         conn = conn_to_use
 
     try:
-        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+        async with conn.cursor(
+            row_factory=psycopg.rows.dict_row
+        ) as cur:  # pyright: ignore[reportAttributeAccessIssue]
             await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
                 return []
@@ -507,7 +529,7 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
                 return await cur.fetchall()
     except (psycopg.OperationalError, psycopg.InterfaceError) as e:
         # Connection issue - reconnect and retry
-        logger.warning(f'Connection error, reconnecting: {e}')
+        logger.warning(f"Connection error, reconnecting: {e}")
         global persistent_connection
         try:
             if persistent_connection:
@@ -518,74 +540,78 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
 
         # Get a fresh connection and retry
         conn = await get_connection(ctx)
-        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+        async with conn.cursor(
+            row_factory=psycopg.rows.dict_row
+        ) as cur:  # pyright: ignore[reportAttributeAccessIssue]
             await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
                 return []
             else:
                 return await cur.fetchall()
     except Exception as e:
-        logger.error(f'{ERROR_EXECUTE_QUERY} : {e}')
-        await ctx.error(f'{ERROR_EXECUTE_QUERY} : {e}')
+        logger.error(f"{ERROR_EXECUTE_QUERY} : {e}")
+        await ctx.error(f"{ERROR_EXECUTE_QUERY} : {e}")
         raise e
 
 
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL'
+        description="An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
     )
     parser.add_argument(
-        '--cluster_endpoint', required=True, help='Endpoint for your Aurora DSQL cluster'
+        "--cluster_endpoint",
+        required=True,
+        help="Endpoint for your Aurora DSQL cluster",
     )
-    parser.add_argument('--database_user', required=True, help='Database username')
-    parser.add_argument('--region', required=True)
+    parser.add_argument("--database_user", required=True, help="Database username")
+    parser.add_argument("--region", required=True)
     parser.add_argument(
-        '--allow-writes',
-        action='store_true',
-        help='Allow use of tools that may perform write operations such as transact',
-    )
-    parser.add_argument(
-        '--profile',
-        help='AWS profile to use for credentials',
+        "--allow-writes",
+        action="store_true",
+        help="Allow use of tools that may perform write operations such as transact",
     )
     parser.add_argument(
-        '--knowledge-server',
-        default='https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com',
-        help='Remote MCP server endpoint for DSQL knowledge tools',
+        "--profile",
+        help="AWS profile to use for credentials",
     )
     parser.add_argument(
-        '--knowledge-timeout',
+        "--knowledge-server",
+        default="https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com",
+        help="Remote MCP server endpoint for DSQL knowledge tools",
+    )
+    parser.add_argument(
+        "--knowledge-timeout",
         type=float,
         default=30.0,
-        help='Timeout in seconds for knowledge server requests (default: 30.0)',
+        help="Timeout in seconds for knowledge server requests (default: 30.0)",
     )
     args = parser.parse_args()
 
     # Validate knowledge server URL
     try:
         parsed_url = urlparse(args.knowledge_server)
-        if parsed_url.scheme != 'https':
+        if parsed_url.scheme != "https":
             logger.error(
-                f'Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. '
-                f'Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+                f"Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. "
+                f"Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com"
             )
             sys.exit(1)
         if not parsed_url.netloc:
             logger.error(
-                f'Knowledge server URL is malformed. Got: {args.knowledge_server}. '
-                f'Example: https://https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+                f"Knowledge server URL is malformed. Got: {args.knowledge_server}. "
+                f"Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com"
             )
             sys.exit(1)
     except Exception as e:
-        logger.error(f'Invalid knowledge server URL: {e}')
+        logger.error(f"Invalid knowledge server URL: {e}")
         sys.exit(1)
 
     # Validate timeout value
     if args.knowledge_timeout <= 0:
         logger.error(
-            f'Knowledge timeout must be positive. Got: {args.knowledge_timeout}. '
-            f'Example: --knowledge-timeout 30.0'
+            f"Knowledge timeout must be positive. Got: {args.knowledge_timeout}. "
+            f"Example: --knowledge-timeout 30.0"
         )
         sys.exit(1)
 
@@ -611,36 +637,38 @@ def main():
     knowledge_timeout = args.knowledge_timeout
 
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
+        "Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}",
         cluster_endpoint,
         region,
         database_user,
         args.allow_writes,
-        aws_profile or 'default',
+        aws_profile or "default",
         knowledge_server,
         knowledge_timeout,
     )
 
     global dsql_client
-    session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-    dsql_client = session.client('dsql', region_name=region)
+    session = (
+        boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+    )
+    dsql_client = session.client("dsql", region_name=region)
 
     try:
         # Validate connection by trying to execute a simple query directly
         # Connection errors will be handled in execute_query
         ctx = NoOpCtx()
-        asyncio.run(execute_query(ctx, None, 'SELECT 1'))
+        asyncio.run(execute_query(ctx, None, "SELECT 1"))
     except Exception as e:
         logger.error(
-            f'Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}'
+            f"Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}"
         )
         sys.exit(1)
 
-    logger.success('Successfully validated connection to Aurora DSQL Cluster')
+    logger.success("Successfully validated connection to Aurora DSQL Cluster")
 
-    logger.info('Starting Aurora DSQL MCP server')
+    logger.info("Starting Aurora DSQL MCP server")
     mcp.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
