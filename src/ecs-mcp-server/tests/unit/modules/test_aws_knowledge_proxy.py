@@ -57,6 +57,14 @@ EXPECTED_ECS_PATTERNS = [
     "ecs instance type selection",
     "What alternatives do I have for Fargate?",
     "How do I migrate from Fargate to Managed Instances",
+    "what is ecs express mode",
+    "what are express gateway services",
+    "ecs express mode",
+    "simplified ecs deployment",
+    "how to setup express mode",
+    "setup ecs express mode",
+    "configure ecs express mode",
+    "when to use express mode",
 ]
 
 
@@ -139,6 +147,7 @@ class TestECSToolGuidance:
             "new ECS features",
             "ECS Native Blue-Green Deployments",
             "ECS Managed Instances",
+            "ECS Express Mode",
             "launched 2025",
         ]
 

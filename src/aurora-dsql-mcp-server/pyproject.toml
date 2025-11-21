@@ -10,7 +10,8 @@ dependencies = [
     "pydantic>=2.10.6",
     "boto3>=1.38.5",
     "botocore>=1.38.5",
-    "psycopg[binary]>=3.0"
+    "psycopg[binary]>=3.0",
+    "httpx>=0.27.0"
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

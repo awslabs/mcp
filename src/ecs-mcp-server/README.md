@@ -4,24 +4,26 @@
 
 An MCP server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources. This server enables AI assistants to help users with the full lifecycle of containerized applications on AWS.
 
+> **Note:** AWS offers a fully managed Amazon ECS MCP server that provides enterprise-grade capabilities including automatic updates, centralized security through IAM integration, comprehensive audit logging via CloudTrail, and the proven scalability and reliability of AWS. The managed service eliminates the need for local installation and maintenance. [Learn more about the managed Amazon ECS MCP server](https://docs.aws.amazon.com/ecs/latest/developerguide/ecs-mcp-introduction.html).
+
 ## Features
 
 - **Containerization Guidance**: Provides best practices and guidance for containerizing web applications
-- **ECS Deployment**: Deploy containerized applications to AWS ECS using Fargate
-- **Load Balancer Integration**: Automatically configure Application Load Balancers (ALBs) for web traffic
-- **Infrastructure as Code**: Generate and apply CloudFormation templates for ECS infrastructure
+- **ECS Express Mode Deployment**: Deploy containerized applications using ECS Express Mode with automatic infrastructure provisioning
+- **ECR Integration**: Automated ECR repository creation and Docker image builds with push to ECR
+- **Load Balancer Integration**: Automatically configure Application Load Balancers (ALBs) with HTTPS support
+- **Auto-scaling**: Built-in auto-scaling with configurable CPU/memory and scaling targets
+- **Infrastructure as Code**: Generate and apply CloudFormation templates for ECR and ECS infrastructure
 - **URL Management**: Return public ALB URLs for immediate access to deployed applications
 - **Circuit Breaker**: Implement deployment circuit breaker with automatic rollback
 - **Container Insights**: Enable enhanced container insights for monitoring
-- **VPC Endpoints**: Configure VPC endpoints for secure access to AWS services without internet exposure
 - **Security Best Practices**: Implement AWS security best practices for container deployments
 - **Resource Management**: List and explore ECS resources such as task definitions, services, clusters, and tasks
-- **ECR Integration**: View repositories and container images in Amazon ECR
 - **AWS Knowledge Integration**: Access up-to-date AWS documentation through the integrated AWS Knowledge MCP Server proxy which includes knowledge on ECS and new features released that models may not be aware of
 
-Customers can use the `containerize_app` tool to help them containerize their applications with best practices and deploy them to Amazon ECS. The `create_ecs_infrastructure` tool automates infrastructure deployment using CloudFormation, while `get_deployment_status` returns the status of deployments and provide the URL of the set up Application Load Balancer. When resources are no longer needed, the `delete_ecs_infrastructure` tool allows for easy cleanup and removal of all deployed components.
+Customers can use the [`containerize_app`](#containerize_app) tool to help them containerize their applications with best practices. The [`build_and_push_image_to_ecr`](#build_and_push_image_to_ecr) tool creates ECR infrastructure and pushes Docker images. The [`validate_ecs_express_mode_prerequisites`](#validate_ecs_express_mode_prerequisites) tool validates that all required IAM roles and images exist before deployment. Customers deploy using [`ecs_resource_management`](#ecs_resource_management) with the `CreateExpressGatewayService` operation for Express Mode deployments. The [`wait_for_service_ready`](#wait_for_service_ready) tool helps track deployment progress, and [`delete_app`](#delete_app) provides complete cleanup of Express Mode deployments.
 
-Customers can list and view their ECS resources (clusters, services, tasks, task definitions) and access their ECR resources (container images) using the `ecs_resource_management` tool. When running into ECS deployment issues, they can use the `ecs_troubleshooting_tool` to diagnose and resolve common problems.
+Customers can list and view their ECS resources (clusters, services, tasks, task definitions) and access their ECR resources (container images) using the [`ecs_resource_management`](#ecs_resource_management) tool. When running into ECS deployment issues, they can use the [`ecs_troubleshooting_tool`](#ecs_troubleshooting_tool) to diagnose and resolve common problems.
 
 ## Installation
 
@@ -84,9 +86,10 @@ The following operations are read-only and relatively safe for production enviro
 |------|-----------|-------------------|
 | `ecs_resource_management` | List operations (clusters, services, tasks) | ✅ Safe - Read-only |
 | `ecs_resource_management` | Describe operations (clusters, services, tasks) | ✅ Safe - Read-only |
+| `validate_ecs_express_mode_prerequisites` | Prerequisite validation | ✅ Safe - Read-only |
+| `wait_for_service_ready` | Service readiness polling | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `fetch_service_events` | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `get_ecs_troubleshooting_guidance` | ✅ Safe - Read-only |
-| `get_deployment_status` | Status checking | ✅ Safe - Read-only |
 | `aws_knowledge_aws___search_documentation` | AWS documentation search | ✅ Safe - Read-only |
 | `aws_knowledge_aws___read_documentation` | AWS documentation reading | ✅ Safe - Read-only |
 | `aws_knowledge_aws___recommend` | AWS documentation recommendations | ✅ Safe - Read-only |
@@ -95,8 +98,8 @@ The following operations modify resources and should be used with extreme cautio
 
 | Tool | Operation | Production Safety |
 |------|-----------|-------------------|
-| `create_ecs_infrastructure` | Creating resources | ⚠️ High Risk - Creates infrastructure |
-| `delete_ecs_infrastructure` | Deleting resources | 🛑 Dangerous - Deletes infrastructure |
+| `build_and_push_image_to_ecr` | Build and push Docker images | ⚠️ High Risk - Creates ECR repo, builds/pushes images |
+| `delete_app` | Delete Express Mode deployment & ECR infrastructure | 🛑 Dangerous - Deletes resources |
 | `containerize_app` | Generate container configs | 🟡 Medium Risk - Local changes only |
 | `ecs_resource_management` | Create operations (clusters, services, tasks) | ⚠️ High Risk - Creates resources |
 | `ecs_resource_management` | Update operations (services, tasks, settings) | ⚠️ High Risk - Modifies resources |
@@ -281,23 +284,26 @@ For detailed example IAM policies tailored for different ECS MCP Server use case
 
 ## MCP Tools
 
-### Deployment Tools
+### Express Mode Deployment Tools
 
-These tools help you containerize applications and deploy them to Amazon ECS with proper infrastructure setup and monitoring.
+These tools provide end-to-end support for containerizing and deploying applications using ECS Express Mode, which automatically provisions all required infrastructure.
 
-- **containerize_app**: Generates Dockerfile and container configurations for web applications
-- **create_ecs_infrastructure**: Creates AWS infrastructure needed to deploy your containerized application using ECS. This includes:
-  - Application Load Balancer (ALB) with public-facing endpoints
-  - Network security groups with appropriate inbound/outbound rules
-  - IAM roles and policies with least-privilege permissions
-  - VPC configurations with public and private subnets (if needed)
-  - S3 Gateway endpoint associations for ECR image pulls
-  - ECS cluster with capacity provider settings
-  - Task definition with CPU/memory allocations and container configs
-  - Service configuration with desired count and auto-scaling policies
-  - Health check configuration and deployment circuit breakers
-- **get_deployment_status**: Gets the status of an ECS deployment and returns the ALB URL
-- **delete_ecs_infrastructure**: Deletes the AWS infrastructure created by the ECS MCP Server
+- **containerize_app**: Generates Dockerfile and container configurations for web applications with best practices
+- **build_and_push_image_to_ecr**: Creates ECR infrastructure and builds/pushes Docker images
+  - Creates ECR repository via CloudFormation
+  - Creates IAM role with ECR push/pull permissions
+  - Builds Docker image from your application directory
+  - Pushes image to ECR with configurable tags
+  - Returns `full_image_uri` for use in deployment
+- **validate_ecs_express_mode_prerequisites**: Validates prerequisites before Express Mode deployment
+  - Checks Task Execution Role exists (defaults to `ecsTaskExecutionRole`)
+  - Checks Infrastructure Role exists (defaults to `ecsInfrastructureRoleForExpressServices`)
+  - Verifies Docker image exists in ECR
+- **wait_for_service_ready**: Polls service status until tasks reach RUNNING state
+  - Checks every 10 seconds for running tasks
+- **delete_app**: Deletes complete Express Mode deployment
+  - Deletes Express Gateway Service and provisioned infrastructure
+  - Deletes ECR CloudFormation stack (repository + IAM role)
 
 ### Troubleshooting Tool
 
@@ -318,14 +324,17 @@ This tool provides comprehensive access to Amazon ECS resources to help you moni
 
 - **ecs_resource_management**: Execute operations on ECS resources with a consistent interface:
   - **Read Operations** (always available):
+    - Express Gateway Services: List and describe Express Gateway Services
     - Clusters: List all clusters, describe specific cluster details
     - Services: List services in a cluster, describe service configuration
     - Tasks: List running or stopped tasks, describe task details and status
     - Task Definitions: List task definition families, describe specific task definition revisions
     - Container Instances: List container instances, describe instance health and capacity
     - Capacity Providers: List and describe capacity providers associated with clusters
+    - Service Deployments: Describe and list service deployments
     - ECR repositories and container images
   - **Write Operations** (requires ALLOW_WRITE=true):
+    - Express Mode: Create, update, delete Express Gateway Services
     - Create resources: Create clusters, services, task sets, and capacity providers
     - Update resources: Update service configurations, task protection settings, and cluster settings
     - Delete resources: Delete clusters, services, task definitions, and capacity providers
@@ -349,14 +358,17 @@ Note: these tools are duplicative if you have the AWS Knowledge MCP Server alrea
 
 ## Example Prompts
 
-### Containerization and Deployment
+### Containerization and Deployment with Express Mode
 
-- "Containerize this Node.js app and deploy it to AWS"
-- "Deploy this Flask application to Amazon ECS"
-- "Create an ECS deployment for this web application with auto-scaling"
-- "Set up a containerized environment for this Django app on Amazon ECS"
-- "List all my ECS clusters"
-- "Show me details for my-cluster"
+- "Containerize this Node.js app and deploy it to AWS using Express Mode"
+- "Deploy this Flask application to Amazon ECS Express Mode"
+- "Build and push my application Docker image to ECR"
+- "Validate prerequisites for deploying with Express Mode"
+- "Create an Express Gateway Service for my application with auto-scaling"
+- "Wait for my service to be ready and show me the URL"
+- "Delete my Express Mode deployment and clean up all resources"
+- "List all my Express Gateway Services"
+- "Show me details for my Express Gateway Service"
 
 ### Troubleshooting
 
@@ -364,7 +376,7 @@ Note: these tools are duplicative if you have the AWS Knowledge MCP Server alrea
 - "My ECS tasks keep failing, can you diagnose the issue?"
 - "The ALB health check is failing for my ECS service"
 - "Why can't I access my deployed application?"
-- "Check what's wrong with my CloudFormation stack"
+- "Check what's wrong with my Express Gateway Service"
 
 ### Resource Management
 
@@ -381,6 +393,7 @@ Note: these tools are duplicative if you have the AWS Knowledge MCP Server alrea
 
 ### AWS Documentation and Knowledge
 
+- "What is ECS Express Mode?"
 - "What are the best practices for ECS deployments?"
 - "How do I set up blue-green deployments in ECS?"
 - "Get recommendations for ECS security best practices"

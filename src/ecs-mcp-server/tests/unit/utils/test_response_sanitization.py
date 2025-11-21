@@ -124,3 +124,124 @@ class TestResponseSanitizer:
         assert len(result["warnings"]) == 2
         assert "Existing warning" in result["warnings"]
         assert any("publicly accessible" in warning for warning in result["warnings"])
+
+    def test_context_aware_exemption_build_and_push_tool(self):
+        """Test that exempt fields are not sanitized for build_and_push_image_to_ecr tool."""
+        data = {
+            "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            "image_tag": "1700000000",
+            "full_image_uri": (
+                "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo:1700000000"
+            ),
+            "status": "success",
+        }
+
+        # Sanitize with tool_name="build_and_push_image_to_ecr"
+        sanitized = ResponseSanitizer.sanitize(data, tool_name="build_and_push_image_to_ecr")
+
+        # Exempt fields should NOT be sanitized
+        assert (
+            sanitized["repository_uri"]
+            == "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo"
+        )
+        assert sanitized["image_tag"] == "1700000000"
+        assert (
+            sanitized["full_image_uri"]
+            == "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo:1700000000"
+        )
+        assert sanitized["status"] == "success"
+
+        # AWS account ID should NOT be redacted in exempt fields
+        assert "123456789012" in sanitized["repository_uri"]
+        assert "123456789012" in sanitized["full_image_uri"]
+        assert "[REDACTED" not in sanitized["repository_uri"]
+        assert "[REDACTED" not in sanitized["full_image_uri"]
+
+    def test_context_aware_exemption_without_tool_name(self):
+        """Test that fields are sanitized when no tool_name is provided."""
+        data = {
+            "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            "image_tag": "1700000000",
+            "full_image_uri": (
+                "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo:1700000000"
+            ),
+            "status": "success",
+        }
+
+        # Sanitize without tool_name
+        sanitized = ResponseSanitizer.sanitize(data)
+
+        # AWS account IDs should be redacted
+        assert "123456789012" not in str(sanitized["repository_uri"])
+        assert "123456789012" not in str(sanitized["full_image_uri"])
+        assert "[REDACTED AWS_ACCOUNT_ID]" in sanitized["repository_uri"]
+        assert "[REDACTED AWS_ACCOUNT_ID]" in sanitized["full_image_uri"]
+
+        # Phone pattern (epoch timestamp) should be redacted
+        assert "1700000000" not in sanitized["image_tag"]
+        assert "[REDACTED PHONE]" in sanitized["image_tag"]
+
+    def test_context_aware_exemption_wrong_tool(self):
+        """Test that fields are sanitized when tool_name doesn't match."""
+        data = {
+            "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            "image_tag": "1700000000",
+            "full_image_uri": (
+                "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo:1700000000"
+            ),
+            "status": "success",
+        }
+
+        # Sanitize with different tool_name
+        sanitized = ResponseSanitizer.sanitize(data, tool_name="some_other_tool")
+
+        # AWS account IDs should be redacted for non-exempt tools
+        assert "123456789012" not in str(sanitized["repository_uri"])
+        assert "123456789012" not in str(sanitized["full_image_uri"])
+        assert "[REDACTED AWS_ACCOUNT_ID]" in sanitized["repository_uri"]
+
+    def test_context_aware_exemption_nested_data(self):
+        """Test that exemptions work with nested data structures."""
+        data = {
+            "status": "success",
+            "result": {
+                "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+                "image_tag": "1700000000",
+                "nested": {
+                    "full_image_uri": (
+                        "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo:1700000000"
+                    )
+                },
+            },
+        }
+
+        # Sanitize with build_and_push_image_to_ecr tool
+        sanitized = ResponseSanitizer.sanitize(data, tool_name="build_and_push_image_to_ecr")
+
+        # Top-level exempt fields should be preserved
+        assert "123456789012" in sanitized["result"]["repository_uri"]
+        assert "1700000000" == sanitized["result"]["image_tag"]
+
+        # Nested exempt fields should also be preserved
+        assert "123456789012" in sanitized["result"]["nested"]["full_image_uri"]
+
+    def test_context_aware_exemption_only_specified_fields(self):
+        """Test that only specified fields are exempt, not all fields."""
+        data = {
+            "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            "image_tag": "1700000000",
+            "some_other_field": "Account ID is 123456789012 and timestamp 1700000000",
+        }
+
+        # Sanitize with build_and_push_image_to_ecr tool
+        sanitized = ResponseSanitizer.sanitize(data, tool_name="build_and_push_image_to_ecr")
+
+        # Exempt fields should NOT be sanitized
+        assert "123456789012" in sanitized["repository_uri"]
+        assert "1700000000" == sanitized["image_tag"]
+
+        # Non-exempt fields SHOULD be sanitized
+        assert "123456789012" not in sanitized["some_other_field"]
+        assert "[REDACTED AWS_ACCOUNT_ID]" in sanitized["some_other_field"]
+        assert "1700000000" not in sanitized["some_other_field"]
+        assert "[REDACTED PHONE]" in sanitized["some_other_field"]

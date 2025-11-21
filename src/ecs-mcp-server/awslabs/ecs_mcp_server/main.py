@@ -28,7 +28,7 @@ from awslabs.ecs_mcp_server.modules import (
     aws_knowledge_proxy,
     containerize,
     delete,
-    deployment_status,
+    express,
     infrastructure,
     resource_management,
     troubleshooting,
@@ -90,32 +90,113 @@ def _create_ecs_mcp_server() -> Tuple[FastMCP, Dict[str, Any]]:
     mcp = FastMCP(
         name="AWS ECS MCP Server",
         lifespan=server_lifespan,
-        instructions="""Use this server to containerize and deploy web applications to AWS ECS.
+        instructions="""Use this server to containerize and deploy web applications to AWS ECS \
+using Express Mode.
 
-WORKFLOW:
-1. containerize_app:
-   - Get guidance on how to containerize your web application
-   - Learn best practices for Dockerfile creation
-   - Get recommendations for container tools and architecture
+        DEPLOYMENT WORKFLOW with EXPRESS MODE:
+        1. containerize_app(app_path, port)
+        - Creates Dockerfile for your application
 
-2. create_ecs_infrastructure:
-   - Create the necessary AWS infrastructure for ECS deployment
-   - Set up VPC, subnets, security groups, and IAM roles
-   - Configure ECS Cluster, ECS Task Definitions, and ECS Services
+        2. build_and_push_image_to_ecr(app_name, app_path)
+        - app_name must be unique for each application
+        - Creates ECR repository via CloudFormation using app_name
+        - Builds Docker image and pushes to ECR
+        - Returns full_image_uri to use in deployment
 
-3. get_deployment_status:
-   - Check the status of your ECS deployment
-   - Get the ALB URL to access your application
-   - Monitor the health of your ECS Service
+        3. validate_ecs_express_mode_prerequisites(image_uri)
+        - Validates IAM roles (checks default names if not provided)
+        - Verifies image exists in ECR
 
-IMPORTANT:
-- Make sure your application has a clear entry point
-- Ensure all dependencies are properly defined in requirements.txt, package.json, etc.
-- For containerization, your application should listen on a configurable port
-- AWS credentials must be properly configured with appropriate permissions
-- Set ALLOW_WRITE=true to enable infrastructure creation and deletion
-- Set ALLOW_SENSITIVE_DATA=true to enable access to logs and detailed resource information
-""",
+        4. Deploy with ecs_resource_management - CreateExpressGatewayService:
+
+        Minimal deployment:
+        ecs_resource_management(
+            api_operation="CreateExpressGatewayService",
+            api_params={
+                "primaryContainer": {"image": full_image_uri},
+                "executionRoleArn": "arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole",
+                "infrastructureRoleArn": (
+                    "arn:aws:iam::ACCOUNT:role/ecsInfrastructureRoleForExpressServices"
+                )
+            }
+        )
+
+        Or with more configuration options:
+        ecs_resource_management(
+            api_operation="CreateExpressGatewayService",
+            api_params={
+                "serviceName": "my-api",
+                "cluster": "production",
+                "primaryContainer": {
+                    "image": full_image_uri,
+                    "containerPort": 8080,
+                    "environment": [
+                        {"name": "NODE_ENV", "value": "production"}
+                    ]
+                },
+                "executionRoleArn": "arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole",
+                "infrastructureRoleArn": (
+                    "arn:aws:iam::ACCOUNT:role/ecsInfrastructureRoleForExpressServices"
+                ),
+                "cpu": "1024",
+                "memory": "2048",
+                "scalingTarget": {
+                    "minTaskCount": 2,
+                    "maxTaskCount": 10,
+                    "autoScalingMetric": "CPUUtilization",
+                    "autoScalingTargetValue": 70
+                },
+                "healthCheckPath": "/health",
+                "tags": [
+                    {"key": "Environment", "value": "production"}
+                ]
+            }
+        )
+
+        5. Wait for service to be ready (optional but recommended):
+        wait_for_service_ready(
+            cluster="my-cluster",
+            service_name="my-service"
+        )
+
+        6. Check status and get application URL:
+
+        First, describe the service to get its status and URL:
+        ecs_resource_management(
+            api_operation="DescribeExpressGatewayService",
+            api_params={"serviceArn": service_arn}
+        )
+
+        IMPORTANT: After the CreateExpressGatewayService or \
+DescribeExpressGatewayService commands complete:
+        - Present the customer with a summary of the deployed configuration options
+        - Extract the application URL from the response and explicitly inform the user: \
+"Once the service is up and running, your application will be accessible at: <URL>"
+
+        EXPRESS MODE FEATURES:
+        - Auto-provisions Application Load Balancer, target groups, security groups
+        - Built-in HTTPS with custom domain (https://service.ecs.region.on.aws)
+        - Configurable CPU/memory (256-4096 vCPU units, 512-8192 MB)
+        - Auto-scaling with min/max task counts and target metrics
+        - Health monitoring with customizable health check paths
+        - No CloudFormation templates needed for ECS resources
+
+        LEARN MORE:
+        Use the integrated AWS Knowledge MCP tools to access up-to-date documentation:
+        - Search: aws_knowledge_aws___search_documentation with "ECS Express Mode"
+        - Read docs: aws_knowledge_aws___read_documentation with Express Mode URLs
+        - Get recommendations: aws_knowledge_aws___recommend for related topics
+        For detailed API parameters, search for "CreateExpressGatewayService API reference"
+
+        IMPORTANT:
+        - Set ALLOW_WRITE=true to enable infrastructure creation and deletion
+        - Set ALLOW_SENSITIVE_DATA=true to enable access to logs and detailed \
+resource information
+        - AWS credentials must be properly configured
+        - Application should listen on a configurable port
+        - Use the integrated Knowledge MCP Tools to search and read up-to-date \
+AWS documentation including ECS's newest feature launches
+ """,
     )
 
     # Apply security wrappers to API functions
@@ -126,14 +207,16 @@ IMPORTANT:
     delete.delete_infrastructure = secure_tool(
         config, PERMISSION_WRITE, "delete_ecs_infrastructure"
     )(delete.delete_infrastructure)
+    express.build_and_push_image_to_ecr = secure_tool(
+        config, PERMISSION_WRITE, "build_and_push_image_to_ecr"
+    )(express.build_and_push_image_to_ecr)
+    express.delete_app = secure_tool(config, PERMISSION_WRITE, "delete_app")(express.delete_app)
 
     # Register all modules
     containerize.register_module(mcp)
-    infrastructure.register_module(mcp)
-    deployment_status.register_module(mcp)
+    express.register_module(mcp)
     resource_management.register_module(mcp)
     troubleshooting.register_module(mcp)
-    delete.register_module(mcp)
 
     # Register all proxies
     aws_knowledge_proxy.register_proxy(mcp)
