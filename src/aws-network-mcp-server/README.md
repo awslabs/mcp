@@ -81,7 +81,7 @@ You can download the AWS Network MCP Server from GitHub. To get started using yo
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-west-2"
       },
       "disabled": false,
       "autoApprove": []
