@@ -19,9 +19,13 @@ from awslabs.aws_healthomics_mcp_server.models import (
     AnalysisResponse,
     AnalysisResult,
     CacheBehavior,
+    ContainerRegistryMap,
     ExportType,
+    GenomicsFileSearchRequest,
+    ImageMapping,
     LogEvent,
     LogResponse,
+    RegistryMapping,
     RunListResponse,
     RunStatus,
     RunSummary,
@@ -609,3 +613,237 @@ def test_model_json_serialization():
     assert isinstance(json_str, str)
     assert 'wfl-12345' in json_str
     assert 'test-workflow' in json_str
+
+
+# Test Container Registry Map models
+def test_registry_mapping():
+    """Test RegistryMapping model."""
+    mapping = RegistryMapping(
+        upstreamRegistryUrl='docker.io',
+        ecrRepositoryPrefix='my-prefix',
+        upstreamRepositoryPrefix='library',
+        ecrAccountId='123456789012',
+    )
+
+    assert mapping.upstreamRegistryUrl == 'docker.io'
+    assert mapping.ecrRepositoryPrefix == 'my-prefix'
+    assert mapping.upstreamRepositoryPrefix == 'library'
+    assert mapping.ecrAccountId == '123456789012'
+
+
+def test_registry_mapping_validation():
+    """Test RegistryMapping validation."""
+    # Test missing required fields
+    with pytest.raises(ValidationError):
+        RegistryMapping(  # type: ignore
+            # Missing required fields
+        )
+
+    # Test with all required fields
+    mapping = RegistryMapping(
+        upstreamRegistryUrl='docker.io',
+        ecrRepositoryPrefix='my-prefix',
+        upstreamRepositoryPrefix='library',
+        ecrAccountId='123456789012',
+    )
+    assert mapping.upstreamRegistryUrl == 'docker.io'
+
+
+def test_image_mapping():
+    """Test ImageMapping model."""
+    mapping = ImageMapping(
+        sourceImage='nginx:latest',
+        destinationImage='123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest',
+    )
+
+    assert mapping.sourceImage == 'nginx:latest'
+    assert mapping.destinationImage == '123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest'
+
+
+def test_image_mapping_validation():
+    """Test ImageMapping validation."""
+    # Test missing required fields
+    with pytest.raises(ValidationError):
+        ImageMapping(  # type: ignore
+            # Missing required fields
+        )
+
+    # Test with all required fields
+    mapping = ImageMapping(
+        sourceImage='nginx:latest',
+        destinationImage='123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest',
+    )
+    assert mapping.sourceImage == 'nginx:latest'
+
+
+def test_container_registry_map():
+    """Test ContainerRegistryMap model."""
+    # Test with empty lists (defaults)
+    registry_map = ContainerRegistryMap()
+    assert registry_map.registryMappings == []
+    assert registry_map.imageMappings == []
+
+    # Test with data
+    registry_mappings = [
+        RegistryMapping(
+            upstreamRegistryUrl='docker.io',
+            ecrRepositoryPrefix='my-prefix',
+            upstreamRepositoryPrefix='library',
+            ecrAccountId='123456789012',
+        )
+    ]
+    image_mappings = [
+        ImageMapping(
+            sourceImage='nginx:latest',
+            destinationImage='123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest',
+        )
+    ]
+
+    registry_map = ContainerRegistryMap(
+        registryMappings=registry_mappings,  # type: ignore[arg-type]
+        imageMappings=image_mappings,  # type: ignore[arg-type]
+    )
+
+    assert len(registry_map.registryMappings) == 1
+    assert len(registry_map.imageMappings) == 1
+    assert registry_map.registryMappings[0].upstreamRegistryUrl == 'docker.io'
+    assert registry_map.imageMappings[0].sourceImage == 'nginx:latest'
+
+
+def test_container_registry_map_none_conversion():
+    """Test ContainerRegistryMap None value conversion."""
+    # Test None values are converted to empty lists
+    registry_map = ContainerRegistryMap(
+        registryMappings=None,  # type: ignore[arg-type]
+        imageMappings=None,  # type: ignore[arg-type]
+    )
+
+    assert registry_map.registryMappings == []
+    assert registry_map.imageMappings == []
+    assert isinstance(registry_map.registryMappings, list)
+    assert isinstance(registry_map.imageMappings, list)
+
+
+def test_container_registry_map_dict_creation():
+    """Test ContainerRegistryMap creation from dictionary."""
+    # Test with dictionary input (as would come from API)
+    data = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'docker.io',
+                'ecrRepositoryPrefix': 'my-prefix',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            }
+        ],
+        'imageMappings': [
+            {
+                'sourceImage': 'nginx:latest',
+                'destinationImage': '123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest',
+            }
+        ],
+    }
+
+    registry_map = ContainerRegistryMap(**data)  # type: ignore[arg-type]
+    assert len(registry_map.registryMappings) == 1
+    assert len(registry_map.imageMappings) == 1
+    assert registry_map.registryMappings[0].upstreamRegistryUrl == 'docker.io'
+    assert registry_map.imageMappings[0].sourceImage == 'nginx:latest'
+
+
+def test_container_registry_map_empty_dict():
+    """Test ContainerRegistryMap with empty dictionary."""
+    # Test with empty dictionary
+    data = {}
+    registry_map = ContainerRegistryMap(**data)
+    assert registry_map.registryMappings == []
+    assert registry_map.imageMappings == []
+
+    # Test with None values in dictionary
+    data = {'registryMappings': None, 'imageMappings': None}
+    registry_map = ContainerRegistryMap(**data)  # type: ignore[arg-type]
+    assert registry_map.registryMappings == []
+    assert registry_map.imageMappings == []
+
+
+def test_container_registry_map_validation_errors():
+    """Test ContainerRegistryMap validation errors."""
+    # Test with invalid registry mapping structure
+    with pytest.raises(ValidationError):
+        ContainerRegistryMap(
+            registryMappings=[  # type: ignore[arg-type]
+                {
+                    'upstreamRegistryUrl': 'docker.io',
+                    # Missing required fields
+                }
+            ]
+        )
+
+    # Test with invalid image mapping structure
+    with pytest.raises(ValidationError):
+        ContainerRegistryMap(
+            imageMappings=[  # type: ignore[arg-type]
+                {
+                    'sourceImage': 'nginx:latest',
+                    # Missing destinationImage
+                }
+            ]
+        )
+
+
+def test_container_registry_map_serialization():
+    """Test ContainerRegistryMap serialization."""
+    registry_map = ContainerRegistryMap(
+        registryMappings=[
+            RegistryMapping(
+                upstreamRegistryUrl='registry-url',
+                ecrRepositoryPrefix='my-prefix',
+                upstreamRepositoryPrefix='library',
+                ecrAccountId='123456789012',
+            )
+        ],
+        imageMappings=[
+            ImageMapping(
+                sourceImage='nginx:latest',
+                destinationImage='123456789012.dkr.ecr.us-east-1.amazonaws.com/nginx:latest',
+            )
+        ],
+    )
+
+    # Test model_dump
+    data = registry_map.model_dump()
+    assert 'registryMappings' in data
+    assert 'imageMappings' in data
+    assert len(data['registryMappings']) == 1
+    assert len(data['imageMappings']) == 1
+
+    # Test JSON serialization
+    json_str = registry_map.model_dump_json()
+    assert isinstance(json_str, str)
+    assert 'registry-url' in json_str
+    assert 'nginx:latest' in json_str
+
+
+def test_genomics_file_search_request_validation():
+    """Test GenomicsFileSearchRequest validation."""
+    # Test valid request
+    request = GenomicsFileSearchRequest(
+        file_type='fastq', search_terms=['sample'], max_results=100, pagination_buffer_size=500
+    )
+    assert request.max_results == 100
+    assert request.pagination_buffer_size == 500
+
+    # Test max_results validation - too high
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(max_results=15000)
+    assert 'max_results cannot exceed 10000' in str(exc_info.value)
+
+    # Test pagination_buffer_size validation - too low
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(pagination_buffer_size=50)
+    assert 'pagination_buffer_size must be at least 100' in str(exc_info.value)
+
+    # Test pagination_buffer_size validation - too high
+    with pytest.raises(ValidationError) as exc_info:
+        GenomicsFileSearchRequest(pagination_buffer_size=60000)
+    assert 'pagination_buffer_size cannot exceed 50000' in str(exc_info.value)

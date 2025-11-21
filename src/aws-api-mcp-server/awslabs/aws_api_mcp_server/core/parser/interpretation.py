@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import boto3
-import importlib.metadata
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
 )
-from ..common.command import IRCommand
-from ..common.config import OPT_IN_TELEMETRY, READ_OPERATIONS_ONLY_MODE
+from ..common.command import IRCommand, OutputFile
+from ..common.config import get_user_agent_extra
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
@@ -27,12 +27,7 @@ from typing import Any
 
 
 TIMEOUT_AFTER_SECONDS = 10
-
-# Get package version for user agent
-try:
-    PACKAGE_VERSION = importlib.metadata.version('awslabs.aws_api_mcp_server')
-except importlib.metadata.PackageNotFoundError:
-    PACKAGE_VERSION = 'unknown'
+CHUNK_SIZE = 4 * 1024 * 1024
 
 
 def interpret(
@@ -43,6 +38,7 @@ def interpret(
     region: str,
     client_side_filter: ParsedResult | None = None,
     max_results: int | None = None,
+    endpoint_url: str | None = None,
 ) -> dict[str, Any]:
     """Interpret the given intermediate representation into boto3 calls.
 
@@ -57,8 +53,8 @@ def interpret(
         region_name=region,
         connect_timeout=TIMEOUT_AFTER_SECONDS,
         read_timeout=TIMEOUT_AFTER_SECONDS,
-        retries={'max_attempts': 1},
-        user_agent_extra=_get_user_agent_extra(),
+        retries={'max_attempts': 3, 'mode': 'adaptive'},
+        user_agent_extra=get_user_agent_extra(),
     )
 
     with operation_timer(ir.service_name, ir.operation_python_name, region):
@@ -68,6 +64,7 @@ def interpret(
             aws_secret_access_key=secret_access_key,
             aws_session_token=session_token,
             config=config,
+            endpoint_url=endpoint_url,
         )
 
         if client.can_paginate(ir.operation_python_name):
@@ -86,16 +83,24 @@ def interpret(
             if client_side_filter is not None:
                 response = _apply_filter(response, client_side_filter)
 
+        if ir.has_streaming_output and ir.output_file and ir.output_file.path != '-':
+            response = _handle_streaming_output(response, ir.output_file)
+
         return response
 
 
-def _get_user_agent_extra() -> str:
-    user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
-    if not OPT_IN_TELEMETRY:
-        return user_agent_extra
-    # ReadOperationsOnly mode
-    user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
-    return user_agent_extra
+def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) -> dict[str, Any]:
+    streaming_output = response[output_file.response_key]
+
+    # Validate file path before writing
+    validated_path = validate_file_path(output_file.path)
+
+    with open(validated_path, 'wb') as f:
+        for chunk in streaming_output.iter_chunks(chunk_size=CHUNK_SIZE):
+            f.write(chunk)
+
+    del response[output_file.response_key]
+    return response
 
 
 def _apply_filter(response: dict[str, Any], client_side_filter: ParsedResult) -> dict[str, Any]:

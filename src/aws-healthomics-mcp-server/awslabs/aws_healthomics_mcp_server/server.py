@@ -14,6 +14,10 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import (
+    get_supported_file_types,
+    search_genomics_files,
+)
 from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     get_supported_regions,
     package_workflow,
@@ -32,6 +36,10 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     list_run_tasks,
     list_runs,
     start_run,
+)
+from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
+    lint_workflow_bundle,
+    lint_workflow_definition,
 )
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     create_workflow,
@@ -77,6 +85,14 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
 
+### Workflow Linting
+- **LintAHOWorkflowDefinition**: Lint single WDL or CWL workflow files using miniwdl and cwltool
+- **LintAHOWorkflowBundle**: Lint multi-file WDL or CWL workflow bundles with import/dependency support
+
+### Genomics File Search
+- **SearchGenomicsFiles**: Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with intelligent pattern matching and file association detection
+- **GetSupportedFileTypes**: Get information about supported genomics file types and their descriptions
+
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
 - **GetAHOSupportedRegions**: Get the list of AWS regions where HealthOmics is available
@@ -88,6 +104,8 @@ AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegio
         'boto3',
         'pydantic',
         'loguru',
+        'miniwdl',
+        'cwltool',
     ],
 )
 
@@ -114,6 +132,14 @@ mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
+
+# Register workflow linting tools
+mcp.tool(name='LintAHOWorkflowDefinition')(lint_workflow_definition)
+mcp.tool(name='LintAHOWorkflowBundle')(lint_workflow_bundle)
+
+# Register genomics file search tools
+mcp.tool(name='SearchGenomicsFiles')(search_genomics_files)
+mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
 
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)

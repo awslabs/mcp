@@ -1,9 +1,9 @@
 import pytest
 import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
@@ -19,8 +19,21 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     ShortHandParserError,
     UnknownFiltersError,
 )
-from awslabs.aws_api_mcp_server.core.parser.parser import parse
+from awslabs.aws_api_mcp_server.core.parser.parser import (
+    _validate_endpoint,
+    parse,
+)
 from unittest.mock import patch
+
+
+@pytest.mark.parametrize(
+    'command',
+    [('aws organizations describe-organization')],
+)
+def test_service_not_expecting_parameters(command):
+    """Test that parsing of commands that do not expect any parameters succeeds."""
+    ir = parse(command)
+    assert ir.parameters == {}
 
 
 @pytest.mark.parametrize(
@@ -218,25 +231,6 @@ def test_invalid_type_for_parameter(command, message):
 
 
 @pytest.mark.parametrize(
-    'command, message',
-    [
-        (
-            'aws lambda  update-function-code --function-name MyFunction --zip-file  fileb://newfunction.zip',
-            str(
-                CommandValidationError(
-                    '-zip-file must be a zip file with the fileb:// prefix.\nExample usage:  --zip-file fileb://path/to/file.zip'
-                )
-            ),
-        )
-    ],
-)
-def test_command_validation_error_for_parameter(command, message):
-    """Test that a command validation error is raised for invalid parameters."""
-    with pytest.raises(CommandValidationError, match=message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
     'command, messages',
     [
         (
@@ -412,12 +406,21 @@ def test_plural_singular_params(command):
         "aws ec2 describe-availability-zones --query='AvailabilityZones[?ZoneName==`us-east-1a`]'",
         'aws s3api get-bucket-lifecycle --bucket my-s3-bucket',
         'aws --region=us-east-1 ec2 get-subnet-cidr-reservations --subnet-id subnet-012 --color=on',
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template -',
         "aws apigateway get-export --parameters extensions='postman' --rest-api-id a1b2c3d4e5 --stage-name dev --export-type swagger -",
     ],
 )
 def test_should_pass_for_valid_equal_sign_params(command):
     """Test that valid equal sign parameters are accepted."""
+    parse(command)
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
+)
+def test_should_pass_for_valid_equal_sign_params_with_file_output():
+    """Test that valid equal sign parameters with file output are accepted when unrestricted access is enabled."""
+    command = f'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template {WORKING_DIRECTORY}/output.template'
     parse(command)
 
 
@@ -606,40 +609,119 @@ def test_client_side_filter_error():
         parse(command)
 
 
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template myfile.template',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_outfile_parameter_not_supported(command):
-    """Test that outfile parameters raise a validation error."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.',
-    ):
-        parse(command)
-
-
-def test_valid_expand_user_home_directory():
-    """Test that tilde is replaced with user home directory."""
-    result = parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
-    assert not any(param.startswith('~') for param in result.parameters['--paths'])
-
-
-def test_invalid_expand_user_home_directory():
-    """Test that tilde is not replaced."""
-    result = parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
-    assert any(param.startswith('~') for param in result.parameters['--paths'])
-
-
 @patch('boto3.Session')
 def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
     mock_session_instance = mock_boto3_session.return_value
     mock_session_instance.region_name = 'us-east-1'
 
-    result = parse(cli_command='aws s3api list-buckets --profile test-profile')
-    assert result.profile == 'test-profile'
-    mock_boto3_session.assert_called_with(profile_name='test-profile')
+    with patch('awslabs.aws_api_mcp_server.core.common.config.AWS_REGION', None):
+        result = parse(cli_command='aws s3api list-buckets --profile test-profile')
+        assert result.profile == 'test-profile'
+        mock_boto3_session.assert_called_with(profile_name='test-profile')
+
+
+@pytest.mark.parametrize(
+    'endpoint',
+    [
+        None,
+        '',
+        'localhost:8080',
+        'http://localhost:8080',
+        'https://localhost:8080',
+        '127.0.0.1:8080',
+        'http://127.0.0.1:8080',
+        'http://[::1]:8080',
+    ],
+)
+def test_validate_endpoint_valid_loopback(endpoint):
+    """Test that valid loopback endpoints are accepted."""
+    _validate_endpoint(endpoint)
+
+
+@pytest.mark.parametrize(
+    'endpoint,expected_error',
+    [
+        ('localhost:invalid_port', 'Invalid endpoint or port'),
+        ('http://localhost:abc', 'Invalid endpoint or port'),
+        ('://invalid', 'Could not find hostname'),
+        ('http://', 'Could not find hostname'),
+        ('192.168.1.1:8080', 'Local endpoint was not a loopback address'),
+        ('http://192.168.1.1:8080', 'Local endpoint was not a loopback address'),
+        ('google.com:8080', 'Could not resolve endpoint'),
+        ('https://google.com', 'Could not resolve endpoint'),
+        ('example.com', 'Could not resolve endpoint'),
+        ('::1:8080', 'Invalid endpoint or port'),  # IPv6 without brackets
+    ],
+)
+def test_validate_endpoint_invalid(endpoint, expected_error):
+    """Test that invalid endpoints raise appropriate ValueError."""
+    with pytest.raises(ValueError, match=expected_error):
+        _validate_endpoint(endpoint)
+
+
+def test_validate_endpoint_empty_string():
+    """Test that empty string is handled like None."""
+    _validate_endpoint('')
+
+
+def test_validate_endpoint_localhost_conversion():
+    """Test that localhost is converted to 127.0.0.1."""
+    _validate_endpoint('localhost:8080')
+
+
+def test_validate_endpoint_ipv6_loopback():
+    """Test that IPv6 loopback addresses are accepted."""
+    _validate_endpoint('[::1]:8080')
+    _validate_endpoint('http://[::1]:8080')
+
+
+def test_validate_endpoint_protocol_handling():
+    """Test that endpoints with and without protocol are handled correctly."""
+    _validate_endpoint('localhost:8080')
+    _validate_endpoint('https://localhost:8080')
+
+
+def test_validate_endpoint_non_http_protocols():
+    """Test that non-HTTP protocols with localhost are accepted."""
+    _validate_endpoint('ftp://localhost:8080')
+    _validate_endpoint('ws://127.0.0.1:8080')
+
+
+def test_allowed_custom_operations_when_file_access_disabled_is_subset():
+    """Test that ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is a subset of ALLOWED_CUSTOM_OPERATIONS.
+
+    This ensures that all operations allowed when file access is disabled are also in the main
+    allowed operations list. Operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+    should be those that can work without local file access.
+    """
+    from awslabs.aws_api_mcp_server.core.parser.parser import (
+        ALLOWED_CUSTOM_OPERATIONS,
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED,
+    )
+
+    extra_operations = []
+
+    for service, operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.items():
+        # Check if service exists in ALLOWED_CUSTOM_OPERATIONS
+        if service not in ALLOWED_CUSTOM_OPERATIONS:
+            extra_operations.append(
+                f"Service '{service}' in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED "
+                f'is not in ALLOWED_CUSTOM_OPERATIONS'
+            )
+            continue
+
+        # Check if all operations for this service are in ALLOWED_CUSTOM_OPERATIONS
+        allowed_ops_set = set(ALLOWED_CUSTOM_OPERATIONS[service])
+        for operation in operations:
+            if operation not in allowed_ops_set:
+                extra_operations.append(
+                    f"Operation '{operation}' for service '{service}' in "
+                    f'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is not in ALLOWED_CUSTOM_OPERATIONS'
+                )
+
+    assert not extra_operations, (
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED must be a subset of ALLOWED_CUSTOM_OPERATIONS.\n'
+        + 'The following operations are in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED but not in ALLOWED_CUSTOM_OPERATIONS:\n'
+        + '\n'.join(extra_operations)
+    )
