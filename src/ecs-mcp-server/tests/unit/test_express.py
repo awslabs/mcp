@@ -98,16 +98,16 @@ async def test_build_and_push_ecr_creation_fails(mock_create_ecr, mock_prep, moc
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_all_valid(mock_check_image, mock_check_role, mock_account):
     """Test validation succeeds when all prerequisites are met."""
     mock_account.return_value = "123456789012"
     mock_check_role.side_effect = [
-        (True, {"status": "valid", "message": "Role valid"}),
-        (True, {"status": "valid", "message": "Role valid"}),
+        {"status": "valid", "message": "Role valid"},
+        {"status": "valid", "message": "Role valid"},
     ]
-    mock_check_image.return_value = (True, {"status": "exists", "message": "Image found"})
+    mock_check_image.return_value = {"status": "exists", "message": "Image found"}
 
     result = await validate_prerequisites("123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag")
 
@@ -117,7 +117,7 @@ async def test_validate_prerequisites_all_valid(mock_check_image, mock_check_rol
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_execution_role_missing(
     mock_check_image, mock_check_role, mock_account
@@ -125,10 +125,10 @@ async def test_validate_prerequisites_execution_role_missing(
     """Test validation fails when execution role is missing."""
     mock_account.return_value = "123456789012"
     mock_check_role.side_effect = [
-        (False, {"status": "not_found", "error": "Role not found"}),
-        (True, {"status": "valid"}),
+        {"status": "not_found", "error": "Role not found"},
+        {"status": "valid"},
     ]
-    mock_check_image.return_value = (True, {"status": "exists"})
+    mock_check_image.return_value = {"status": "exists"}
 
     result = await validate_prerequisites("123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag")
 
@@ -138,7 +138,7 @@ async def test_validate_prerequisites_execution_role_missing(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_infra_role_missing(
     mock_check_image, mock_check_role, mock_account
@@ -146,10 +146,10 @@ async def test_validate_prerequisites_infra_role_missing(
     """Test validation fails when infrastructure role is missing."""
     mock_account.return_value = "123456789012"
     mock_check_role.side_effect = [
-        (True, {"status": "valid"}),
-        (False, {"status": "not_found", "error": "Infrastructure role not found"}),
+        {"status": "valid"},
+        {"status": "not_found", "error": "Infrastructure role not found"},
     ]
-    mock_check_image.return_value = (True, {"status": "exists"})
+    mock_check_image.return_value = {"status": "exists"}
 
     result = await validate_prerequisites("123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag")
 
@@ -159,15 +159,15 @@ async def test_validate_prerequisites_infra_role_missing(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_image_missing(
     mock_check_image, mock_check_role, mock_account
 ):
     """Test validation fails when image is missing."""
     mock_account.return_value = "123456789012"
-    mock_check_role.side_effect = [(True, {"status": "valid"}), (True, {"status": "valid"})]
-    mock_check_image.return_value = (False, {"status": "not_found", "error": "Image not found"})
+    mock_check_role.side_effect = [{"status": "valid"}, {"status": "valid"}]
+    mock_check_image.return_value = {"status": "not_found", "error": "Image not found"}
 
     result = await validate_prerequisites("123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag")
 
@@ -177,7 +177,7 @@ async def test_validate_prerequisites_image_missing(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_missing_error_details(
     mock_check_image, mock_check_role, mock_account
@@ -185,10 +185,10 @@ async def test_validate_prerequisites_missing_error_details(
     """Test validation with missing error details (fallback messages)."""
     mock_account.return_value = "123456789012"
     mock_check_role.side_effect = [
-        (False, {"status": "not_found"}),  # No 'error' key
-        (False, {"status": "invalid"}),  # No 'error' key
+        {"status": "not_found"},  # No 'error' key
+        {"status": "invalid"},  # No 'error' key
     ]
-    mock_check_image.return_value = (False, {"status": "not_found"})  # No 'error' key
+    mock_check_image.return_value = {"status": "not_found"}  # No 'error' key
 
     result = await validate_prerequisites("123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag")
 
@@ -198,15 +198,15 @@ async def test_validate_prerequisites_missing_error_details(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_account_id")
-@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists")
+@patch("awslabs.ecs_mcp_server.api.express.check_iam_role_exists_and_policy")
 @patch("awslabs.ecs_mcp_server.api.express.check_ecr_image_exists")
 async def test_validate_prerequisites_with_custom_roles(
     mock_check_image, mock_check_role, mock_account
 ):
     """Test validation with custom role ARNs."""
     mock_account.return_value = "123456789012"
-    mock_check_role.side_effect = [(True, {"status": "valid"}), (True, {"status": "valid"})]
-    mock_check_image.return_value = (True, {"status": "exists"})
+    mock_check_role.side_effect = [{"status": "valid"}, {"status": "valid"}]
+    mock_check_image.return_value = {"status": "exists"}
 
     result = await validate_prerequisites(
         "123456789012.dkr.ecr.us-west-2.amazonaws.com/app:tag",

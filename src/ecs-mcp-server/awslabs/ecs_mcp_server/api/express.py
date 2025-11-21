@@ -27,7 +27,7 @@ from awslabs.ecs_mcp_server.api.infrastructure import (
 )
 from awslabs.ecs_mcp_server.utils.aws import (
     check_ecr_image_exists,
-    check_iam_role_exists,
+    check_iam_role_exists_and_policy,
     get_aws_account_id,
     get_aws_client,
 )
@@ -105,7 +105,7 @@ async def build_and_push_image_to_ecr(
             "image_tag": image_tag,
             "full_image_uri": full_image_uri,
             "ecr_push_pull_role_arn": ecr_role_arn,
-            "stack_name": ecr_result.get("stack_name", f"{app_name}-ecr-infrastructure"),
+            "stack_name": ecr_result["stack_name"],
         }
 
     except Exception as e:
@@ -163,42 +163,39 @@ async def validate_prerequisites(
         logger.info(f"Using default infrastructure role: {infrastructure_role_arn}")
 
     # Check Task Execution Role (only check existence, not permissions)
-    exec_role_valid, exec_role_details = await check_iam_role_exists(
+    exec_role_details = await check_iam_role_exists_and_policy(
         role_arn=execution_role_arn,
         expected_service_principal="ecs-tasks.amazonaws.com",
         role_type="Task Execution Role",
     )
     details["execution_role"] = exec_role_details
-    if not exec_role_valid:
+    if exec_role_details.get("status") != "valid":
         errors.append(exec_role_details.get("error", "Task Execution Role validation failed"))
 
     # Check Infrastructure Role (only check existence, not permissions)
-    infra_role_valid, infra_role_details = await check_iam_role_exists(
+    infra_role_details = await check_iam_role_exists_and_policy(
         role_arn=infrastructure_role_arn,
         expected_service_principal="ecs.amazonaws.com",
         role_type="Infrastructure Role",
     )
     details["infrastructure_role"] = infra_role_details
-    if not infra_role_valid:
+    if infra_role_details.get("status") != "valid":
         errors.append(infra_role_details.get("error", "Infrastructure Role validation failed"))
 
     # Check if image exists in ECR
-    image_valid, image_details = await check_ecr_image_exists(image_uri)
+    image_details = await check_ecr_image_exists(image_uri)
     details["image"] = image_details
-    if not image_valid:
+    if image_details.get("status") != "exists":
         errors.append(image_details.get("error", "Image validation failed"))
 
-    # Determine if validation passed
-    valid = len(errors) == 0
-
     result = {
-        "valid": valid,
+        "valid": not errors,
         "errors": errors,
         "warnings": warnings,
         "details": details,
     }
 
-    if valid:
+    if result["valid"]:
         logger.info("✅ All prerequisites validated successfully")
     else:
         logger.warning(f"❌ Prerequisite validation failed with {len(errors)} error(s)")

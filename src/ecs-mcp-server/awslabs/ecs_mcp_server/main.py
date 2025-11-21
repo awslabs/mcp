@@ -98,7 +98,8 @@ using Express Mode.
         - Creates Dockerfile for your application
 
         2. build_and_push_image_to_ecr(app_name, app_path)
-        - Creates ECR repository via CloudFormation
+        - app_name must be unique for each application
+        - Creates ECR repository via CloudFormation using app_name
         - Builds Docker image and pushes to ECR
         - Returns full_image_uri to use in deployment
 

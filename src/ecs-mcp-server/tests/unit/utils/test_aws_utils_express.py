@@ -14,7 +14,7 @@ import pytest
 
 from awslabs.ecs_mcp_server.utils.aws import (
     check_ecr_image_exists,
-    check_iam_role_exists,
+    check_iam_role_exists_and_policy,
 )
 
 # ============================================================================
@@ -69,13 +69,12 @@ async def test_check_iam_role_exists_valid(mock_get_client, mock_iam_role_respon
     mock_client.get_role.return_value = mock_iam_role_response
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_iam_role_exists(
+    details = await check_iam_role_exists_and_policy(
         "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
         "ecs-tasks.amazonaws.com",
         "Task Execution Role",
     )
 
-    assert valid is True
     assert details["status"] == "valid"
     assert details["name"] == "ecsTaskExecutionRole"
 
@@ -100,11 +99,10 @@ async def test_check_iam_role_exists_not_found(mock_get_client):
     mock_client.get_role.side_effect = error
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_iam_role_exists(
+    details = await check_iam_role_exists_and_policy(
         "arn:aws:iam::123456789012:role/nonexistent", "ecs-tasks.amazonaws.com", "Test Role"
     )
 
-    assert valid is False
     assert details["status"] == "not_found"
 
 
@@ -129,11 +127,10 @@ async def test_check_iam_role_invalid_trust_policy(mock_get_client):
     }
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_iam_role_exists(
+    details = await check_iam_role_exists_and_policy(
         "arn:aws:iam::123456789012:role/wrongRole", "ecs-tasks.amazonaws.com", "Test Role"
     )
 
-    assert valid is False
     assert details["status"] == "invalid_trust_policy"
     assert "does not allow" in details["error"]
 
@@ -159,11 +156,10 @@ async def test_check_iam_role_service_list(mock_get_client):
     }
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_iam_role_exists(
+    details = await check_iam_role_exists_and_policy(
         "arn:aws:iam::123456789012:role/testRole", "ecs-tasks.amazonaws.com", "Test Role"
     )
 
-    assert valid is True
     assert details["status"] == "valid"
 
 
@@ -175,11 +171,10 @@ async def test_check_iam_role_generic_exception(mock_get_client):
     mock_client.get_role.side_effect = RuntimeError("Unexpected error")
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_iam_role_exists(
+    details = await check_iam_role_exists_and_policy(
         "arn:aws:iam::123456789012:role/testRole", "ecs-tasks.amazonaws.com", "Test Role"
     )
 
-    assert valid is False
     assert details["status"] == "error"
     assert "Error validating Test Role" in details["error"]
 
@@ -197,11 +192,10 @@ async def test_check_ecr_image_exists_valid(mock_get_client, mock_ecr_image_resp
     mock_client.describe_images.return_value = mock_ecr_image_response
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_ecr_image_exists(
+    details = await check_ecr_image_exists(
         "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:latest"
     )
 
-    assert valid is True
     assert details["status"] == "exists"
     assert details["repository"] == "my-app"
     assert details["tag"] == "latest"
@@ -210,11 +204,8 @@ async def test_check_ecr_image_exists_valid(mock_get_client, mock_ecr_image_resp
 @pytest.mark.anyio
 async def test_check_ecr_image_invalid_format_no_tag():
     """Test ECR image check fails without tag."""
-    valid, details = await check_ecr_image_exists(
-        "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app"
-    )
+    details = await check_ecr_image_exists("123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app")
 
-    assert valid is False
     assert details["status"] == "invalid_format"
     assert "must include a tag" in details["error"]
 
@@ -222,9 +213,8 @@ async def test_check_ecr_image_invalid_format_no_tag():
 @pytest.mark.anyio
 async def test_check_ecr_image_invalid_format_no_repo():
     """Test ECR image check fails without repository name."""
-    valid, details = await check_ecr_image_exists("invalid-uri:tag")
+    details = await check_ecr_image_exists("invalid-uri:tag")
 
-    assert valid is False
     assert details["status"] == "invalid_format"
 
 
@@ -236,11 +226,10 @@ async def test_check_ecr_image_not_found(mock_get_client):
     mock_client.describe_images.return_value = {"imageDetails": []}
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_ecr_image_exists(
+    details = await check_ecr_image_exists(
         "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:missing"
     )
 
-    assert valid is False
     assert details["status"] == "not_found"
     assert details["tag"] == "missing"
 
@@ -266,11 +255,10 @@ async def test_check_ecr_image_repository_not_found(mock_get_client):
     mock_client.describe_images.side_effect = error
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_ecr_image_exists(
+    details = await check_ecr_image_exists(
         "123456789012.dkr.ecr.us-west-2.amazonaws.com/missing-repo:tag"
     )
 
-    assert valid is False
     assert details["status"] == "repository_not_found"
 
 
@@ -282,10 +270,9 @@ async def test_check_ecr_image_generic_exception(mock_get_client):
     mock_client.describe_images.side_effect = RuntimeError("Unexpected error")
     mock_get_client.return_value = mock_client
 
-    valid, details = await check_ecr_image_exists(
+    details = await check_ecr_image_exists(
         "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:tag"
     )
 
-    assert valid is False
     assert details["status"] == "error"
     assert "Error validating image in ECR" in details["error"]

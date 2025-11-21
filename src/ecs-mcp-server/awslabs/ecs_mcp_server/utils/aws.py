@@ -18,7 +18,7 @@ AWS utility functions.
 
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import boto3
 from botocore.config import Config
@@ -284,9 +284,9 @@ async def get_route_tables_for_vpc(vpc_id: str, ec2_client=None) -> List[str]:
     return route_table_ids
 
 
-async def check_iam_role_exists(
+async def check_iam_role_exists_and_policy(
     role_arn: str, expected_service_principal: str, role_type: str
-) -> Tuple[bool, Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Checks if an IAM role exists and has the correct trust policy.
 
@@ -298,7 +298,7 @@ async def check_iam_role_exists(
             (e.g., 'Task Execution Role', 'Infrastructure Role')
 
     Returns:
-        Tuple of (success: bool, details: dict)
+        Dictionary with validation details including status
     """
     try:
         iam_client = await get_aws_client("iam")
@@ -324,14 +324,14 @@ async def check_iam_role_exists(
                         break
 
             if trust_policy_valid:
-                return True, {
+                return {
                     "status": "valid",
                     "arn": role_arn,
                     "name": role_name,
                     "message": f"{role_type} is valid",
                 }
             else:
-                return False, {
+                return {
                     "status": "invalid_trust_policy",
                     "arn": role_arn,
                     "name": role_name,
@@ -342,7 +342,7 @@ async def check_iam_role_exists(
                 }
 
         except iam_client.exceptions.NoSuchEntityException:
-            return False, {
+            return {
                 "status": "not_found",
                 "arn": role_arn,
                 "error": f"{role_type} not found: {role_arn}",
@@ -350,14 +350,14 @@ async def check_iam_role_exists(
 
     except Exception as e:
         logger.error(f"Error checking {role_type}: {e}")
-        return False, {
+        return {
             "status": "error",
             "arn": role_arn,
             "error": f"Error validating {role_type}: {str(e)}",
         }
 
 
-async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
+async def check_ecr_image_exists(image_uri: str) -> Dict[str, Any]:
     """
     Checks if a Docker image exists in ECR.
 
@@ -366,12 +366,12 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
             (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:tag)
 
     Returns:
-        Tuple of (success: bool, details: dict)
+        Dictionary with validation details including status
     """
     try:
         # Parse image URI
         if ":" not in image_uri:
-            return False, {
+            return {
                 "status": "invalid_format",
                 "uri": image_uri,
                 "error": "Image URI must include a tag (format: repository:tag)",
@@ -382,7 +382,7 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
         # Extract repository name from URI
         # Format: account.dkr.ecr.region.amazonaws.com/repository-name
         if "/" not in repository_uri:
-            return False, {
+            return {
                 "status": "invalid_format",
                 "uri": image_uri,
                 "error": "Invalid repository URI format",
@@ -400,7 +400,7 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
 
             if response.get("imageDetails"):
                 image_detail = response["imageDetails"][0]
-                return True, {
+                return {
                     "status": "exists",
                     "uri": image_uri,
                     "repository": repository_name,
@@ -410,7 +410,7 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
                     "message": f"Image found in ECR: {image_uri}",
                 }
             else:
-                return False, {
+                return {
                     "status": "not_found",
                     "uri": image_uri,
                     "repository": repository_name,
@@ -419,14 +419,14 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
                 }
 
         except ecr_client.exceptions.RepositoryNotFoundException:
-            return False, {
+            return {
                 "status": "repository_not_found",
                 "uri": image_uri,
                 "repository": repository_name,
                 "error": f"ECR repository not found: {repository_name}",
             }
         except ecr_client.exceptions.ImageNotFoundException:
-            return False, {
+            return {
                 "status": "image_not_found",
                 "uri": image_uri,
                 "repository": repository_name,
@@ -436,7 +436,7 @@ async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
 
     except Exception as e:
         logger.error(f"Error checking image in ECR: {e}")
-        return False, {
+        return {
             "status": "error",
             "uri": image_uri,
             "error": f"Error validating image in ECR: {str(e)}",
