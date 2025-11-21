@@ -236,13 +236,9 @@ async def build_and_push_image(
             region,
         ]
 
-        # Add profile if specified (when not using role)
-        if not role_arn and profile and profile != "default":
+        # Add profile if specified
+        if profile and profile != "default":
             verify_cmd.extend(["--profile", profile])
-
-        # Add role assumption if provided
-        if role_arn:
-            verify_cmd.extend(["--role-arn", role_arn])
 
         verify_result = subprocess.run(
             verify_cmd, capture_output=True, text=True, shell=False, check=False

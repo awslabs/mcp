@@ -41,6 +41,7 @@ ECS_TOOL_GUIDANCE = """
     New ECS features include:
     - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
     - ECS Managed Instances (launched 2025)
+    - ECS Express Mode / Express Gateway Services (launched 2025)
 """
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,23 @@ def register_ecs_prompts(mcp: FastMCP) -> None:
                 "ecs instance type selection",
                 "What alternatives do I have for Fargate?",
                 "How do I migrate from Fargate to Managed Instances",
+            ],
+            "response": [
+                {
+                    "name": "aws_knowledge_aws___search_documentation",
+                }
+            ],
+        },
+        {
+            "patterns": [
+                "what is ecs express mode",
+                "what are express gateway services",
+                "ecs express mode",
+                "simplified ecs deployment",
+                "how to setup express mode",
+                "setup ecs express mode",
+                "configure ecs express mode",
+                "when to use express mode",
             ],
             "response": [
                 {
