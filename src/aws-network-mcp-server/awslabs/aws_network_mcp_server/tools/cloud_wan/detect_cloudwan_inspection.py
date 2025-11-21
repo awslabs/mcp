@@ -61,7 +61,16 @@ async def detect_cloudwan_inspection(
         policy_response = nm_client.get_core_network_policy(
             CoreNetworkId=core_network_id, Alias='LIVE'
         )
-        policy_doc = json.loads(policy_response['CoreNetworkPolicy']['PolicyDocument'])
+
+        # Safely parse policy document with error handling
+        try:
+            policy_doc = json.loads(policy_response['CoreNetworkPolicy']['PolicyDocument'])
+        except json.JSONDecodeError as e:
+            return {
+                'error': f'Invalid policy document JSON: {str(e)}',
+                'success': False,
+                'core_network_id': core_network_id,
+            }
 
         # Validate segments exist
         segment_names = {seg.get('name') for seg in policy_doc.get('segments', [])}

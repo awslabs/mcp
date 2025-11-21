@@ -139,3 +139,30 @@ async def test_detect_cloudwan_inspection_with_nfgs():
                 destination_segment='dev',
                 cloudwan_region='us-east-1',
             )
+
+
+async def test_detect_cloudwan_inspection_malformed_policy():
+    """Test handling of malformed policy JSON - CRITICAL SECURITY FIX.
+
+    This test validates that the function gracefully handles malformed policy
+    documents from AWS API instead of crashing the entire security analysis.
+    """
+    with patch.object(detect_module, 'get_aws_client') as mock_get_client:
+        mock_nm_client = MagicMock()
+        mock_get_client.return_value = mock_nm_client
+
+        # Test malformed JSON policy document
+        mock_nm_client.get_core_network_policy.return_value = {
+            'CoreNetworkPolicy': {'PolicyDocument': '{"invalid": json"}'}  # Invalid JSON
+        }
+
+        result = await detect_module.detect_cloudwan_inspection(
+            core_network_id='core-network-12345678',
+            source_segment='prod',
+            destination_segment='dev',
+            cloudwan_region='us-east-1',
+        )
+
+        assert result['success'] is False
+        assert 'Invalid policy document JSON' in result['error']
+        assert result['core_network_id'] == 'core-network-12345678'
