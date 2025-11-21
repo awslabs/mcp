@@ -18,7 +18,7 @@ AWS utility functions.
 
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import boto3
 from botocore.config import Config
@@ -282,3 +282,162 @@ async def get_route_tables_for_vpc(vpc_id: str, ec2_client=None) -> List[str]:
         route_table_ids = main_route_tables
 
     return route_table_ids
+
+
+async def check_iam_role_exists(
+    role_arn: str, expected_service_principal: str, role_type: str
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Checks if an IAM role exists and has the correct trust policy.
+
+    Args:
+        role_arn: ARN of the IAM role to check
+        expected_service_principal: Expected service principal in trust policy
+            (e.g., 'ecs-tasks.amazonaws.com')
+        role_type: Type of role for logging
+            (e.g., 'Task Execution Role', 'Infrastructure Role')
+
+    Returns:
+        Tuple of (success: bool, details: dict)
+    """
+    try:
+        iam_client = await get_aws_client("iam")
+        role_name = role_arn.split("/")[-1]
+
+        try:
+            role_response = iam_client.get_role(RoleName=role_name)
+
+            # Verify trust policy allows the expected service to assume the role
+            trust_policy = role_response["Role"]["AssumeRolePolicyDocument"]
+            trust_policy_valid = False
+
+            for statement in trust_policy.get("Statement", []):
+                if statement.get("Effect") == "Allow":
+                    principal = statement.get("Principal", {})
+                    service = principal.get("Service", "")
+
+                    if isinstance(service, str) and expected_service_principal in service:
+                        trust_policy_valid = True
+                        break
+                    elif isinstance(service, list) and expected_service_principal in service:
+                        trust_policy_valid = True
+                        break
+
+            if trust_policy_valid:
+                return True, {
+                    "status": "valid",
+                    "arn": role_arn,
+                    "name": role_name,
+                    "message": f"{role_type} is valid",
+                }
+            else:
+                return False, {
+                    "status": "invalid_trust_policy",
+                    "arn": role_arn,
+                    "name": role_name,
+                    "error": (
+                        f"{role_type} trust policy does not allow "
+                        f"{expected_service_principal} to assume the role"
+                    ),
+                }
+
+        except iam_client.exceptions.NoSuchEntityException:
+            return False, {
+                "status": "not_found",
+                "arn": role_arn,
+                "error": f"{role_type} not found: {role_arn}",
+            }
+
+    except Exception as e:
+        logger.error(f"Error checking {role_type}: {e}")
+        return False, {
+            "status": "error",
+            "arn": role_arn,
+            "error": f"Error validating {role_type}: {str(e)}",
+        }
+
+
+async def check_ecr_image_exists(image_uri: str) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Checks if a Docker image exists in ECR.
+
+    Args:
+        image_uri: Full ECR image URI
+            (e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:tag)
+
+    Returns:
+        Tuple of (success: bool, details: dict)
+    """
+    try:
+        # Parse image URI
+        if ":" not in image_uri:
+            return False, {
+                "status": "invalid_format",
+                "uri": image_uri,
+                "error": "Image URI must include a tag (format: repository:tag)",
+            }
+
+        repository_uri, tag = image_uri.rsplit(":", 1)
+
+        # Extract repository name from URI
+        # Format: account.dkr.ecr.region.amazonaws.com/repository-name
+        if "/" not in repository_uri:
+            return False, {
+                "status": "invalid_format",
+                "uri": image_uri,
+                "error": "Invalid repository URI format",
+            }
+
+        repository_name = repository_uri.split("/")[-1]
+
+        # Check if image exists in ECR
+        ecr_client = await get_aws_client("ecr")
+
+        try:
+            response = ecr_client.describe_images(
+                repositoryName=repository_name, imageIds=[{"imageTag": tag}]
+            )
+
+            if response.get("imageDetails"):
+                image_detail = response["imageDetails"][0]
+                return True, {
+                    "status": "exists",
+                    "uri": image_uri,
+                    "repository": repository_name,
+                    "tag": tag,
+                    "image_digest": image_detail.get("imageDigest"),
+                    "image_pushed_at": str(image_detail.get("imagePushedAt", "")),
+                    "message": f"Image found in ECR: {image_uri}",
+                }
+            else:
+                return False, {
+                    "status": "not_found",
+                    "uri": image_uri,
+                    "repository": repository_name,
+                    "tag": tag,
+                    "error": f"Image with tag '{tag}' not found in repository '{repository_name}'",
+                }
+
+        except ecr_client.exceptions.RepositoryNotFoundException:
+            return False, {
+                "status": "repository_not_found",
+                "uri": image_uri,
+                "repository": repository_name,
+                "error": f"ECR repository not found: {repository_name}",
+            }
+        except ecr_client.exceptions.ImageNotFoundException:
+            return False, {
+                "status": "image_not_found",
+                "uri": image_uri,
+                "repository": repository_name,
+                "tag": tag,
+                "error": f"Image with tag '{tag}' not found in repository '{repository_name}'",
+            }
+
+    except Exception as e:
+        logger.error(f"Error checking image in ECR: {e}")
+        return False, {
+            "status": "error",
+            "uri": image_uri,
+            "error": f"Error validating image in ECR: {str(e)}",
+        }
