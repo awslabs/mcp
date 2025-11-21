@@ -133,6 +133,8 @@ const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
   },
 });
 ```
+If there is PYTHONPATH in container definition, APP_PATH is the existing PYTHONPATH value,
+else no need APP_PATH, PYTHONPATH: '/otel-auto-instrumentation-python/opentelemetry/instrumentation/auto_instrumentation:/otel-auto-instrumentation-python'
 
 #### 2.4 Add Mount Point to Main Container
 ```typescript
@@ -157,6 +159,44 @@ mainContainer.addContainerDependencies({
   condition: ecs.ContainerDependencyCondition.START,
 });
 ```
+
+### Step 3: Apply Python Framework–Specific Changes
+Depending on the Python web framework your application uses, additional configuration may be required to ensure OpenTelemetry zero-code instrumentation initializes correctly.
+
+#### 3.a: Django-Specific Configuration
+Django applications may require additional settings to work seamlessly with OpenTelemetry zero-code instrumentation. These adjustments ensure that Django initializes with the correct configuration。
+
+#### 3.a.1: set DJANGO_SETTINGS_MODULE
+If your ECS application is built with Django, explicitly set the DJANGO_SETTINGS_MODULE environment variable in the container definition to ensure correct initialization during OpenTelemetry zero-code instrumentation.
+```typescript
+const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
+  // Existing configuration...
+  environment: {
+    // Existing environment variables...
+
+    // Ensure Django settings module is explicitly defined
+    DJANGO_SETTINGS_MODULE: {{your django settings}}
+  },
+});
+```
+
+#### 3.a.2: Add --noreload When Using Django’s Development Server
+If you are using Django’s development server, override the Docker CMD in your ECS container definition by adding the --noreload flag. This prevents startup failures caused by conflicts between Django’s auto-reloader and OpenTelemetry instrumentation.
+Skip this step if you run Django in production with a WSGI or ASGI server (e.g., Gunicorn, Uvicorn, Daphne).
+
+**Before (Dockerfile):**
+```dockerfile
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+```
+
+**After (ECS IaC override):**
+```typescript
+Const appContainer = taskDefinition.addContainer('Application', {
+      // Override Dockerfile CMD to include "--noreload"
+      command: ["python", "manage.py", "runserver", "0.0.0.0:8000", "--noreload"],
+
+```
+
 
 ## Completion
 
@@ -192,8 +232,5 @@ After enablement, you can monitor your application's operational health using Ap
 
 **Troubleshooting**
 If you encounter any other issues, refer to the [CloudWatch APM troubleshooting guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-Troubleshoot.html).
-
-⚠️ **Warning for Django:**
-If your application is built with Django, you must follow [additional steps to prevent startup failures](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable-Troubleshoot.html#Application-Signals-troubleshoot-starting).
 
 Let me know if you'd like me to make any adjustments before you deploy!"
