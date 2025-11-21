@@ -15,11 +15,12 @@
 """Test cases for the list_network_firewalls tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls import (
-    list_network_firewalls,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+nfw_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls')
 
 
 class TestListNetworkFirewalls:
@@ -40,64 +41,54 @@ class TestListNetworkFirewalls:
             }
         ]
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
+    @patch.object(nfw_list_module, 'get_aws_client')
     async def test_success(self, mock_get_client, mock_client, sample_firewalls):
         """Test successful listing."""
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
 
-        result = await list_network_firewalls(region='us-east-1')
+        result = await nfw_list_module.list_network_firewalls(region='us-east-1')
 
         assert result == {'firewalls': sample_firewalls, 'region': 'us-east-1', 'total_count': 1}
         mock_get_client.assert_called_once_with('network-firewall', 'us-east-1', None)
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
+    @patch.object(nfw_list_module, 'get_aws_client')
     async def test_empty_response(self, mock_get_client, mock_client):
         """Test empty firewall list."""
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': []}
 
-        result = await list_network_firewalls(region='us-west-2')
+        result = await nfw_list_module.list_network_firewalls(region='us-west-2')
 
         assert result['firewalls'] == []
         assert result['total_count'] == 0
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
+    @patch.object(nfw_list_module, 'get_aws_client')
     async def test_missing_firewalls_key(self, mock_get_client, mock_client):
         """Test response without Firewalls key."""
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {}
 
-        result = await list_network_firewalls(region='us-east-1')
+        result = await nfw_list_module.list_network_firewalls(region='us-east-1')
 
         assert result['firewalls'] == []
         assert result['total_count'] == 0
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
+    @patch.object(nfw_list_module, 'get_aws_client')
     async def test_with_profile(self, mock_get_client, mock_client):
         """Test with profile parameter."""
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': []}
 
-        await list_network_firewalls(region='eu-west-1', profile_name='test-profile')
+        await nfw_list_module.list_network_firewalls(region='eu-west-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('network-firewall', 'eu-west-1', 'test-profile')
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.list_network_firewalls.get_aws_client'
-    )
+    @patch.object(nfw_list_module, 'get_aws_client')
     async def test_aws_error(self, mock_get_client, mock_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.side_effect = Exception('API Error')
 
         with pytest.raises(ToolError, match='Error listing Network Firewalls: API Error'):
-            await list_network_firewalls(region='us-east-1')
+            await nfw_list_module.list_network_firewalls(region='us-east-1')

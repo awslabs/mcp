@@ -15,11 +15,12 @@
 """Test cases for the get_firewall_rules tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules import (
-    get_firewall_rules,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+firewall_rules_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules')
 
 
 class TestGetFirewallRules:
@@ -119,9 +120,7 @@ class TestGetFirewallRules:
             }
         }
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_success_with_both_rule_types(
         self,
         mock_get_client,
@@ -143,7 +142,7 @@ class TestGetFirewallRules:
 
         mock_nfw_client.describe_rule_group.side_effect = mock_describe_rule_group
 
-        result = await get_firewall_rules(firewall_name='test-firewall', region='us-east-1')
+        result = await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', region='us-east-1')
 
         assert result['firewall_name'] == 'test-firewall'
         assert result['summary']['total_stateless_rules'] == 1
@@ -153,9 +152,7 @@ class TestGetFirewallRules:
         assert result['stateless_rules'][0]['priority'] == 1
         assert result['stateful_rules'][0]['rule_group_name'] == 'test-stateful'
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_with_suricata_rules(
         self, mock_get_client, mock_nfw_client, firewall_response, stateful_rule_group_suricata
     ):
@@ -174,16 +171,14 @@ class TestGetFirewallRules:
         }
         mock_nfw_client.describe_rule_group.return_value = stateful_rule_group_suricata
 
-        result = await get_firewall_rules(firewall_name='test-firewall')
+        result = await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall')
 
         assert result['summary']['total_stateless_rules'] == 0
         assert result['summary']['total_stateful_rules'] == 1
         assert result['stateful_rules'][0]['type'] == 'suricata'
         assert result['stateful_rules'][0]['action'] == 'alert'
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_empty_policy(
         self, mock_get_client, mock_nfw_client, firewall_response
     ):
@@ -197,16 +192,14 @@ class TestGetFirewallRules:
             }
         }
 
-        result = await get_firewall_rules(firewall_name='test-firewall', region='us-west-2')
+        result = await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', region='us-west-2')
 
         assert result['summary']['total_stateless_rules'] == 0
         assert result['summary']['total_stateful_rules'] == 0
         assert result['stateless_rules'] == []
         assert result['stateful_rules'] == []
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_with_profile(
         self, mock_get_client, mock_nfw_client, firewall_response
     ):
@@ -215,13 +208,11 @@ class TestGetFirewallRules:
         mock_nfw_client.describe_firewall.return_value = firewall_response
         mock_nfw_client.describe_firewall_policy.return_value = {'FirewallPolicy': {}}
 
-        await get_firewall_rules(firewall_name='test-firewall', profile_name='custom-profile')
+        await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall', profile_name='custom-profile')
 
         mock_get_client.assert_called_once_with('network-firewall', None, 'custom-profile')
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_firewall_not_found(self, mock_get_client, mock_nfw_client):
         """Test firewall not found error."""
         mock_get_client.return_value = mock_nfw_client
@@ -230,11 +221,9 @@ class TestGetFirewallRules:
         with pytest.raises(
             ToolError, match='There was an error getting AWS Network Firewall rules'
         ):
-            await get_firewall_rules(firewall_name='nonexistent-firewall')
+            await firewall_rules_module.get_firewall_rules(firewall_name='nonexistent-firewall')
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_policy_error(
         self, mock_get_client, mock_nfw_client, firewall_response
     ):
@@ -244,11 +233,9 @@ class TestGetFirewallRules:
         mock_nfw_client.describe_firewall_policy.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError):
-            await get_firewall_rules(firewall_name='test-firewall')
+            await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall')
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.network_firewall.get_firewall_rules.get_aws_client'
-    )
+    @patch.object(firewall_rules_module, 'get_aws_client')
     async def test_get_firewall_rules_rule_group_error(
         self, mock_get_client, mock_nfw_client, firewall_response, policy_response
     ):
@@ -259,4 +246,4 @@ class TestGetFirewallRules:
         mock_nfw_client.describe_rule_group.side_effect = Exception('RuleGroupNotFound')
 
         with pytest.raises(ToolError):
-            await get_firewall_rules(firewall_name='test-firewall')
+            await firewall_rules_module.get_firewall_rules(firewall_name='test-firewall')

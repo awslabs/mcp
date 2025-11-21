@@ -77,7 +77,7 @@ You can download the AWS Network MCP Server from GitHub. To get started using yo
     "awslabs.aws-network-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.aws-network-mcp-server.server@latest"
+        "awslabs.aws-network-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",

@@ -15,9 +15,12 @@
 """Test cases for the get_eni_details tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.general.get_eni_details import get_eni_details
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+eni_details_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.general.get_eni_details')
 
 
 class TestGetEniDetails:
@@ -123,7 +126,7 @@ class TestGetEniDetails:
             }
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_success(
         self,
         mock_get_client,
@@ -146,7 +149,7 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': sample_nacls}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': sample_route_tables}
 
-        result = await get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
 
         # Verify the result structure
         assert 'basic_info' in result
@@ -168,18 +171,18 @@ class TestGetEniDetails:
         )
         mock_ec2_client.describe_security_groups.assert_called_once_with(GroupIds=['sg-12345678'])
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_not_found(self, mock_get_client, mock_ec2_client):
         """Test ENI not found error handling."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_network_interfaces.return_value = {'NetworkInterfaces': []}
 
         with pytest.raises(ToolError) as exc_info:
-            await get_eni_details(eni_id='eni-nonexistent', region='us-east-1')
+            await eni_details_module.get_eni_details(eni_id='eni-nonexistent', region='us-east-1')
 
         assert 'There was an error getting AWS ENI details' in str(exc_info.value)
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_aws_error(self, mock_get_client, mock_ec2_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_ec2_client
@@ -188,11 +191,11 @@ class TestGetEniDetails:
         )
 
         with pytest.raises(ToolError) as exc_info:
-            await get_eni_details(eni_id='eni-invalid', region='us-east-1')
+            await eni_details_module.get_eni_details(eni_id='eni-invalid', region='us-east-1')
 
         assert 'There was an error getting AWS ENI details' in str(exc_info.value)
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_with_profile(
         self, mock_get_client, mock_ec2_client, sample_eni_data
     ):
@@ -205,13 +208,13 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': []}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': []}
 
-        await get_eni_details(
+        await eni_details_module.get_eni_details(
             eni_id='eni-12345678', region='us-west-2', profile_name='test-profile'
         )
 
         mock_get_client.assert_called_with('ec2', 'us-west-2', 'test-profile')
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_no_route_table_association(
         self, mock_get_client, mock_ec2_client, sample_eni_data
     ):
@@ -230,14 +233,14 @@ class TestGetEniDetails:
             {'RouteTables': [{'RouteTableId': 'rtb-main', 'Routes': [], 'Associations': []}]},
         ]
 
-        result = await get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
 
         # Verify main route table lookup was called
         assert mock_ec2_client.describe_route_tables.call_count == 2
         assert len(result['route_tables']) == 1
         assert result['route_tables'][0]['route_table_id'] == 'rtb-main'
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_no_public_ip(
         self, mock_get_client, mock_ec2_client, sample_eni_data
     ):
@@ -255,11 +258,11 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': []}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': []}
 
-        result = await get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
 
         assert result['basic_info']['public_ip'] is None
 
-    @patch('awslabs.aws_network_mcp_server.tools.general.get_eni_details.get_aws_client')
+    @patch.object(eni_details_module, 'get_aws_client')
     async def test_get_eni_details_multiple_security_groups(
         self, mock_get_client, mock_ec2_client, sample_eni_data
     ):
@@ -285,7 +288,7 @@ class TestGetEniDetails:
         mock_ec2_client.describe_network_acls.return_value = {'NetworkAcls': []}
         mock_ec2_client.describe_route_tables.return_value = {'RouteTables': []}
 
-        result = await get_eni_details(eni_id='eni-12345678', region='us-east-1')
+        result = await eni_details_module.get_eni_details(eni_id='eni-12345678', region='us-east-1')
 
         # Verify both security groups are called
         mock_ec2_client.describe_security_groups.assert_called_once_with(

@@ -15,9 +15,12 @@
 """Test cases for the list_vpcs tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.vpc.list_vpcs import list_vpcs
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+vpc_list_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs')
 
 
 class TestListVpcs:
@@ -43,53 +46,53 @@ class TestListVpcs:
             },
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_success(self, mock_get_client, sample_vpcs):
         """Test successful VPCs listing."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
         mock_client.describe_vpcs.return_value = {'Vpcs': sample_vpcs}
 
-        result = await list_vpcs(region='us-east-1')
+        result = await vpc_list_module.list_vpcs(region='us-east-1')
 
         assert result == {'vpcs': sample_vpcs, 'region': 'us-east-1', 'total_count': 2}
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
         mock_client.describe_vpcs.assert_called_once()
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_empty(self, mock_get_client):
         """Test listing when no VPCs exist."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
         mock_client.describe_vpcs.return_value = {'Vpcs': []}
 
-        result = await list_vpcs(region='us-west-2')
+        result = await vpc_list_module.list_vpcs(region='us-west-2')
 
         assert result == {'vpcs': [], 'region': 'us-west-2', 'total_count': 0}
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_with_profile(self, mock_get_client, sample_vpcs):
         """Test VPCs listing with specific AWS profile."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
         mock_client.describe_vpcs.return_value = {'Vpcs': sample_vpcs}
 
-        await list_vpcs(region='eu-central-1', profile_name='test-profile')
+        await vpc_list_module.list_vpcs(region='eu-central-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('ec2', 'eu-central-1', 'test-profile')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_missing_vpcs_key(self, mock_get_client):
         """Test handling response without Vpcs key."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
         mock_client.describe_vpcs.return_value = {}
 
-        result = await list_vpcs(region='us-east-1')
+        result = await vpc_list_module.list_vpcs(region='us-east-1')
 
         assert result == {'vpcs': [], 'region': 'us-east-1', 'total_count': 0}
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_aws_error(self, mock_get_client):
         """Test AWS API error handling."""
         mock_client = MagicMock()
@@ -100,9 +103,9 @@ class TestListVpcs:
             ToolError,
             match='Error listing VPCs. Error: ServiceUnavailableException. REQUIRED TO REMEDIATE BEFORE CONTINUING',
         ):
-            await list_vpcs(region='us-east-1')
+            await vpc_list_module.list_vpcs(region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.list_vpcs.get_aws_client')
+    @patch.object(vpc_list_module, 'get_aws_client')
     async def test_list_vpcs_client_error(self, mock_get_client):
         """Test client creation error handling."""
         mock_get_client.side_effect = Exception('Invalid credentials')
@@ -111,4 +114,4 @@ class TestListVpcs:
             ToolError,
             match='Error listing VPCs. Error: Invalid credentials. REQUIRED TO REMEDIATE BEFORE CONTINUING',
         ):
-            await list_vpcs(region='us-east-1')
+            await vpc_list_module.list_vpcs(region='us-east-1')

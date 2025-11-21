@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details import (
-    get_vpc_network_details,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import Mock, patch
+
+# Get the actual module - prevents function/module resolution issues
+vpc_details_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details')
 
 
 @pytest.fixture
@@ -78,7 +79,7 @@ def mock_ec2_responses():
     }
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_success(
     mock_get_client, mock_aws_credentials, mock_ec2_responses
@@ -96,7 +97,7 @@ async def test_get_vpc_network_details_success(
     mock_client.describe_network_acls.return_value = mock_ec2_responses['describe_network_acls']
     mock_client.describe_nat_gateways.return_value = mock_ec2_responses['describe_nat_gateways']
 
-    result = await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
+    result = await vpc_details_module.get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
     assert result['vpc']['id'] == 'vpc-12345678'
     assert result['vpc']['cidr'] == '10.0.0.0/16'
@@ -106,7 +107,7 @@ async def test_get_vpc_network_details_success(
     assert result['internet_gateway'].id == 'igw-12345678'
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_vpc_not_found(mock_get_client, mock_aws_credentials):
     """Test VPC not found error."""
@@ -115,10 +116,10 @@ async def test_get_vpc_network_details_vpc_not_found(mock_get_client, mock_aws_c
     mock_client.describe_vpcs.side_effect = Exception('VPC not found')
 
     with pytest.raises(ToolError, match='VPC with id vpc-invalid could not be found'):
-        await get_vpc_network_details(vpc_id='vpc-invalid', region='us-east-1')
+        await vpc_details_module.get_vpc_network_details(vpc_id='vpc-invalid', region='us-east-1')
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_api_failure(
     mock_get_client, mock_aws_credentials, mock_ec2_responses
@@ -130,10 +131,10 @@ async def test_get_vpc_network_details_api_failure(
     mock_client.describe_route_tables.side_effect = Exception('API Error')
 
     with pytest.raises(ToolError, match='Failure reading VPC details'):
-        await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
+        await vpc_details_module.get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_with_profile(
     mock_get_client, mock_aws_credentials, mock_ec2_responses
@@ -151,12 +152,12 @@ async def test_get_vpc_network_details_with_profile(
     mock_client.describe_network_acls.return_value = mock_ec2_responses['describe_network_acls']
     mock_client.describe_nat_gateways.return_value = mock_ec2_responses['describe_nat_gateways']
 
-    await get_vpc_network_details(
+    await vpc_details_module.get_vpc_network_details(
         vpc_id='vpc-12345678', region='us-west-2', profile_name='test-profile'
     )
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_default_region(
     mock_get_client, mock_aws_credentials, mock_ec2_responses
@@ -174,12 +175,12 @@ async def test_get_vpc_network_details_default_region(
     mock_client.describe_network_acls.return_value = mock_ec2_responses['describe_network_acls']
     mock_client.describe_nat_gateways.return_value = mock_ec2_responses['describe_nat_gateways']
 
-    result = await get_vpc_network_details(vpc_id='vpc-12345678')
+    result = await vpc_details_module.get_vpc_network_details(vpc_id='vpc-12345678')
 
     assert result['vpc']['region'] == 'us-east-1'
 
 
-@patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_network_details.get_aws_client')
+@patch.object(vpc_details_module, 'get_aws_client')
 @pytest.mark.asyncio
 async def test_get_vpc_network_details_complex_resources(mock_get_client, mock_aws_credentials):
     """Test with complex resource configurations."""
@@ -260,7 +261,7 @@ async def test_get_vpc_network_details_complex_resources(mock_get_client, mock_a
     for method, response in complex_responses.items():
         getattr(mock_client, method).return_value = response
 
-    result = await get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
+    result = await vpc_details_module.get_vpc_network_details(vpc_id='vpc-12345678', region='us-east-1')
 
     assert len(result['vpc_endpoints']) == 1
     assert result['vpc_endpoints'][0].service_name == 'com.amazonaws.us-east-1.s3'

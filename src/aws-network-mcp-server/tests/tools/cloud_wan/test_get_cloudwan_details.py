@@ -15,14 +15,15 @@
 """Test cases for the get_cloudwan_details tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details import (
-    get_cloudwan_details,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+# Get the actual module - prevents function/module resolution issues
+details_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details')
 
-@patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
+
+@patch.object(details_module, 'get_aws_client')
 async def test_get_cloudwan_details_success(mock_get_client):
     """Test successful Cloud WAN details retrieval."""
     mock_client = MagicMock()
@@ -34,7 +35,7 @@ async def test_get_cloudwan_details_success(mock_get_client):
     }
     mock_client.list_attachments.return_value = {'Attachments': [], 'NextToken': None}
 
-    result = await get_cloudwan_details('core-123', 'us-east-1')
+    result = await details_module.get_cloudwan_details('core-123', 'us-east-1')
 
     assert 'core_network' in result
     assert 'live_policy' in result
@@ -42,7 +43,7 @@ async def test_get_cloudwan_details_success(mock_get_client):
     assert result['live_policy']['version'] == '2021.12'
 
 
-@patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
+@patch.object(details_module, 'get_aws_client')
 async def test_get_cloudwan_details_pagination(mock_get_client):
     """Test pagination with next_token."""
     mock_client = MagicMock()
@@ -50,7 +51,7 @@ async def test_get_cloudwan_details_pagination(mock_get_client):
 
     mock_client.list_attachments.return_value = {'Attachments': [], 'NextToken': None}
 
-    result = await get_cloudwan_details('core-123', 'us-east-1', next_token='token')
+    result = await details_module.get_cloudwan_details('core-123', 'us-east-1', next_token='token')
 
     assert 'attachments' in result
     assert 'core_network' not in result
@@ -59,7 +60,7 @@ async def test_get_cloudwan_details_pagination(mock_get_client):
     )
 
 
-@patch('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_details.get_aws_client')
+@patch.object(details_module, 'get_aws_client')
 async def test_get_cloudwan_details_error(mock_get_client):
     """Test error handling."""
     mock_client = MagicMock()
@@ -67,6 +68,6 @@ async def test_get_cloudwan_details_error(mock_get_client):
     mock_client.get_core_network.side_effect = Exception('Network not found')
 
     with pytest.raises(ToolError) as exc_info:
-        await get_cloudwan_details('invalid', 'us-east-1')
+        await details_module.get_cloudwan_details('invalid', 'us-east-1')
 
     assert 'There was an error getting AWS Core Network details' in str(exc_info.value)

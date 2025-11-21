@@ -15,9 +15,12 @@
 """Test cases for the list_core_networks tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks import list_core_networks
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+core_networks_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks')
 
 
 class TestListCoreNetworks:
@@ -46,30 +49,30 @@ class TestListCoreNetworks:
             },
         ]
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
+    @patch.object(core_networks_module, 'get_aws_client')
     async def test_success(self, mock_get_client, mock_nm_client, sample_core_networks):
         """Test successful core networks listing."""
         mock_get_client.return_value = mock_nm_client
         mock_nm_client.list_core_networks.return_value = {'CoreNetworks': sample_core_networks}
 
-        result = await list_core_networks(region='us-east-1')
+        result = await core_networks_module.list_core_networks(region='us-east-1')
 
         assert result['core_networks'] == sample_core_networks
         assert result['region'] == 'us-east-1'
         assert result['total_count'] == 2
         mock_get_client.assert_called_once_with('networkmanager', 'us-east-1', None)
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
+    @patch.object(core_networks_module, 'get_aws_client')
     async def test_with_profile(self, mock_get_client, mock_nm_client, sample_core_networks):
         """Test with AWS profile."""
         mock_get_client.return_value = mock_nm_client
         mock_nm_client.list_core_networks.return_value = {'CoreNetworks': sample_core_networks}
 
-        await list_core_networks(region='eu-west-1', profile_name='test-profile')
+        await core_networks_module.list_core_networks(region='eu-west-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('networkmanager', 'eu-west-1', 'test-profile')
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
+    @patch.object(core_networks_module, 'get_aws_client')
     async def test_empty_response(self, mock_get_client, mock_nm_client):
         """Test when no core networks exist."""
         mock_get_client.return_value = mock_nm_client
@@ -78,18 +81,18 @@ class TestListCoreNetworks:
         with pytest.raises(
             ToolError, match='No CloudWAN core networks found.*VALIDATE PARAMETERS'
         ):
-            await list_core_networks(region='us-west-2')
+            await core_networks_module.list_core_networks(region='us-west-2')
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
+    @patch.object(core_networks_module, 'get_aws_client')
     async def test_missing_core_networks_key(self, mock_get_client, mock_nm_client):
         """Test when response missing CoreNetworks key."""
         mock_get_client.return_value = mock_nm_client
         mock_nm_client.list_core_networks.return_value = {}
 
         with pytest.raises(ToolError, match='No CloudWAN core networks found'):
-            await list_core_networks(region='us-east-1')
+            await core_networks_module.list_core_networks(region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.cloud_wan.list_core_networks.get_aws_client')
+    @patch.object(core_networks_module, 'get_aws_client')
     async def test_aws_exception(self, mock_get_client, mock_nm_client):
         """Test AWS API exception handling."""
         mock_get_client.return_value = mock_nm_client
@@ -98,9 +101,9 @@ class TestListCoreNetworks:
         with pytest.raises(
             ToolError, match='Error listing CloudWAN core networks.*ServiceUnavailable'
         ):
-            await list_core_networks(region='us-east-1')
+            await core_networks_module.list_core_networks(region='us-east-1')
 
     async def test_missing_region(self):
         """Test missing required region parameter."""
         with pytest.raises(TypeError):
-            await list_core_networks()
+            await core_networks_module.list_core_networks()

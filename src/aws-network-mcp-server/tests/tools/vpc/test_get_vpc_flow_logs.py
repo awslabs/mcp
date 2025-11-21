@@ -15,9 +15,12 @@
 """Test cases for the get_vpc_flow_logs tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs import get_vpc_flow_logs
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+vpc_flow_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs')
 
 
 class TestGetVpcFlowLogs:
@@ -58,7 +61,7 @@ class TestGetVpcFlowLogs:
             ],
         }
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_basic_flow_logs_retrieval(
         self,
         mock_get_client,
@@ -73,7 +76,7 @@ class TestGetVpcFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        result = await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+        result = await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
         assert len(result) == 1
         assert result[0]['version'] == '2'
@@ -81,16 +84,16 @@ class TestGetVpcFlowLogs:
         assert result[0]['srcaddr'] == '10.0.1.5'
         assert result[0]['action'] == 'ACCEPT'
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_no_flow_logs_configured(self, mock_get_client, mock_ec2_client):
         """Test error when no flow logs are configured."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_flow_logs.return_value = {'FlowLogs': None}
 
         with pytest.raises(ToolError, match='There are no flow logs for the VPC'):
-            await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+            await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_flow_logs_not_in_cloudwatch(self, mock_get_client, mock_ec2_client):
         """Test error when flow logs are not stored in CloudWatch."""
         mock_get_client.return_value = mock_ec2_client
@@ -99,9 +102,9 @@ class TestGetVpcFlowLogs:
         }
 
         with pytest.raises(ToolError, match='is not stored in CloudWatch Logs'):
-            await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+            await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_all_filters(
         self,
         mock_get_client,
@@ -116,7 +119,7 @@ class TestGetVpcFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await get_vpc_flow_logs(
+        await vpc_flow_module.get_vpc_flow_logs(
             vpc_id='vpc-12345',
             region='us-east-1',
             action='ACCEPT',
@@ -139,7 +142,7 @@ class TestGetVpcFlowLogs:
         assert "dstport = '80'" in query_string
         assert "interface_id = 'eni-12345'" in query_string
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_custom_time_range(
         self,
         mock_get_client,
@@ -154,7 +157,7 @@ class TestGetVpcFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await get_vpc_flow_logs(
+        await vpc_flow_module.get_vpc_flow_logs(
             vpc_id='vpc-12345',
             region='us-east-1',
             start_time='2024-01-15T10:00:00Z',
@@ -166,7 +169,7 @@ class TestGetVpcFlowLogs:
         assert call_args[1]['startTime'] is not None
         assert call_args[1]['endTime'] is not None
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_query_timeout(
         self, mock_get_client, mock_ec2_client, mock_logs_client, flow_logs_response
     ):
@@ -177,9 +180,9 @@ class TestGetVpcFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Timeout'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+            await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_no_results_found(
         self, mock_get_client, mock_ec2_client, mock_logs_client, flow_logs_response
     ):
@@ -190,10 +193,10 @@ class TestGetVpcFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Complete', 'results': []}
 
         with pytest.raises(ToolError, match='No flow logs found'):
-            await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+            await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.time.sleep')
+    @patch.object(vpc_flow_module, 'get_aws_client')
+    @patch('time.sleep')  # Patch time.sleep directly at source
     async def test_query_running_then_complete(
         self,
         mock_sleep,
@@ -212,21 +215,21 @@ class TestGetVpcFlowLogs:
             query_results_response,
         ]
 
-        result = await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+        result = await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
         assert len(result) == 1
         mock_sleep.assert_called_once_with(1)
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_aws_api_error(self, mock_get_client, mock_ec2_client):
         """Test AWS API error handling."""
         mock_get_client.return_value = mock_ec2_client
         mock_ec2_client.describe_flow_logs.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='Error getting VPC flow logs'):
-            await get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
+            await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345', region='us-east-1')
 
-    @patch('awslabs.aws_network_mcp_server.tools.vpc.get_vpc_flow_logs.get_aws_client')
+    @patch.object(vpc_flow_module, 'get_aws_client')
     async def test_default_parameters(
         self,
         mock_get_client,
@@ -241,7 +244,7 @@ class TestGetVpcFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await get_vpc_flow_logs(vpc_id='vpc-12345')
+        await vpc_flow_module.get_vpc_flow_logs(vpc_id='vpc-12345')
 
         # Verify default limit and time period
         call_args = mock_logs_client.start_query.call_args

@@ -15,20 +15,18 @@
 """Test cases for the get_all_cloudwan_routes tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes import (
-    get_all_cloudwan_routes,
-)
+import importlib
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+routes_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes')
 
 
 @pytest.fixture
 def mock_client():
     """Create a mock AWS client."""
     client = MagicMock()
-    with patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.get_all_cloudwan_routes.get_aws_client',
-        return_value=client,
-    ):
+    with patch.object(routes_module, 'get_aws_client', return_value=client):
         yield client
 
 
@@ -55,7 +53,7 @@ class TestGetAllCloudwanRoutes:
             ]
         }
 
-        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
 
         assert result['core_network_id'] == 'core-123'
         routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
@@ -69,7 +67,7 @@ class TestGetAllCloudwanRoutes:
             'CoreNetwork': {'GlobalNetworkId': 'global-123', 'Segments': [], 'Edges': []}
         }
 
-        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
 
         assert result['regions'] == {}
 
@@ -84,7 +82,7 @@ class TestGetAllCloudwanRoutes:
         }
         mock_client.get_network_routes.return_value = {'NetworkRoutes': []}
 
-        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
 
         assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
 
@@ -99,7 +97,7 @@ class TestGetAllCloudwanRoutes:
         }
         mock_client.get_network_routes.side_effect = Exception('Access denied')
 
-        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
 
         assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
 
@@ -121,7 +119,7 @@ class TestGetAllCloudwanRoutes:
             ]
         }
 
-        result = await get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
 
         routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
         assert routes[0]['type'] == ''

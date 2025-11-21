@@ -14,11 +14,12 @@
 """Test cases for simulate_cloud_wan_route_change tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change import (
-    simulate_cloud_wan_route_change,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
+
+# Get the actual module - prevents function/module resolution issues
+simulate_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change')
 
 
 class TestSimulateCloudWanRouteChange:
@@ -57,12 +58,8 @@ class TestSimulateCloudWanRouteChange:
             ]
         }
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_move_attachment_between_segments(
         self, mock_format_routes, mock_get_client, mock_core_network
@@ -92,7 +89,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'attachment-123', 'segment': 'segment-b'}]
 
-        result = await simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cloud_wan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -105,12 +102,8 @@ class TestSimulateCloudWanRouteChange:
         assert result['changes'][0]['from'] == 'segment-a'
         assert result['changes'][0]['to'] == 'segment-b'
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_remove_attachment(self, mock_format_routes, mock_get_client, mock_core_network):
         """Test removing attachment completely."""
@@ -138,7 +131,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'attachment-123'}]
 
-        result = await simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cloud_wan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -150,9 +143,7 @@ class TestSimulateCloudWanRouteChange:
         assert result['changes'][0]['from'] == 'segment-a'
         assert 'to' not in result['changes'][0]
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
     @pytest.mark.asyncio
     async def test_core_network_error(self, mock_get_client):
         """Test error handling when getting core network fails."""
@@ -161,7 +152,7 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
 
         with pytest.raises(ToolError) as exc_info:
-            await simulate_cloud_wan_route_change(
+            await simulate_module.simulate_cloud_wan_route_change(
                 changes=[],
                 region='us-east-1',
                 cloudwan_region='us-east-1',
@@ -172,12 +163,8 @@ class TestSimulateCloudWanRouteChange:
             exc_info.value
         )
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_no_matching_attachments(
         self, mock_format_routes, mock_get_client, mock_core_network
@@ -191,7 +178,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'non-existent', 'segment': 'segment-b'}]
 
-        result = await simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cloud_wan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -201,12 +188,8 @@ class TestSimulateCloudWanRouteChange:
         assert result['summary']['total_routes_moved'] == 0
         assert len(result['changes']) == 0
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_region_not_in_segment(self, mock_format_routes, mock_get_client):
         """Test when region is not in any segment edge locations."""
@@ -222,19 +205,15 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
         mock_format_routes.side_effect = lambda x, y: x
 
-        result = await simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cloud_wan_route_change(
             changes=[], region='us-east-1', cloudwan_region='us-east-1', core_network_id='core-123'
         )
 
         assert result['summary']['total_routes_moved'] == 0
         mock_client.get_network_routes.assert_not_called()
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_multiple_changes(self, mock_format_routes, mock_get_client, mock_core_network):
         """Test multiple attachment changes."""
@@ -271,7 +250,7 @@ class TestSimulateCloudWanRouteChange:
             {'attachment_id': 'attachment-456'},
         ]
 
-        result = await simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cloud_wan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -283,12 +262,8 @@ class TestSimulateCloudWanRouteChange:
         assert result['changes'][0]['action'] == 'moved'
         assert result['changes'][1]['action'] == 'removed'
 
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.get_aws_client'
-    )
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.cloud_wan.simulate_cloud_wan_route_change.format_routes'
-    )
+    @patch.object(simulate_module, 'get_aws_client')
+    @patch.object(simulate_module, 'format_routes')
     @pytest.mark.asyncio
     async def test_with_profile_name(self, mock_format_routes, mock_get_client, mock_core_network):
         """Test function with profile name parameter."""
@@ -298,7 +273,7 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
         mock_format_routes.side_effect = lambda x, y: x
 
-        await simulate_cloud_wan_route_change(
+        await simulate_module.simulate_cloud_wan_route_change(
             changes=[],
             region='us-east-1',
             cloudwan_region='us-east-1',

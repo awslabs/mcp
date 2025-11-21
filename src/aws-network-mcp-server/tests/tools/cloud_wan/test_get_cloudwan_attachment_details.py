@@ -15,16 +15,15 @@
 """Test cases for the get_cloudwan_attachment_details tool."""
 
 import pytest
-from awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details import (
-    get_cloudwan_attachment_details,
-)
+import importlib
 from fastmcp.exceptions import ToolError
 from unittest.mock import MagicMock, patch
 
+# Get the actual module - prevents function/module resolution issues
+attachment_module = importlib.import_module('awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details')
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+
+@patch.object(attachment_module, 'get_aws_client')
 async def test_vpc_attachment_success(mock_get_client):
     """Test successful VPC attachment retrieval."""
     mock_client = MagicMock()
@@ -38,7 +37,7 @@ async def test_vpc_attachment_success(mock_get_client):
         }
     }
 
-    result = await get_cloudwan_attachment_details('attachment-123', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1')
 
     assert result['attachment_type'] == 'VPC'
     assert result['attachment']['AttachmentId'] == 'attachment-123'
@@ -48,9 +47,7 @@ async def test_vpc_attachment_success(mock_get_client):
     assert result['vpc_specific']['options']['Ipv6Support'] is False
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_connect_attachment_success(mock_get_client):
     """Test successful Connect attachment retrieval."""
     mock_client = MagicMock()
@@ -65,7 +62,7 @@ async def test_connect_attachment_success(mock_get_client):
         }
     }
 
-    result = await get_cloudwan_attachment_details('attachment-456', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-456', 'us-east-1')
 
     assert result['attachment_type'] == 'CONNECT'
     assert result['attachment']['AttachmentId'] == 'attachment-456'
@@ -73,9 +70,7 @@ async def test_connect_attachment_success(mock_get_client):
     assert result['connect_specific']['options']['Protocol'] == 'GRE'
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_direct_connect_gateway_attachment_success(mock_get_client):
     """Test successful Direct Connect Gateway attachment retrieval."""
     mock_client = MagicMock()
@@ -90,7 +85,7 @@ async def test_direct_connect_gateway_attachment_success(mock_get_client):
         }
     }
 
-    result = await get_cloudwan_attachment_details('attachment-789', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-789', 'us-east-1')
 
     assert result['attachment_type'] == 'DIRECT_CONNECT_GATEWAY'
     assert result['attachment']['AttachmentId'] == 'attachment-789'
@@ -100,9 +95,7 @@ async def test_direct_connect_gateway_attachment_success(mock_get_client):
     )
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_site_to_site_vpn_attachment_success(mock_get_client):
     """Test successful Site-to-Site VPN attachment retrieval."""
     mock_client = MagicMock()
@@ -118,7 +111,7 @@ async def test_site_to_site_vpn_attachment_success(mock_get_client):
         }
     }
 
-    result = await get_cloudwan_attachment_details('attachment-vpn', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-vpn', 'us-east-1')
 
     assert result['attachment_type'] == 'SITE_TO_SITE_VPN'
     assert result['attachment']['AttachmentId'] == 'attachment-vpn'
@@ -128,9 +121,7 @@ async def test_site_to_site_vpn_attachment_success(mock_get_client):
     )
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_transit_gateway_route_table_attachment_success(mock_get_client):
     """Test successful Transit Gateway Route Table attachment retrieval."""
     mock_client = MagicMock()
@@ -148,7 +139,7 @@ async def test_transit_gateway_route_table_attachment_success(mock_get_client):
         }
     }
 
-    result = await get_cloudwan_attachment_details('attachment-tgw', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-tgw', 'us-east-1')
 
     assert result['attachment_type'] == 'TRANSIT_GATEWAY_ROUTE_TABLE'
     assert result['attachment']['AttachmentId'] == 'attachment-tgw'
@@ -159,9 +150,7 @@ async def test_transit_gateway_route_table_attachment_success(mock_get_client):
     )
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_attachment_not_found(mock_get_client):
     """Test attachment not found error."""
     mock_client = MagicMock()
@@ -174,16 +163,14 @@ async def test_attachment_not_found(mock_get_client):
     mock_client.get_transit_gateway_route_table_attachment.return_value = {}
 
     with pytest.raises(ToolError) as exc_info:
-        await get_cloudwan_attachment_details('invalid-attachment', 'us-east-1')
+        await attachment_module.get_cloudwan_attachment_details('invalid-attachment', 'us-east-1')
 
     assert 'Attachment invalid-attachment not found or unsupported attachment type' in str(
         exc_info.value
     )
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_with_profile_name(mock_get_client):
     """Test function with custom profile name."""
     mock_client = MagicMock()
@@ -196,14 +183,12 @@ async def test_with_profile_name(mock_get_client):
         }
     }
 
-    await get_cloudwan_attachment_details('attachment-123', 'us-east-1', 'custom-profile')
+    await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1', 'custom-profile')
 
     mock_get_client.assert_called_with('networkmanager', 'us-east-1', 'custom-profile')
 
 
-@patch(
-    'awslabs.aws_network_mcp_server.tools.cloud_wan.get_cloudwan_attachment_details.get_aws_client'
-)
+@patch.object(attachment_module, 'get_aws_client')
 async def test_vpc_attachment_with_missing_optional_fields(mock_get_client):
     """Test VPC attachment with missing optional fields."""
     mock_client = MagicMock()
@@ -213,7 +198,7 @@ async def test_vpc_attachment_with_missing_optional_fields(mock_get_client):
         'VpcAttachment': {'Attachment': {'AttachmentId': 'attachment-123'}}
     }
 
-    result = await get_cloudwan_attachment_details('attachment-123', 'us-east-1')
+    result = await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1')
 
     assert result['attachment_type'] == 'VPC'
     assert result['vpc_specific']['subnet_arns'] is None
