@@ -68,7 +68,7 @@ read_only = False
 dsql_client = None
 persistent_connection = None
 aws_profile = None
-knowledge_server = 'https://dsql-knowledge-mcp.global.api.aws'
+knowledge_server = 'https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
 knowledge_timeout = 30.0
 
 mcp = FastMCP(
