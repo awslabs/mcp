@@ -12,8 +12,8 @@ dependencies = [
     "mcp[cli]==1.11.0",
     "pydantic==2.9.2",
     "boto3==1.40.8",
-    "pyiceberg==0.9.1",
-    "pyarrow==20.0.0",
+    "pyiceberg==0.10.0",
+    "pyarrow==22.0.0",
     "sqlparse==0.5.3",
     "daft==0.5.8",
 ]
