@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .aws_knowledge_client import AWSKnowledgeClient
-from .error_decorators import handle_cdk_tool_errors
-from .knowledge_models import CDKToolResponse
+from ..client.aws_knowledge_client import search_documentation
+from ..error_decorators import handle_cdk_tool_errors
+from ..knowledge_models import CDKToolResponse
 
-
-# Initialize client
-aws_knowledge_client = AWSKnowledgeClient()
 
 SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.'
 
@@ -35,7 +32,7 @@ async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     Returns:
         CDKToolResponse containing search results and guidance.
     """
-    knowledge_response = await aws_knowledge_client.search_documentation(
+    knowledge_response = await search_documentation(
         search_phrase=query, topic=SEARCH_CDK_DOCUMENTATION_TOPIC, limit=10
     )
     return CDKToolResponse(

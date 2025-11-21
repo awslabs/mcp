@@ -15,12 +15,12 @@
 from __future__ import annotations
 
 import json
-from .cdk_tools import search_cdk_documentation_tool
 from .compliance_checker import check_compliance, initialize_guard_rules
 
 # Add parent directory to path for imports
 from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
+from .tools.cdk_tools import search_cdk_documentation_tool
 from .validator import validate_template
 from mcp.server.fastmcp import FastMCP
 from typing import Optional

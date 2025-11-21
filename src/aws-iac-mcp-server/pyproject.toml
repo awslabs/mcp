@@ -13,6 +13,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "guardpycfn>=0.1.0",
     "fastmcp>=0.1.0",
+    "loguru>=0.7.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE"]

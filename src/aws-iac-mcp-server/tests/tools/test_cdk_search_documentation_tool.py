@@ -15,8 +15,8 @@
 """Tests for CDK documentation tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.cdk_tools import search_cdk_documentation_tool
 from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResponse, KnowledgeResult
+from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_documentation_tool
 from unittest.mock import AsyncMock, patch
 
 
@@ -37,9 +37,11 @@ class TestSearchCDKDocumentation:
                 )
             ],
         )
-
-        with patch('awslabs.aws_iac_mcp_server.cdk_tools.aws_knowledge_client') as mock_client:
-            mock_client.search_documentation = AsyncMock(return_value=mock_response)
+        with patch(
+            'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.return_value = mock_response
 
             result = await search_cdk_documentation_tool('constructs')
 
@@ -47,15 +49,18 @@ class TestSearchCDKDocumentation:
             assert len(result.knowledge_response.results) == 1
             assert result.knowledge_response.results[0].title == 'AWS CDK Constructs'
             assert result.next_step_guidance is not None
-            mock_client.search_documentation.assert_called_once_with(
+            mock_search.assert_called_once_with(
                 search_phrase='constructs', topic='cdk_docs', limit=10
             )
 
     @pytest.mark.asyncio
     async def test_search_cdk_documentation_error(self):
         """Test CDK documentation search with error handling."""
-        with patch('awslabs.aws_iac_mcp_server.cdk_tools.aws_knowledge_client') as mock_client:
-            mock_client.search_documentation = AsyncMock(side_effect=Exception('Network error'))
+        with patch(
+            'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.side_effect = Exception('Network error')
 
             result = await search_cdk_documentation_tool('constructs')
 
