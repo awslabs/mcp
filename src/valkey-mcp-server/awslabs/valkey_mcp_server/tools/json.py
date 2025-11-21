@@ -12,449 +12,235 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""JSON operations for Valkey MCP Server."""
+"""JSON Intelligence tools for Valkey (GLIDE)."""
 
-from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
+import json as json_stdlib
+import logging
+from awslabs.valkey_mcp_server.common.connection import get_client
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.common.utils import decode_value
 from awslabs.valkey_mcp_server.context import Context
-from typing import Any, Optional, Union
-from valkey.exceptions import ValkeyError
+from glide_shared.exceptions import RequestError
+from typing import Any, Dict, List, Optional, Union
 
 
-@mcp.tool()
-async def json_set(key: str, path: str, value: Any, nx: bool = False, xx: bool = False) -> str:
-    """Set the JSON value at path.
+logger = logging.getLogger(__name__)
 
-    Args:
-        key: The name of the key
-        path: The path in the JSON document (e.g., "$.name" or "." for root)
-        value: The value to set
-        nx: Only set if path doesn't exist
-        xx: Only set if path exists
 
-    Returns:
-        Success message or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot set JSON value in readonly mode'
+def _parse_json_response(raw: Any) -> Any:
+    """Decode bytes and parse JSON from a GLIDE response."""
+    if raw is None:
+        return None
+    decoded = decode_value(raw) if isinstance(raw, bytes) else raw
+    if isinstance(decoded, str):
+        try:
+            return json_stdlib.loads(decoded)
+        except (json_stdlib.JSONDecodeError, TypeError):
+            return decoded
+    return decode_value(decoded)
 
+
+def _unwrap_single(val: Any, path: str) -> Any:
+    """Unwrap single-element arrays for non-wildcard JSONPath results."""
+    if isinstance(val, list) and len(val) == 1 and '*' not in path:
+        return val[0]
+    return val
+
+
+async def _get_json_type(client: Any, key: str, path: str) -> Optional[str]:
+    """Get the JSON type at a path. Returns None if key/path doesn't exist."""
     try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().set(key, path, value, nx=nx, xx=xx)
-        if result:
-            return f"Successfully set value at path '{path}' in '{key}'"
-        return f"Failed to set value at path '{path}' in '{key}' (path condition not met)"
-    except ValkeyError as e:
-        return f"Error setting JSON value in '{key}': {str(e)}"
+        result = await client.custom_command(['JSON.TYPE', key, path])
+        if result is None:
+            return None
+        if isinstance(result, list):
+            val = result[0] if result else None
+            return val.decode() if isinstance(val, bytes) else val
+        return result.decode() if isinstance(result, bytes) else result
+    except RequestError:
+        return None
+
+
+async def _require_array(client: Any, key: str, path: str) -> Optional[Dict[str, Any]]:
+    """Validate key exists and path is an array. Returns error dict or None."""
+    jtype = await _get_json_type(client, key, path)
+    if jtype is None:
+        return {
+            'status': 'error',
+            'reason': f"Key '{key}' does not exist or path '{path}' not found",
+        }
+    if jtype != 'array':
+        return {'status': 'error', 'reason': f"Path '{path}' is type '{jtype}', not an array"}
+    return None
 
 
 @mcp.tool()
 async def json_get(
     key: str,
-    path: Optional[str] = None,
-    indent: Optional[int] = None,
-    newline: Optional[bool] = None,
-    space: Optional[bool] = None,
-) -> str:
-    """Get the JSON value at path.
+    path: str = '$',
+) -> Dict[str, Any]:
+    """Get a JSON value at a path from a Valkey key.
 
     Args:
-        key: The name of the key
-        path: The path in the JSON document (optional, defaults to root)
-        indent: Number of spaces for indentation (optional)
-        newline: Add newlines in formatted output (optional)
-        space: Add spaces in formatted output (optional)
+        key: Valkey key name
+        path: JSONPath expression (default: "$" for root)
 
     Returns:
-        JSON value or error message
+        Dict with "status" and "value". For non-wildcard paths, single values
+        are unwrapped from the JSONPath array.
     """
     try:
-        r = ValkeyConnectionManager.get_connection()
-        options = {}
-        if indent is not None:
-            options['indent'] = indent
-        if newline is not None:
-            options['newline'] = newline
-        if space is not None:
-            options['space'] = space
-
-        result = r.json().get(key, path, **options) if path else r.json().get(key)
+        client = await get_client()
+        result = await client.custom_command(['JSON.GET', key, path])
         if result is None:
-            return f"No value found at path '{path or '.'}' in '{key}'"
-        return str(result)
-    except ValkeyError as e:
-        return f"Error getting JSON value from '{key}': {str(e)}"
+            return {
+                'status': 'error',
+                'reason': f"Key '{key}' not found or path '{path}' does not exist",
+            }
+        parsed = _parse_json_response(result)
+        unwrapped = _unwrap_single(parsed, path)
+        logger.debug(
+            'json_get: key=%r path=%r raw=%r parsed=%r unwrapped=%r',
+            key,
+            path,
+            result,
+            parsed,
+            unwrapped,
+        )
+        return {'status': 'success', 'value': unwrapped}
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}
 
 
 @mcp.tool()
-async def json_type(key: str, path: Optional[str] = None) -> str:
-    """Get the type of JSON value at path.
+async def json_set(
+    key: str,
+    value: Union[str, int, float, bool, list, dict, None],
+    path: str = '$',
+    ttl: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Set a JSON value at a path on a Valkey key.
 
     Args:
-        key: The name of the key
-        path: The path in the JSON document (optional, defaults to root)
+        key: Valkey key name
+        value: Value to set (string, number, boolean, array, object, or null)
+        path: JSONPath expression (default: "$" for root)
+        ttl: Optional TTL in seconds
 
     Returns:
-        JSON type or error message
+        Dict with "status".
     """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().type(key, path) if path else r.json().type(key)
-        if result is None:
-            return f"No value found at path '{path or '.'}' in '{key}'"
-        return f"Type at path '{path or '.'}' in '{key}': {result}"
-    except ValkeyError as e:
-        return f"Error getting JSON type from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_numincrby(key: str, path: str, value: Union[int, float]) -> str:
-    """Increment the number at path by value.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-        value: The increment value (integer or float)
-
-    Returns:
-        New value or error message
-    """
-    # Check if readonly mode is enabled
     if Context.readonly_mode():
-        return 'Error: Cannot increment JSON value in readonly mode'
-
+        return {'status': 'error', 'reason': 'Readonly mode'}
     try:
-        r = ValkeyConnectionManager.get_connection()
-        # Convert float to int by rounding if needed
-        int_value = round(value) if isinstance(value, float) else value
-        result = r.json().numincrby(key, path, int_value)
-        return f"Value at path '{path}' in '{key}' incremented to {result}"
-    except ValkeyError as e:
-        return f"Error incrementing JSON value in '{key}': {str(e)}"
+        client = await get_client()
+        encoded = json_stdlib.dumps(value)
+        logger.debug(
+            'json_set: key=%r path=%r value=%r type=%s encoded=%r',
+            key,
+            path,
+            value,
+            type(value).__name__,
+            encoded,
+        )
+        await client.custom_command(['JSON.SET', key, path, encoded])
+        if ttl is not None:
+            await client.expire(key, ttl)
+        return {'status': 'success'}
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}
 
 
 @mcp.tool()
-async def json_nummultby(key: str, path: str, value: Union[int, float]) -> str:
-    """Multiply the number at path by value.
+async def json_arrappend(
+    key: str,
+    values: List[Any],
+    path: str = '$',
+) -> Dict[str, Any]:
+    """Append values to a JSON array at a path.
 
     Args:
-        key: The name of the key
-        path: The path in the JSON document
-        value: The multiplier value (integer or float)
+        key: Valkey key name
+        values: Values to append to the array
+        path: JSONPath expression pointing to an array (default: "$")
 
     Returns:
-        New value or error message
+        Dict with "status" and "new_length".
     """
-    # Check if readonly mode is enabled
     if Context.readonly_mode():
-        return 'Error: Cannot multiply JSON value in readonly mode'
-
+        return {'status': 'error', 'reason': 'Readonly mode'}
     try:
-        r = ValkeyConnectionManager.get_connection()
-        # Convert float to int by rounding if needed
-        int_value = round(value) if isinstance(value, float) else value
-        result = r.json().nummultby(key, path, int_value)
-        return f"Value at path '{path}' in '{key}' multiplied to {result}"
-    except ValkeyError as e:
-        return f"Error multiplying JSON value in '{key}': {str(e)}"
+        client = await get_client()
+        if err := await _require_array(client, key, path):
+            return err
+        cmd: list = ['JSON.ARRAPPEND', key, path] + [json_stdlib.dumps(v) for v in values]
+        result = await client.custom_command(cmd)
+        parsed = result if isinstance(result, list) else [result]
+        length = _unwrap_single(parsed, path)
+        return {'status': 'success', 'new_length': length}
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}
 
 
 @mcp.tool()
-async def json_strappend(key: str, path: str, value: str) -> str:
-    """Append a string to the string at path.
+async def json_arrpop(
+    key: str,
+    path: str = '$',
+    index: int = -1,
+) -> Dict[str, Any]:
+    """Pop an element from a JSON array at a path.
 
     Args:
-        key: The name of the key
-        path: The path in the JSON document
-        value: The string to append
+        key: Valkey key name
+        path: JSONPath expression pointing to an array (default: "$")
+        index: Array index to pop (default: -1 for last element)
 
     Returns:
-        New string length or error message
+        Dict with "status" and "popped" value.
     """
-    # Check if readonly mode is enabled
     if Context.readonly_mode():
-        return 'Error: Cannot append to JSON string in readonly mode'
-
+        return {'status': 'error', 'reason': 'Readonly mode'}
     try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().strappend(key, path, value)
-        return f"String at path '{path}' in '{key}' appended, new length: {result}"
-    except ValkeyError as e:
-        return f"Error appending to JSON string in '{key}': {str(e)}"
+        client = await get_client()
+        if err := await _require_array(client, key, path):
+            return err
+        result = await client.custom_command(['JSON.ARRPOP', key, path, str(index)])
+        if isinstance(result, list):
+            popped = [_parse_json_response(v) for v in result]
+            return {'status': 'success', 'popped': _unwrap_single(popped, path)}
+        parsed = _parse_json_response(result)
+        return {'status': 'success', 'popped': parsed}
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}
 
 
 @mcp.tool()
-async def json_strlen(key: str, path: str) -> str:
-    """Get the length of string at path.
+async def json_arrtrim(
+    key: str,
+    start: int,
+    stop: int,
+    path: str = '$',
+) -> Dict[str, Any]:
+    """Trim a JSON array to a specified range.
 
     Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        String length or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().strlen(key, path)
-        if result is None:
-            return f"No string found at path '{path}' in '{key}'"
-        return f"Length of string at path '{path}' in '{key}': {result}"
-    except ValkeyError as e:
-        return f"Error getting JSON string length from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_arrappend(key: str, path: str, *values: Any) -> str:
-    """Append values to the array at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-        *values: One or more values to append
-
-    Returns:
-        New array length or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot append to JSON array in readonly mode'
-
-    try:
-        if not values:
-            return 'Error: at least one value is required'
-
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().arrappend(key, path, *values)
-        return f"Array at path '{path}' in '{key}' appended, new length: {result}"
-    except ValkeyError as e:
-        return f"Error appending to JSON array in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_arrindex(
-    key: str, path: str, value: Any, start: Optional[int] = None, stop: Optional[int] = None
-) -> str:
-    """Get the index of value in array at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-        value: The value to search for
-        start: Start offset (optional)
-        stop: Stop offset (optional)
-
-    Returns:
-        Index or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        args = [value]
-        if start is not None:
-            args.append(start)
-            if stop is not None:
-                args.append(stop)
-
-        result = r.json().arrindex(key, path, *args)
-        if result == -1:
-            range_str = ''
-            if start is not None or stop is not None:
-                range_str = f' in range [{start or 0}, {stop or "∞"}]'
-            return f"Value not found in array at path '{path}' in '{key}'{range_str}"
-        return f"Value found at index {result} in array at path '{path}' in '{key}'"
-    except ValkeyError as e:
-        return f"Error searching JSON array in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_arrlen(key: str, path: str) -> str:
-    """Get the length of array at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        Array length or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().arrlen(key, path)
-        if result is None:
-            return f"No array found at path '{path}' in '{key}'"
-        return f"Length of array at path '{path}' in '{key}': {result}"
-    except ValkeyError as e:
-        return f"Error getting JSON array length from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_arrpop(key: str, path: str, index: int = -1) -> str:
-    """Pop a value from the array at path and index.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-        index: The index to pop from (-1 for last element)
-
-    Returns:
-        Popped value or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot pop from JSON array in readonly mode'
-
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().arrpop(key, path, index)
-        if result is None:
-            return f"No value found at index {index} in array at path '{path}' in '{key}'"
-        return f"Popped value from index {index} in array at path '{path}' in '{key}': {result}"
-    except ValkeyError as e:
-        return f"Error popping from JSON array in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_arrtrim(key: str, path: str, start: int, stop: int) -> str:
-    """Trim array at path to include only elements within range.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
+        key: Valkey key name
         start: Start index (inclusive)
         stop: Stop index (inclusive)
+        path: JSONPath expression pointing to an array (default: "$")
 
     Returns:
-        New array length or error message
+        Dict with "status" and "new_length".
     """
-    # Check if readonly mode is enabled
     if Context.readonly_mode():
-        return 'Error: Cannot trim JSON array in readonly mode'
-
+        return {'status': 'error', 'reason': 'Readonly mode'}
     try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().arrtrim(key, path, start, stop)
-        return f"Array at path '{path}' in '{key}' trimmed to range [{start}, {stop}], new length: {result}"
-    except ValkeyError as e:
-        return f"Error trimming JSON array in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_objkeys(key: str, path: str) -> str:
-    """Get the keys in the object at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        List of keys or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().objkeys(key, path)
-        if result is None:
-            return f"No object found at path '{path}' in '{key}'"
-        if not result:
-            return f"Object at path '{path}' in '{key}' has no keys"
-        # Filter out None values and ensure all elements are strings
-        valid_keys = [str(key) for key in result if key is not None]
-        return f"Keys in object at path '{path}' in '{key}': {', '.join(valid_keys)}"
-    except ValkeyError as e:
-        return f"Error getting JSON object keys from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_objlen(key: str, path: str) -> str:
-    """Get the number of keys in the object at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        Number of keys or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().objlen(key, path)
-        if result is None:
-            return f"No object found at path '{path}' in '{key}'"
-        return f"Number of keys in object at path '{path}' in '{key}': {result}"
-    except ValkeyError as e:
-        return f"Error getting JSON object length from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_toggle(key: str, path: str) -> str:
-    """Toggle boolean value at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        New boolean value or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot toggle JSON boolean in readonly mode'
-
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().toggle(key, path)
-        if result is None:
-            return f"No boolean value found at path '{path}' in '{key}'"
-        return f"Boolean value at path '{path}' in '{key}' toggled to: {str(result).lower()}"
-    except ValkeyError as e:
-        return f"Error toggling JSON boolean in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_clear(key: str, path: str) -> str:
-    """Clear container at path (array or object).
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        Success message or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot clear JSON container in readonly mode'
-
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().clear(key, path)
-        if result == 1:
-            return f"Successfully cleared container at path '{path}' in '{key}'"
-        return f"No container found at path '{path}' in '{key}'"
-    except ValkeyError as e:
-        return f"Error clearing JSON container in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def json_del(key: str, path: str) -> str:
-    """Delete value at path.
-
-    Args:
-        key: The name of the key
-        path: The path in the JSON document
-
-    Returns:
-        Success message or error message
-    """
-    # Check if readonly mode is enabled
-    if Context.readonly_mode():
-        return 'Error: Cannot delete JSON value in readonly mode'
-
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.json().delete(key, path)
-        if result == 1:
-            return f"Successfully deleted value at path '{path}' in '{key}'"
-        return f"No value found at path '{path}' in '{key}'"
-    except ValkeyError as e:
-        return f"Error deleting JSON value in '{key}': {str(e)}"
+        client = await get_client()
+        if err := await _require_array(client, key, path):
+            return err
+        result = await client.custom_command(['JSON.ARRTRIM', key, path, str(start), str(stop)])
+        parsed = result if isinstance(result, list) else [result]
+        length = _unwrap_single(parsed, path)
+        return {'status': 'success', 'new_length': length}
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}

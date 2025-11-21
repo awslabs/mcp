@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import urllib.parse
 from dotenv import load_dotenv
 
 
@@ -27,62 +26,42 @@ VALKEY_CFG = {
     'username': os.getenv('VALKEY_USERNAME', None),
     'password': os.getenv('VALKEY_PWD', ''),
     'ssl': os.getenv('VALKEY_USE_SSL', False) in ('true', '1', 't'),
-    'ssl_ca_path': os.getenv('VALKEY_SSL_CA_PATH', None),
-    'ssl_keyfile': os.getenv('VALKEY_SSL_KEYFILE', None),
-    'ssl_certfile': os.getenv('VALKEY_SSL_CERTFILE', None),
-    'ssl_cert_reqs': os.getenv('VALKEY_SSL_CERT_REQS', 'required'),
     'ssl_ca_certs': os.getenv('VALKEY_SSL_CA_CERTS', None),
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
 }
 
 
-def generate_valkey_uri():
-    """Generates Valkey URL."""
-    cfg = VALKEY_CFG
-    scheme = 'valkeys' if cfg.get('ssl') else 'valkey'
-    host = cfg.get('host', '127.0.0.1')
-    port = cfg.get('port', 6379)
+def _build_embedding_config() -> dict:
+    """Build embedding configuration with conditional logic."""
+    config = {
+        'provider': os.getenv('EMBEDDING_PROVIDER', 'bedrock').lower(),
+        'ollama_host': os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
+        'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
+        'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
+        'bedrock_model_id': os.getenv(
+            'BEDROCK_MODEL_ID', 'amazon.nova-2-multimodal-embeddings-v1:0'
+        ),
+        'bedrock_max_attempts': int(os.getenv('BEDROCK_MAX_ATTEMPTS', '3')),
+        'bedrock_max_pool_connections': int(os.getenv('BEDROCK_MAX_POOL_CONNECTIONS', '50')),
+        'bedrock_retry_mode': os.getenv('BEDROCK_RETRY_MODE', 'adaptive'),
+        'openai_api_key': os.getenv('OPENAI_API_KEY'),
+        'openai_model': os.getenv('OPENAI_MODEL', 'text-embedding-3-small'),
+    }
 
-    username = cfg.get('username')
-    password = cfg.get('password')
+    # Handle optional bedrock_normalize with conditional logic
+    normalize_env = os.getenv('BEDROCK_NORMALIZE')
+    config['bedrock_normalize'] = (
+        normalize_env.lower() in ('true', '1', 't') if normalize_env else None
+    )
 
-    # Auth part - use quote() for auth components to preserve spaces as %20
-    def safe_quote(value):
-        """Safely quote a value that might be None."""
-        if value is None:
-            return ''
-        return urllib.parse.quote(str(value))
+    # Handle optional bedrock_dimensions with conditional logic
+    dimensions_env = os.getenv('BEDROCK_DIMENSIONS')
+    config['bedrock_dimensions'] = int(dimensions_env) if dimensions_env else None
 
-    if username:
-        auth_part = f'{safe_quote(username)}:{safe_quote(password)}@'
-    elif password:
-        auth_part = f':{safe_quote(password)}@'
-    else:
-        auth_part = ''
+    # Handle optional bedrock_input_type
+    config['bedrock_input_type'] = os.getenv('BEDROCK_INPUT_TYPE')
 
-    # Base URI
-    base_uri = f'{scheme}://{auth_part}{host}:{port}'
+    return config
 
-    # Additional SSL query parameters if SSL is enabled
-    query_params = {}
-    if cfg.get('ssl'):
-        if cfg.get('ssl_cert_reqs'):
-            query_params['ssl_cert_reqs'] = cfg['ssl_cert_reqs']
-        if cfg.get('ssl_ca_certs'):
-            query_params['ssl_ca_certs'] = cfg['ssl_ca_certs']
-        if cfg.get('ssl_keyfile'):
-            query_params['ssl_keyfile'] = cfg['ssl_keyfile']
-        if cfg.get('ssl_certfile'):
-            query_params['ssl_certfile'] = cfg['ssl_certfile']
-        if cfg.get('ssl_ca_path'):
-            query_params['ssl_ca_path'] = cfg['ssl_ca_path']
 
-    if query_params:
-        # Build query string with proper URL encoding
-        query_parts = []
-        for key, value in sorted(query_params.items()):
-            encoded_value = urllib.parse.quote(str(value), safe='')
-            query_parts.append(f'{key}={encoded_value}')
-        base_uri += '?' + '&'.join(query_parts)
-
-    return base_uri
+EMBEDDING_CFG = _build_embedding_config()

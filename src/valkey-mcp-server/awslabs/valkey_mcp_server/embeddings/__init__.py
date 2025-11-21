@@ -1,0 +1,57 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Embeddings provider abstraction layer."""
+
+from .base import EmbeddingsProvider
+from .factory import create_embeddings_provider
+from .providers import BedrockEmbeddings, HashEmbeddings, OllamaEmbeddings, OpenAIEmbeddings
+
+_provider: EmbeddingsProvider | None = None
+
+
+def get_provider() -> EmbeddingsProvider:
+    """Get or create the embeddings provider singleton."""
+    global _provider
+    if _provider is None:
+        _provider = create_embeddings_provider()
+    return _provider
+
+
+def has_provider() -> bool:
+    """Check if an embeddings provider can be created."""
+    try:
+        get_provider()
+        return True
+    except Exception:
+        return False
+
+
+def reset_provider() -> None:
+    """Reset the provider singleton (for testing)."""
+    global _provider
+    _provider = None
+
+
+__all__ = [
+    'EmbeddingsProvider',
+    'OllamaEmbeddings',
+    'BedrockEmbeddings',
+    'OpenAIEmbeddings',
+    'HashEmbeddings',
+    'create_embeddings_provider',
+    'get_provider',
+    'has_provider',
+    'reset_provider',
+]

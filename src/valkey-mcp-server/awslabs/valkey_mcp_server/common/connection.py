@@ -12,89 +12,94 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
+"""Valkey GLIDE connection manager."""
+
+from __future__ import annotations
+
+import logging
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
-from awslabs.valkey_mcp_server.version import __version__
-from typing import Optional, Type, Union
-from valkey import (
-    Valkey,
-    exceptions,
+from glide import (
+    AdvancedGlideClientConfiguration,
+    BackoffStrategy,
+    GlideClient,
+    GlideClientConfiguration,
+    GlideClusterClient,
+    GlideClusterClientConfiguration,
+    NodeAddress,
+    ServerCredentials,
 )
-from valkey.cluster import ValkeyCluster
+from typing import Union
 
 
-class ValkeyConnectionManager:
-    """Manages connection to Valkey."""
+logger = logging.getLogger(__name__)
 
-    _instance: Optional[Union[Valkey, ValkeyCluster]] = None
+GlideClientType = Union[GlideClient, GlideClusterClient]
 
-    @classmethod
-    def get_connection(cls, decode_responses: bool = True) -> Union[Valkey, ValkeyCluster]:
-        """Create connection to Valkey if none present or returns existing connection.
+_client: GlideClientType | None = None
 
-        Args:
-            decode_responses: Whether to decode response bytes to strings. Defaults to True.
 
-        Returns:
-            Valkey: A Valkey connection instance.
-        """
-        if cls._instance is None:
-            try:
-                valkey_class: Type[Union[Valkey, ValkeyCluster]] = (
-                    ValkeyCluster if VALKEY_CFG['cluster_mode'] else Valkey
-                )
+def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguration:
+    """Build GLIDE client configuration from VALKEY_CFG."""
+    addresses = [NodeAddress(VALKEY_CFG['host'], VALKEY_CFG['port'])]
 
-                # Get SSL settings with defaults
-                ssl_enabled = VALKEY_CFG.get('ssl', False)
-                ssl_cert_reqs = VALKEY_CFG.get('ssl_cert_reqs')
-                if ssl_enabled and ssl_cert_reqs is None:
-                    ssl_cert_reqs = 'required'
+    password = VALKEY_CFG.get('password', '')
+    username = VALKEY_CFG.get('username')
+    credentials = None
+    if password:
+        credentials = (
+            ServerCredentials(password, username) if username else ServerCredentials(password)
+        )
 
-                # Build connection kwargs
-                connection_kwargs = {
-                    'host': VALKEY_CFG['host'],
-                    'port': VALKEY_CFG['port'],
-                    'username': VALKEY_CFG.get('username'),
-                    'password': VALKEY_CFG.get('password', ''),
-                    'ssl': ssl_enabled,
-                    'ssl_ca_path': VALKEY_CFG.get('ssl_ca_path'),
-                    'ssl_keyfile': VALKEY_CFG.get('ssl_keyfile'),
-                    'ssl_certfile': VALKEY_CFG.get('ssl_certfile'),
-                    'ssl_cert_reqs': ssl_cert_reqs,
-                    'ssl_ca_certs': VALKEY_CFG.get('ssl_ca_certs'),
-                    'decode_responses': decode_responses,
-                    'lib_name': f'valkey-py(mcp-server_v{__version__})',
-                }
+    reconnect = BackoffStrategy(num_of_retries=10, factor=500, exponent_base=2)
 
-                # Add max_connections parameter based on mode
-                if VALKEY_CFG['cluster_mode']:
-                    connection_kwargs['max_connections_per_node'] = 10
-                else:
-                    connection_kwargs['max_connections'] = 10
+    kwargs: dict = {
+        'addresses': addresses,
+        'use_tls': VALKEY_CFG.get('ssl', False),
+        'request_timeout': 5000,
+        'reconnect_strategy': reconnect,
+        'client_name': 'valkey-mcp-server',
+    }
+    if credentials:
+        kwargs['credentials'] = credentials
 
-                # Create new instance
-                cls._instance = valkey_class(**connection_kwargs)
+    # Wire TLS certificate config if CA certs path is provided
+    if VALKEY_CFG.get('ssl', False) and VALKEY_CFG.get('ssl_ca_certs'):
+        from glide_shared.config import TlsAdvancedConfiguration
 
-            except exceptions.AuthenticationError:
-                print('Authentication failed', file=sys.stderr)
-                raise
-            except exceptions.ConnectionError:
-                print('Failed to connect to Valkey server', file=sys.stderr)
-                raise
-            except exceptions.TimeoutError:
-                print('Connection timed out', file=sys.stderr)
-                raise
-            except exceptions.ResponseError as e:
-                print(f'Response error: {e}', file=sys.stderr)
-                raise
-            except exceptions.ClusterError as e:
-                print(f'Valkey Cluster error: {e}', file=sys.stderr)
-                raise
-            except exceptions.ValkeyError as e:
-                print(f'Valkey error: {e}', file=sys.stderr)
-                raise
-            except Exception as e:
-                print(f'Unexpected error: {e}', file=sys.stderr)
-                raise
+        ca_path = VALKEY_CFG['ssl_ca_certs']
+        with open(ca_path, 'rb') as f:
+            ca_cert = f.read()
+        kwargs['advanced_config'] = AdvancedGlideClientConfiguration(
+            tls_config=TlsAdvancedConfiguration(root_pem_cacerts=ca_cert),
+        )
 
-        return cls._instance
+    if VALKEY_CFG['cluster_mode']:
+        return GlideClusterClientConfiguration(**kwargs)
+    return GlideClientConfiguration(**kwargs)
+
+
+async def get_client() -> GlideClientType:
+    """Get or create the GLIDE client singleton."""
+    global _client
+    if _client is None:
+        config = _build_config()
+        if isinstance(config, GlideClusterClientConfiguration):
+            _client = await GlideClusterClient.create(config)
+        else:
+            _client = await GlideClient.create(config)
+        logger.info('GLIDE client connected to %s:%s', VALKEY_CFG['host'], VALKEY_CFG['port'])
+    return _client
+
+
+async def close_client() -> None:
+    """Close the GLIDE client if open."""
+    global _client
+    if _client is not None:
+        await _client.close()
+        _client = None
+
+
+def reset_client() -> None:
+    """Reset client reference (for testing)."""
+    global _client
+    _client = None

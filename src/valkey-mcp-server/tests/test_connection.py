@@ -1,307 +1,190 @@
-import unittest
-from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
-from awslabs.valkey_mcp_server.version import __version__
-from unittest.mock import patch
-from valkey import exceptions
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for GLIDE connection module."""
+
+import pytest
+from awslabs.valkey_mcp_server.common.connection import (
+    _build_config,
+    close_client,
+    get_client,
+    reset_client,
+)
+from glide import GlideClientConfiguration, GlideClusterClientConfiguration
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
-class TestValkeyConnectionManager(unittest.TestCase):
-    """Test cases for the ValkeyConnectionManager class."""
+pytestmark = pytest.mark.asyncio
 
-    def setUp(self):
-        """Reset the singleton instance before each test."""
-        ValkeyConnectionManager._instance = None
+MODULE = 'awslabs.valkey_mcp_server.common.connection'
 
-    def test_basic_connection(self):
-        """Test basic connection creation without cluster mode or SSL."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
-        ):
-            # Configure mock
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
+
+@pytest.fixture(autouse=True)
+def _reset():
+    reset_client()
+    yield
+    reset_client()
+
+
+class TestBuildConfig:
+    def test_standalone_config(self):
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
                 'host': 'localhost',
                 'port': 6379,
-            }.__getitem__
-            mock_cfg.get.side_effect = lambda key, default=None: {
-                'username': None,
                 'password': '',
+                'username': None,
                 'ssl': False,
-            }.get(key, default)
-
-            # Get connection
-            conn = ValkeyConnectionManager.get_connection()
-
-            # Verify Valkey was instantiated with correct parameters
-            mock_valkey.assert_called_once_with(
-                host='localhost',
-                port=6379,
-                username=None,
-                password='',
-                ssl=False,
-                ssl_ca_path=None,
-                ssl_keyfile=None,
-                ssl_certfile=None,
-                ssl_cert_reqs=None,
-                ssl_ca_certs=None,
-                decode_responses=True,
-                max_connections=10,
-                lib_name=f'valkey-py(mcp-server_v{__version__})',
-            )
-
-            # Verify connection is returned
-            self.assertEqual(conn, mock_valkey.return_value)
-
-    def test_cluster_mode_connection(self):
-        """Test connection creation in cluster mode."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.ValkeyCluster') as mock_cluster,
+                'cluster_mode': False,
+            },
         ):
-            # Configure mock
-            mock_cfg.__getitem__.side_effect = {
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
+
+    def test_cluster_config(self):
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
+                'host': 'cluster.example.com',
+                'port': 6379,
+                'password': '',
+                'username': None,
+                'ssl': False,
                 'cluster_mode': True,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.side_effect = lambda key, default=None: {
-                'username': None,
-                'password': '',
-                'ssl': False,
-            }.get(key, default)
-
-            # Get connection
-            conn = ValkeyConnectionManager.get_connection()
-
-            # Verify ValkeyCluster was instantiated with correct parameters
-            mock_cluster.assert_called_once_with(
-                host='localhost',
-                port=6379,
-                username=None,
-                password='',
-                ssl=False,
-                ssl_ca_path=None,
-                ssl_keyfile=None,
-                ssl_certfile=None,
-                ssl_cert_reqs=None,
-                ssl_ca_certs=None,
-                decode_responses=True,
-                max_connections_per_node=10,
-                lib_name=f'valkey-py(mcp-server_v{__version__})',
-            )
-
-            # Verify connection is returned
-            self.assertEqual(conn, mock_cluster.return_value)
-
-    def test_ssl_connection(self):
-        """Test connection creation with SSL enabled."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            },
         ):
-            # Configure mock
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
+            config = _build_config()
+        assert isinstance(config, GlideClusterClientConfiguration)
+
+    def test_credentials_password_only(self):
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
                 'host': 'localhost',
                 'port': 6379,
-            }.__getitem__
-            mock_cfg.get.side_effect = lambda key, default=None: {
+                'password': 'secret',  # pragma: allowlist secret
                 'username': None,
+                'ssl': False,
+                'cluster_mode': False,
+            },
+        ):
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
+
+    def test_credentials_username_and_password(self):
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
+                'host': 'localhost',
+                'port': 6379,
+                'password': 'secret',  # pragma: allowlist secret
+                'username': 'admin',
+                'ssl': False,
+                'cluster_mode': False,
+            },
+        ):
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
+
+    def test_tls_enabled(self):
+        with patch(
+            f'{MODULE}.VALKEY_CFG',
+            {
+                'host': 'localhost',
+                'port': 6379,
                 'password': '',
+                'username': None,
                 'ssl': True,
-                'ssl_ca_path': '/path/to/ca',
-                'ssl_keyfile': '/path/to/key',
-                'ssl_certfile': '/path/to/cert',
-                'ssl_ca_certs': '/path/to/certs',
-            }.get(key, default)
-
-            # Get connection and verify Valkey was instantiated with correct SSL parameters
-            ValkeyConnectionManager.get_connection()
-            mock_valkey.assert_called_once_with(
-                host='localhost',
-                port=6379,
-                username=None,
-                password='',
-                ssl=True,
-                ssl_ca_path='/path/to/ca',
-                ssl_keyfile='/path/to/key',
-                ssl_certfile='/path/to/cert',
-                ssl_cert_reqs='required',
-                ssl_ca_certs='/path/to/certs',
-                decode_responses=True,
-                max_connections=10,
-                lib_name=f'valkey-py(mcp-server_v{__version__})',
-            )
-
-    def test_connection_reuse(self):
-        """Test that the same connection instance is reused."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
-        ):
-            # Configure mock
-            mock_cfg.__getitem__.side_effect = {
                 'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.side_effect = lambda key, default=None: {
-                'username': None,
-                'password': '',
-                'ssl': False,
-            }.get(key, default)
-
-            # Get connection twice
-            conn1 = ValkeyConnectionManager.get_connection()
-            conn2 = ValkeyConnectionManager.get_connection()
-
-            # Verify Valkey was instantiated only once
-            mock_valkey.assert_called_once()
-
-            # Verify both calls return same instance
-            self.assertEqual(conn1, conn2)
-
-    def test_authentication_error(self):
-        """Test handling of authentication errors."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            },
         ):
-            # Configure mock to raise AuthenticationError
-            mock_valkey.side_effect = exceptions.AuthenticationError()
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
 
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
 
-            # Verify AuthenticationError is raised
-            with self.assertRaises(exceptions.AuthenticationError):
-                ValkeyConnectionManager.get_connection()
-
-    def test_connection_error(self):
-        """Test handling of connection errors."""
+class TestGetClient:
+    async def test_creates_standalone_client(self):
+        mock_client = AsyncMock()
         with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            patch(
+                f'{MODULE}._build_config', return_value=MagicMock(spec=GlideClientConfiguration)
+            ),
+            patch(f'{MODULE}.GlideClient') as mock_cls,
         ):
-            # Configure mock to raise ConnectionError
-            mock_valkey.side_effect = exceptions.ConnectionError()
+            mock_cls.create = AsyncMock(return_value=mock_client)
+            client = await get_client()
+        assert client is mock_client
 
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
-
-            # Verify ConnectionError is raised
-            with self.assertRaises(exceptions.ConnectionError):
-                ValkeyConnectionManager.get_connection()
-
-    def test_timeout_error(self):
-        """Test handling of timeout errors."""
+    async def test_returns_cached_client(self):
+        mock_client = AsyncMock()
         with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            patch(
+                f'{MODULE}._build_config', return_value=MagicMock(spec=GlideClientConfiguration)
+            ),
+            patch(f'{MODULE}.GlideClient') as mock_cls,
         ):
-            # Configure mock to raise TimeoutError
-            mock_valkey.side_effect = exceptions.TimeoutError()
+            mock_cls.create = AsyncMock(return_value=mock_client)
+            c1 = await get_client()
+            c2 = await get_client()
+        assert c1 is c2
+        mock_cls.create.assert_called_once()
 
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
-
-            # Verify TimeoutError is raised
-            with self.assertRaises(exceptions.TimeoutError):
-                ValkeyConnectionManager.get_connection()
-
-    def test_response_error(self):
-        """Test handling of response errors."""
+    async def test_creates_cluster_client(self):
+        mock_client = AsyncMock()
         with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            patch(
+                f'{MODULE}._build_config',
+                return_value=MagicMock(spec=GlideClusterClientConfiguration),
+            ),
+            patch(f'{MODULE}.GlideClusterClient') as mock_cls,
         ):
-            # Configure mock to raise ResponseError
-            mock_valkey.side_effect = exceptions.ResponseError('test error')
+            mock_cls.create = AsyncMock(return_value=mock_client)
+            client = await get_client()
+        assert client is mock_client
 
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
 
-            # Verify ResponseError is raised
-            with self.assertRaises(exceptions.ResponseError):
-                ValkeyConnectionManager.get_connection()
+class TestCloseClient:
+    async def test_close_noop_when_no_client(self):
+        await close_client()  # should not raise
 
-    def test_cluster_error(self):
-        """Test handling of cluster errors."""
+    async def test_close_calls_client_close(self):
+        mock_client = AsyncMock()
         with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.ValkeyCluster') as mock_cluster,
+            patch(
+                f'{MODULE}._build_config', return_value=MagicMock(spec=GlideClientConfiguration)
+            ),
+            patch(f'{MODULE}.GlideClient') as mock_cls,
         ):
-            # Configure mock to raise ClusterError
-            mock_cluster.side_effect = exceptions.ClusterError('test error')
+            mock_cls.create = AsyncMock(return_value=mock_client)
+            await get_client()
+        await close_client()
+        mock_client.close.assert_called_once()
 
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': True,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
 
-            # Verify ClusterError is raised
-            with self.assertRaises(exceptions.ClusterError):
-                ValkeyConnectionManager.get_connection()
-
-    def test_valkey_error(self):
-        """Test handling of general Valkey errors."""
+class TestResetClient:
+    async def test_reset_allows_new_client(self):
+        mock1 = AsyncMock()
+        mock2 = AsyncMock()
         with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
+            patch(
+                f'{MODULE}._build_config', return_value=MagicMock(spec=GlideClientConfiguration)
+            ),
+            patch(f'{MODULE}.GlideClient') as mock_cls,
         ):
-            # Configure mock to raise ValkeyError
-            mock_valkey.side_effect = exceptions.ValkeyError('test error')
-
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
-
-            # Verify ValkeyError is raised
-            with self.assertRaises(exceptions.ValkeyError):
-                ValkeyConnectionManager.get_connection()
-
-    def test_unexpected_error(self):
-        """Test handling of unexpected errors."""
-        with (
-            patch('awslabs.valkey_mcp_server.common.connection.VALKEY_CFG') as mock_cfg,
-            patch('awslabs.valkey_mcp_server.common.connection.Valkey') as mock_valkey,
-        ):
-            # Configure mock to raise unexpected error
-            mock_valkey.side_effect = Exception('unexpected error')
-
-            mock_cfg.__getitem__.side_effect = {
-                'cluster_mode': False,
-                'host': 'localhost',
-                'port': 6379,
-            }.__getitem__
-            mock_cfg.get.return_value = None
-
-            # Verify Exception is raised
-            with self.assertRaises(Exception):
-                ValkeyConnectionManager.get_connection()
-
-
-if __name__ == '__main__':
-    unittest.main()
+            mock_cls.create = AsyncMock(side_effect=[mock1, mock2])
+            c1 = await get_client()
+            reset_client()
+            c2 = await get_client()
+        assert c1 is not c2
