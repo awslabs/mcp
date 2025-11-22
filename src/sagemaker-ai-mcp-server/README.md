@@ -339,4 +339,4 @@ For service-specific issues, consult the relevant service documentation:
 
 ## Version
 
-Current MCP server version: 0.0.1
+Current MCP server version: 1.0.0
