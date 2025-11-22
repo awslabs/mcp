@@ -20,6 +20,7 @@ particularly focusing on column name conversion and schema transformation.
 
 import os
 import pyarrow as pa
+import pyarrow.compute as pc
 from ..utils import get_s3_client, pyiceberg_load_catalog
 from io import BytesIO
 from pydantic.alias_generators import to_snake
@@ -62,6 +63,44 @@ def convert_column_names_to_snake_case(schema: pa.Schema) -> pa.Schema:
         new_fields.append(new_field)
 
     return pa.schema(new_fields, metadata=schema.metadata)
+
+
+def convert_temporal_fields_in_table(
+    pyarrow_table: pa.Table, target_schema: pa.Schema
+) -> pa.Table:
+    """Convert string temporal fields in PyArrow table to appropriate temporal types.
+
+    Args:
+        pyarrow_table: PyArrow table with string temporal values
+        target_schema: Target schema with temporal field types
+
+    Returns:
+        PyArrow table with converted temporal columns
+    """
+    # Use PyArrow's cast which can handle ISO 8601 formatted strings
+    # This is simpler and more robust than strptime for mixed formats
+    try:
+        # Try direct cast - PyArrow can parse ISO 8601 strings automatically
+        converted_table = pyarrow_table.cast(target_schema, safe=False)
+        return converted_table
+    except pa.ArrowInvalid:
+        # If direct cast fails, fall back to column-by-column conversion
+        arrays = []
+        for i, field in enumerate(target_schema):
+            col_name = field.name
+            col_data = pyarrow_table.column(col_name)
+            field_type = field.type
+
+            # Try to cast the column to the target type
+            try:
+                col_data = pc.cast(col_data, field_type, safe=False)
+            except pa.ArrowInvalid:
+                # If cast fails, keep original data
+                pass
+
+            arrays.append(col_data)
+
+        return pa.Table.from_arrays(arrays, schema=target_schema)
 
 
 async def import_file_to_table(
@@ -117,29 +156,30 @@ async def import_file_to_table(
                     'error': f'Column name conversion failed: {str(conv_err)}',
                 }
 
-        table_created = False
         try:
             # Try to load existing table
             table = catalog.load_table(f'{namespace}.{table_name}')
+            # Convert temporal fields to match existing table schema
+            target_schema = table.schema().as_arrow()
+            pyarrow_table = convert_temporal_fields_in_table(pyarrow_table, target_schema)
         except NoSuchTableError:
-            # Table doesn't exist, create it using the schema
-            try:
-                table = catalog.create_table(
-                    identifier=f'{namespace}.{table_name}',
-                    schema=pyarrow_schema,
-                )
-                table_created = True
-            except Exception as create_error:
-                return {
-                    'status': 'error',
-                    'error': f'Failed to create table: {str(create_error)}',
-                }
+            # Table doesn't exist - return error with schema information
+            # Build column information from the source file schema
+            columns_info = []
+            for field in pyarrow_schema:
+                columns_info.append({'name': field.name, 'type': str(field.type)})
+
+            return {
+                'status': 'error',
+                'error': f'Table {namespace}.{table_name} does not exist. Please create the table first before importing data.',
+                'columns': columns_info,
+            }
 
         # Append data to Iceberg table
         table.append(pyarrow_table)
 
         # Build message with warnings if applicable
-        message = f'Successfully imported {pyarrow_table.num_rows} rows{" and created new table" if table_created else ""}'
+        message = f'Successfully imported {pyarrow_table.num_rows} rows'
         if columns_converted:
             message += '. WARNING: Column names were converted to snake_case format. To preserve the original case, set preserve_case to True.'
 
@@ -148,7 +188,6 @@ async def import_file_to_table(
             'message': message,
             'rows_processed': pyarrow_table.num_rows,
             'file_processed': os.path.basename(key),
-            'table_created': table_created,
             'table_uuid': table.metadata.table_uuid,
             'columns': pyarrow_schema.names,
         }

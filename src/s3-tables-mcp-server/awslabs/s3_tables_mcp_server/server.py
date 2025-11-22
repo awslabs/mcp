@@ -307,8 +307,23 @@ async def create_table(
     """Create a new S3 table in an S3 table bucket.
 
     Creates a new S3 table associated with the given S3 namespace in an S3 table bucket.
-    The S3 table can be configured with specific format and metadata settings. Metadata contains the schema of the table. Use double type for decimals.
+    The S3 table can be configured with specific format and metadata settings. Metadata contains the schema of the table.
     Do not use the metadata parameter if the schema is unclear.
+
+    Supported Iceberg Primitive Types:
+    - boolean: True or false
+    - int: 32-bit signed integers (can promote to long)
+    - long: 64-bit signed integers
+    - float: 32-bit IEEE 754 floating point (can promote to double)
+    - double: 64-bit IEEE 754 floating point
+    - decimal(P,S): Fixed-point decimal with precision P and scale S (precision must be 38 or less)
+    - date: Calendar date without timezone or time
+    - time: Time of day, microsecond precision, without date or timezone
+    - timestamp: Timestamp, microsecond precision, without timezone (represents date and time regardless of zone)
+    - timestamptz: Timestamp, microsecond precision, with timezone (stored as UTC)
+    - string: Arbitrary-length character sequences (UTF-8 encoded)
+
+    Note: Binary field types (binary, fixed, uuid) are not supported.
 
     Example of S3 table metadata:
     {
@@ -316,36 +331,91 @@ async def create_table(
             "iceberg": {
                 "schema": {
                     "type": "struct",
-                    "fields": [{
+                    "fields": [
+                        {
                             "id": 1,
-                            "name": "customer_id",
+                            "name": "id",
                             "type": "long",
                             "required": true
                         },
                         {
                             "id": 2,
-                            "name": "customer_name",
-                            "type": "string",
-                            "required": true
+                            "name": "bool_field",
+                            "type": "boolean",
+                            "required": false
                         },
                         {
                             "id": 3,
-                            "name": "customer_balance",
+                            "name": "int_field",
+                            "type": "int",
+                            "required": false
+                        },
+                        {
+                            "id": 4,
+                            "name": "long_field",
+                            "type": "long",
+                            "required": false
+                        },
+                        {
+                            "id": 5,
+                            "name": "float_field",
+                            "type": "float",
+                            "required": false
+                        },
+                        {
+                            "id": 6,
+                            "name": "double_field",
                             "type": "double",
+                            "required": false
+                        },
+                        {
+                            "id": 7,
+                            "name": "decimal_field",
+                            "type": "decimal(10,2)",
+                            "required": false
+                        },
+                        {
+                            "id": 8,
+                            "name": "date_field",
+                            "type": "date",
+                            "required": false
+                        },
+                        {
+                            "id": 9,
+                            "name": "time_field",
+                            "type": "time",
+                            "required": false
+                        },
+                        {
+                            "id": 10,
+                            "name": "timestamp_field",
+                            "type": "timestamp",
+                            "required": false
+                        },
+                        {
+                            "id": 11,
+                            "name": "timestamptz_field",
+                            "type": "timestamptz",
+                            "required": false
+                        },
+                        {
+                            "id": 12,
+                            "name": "string_field",
+                            "type": "string",
                             "required": false
                         }
                     ]
                 },
                 "partition-spec": [
                     {
-                        "source-id": 1,
+                        "source-id": 8,
                         "field-id": 1000,
                         "transform": "month",
-                        "name": "sale_date_month"
+                        "name": "date_field_month"
                     }
                 ],
                 "table-properties": {
-                    "description": "Customer information table with customer_id for joining with transactions"
+                    "description": "Example table demonstrating supported Iceberg primitive types"
                 }
             }
         }
@@ -353,7 +423,6 @@ async def create_table(
 
     Permissions:
     You must have the s3tables:CreateTable permission to use this operation.
-    If using metadata parameter, you must have the s3tables:PutTableData permission.
     """
     from awslabs.s3_tables_mcp_server.models import OpenTableFormat, TableMetadata
 
@@ -665,11 +734,10 @@ async def import_parquet_to_table(
         bool, Field(..., description='Preserve case of column names')
     ] = False,
 ) -> dict:
-    """Import data from a Parquet file into an S3 table.
+    """Import data from a Parquet file into an existing S3 table.
 
-    This tool reads data from a Parquet file stored in S3 and imports it into an S3 table.
-    If the table doesn't exist, it will be created with a schema inferred from the Parquet file.
-    If the table exists, the Parquet file schema must be compatible with the table's schema.
+    This tool reads data from a Parquet file stored in S3 and imports it into an existing S3 table.
+    The table must already exist. The Parquet file schema must be compatible with the table's schema.
     The tool will validate the schema before attempting to import the data.
     If preserve_case is True, the column names will not be converted to snake_case. Otherwise, the column names will be converted to snake_case.
 
@@ -677,6 +745,7 @@ async def import_parquet_to_table(
         - URL is not a valid S3 URL
         - File is not a Parquet file
         - File cannot be accessed
+        - Table does not exist
         - Parquet schema is incompatible with existing table schema
         - Any other error occurs
 
@@ -685,7 +754,6 @@ async def import_parquet_to_table(
         - message: Success message with row count
         - rows_processed: Number of rows imported
         - file_processed: Name of the processed file
-        - table_created: True if a new table was created
 
     Example input values:
         warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
@@ -704,7 +772,6 @@ async def import_parquet_to_table(
     - s3:GetObject permission for the Parquet file
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
-    - s3tables:CreateTable permission (if table doesn't exist)
     """
     if uri is None:
         uri = _default_uri_for_region(region)

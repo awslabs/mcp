@@ -14,17 +14,116 @@
 
 """Engine for interacting with Iceberg tables using pyiceberg and daft (read-only)."""
 
-import io
-import json
 import pyarrow as pa
-import pyarrow.json as pj
 from ..utils import pyiceberg_load_catalog
 from daft import Catalog as DaftCatalog
 from daft.session import Session
+from datetime import datetime
 from pydantic import BaseModel
 
 # pyiceberg and daft imports
 from typing import Any, Dict, Optional
+
+
+def convert_temporal_fields(rows: list[dict], arrow_schema: pa.Schema) -> list[dict]:
+    """Convert string temporal fields to appropriate datetime objects based on Arrow schema.
+
+    Args:
+        rows: List of row dictionaries with string temporal values
+        arrow_schema: PyArrow schema defining field types
+
+    Returns:
+        List of row dictionaries with converted temporal values
+    """
+    converted_rows = []
+
+    for row in rows:
+        converted_row = {}
+        for field_name, value in row.items():
+            # Early skip for non-string values
+            if not isinstance(value, str):
+                converted_row[field_name] = value
+                continue
+
+            # Get the field type from schema
+            field = arrow_schema.field(field_name)
+            field_type = field.type
+
+            # Date32 or Date64 - calendar date without timezone or time
+            if pa.types.is_date(field_type):
+                # Format: "2025-03-14"
+                converted_row[field_name] = datetime.strptime(value, '%Y-%m-%d').date()
+
+            # Time64 - time of day, microsecond precision, without date or timezone
+            elif pa.types.is_time(field_type):
+                # Format: "17:10:34.123456" or "17:10:34"
+                fmt = '%H:%M:%S.%f' if '.' in value else '%H:%M:%S'
+                converted_row[field_name] = datetime.strptime(value, fmt).time()
+
+            # Timestamp without timezone
+            elif pa.types.is_timestamp(field_type) and field_type.tz is None:
+                # Format: "2025-03-14 17:10:34.123456" or "2025-03-14T17:10:34.123456"
+                value_normalized = value.replace('T', ' ')
+                if '.' in value_normalized:
+                    # Truncate nanoseconds to microseconds if needed
+                    parts = value_normalized.split('.')
+                    if len(parts[1]) > 6:
+                        value_normalized = f'{parts[0]}.{parts[1][:6]}'
+                    fmt = '%Y-%m-%d %H:%M:%S.%f'
+                else:
+                    fmt = '%Y-%m-%d %H:%M:%S'
+                converted_row[field_name] = datetime.strptime(value_normalized, fmt)
+
+            # Timestamp with timezone (stored in UTC)
+            elif pa.types.is_timestamp(field_type) and field_type.tz is not None:
+                # Format: "2025-03-14 17:10:34.123456-07" or "2025-03-14T17:10:34.123456+00:00"
+                value_normalized = value.replace('T', ' ')
+                from datetime import timezone
+
+                # Truncate nanoseconds to microseconds if present
+                if '.' in value_normalized:
+                    # Split on timezone indicator (+ or -)
+                    # Find the last occurrence of + or - which should be the timezone
+                    tz_idx = max(value_normalized.rfind('+'), value_normalized.rfind('-'))
+                    if tz_idx > 10:  # Make sure it's not the date separator
+                        timestamp_part = value_normalized[:tz_idx]
+                        tz_part = value_normalized[tz_idx:]
+
+                        # Truncate fractional seconds to 6 digits
+                        if '.' in timestamp_part:
+                            parts = timestamp_part.split('.')
+                            if len(parts[1]) > 6:
+                                timestamp_part = f'{parts[0]}.{parts[1][:6]}'
+
+                        value_normalized = timestamp_part + tz_part
+
+                # Try different timezone formats
+                for fmt in [
+                    '%Y-%m-%d %H:%M:%S.%f%z',
+                    '%Y-%m-%d %H:%M:%S%z',
+                    '%Y-%m-%d %H:%M:%S.%f',
+                    '%Y-%m-%d %H:%M:%S',
+                ]:
+                    try:
+                        dt = datetime.strptime(value_normalized, fmt)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        converted_row[field_name] = dt.astimezone(timezone.utc)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    raise ValueError(
+                        f'Could not parse timestamp with timezone: {value} for field {field_name}'
+                    )
+
+            else:
+                # Not a temporal field, keep as is
+                converted_row[field_name] = value
+
+        converted_rows.append(converted_row)
+
+    return converted_rows
 
 
 class PyIcebergConfig(BaseModel):
@@ -107,7 +206,7 @@ class PyIcebergEngine:
             return False
 
     def append_rows(self, table_name: str, rows: list[dict]) -> None:
-        """Append rows to an Iceberg table using pyiceberg with JSON encoding.
+        """Append rows to an Iceberg table using pyiceberg.
 
         Args:
             table_name: The name of the table (e.g., 'namespace.tablename' or just 'tablename' if namespace is set)
@@ -127,28 +226,23 @@ class PyIcebergEngine:
 
             # Load the Iceberg table
             table = self._catalog.load_table(full_table_name)
-            # Encode rows as JSON (line-delimited format)
-            json_lines = []
-            for row in rows:
-                json_lines.append(json.dumps(row))
-            json_data = '\n'.join(json_lines)
 
-            # Create a file-like object from the JSON data
-            json_buffer = io.BytesIO(json_data.encode('utf-8'))
+            # Convert Iceberg schema to Arrow schema to ensure types/order match
+            arrow_schema = table.schema().as_arrow()
 
-            # Read JSON data into PyArrow Table using pyarrow.json.read_json
-            # This enforces the Iceberg schema and validates the data
+            # Convert temporal fields from strings to datetime objects
+            converted_rows = convert_temporal_fields(rows, arrow_schema)
+
+            # Create PyArrow table directly from pylist with schema validation
             try:
-                new_data_table = pj.read_json(
-                    json_buffer, read_options=pj.ReadOptions(use_threads=True)
-                )
+                pa_table = pa.Table.from_pylist(converted_rows, schema=arrow_schema)
             except pa.ArrowInvalid as e:
                 raise ValueError(
                     f'Schema mismatch detected: {e}. Please ensure your data matches the table schema.'
                 )
 
-            # Append the new data to the Iceberg table
-            table.append(new_data_table)
+            # Append the PyArrow table to the Iceberg table
+            table.append(pa_table)
 
         except Exception as e:
             raise Exception(f'Error appending rows: {str(e)}')
