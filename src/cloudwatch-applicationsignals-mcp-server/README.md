@@ -22,6 +22,75 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
 
 ## Available Tools
 
+### Enablement & Setup Tools
+
+#### 1. **`get_enablement_guide`** - Application Signals Enablement Assistant
+**Enable observability through AI-guided autonomous code modifications**
+
+Use this tool to enable AWS Application Signals through agentic enablement. The tool returns a curated guide that the AI agent follows to autonomously make necessary code changes to your IaC, Dockerfiles, and dependency files. The guide is customized for your service platform (EC2, ECS, Lambda, EKS) and programming language (Python, Node.js, Java).
+
+**Prerequisites:**
+- **Enable Start Discovery** in your AWS account and region before using this tool
+  - This is a one-time setup that creates the **AWSServiceRoleForCloudWatchApplicationSignals** service-linked role
+  - Navigate to CloudWatch console → Services → "Start discovering your Services" → Enable Application Signals
+  - See the [enablement guide](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html) for detailed steps
+
+**How it works:**
+- Returns a curated enablement guide as a prompt for the AI agent
+- The AI agent follows the guide to autonomously modify your code
+- The guide also serves as knowledge you can ask follow-up questions about
+- Supports interactive Q&A throughout the enablement process
+
+**When to use this tool:**
+- Enable observability, monitoring, or Application Signals for your AWS service
+- Set up automatic instrumentation for your application on AWS
+- Instrument your service running on EC2, ECS, Lambda, or EKS
+- Add tracing, metrics, or telemetry to your AWS application
+
+**Requirements:**
+- Write permissions to IaC files, Dockerfiles, and dependency files
+- Platform must be one of: `ec2`, `ecs`, `lambda`, `eks`
+- Language must be one of: `python`, `nodejs`, `java`
+
+**Recommendations:**
+- Use absolute paths for both IaC and application directories (less ambiguous for AI agents)
+- Provide both directory paths in your initial prompt for faster enablement
+
+**Best Practice Prompts:**
+
+Good prompts (specific and complete):
+```
+"Enable Application Signals for my Python service running on ECS.
+My app code is in /home/user/myapp and IaC is in /home/user/myapp/infrastructure"
+
+"I want to add observability to my Node.js Lambda function.
+The Lambda code is at /Users/dev/checkout-service and
+the CDK infrastructure is at /Users/dev/checkout-service/cdk"
+
+"Help me instrument my Java application on EC2 with Application Signals.
+Application directory: /opt/apps/payment-api
+Terraform code: /opt/apps/payment-api/terraform"
+```
+
+Less effective prompts:
+```
+"Enable monitoring for my app"
+→ Missing: platform, language, paths
+
+"Enable Application Signals. My code is in ./src and IaC is in ./infrastructure"
+→ Problem: Relative paths instead of absolute paths
+
+"Enable Application Signals for my ECS service at /home/user/myapp"
+→ Missing: programming language
+```
+
+Quick template:
+```
+"Enable Application Signals for my [LANGUAGE] service on [PLATFORM].
+App code: [ABSOLUTE_PATH_TO_APP]
+IaC code: [ABSOLUTE_PATH_TO_IAC]"
+```
+
 ### 🥇 Primary Audit Tools (Use These First)
 
 #### 1. **`audit_services`** ⭐ **PRIMARY SERVICE AUDIT TOOL**
@@ -200,31 +269,6 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will
 use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cloudwatch-applicationsignals-mcp-server*.
 
-### Installing for Amazon Q (Preview)
-
-- Start Amazon Q Developer CLI from [here](https://github.com/aws/amazon-q-developer-cli).
-- Add the following configuration in `~/.aws/amazonq/mcp.json` file.
-```json
-{
-  "mcpServers": {
-    "applicationsignals": {
-      "autoApprove": [],
-      "disabled": false,
-      "command": "uvx",
-      "args": [
-        "awslabs.cloudwatch-applicationsignals-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
-        "AWS_REGION": "[AWS Region]",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "transportType": "stdio"
-    }
-  }
-}
-```
-
 ### Installing via Claude Desktop
 
 On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
@@ -242,7 +286,8 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "args": ["--from", "/absolute/path/to/cloudwatch-applicationsignals-mcp-server", "awslabs.cloudwatch-applicationsignals-mcp-server"],
         "env": {
           "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
-          "AWS_REGION": "[AWS Region]"
+          "AWS_REGION": "[AWS Region]",
+          "FASTMCP_LOG_LEVEL": "ERROR"
         }
       }
     }
@@ -261,13 +306,40 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "args": ["awslabs.cloudwatch-applicationsignals-mcp-server@latest"],
         "env": {
           "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
-          "AWS_REGION": "[AWS Region]"
+          "AWS_REGION": "[AWS Region]",
+          "FASTMCP_LOG_LEVEL": "ERROR"
         }
       }
     }
   }
   ```
 </details>
+
+### Installing for Kiro
+
+- Add the following configuration to your Kiro MCP settings file at `~/.kiro/settings/mcp.json`:
+
+```json
+{
+    "mcpServers": {
+        "applicationsignals": {
+            "command": "uvx",
+            "args": [
+                "awslabs.cloudwatch-applicationsignals-mcp-server@latest"
+            ],
+            "env": {
+                "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
+                "AWS_REGION": "[AWS Region]",
+                "FASTMCP_LOG_LEVEL": "ERROR"
+            },
+            "disabled": false,
+            "autoApprove": []
+        }
+    }
+}
+```
+
+- Restart Kiro to make sure AWS credentials are properly loaded for MCP server after updating your AWS credentials
 
 ### Windows Installation
 
@@ -289,9 +361,9 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.cloudwatch-applicationsignals-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
+        "AWS_REGION": "[AWS Region]",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
