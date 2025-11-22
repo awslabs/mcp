@@ -191,7 +191,6 @@ name = "awslabs-terraform-mcp-server"
 version = "1.0.9"
 source = { editable = "." }
 dependencies = [
-    { name = "asteval" },
     { name = "beautifulsoup4" },
     { name = "checkov" },
     { name = "loguru" },
@@ -216,9 +215,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asteval", specifier = ">=1.0.6" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
-    { name = "checkov", specifier = ">=3.2.402" },
+    { name = "checkov", specifier = ">=3.2.485" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.11.0" },
     { name = "playwright", specifier = ">=1.40.0" },
@@ -241,16 +239,16 @@ dev = [
 
 [[package]]
 name = "bc-detect-secrets"
-version = "1.5.41"
+version = "1.5.45"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "unidiff" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/0e/ec19b2e64d15b181fc03691d0236ddf5837fd9e59261a6b65e03468432dc/bc_detect_secrets-1.5.41.tar.gz", hash = "sha256:4bd08292a975bfc9b95771e118dd1131e1afbd479610eb29e4e0c15bd33677fc", size = 90991, upload-time = "2025-04-14T08:09:42.665Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/22/389df1a2d5f539593ce22671a401fedbc78d8054b4644dde2c2263f1f343/bc_detect_secrets-1.5.45.tar.gz", hash = "sha256:f05cc539d1865d6f8d65cbd51968e85ec570ee1375447a5a29a5623ca8ea9f2b", size = 91320, upload-time = "2025-09-01T07:51:03.774Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/d8/7da0d8231db0a1da18147415eca06fb8c3ef97b919e9f9ac8f369af2ba0c/bc_detect_secrets-1.5.41-py3-none-any.whl", hash = "sha256:629df912f2a4f4d5039cc1fece906c34700586f7db1ae6a8d1c830c25df6db9b", size = 120665, upload-time = "2025-04-14T08:09:41.669Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/f3/ec71fd2f962686a6a9767402219ea33137b036f99aafc58a9e4a27851f49/bc_detect_secrets-1.5.45-py3-none-any.whl", hash = "sha256:33119be81d2eca91ccf2eabc496737dcb079c581aa4646a0475f5e0619e382d5", size = 121155, upload-time = "2025-09-01T07:51:02.797Z" },
 ]
 
 [[package]]
@@ -268,14 +266,14 @@ wheels = [
 
 [[package]]
 name = "bc-python-hcl2"
-version = "0.4.2"
+version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lark" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d8/9a/1cb1e4c65a75dcc304438d1f941345d5dd5e8819f1a8b7b17991a21a22b3/bc-python-hcl2-0.4.2.tar.gz", hash = "sha256:ac8ff59fb9bd437ea29b89a7d7c507fd0a1e957845bae9aeac69f2892b8d681e", size = 12314, upload-time = "2023-12-11T13:01:45.109Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/43/8ee6ea8a19952045c15e6c9b164a9f88c2575b4bb86655c6da861b874986/bc_python_hcl2-0.4.3.tar.gz", hash = "sha256:fae62b2a41a675ad330d134d82576526db755f72bbd0e5a850de3d85fc24c40e", size = 12366, upload-time = "2025-07-14T11:09:37.448Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/87/9773bc69f78fa40d1a8b29fe9b9e4ad1254fa3198479a51833ad1407d538/bc_python_hcl2-0.4.2-py3-none-any.whl", hash = "sha256:90d2afbaa2c7e77b7b30bf58180084e11d95287f7c3e19c5bfbdb54ab2fd80e9", size = 14917, upload-time = "2023-12-11T13:01:43.2Z" },
+    { url = "https://files.pythonhosted.org/packages/81/f7/e064b2e767c094ac26512ddf5242b63a0cbca11678bf551545cd45d4f500/bc_python_hcl2-0.4.3-py3-none-any.whl", hash = "sha256:b0cce4cea16823f7da7fefa0f8177dfb91f51a1befe64ef59d8fe4d5ac616eec", size = 15015, upload-time = "2025-07-14T11:09:36.289Z" },
 ]
 
 [[package]]
@@ -493,13 +491,14 @@ wheels = [
 
 [[package]]
 name = "checkov"
-version = "3.2.414"
+version = "3.2.490"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiodns" },
     { name = "aiohttp" },
     { name = "aiomultiprocess" },
     { name = "argcomplete" },
+    { name = "asteval" },
     { name = "bc-detect-secrets" },
     { name = "bc-jsonpath-ng" },
     { name = "bc-python-hcl2" },
@@ -521,7 +520,6 @@ dependencies = [
     { name = "junit-xml" },
     { name = "license-expression" },
     { name = "networkx" },
-    { name = "openai" },
     { name = "packageurl-python" },
     { name = "packaging" },
     { name = "prettytable" },
@@ -538,11 +536,12 @@ dependencies = [
     { name = "termcolor" },
     { name = "tqdm" },
     { name = "typing-extensions" },
+    { name = "urllib3" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/1a/9c12e75102fd2b541ab3aa486cf896f0111f6c2d01475bf9cf28f8f5c6f7/checkov-3.2.414.tar.gz", hash = "sha256:f7b1bd8533c4c17db2471baed9e3ce97cc22a248ababd7516ea3e907123976ad", size = 978736, upload-time = "2025-05-01T15:58:06.179Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fd/dc/9ccea7e63dfc18c5ef88038da842904f30c9492efb490c63056860087e19/checkov-3.2.490.tar.gz", hash = "sha256:6ddc4ed1923a6f9ed6cd34fedc18cac095b1d5f3ac24b9c4c3a8abc3b0cae954", size = 989054, upload-time = "2025-11-04T14:15:23.334Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/4a/23bd67efe71e228dd7c93ebeb1606be0f7e434aa9f65d24b6f2e24e325dc/checkov-3.2.414-py3-none-any.whl", hash = "sha256:e70cc3fccfad99125c96045250b6f35a839c08104a55498a427b4e8891c29962", size = 2283848, upload-time = "2025-05-01T15:58:04.715Z" },
+    { url = "https://files.pythonhosted.org/packages/db/ac/9608cec02401032e9f6941a2837f554c412391667a0fac07842ad963dd30/checkov-3.2.490-py3-none-any.whl", hash = "sha256:847f180f16f31dba20ba7d862ee2c8f49bf792b218689984ef536a7581d77e64", size = 2295900, upload-time = "2025-11-04T14:15:20.898Z" },
 ]
 
 [[package]]
@@ -1418,20 +1417,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/30/74c48b3b6494c4b820b7fa1781d441e94d87a08daa5b35d222f06ba41a6f/numpy-2.2.4-pp310-pypy310_pp73-macosx_14_0_x86_64.whl", hash = "sha256:ab2939cd5bec30a7430cbdb2287b63151b77cf9624de0532d629c9a1c59b1d5c", size = 6827143, upload-time = "2025-03-16T18:21:26.748Z" },
     { url = "https://files.pythonhosted.org/packages/54/f5/ab0d2f48b490535c7a80e05da4a98902b632369efc04f0e47bb31ca97d8f/numpy-2.2.4-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d0f35b19894a9e08639fd60a1ec1978cb7f5f7f1eace62f38dd36be8aecdef4d", size = 16233350, upload-time = "2025-03-16T18:21:53.902Z" },
     { url = "https://files.pythonhosted.org/packages/3b/3a/2f6d8c1f8e45d496bca6baaec93208035faeb40d5735c25afac092ec9a12/numpy-2.2.4-pp310-pypy310_pp73-win_amd64.whl", hash = "sha256:b4adfbbc64014976d2f91084915ca4e626fbf2057fb81af209c1a6d776d23e3d", size = 12857565, upload-time = "2025-03-16T18:22:17.631Z" },
-]
-
-[[package]]
-name = "openai"
-version = "0.28.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "requests" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/49/fe/c21d95cc120928b0f5b44d8c522e48df122be3f1f9d61dfb7bf3d597c95d/openai-0.28.1.tar.gz", hash = "sha256:4be1dad329a65b4ce1a660fe6d5431b438f429b5855c883435f0f7fcb6d2dcc8", size = 61939, upload-time = "2023-09-26T03:36:14.832Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/9f/385c25502f437686e4aa715969e5eaf5c2cb5e5ffa7c5cdd52f3c6ae967a/openai-0.28.1-py3-none-any.whl", hash = "sha256:d18690f9e3d31eedb66b57b88c2165d760b24ea0a01f150dd3f068155088ce68", size = 76950, upload-time = "2023-09-26T03:36:09.98Z" },
 ]
 
 [[package]]
