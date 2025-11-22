@@ -1,0 +1,400 @@
+{
+  "Comment": "Extremely complex multi-source ETL pipeline with dynamic scaling and monitoring",
+  "StartAt": "InitializePipeline",
+  "States": {
+    "AggregateResults": {
+      "Next": "GenerateMetrics",
+      "Parameters": {
+        "ClusterIdentifier": "analytics-cluster",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE analytics.daily_insights AS SELECT customer_segment, product_category, COUNT(*) as transaction_count, SUM(total_amount) as total_revenue, AVG(total_amount) as avg_transaction_value, CURRENT_DATE as report_date FROM staging.core_dataset GROUP BY customer_segment, product_category UNION ALL SELECT 'ALL' as customer_segment, 'ALL' as product_category, COUNT(*), SUM(total_amount), AVG(total_amount), CURRENT_DATE FROM staging.core_dataset"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Type": "Task"
+    },
+    "BalancedProcessing": {
+      "Branches": [
+        {
+          "StartAt": "ProcessCoreData",
+          "States": {
+            "EnrichCoreData": {
+              "End": true,
+              "Parameters": {
+                "FunctionName": "data-enrichment-service",
+                "Payload": {
+                  "enrichmentSources": [
+                    "geographic_data",
+                    "demographic_data",
+                    "behavioral_data"
+                  ],
+                  "sourceTable": "staging.core_dataset"
+                }
+              },
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Type": "Task"
+            },
+            "ProcessCoreData": {
+              "Next": "EnrichCoreData",
+              "Parameters": {
+                "ClusterIdentifier": "analytics-cluster",
+                "Database": "staging",
+                "Sql": "CREATE TABLE staging.core_dataset AS SELECT c.customer_id, c.name, c.email, c.segment, o.order_id, o.total_amount, o.order_date, p.product_id, p.category, p.price FROM raw.customers c JOIN raw.orders o ON c.customer_id = o.customer_id JOIN raw.products p ON o.product_id = p.product_id WHERE o.order_date >= CURRENT_DATE - INTERVAL '30 days'"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Type": "Task"
+            }
+          }
+        },
+        {
+          "StartAt": "ProcessSupplementaryData",
+          "States": {
+            "ProcessSupplementaryData": {
+              "End": true,
+              "Parameters": {
+                "JobDefinition": "supplementary-data-processor",
+                "JobName": "process-supplementary-data",
+                "JobQueue": "standard-processing-queue"
+              },
+              "Resource": "arn:aws:states:::batch:submitJob.sync",
+              "Type": "Task"
+            }
+          }
+        }
+      ],
+      "Next": "AggregateResults",
+      "Type": "Parallel"
+    },
+    "CheckDataSources": {
+      "Branches": [
+        {
+          "StartAt": "CheckDatabase",
+          "States": {
+            "CheckDatabase": {
+              "End": true,
+              "Parameters": {
+                "FunctionName": "database-health-checker",
+                "Payload": {
+                  "sources": [
+                    "customers",
+                    "orders",
+                    "products",
+                    "inventory"
+                  ]
+                }
+              },
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Type": "Task"
+            }
+          }
+        },
+        {
+          "StartAt": "CheckS3Sources",
+          "States": {
+            "CheckS3Sources": {
+              "End": true,
+              "Parameters": {
+                "FunctionName": "s3-source-checker",
+                "Payload": {
+                  "buckets": [
+                    "raw-data-lake",
+                    "external-feeds",
+                    "partner-data"
+                  ]
+                }
+              },
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Type": "Task"
+            }
+          }
+        },
+        {
+          "StartAt": "CheckAPIEndpoints",
+          "States": {
+            "CheckAPIEndpoints": {
+              "End": true,
+              "Parameters": {
+                "FunctionName": "api-health-checker",
+                "Payload": {
+                  "endpoints": [
+                    "crm-api",
+                    "payment-gateway",
+                    "shipping-api"
+                  ]
+                }
+              },
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Type": "Task"
+            }
+          }
+        }
+      ],
+      "Next": "EvaluateSystemHealth",
+      "ResultPath": "$.health_checks",
+      "Type": "Parallel"
+    },
+    "ConservativeProcessing": {
+      "Next": "AggregateResults",
+      "Parameters": {
+        "ClusterIdentifier": "analytics-cluster",
+        "Database": "staging",
+        "Sql": "CREATE TABLE staging.conservative_dataset AS SELECT * FROM raw.transactions WHERE created_date = CURRENT_DATE LIMIT 10000"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Type": "Task"
+    },
+    "DetermineProcessingStrategy": {
+      "Next": "ExecuteProcessingStrategy",
+      "Parameters": {
+        "FunctionName": "processing-strategy-optimizer",
+        "Payload": {
+          "availableResources.$": "$.pipeline_config.available_resources",
+          "dataVolume.$": "$.health_checks[0].estimated_volume",
+          "systemLoad.$": "$.health_checks[0].current_load"
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.processing_strategy",
+      "Type": "Task"
+    },
+    "EvaluateSystemHealth": {
+      "Choices": [
+        {
+          "And": [
+            {
+              "StringEquals": "healthy",
+              "Variable": "$.health_checks[0].status"
+            },
+            {
+              "StringEquals": "healthy",
+              "Variable": "$.health_checks[1].status"
+            },
+            {
+              "StringEquals": "healthy",
+              "Variable": "$.health_checks[2].status"
+            }
+          ],
+          "Next": "DetermineProcessingStrategy"
+        }
+      ],
+      "Default": "HandleUnhealthySources",
+      "Type": "Choice"
+    },
+    "ExecuteProcessingStrategy": {
+      "Choices": [
+        {
+          "Next": "HighThroughputProcessing",
+          "StringEquals": "high_throughput",
+          "Variable": "$.processing_strategy.strategy"
+        },
+        {
+          "Next": "BalancedProcessing",
+          "StringEquals": "balanced",
+          "Variable": "$.processing_strategy.strategy"
+        },
+        {
+          "Next": "ConservativeProcessing",
+          "StringEquals": "resource_conservative",
+          "Variable": "$.processing_strategy.strategy"
+        }
+      ],
+      "Default": "BalancedProcessing",
+      "Type": "Choice"
+    },
+    "GenerateMetrics": {
+      "Next": "PublishMetrics",
+      "Parameters": {
+        "FunctionName": "metrics-generator",
+        "Payload": {
+          "dataProcessed": true,
+          "executionTime.$": "$$.State.EnteredTime",
+          "pipelineId.$": "$.pipeline_config.pipelineId",
+          "processingStrategy.$": "$.processing_strategy.strategy"
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.metrics",
+      "Type": "Task"
+    },
+    "HandleUnhealthySources": {
+      "Next": "NotifySystemAdmins",
+      "Parameters": {
+        "FunctionName": "unhealthy-source-handler",
+        "Payload": {
+          "fallbackStrategy": "partial_processing",
+          "healthChecks.$": "$.health_checks"
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Type": "Task"
+    },
+    "HighThroughputProcessing": {
+      "Branches": [
+        {
+          "StartAt": "ProcessCustomerData",
+          "States": {
+            "ProcessCustomerData": {
+              "End": true,
+              "ItemsPath": "$.processing_strategy.customer_partitions",
+              "Iterator": {
+                "StartAt": "ProcessCustomerPartition",
+                "States": {
+                  "ProcessCustomerPartition": {
+                    "End": true,
+                    "Parameters": {
+                      "JobDefinition": "customer-data-processor",
+                      "JobName.$": "$.partition_id",
+                      "JobQueue": "high-throughput-queue",
+                      "Parameters": {
+                        "endDate.$": "$.end_date",
+                        "partitionId.$": "$.partition_id",
+                        "startDate.$": "$.start_date"
+                      }
+                    },
+                    "Resource": "arn:aws:states:::batch:submitJob.sync",
+                    "Type": "Task"
+                  }
+                }
+              },
+              "MaxConcurrency": 10,
+              "Type": "Map"
+            }
+          }
+        },
+        {
+          "StartAt": "ProcessOrderData",
+          "States": {
+            "ProcessOrderData": {
+              "End": true,
+              "ItemsPath": "$.processing_strategy.order_partitions",
+              "Iterator": {
+                "StartAt": "ProcessOrderPartition",
+                "States": {
+                  "ProcessOrderPartition": {
+                    "End": true,
+                    "Parameters": {
+                      "JobDefinition": "order-data-processor",
+                      "JobName.$": "$.partition_id",
+                      "JobQueue": "high-throughput-queue",
+                      "Parameters": {
+                        "partitionId.$": "$.partition_id",
+                        "processingMode": "high_throughput"
+                      }
+                    },
+                    "Resource": "arn:aws:states:::batch:submitJob.sync",
+                    "Type": "Task"
+                  }
+                }
+              },
+              "MaxConcurrency": 8,
+              "Type": "Map"
+            }
+          }
+        },
+        {
+          "StartAt": "ProcessExternalFeeds",
+          "States": {
+            "ProcessExternalFeeds": {
+              "End": true,
+              "Parameters": {
+                "Cluster": "etl-processing-cluster",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "SecurityGroups": [
+                      "sg-etl-processing"
+                    ],
+                    "Subnets": [
+                      "subnet-12345",
+                      "subnet-67890"
+                    ]
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [
+                    {
+                      "Environment": [
+                        {
+                          "Name": "PROCESSING_MODE",
+                          "Value": "high_throughput"
+                        },
+                        {
+                          "Name": "BATCH_SIZE",
+                          "Value": "10000"
+                        }
+                      ],
+                      "Name": "feed-processor"
+                    }
+                  ]
+                },
+                "TaskDefinition": "external-feed-processor"
+              },
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Type": "Task"
+            }
+          }
+        }
+      ],
+      "Next": "AggregateResults",
+      "Type": "Parallel"
+    },
+    "InitializePipeline": {
+      "Next": "CheckDataSources",
+      "Parameters": {
+        "FunctionName": "pipeline-initializer",
+        "Payload": {
+          "pipelineId.$": "$$.Execution.Name",
+          "startTime.$": "$$.Execution.StartTime"
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.pipeline_config",
+      "Type": "Task"
+    },
+    "NotifyCompletion": {
+      "End": true,
+      "Parameters": {
+        "Message.$": "$.metrics",
+        "Subject": "ETL Pipeline Completed Successfully",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-completion"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "NotifySystemAdmins": {
+      "End": true,
+      "Parameters": {
+        "Message": "ETL pipeline encountered unhealthy data sources - partial processing initiated",
+        "Subject": "ETL System Health Alert",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:system-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "PublishMetrics": {
+      "Next": "NotifyCompletion",
+      "Parameters": {
+        "MetricData": [
+          {
+            "Dimensions": [
+              {
+                "Name": "PipelineId",
+                "Value.$": "$.pipeline_config.pipelineId"
+              }
+            ],
+            "MetricName": "PipelineExecutionTime",
+            "Unit": "Seconds",
+            "Value.$": "$.metrics.execution_time_seconds"
+          },
+          {
+            "MetricName": "RecordsProcessed",
+            "Unit": "Count",
+            "Value.$": "$.metrics.records_processed"
+          }
+        ],
+        "Namespace": "ETL/Pipeline"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:cloudwatch:putMetricData",
+      "Type": "Task"
+    }
+  }
+}

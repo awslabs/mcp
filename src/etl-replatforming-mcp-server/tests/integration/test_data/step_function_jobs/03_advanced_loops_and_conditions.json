@@ -1,0 +1,235 @@
+{
+  "Comment": "Advanced pipeline with Map states (for-each), while loops, and complex Choice logic",
+  "StartAt": "GetFileList",
+  "States": {
+    "AdvancedAnalytics": {
+      "End": true,
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE analytics.advanced_customer_insights AS WITH customer_behavior AS (SELECT customer_id, customer_segment, churn_risk, recommended_action, CASE WHEN EXTRACT(HOUR FROM last_purchase_time) BETWEEN 9 AND 17 THEN 'BUSINESS_HOURS' WHEN EXTRACT(HOUR FROM last_purchase_time) BETWEEN 18 AND 22 THEN 'EVENING' WHEN EXTRACT(HOUR FROM last_purchase_time) BETWEEN 23 AND 6 THEN 'NIGHT' ELSE 'EARLY_MORNING' END as purchase_time_pattern, CASE WHEN EXTRACT(MONTH FROM last_purchase_date) IN (12, 1, 2) THEN 'WINTER' WHEN EXTRACT(MONTH FROM last_purchase_date) IN (3, 4, 5) THEN 'SPRING' WHEN EXTRACT(MONTH FROM last_purchase_date) IN (6, 7, 8) THEN 'SUMMER' ELSE 'FALL' END as seasonal_pattern FROM analytics.customer_insights), behavioral_scoring AS (SELECT *, (CASE WHEN customer_segment = 'VIP_FREQUENT' THEN 100 WHEN customer_segment = 'VIP_OCCASIONAL' THEN 90 WHEN customer_segment = 'PREMIUM_FREQUENT' THEN 80 WHEN customer_segment = 'PREMIUM_OCCASIONAL' THEN 70 WHEN customer_segment = 'STANDARD_FREQUENT' THEN 60 WHEN customer_segment = 'STANDARD_OCCASIONAL' THEN 50 WHEN customer_segment = 'BASIC_ACTIVE' THEN 40 WHEN customer_segment = 'BASIC_RECENT' THEN 30 ELSE 10 END + CASE WHEN churn_risk = 'LOW_RISK' THEN 20 WHEN churn_risk = 'MEDIUM_RISK' THEN 10 WHEN churn_risk = 'HIGH_RISK' THEN -10 ELSE 0 END + CASE WHEN purchase_time_pattern = 'BUSINESS_HOURS' THEN 5 WHEN purchase_time_pattern = 'EVENING' THEN 3 ELSE 0 END) as customer_score FROM customer_behavior) SELECT *, CASE WHEN customer_score >= 110 THEN 'PLATINUM' WHEN customer_score >= 90 THEN 'GOLD' WHEN customer_score >= 70 THEN 'SILVER' WHEN customer_score >= 50 THEN 'BRONZE' ELSE 'STANDARD' END as final_customer_tier FROM behavioral_scoring"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Type": "Task"
+    },
+    "CheckMaxIterations": {
+      "Choices": [
+        {
+          "Next": "MaxIterationsReached",
+          "NumericGreaterThan": 10,
+          "Variable": "$.completionCheck.iteration"
+        }
+      ],
+      "Default": "WhileLoopContinue",
+      "Type": "Choice"
+    },
+    "ComplexCaseWhenTransform": {
+      "Next": "WhileLoopStart",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE analytics.customer_insights AS WITH customer_behavior AS (SELECT customer_id, name, total_spent, transaction_count, last_purchase_date, CASE WHEN total_spent > 50000 AND transaction_count > 100 THEN 'VIP_FREQUENT' WHEN total_spent > 50000 AND transaction_count <= 100 THEN 'VIP_OCCASIONAL' WHEN total_spent > 20000 AND transaction_count > 50 THEN 'PREMIUM_FREQUENT' WHEN total_spent > 20000 AND transaction_count <= 50 THEN 'PREMIUM_OCCASIONAL' WHEN total_spent > 5000 AND transaction_count > 20 THEN 'STANDARD_FREQUENT' WHEN total_spent > 5000 AND transaction_count <= 20 THEN 'STANDARD_OCCASIONAL' WHEN total_spent > 1000 THEN 'BASIC_ACTIVE' WHEN last_purchase_date > CURRENT_DATE - INTERVAL '30 days' THEN 'BASIC_RECENT' ELSE 'INACTIVE' END as customer_segment FROM staging.customer_metrics), risk_analysis AS (SELECT *, CASE WHEN customer_segment IN ('VIP_FREQUENT', 'VIP_OCCASIONAL') THEN CASE WHEN last_purchase_date > CURRENT_DATE - INTERVAL '7 days' THEN 'LOW_RISK' WHEN last_purchase_date > CURRENT_DATE - INTERVAL '30 days' THEN 'MEDIUM_RISK' ELSE 'HIGH_RISK' END WHEN customer_segment IN ('PREMIUM_FREQUENT', 'PREMIUM_OCCASIONAL') THEN CASE WHEN last_purchase_date > CURRENT_DATE - INTERVAL '14 days' THEN 'LOW_RISK' WHEN last_purchase_date > CURRENT_DATE - INTERVAL '60 days' THEN 'MEDIUM_RISK' ELSE 'HIGH_RISK' END ELSE 'STANDARD_RISK' END as churn_risk FROM customer_behavior) SELECT *, CASE WHEN customer_segment = 'VIP_FREQUENT' AND churn_risk = 'HIGH_RISK' THEN 'URGENT_RETENTION' WHEN customer_segment LIKE 'VIP_%' THEN 'VIP_ENGAGEMENT' WHEN customer_segment LIKE 'PREMIUM_%' THEN 'PREMIUM_UPSELL' WHEN customer_segment LIKE 'STANDARD_%' THEN 'STANDARD_NURTURE' WHEN customer_segment = 'BASIC_ACTIVE' THEN 'BASIC_UPGRADE' WHEN customer_segment = 'BASIC_RECENT' THEN 'REACTIVATION' ELSE 'NO_ACTION' END as recommended_action FROM risk_analysis"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "ResultPath": "$.transformResult",
+      "Type": "Task"
+    },
+    "ContinueBatchProcessing": {
+      "Next": "IncrementIteration",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "processed",
+        "Sql": "INSERT INTO processed.incremental_data SELECT * FROM staging.pending_data WHERE batch_id = (SELECT MIN(batch_id) FROM staging.pending_data WHERE processed = false) AND ROWNUM <= 1000"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "ResultPath": "$.batchResult",
+      "Type": "Task"
+    },
+    "EvaluateCompletion": {
+      "Choices": [
+        {
+          "BooleanEquals": true,
+          "Next": "QualityCheckLoop",
+          "Variable": "$.completionCheck.isComplete"
+        },
+        {
+          "Next": "ContinueBatchProcessing",
+          "NumericLessThan": 0.95,
+          "Variable": "$.completionCheck.completionRate"
+        }
+      ],
+      "Default": "QualityCheckLoop",
+      "Type": "Choice"
+    },
+    "EvaluateQuality": {
+      "Choices": [
+        {
+          "Next": "AdvancedAnalytics",
+          "NumericGreaterThanEquals": 0.95,
+          "Variable": "$.qualityCheck.qualityScore"
+        },
+        {
+          "Next": "RetryProcessing",
+          "NumericLessThan": 3,
+          "Variable": "$.qualityCheck.retryCount"
+        }
+      ],
+      "Default": "QualityCheckFailed",
+      "Type": "Choice"
+    },
+    "GetFileList": {
+      "Next": "ProcessFilesInParallel",
+      "Parameters": {
+        "FunctionName": "get-file-list",
+        "Payload": {
+          "date": "2024-01-01"
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.fileList",
+      "Type": "Task"
+    },
+    "IncrementIteration": {
+      "Next": "CheckMaxIterations",
+      "Parameters": {
+        "iteration.$": "States.MathAdd($.completionCheck.iteration, 1)"
+      },
+      "ResultPath": "$.completionCheck",
+      "Type": "Pass"
+    },
+    "IncrementRetryCount": {
+      "Next": "QualityCheckLoop",
+      "Parameters": {
+        "retryCount.$": "States.MathAdd($.qualityCheck.retryCount, 1)"
+      },
+      "ResultPath": "$.qualityCheck",
+      "Type": "Pass"
+    },
+    "MaxIterationsReached": {
+      "Cause": "Maximum iterations reached in while loop",
+      "Error": "MaxIterationsExceeded",
+      "Type": "Fail"
+    },
+    "ProcessFilesInParallel": {
+      "ItemsPath": "$.fileList.files",
+      "Iterator": {
+        "StartAt": "DetermineFileType",
+        "States": {
+          "DetermineFileType": {
+            "Choices": [
+              {
+                "Next": "ProcessCustomerFile",
+                "StringMatches": "*customers*",
+                "Variable": "$.fileName"
+              },
+              {
+                "Next": "ProcessTransactionFile",
+                "StringMatches": "*transactions*",
+                "Variable": "$.fileName"
+              },
+              {
+                "Next": "ProcessProductFile",
+                "StringMatches": "*products*",
+                "Variable": "$.fileName"
+              }
+            ],
+            "Default": "ProcessGenericFile",
+            "Type": "Choice"
+          },
+          "ProcessCustomerFile": {
+            "End": true,
+            "Parameters": {
+              "ClusterIdentifier": "data-warehouse",
+              "Database": "staging",
+              "Sql.$": "States.Format('CREATE TABLE staging.customers_{} AS SELECT customer_id, name, email, registration_date, CASE WHEN total_spent > 50000 THEN \\'VIP\\' WHEN total_spent > 20000 THEN \\'PREMIUM\\' WHEN total_spent > 5000 THEN \\'STANDARD\\' ELSE \\'BASIC\\' END as customer_tier FROM raw.customers WHERE file_name = \\'{}\\'', $.fileId, $.fileName)"
+            },
+            "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+            "Type": "Task"
+          },
+          "ProcessGenericFile": {
+            "End": true,
+            "Parameters": {
+              "FunctionName": "process-generic-file",
+              "Payload.$": "$"
+            },
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Type": "Task"
+          },
+          "ProcessProductFile": {
+            "End": true,
+            "Parameters": {
+              "ClusterIdentifier": "data-warehouse",
+              "Database": "staging",
+              "Sql.$": "States.Format('CREATE TABLE staging.products_{} AS SELECT product_id, product_name, category, price, CASE WHEN price > 1000 THEN \\'PREMIUM\\' WHEN price > 100 THEN \\'STANDARD\\' ELSE \\'BUDGET\\' END as price_tier FROM raw.products WHERE file_name = \\'{}\\'', $.fileId, $.fileName)"
+            },
+            "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+            "Type": "Task"
+          },
+          "ProcessTransactionFile": {
+            "End": true,
+            "Parameters": {
+              "ClusterIdentifier": "data-warehouse",
+              "Database": "staging",
+              "Sql.$": "States.Format('CREATE TABLE staging.transactions_{} AS SELECT transaction_id, customer_id, amount, transaction_date, CASE WHEN EXTRACT(HOUR FROM transaction_time) BETWEEN 9 AND 17 THEN \\'BUSINESS_HOURS\\' WHEN EXTRACT(HOUR FROM transaction_time) BETWEEN 18 AND 22 THEN \\'EVENING\\' ELSE \\'OFF_HOURS\\' END as time_category FROM raw.transactions WHERE file_name = \\'{}\\'', $.fileId, $.fileName)"
+            },
+            "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+            "Type": "Task"
+          }
+        }
+      },
+      "MaxConcurrency": 5,
+      "Next": "ComplexCaseWhenTransform",
+      "ResultPath": "$.processResults",
+      "Type": "Map"
+    },
+    "QualityCheckFailed": {
+      "Cause": "Data quality check failed after maximum retries",
+      "Error": "QualityCheckFailure",
+      "Type": "Fail"
+    },
+    "QualityCheckLoop": {
+      "Next": "EvaluateQuality",
+      "Parameters": {
+        "FunctionName": "check-data-quality",
+        "Payload": {
+          "retryCount": 0
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.qualityCheck",
+      "Type": "Task"
+    },
+    "RetryProcessing": {
+      "Next": "IncrementRetryCount",
+      "Parameters": {
+        "FunctionName": "retry-processing-with-improvements",
+        "Payload.$": "$.qualityCheck"
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.retryResult",
+      "Type": "Task"
+    },
+    "WhileLoopContinue": {
+      "Next": "EvaluateCompletion",
+      "Parameters": {
+        "FunctionName": "check-processing-complete",
+        "Payload.$": "$.completionCheck"
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.completionCheck",
+      "Type": "Task"
+    },
+    "WhileLoopStart": {
+      "Next": "EvaluateCompletion",
+      "Parameters": {
+        "FunctionName": "check-processing-complete",
+        "Payload": {
+          "iteration": 1
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "ResultPath": "$.completionCheck",
+      "Type": "Task"
+    }
+  }
+}
