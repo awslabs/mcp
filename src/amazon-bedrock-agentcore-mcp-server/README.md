@@ -186,3 +186,58 @@ Dictionary containing:
 - `error`: Error message (if fetch failed)
 
 Use this tool to get complete documentation pages when search snippets aren't sufficient for understanding or implementing AgentCore features.
+
+### manage_agentcore_runtime
+
+Provides comprehensive information on deploying and managing agents in AgentCore Runtime.
+
+```python
+manage_agentcore_runtime() -> Dict[str, Any]
+```
+
+**Returns:**
+Detailed deployment guide covering:
+- Code requirements and validation checklist
+- Step-by-step CLI deployment workflow (configure, launch, invoke, status, destroy)
+- Required code patterns with BedrockAgentCoreApp
+- Common issues and troubleshooting
+- Session management and cleanup procedures
+
+Use this tool when you need to deploy agents to AgentCore Runtime or troubleshoot deployment issues.
+
+### manage_agentcore_memory
+
+Provides comprehensive information on managing AgentCore Memory resources.
+
+```python
+manage_agentcore_memory() -> Dict[str, Any]
+```
+
+**Returns:**
+Complete memory management guide covering:
+- Memory resource creation and configuration
+- Short-term memory (STM) and long-term memory (LTM) concepts
+- Semantic memory strategies for facts and knowledge
+- Full CLI command reference (create, get, list, delete, status)
+- Common workflows and examples
+
+Use this tool when working with AgentCore Memory for persistent knowledge storage.
+
+### manage_agentcore_gateway
+
+Provides comprehensive information on deploying and managing MCP Gateways in AgentCore.
+
+```python
+manage_agentcore_gateway() -> Dict[str, Any]
+```
+
+**Returns:**
+Complete gateway deployment guide covering:
+- Gateway creation and configuration requirements
+- Step-by-step CLI deployment workflow
+- Target management for Lambda, OpenAPI, and Smithy models
+- Authentication and authorization setup (Cognito, OAuth2, API keys)
+- Management commands (list, get, delete)
+- Common patterns and troubleshooting
+
+Use this tool when deploying MCP Gateways to provide managed endpoints for Model Context Protocol servers.
