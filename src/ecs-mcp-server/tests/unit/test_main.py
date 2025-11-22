@@ -156,9 +156,11 @@ class TestServerConfiguration(unittest.TestCase):
 
         required_tools = [
             "containerize_app",
-            "create_ecs_infrastructure",
-            "get_deployment_status",
-            "delete_ecs_infrastructure",
+            "build_and_push_image_to_ecr",
+            "validate_ecs_express_mode_prerequisites",
+            "delete_app",
+            "ecs_resource_management",
+            "ecs_troubleshooting_tool",
         ]
 
         tool_names = [tool["name"] for tool in self.mcp.tools]
@@ -172,15 +174,13 @@ class TestServerConfiguration(unittest.TestCase):
         expected_patterns = [
             "dockerize",
             "containerize",
-            "deploy to aws",
-            "deploy to ecs",
-            "ship it",
-            "deploy flask",
-            "deploy django",
-            "delete infrastructure",
-            "tear down",
-            "remove deployment",
-            "clean up resources",
+            "docker container",
+            "put in container",
+            "containerize and deploy",
+            "docker and deploy",
+            "list ecs resources",
+            "troubleshoot ecs",
+            "ecs deployment failed",
         ]
 
         patterns = [pattern["pattern"] for pattern in self.mcp.prompt_patterns]

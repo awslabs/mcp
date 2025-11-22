@@ -12,6 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file makes the ecs_mcp_server directory a Python package
+from dataclasses import dataclass
+from typing import List, Optional
 
-__version__ = "0.1.16"
+
+@dataclass
+class KnowledgeResult:
+    """Represents a single knowledge search result."""
+
+    rank: int
+    title: str
+    url: str
+    context: str
+
+
+@dataclass
+class CDKToolResponse:
+    """Response from CDK tools containing knowledge and guidance."""
+
+    knowledge_response: List[KnowledgeResult]
+    next_step_guidance: Optional[str]
