@@ -4,7 +4,7 @@
 
 An MCP server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources. This server enables AI assistants to help users with the full lifecycle of containerized applications on AWS.
 
-> **Note:** AWS offers a fully managed Amazon ECS MCP server that provides enterprise-grade capabilities including automatic updates, centralized security through IAM integration, comprehensive audit logging via CloudTrail, and the proven scalability and reliability of AWS. The managed service eliminates the need for local installation and maintenance. [Learn more about the managed Amazon ECS MCP server](https://docs.aws.amazon.com/ecs/latest/developerguide/ecs-mcp-introduction.html).
+> **Note:** AWS offers a fully managed Amazon ECS MCP server that provides enterprise-grade capabilities including automatic updates, centralized security through IAM integration, comprehensive audit logging via CloudTrail, and the proven scalability and reliability of AWS. The managed service eliminates the need for local installation and maintenance. [Learn more about the managed Amazon ECS MCP server](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-introduction.html).
 
 ## Features
 
