@@ -294,6 +294,8 @@ Interact with AWS HealthAI services.
 
 *AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster*
 
+**Workshop**: Check out the [Vibe Coding with AWS MCP Servers](https://github.com/aws-solutions-library-samples/guidance-for-vibe-coding-with-aws-mcp-servers) workshop for hands-on guidance and examples.
+
 ##### Core Development Workflow
 
 | Server Name | Description | Install |
