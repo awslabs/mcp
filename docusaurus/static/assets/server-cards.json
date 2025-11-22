@@ -492,6 +492,29 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "SageMaker AI resource management and model development",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "sagemaker-ai-mcp-server",
+      "name": "Amazon SageMaker AI MCP Server",
+      "source_path": "src/sagemaker-ai-mcp-server/",
+      "subcategory": "Model Orchestration",
+      "tags": [
+        "ai-ml",
+        "model-development",
+        "vibe-coding",
+        "conversational",
+        "machine-learning",
+        "ai-tools",
+        "serverless"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Complete DynamoDB operations and table management",
       "icon": "\ud83d\udcca",
