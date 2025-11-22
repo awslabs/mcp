@@ -5,7 +5,7 @@ description = "The official MCP Server for interacting with AWS DynamoDB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.40.5",
+    "boto3[crt]>=1.41.0",
     "loguru==0.7.3",
     "mcp[cli]==1.12.4",
     "psutil==7.1.1",
@@ -55,7 +55,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "moto>=5.1.4",
-    "boto3>=1.38.14",
+    "boto3[crt]>=1.41.0",
 ]
 
 [build-system]

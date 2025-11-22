@@ -26,7 +26,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "readabilipy>=0.2.0",
     "requests>=2.32.3",
-    "boto3>=1.38.12",
+    "boto3[crt]>=1.41.0",
     "pytest>=8.3.5",
 ]
 

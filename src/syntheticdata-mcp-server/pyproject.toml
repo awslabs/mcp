@@ -8,7 +8,7 @@ dependencies = [
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
     "pandas>=2.0.0",
-    "boto3>=1.34.0",
+    "boto3[crt]>=1.41.0",
     "pyarrow>=14.0.1",  # For parquet format support
     "python-snappy>=0.6.1",  # For snappy compression
 ]
