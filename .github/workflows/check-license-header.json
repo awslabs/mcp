@@ -15,14 +15,33 @@
       "**/trivy-results.sarif",
       "**/py.typed",
       "**/*.npz",
-      "**/*.template"
+      "**/*.template",
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs",
+      "**/*.properties",
+      "**/*.xml"
     ],
     "include": [
       "**/*.py",
       "**/*Dockerfile",
-      "**/*.sh"
+      "**/*.sh",
+      "**/*.guard"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
+  },
+  {
+    "exclude": [
+      "docusaurus/**"
+    ],
+    "include": [
+      "**/*.java",
+      "**/*.js",
+      "**/*.ts",
+      "**/*.cs"
+    ],
+    "license": "./.github/workflows/check-license-header-slash.txt"
   },
   {
     "include": [
@@ -54,7 +73,9 @@
       "**/trivy-results.sarif",
       "**/py.typed",
       "**/*.npz",
-      "**/*.template"
+      "**/*.template",
+      "**/*.properties",
+      "**/*.xml"
     ]
   }
 ]

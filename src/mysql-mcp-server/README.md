@@ -28,6 +28,18 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora MySQL
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
+## Connection Methods
+
+This MCP server supports two connection methods:
+
+1. **RDS Data API Connection** (using `--resource_arn`): Uses the AWS RDS Data API to connect to Aurora MySQL. This method requires that your Aurora cluster has the Data API enabled.
+
+2. **Direct MySQL Connection** (using `--hostname`): Uses asyncmy to connect directly to any MySQL database, including Aurora MySQL, RDS MySQL, RDS MariaDB, or self-hosted MySQL/MariaDB instances.
+
+Choose the connection method that best fits your environment and requirements.
+
+### Option 1: Using RDS Data API Connection (for Aurora MySQL)
+
 ```json
 {
   "mcpServers": {
@@ -52,6 +64,36 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+
+### Option 2: Using Direct MySQL Connection (for Aurora MySQL, RDS MySQL, and RDS MariaDB)
+
+```json
+{
+  "mcpServers": {
+    "awslabs.mysql-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.mysql-mcp-server@latest",
+        "--hostname", "[your data]",
+        "--secret_arn", "[your data]",
+        "--database", "[your data]",
+        "--region", "[your data]",
+        "--readonly", "True"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+Note: The `--port` parameter is optional and defaults to 3306 (the standard MySQL port). You only need to specify it if your MySQL instance uses a non-default port.
+
 ### Windows Installation
 
 For Windows users, the MCP server configuration format is slightly different:
