@@ -15,20 +15,20 @@
 """Tests for cfn_tools module."""
 
 import json
-from unittest.mock import patch, MagicMock
 from awslabs.aws_iac_mcp_server.tools.cfn_tools import (
-    cloudformation_pre_deploy_validation,
-    validate_cloudformation_template_tool,
     check_cloudformation_template_compliance_tool,
+    cloudformation_pre_deploy_validation,
     troubleshoot_cloudformation_deployment_tool,
+    validate_cloudformation_template_tool,
 )
+from unittest.mock import MagicMock, patch
 
 
 def test_cloudformation_pre_deploy_validation_returns_valid_json():
     """Test that cloudformation_pre_deploy_validation returns valid JSON."""
     result = cloudformation_pre_deploy_validation()
     parsed = json.loads(result)
-    
+
     assert 'overview' in parsed
     assert 'validation_types' in parsed
     assert 'workflow' in parsed
@@ -38,7 +38,7 @@ def test_cloudformation_pre_deploy_validation_includes_required_fields():
     """Test that result includes all required instruction fields."""
     result = cloudformation_pre_deploy_validation()
     parsed = json.loads(result)
-    
+
     assert 'validation_types' in parsed
     assert 'property_syntax' in parsed['validation_types']
     assert 'resource_name_conflict' in parsed['validation_types']
@@ -52,7 +52,7 @@ def test_validate_cloudformation_template_tool(mock_validate):
     """Test validate_cloudformation_template_tool calls validate_template."""
     mock_validate.return_value = {'valid': True}
     result = validate_cloudformation_template_tool('template', ['us-east-1'], ['W2001'])
-    
+
     mock_validate.assert_called_once_with(
         template_content='template', regions=['us-east-1'], ignore_checks=['W2001']
     )
@@ -64,7 +64,7 @@ def test_check_cloudformation_template_compliance_tool(mock_check):
     """Test check_cloudformation_template_compliance_tool calls check_compliance."""
     mock_check.return_value = {'compliant': True}
     result = check_cloudformation_template_compliance_tool('template', 'rules.guard')
-    
+
     mock_check.assert_called_once_with(template_content='template', rules_file_path='rules.guard')
     assert result == {'compliant': True}
 
@@ -75,9 +75,9 @@ def test_troubleshoot_cloudformation_deployment_tool(mock_troubleshooter_class):
     mock_instance = MagicMock()
     mock_instance.troubleshoot_stack_deployment.return_value = {'status': 'failed'}
     mock_troubleshooter_class.return_value = mock_instance
-    
+
     result = troubleshoot_cloudformation_deployment_tool('my-stack', 'us-west-2', True)
-    
+
     mock_troubleshooter_class.assert_called_once_with(region='us-west-2')
     mock_instance.troubleshoot_stack_deployment.assert_called_once_with(
         stack_name='my-stack', include_cloudtrail=True
@@ -85,4 +85,3 @@ def test_troubleshoot_cloudformation_deployment_tool(mock_troubleshooter_class):
     assert '_instruction' in result
     assert 'us-west-2' in result['_instruction']
     assert 'my-stack' in result['_instruction']
-
