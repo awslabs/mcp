@@ -315,7 +315,7 @@ async def read_cdk_documentation_page(
     - Read module READMEs and interface documentation
 
     ## Supported Document Types
-    
+
     - API reference pages
     - Guide and tutorial pages
 
