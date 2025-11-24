@@ -28,7 +28,7 @@ SEARCH_CLOUDFORMATION_DOCUMENTATION_TOPIC = 'cloudformation'
 SEARCH_CDK_CONSTRUCTS_TOPIC = 'cdk_constructs'
 SAMPLE_CONSTRUCT_SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.'
 
-SupportedLanguages = Literal['typescript', 'python', 'java', 'csharp']
+SupportedLanguages = Literal['typescript', 'python', 'java', 'csharp', 'go']
 
 
 async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:

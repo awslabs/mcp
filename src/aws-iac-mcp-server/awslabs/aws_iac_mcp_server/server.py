@@ -49,7 +49,7 @@ mcp = FastMCP(
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
                 - Use `read_cdk_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
-                - Use `search_cloudformation_documentation` when: You need CloudFormation resource type information or template syntax
+                - Use `search_cloudformation_documentation` when: You need Cloudformation related official documentation, resource type information or template syntax
 
               """,
 )
@@ -446,6 +446,7 @@ async def search_cdk_samples_and_constructs(
     - python
     - java
     - csharp
+    - go
 
     ## Result Interpretation
 
