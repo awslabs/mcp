@@ -55,7 +55,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/cloudwatch-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @gcacace @shri-tambe @agiuliano @goranmod
 /src/code-doc-gen-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
 /src/core-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @PaulVincent707
-/src/cost-explorer-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Fedayizada
+/src/cost-explorer-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  # @Fedayizada
 /src/documentdb-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy # @nitinahuja89
 /src/dynamodb-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @akeyesamzn @shetsa-amzn @LeeroyHannigan
 /src/ecs-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar
