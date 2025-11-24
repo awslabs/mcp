@@ -207,9 +207,12 @@ async def get_available_services(
         # If toc_response does not have `href: services.html`, and services_json is empty, raise an error so
         # users can self-solve.
         if len(services_json) == 0:
-            return ValueError(
+            error_msg = (
                 f'Failed fetching list of available AWS Services, please go to {url_str} directly'
             )
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
 
         # Filtering out 'Services Unsupported in Amazon Web Services in China'
         formatted_service_titles = ''

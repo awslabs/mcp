@@ -272,11 +272,7 @@ class TestGetAvailableServices:
                 mock_extract.return_value = '# AWS Services in China\n\nAvailable services list.'
                 result = await get_available_services(ctx)
 
-                assert isinstance(result, ValueError)
-                assert (
-                    'Failed fetching list of available AWS Services, please go to'
-                    in result.args[0]
-                )
+                assert 'Failed fetching list of available AWS Services, please go to' in result
 
                 assert mock_get.call_count == 2
                 mock_extract.assert_not_called()
