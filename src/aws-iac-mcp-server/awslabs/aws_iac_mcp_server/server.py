@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import json
-from .cloudformation_compliance_checker import initialize_guard_rules
 from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
@@ -24,12 +23,10 @@ from .tools.cdk_tools import (
     search_cdk_samples_and_constructs_tool,
     search_cloudformation_documentation_tool,
 )
-from .tools.cfn_tools import (
-    check_cloudformation_template_compliance_tool,
-    cloudformation_pre_deploy_validation,
-    troubleshoot_cloudformation_deployment_tool,
-    validate_cloudformation_template_tool,
-)
+from .tools.cloudformation_compliance_checker import check_compliance, initialize_guard_rules
+from .tools.cloudformation_deployment_troubleshooter import DeploymentTroubleshooter
+from .tools.cloudformation_pre_deploy_validation import cloudformation_pre_deploy_validation
+from .tools.cloudformation_validator import validate_template
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
@@ -109,7 +106,7 @@ def validate_cloudformation_template(
         regions: AWS regions to validate against
         ignore_checks: Rule IDs to ignore (e.g., W2001, E3012)
     """
-    result = validate_cloudformation_template_tool(
+    result = validate_template(
         template_content=template_content,
         regions=regions,
         ignore_checks=ignore_checks,
@@ -165,7 +162,7 @@ def check_cloudformation_template_compliance(
         template_content: CloudFormation template as YAML or JSON string
         rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
     """
-    result = check_cloudformation_template_compliance_tool(
+    result = check_compliance(
         template_content=template_content,
         rules_file_path=rules_file_path,
     )
@@ -220,11 +217,18 @@ def troubleshoot_cloudformation_deployment(
         region: AWS region where the stack deployment failed
         include_cloudtrail: Whether to include CloudTrail analysis
     """
-    result = troubleshoot_cloudformation_deployment_tool(
-        stack_name=stack_name,
-        region=region,
-        include_cloudtrail=include_cloudtrail,
+    troubleshooter = DeploymentTroubleshooter(region=region)
+    result = troubleshooter.troubleshoot_stack_deployment(
+        stack_name=stack_name, include_cloudtrail=include_cloudtrail
     )
+
+    # Add deeplink instruction to result
+    if isinstance(result, dict):
+        result['_instruction'] = (
+            f'ALWAYS include this CloudFormation console deeplink in your response: '
+            f'[View Stack](https://console.aws.amazon.com/cloudformation/home?region={region}'
+            f'#/stacks/stackinfo?stackId={stack_name})'
+        )
 
     response_text = json.dumps(result, indent=2, default=str)
     return sanitize_tool_response(response_text)

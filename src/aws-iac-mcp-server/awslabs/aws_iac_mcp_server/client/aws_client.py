@@ -24,7 +24,6 @@ class ClientError(Exception):
     pass
 
 
-session = Session(profile_name=environ.get('AWS_PROFILE'))
 session_config = botocore.config.Config(
     user_agent_extra='aws-iac-mcp-server/1.0.0',
 )
@@ -32,16 +31,6 @@ session_config = botocore.config.Config(
 
 def get_aws_client(service_name, region_name=None):
     """Create and return an AWS service client with dynamically detected credentials.
-
-    This function implements a credential provider chain that tries different
-    credential sources in the following order:
-    1. Environment variables (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
-    2. Shared credential file (~/.aws/credentials)
-    3. IAM role for Amazon EC2 / ECS task role / EKS pod identity
-    4. AWS SSO or Web Identity token
-
-    The function caches clients based on the compound key of service_name and region_name
-    to avoid creating duplicate clients for the same service and region.
 
     Args:
         service_name: AWS service name (e.g., 'cloudcontrol', 'logs', 'marketplace-catalog')
@@ -54,14 +43,11 @@ def get_aws_client(service_name, region_name=None):
     if not region_name:
         region_name = environ.get('AWS_REGION', 'us-east-1')
 
+    session = Session(profile_name=environ.get('AWS_PROFILE'))
+
     # Credential detection and client creation
     try:
-        print(
-            f'Creating new {service_name} client for region {region_name} with auto-detected credentials'
-        )
         client = session.client(service_name, region_name=region_name, config=session_config)
-
-        print('Created client for service with credentials')
         return client
 
     except Exception as e:
@@ -73,4 +59,4 @@ def get_aws_client(service_name, region_name=None):
                 'No AWS credentials found. Please configure credentials using environment variables or AWS configuration.'
             )
         else:
-            raise ClientError('Got an error when loading your client.')
+            raise ClientError(f'Error creating AWS client: {str(e)}')

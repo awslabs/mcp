@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import json
-from .client.aws_client import get_aws_client
-from .cloudformation_failure_cases import match_failure_case
+from ..client.aws_client import get_aws_client
+from ..data.cloudformation_failure_cases import match_failure_case
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
