@@ -14,12 +14,12 @@
 """awslabs MCP Server implementation for Amazon Keyspaces (for Apache Cassandra)."""
 
 import sys
+from . import __version__ as SERVER_VERSION
 from .client import UnifiedCassandraClient
 from .config import AppConfig
 from .consts import (
     MAX_DISPLAY_ROWS,
     SERVER_NAME,
-    SERVER_VERSION,
     UNSAFE_OPERATIONS,
 )
 from .llm_context import (
@@ -41,7 +41,10 @@ from typing import Any, Optional
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-mcp = FastMCP(name=SERVER_NAME, version=SERVER_VERSION)
+mcp = FastMCP(
+    name=SERVER_NAME,
+    # version=SERVER_VERSION
+)
 
 # Global handle to hold the proxy to the specific db client
 _proxy = None
