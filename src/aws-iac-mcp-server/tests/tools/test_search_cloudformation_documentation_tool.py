@@ -15,7 +15,7 @@
 """Tests for search CloudFormation documentation tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse, KnowledgeResult
+from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
 from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cloudformation_documentation_tool
 from unittest.mock import AsyncMock, patch
 
@@ -27,12 +27,12 @@ class TestSearchCloudFormationDocumentation:
     async def test_search_cloudformation_documentation_success(self):
         """Test successful CloudFormation documentation search."""
         mock_response = [
-                KnowledgeResult(
-                    rank=1,
-                    title='AWS::Lambda::Function',
-                    url='https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html',
-                    context='Creates a Lambda function resource.',
-                )
+            KnowledgeResult(
+                rank=1,
+                title='AWS::Lambda::Function',
+                url='https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-lambda-function.html',
+                context='Creates a Lambda function resource.',
+            )
         ]
         with patch(
             'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',

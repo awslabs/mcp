@@ -27,12 +27,12 @@ class TestReadCDKDocumentationPage:
     async def test_read_cdk_documentation_page_success(self):
         """Test successful CDK documentation page read."""
         mock_response = [
-                KnowledgeResult(
-                    rank=1,
-                    title='CDK Documentation',
-                    url='https://docs.aws.amazon.com/cdk/test.html',
-                    context='Full documentation content here...',
-                )
+            KnowledgeResult(
+                rank=1,
+                title='CDK Documentation',
+                url='https://docs.aws.amazon.com/cdk/test.html',
+                context='Full documentation content here...',
+            )
         ]
         with patch(
             'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
@@ -40,7 +40,9 @@ class TestReadCDKDocumentationPage:
         ) as mock_read:
             mock_read.return_value = mock_response
 
-            result = await read_cdk_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html')
+            result = await read_cdk_documentation_page_tool(
+                'https://docs.aws.amazon.com/cdk/test.html'
+            )
 
             assert len(result.knowledge_response) == 1
             assert result.knowledge_response[0].context == 'Full documentation content here...'
@@ -58,7 +60,9 @@ class TestReadCDKDocumentationPage:
         ) as mock_read:
             mock_read.return_value = []
 
-            await read_cdk_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html', 100)
+            await read_cdk_documentation_page_tool(
+                'https://docs.aws.amazon.com/cdk/test.html', 100
+            )
 
             mock_read.assert_called_once_with(
                 url='https://docs.aws.amazon.com/cdk/test.html', start_index=100

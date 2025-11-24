@@ -15,7 +15,7 @@
 """Tests for search CDK samples and constructs tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse, KnowledgeResult
+from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
 from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_samples_and_constructs_tool
 from unittest.mock import AsyncMock, patch
 
@@ -27,12 +27,12 @@ class TestSearchCDKSamplesAndConstructs:
     async def test_search_cdk_samples_and_constructs_success(self):
         """Test successful CDK samples and constructs search."""
         mock_response = [
-                KnowledgeResult(
-                    rank=1,
-                    title='Lambda Function Example',
-                    url='https://docs.aws.amazon.com/cdk/samples/lambda.html',
-                    context='Example of creating Lambda function with CDK.',
-                )
+            KnowledgeResult(
+                rank=1,
+                title='Lambda Function Example',
+                url='https://docs.aws.amazon.com/cdk/samples/lambda.html',
+                context='Example of creating Lambda function with CDK.',
+            )
         ]
         with patch(
             'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
