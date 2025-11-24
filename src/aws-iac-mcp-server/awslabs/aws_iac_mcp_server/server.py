@@ -15,10 +15,7 @@
 from __future__ import annotations
 
 import json
-from .compliance_checker import check_compliance, initialize_guard_rules
-
-# Add parent directory to path for imports
-from .deployment_troubleshooter import DeploymentTroubleshooter
+from .cloudformation_compliance_checker import initialize_guard_rules
 from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
@@ -27,7 +24,11 @@ from .tools.cdk_tools import (
     search_cdk_samples_and_constructs_tool,
     search_cloudformation_documentation_tool,
 )
-from .validator import validate_template
+from .tools.cfn_tools import (
+    check_cloudformation_template_compliance_tool,
+    troubleshoot_cloudformation_deployment_tool,
+    validate_cloudformation_template_tool,
+)
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
@@ -44,8 +45,8 @@ mcp = FastMCP(
                 ## Tool Selection Guide
 
                 - Use `validate_cloudformation_template` when: You need to validate CloudFormation template syntax, schema, and resource properties using cfn-lint
-                - Use `check_template_compliance` when: You need to validate templates against security and compliance rules using cfn-guard
-                - Use `troubleshoot_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
+                - Use `check_cloudformation_template_compliance` when: You need to validate templates against security and compliance rules using cfn-guard
+                - Use `troubleshoot_cloudformation_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
                 - Use `read_cdk_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
@@ -106,7 +107,7 @@ def validate_cloudformation_template(
         regions: AWS regions to validate against
         ignore_checks: Rule IDs to ignore (e.g., W2001, E3012)
     """
-    result = validate_template(
+    result = validate_cloudformation_template_tool(
         template_content=template_content,
         regions=regions,
         ignore_checks=ignore_checks,
@@ -116,7 +117,7 @@ def validate_cloudformation_template(
 
 
 @mcp.tool()
-def check_template_compliance(
+def check_cloudformation_template_compliance(
     template_content: str, rules_file_path: str = 'default_guard_rules.guard'
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
@@ -162,7 +163,7 @@ def check_template_compliance(
         template_content: CloudFormation template as YAML or JSON string
         rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
     """
-    result = check_compliance(
+    result = check_cloudformation_template_compliance_tool(
         template_content=template_content,
         rules_file_path=rules_file_path,
     )
@@ -171,7 +172,7 @@ def check_template_compliance(
 
 
 @mcp.tool()
-def troubleshoot_deployment(
+def troubleshoot_cloudformation_deployment(
     stack_name: str,
     region: str,
     include_cloudtrail: bool = True,
@@ -217,16 +218,14 @@ def troubleshoot_deployment(
         region: AWS region where the stack deployment failed
         include_cloudtrail: Whether to include CloudTrail analysis
     """
-    troubleshooter = DeploymentTroubleshooter(region=region)
-    result = troubleshooter.troubleshoot_stack_deployment(
-        stack_name=stack_name, include_cloudtrail=include_cloudtrail
+    result = troubleshoot_cloudformation_deployment_tool(
+        stack_name=stack_name,
+        region=region,
+        include_cloudtrail=include_cloudtrail,
     )
 
-    # Add deeplink instruction to result
-    if isinstance(result, dict):
-        result['_instruction'] = (
-            f'ALWAYS include this CloudFormation console deeplink in your response: [View Stack](https://console.aws.amazon.com/cloudformation/home?region={region}#/stacks/stackinfo?stackId={stack_name})'
-        )
+    response_text = json.dumps(result, indent=2, default=str)
+    return sanitize_tool_response(response_text)
 
     response_text = json.dumps(result, indent=2, default=str)
     return sanitize_tool_response(response_text)
@@ -476,7 +475,7 @@ async def search_cdk_samples_and_constructs(
 
 
 @mcp.resource('cfn://context/template-examples-and-best-practices')
-def get_template_examples() -> str:
+def get_cloudformation_template_examples() -> str:
     """CloudFormation Template Examples and Best Practices.
 
     Template examples, architectural patterns, and implementation guidance
