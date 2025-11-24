@@ -31,9 +31,7 @@ session_config = botocore.config.Config(
 
 
 def troubleshoot_deployment(
-    stack_name: str,
-    region: str,
-    include_cloudtrail: bool = True
+    stack_name: str, region: str, include_cloudtrail: bool = True
 ) -> DeploymentResponse:
     """Troubleshoot CloudFormation deployment failures using describe_events API with CloudTrail.
 
@@ -106,8 +104,12 @@ def troubleshoot_deployment(
                 cloudtrail_link = None
                 if include_cloudtrail:
                     # Generate CloudTrail link for this event
-                    start_time = (timestamp - timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-                    end_time = (timestamp + timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                    start_time = (timestamp - timedelta(seconds=60)).strftime(
+                        '%Y-%m-%dT%H:%M:%S.%f'
+                    )[:-3] + 'Z'
+                    end_time = (timestamp + timedelta(seconds=60)).strftime(
+                        '%Y-%m-%dT%H:%M:%S.%f'
+                    )[:-3] + 'Z'
                     cloudtrail_link = (
                         f'https://console.aws.amazon.com/cloudtrailv2/home?region={region}#/events'
                         f'?StartTime={start_time}&EndTime={end_time}&ReadOnly=false'
@@ -157,7 +159,9 @@ def troubleshoot_deployment(
             failed_resources=failed_resources,
             events=events,
             root_cause_analysis=root_cause_analysis,
-            remediation_steps=remediation_steps if remediation_steps else ['Review stack events for details'],
+            remediation_steps=remediation_steps
+            if remediation_steps
+            else ['Review stack events for details'],
             console_deeplink=console_deeplink,
         )
 
@@ -169,7 +173,10 @@ def troubleshoot_deployment(
             failed_resources=[],
             events=[],
             root_cause_analysis=f'Error troubleshooting deployment: {str(e)}',
-            remediation_steps=['Check stack name and AWS credentials', 'Verify stack exists in the specified region'],
+            remediation_steps=[
+                'Check stack name and AWS credentials',
+                'Verify stack exists in the specified region',
+            ],
             console_deeplink=f'https://console.aws.amazon.com/cloudformation/home?region={region}',
         )
 

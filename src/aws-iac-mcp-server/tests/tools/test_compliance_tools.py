@@ -20,7 +20,6 @@ from awslabs.aws_iac_mcp_server.tools.compliance_tools import (
     check_template_compliance,
     initialize_guard_rules,
 )
-from awslabs.aws_iac_mcp_server.models.compliance_models import ComplianceResponse
 from unittest.mock import mock_open, patch
 
 
@@ -107,6 +106,7 @@ Resources:
     def test_parse_json_template(self):
         """Test parsing JSON CloudFormation template."""
         import json
+
         template = json.dumps(
             {
                 'AWSTemplateFormatVersion': '2010-09-09',
@@ -130,6 +130,7 @@ Resources:
     def test_parse_template_no_resources(self):
         """Test template without Resources section."""
         import json
+
         template = json.dumps({'AWSTemplateFormatVersion': '2010-09-09'})
 
         result = _parse_template_resources(template)
@@ -157,11 +158,11 @@ class TestCheckCompliance:
     def test_check_compliance_rules_not_found(self, mock_file):
         """Test compliance check when rules file not found."""
         import json
+
         template = json.dumps({'AWSTemplateFormatVersion': '2010-09-09', 'Resources': {}})
 
         result = check_template_compliance(
-            template_content=template,
-            rules_file_path='/nonexistent/rules.guard'
+            template_content=template, rules_file_path='/nonexistent/rules.guard'
         )
 
         assert result.compliance_results.overall_status == 'ERROR'
@@ -257,6 +258,7 @@ class TestParseTemplateResourcesDetailed:
     def test_parse_json_template(self):
         """Test parsing JSON CloudFormation template."""
         import json
+
         template = json.dumps(
             {
                 'Resources': {
@@ -300,6 +302,7 @@ Resources:
     def test_parse_template_without_resources(self):
         """Test parsing template without Resources section."""
         import json
+
         template = json.dumps({'AWSTemplateFormatVersion': '2010-09-09'})
 
         result = _parse_template_resources(template)
@@ -330,40 +333,50 @@ class TestCheckComplianceDetailed:
         mock_init.return_value = False
 
         import json
+
         template = json.dumps({'Resources': {}})
         result = check_template_compliance(template_content=template)
 
         assert 'failed' in result.message.lower()
 
     @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules')
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules'
+    )
     @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools._REMEDIATION_CACHE', {})
     def test_check_compliance_guard_validation_failure(self, mock_validate):
         """Test compliance check when guard validation fails."""
         mock_validate.return_value = {'success': False}
 
         import json
+
         template = json.dumps({'Resources': {}})
         result = check_template_compliance(template_content=template)
 
         assert 'failed' in result.message.lower()
 
     @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules')
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules'
+    )
     def test_check_compliance_exception_handling(self, mock_validate):
         """Test compliance check exception handling."""
         mock_validate.side_effect = Exception('Validation error')
 
         import json
+
         template = json.dumps({'Resources': {}})
         result = check_template_compliance(template_content=template)
 
         assert 'Validation error' in result.message
 
     @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules')
     @patch(
-        'awslabs.aws_iac_mcp_server.tools.compliance_tools._REMEDIATION_CACHE', {'TEST_RULE': 'Fix it'}
+        'awslabs.aws_iac_mcp_server.tools.compliance_tools._RULES_CONTENT_CACHE', 'cached rules'
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.compliance_tools._REMEDIATION_CACHE',
+        {'TEST_RULE': 'Fix it'},
     )
     def test_check_compliance_with_violations_full_path(self, mock_validate):
         """Test full compliance check path with violations."""
@@ -383,6 +396,7 @@ class TestCheckComplianceDetailed:
         }
 
         import json
+
         template = json.dumps({'Resources': {'MyBucket': {'Type': 'AWS::S3::Bucket'}}})
         result = check_template_compliance(template_content=template)
 
@@ -560,8 +574,7 @@ class TestComplianceCheckerWithRealTemplate:
 
         with patch('builtins.open', mock_open(read_data='rule custom { true }')):
             result = check_template_compliance(
-                template_content=template,
-                rules_file_path='/custom/rules.guard'
+                template_content=template, rules_file_path='/custom/rules.guard'
             )
 
             assert result.compliance_results is not None

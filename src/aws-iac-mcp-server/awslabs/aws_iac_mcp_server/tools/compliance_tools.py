@@ -155,8 +155,7 @@ def _extract_resource_info(node: dict, template_resources: dict) -> tuple[str, s
 
 
 def check_template_compliance(
-    template_content: str,
-    rules_file_path: str = 'default_guard_rules.guard'
+    template_content: str, rules_file_path: str = 'default_guard_rules.guard'
 ) -> ComplianceResponse:
     """Validate CloudFormation template against cfn-guard rules using guardpycfn.
 

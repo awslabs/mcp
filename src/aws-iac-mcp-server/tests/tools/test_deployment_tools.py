@@ -14,8 +14,8 @@
 
 """Tests for deployment_troubleshooter module."""
 
-from awslabs.aws_iac_mcp_server.tools.deployment_tools import troubleshoot_deployment
 from awslabs.aws_iac_mcp_server.models.deployment_models import DeploymentResponse
+from awslabs.aws_iac_mcp_server.tools.deployment_tools import troubleshoot_deployment
 from datetime import datetime, timezone
 from unittest.mock import ANY, Mock, patch
 

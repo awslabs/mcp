@@ -15,12 +15,12 @@
 """Edge case tests for validator module."""
 
 import pytest
+from awslabs.aws_iac_mcp_server.models.validation_models import ValidationResponse
 from awslabs.aws_iac_mcp_server.tools.validation_tools import (
     _format_results,
     _map_level,
     validate_cloudformation_template,
 )
-from awslabs.aws_iac_mcp_server.models.validation_models import ValidationResponse
 from cfnlint.match import Match
 from cfnlint.rules import CloudFormationLintRule
 from unittest.mock import Mock
@@ -120,6 +120,7 @@ class TestOversizedTemplates:
     def test_oversized_template_validation(self):
         """Test that oversized templates are rejected by Pydantic validation."""
         import json
+
         # Create a template larger than 1MB (Pydantic validator limit)
         large_template = {'AWSTemplateFormatVersion': '2010-09-09', 'Resources': {}}
         # Add many resources to exceed 1MB
@@ -189,7 +190,9 @@ class TestInvalidParameters:
     def test_invalid_region_format(self):
         """Test invalid AWS region format."""
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
-        result = validate_cloudformation_template(template_content=template, regions=['invalid-region-123'])
+        result = validate_cloudformation_template(
+            template_content=template, regions=['invalid-region-123']
+        )
         assert result.validation_results is not None
 
     def test_invalid_ignore_checks_type(self):
@@ -198,7 +201,7 @@ class TestInvalidParameters:
         # This test is no longer applicable
         pass
 
-    @pytest.mark.skip(reason="Pydantic models not yet implemented")
+    @pytest.mark.skip(reason='Pydantic models not yet implemented')
     def test_invalid_rules_file_path(self):
         """Test non-existent rules file path."""
         pass
@@ -207,19 +210,25 @@ class TestInvalidParameters:
         """Test special characters in parameters."""
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
         # Should handle special characters gracefully
-        result = validate_cloudformation_template(template_content=template, regions=['us-east-1', '../../etc/passwd'])
+        result = validate_cloudformation_template(
+            template_content=template, regions=['us-east-1', '../../etc/passwd']
+        )
         assert result.validation_results is not None
 
     def test_sql_injection_in_parameters(self):
         """Test SQL injection patterns in parameters."""
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
-        result = validate_cloudformation_template(template_content=template, regions=["us-east-1'; DROP TABLE stacks;--"])
+        result = validate_cloudformation_template(
+            template_content=template, regions=["us-east-1'; DROP TABLE stacks;--"]
+        )
         assert result.validation_results is not None
 
     def test_command_injection_in_parameters(self):
         """Test command injection patterns in parameters."""
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
-        result = validate_cloudformation_template(template_content=template, regions=['us-east-1; rm -rf /'])
+        result = validate_cloudformation_template(
+            template_content=template, regions=['us-east-1; rm -rf /']
+        )
         assert result.validation_results is not None
 
 
@@ -238,7 +247,7 @@ class TestEdgeCases:
         result = validate_cloudformation_template(template_content=template)
         assert result.validation_results is not None
 
-    @pytest.mark.skip(reason="Pydantic models not yet implemented")
+    @pytest.mark.skip(reason='Pydantic models not yet implemented')
     def test_deeply_nested_template(self):
         """Test deeply nested template structure."""
         pass
@@ -302,7 +311,7 @@ class TestParameterValidation:
         result = validate_cloudformation_template(template_content=template)
         assert result.validation_results.is_valid is True
 
-    @pytest.mark.skip(reason="Pydantic models not yet implemented")
+    @pytest.mark.skip(reason='Pydantic models not yet implemented')
     def test_valid_all_parameters(self):
         """Test valid parameters with all optional fields."""
         pass
@@ -310,5 +319,7 @@ class TestParameterValidation:
     def test_empty_optional_arrays(self):
         """Test empty arrays for optional parameters."""
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
-        result = validate_cloudformation_template(template_content=template, regions=[], ignore_checks=[])
+        result = validate_cloudformation_template(
+            template_content=template, regions=[], ignore_checks=[]
+        )
         assert result.validation_results is not None

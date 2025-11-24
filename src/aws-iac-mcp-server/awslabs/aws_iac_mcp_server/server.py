@@ -66,9 +66,13 @@ initialize_guard_rules()
 
 @mcp.tool()
 def validate_cloudformation_template(
-    template_content: str = Field(..., description='CloudFormation template as YAML or JSON string'),
+    template_content: str = Field(
+        ..., description='CloudFormation template as YAML or JSON string'
+    ),
     regions: Optional[list[str]] = Field(None, description='AWS regions to validate against'),
-    ignore_checks: Optional[list[str]] = Field(None, description='Rule IDs to ignore (e.g., W2001, E3012)'),
+    ignore_checks: Optional[list[str]] = Field(
+        None, description='Rule IDs to ignore (e.g., W2001, E3012)'
+    ),
 ) -> str:
     """Validate CloudFormation template syntax, schema, and resource properties using cfn-lint.
 
@@ -124,8 +128,12 @@ def validate_cloudformation_template(
 
 @mcp.tool()
 def check_template_compliance(
-    template_content: str = Field(..., description='CloudFormation template as YAML or JSON string'),
-    rules_file_path: str = Field('default_guard_rules.guard', description='Path to guard rules file'),
+    template_content: str = Field(
+        ..., description='CloudFormation template as YAML or JSON string'
+    ),
+    rules_file_path: str = Field(
+        'default_guard_rules.guard', description='Path to guard rules file'
+    ),
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
 
@@ -356,7 +364,9 @@ async def read_cdk_documentation_page(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await read_cdk_documentation_page_tool(_unwrap_field(url), _unwrap_field(starting_index))
+    result = await read_cdk_documentation_page_tool(
+        _unwrap_field(url), _unwrap_field(starting_index)
+    )
 
     # Convert dataclass to dict for JSON serialization
     response_dict = asdict(result)
@@ -482,7 +492,9 @@ async def search_cdk_samples_and_constructs(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await search_cdk_samples_and_constructs_tool(_unwrap_field(query), _unwrap_field(language))
+    result = await search_cdk_samples_and_constructs_tool(
+        _unwrap_field(query), _unwrap_field(language)
+    )
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)

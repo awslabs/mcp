@@ -32,12 +32,17 @@ class TestValidateCloudFormationTemplate:
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_success(self, mock_sanitize, mock_validate_tool):
         """Test successful template validation."""
-        from awslabs.aws_iac_mcp_server.models.validation_models import ValidationResponse, ValidationResults
-        
+        from awslabs.aws_iac_mcp_server.models.validation_models import (
+            ValidationResponse,
+            ValidationResults,
+        )
+
         mock_response = ValidationResponse(
-            validation_results=ValidationResults(is_valid=True, error_count=0, warning_count=0, info_count=0),
+            validation_results=ValidationResults(
+                is_valid=True, error_count=0, warning_count=0, info_count=0
+            ),
             issues=[],
-            message='Template is valid.'
+            message='Template is valid.',
         )
         mock_validate_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -53,12 +58,17 @@ class TestValidateCloudFormationTemplate:
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_with_regions(self, mock_sanitize, mock_validate_tool):
         """Test validation with specific regions."""
-        from awslabs.aws_iac_mcp_server.models.validation_models import ValidationResponse, ValidationResults
-        
+        from awslabs.aws_iac_mcp_server.models.validation_models import (
+            ValidationResponse,
+            ValidationResults,
+        )
+
         mock_response = ValidationResponse(
-            validation_results=ValidationResults(is_valid=True, error_count=0, warning_count=0, info_count=0),
+            validation_results=ValidationResults(
+                is_valid=True, error_count=0, warning_count=0, info_count=0
+            ),
             issues=[],
-            message='Template is valid.'
+            message='Template is valid.',
         )
         mock_validate_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -74,12 +84,17 @@ class TestValidateCloudFormationTemplate:
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_validate_template_with_ignore_checks(self, mock_sanitize, mock_validate_tool):
         """Test validation with ignored checks."""
-        from awslabs.aws_iac_mcp_server.models.validation_models import ValidationResponse, ValidationResults
-        
+        from awslabs.aws_iac_mcp_server.models.validation_models import (
+            ValidationResponse,
+            ValidationResults,
+        )
+
         mock_response = ValidationResponse(
-            validation_results=ValidationResults(is_valid=True, error_count=0, warning_count=0, info_count=0),
+            validation_results=ValidationResults(
+                is_valid=True, error_count=0, warning_count=0, info_count=0
+            ),
             issues=[],
-            message='Template is valid.'
+            message='Template is valid.',
         )
         mock_validate_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -99,18 +114,21 @@ class TestCheckTemplateCompliance:
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_check_compliance_success(self, mock_sanitize, mock_compliance_tool):
         """Test successful compliance check."""
-        from awslabs.aws_iac_mcp_server.models.compliance_models import ComplianceResponse, ComplianceResults
-        
+        from awslabs.aws_iac_mcp_server.models.compliance_models import (
+            ComplianceResponse,
+            ComplianceResults,
+        )
+
         mock_response = ComplianceResponse(
             compliance_results=ComplianceResults(
                 overall_status='COMPLIANT',
                 total_violations=0,
                 error_count=0,
                 warning_count=0,
-                rule_sets_applied=['aws-security']
+                rule_sets_applied=['aws-security'],
             ),
             violations=[],
-            message='Template is compliant with all rules.'
+            message='Template is compliant with all rules.',
         )
         mock_compliance_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -126,18 +144,21 @@ class TestCheckTemplateCompliance:
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
     def test_check_compliance_with_custom_rules(self, mock_sanitize, mock_compliance_tool):
         """Test compliance check with custom rules."""
-        from awslabs.aws_iac_mcp_server.models.compliance_models import ComplianceResponse, ComplianceResults
-        
+        from awslabs.aws_iac_mcp_server.models.compliance_models import (
+            ComplianceResponse,
+            ComplianceResults,
+        )
+
         mock_response = ComplianceResponse(
             compliance_results=ComplianceResults(
                 overall_status='COMPLIANT',
                 total_violations=0,
                 error_count=0,
                 warning_count=0,
-                rule_sets_applied=['aws-security']
+                rule_sets_applied=['aws-security'],
             ),
             violations=[],
-            message='Template is compliant with all rules.'
+            message='Template is compliant with all rules.',
         )
         mock_compliance_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -158,7 +179,7 @@ class TestTroubleshootDeployment:
     def test_troubleshoot_deployment_success(self, mock_sanitize, mock_deployment_tool):
         """Test successful deployment troubleshooting."""
         from awslabs.aws_iac_mcp_server.models.deployment_models import DeploymentResponse
-        
+
         mock_response = DeploymentResponse(
             stack_name='test-stack',
             stack_status='CREATE_COMPLETE',
@@ -166,7 +187,7 @@ class TestTroubleshootDeployment:
             events=[],
             root_cause_analysis='No failed resources found in stack events.',
             remediation_steps=['Review stack events for details'],
-            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack'
+            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack',
         )
         mock_deployment_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -182,7 +203,7 @@ class TestTroubleshootDeployment:
     def test_troubleshoot_deployment_without_cloudtrail(self, mock_sanitize, mock_deployment_tool):
         """Test troubleshooting without CloudTrail."""
         from awslabs.aws_iac_mcp_server.models.deployment_models import DeploymentResponse
-        
+
         mock_response = DeploymentResponse(
             stack_name='test-stack',
             stack_status='CREATE_COMPLETE',
@@ -190,7 +211,7 @@ class TestTroubleshootDeployment:
             events=[],
             root_cause_analysis='No failed resources found in stack events.',
             remediation_steps=['Review stack events for details'],
-            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack'
+            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack',
         )
         mock_deployment_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -206,7 +227,7 @@ class TestTroubleshootDeployment:
     def test_troubleshoot_deployment_adds_deeplink(self, mock_sanitize, mock_deployment_tool):
         """Test that deployment troubleshooting adds console deeplink."""
         from awslabs.aws_iac_mcp_server.models.deployment_models import DeploymentResponse
-        
+
         mock_response = DeploymentResponse(
             stack_name='test-stack',
             stack_status='CREATE_COMPLETE',
@@ -214,7 +235,7 @@ class TestTroubleshootDeployment:
             events=[],
             root_cause_analysis='No failed resources found in stack events.',
             remediation_steps=['Review stack events for details'],
-            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack'
+            console_deeplink='https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/stackinfo?stackId=test-stack',
         )
         mock_deployment_tool.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response with deeplink'
