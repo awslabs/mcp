@@ -135,21 +135,23 @@ def process_route_tables(route_tables: Dict[str, Any]) -> List[RouteTableDict]:
 
         routes: List[RouteDict] = []
         for route in rt['Routes']:
+            target = (
+                route.get('GatewayId')
+                or route.get('NatGatewayId')
+                or route.get('TransitGatewayId')
+                or route.get('VpcPeeringConnectionId')
+                or route.get('NetworkInterfaceId')
+                or route.get('EgressOnlyInternetGatewayId')
+                or 'local'
+            )
             routes.append(
                 RouteDict(
                     **{
                         'destination': route.get('DestinationCidrBlock')
                         or route.get('DestinationIpv6CidrBlock', ''),
-                        'target': (
-                            route.get('GatewayId')
-                            or route.get('NatGatewayId')
-                            or route.get('TransitGatewayId')
-                            or route.get('VpcPeeringConnectionId')
-                            or route.get('NetworkInterfaceId')
-                            or route.get('EgressOnlyInternetGatewayId')
-                        ),
-                        'state': route.get('State'),
-                        'origin': route.get('Origin'),
+                        'target': target,
+                        'state': route.get('State', ''),
+                        'origin': route.get('Origin', ''),
                     }
                 )
             )
