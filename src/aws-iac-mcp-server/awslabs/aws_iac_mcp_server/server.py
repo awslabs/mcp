@@ -315,9 +315,7 @@ async def read_cdk_documentation_page(
     - Read module READMEs and interface documentation
 
     ## Supported Document Types
-
-    - Module READMEs: "aws-cdk-lib/aws_lambda/README.md"
-    - Interface documentation: "aws-cdk-lib/aws_s3/Bucket.json"
+    
     - API reference pages
     - Guide and tutorial pages
 
