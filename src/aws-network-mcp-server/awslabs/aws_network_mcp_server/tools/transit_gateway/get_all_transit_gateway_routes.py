@@ -111,7 +111,7 @@ async def get_all_tgw_routes(
                     registered_global_net = global_net_id
                     transit_gateway_region = tgw['TransitGatewayArn'].split(':')[3]
                     transit_gateway_account_id = tgw['TransitGatewayArn'].split(':')[4]
-                break
+                    break
 
         if not registered_global_net:
             raise ToolError(
