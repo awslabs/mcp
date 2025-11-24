@@ -43,7 +43,7 @@ repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.sagemaker-ai-mcp-server" = "awslabs.server:main"
+"awslabs.sagemaker-ai-mcp-server" = "awslabs.sagemaker_ai_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
