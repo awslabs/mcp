@@ -126,7 +126,7 @@ async def get_network_firewall_flow_logs(
         fw_client = get_aws_client('network-firewall', region, profile_name)
 
         response = fw_client.describe_logging_configuration(
-            FirewallArn=f'arn:aws:network-firewall:{region if region else "us-east-1"}:{get_account_id()}:firewall/firewall'
+            FirewallArn=f'arn:aws:network-firewall:{region if region else "us-east-1"}:{get_account_id()}:firewall/{firewall_name}'
         )
 
         log_group_name = None
