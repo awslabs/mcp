@@ -99,11 +99,12 @@ def transform_pricing_data(
 
         # Apply pricing terms filtering
         if output_options.pricing_terms is not None and 'terms' in item:
-            filtered_terms = {
-                term_type: item['terms'][term_type]
-                for term_type in output_options.pricing_terms
-                if term_type in item['terms']
-            }
+            filtered_terms = {}
+            for term_type in item['terms']:
+                if term_type in output_options.pricing_terms:
+                    filtered_terms[term_type] = item['terms'][term_type]
+                else:
+                    filtered_terms[term_type] = '<filtered by output_options.pricing_terms>'
             filtered_item = {**item, 'terms': filtered_terms}
 
         # Apply product attributes filtering
