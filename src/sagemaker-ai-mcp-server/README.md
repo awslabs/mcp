@@ -16,7 +16,7 @@ Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrat
 
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). 
+This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli).
 
 
 **Set up Cursor**
