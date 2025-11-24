@@ -482,7 +482,7 @@ async def cdk_best_practices() -> str:
 
     ## Usage
 
-    This tool provides comprehensive CDK development guidelines, security best practices, and architectural recommendations. Always run this tool when asked to generate CDK code and follow the guidelines returned.
+    This tool provides comprehensive CDK development guidelines, security best practices, and architectural recommendations. Always run this tool when asked to generate or review CDK code and follow the guidelines returned.
 
     ## When to Use
 
@@ -495,13 +495,14 @@ async def cdk_best_practices() -> str:
 
     ## Result Interpretation
 
-    The response provides a comprehensive guide covering:
-    - Step-by-step CDK development workflow
-    - Security constraints and requirements
-    - Code organization and project structure guidelines
-    - Construct design best practices
-    - Deployment and testing strategies
-    - Maintainability recommendations
+    Returns JSON with:
+    - knowledge_response: Details of the response
+      - results: Array with single result containing:
+        - rank: Always 1
+        - title: Document title or filename
+        - url: Source URL of the CDK best practices
+        - context: A summary of the CDK best practices
+    - next_step_guidance: If present, suggested next actions to take for answering user query
 
     ## Args
 

@@ -23,20 +23,6 @@ CDK_OFFICIAL_BEST_PRACTICES_SUMMARY = """
 ## Core Philosophy
 The AWS CDK enables you to define your entire application in code - infrastructure, runtime logic, and configuration. This allows changes to be reviewed, tested, and rolled back consistently.
 
-## Organization Best Practices
-
-### Establish a Cloud Center of Excellence (CCoE)
-- Create a team responsible for training and guiding CDK adoption
-- Set standards and policies for cloud infrastructure
-- Define programming language guidelines for infrastructure code
-- Create a landing zone with AWS Control Tower for multi-account management
-
-### Multi-Account Strategy
-- Developers use their own accounts for testing and experimentation
-- Deploy via CI/CD pipelines to testing, integration, and production environments
-- Each environment isolated in its own AWS Region or account
-- Use CDK Pipelines for automated deployments
-
 ## Coding Best Practices
 
 ### Start Simple, Add Complexity Only When Needed
