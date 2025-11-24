@@ -14,4 +14,4 @@
 
 # This file makes the ecs_mcp_server directory a Python package
 
-__version__ = "0.1.16"
+__version__ = "0.1.17"
