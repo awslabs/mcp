@@ -81,6 +81,26 @@ Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 - Use boolean operators: "DynamoDB AND table", "Lambda OR Function"
 - Search for specific properties: "bucket encryption", "lambda environment variables"
 
+### read_cdk_documentation_page
+Fetches and converts an AWS CDK documentation page to markdown format.
+
+**Parameters:**
+- `url` (required): URL from search results to read the full page content
+- `starting_index` (optional): Starting character index for pagination (default: 0)
+
+### search_cloudformation_documentation
+Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
+
+**Parameters:**
+- `query` (required): Search query for CloudFormation documentation
+
+### search_cdk_samples_and_constructs
+Searches CDK code samples, examples, constructs, and patterns documentation.
+
+**Parameters:**
+- `query` (required): Search query for CDK samples and constructs
+- `language` (optional): Programming language filter (default: "typescript")
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -216,6 +236,24 @@ Find CDK examples for Lambda function with VPC configuration
 
 ```
 Show me CDK constructs for DynamoDB table with encryption
+```
+
+### Read CDK Documentation Page
+
+```
+Read the full CDK documentation for aws-s3.Bucket from this URL: [URL from search results]
+```
+
+### Search CloudFormation Documentation
+
+```
+Search CloudFormation documentation for AWS::Lambda::Function properties
+```
+
+### Search CDK Samples and Constructs
+
+```
+Find CDK code samples for serverless API with TypeScript
 ```
 
 ## Security Considerations

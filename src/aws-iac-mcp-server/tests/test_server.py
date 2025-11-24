@@ -15,6 +15,7 @@
 """Tests for server.py MCP tool definitions."""
 
 import json
+import pytest
 from awslabs.aws_iac_mcp_server.server import (
     check_template_compliance,
     troubleshoot_deployment,
@@ -197,6 +198,143 @@ class TestGetTemplateExamples:
         parsed_bp = urlparse(best_practices_url)
         assert parsed_bp.scheme == 'https'
         assert parsed_bp.netloc == 'docs.aws.amazon.com'
+
+
+class TestSearchCdkDocumentation:
+    """Test search_cdk_documentation tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.search_cdk_documentation_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_search_cdk_documentation_success(self, mock_sanitize, mock_search):
+        """Test successful CDK documentation search."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import search_cdk_documentation
+
+        mock_response = CDKToolResponse(
+            knowledge_response=[],
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.',
+        )
+        mock_search.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = await search_cdk_documentation('lambda function')
+
+        assert result == 'sanitized response'
+        mock_search.assert_called_once_with('lambda function')
+        mock_sanitize.assert_called_once()
+
+
+class TestReadCdkDocumentationPage:
+    """Test read_cdk_documentation_page tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.read_cdk_documentation_page_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_read_cdk_documentation_page_success(self, mock_sanitize, mock_read):
+        """Test successful CDK documentation page read."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import read_cdk_documentation_page
+
+        mock_response = CDKToolResponse(
+            knowledge_response=[],
+            next_step_guidance='If you need code examples, use `search_cdk_samples_and_constructs` tool.',
+        )
+        mock_read.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = await read_cdk_documentation_page('https://example.com/doc')
+
+        assert result == 'sanitized response'
+        mock_read.assert_called_once_with('https://example.com/doc', 0)
+        mock_sanitize.assert_called_once()
+
+    @patch('awslabs.aws_iac_mcp_server.server.read_cdk_documentation_page_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_read_cdk_documentation_page_with_starting_index(self, mock_sanitize, mock_read):
+        """Test CDK documentation page read with starting index."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import read_cdk_documentation_page
+
+        mock_response = CDKToolResponse(
+            knowledge_response=[],
+            next_step_guidance='If you need code examples, use `search_cdk_samples_and_constructs` tool.',
+        )
+        mock_read.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        await read_cdk_documentation_page('https://example.com/doc', starting_index=100)
+
+        mock_read.assert_called_once_with('https://example.com/doc', 100)
+
+
+class TestSearchCloudFormationDocumentation:
+    """Test search_cloudformation_documentation tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.search_cloudformation_documentation_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_search_cloudformation_documentation_success(self, mock_sanitize, mock_search):
+        """Test successful CloudFormation documentation search."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import search_cloudformation_documentation
+
+        mock_response = CDKToolResponse(knowledge_response=[], next_step_guidance=None)
+        mock_search.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = await search_cloudformation_documentation('AWS::S3::Bucket')
+
+        assert result == 'sanitized response'
+        mock_search.assert_called_once_with('AWS::S3::Bucket')
+        mock_sanitize.assert_called_once()
+
+
+class TestSearchCdkSamplesAndConstructs:
+    """Test search_cdk_samples_and_constructs tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.search_cdk_samples_and_constructs_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_search_cdk_samples_and_constructs_success(self, mock_sanitize, mock_search):
+        """Test successful CDK samples and constructs search."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import search_cdk_samples_and_constructs
+
+        mock_response = CDKToolResponse(
+            knowledge_response=[],
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.',
+        )
+        mock_search.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = await search_cdk_samples_and_constructs('serverless api')
+
+        assert result == 'sanitized response'
+        mock_search.assert_called_once_with('serverless api', 'typescript')
+        mock_sanitize.assert_called_once()
+
+    @patch('awslabs.aws_iac_mcp_server.server.search_cdk_samples_and_constructs_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_search_cdk_samples_and_constructs_with_language(
+        self, mock_sanitize, mock_search
+    ):
+        """Test CDK samples search with specific language."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+        from awslabs.aws_iac_mcp_server.server import search_cdk_samples_and_constructs
+
+        mock_response = CDKToolResponse(
+            knowledge_response=[],
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.',
+        )
+        mock_search.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        await search_cdk_samples_and_constructs('lambda function', language='python')
+
+        mock_search.assert_called_once_with('lambda function', 'python')
 
 
 class TestMain:
