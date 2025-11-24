@@ -20,6 +20,7 @@ from os import environ
 
 class ClientError(Exception):
     """AWS client error."""
+
     pass
 
 

@@ -26,6 +26,7 @@ from .tools.cdk_tools import (
 )
 from .tools.cfn_tools import (
     check_cloudformation_template_compliance_tool,
+    cloudformation_pre_deploy_validation,
     troubleshoot_cloudformation_deployment_tool,
     validate_cloudformation_template_tool,
 )
@@ -46,6 +47,7 @@ mcp = FastMCP(
 
                 - Use `validate_cloudformation_template` when: You need to validate CloudFormation template syntax, schema, and resource properties using cfn-lint
                 - Use `check_cloudformation_template_compliance` when: You need to validate templates against security and compliance rules using cfn-guard
+                - Use `cloudformation_pre_deploy_validation` when: You need instructions for pre-deployment validation using CloudFormation change sets to catch account-level issues
                 - Use `troubleshoot_cloudformation_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
@@ -227,8 +229,26 @@ def troubleshoot_cloudformation_deployment(
     response_text = json.dumps(result, indent=2, default=str)
     return sanitize_tool_response(response_text)
 
-    response_text = json.dumps(result, indent=2, default=str)
-    return sanitize_tool_response(response_text)
+
+@mcp.tool()
+def get_cloudformation_pre_deploy_validation_instructions() -> str:
+    """Get instructions for CloudFormation pre-deployment validation (Nov 2025 release).
+
+    Pre-deployment validation automatically runs when creating change sets and validates templates
+    against 3 common failure scenarios before resource provisioning begins:
+
+    1. Property Syntax Validation - Validates resource properties against AWS schemas (FAIL mode)
+    2. Resource Name Conflict Detection - Checks for naming conflicts with existing resources (FAIL mode)
+    3. S3 Bucket Emptiness Validation - Warns when deleting buckets with objects (WARN mode)
+
+    Use this to catch errors early in the development cycle using the describe-events API to review
+    validation results with precise template paths to problematic properties.
+
+    LIMITATIONS: Cannot validate runtime errors (invalid AMI IDs, permissions, resource limits) or
+    existence of external resources (IAM roles, S3 buckets). Some resource types not supported.
+    """
+    result = cloudformation_pre_deploy_validation()
+    return sanitize_tool_response(result)
 
 
 @mcp.tool()
@@ -472,60 +492,6 @@ async def search_cdk_samples_and_constructs(
     response_dict = asdict(result)
 
     return sanitize_tool_response(json.dumps(response_dict))
-
-
-@mcp.resource('cfn://context/template-examples-and-best-practices')
-def get_cloudformation_template_examples() -> str:
-    """CloudFormation Template Examples and Best Practices.
-
-    Template examples, architectural patterns, and implementation guidance
-    """
-    context = {
-        'template_examples_repository': {
-            'url': 'https://github.com/aws-cloudformation/aws-cloudformation-templates',
-            'description': 'Official AWS CloudFormation template repository with examples by use case',
-            'categories': [
-                'vpc',
-                'ecs',
-                'lambda',
-                'rds',
-                's3',
-                'alb',
-                'api-gateway',
-                'dynamodb',
-                'ec2',
-                'iam',
-            ],
-        },
-        'architectural_best_practices': {
-            'general_best_practices': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html',
-            'security_best_practices': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/security-best-practices.html',
-        },
-        'resource_documentation': {
-            'template_structure_guide': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-guide.html',
-            'resource_type_reference': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html',
-            'resource_property_types': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-product-property-reference.html',
-            'custom_resources_guide': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-custom-resources.html',
-            'intrinsic_functions': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html',
-        },
-        'getting_started': {
-            'quickstart_guide': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/GettingStarted.html',
-            'template_anatomy': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-anatomy.html',
-            'walkthrough_tutorials': 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/CHAP_Using.html',
-        },
-        'template_conventions': {
-            'template_version': '2010-09-09',
-            'supported_formats': ['YAML', 'JSON'],
-            'max_template_size': '1MB',
-            'max_resources_per_stack': 500,
-            'naming_conventions': {
-                'logical_ids': 'Use PascalCase for resource logical IDs (e.g., MyS3Bucket, WebServerInstance)',
-                'parameters': 'Use descriptive names with type suffixes (e.g., InstanceType, VpcCidr)',
-                'outputs': 'Use clear, descriptive names indicating the exported value (e.g., LoadBalancerDNS, DatabaseEndpoint)',
-            },
-        },
-    }
-    return json.dumps(context, indent=2)
 
 
 def main():

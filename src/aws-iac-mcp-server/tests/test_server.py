@@ -22,7 +22,6 @@ from awslabs.aws_iac_mcp_server.server import (
     validate_cloudformation_template,
 )
 from unittest.mock import patch
-from urllib.parse import urlparse
 
 
 class TestValidateCloudFormationTemplate:
@@ -164,43 +163,6 @@ class TestTroubleshootDeployment:
         assert 'test-stack' in call_args
         assert 'us-west-2' in call_args
 
-
-class TestGetTemplateExamples:
-    """Test get_cloudformation_template_examples resource."""
-
-    def test_get_cloudformation_template_examples_returns_json(self):
-        """Test that get_cloudformation_template_examples returns valid JSON."""
-        from awslabs.aws_iac_mcp_server.server import get_cloudformation_template_examples
-
-        result = get_cloudformation_template_examples()
-
-        # Should be valid JSON
-        parsed = json.loads(result)
-        assert isinstance(parsed, dict)
-        assert 'template_examples_repository' in parsed
-        assert 'architectural_best_practices' in parsed
-        assert 'resource_documentation' in parsed
-
-    def test_get_cloudformation_template_examples_contains_urls(self):
-        """Test that template examples contain expected URLs."""
-        from awslabs.aws_iac_mcp_server.server import get_cloudformation_template_examples
-
-        result = get_cloudformation_template_examples()
-        parsed = json.loads(result)
-
-        # Check for expected content - validate URLs by parsing them
-        repo_url = parsed['template_examples_repository']['url']
-        parsed_repo = urlparse(repo_url)
-        assert parsed_repo.scheme == 'https'
-        assert parsed_repo.netloc == 'github.com'
-
-        best_practices_url = parsed['architectural_best_practices']['general_best_practices']
-        parsed_bp = urlparse(best_practices_url)
-        assert parsed_bp.scheme == 'https'
-        assert parsed_bp.netloc == 'docs.aws.amazon.com'
-
-
-class TestSearchCdkDocumentation:
     """Test search_cdk_documentation tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.search_cdk_documentation_tool')
