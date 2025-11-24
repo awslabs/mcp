@@ -222,7 +222,7 @@ class HyperPodStackHandler:
 
             For 'deploy' operation:
                 - region_name: REQUIRED: ask user to region of deployment. Ensure this argument matches the AvailabilityZoneIds parameter key.
-                    - available regions: us-east-1,us-east-2,us-west-1,us-west-2,eu-central-1,eu-north-1,eu-west-1,eu-west-2,eu-south-2,ap-south-1,ap-southeast-1,ap-southeast-2,ap-southeast-3,ap-southeast-4,ap-northeast-1,sa-east-1
+                    - available regions: us-east-1,us-east-2,us-west-1,us-west-2,eu-central-1,eu-north-1,eu-west-1,eu-west-2,eu-south-2,ap-south-1,ap-southeast-1,ap-southeast-2,ap-southeast-3,ap-southeast-4,ap-northeast-1,sa-east-1,ca-central-1
                 - stack_name: REQUIRED - generate a stack name and present to the user. should be in this format: "<HyperPodClusterName>-stack".
                 - cluster_orchestrator: REQUIRED: ask user to specify "eks" or "slurm"; ONLY eks has NodeProvisioningMode and AutoScalerType, remove for slurm
                 - params_file: REQUIRED - the parameters file should follow the below format. Ask the user to customize the parameters marked as "<to be filled out by user>" one by one. At the end, ask user if they want to add additional instance group.
