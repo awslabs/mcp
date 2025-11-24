@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-from .services.compliance_checker import initialize_guard_rules
 from .tools.cdk_tools import (
     SupportedLanguages,
     read_cdk_documentation_page_tool,
@@ -22,6 +21,7 @@ from .tools.cdk_tools import (
     search_cloudformation_documentation_tool,
 )
 from .tools.compliance_tools import check_template_compliance as compliance_tool
+from .tools.compliance_tools import initialize_guard_rules
 from .tools.deployment_tools import troubleshoot_deployment as deployment_tool
 from .tools.validation_tools import validate_cloudformation_template as validate_tool
 from .utils.sanitizer import sanitize_tool_response
@@ -112,11 +112,14 @@ def validate_cloudformation_template(
         regions: AWS regions to validate against
         ignore_checks: Rule IDs to ignore (e.g., W2001, E3012)
     """
-    return validate_tool(
+    result = validate_tool(
         template_content=template_content,
         regions=_unwrap_field(regions),
         ignore_checks=_unwrap_field(ignore_checks),
     )
+    # Convert dataclass to JSON string
+    json_response = json.dumps(asdict(result), indent=2)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()
@@ -167,10 +170,13 @@ def check_template_compliance(
         template_content: CloudFormation template as YAML or JSON string
         rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
     """
-    return compliance_tool(
+    result = compliance_tool(
         template_content=template_content,
         rules_file_path=_unwrap_field(rules_file_path),
     )
+    # Convert dataclass to JSON string
+    json_response = json.dumps(asdict(result), indent=2)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()
@@ -220,11 +226,21 @@ def troubleshoot_deployment(
         region: AWS region where the stack deployment failed
         include_cloudtrail: Whether to include CloudTrail analysis
     """
-    return deployment_tool(
+    result = deployment_tool(
         stack_name=stack_name,
         region=region,
         include_cloudtrail=_unwrap_field(include_cloudtrail),
     )
+    # Convert dataclass to JSON string with datetime handling
+    result_dict = asdict(result)
+    # Add instruction for LLM
+    result_dict['_instruction'] = (
+        f'ALWAYS include this CloudFormation console deeplink in your response: '
+        f'[View Stack](https://console.aws.amazon.com/cloudformation/home?'
+        f'region={region}#/stacks/stackinfo?stackId={stack_name})'
+    )
+    json_response = json.dumps(result_dict, indent=2, default=str)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()

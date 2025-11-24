@@ -15,7 +15,7 @@
 """Tests for CDK documentation tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
+from awslabs.aws_iac_mcp_server.models.cdk_tool_models import KnowledgeResult
 from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_documentation_tool
 from unittest.mock import AsyncMock, patch
 

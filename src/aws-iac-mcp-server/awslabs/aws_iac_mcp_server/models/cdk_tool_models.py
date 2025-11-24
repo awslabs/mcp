@@ -11,3 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""Data models for CDK tools."""
+
+from dataclasses import dataclass
+from typing import List, Optional
+
+
+@dataclass
+class KnowledgeResult:
+    """Represents a single knowledge search result."""
+
+    rank: int
+    title: str
+    url: str
+    context: str
+
+
+@dataclass
+class CDKToolResponse:
+    """Response from CDK tools containing knowledge and guidance."""
+
+    knowledge_response: List[KnowledgeResult]
+    next_step_guidance: Optional[str]
