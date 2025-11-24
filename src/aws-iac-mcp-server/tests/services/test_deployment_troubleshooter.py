@@ -15,7 +15,7 @@
 """Tests for deployment_troubleshooter module."""
 
 import json
-from awslabs.aws_iac_mcp_server.deployment_troubleshooter import DeploymentTroubleshooter
+from awslabs.aws_iac_mcp_server.services.deployment_troubleshooter import DeploymentTroubleshooter
 from datetime import datetime, timezone
 from unittest.mock import ANY, Mock, patch
 
@@ -23,7 +23,7 @@ from unittest.mock import ANY, Mock, patch
 class TestDeploymentTroubleshooterInit:
     """Test DeploymentTroubleshooter initialization."""
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_init_creates_clients(self, mock_boto_client):
         """Test that boto3 clients are created with correct region."""
         mock_cfn = Mock()
@@ -37,7 +37,7 @@ class TestDeploymentTroubleshooterInit:
         mock_boto_client.assert_any_call('cloudformation', region_name='us-west-2', config=ANY)
         mock_boto_client.assert_any_call('cloudtrail', region_name='us-west-2', config=ANY)
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_init_default_region(self, mock_boto_client):
         """Test default region is us-east-1."""
         mock_boto_client.return_value = Mock()
@@ -167,7 +167,7 @@ class TestCloudTrailUrlGeneration:
 class TestCloudTrailIntegration:
     """Test CloudTrail integration in troubleshoot_stack_deployment."""
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_cloudtrail_integration_enabled(self, mock_boto_client):
         """Test CloudTrail integration when enabled."""
         mock_cfn = Mock()
@@ -217,7 +217,7 @@ class TestCloudTrailIntegration:
         assert result['raw_data']['filtered_cloudtrail']['has_relevant_events'] is True
         mock_cloudtrail.lookup_events.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_cloudtrail_integration_disabled(self, mock_boto_client):
         """Test CloudTrail integration when disabled."""
         mock_cfn = Mock()
@@ -248,7 +248,7 @@ class TestCloudTrailIntegration:
         assert 'filtered_cloudtrail' not in result['raw_data']
         mock_cloudtrail.lookup_events.assert_not_called()
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_stack_not_found_error(self, mock_boto_client):
         """Test error handling when stack doesn't exist."""
         from botocore.exceptions import ClientError
@@ -274,7 +274,7 @@ class TestCloudTrailIntegration:
         assert 'nonexistent-stack' in result['error']
         assert result['stack_name'] == 'nonexistent-stack'
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_no_failed_events(self, mock_boto_client):
         """Test when stack has no failed events."""
         mock_cfn = Mock()
@@ -294,7 +294,7 @@ class TestCloudTrailIntegration:
         assert result['raw_data']['failed_event_count'] == 0
         assert 'filtered_cloudtrail' not in result['raw_data']
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_timestamp_as_string(self, mock_boto_client):
         """Test CloudTrail integration with timestamp as string."""
         mock_cfn = Mock()
@@ -328,7 +328,7 @@ class TestCloudTrailIntegration:
         assert result['status'] == 'success'
         mock_cloudtrail.lookup_events.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_invalid_timestamp_type(self, mock_boto_client):
         """Test handling of invalid timestamp type."""
         mock_cfn = Mock()
@@ -350,7 +350,7 @@ class TestCloudTrailIntegration:
 class TestPatternMatching:
     """Test failure case pattern matching."""
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_pattern_matching_s3_bucket_not_empty(self, mock_boto_client):
         """Test pattern matching for S3 bucket not empty error."""
         mock_cfn = Mock()
@@ -386,7 +386,7 @@ class TestPatternMatching:
             == 'S3_BUCKET_NOT_EMPTY'
         )
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_pattern_matching_security_group_dependency(self, mock_boto_client):
         """Test pattern matching for security group dependency error."""
         mock_cfn = Mock()
@@ -420,7 +420,7 @@ class TestPatternMatching:
             == 'SECURITY_GROUP_DEPENDENCY'
         )
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_pattern_matching_no_match(self, mock_boto_client):
         """Test when error doesn't match any known pattern."""
         mock_cfn = Mock()
@@ -451,7 +451,7 @@ class TestPatternMatching:
         assert result['raw_data']['matched_failure_count'] == 0
         assert result['raw_data']['failed_event_count'] == 1
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_pattern_matching_multiple_failures(self, mock_boto_client):
         """Test pattern matching with multiple failures."""
         mock_cfn = Mock()
@@ -497,7 +497,7 @@ class TestPatternMatching:
 class TestAnalyzeDeploymentEdgeCases:
     """Test edge cases in troubleshoot_stack_deployment."""
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_empty_stacks_response(self, mock_boto_client):
         """Test when describe_stacks returns empty list."""
         from botocore.exceptions import ClientError
@@ -516,7 +516,7 @@ class TestAnalyzeDeploymentEdgeCases:
         assert result['status'] == 'error'
         assert 'not found' in result['error']
 
-    @patch('awslabs.aws_iac_mcp_server.deployment_troubleshooter.boto3.client')
+    @patch('awslabs.aws_iac_mcp_server.services.deployment_troubleshooter.boto3.client')
     def test_create_operation_detection(self, mock_boto_client):
         """Test CREATE operation is detected from ResourceStatus."""
         mock_cfn = Mock()

@@ -28,45 +28,38 @@ from urllib.parse import urlparse
 class TestValidateCloudFormationTemplate:
     """Test validate_cloudformation_template tool."""
 
-    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_validate_template_success(self, mock_sanitize, mock_validate):
+    @patch('awslabs.aws_iac_mcp_server.server.validate_tool')
+    def test_validate_template_success(self, mock_validate_tool):
         """Test successful template validation."""
-        mock_validate.return_value = {'validation_results': {'is_valid': True}}
-        mock_sanitize.return_value = 'sanitized response'
+        mock_validate_tool.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
         result = validate_cloudformation_template(template)
 
         assert result == 'sanitized response'
-        mock_validate.assert_called_once()
-        mock_sanitize.assert_called_once()
+        mock_validate_tool.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_validate_template_with_regions(self, mock_sanitize, mock_validate):
+    @patch('awslabs.aws_iac_mcp_server.server.validate_tool')
+    def test_validate_template_with_regions(self, mock_validate_tool):
         """Test validation with specific regions."""
-        mock_validate.return_value = {'validation_results': {'is_valid': True}}
-        mock_sanitize.return_value = 'sanitized response'
+        mock_validate_tool.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
         validate_cloudformation_template(template, regions=['us-west-2', 'us-east-1'])
 
-        mock_validate.assert_called_once_with(
+        mock_validate_tool.assert_called_once_with(
             template_content=template, regions=['us-west-2', 'us-east-1'], ignore_checks=None
         )
 
-    @patch('awslabs.aws_iac_mcp_server.server.validate_template')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_validate_template_with_ignore_checks(self, mock_sanitize, mock_validate):
+    @patch('awslabs.aws_iac_mcp_server.server.validate_tool')
+    def test_validate_template_with_ignore_checks(self, mock_validate_tool):
         """Test validation with ignored checks."""
-        mock_validate.return_value = {'validation_results': {'is_valid': True}}
-        mock_sanitize.return_value = 'sanitized response'
+        mock_validate_tool.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
         validate_cloudformation_template(template, ignore_checks=['W1234'])
 
-        mock_validate.assert_called_once_with(
+        mock_validate_tool.assert_called_once_with(
             template_content=template, regions=None, ignore_checks=['W1234']
         )
 
@@ -74,30 +67,26 @@ class TestValidateCloudFormationTemplate:
 class TestCheckTemplateCompliance:
     """Test check_template_compliance tool."""
 
-    @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_check_compliance_success(self, mock_sanitize, mock_check):
+    @patch('awslabs.aws_iac_mcp_server.server.compliance_tool')
+    def test_check_compliance_success(self, mock_compliance_tool):
         """Test successful compliance check."""
-        mock_check.return_value = {'compliance_results': {'overall_status': 'PASS'}}
-        mock_sanitize.return_value = 'sanitized response'
+        mock_compliance_tool.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
         result = check_template_compliance(template)
 
         assert result == 'sanitized response'
-        mock_check.assert_called_once()
+        mock_compliance_tool.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_check_compliance_with_custom_rules(self, mock_sanitize, mock_check):
+    @patch('awslabs.aws_iac_mcp_server.server.compliance_tool')
+    def test_check_compliance_with_custom_rules(self, mock_compliance_tool):
         """Test compliance check with custom rules."""
-        mock_check.return_value = {'compliance_results': {'overall_status': 'PASS'}}
-        mock_sanitize.return_value = 'sanitized response'
+        mock_compliance_tool.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
         check_template_compliance(template, rules_file_path='/custom/rules.guard')
 
-        mock_check.assert_called_once_with(
+        mock_compliance_tool.assert_called_once_with(
             template_content=template, rules_file_path='/custom/rules.guard'
         )
 
@@ -105,64 +94,37 @@ class TestCheckTemplateCompliance:
 class TestTroubleshootDeployment:
     """Test troubleshoot_deployment tool."""
 
-    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_troubleshoot_deployment_success(self, mock_sanitize, mock_troubleshooter_class):
+    @patch('awslabs.aws_iac_mcp_server.server.deployment_tool')
+    def test_troubleshoot_deployment_success(self, mock_deployment_tool):
         """Test successful deployment troubleshooting."""
-        mock_troubleshooter = Mock()
-        mock_troubleshooter_class.return_value = mock_troubleshooter
-        mock_troubleshooter.troubleshoot_stack_deployment.return_value = {
-            'status': 'success',
-            'raw_data': {'cloudformation_events': []},
-        }
-        mock_sanitize.return_value = 'sanitized response'
+        mock_deployment_tool.return_value = 'sanitized response'
 
         result = troubleshoot_deployment('test-stack', 'us-west-2')
 
         assert result == 'sanitized response'
-        mock_troubleshooter_class.assert_called_once_with(region='us-west-2')
-        mock_troubleshooter.troubleshoot_stack_deployment.assert_called_once()
+        mock_deployment_tool.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_troubleshoot_deployment_without_cloudtrail(
-        self, mock_sanitize, mock_troubleshooter_class
-    ):
+    @patch('awslabs.aws_iac_mcp_server.server.deployment_tool')
+    def test_troubleshoot_deployment_without_cloudtrail(self, mock_deployment_tool):
         """Test troubleshooting without CloudTrail."""
-        mock_troubleshooter = Mock()
-        mock_troubleshooter_class.return_value = mock_troubleshooter
-        mock_troubleshooter.troubleshoot_stack_deployment.return_value = {
-            'status': 'success',
-            'raw_data': {'cloudformation_events': []},
-        }
-        mock_sanitize.return_value = 'sanitized response'
+        mock_deployment_tool.return_value = 'sanitized response'
 
         troubleshoot_deployment('test-stack', 'us-west-2', include_cloudtrail=False)
 
-        mock_troubleshooter.troubleshoot_stack_deployment.assert_called_once_with(
-            stack_name='test-stack', include_cloudtrail=False
+        mock_deployment_tool.assert_called_once_with(
+            stack_name='test-stack', region='us-west-2', include_cloudtrail=False
         )
 
-    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_troubleshoot_deployment_adds_deeplink(self, mock_sanitize, mock_troubleshooter_class):
+    @patch('awslabs.aws_iac_mcp_server.server.deployment_tool')
+    def test_troubleshoot_deployment_adds_deeplink(self, mock_deployment_tool):
         """Test that deployment troubleshooting adds console deeplink."""
-        mock_troubleshooter = Mock()
-        mock_troubleshooter_class.return_value = mock_troubleshooter
-        mock_troubleshooter.troubleshoot_stack_deployment.return_value = {
-            'status': 'success',
-            'stack_name': 'test-stack',
-            'raw_data': {'cloudformation_events': []},
-        }
-        mock_sanitize.return_value = 'sanitized response'
+        # The tool layer handles adding the deeplink
+        mock_deployment_tool.return_value = 'sanitized response with deeplink'
 
-        troubleshoot_deployment('test-stack', 'us-west-2')
+        result = troubleshoot_deployment('test-stack', 'us-west-2')
 
-        # Verify the result was modified to include deeplink
-        call_args = mock_sanitize.call_args[0][0]
-        assert 'console.aws.amazon.com/cloudformation' in call_args
-        assert 'test-stack' in call_args
-        assert 'us-west-2' in call_args
+        assert result == 'sanitized response with deeplink'
+        mock_deployment_tool.assert_called_once()
 
 
 class TestGetTemplateExamples:

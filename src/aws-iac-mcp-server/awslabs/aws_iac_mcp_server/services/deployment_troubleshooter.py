@@ -15,9 +15,50 @@
 import boto3
 import botocore.config
 import json
-from .failure_cases import match_failure_case
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from ..utils.failure_cases import match_failure_case
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+
+@dataclass
+class StackEvent:
+    """CloudFormation stack event."""
+
+    timestamp: datetime
+    resource_type: str
+    logical_resource_id: str
+    resource_status: str
+    resource_status_reason: Optional[str] = None
+
+
+@dataclass
+class FailedResource:
+    """Failed CloudFormation resource."""
+
+    logical_id: str
+    resource_type: str
+    status: str
+    status_reason: str
+    timestamp: datetime
+    cloudtrail_link: Optional[str] = None
+
+
+@dataclass
+class DeploymentResponse:
+    """Complete deployment troubleshooting response."""
+
+    stack_name: str
+    stack_status: str
+    failed_resources: List[FailedResource]
+    events: List[StackEvent]
+    root_cause_analysis: str
+    remediation_steps: List[str]
+    console_deeplink: str
+
+    def model_dump(self) -> dict:
+        """Convert to dict for compatibility with existing code."""
+        return asdict(self)
 
 
 # CloudFormation's source IP in CloudTrail events
@@ -120,23 +161,26 @@ class DeploymentTroubleshooter:
         }
 
     def troubleshoot_stack_deployment(
-        self, stack_name: str, include_cloudtrail: bool = True
-    ) -> Dict[str, Any]:
-        """Collect CloudFormation failure events using describe_events API."""
-        try:
-            response = {
-                'status': 'success',
-                'stack_name': stack_name,
-                'analysis_timestamp': datetime.now(timezone.utc).isoformat(),
-                'raw_data': {},
-            }
+        self,
+        stack_name: str,
+        include_cloudtrail: bool = True
+    ) -> DeploymentResponse:
+        """Collect CloudFormation failure events using describe_events API.
 
+        Args:
+            stack_name: Name of the CloudFormation stack
+            include_cloudtrail: Whether to include CloudTrail analysis
+
+        Returns:
+            DeploymentResponse with deployment troubleshooting results
+        """
+        try:
             # Get stack status
             try:
                 stacks = self.cfn_client.describe_stacks(StackName=stack_name)['Stacks']
                 if not stacks:
                     raise Exception(f'Stack {stack_name} not found')
-                response['raw_data']['stack_status'] = stacks[0].get('StackStatus')
+                stack_status = stacks[0].get('StackStatus', 'UNKNOWN')
             except self.cfn_client.exceptions.ClientError as e:
                 raise Exception(f'Stack {stack_name} not found or inaccessible: {str(e)}')
 
@@ -145,9 +189,51 @@ class DeploymentTroubleshooter:
                 StackName=stack_name, Filters={'FailedEvents': True}
             )['OperationEvents']
 
-            # Match events against known failure patterns
-            matched_failures = []
+            # Convert events to StackEvent models
+            events: List[StackEvent] = []
+            failed_resources: List[FailedResource] = []
+            remediation_steps: List[str] = []
+
             for event in cloudformation_events:
+                timestamp = event.get('Timestamp')
+                if isinstance(timestamp, str):
+                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+
+                # Add to events list
+                events.append(
+                    StackEvent(
+                        timestamp=timestamp,
+                        resource_type=event.get('ResourceType', 'Unknown'),
+                        logical_resource_id=event.get('LogicalResourceId', 'Unknown'),
+                        resource_status=event.get('ResourceStatus', 'Unknown'),
+                        resource_status_reason=event.get('ResourceStatusReason'),
+                    )
+                )
+
+                # Add to failed resources if it's a failure
+                if 'FAILED' in event.get('ResourceStatus', ''):
+                    cloudtrail_link = None
+                    if include_cloudtrail:
+                        # Generate CloudTrail link for this event
+                        start_time = (timestamp - timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                        end_time = (timestamp + timedelta(seconds=60)).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                        cloudtrail_link = (
+                            f'https://console.aws.amazon.com/cloudtrailv2/home?region={self.region}#/events'
+                            f'?StartTime={start_time}&EndTime={end_time}&ReadOnly=false'
+                        )
+
+                    failed_resources.append(
+                        FailedResource(
+                            logical_id=event.get('LogicalResourceId', 'Unknown'),
+                            resource_type=event.get('ResourceType', 'Unknown'),
+                            status=event.get('ResourceStatus', 'Unknown'),
+                            status_reason=event.get('ResourceStatusReason', 'No reason provided'),
+                            timestamp=timestamp,
+                            cloudtrail_link=cloudtrail_link,
+                        )
+                    )
+
+                # Match against known failure patterns for remediation
                 error_reason = event.get('ResourceStatusReason', '')
                 resource_type = event.get('ResourceType', '')
 
@@ -161,48 +247,42 @@ class DeploymentTroubleshooter:
                     operation = 'UPDATE'
 
                 matched_case = match_failure_case(error_reason, resource_type, operation)
-                if matched_case:
-                    matched_failures.append({'event': event, 'matched_case': matched_case})
+                if matched_case and matched_case.get('remediation'):
+                    remediation_steps.append(matched_case['remediation'])
 
-            response['raw_data']['cloudformation_events'] = cloudformation_events
-            response['raw_data']['matched_failures'] = matched_failures
-            response['raw_data']['failed_event_count'] = len(cloudformation_events)
-            response['raw_data']['matched_failure_count'] = len(matched_failures)
-
-            # Get CloudTrail events if enabled and we have failures
-            if include_cloudtrail and cloudformation_events:
-                error_event = next(
-                    (
-                        e
-                        for e in cloudformation_events
-                        if e.get('EventType') in ['PROVISIONING_ERROR', 'VALIDATION_ERROR']
-                    ),
-                    cloudformation_events[0],
+            # Generate root cause analysis
+            if failed_resources:
+                root_cause_analysis = (
+                    f'Found {len(failed_resources)} failed resource(s). '
+                    f'Primary failure: {failed_resources[0].status_reason}'
                 )
-                event_time = error_event.get('Timestamp')
-                if isinstance(event_time, str):
-                    event_time = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
+            else:
+                root_cause_analysis = 'No failed resources found in stack events.'
 
-                cloudtrail_start = event_time - timedelta(seconds=60)
-                cloudtrail_end = event_time + timedelta(seconds=60)
+            # Generate console deeplink
+            console_deeplink = (
+                f'https://console.aws.amazon.com/cloudformation/home?'
+                f'region={self.region}#/stacks/stackinfo?stackId={stack_name}'
+            )
 
-                trail_events = self.cloudtrail_client.lookup_events(
-                    StartTime=cloudtrail_start,
-                    EndTime=cloudtrail_end,
-                    LookupAttributes=[{'AttributeKey': 'ReadOnly', 'AttributeValue': 'false'}],
-                    MaxResults=50,
-                )['Events']
+            return DeploymentResponse(
+                stack_name=stack_name,
+                stack_status=stack_status,
+                failed_resources=failed_resources,
+                events=events,
+                root_cause_analysis=root_cause_analysis,
+                remediation_steps=remediation_steps if remediation_steps else ['Review stack events for details'],
+                console_deeplink=console_deeplink,
+            )
 
-                cloudtrail_result = self.filter_cloudtrail_events(
-                    trail_events, cloudformation_events
-                )
-                response['raw_data']['filtered_cloudtrail'] = cloudtrail_result
-
-            return json.loads(json.dumps(response, default=str))
         except Exception as e:
-            return {
-                'status': 'error',
-                'error': str(e),
-                'stack_name': stack_name,
-                'analysis_timestamp': datetime.now(timezone.utc).isoformat(),
-            }
+            # Return error as DeploymentResponse
+            return DeploymentResponse(
+                stack_name=stack_name,
+                stack_status='ERROR',
+                failed_resources=[],
+                events=[],
+                root_cause_analysis=f'Error troubleshooting deployment: {str(e)}',
+                remediation_steps=['Check stack name and AWS credentials', 'Verify stack exists in the specified region'],
+                console_deeplink=f'https://console.aws.amazon.com/cloudformation/home?region={self.region}',
+            )
