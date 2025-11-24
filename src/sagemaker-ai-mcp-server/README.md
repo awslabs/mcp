@@ -6,7 +6,7 @@ The Amazon SageMaker AI MCP server provides agents with tools to enable high-per
 
 ### SageMaker HyperPod
 
-Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrated with Amazon EKS or Slurm, including cluster deployment, node management, and lifecycle operations. See the [HyperPod documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/sagemaker_hyperpod/README.md) for detailed information on the supported tools.
+Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrated with Amazon EKS or Slurm, including cluster deployment, node management, and lifecycle operations. See the [HyperPod documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/README.md) for detailed information on the supported tools.
 
 ## Prerequisites
 
@@ -334,9 +334,9 @@ The MCP server can create a templated params json file to a user-specified absol
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For service-specific issues, consult the relevant service documentation:
-- [HyperPod Documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/sagemaker_hyperpod/README.md)
+- [HyperPod Documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/README.md)
 - [Amazon SageMaker AI Documentation](https://docs.aws.amazon.com/sagemaker/)
 
 ## Version
 
-Current MCP server version: 0.0.1
+Current MCP server version: 1.0.0
