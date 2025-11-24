@@ -201,20 +201,26 @@ async def get_available_services(
         services_json = [
             toc_item.get('contents', [])
             for toc_item in page_toc_json.get('contents', [])
-            if toc_item['href'] == 'services.html'
+            if toc_item.get('href') == 'services.html'
         ]
+
+        # If toc_response does not have `href: services.html`, and services_json is empty, raise an error so
+        # users can self-solve.
+        if len(services_json) == 0:
+            return ValueError(
+                f'Failed fetching list of available AWS Services, please go to {url_str} directly'
+            )
+
         # Filtering out 'Services Unsupported in Amazon Web Services in China'
         formatted_service_titles = ''
-        if len(services_json) > 0:
-            service_doc_links = [
-                f'[{service["title"]}](https://docs.amazonaws.cn/en_us/aws/latest/userguide/{service["href"]})'
-                for service in services_json[0]
-                if 'Services Unsupported' not in service['title']
-            ]
-            formatted_service_titles = (
-                '\n\n## Services in Amazon Web Services China\n\n'
-                + '\n'.join([f'- {service_doc_link}' for service_doc_link in service_doc_links])
-            )
+        service_doc_links = [
+            f'[{service.get("title")}](https://docs.amazonaws.cn/en_us/aws/latest/userguide/{service.get("href")})'
+            for service in services_json[0]
+            if 'Services Unsupported' not in service.get('title')
+        ]
+        formatted_service_titles = '\n\n## Services in Amazon Web Services China\n\n' + '\n'.join(
+            [f'- {service_doc_link}' for service_doc_link in service_doc_links]
+        )
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
