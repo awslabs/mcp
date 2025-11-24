@@ -127,7 +127,8 @@ For each pair of related tables, ask:
 - [ ] Every access pattern has: RPS (avg/peak), latency SLO, consistency, expected result bound, item size band
 - [ ] Write pattern exists for every read pattern (and vice versa) unless USER explicitly declines ✅
 - [ ] Hot partition risks evaluated ✅
-- [ ] Consolidation framework applied; candidates reviewed
+- [ ] For patterns with equality + range conditions, evaluated multi-attribute GSI vs FilterExpression ✅
+- [ ] Consolidation framework applied; candidates reviewed ✅
 - [ ] Design considerations captured (subject to final validation) ✅
 ```
 
@@ -196,13 +197,15 @@ A markdown table which shows 5-10 representative items for the table
 
 A markdown table which shows 5-10 representative items for the index. You MUST ensure it aligns with selected projection or sparseness. For attributes with no value required, just use an empty cell, do not populate with `null`.
 
-| $gsi_partition_key| $gsi_sort_key | $attr_a | $attr_b | $attr_c |
+| $gsi_partition_keys[]| $gsi_sort_keys[] | $attr_a | $attr_b | $attr_c |
 |---------|---------|---------|---------|---------|
 
 ### [GSIName] GSI
 - **Purpose**: [what access pattern this enables and why GSI was necessary]
-- **Partition Key**: [field] - [justification including cardinality and distribution]
-- **Sort Key**: [field] - [justification for sort requirements]
+- **Partition Keys**: [field] - [justification including cardinality and distribution]
+- **PK's Taxonomy**: [For single-attribute keys: list prefixes like `PROFILE`, `ORDER#<id>`. For multi-attribute keys: list each attribute and its type, e.g., customer_id (S), status (S)]
+- **Sort Keys**: [field] - [justification for sort requirements]
+- **SK's Taxonomy**: [For single-attribute keys: list prefixes like `ORDER#<id>`. For multi-attribute keys: list each attribute and its type, e.g., priority (N), order_date (S)]
 - **Projection**: [keys-only/include/all] - [detailed cost vs performance justification]
   - **Per‑Pattern Projected Attributes**: [list the minimal attributes each AP needs from this GSI to justify KEYS_ONLY/INCLUDE/ALL]
 - **Sparse**: [field] - [specify the field used to make the GSI sparse and justification for creating a sparse GSI]
@@ -408,6 +411,153 @@ UserByCourse GSI: {course_id: "ABC", user_id: "123"}
 // Find user's courses: Query UserCourses where user_id = "123"
 // Find course's users: Query UserByCourse where course_id = "ABC"
 ```
+
+Multi-Dimensional Queries on Global Secondary Indexes: Use multi-attribute keys (up to 4 partition + 4 sort key attributes)
+
+🔴 CRITICAL behaviours:
+- Multi-attribute keys only exist on Global Secondary Indexes.
+- Use multi-attribute over FilterExpression so long as it fits the left-right pattern of the sort key.
+- You can not skip attributes in the sort key!!
+- Use multiple partition keys when you need to increase the cardinality of the partition key.
+- Use multiple sort key attributes to enable hierarchical filtering (e.g., status → priority → date) where you can query at any level from left to right without additional GSIs.
+
+
+Multi-attribute keys eliminate manual string concatenation by using natural domain attributes directly. DynamoDB handles composite key logic automatically—no synthetic keys, no parsing, no backfilling when adding GSIs to existing tables.
+
+Traditional approach (concatenated synthetic keys):
+```
+// Manual concatenation required
+item = {
+  order_id: "order-123",
+  customer_id: "cust-456",
+  region: "us-west",
+  status: "pending",
+  priority: "high",
+  // Synthetic keys needed for GSI
+  GSI_PK: "CUSTOMER#cust-456#REGION#us-west",  // Must concatenate
+  GSI_SK: "STATUS#pending#PRIORITY#high"        // Must concatenate
+}
+```
+
+Multi-attribute approach (natural attributes):
+```
+// Use existing attributes directly - no concatenation
+item = {
+  order_id: "order-123",
+  customer_id: "cust-456",
+  region: "us-west",
+  status: "pending",
+  priority: "high",
+  order_date: "2024-01-15"
+  // No synthetic keys needed - GSI uses existing attributes
+}
+
+OrdersByCustomerRegion GSI:
+  PK: [customer_id, region]           // 2 partition key attributes
+  SK: [status, priority, order_date]  // 3 sort key attributes
+```
+
+Query rules and examples:
+
+**Partition Key Rules:**
+- Must specify ALL partition key attributes with equality conditions
+- Cannot use inequality operators on partition key attributes
+- Cannot query subset of partition key attributes
+
+```javascript
+// Valid: All PK attributes specified
+KeyConditionExpression: "customer_id = :cust AND region = :reg"
+
+// Invalid: Missing region attribute
+KeyConditionExpression: "customer_id = :cust"
+
+// Invalid: Inequality on PK attribute
+KeyConditionExpression: "customer_id = :cust AND region > :reg"
+```
+
+**Sort Key Rules:**
+- Query left-to-right in defined order (cannot skip attributes)
+- Inequality conditions (>, <, BETWEEN, begins_with) must be last
+- Can query first N attributes, but not skip middle ones
+
+```javascript
+// Valid: First SK attribute only
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status"
+
+// Valid: First two SK attributes
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status AND priority = :pri"
+
+// Valid: All SK attributes
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status AND priority = :pri AND order_date = :date"
+
+// Valid: Inequality as last condition
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status AND priority = :pri AND order_date >= :date"
+
+// Invalid: Skipping middle attribute (priority)
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status AND order_date = :date"
+
+// Invalid: Condition after inequality
+KeyConditionExpression: "customer_id = :cust AND region = :reg AND status = :status AND priority > :pri AND order_date = :date"
+```
+
+**Real-world example: Tournament match system**
+
+```javascript
+// Item with natural attributes
+{
+  matchId: "match-001",
+  tournamentId: "WINTER2024",
+  region: "NA-EAST",
+  round: "SEMIFINALS",
+  bracket: "UPPER",
+  player1Id: "101",
+  matchDate: "2024-01-18"
+}
+
+// TournamentRegionIndex GSI
+PK: [tournamentId, region]
+SK: [round, bracket, matchId]
+
+// Query examples (left-to-right):
+// All matches for tournament/region
+KeyConditionExpression: "tournamentId = :tid AND region = :reg"
+
+// All semifinals matches
+KeyConditionExpression: "tournamentId = :tid AND region = :reg AND round = :round"
+
+// Semifinals upper bracket
+KeyConditionExpression: "tournamentId = :tid AND region = :reg AND round = :round AND bracket = :bracket"
+
+// Specific match
+KeyConditionExpression: "tournamentId = :tid AND region = :reg AND round = :round AND bracket = :bracket AND matchId = :mid"
+
+// PlayerMatchHistoryIndex GSI
+PK: [player1Id]
+SK: [matchDate, round]
+
+// All matches for player
+KeyConditionExpression: "player1Id = :pid"
+
+// Player matches in date range
+KeyConditionExpression: "player1Id = :pid AND matchDate BETWEEN :start AND :end"
+
+// Player matches in date range for specific round
+KeyConditionExpression: "player1Id = :pid AND matchDate BETWEEN :start AND :end AND round = :round"
+```
+
+**Design principles:**
+- **Partition keys**: Combine attributes always queried together; order for good distribution
+- **Sort keys**: Order general to specific (enables querying at any hierarchy level)
+- **Data types**: Each attribute can be String (S), Number (N), or Binary (B) independently
+- **Number types**: Sort numerically without zero-padding (5, 50, 500, 1000)
+- **String types**: Sort lexicographically (requires zero-padding: "0005", "0050", "0500", "1000")
+
+**When to use multi-attribute keys:**
+- Access patterns require 2-4 dimensional filtering
+- Natural hierarchical data (tournament → region → round)
+- Want to avoid manual concatenation and parsing
+- Adding GSIs to existing tables (no backfilling needed to generate synthetic keys)
+- Alternative would require multiple GSIs or client-side filtering
 
 Frequently accessed attributes: Denormalize sparingly
 
