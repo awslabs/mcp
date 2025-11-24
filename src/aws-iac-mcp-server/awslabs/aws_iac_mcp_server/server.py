@@ -22,6 +22,7 @@ from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
+    cdk_best_practices_tool,
     read_cdk_documentation_page_tool,
     search_cdk_documentation_tool,
     search_cdk_samples_and_constructs_tool,
@@ -468,6 +469,49 @@ async def search_cdk_samples_and_constructs(
         List of search results with URLs, titles, and context snippets
     """
     result = await search_cdk_samples_and_constructs_tool(query, language)
+
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
+
+
+@mcp.tool()
+async def cdk_best_practices() -> str:
+    """Returns CDK best practices and security guidelines.
+
+    ## Usage
+
+    This tool provides comprehensive CDK development guidelines, security best practices, and architectural recommendations. Always run this tool when asked to generate CDK code and follow the guidelines returned.
+
+    ## When to Use
+
+    - Get CDK security best practices and compliance guidelines
+    - Look up architectural patterns and recommendations
+    - Get guidance on CDK application structure and organization
+    - Research performance optimization techniques
+    - Learn about proper construct usage and design patterns
+    - Understand deployment and testing best practices
+
+    ## Result Interpretation
+
+    The response provides a comprehensive guide covering:
+    - Step-by-step CDK development workflow
+    - Security constraints and requirements
+    - Code organization and project structure guidelines
+    - Construct design best practices
+    - Deployment and testing strategies
+    - Maintainability recommendations
+
+    ## Args
+
+    No parameters required - this tool returns the complete best practices guide.
+
+    ## Returns
+
+    Complete best practices documentation as text, including security guidelines, architectural patterns, development workflow, and compliance requirements.
+    """
+    result = await cdk_best_practices_tool()
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
