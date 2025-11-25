@@ -28,15 +28,7 @@ from .utils.sanitizer import sanitize_tool_response
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from pydantic.fields import FieldInfo
 from typing import Optional
-
-
-def _unwrap_field(value):
-    """Unwrap Pydantic FieldInfo to get the actual default value."""
-    if isinstance(value, FieldInfo):
-        return value.default
-    return value
 
 
 # Initialize FastMCP server
@@ -118,8 +110,8 @@ def validate_cloudformation_template(
     """
     result = validate_tool(
         template_content=template_content,
-        regions=_unwrap_field(regions),
-        ignore_checks=_unwrap_field(ignore_checks),
+        regions=regions,
+        ignore_checks=ignore_checks,
     )
     # Convert dataclass to JSON string
     json_response = json.dumps(asdict(result), indent=2)
@@ -180,7 +172,7 @@ def check_template_compliance(
     """
     result = compliance_tool(
         template_content=template_content,
-        rules_file_path=_unwrap_field(rules_file_path),
+        rules_file_path=rules_file_path,
     )
     # Convert dataclass to JSON string
     json_response = json.dumps(asdict(result), indent=2)
@@ -237,7 +229,7 @@ def troubleshoot_deployment(
     result = deployment_tool(
         stack_name=stack_name,
         region=region,
-        include_cloudtrail=_unwrap_field(include_cloudtrail),
+        include_cloudtrail=include_cloudtrail,
     )
     # Convert dataclass to JSON string with datetime handling
     result_dict = asdict(result)
@@ -309,7 +301,7 @@ async def search_cdk_documentation(
     Returns:
     List of search results with URLs, titles, and context snippets
     """
-    result = await search_cdk_documentation_tool(_unwrap_field(query))
+    result = await search_cdk_documentation_tool(query)
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
@@ -365,7 +357,7 @@ async def read_cdk_documentation_page(
         List of search results with URLs, titles, and context snippets
     """
     result = await read_cdk_documentation_page_tool(
-        _unwrap_field(url), _unwrap_field(starting_index)
+        url, starting_index
     )
 
     # Convert dataclass to dict for JSON serialization
@@ -423,7 +415,7 @@ async def search_cloudformation_documentation(
     Returns:
         Documentation results with titles, URLs, and relevant excerpts from official CloudFormation docs.
     """
-    result = await search_cloudformation_documentation_tool(_unwrap_field(query))
+    result = await search_cloudformation_documentation_tool(query)
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
@@ -493,7 +485,7 @@ async def search_cdk_samples_and_constructs(
         List of search results with URLs, titles, and context snippets
     """
     result = await search_cdk_samples_and_constructs_tool(
-        _unwrap_field(query), _unwrap_field(language)
+        query, language
     )
 
     # Convert CDKToolResponse to dict for JSON serialization
