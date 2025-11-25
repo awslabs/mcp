@@ -14,7 +14,7 @@
 
 from ..client.aws_knowledge_client import read_documentation, search_documentation
 from ..knowledge_models import CDKToolResponse
-from .cdk_best_practices_official import CDK_OFFICIAL_BEST_PRACTICES_KNOWLEDGE
+from .cdk_best_practices import CDK_BEST_PRACTICES_KNOWLEDGE
 from typing import Literal
 
 
@@ -109,8 +109,6 @@ async def cdk_best_practices_tool() -> CDKToolResponse:
         str: CDKToolResponse containing AWS CDK best practices.
     """
     return CDKToolResponse(
-        # Returns the official best practices for now. This is intentionally decoupled from the
-        # tool config since these best practices can be replaced/updated
-        knowledge_response=[CDK_OFFICIAL_BEST_PRACTICES_KNOWLEDGE],
+        knowledge_response=[CDK_BEST_PRACTICES_KNOWLEDGE],
         next_step_guidance=None,
     )
