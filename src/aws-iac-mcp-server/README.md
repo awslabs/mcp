@@ -101,6 +101,12 @@ Searches CDK code samples, examples, constructs, and patterns documentation.
 - `query` (required): Search query for CDK samples and constructs
 - `language` (optional): Programming language filter (default: "typescript")
 
+### cdk_best_practices
+Provides CDK best practices for application configuration, coding, constructs, security, and testing.
+
+**Parameters:**
+- None
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -254,6 +260,12 @@ Search CloudFormation documentation for AWS::Lambda::Function properties
 
 ```
 Find CDK code samples for serverless API with TypeScript
+```
+
+### Consult CDK best practices
+
+```
+Suggest improvements to my CDK setup based on the best practices
 ```
 
 ## Security Considerations

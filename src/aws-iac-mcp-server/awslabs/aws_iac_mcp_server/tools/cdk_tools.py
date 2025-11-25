@@ -14,6 +14,7 @@
 
 from ..client.aws_knowledge_client import read_documentation, search_documentation
 from ..knowledge_models import CDKToolResponse
+from .cdk_best_practices import CDK_BEST_PRACTICES_KNOWLEDGE
 from typing import Literal
 
 
@@ -98,4 +99,16 @@ async def search_cdk_samples_and_constructs_tool(
     return CDKToolResponse(
         knowledge_response=knowledge_response,
         next_step_guidance=SAMPLE_CONSTRUCT_SEARCH_TOOL_NEXT_STEPS_GUIDANCE,
+    )
+
+
+async def cdk_best_practices_tool() -> CDKToolResponse:
+    """Returns AWS CDK best practices.
+
+    Returns:
+        str: CDKToolResponse containing AWS CDK best practices.
+    """
+    return CDKToolResponse(
+        knowledge_response=[CDK_BEST_PRACTICES_KNOWLEDGE],
+        next_step_guidance=None,
     )
