@@ -57,6 +57,12 @@ Analyzes failed CloudFormation stacks and provides resolution guidance.
 - `region` (required): AWS region where the stack exists
 - `include_cloudtrail` (optional): Whether to include CloudTrail analysis (defaults to true)
 
+### get_cloudformation_pre_deploy_validation_instructions
+Returns instructions for CloudFormation's pre-deployment validation feature that validates templates during change set creation.
+
+**Parameters:**
+None - returns JSON with CLI commands and remediation guidance.
+
 ### search_cdk_documentation
 Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 

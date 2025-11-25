@@ -236,20 +236,32 @@ def troubleshoot_cloudformation_deployment(
 
 @mcp.tool()
 def get_cloudformation_pre_deploy_validation_instructions() -> str:
-    """Get instructions for CloudFormation pre-deployment validation (Nov 2025 release).
+    """Get instructions for CloudFormation pre-deployment validation.
 
-    Pre-deployment validation automatically runs when creating change sets and validates templates
-    against 3 common failure scenarios before resource provisioning begins:
+    Returns structured JSON guidance for using CloudFormation's pre-deployment validation feature
+    that catches deployment errors before resource provisioning begins.
 
-    1. Property Syntax Validation - Validates resource properties against AWS schemas (FAIL mode)
-    2. Resource Name Conflict Detection - Checks for naming conflicts with existing resources (FAIL mode)
-    3. S3 Bucket Emptiness Validation - Warns when deleting buckets with objects (WARN mode)
+    When you create a change set, CloudFormation automatically validates your template against
+    three common failure causes:
+    1. Invalid property syntax
+    2. Resource name conflicts with existing resources in your account
+    3. S3 bucket emptiness constraint on delete operations
 
-    Use this to catch errors early in the development cycle using the describe-events API to review
-    validation results with precise template paths to problematic properties.
+    If validation fails, the change set status shows 'FAILED' with detailed validation failure
+    information. You can view details for each failure, including the property path, to pinpoint
+    exactly where issues occur in your template.
 
-    LIMITATIONS: Cannot validate runtime errors (invalid AMI IDs, permissions, resource limits) or
-    existence of external resources (IAM roles, S3 buckets). Some resource types not supported.
+    The tool returns JSON with:
+    - Overview of validation feature and workflow phases
+    - Detailed descriptions of 3 validation types with failure modes (FAIL blocks execution, WARN allows with warnings)
+    - Complete AWS CLI commands for creating change sets and checking validation results via describe-events API
+    - Key field descriptions (EventType, ValidationName, ValidationStatus, ValidationPath, ValidationFailureMode)
+    - Example commands and remediation guidance
+    - Considerations and limitations
+
+    Note: Validated change sets can still fail during execution due to resource-specific runtime
+    errors (resource limits, service constraints, permissions). Pre-deployment validation reduces
+    likelihood of common failures but doesn't guarantee deployment success.
     """
     result = cloudformation_pre_deploy_validation()
     return sanitize_tool_response(result)
