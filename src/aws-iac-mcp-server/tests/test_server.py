@@ -18,6 +18,7 @@ import json
 import pytest
 from awslabs.aws_iac_mcp_server.server import (
     check_cloudformation_template_compliance,
+    get_cloudformation_pre_deploy_validation_instructions,
     troubleshoot_cloudformation_deployment,
     validate_cloudformation_template,
 )
@@ -166,6 +167,24 @@ class TestTroubleshootDeployment:
         assert 'console.aws.amazon.com/cloudformation' in call_args
         assert 'test-stack' in call_args
         assert 'us-west-2' in call_args
+        assert '_instruction' in call_args
+
+    @patch('awslabs.aws_iac_mcp_server.server.DeploymentTroubleshooter')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    def test_troubleshoot_cloudformation_deployment_non_dict_result(
+        self, mock_sanitize, mock_troubleshooter_class
+    ):
+        """Test troubleshooting when result is not a dict."""
+        mock_instance = mock_troubleshooter_class.return_value
+        mock_instance.troubleshoot_stack_deployment.return_value = 'error string'
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = troubleshoot_cloudformation_deployment('test-stack', 'us-west-2')
+
+        assert result == 'sanitized response'
+        # Verify no deeplink was added (result wasn't a dict)
+        call_args = mock_sanitize.call_args[0][0]
+        assert '_instruction' not in call_args
 
     """Test search_cdk_documentation tool."""
 
@@ -301,6 +320,23 @@ class TestSearchCdkSamplesAndConstructs:
         await search_cdk_samples_and_constructs('lambda function', language='python')
 
         mock_search.assert_called_once_with('lambda function', 'python')
+
+
+class TestPreDeployValidation:
+    """Test get_cloudformation_pre_deploy_validation_instructions tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.cloudformation_pre_deploy_validation')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    def test_get_pre_deploy_validation_instructions(self, mock_sanitize, mock_validation):
+        """Test pre-deploy validation instructions."""
+        mock_validation.return_value = '{"instructions": "test"}'
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = get_cloudformation_pre_deploy_validation_instructions()
+
+        assert result == 'sanitized response'
+        mock_validation.assert_called_once()
+        mock_sanitize.assert_called_once_with('{"instructions": "test"}')
 
 
 class TestMain:
