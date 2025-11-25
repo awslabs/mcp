@@ -333,7 +333,6 @@ async def test_execute_dynamodb_command_valid_command():
         )
 
         assert result == {'Tables': []}
-        # The ctx parameter gets the default Field value, not None
         mock_call_aws.assert_called_once()
         args, kwargs = mock_call_aws.call_args
         assert args[0] == 'aws dynamodb list-tables --endpoint-url http://localhost:8000'
@@ -358,7 +357,6 @@ async def test_execute_dynamodb_command_without_endpoint():
         assert result == {'Tables': ['MyTable']}
         mock_call_aws.assert_called_once()
         args, kwargs = mock_call_aws.call_args
-        # The endpoint_url parameter gets converted to string when None, so check if command is in the call
         assert 'aws dynamodb list-tables' in args[0]
 
 
