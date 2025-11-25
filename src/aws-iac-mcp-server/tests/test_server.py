@@ -17,6 +17,7 @@
 import json
 import pytest
 from awslabs.aws_iac_mcp_server.server import (
+    cdk_best_practices,
     check_cloudformation_template_compliance,
     get_cloudformation_pre_deploy_validation_instructions,
     troubleshoot_cloudformation_deployment,
@@ -337,6 +338,27 @@ class TestPreDeployValidation:
         assert result == 'sanitized response'
         mock_validation.assert_called_once()
         mock_sanitize.assert_called_once_with('{"instructions": "test"}')
+
+
+class TestCdkBestPractices:
+    """Test cdk_best_practices tool."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.cdk_best_practices_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
+    @pytest.mark.asyncio
+    async def test_cdk_best_practices_success(self, mock_sanitize, mock_best_practices):
+        """Test successful CDK best practices retrieval."""
+        from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+
+        mock_response = CDKToolResponse(knowledge_response=[], next_step_guidance=None)
+        mock_best_practices.return_value = mock_response
+        mock_sanitize.return_value = 'sanitized response'
+
+        result = await cdk_best_practices()
+
+        assert result == 'sanitized response'
+        mock_best_practices.assert_called_once_with()
+        mock_sanitize.assert_called_once()
 
 
 class TestMain:
