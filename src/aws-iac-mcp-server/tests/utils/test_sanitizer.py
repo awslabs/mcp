@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pytest
-from awslabs.aws_iac_mcp_server.sanitizer import (
+from awslabs.aws_iac_mcp_server.utils.sanitizer import (
     encapsulate_content,
     filter_unicode_tags,
     sanitize_tool_response,

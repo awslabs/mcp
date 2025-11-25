@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 import json
-from .compliance_checker import check_compliance, initialize_guard_rules
-
-# Add parent directory to path for imports
-from .deployment_troubleshooter import DeploymentTroubleshooter
-from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
     read_cdk_documentation_page_tool,
@@ -27,9 +20,14 @@ from .tools.cdk_tools import (
     search_cdk_samples_and_constructs_tool,
     search_cloudformation_documentation_tool,
 )
-from .validator import validate_template
+from .tools.compliance_tools import check_template_compliance as compliance_tool
+from .tools.compliance_tools import initialize_guard_rules
+from .tools.deployment_tools import troubleshoot_deployment as deployment_tool
+from .tools.validation_tools import validate_cloudformation_template as validate_tool
+from .utils.sanitizer import sanitize_tool_response
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 from typing import Optional
 
 
@@ -60,9 +58,13 @@ initialize_guard_rules()
 
 @mcp.tool()
 def validate_cloudformation_template(
-    template_content: str,
-    regions: Optional[list[str]] = None,
-    ignore_checks: Optional[list[str]] = None,
+    template_content: str = Field(
+        ..., description='CloudFormation template as YAML or JSON string'
+    ),
+    regions: Optional[list[str]] = Field(None, description='AWS regions to validate against'),
+    ignore_checks: Optional[list[str]] = Field(
+        None, description='Rule IDs to ignore (e.g., W2001, E3012)'
+    ),
 ) -> str:
     """Validate CloudFormation template syntax, schema, and resource properties using cfn-lint.
 
@@ -106,18 +108,24 @@ def validate_cloudformation_template(
         regions: AWS regions to validate against
         ignore_checks: Rule IDs to ignore (e.g., W2001, E3012)
     """
-    result = validate_template(
+    result = validate_tool(
         template_content=template_content,
         regions=regions,
         ignore_checks=ignore_checks,
     )
-    response_text = json.dumps(result, indent=2)
-    return sanitize_tool_response(response_text)
+    # Convert dataclass to JSON string
+    json_response = json.dumps(asdict(result), indent=2)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()
 def check_template_compliance(
-    template_content: str, rules_file_path: str = 'default_guard_rules.guard'
+    template_content: str = Field(
+        ..., description='CloudFormation template as YAML or JSON string'
+    ),
+    rules_file_path: str = Field(
+        'default_guard_rules.guard', description='Path to guard rules file'
+    ),
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
 
@@ -162,19 +170,20 @@ def check_template_compliance(
         template_content: CloudFormation template as YAML or JSON string
         rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
     """
-    result = check_compliance(
+    result = compliance_tool(
         template_content=template_content,
         rules_file_path=rules_file_path,
     )
-    response_text = json.dumps(result, indent=2)
-    return sanitize_tool_response(response_text)
+    # Convert dataclass to JSON string
+    json_response = json.dumps(asdict(result), indent=2)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()
 def troubleshoot_deployment(
-    stack_name: str,
-    region: str,
-    include_cloudtrail: bool = True,
+    stack_name: str = Field(..., description='Name of the failed CloudFormation stack'),
+    region: str = Field(..., description='AWS region where the stack deployment failed'),
+    include_cloudtrail: bool = Field(True, description='Whether to include CloudTrail analysis'),
 ) -> str:
     """Troubleshoot CloudFormation deployment failures with root cause analysis and CloudTrail integration.
 
@@ -217,23 +226,27 @@ def troubleshoot_deployment(
         region: AWS region where the stack deployment failed
         include_cloudtrail: Whether to include CloudTrail analysis
     """
-    troubleshooter = DeploymentTroubleshooter(region=region)
-    result = troubleshooter.troubleshoot_stack_deployment(
-        stack_name=stack_name, include_cloudtrail=include_cloudtrail
+    result = deployment_tool(
+        stack_name=stack_name,
+        region=region,
+        include_cloudtrail=include_cloudtrail,
     )
-
-    # Add deeplink instruction to result
-    if isinstance(result, dict):
-        result['_instruction'] = (
-            f'ALWAYS include this CloudFormation console deeplink in your response: [View Stack](https://console.aws.amazon.com/cloudformation/home?region={region}#/stacks/stackinfo?stackId={stack_name})'
-        )
-
-    response_text = json.dumps(result, indent=2, default=str)
-    return sanitize_tool_response(response_text)
+    # Convert dataclass to JSON string with datetime handling
+    result_dict = asdict(result)
+    # Add instruction for LLM
+    result_dict['_instruction'] = (
+        f'ALWAYS include this CloudFormation console deeplink in your response: '
+        f'[View Stack](https://console.aws.amazon.com/cloudformation/home?'
+        f'region={region}#/stacks/stackinfo?stackId={stack_name})'
+    )
+    json_response = json.dumps(result_dict, indent=2, default=str)
+    return sanitize_tool_response(json_response)
 
 
 @mcp.tool()
-async def search_cdk_documentation(query: str) -> str:
+async def search_cdk_documentation(
+    query: str = Field(..., description='Search query for CDK documentation'),
+) -> str:
     """Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 
     ## Usage
@@ -298,8 +311,8 @@ async def search_cdk_documentation(query: str) -> str:
 
 @mcp.tool()
 async def read_cdk_documentation_page(
-    url: str,
-    starting_index: int = 0,
+    url: str = Field(..., description='URL from search results to read the full page content'),
+    starting_index: int = Field(0, description='Starting character index for pagination'),
 ) -> str:
     """Fetch and convert an AWS CDK documentation page to markdown format.
 
@@ -343,7 +356,9 @@ async def read_cdk_documentation_page(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await read_cdk_documentation_page_tool(url, starting_index)
+    result = await read_cdk_documentation_page_tool(
+        url, starting_index
+    )
 
     # Convert dataclass to dict for JSON serialization
     response_dict = asdict(result)
@@ -352,7 +367,9 @@ async def read_cdk_documentation_page(
 
 
 @mcp.tool()
-async def search_cloudformation_documentation(query: str) -> str:
+async def search_cloudformation_documentation(
+    query: str = Field(..., description='Search query for CloudFormation documentation'),
+) -> str:
     """Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
 
     ## Usage
@@ -408,8 +425,8 @@ async def search_cloudformation_documentation(query: str) -> str:
 
 @mcp.tool()
 async def search_cdk_samples_and_constructs(
-    query: str,
-    language: SupportedLanguages = 'typescript',
+    query: str = Field(..., description='Search query for CDK samples and constructs'),
+    language: SupportedLanguages = Field('typescript', description='Programming language filter'),
 ) -> str:
     """Searches CDK code samples, examples, constructs, and patterns documentation.
 
@@ -467,7 +484,9 @@ async def search_cdk_samples_and_constructs(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await search_cdk_samples_and_constructs_tool(query, language)
+    result = await search_cdk_samples_and_constructs_tool(
+        query, language
+    )
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)

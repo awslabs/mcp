@@ -12,50 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""CloudFormation template validation tools."""
+
 from __future__ import annotations
 
-from .config import DEFAULT_REGION, MAX_TEMPLATE_SIZE_BYTES
+from ..config import DEFAULT_REGION
+from ..models.validation_models import (
+    ValidationIssue,
+    ValidationResponse,
+    ValidationResults,
+)
 from cfnlint.api import lint as cfn_lint
 from cfnlint.match import Match
-from typing import Any, Sequence
+from typing import List, Optional, Sequence
 
 
-def validate_template(
+def validate_cloudformation_template(
     template_content: str,
-    regions: Sequence[str] | None = None,
-    ignore_checks: Sequence[str] | None = None,
-) -> dict[str, Any]:
-    """Validate a CloudFormation template using cfn-lint.
+    regions: Optional[List[str]] = None,
+    ignore_checks: Optional[List[str]] = None,
+) -> ValidationResponse:
+    """Validate CloudFormation template using cfn-lint.
+
+    Logic is directly in this function - no service layer.
+    Returns ValidationResponse dataclass.
 
     Args:
-        template_content: CloudFormation template as YAML or JSON string
-        regions: AWS regions to validate against
-        ignore_checks: Rule IDs to ignore
+        template_content: CloudFormation template content (YAML or JSON)
+        regions: Optional list of AWS regions to validate against
+        ignore_checks: Optional list of rule IDs to ignore
 
     Returns:
-        Validation results dictionary with matches and metadata
+        ValidationResponse with validation results
     """
-    if not template_content or not template_content.strip():
-        return {
-            'valid': False,
-            'error': 'template_required',
-            'message': 'Template content cannot be empty',
-        }
-
-    if len(template_content) > MAX_TEMPLATE_SIZE_BYTES:
-        return {
-            'valid': False,
-            'error': 'template_too_large',
-            'message': f'Template exceeds maximum size of {MAX_TEMPLATE_SIZE_BYTES} bytes',
-        }
-
-    manual_args: dict[str, Any] = {
+    manual_args = {
         'regions': list(regions) if regions else list(DEFAULT_REGION),
     }
     if ignore_checks:
         manual_args['ignore_checks'] = list(ignore_checks)
 
     try:
+        # Run cfn-lint validation
         matches = cfn_lint(
             s=template_content,
             regions=None,
@@ -64,16 +61,29 @@ def validate_template(
         return _format_results(matches)
 
     except Exception as e:
-        return {
-            'valid': False,
-            'error': 'validation_failed',
-            'message': str(e),
-        }
+        # Return error as ValidationResponse
+        return ValidationResponse(
+            validation_results=ValidationResults(
+                is_valid=False,
+                error_count=0,
+                warning_count=0,
+                info_count=0,
+            ),
+            issues=[],
+            message=f'Validation failed: {str(e)}',
+        )
 
 
-def _format_results(matches: Sequence[Match]) -> dict[str, Any]:
-    """Format cfn-lint Match objects into output schema."""
-    formatted_matches: list[dict[str, Any]] = []
+def _format_results(matches: Sequence[Match]) -> ValidationResponse:
+    """Format cfn-lint Match objects into ValidationResponse model.
+
+    Args:
+        matches: Sequence of cfn-lint Match objects
+
+    Returns:
+        ValidationResponse with formatted results
+    """
+    issues: list[ValidationIssue] = []
     error_count = 0
     warning_count = 0
     info_count = 0
@@ -88,16 +98,17 @@ def _format_results(matches: Sequence[Match]) -> dict[str, Any]:
         else:
             info_count += 1
 
-        formatted_match = {
-            'rule': match.rule.id,
-            'level': level,
-            'message': match.message,
-            'filename': getattr(match, 'filename', None) or 'template.yaml',
-            'line_number': match.linenumber,
-            'column_number': match.columnnumber,
-            'fix_suggestion': match.rule.description,
-        }
-        formatted_matches.append(formatted_match)
+        issues.append(
+            ValidationIssue(
+                rule=match.rule.id,
+                level=level,
+                message=match.message,
+                filename=getattr(match, 'filename', None) or 'template.yaml',
+                line_number=match.linenumber,
+                column_number=match.columnnumber,
+                fix_suggestion=match.rule.description,
+            )
+        )
 
     # Generate appropriate message
     if error_count > 0:
@@ -107,16 +118,16 @@ def _format_results(matches: Sequence[Match]) -> dict[str, Any]:
     else:
         message = 'Template is valid.'
 
-    return {
-        'validation_results': {
-            'is_valid': error_count == 0,
-            'error_count': error_count,
-            'warning_count': warning_count,
-            'info_count': info_count,
-        },
-        'issues': formatted_matches,
-        'message': message,
-    }
+    return ValidationResponse(
+        validation_results=ValidationResults(
+            is_valid=error_count == 0,
+            error_count=error_count,
+            warning_count=warning_count,
+            info_count=info_count,
+        ),
+        issues=issues,
+        message=message,
+    )
 
 
 def _map_level(rule_id: str) -> str:

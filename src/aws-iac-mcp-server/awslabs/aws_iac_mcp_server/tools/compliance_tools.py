@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""CloudFormation template compliance checking using cfn-guard."""
+
 from __future__ import annotations
 
 import guardpycfn
@@ -19,10 +21,15 @@ import json
 import os
 import re
 import yaml
-from typing import Any, Optional
+from ..models.compliance_models import (
+    ComplianceResponse,
+    ComplianceResults,
+    ComplianceViolation,
+)
+from typing import Optional
 
 
-# Global cache for remediation mappings
+# Module-level caches (preserved from service)
 _REMEDIATION_CACHE = {}
 _RULES_CONTENT_CACHE = None
 _TEMPLATE_RESOURCES = {}
@@ -30,6 +37,8 @@ _TEMPLATE_RESOURCES = {}
 
 def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
     """Initialize guard rules and cache remediation mappings on server startup.
+
+    Called on server startup. Must be preserved.
 
     Args:
         rules_file_path: Path to guard rules file
@@ -145,28 +154,36 @@ def _extract_resource_info(node: dict, template_resources: dict) -> tuple[str, s
     return 'Unknown', 'Unknown'
 
 
-def check_compliance(
-    template_content: str,
-    rules_file_path: Optional[str] = None,
-) -> dict[str, Any]:
-    """Validate CloudFormation template against cfn-guard rules using guardpycfn."""
+def check_template_compliance(
+    template_content: str, rules_file_path: str = 'default_guard_rules.guard'
+) -> ComplianceResponse:
+    """Validate CloudFormation template against cfn-guard rules using guardpycfn.
+
+    Logic is directly in this function - no service layer.
+    Returns ComplianceResponse dataclass.
+
+    Args:
+        template_content: CloudFormation template content (YAML or JSON)
+        rules_file_path: Path to guard rules file
+
+    Returns:
+        ComplianceResponse with compliance check results
+    """
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
 
-    def error_result(message: str) -> dict[str, Any]:
-        return {
-            'compliance_results': {
-                'overall_status': 'ERROR',
-                'total_violations': 0,
-                'error_count': 0,
-                'warning_count': 0,
-                'rule_sets_applied': [],
-            },
-            'violations': [],
-            'message': message,
-        }
-
-    if not template_content or not template_content.strip():
-        return error_result('Template content cannot be empty')
+    def error_result(message: str) -> ComplianceResponse:
+        """Create error response."""
+        return ComplianceResponse(
+            compliance_results=ComplianceResults(
+                overall_status='ERROR',
+                total_violations=0,
+                error_count=0,
+                warning_count=0,
+                rule_sets_applied=[],
+            ),
+            violations=[],
+            message=message,
+        )
 
     if _RULES_CONTENT_CACHE is None and not initialize_guard_rules(rules_file_path):
         return error_result('Failed to initialize guard rules')
@@ -182,7 +199,7 @@ def check_compliance(
         if not guard_result.get('success', False):
             return error_result('Guard validation failed to execute properly')
 
-        violations = []
+        violations: list[ComplianceViolation] = []
 
         def process_node(node, rule_name='Unknown'):
             if not isinstance(node, dict):
@@ -244,17 +261,17 @@ def check_compliance(
             return 'Unknown', 'Unknown'
 
         def create_violation(rule_id, resource, resource_type, message):
-            return {
-                'rule_id': rule_id,
-                'severity': 'ERROR',
-                'resource': resource,
-                'resource_type': resource_type,
-                'message': message,
-                'remediation': _REMEDIATION_CACHE.get(
+            return ComplianceViolation(
+                rule_id=rule_id,
+                severity='ERROR',
+                resource=resource,
+                resource_type=resource_type,
+                message=message,
+                remediation=_REMEDIATION_CACHE.get(
                     rule_id,
                     'Review the resource configuration and ensure it meets the policy requirements',
                 ),
-            }
+            )
 
         process_node(guard_result.get('result', {}))
 
@@ -269,17 +286,17 @@ def check_compliance(
             else 'Template has compliance violations. Address the ERROR-level issues before deployment. Use `cloudformation_pre_deploy_validation` for final deployment readiness check.'
         )
 
-        return {
-            'compliance_results': {
-                'overall_status': overall_status,
-                'total_violations': error_count,
-                'error_count': error_count,
-                'warning_count': 0,
-                'rule_sets_applied': ['aws-security'],
-            },
-            'violations': violations,
-            'message': message,
-        }
+        return ComplianceResponse(
+            compliance_results=ComplianceResults(
+                overall_status=overall_status,
+                total_violations=error_count,
+                error_count=error_count,
+                warning_count=0,
+                rule_sets_applied=['aws-security'],
+            ),
+            violations=violations,
+            message=message,
+        )
 
     except Exception as e:
         return error_result(f'Validation failed: {str(e)}')

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ..client.aws_knowledge_client import read_documentation, search_documentation
-from ..knowledge_models import CDKToolResponse
+from ..models.cdk_tool_models import CDKToolResponse
 from typing import Literal
 
 

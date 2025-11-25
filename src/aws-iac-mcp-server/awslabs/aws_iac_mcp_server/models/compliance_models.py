@@ -12,23 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Data models for CloudFormation compliance checking."""
+
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 
 @dataclass
-class KnowledgeResult:
-    """Represents a single knowledge search result."""
+class ComplianceViolation:
+    """Individual compliance violation."""
 
-    rank: int
-    title: str
-    url: str
-    context: str
+    rule_id: str
+    severity: str
+    resource: str
+    resource_type: str
+    message: str
+    remediation: str
 
 
 @dataclass
-class CDKToolResponse:
-    """Response from CDK tools containing knowledge and guidance."""
+class ComplianceResults:
+    """Compliance results summary."""
 
-    knowledge_response: List[KnowledgeResult]
-    next_step_guidance: Optional[str]
+    overall_status: str
+    total_violations: int
+    error_count: int
+    warning_count: int
+    rule_sets_applied: List[str]
+
+
+@dataclass
+class ComplianceResponse:
+    """Complete compliance response."""
+
+    compliance_results: ComplianceResults
+    violations: List[ComplianceViolation]
+    message: str

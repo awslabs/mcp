@@ -15,7 +15,7 @@
 """Tests for search CDK samples and constructs tool."""
 
 import pytest
-from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
+from awslabs.aws_iac_mcp_server.models.cdk_tool_models import KnowledgeResult
 from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_samples_and_constructs_tool
 from unittest.mock import AsyncMock, patch
 

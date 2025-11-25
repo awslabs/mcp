@@ -15,7 +15,7 @@
 import json
 import os
 import sys
-from ..knowledge_models import KnowledgeResult
+from ..models.cdk_tool_models import KnowledgeResult
 from fastmcp.client import Client
 from fastmcp.client.client import CallToolResult
 from loguru import logger
