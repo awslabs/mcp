@@ -675,9 +675,10 @@ const vpc = new ec2.Vpc(this, 'VPC', {
 ## Compliance best practices
 
 ### CDK Nag
+CDK Nag provides a list of compliance rules: https://github.com/cdklabs/cdk-nag/blob/main/RULES.md
 
 **(Optional) Use CDK Nag for compliance checks**
-YOU MUST ask the user if they would like to use CDK Nag.
+Before applying CDK Nag compliance checks, you MUST ask the user if they would like to use CDK Nag.
 
 IF the user provides their consent, install cdk-nag using npm: 'npm install cdk-nag'.
 
