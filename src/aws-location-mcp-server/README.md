@@ -234,12 +234,12 @@ Returns route geometry, distance, duration, and turn-by-turn directions.
 
 See [AWS documentation](https://docs.aws.amazon.com/location/latest/developerguide/calculate-routes-custom-avoidance-shortest.html) for more details.
 
-### get_coordinates
+### geocode
 
 Get coordinates for a location name or address.
 
 ```python
-get_coordinates(location: str) -> dict
+geocode(location: str) -> dict
 ```
 
 ### optimize_waypoints

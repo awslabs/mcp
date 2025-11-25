@@ -41,10 +41,10 @@ Purpose: Capture all details, evolving thoughts, and design considerations as th
 - **Scale**: [expected users, total requests/second across all patterns]
 
 ## Access Patterns Analysis
-| Pattern # | Description | RPS (Peak and Average) | Type | Attributes Needed | Key Requirements | Design Considerations | Status |
-|-----------|-------------|-----------------|------|-------------------|------------------|----------------------|--------|
-| 1 | Get user profile by user ID when the user logs into the app | 500 RPS | Read | userId, name, email, createdAt | <50ms latency | Simple PK lookup on main table | ✅ |
-| 2 | Create new user account when the user is on the sign up page| 50 RPS | Write | userId, name, email, hashedPassword | ACID compliance | Consider email uniqueness constraint | ⏳ |
+| Pattern # | Description                                                  | RPS (Peak and Average) | Type  | Attributes Needed                   | Key Requirements | Design Considerations                | Status |
+| --------- | ------------------------------------------------------------ | ---------------------- | ----- | ----------------------------------- | ---------------- | ------------------------------------ | ------ |
+| 1         | Get user profile by user ID when the user logs into the app  | 500 RPS                | Read  | userId, name, email, createdAt      | <50ms latency    | Simple PK lookup on main table       | ✅      |
+| 2         | Create new user account when the user is on the sign up page | 50 RPS                 | Write | userId, name, email, hashedPassword | ACID compliance  | Consider email uniqueness constraint | ⏳      |
 
 🔴 **CRITICAL**: Every pattern MUST have RPS documented. If USER doesn't know, help estimate based on business context.
 
@@ -101,9 +101,9 @@ For each pair of related tables, ask:
 4. **Size Constraints**: Will consolidated size stay reasonable?
 
 ### Consolidation Candidates Review
-| Parent | Child | Relationship | Access Overlap | Consolidation Decision | Justification |
-|--------|-------|--------------|----------------|------------------------|---------------|
-| [Parent] | [Child] | 1:Many | [Overlap] | ✅/❌ Consolidate/Separate | [Why] |
+| Parent   | Child   | Relationship | Access Overlap | Consolidation Decision   | Justification |
+| -------- | ------- | ------------ | -------------- | ------------------------ | ------------- |
+| [Parent] | [Child] | 1:Many       | [Overlap]      | ✅/❌ Consolidate/Separate | [Why]         |
 
 ### Consolidation Rules
 - **Consolidate when**: >50% access overlap + natural parent-child + bounded size + identifying relationship
@@ -180,8 +180,8 @@ Purpose: Step-by-step reasoned final design with complete justifications
 
 A markdown table which shows 5-10 representative items for the table
 
-| $partition_key| $sort_key | $attr_a | $attr_b | $attr_c |
-|---------|---------|---------|---------|---------|
+| $partition_key | $sort_key | $attr_a | $attr_b | $attr_c |
+| -------------- | --------- | ------- | ------- | ------- |
 
 - **Purpose**: [what this table stores and why this design was chosen]
 - **Aggregate Boundary**: [what data is grouped together in this table and why]
@@ -196,8 +196,8 @@ A markdown table which shows 5-10 representative items for the table
 
 A markdown table which shows 5-10 representative items for the index. You MUST ensure it aligns with selected projection or sparseness. For attributes with no value required, just use an empty cell, do not populate with `null`.
 
-| $gsi_partition_key| $gsi_sort_key | $attr_a | $attr_b | $attr_c |
-|---------|---------|---------|---------|---------|
+| $gsi_partition_key | $gsi_sort_key | $attr_a | $attr_b | $attr_c |
+| ------------------ | ------------- | ------- | ------- | ------- |
 
 ### [GSIName] GSI
 - **Purpose**: [what access pattern this enables and why GSI was necessary]
@@ -219,7 +219,7 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 [Show how each pattern maps to table operations and critical implementation notes]
 
 | Pattern | Description | Tables/Indexes | DynamoDB Operations | Implementation Notes |
-|---------|-----------|---------------|-------------------|---------------------|
+| ------- | ----------- | -------------- | ------------------- | -------------------- |
 
 ## Hot Partition Analysis
 - **MainTable**: Pattern #1 at 500 RPS distributed across ~10K users = 0.05 RPS per partition ✅

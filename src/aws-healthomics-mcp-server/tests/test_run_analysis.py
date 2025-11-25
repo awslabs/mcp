@@ -89,6 +89,17 @@ class TestNormalizeRunIds:
         # Assert
         assert result == ['run1', 'run2', 'run3']
 
+    def test_normalize_run_ids_fallback_case(self):
+        """Test normalizing run IDs fallback to string conversion."""
+        # Arrange - Test with an integer converted to string (edge case)
+        run_ids = '12345'
+
+        # Act
+        result = _normalize_run_ids(run_ids)
+
+        # Assert
+        assert result == ['12345']
+
 
 class TestConvertDatetimeToString:
     """Test the _convert_datetime_to_string function."""
@@ -547,6 +558,78 @@ class TestGenerateAnalysisReport:
         assert 'omics.c.large' in result
 
     @pytest.mark.asyncio
+    async def test_generate_analysis_report_multiple_instance_types(self):
+        """Test generating analysis report with multiple instance types."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'test-run-123',
+                        'runName': 'multi-instance-run',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 4,
+                        'totalAllocatedCpus': 16.0,
+                        'totalAllocatedMemoryGiB': 32.0,
+                        'totalActualCpuUsage': 11.2,
+                        'totalActualMemoryUsageGiB': 19.2,
+                        'overallCpuEfficiency': 0.7,
+                        'overallMemoryEfficiency': 0.6,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.large',
+                            'cpuEfficiencyRatio': 0.8,
+                            'memoryEfficiencyRatio': 0.7,
+                        },
+                        {
+                            'taskName': 'task2',
+                            'instanceType': 'omics.c.large',
+                            'cpuEfficiencyRatio': 0.6,
+                            'memoryEfficiencyRatio': 0.5,
+                        },
+                        {
+                            'taskName': 'task3',
+                            'instanceType': 'omics.c.xlarge',
+                            'cpuEfficiencyRatio': 0.9,
+                            'memoryEfficiencyRatio': 0.8,
+                        },
+                        {
+                            'taskName': 'task4',
+                            'instanceType': 'omics.c.xlarge',
+                            'cpuEfficiencyRatio': 0.7,
+                            'memoryEfficiencyRatio': 0.6,
+                        },
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'Instance Type Analysis' in result
+        assert 'omics.c.large' in result
+        assert 'omics.c.xlarge' in result
+        assert '(2 tasks)' in result  # Should show task count for each instance type
+        assert 'Average CPU Efficiency' in result
+        assert 'Average Memory Efficiency' in result
+
+    @pytest.mark.asyncio
     async def test_generate_analysis_report_no_runs(self):
         """Test generating analysis report with no runs."""
         # Arrange
@@ -671,6 +754,69 @@ class TestGetRunAnalysisData:
 
         # Assert
         assert result == {}
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_run_manifest_logs_internal')
+    async def test_get_run_analysis_data_get_run_exception(
+        self, mock_get_logs, mock_get_omics_client
+    ):
+        """Test getting run analysis data when get_run fails for individual runs."""
+        # Arrange
+        run_ids = ['run-123', 'run-456']
+
+        # Mock omics client
+        mock_omics_client_instance = MagicMock()
+        mock_get_omics_client.return_value = mock_omics_client_instance
+
+        # Mock get_run to fail for first run, succeed for second
+        mock_omics_client_instance.get_run.side_effect = [
+            Exception('Run not found'),
+            {'uuid': 'uuid-456', 'name': 'run2', 'status': 'COMPLETED'},
+        ]
+
+        # Mock manifest logs with some data for the successful run
+        mock_get_logs.return_value = {
+            'events': [{'message': '{"name": "test-task", "cpus": 2, "memory": 4}'}]
+        }
+
+        # Act
+        result = await _get_run_analysis_data(run_ids)
+
+        # Assert
+        assert result is not None
+        assert result['summary']['totalRuns'] == 2
+        assert len(result['runs']) == 1  # Only one run processed successfully
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_run_manifest_logs_internal')
+    async def test_get_run_analysis_data_manifest_logs_exception(
+        self, mock_get_logs, mock_get_omics_client
+    ):
+        """Test getting run analysis data when manifest logs retrieval fails."""
+        # Arrange
+        run_ids = ['run-123']
+
+        # Mock omics client
+        mock_omics_client_instance = MagicMock()
+        mock_get_omics_client.return_value = mock_omics_client_instance
+        mock_omics_client_instance.get_run.return_value = {
+            'uuid': 'uuid-123',
+            'name': 'run1',
+            'status': 'COMPLETED',
+        }
+
+        # Mock manifest logs to fail
+        mock_get_logs.side_effect = Exception('Failed to get manifest logs')
+
+        # Act
+        result = await _get_run_analysis_data(run_ids)
+
+        # Assert
+        assert result is not None
+        assert result['summary']['totalRuns'] == 1
+        assert len(result['runs']) == 0  # No runs processed due to manifest failure
 
 
 class TestAnalyzeRunPerformance:

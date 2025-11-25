@@ -3,8 +3,8 @@ import pytest
 from awslabs.aws_api_mcp_server.core.aws.service import (
     check_security_policy,
 )
+from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.models import (
-    AwsApiMcpServerErrorResponse,
     InterpretationResponse,
     IRTranslation,
     ProgramInterpretationResponse,
@@ -529,10 +529,10 @@ async def test_call_aws_security_policy_deny(
 
     ctx = DummyCtx()
 
-    result = await call_aws.fn('aws s3 rm s3://bucket/file', ctx)
+    with pytest.raises(AwsApiMcpError) as exc_info:
+        await call_aws.fn('aws s3 rm s3://bucket/file', ctx)
 
-    assert isinstance(result, AwsApiMcpServerErrorResponse)
-    assert result.detail == 'Execution of this operation is denied by security policy.'
+    assert 'Execution of this operation is denied by security policy.' in str(exc_info.value)
     mock_check_security_policy.assert_called_once()
 
 

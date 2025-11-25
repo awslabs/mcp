@@ -42,6 +42,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Infrastructure & Deployment',
           items: [
+            'servers/aws-iac-mcp-server',
             'servers/ccapi-mcp-server',
             'servers/cdk-mcp-server',
             'servers/cfn-mcp-server',
@@ -62,9 +63,11 @@ const sidebars: SidebarsConfig = {
             'servers/bedrock-kb-retrieval-mcp-server',
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
+            'servers/document-loader-mcp-server',
             'servers/nova-canvas-mcp-server',
             'servers/aws-bedrock-custom-model-import-mcp-server',
-            'servers/amazon-bedrock-agentcore-mcp-server'
+            'servers/amazon-bedrock-agentcore-mcp-server',
+            'servers/sagemaker-ai-mcp-server',
           ],
         },
         {

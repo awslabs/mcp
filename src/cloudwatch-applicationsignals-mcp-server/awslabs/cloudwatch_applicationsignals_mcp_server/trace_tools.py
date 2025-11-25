@@ -142,6 +142,8 @@ async def search_transaction_spans(
     "aws/spans" log group stores OpenTelemetry Spans data with many attributes for all monitored services.
     This provides 100% sampled data vs X-Ray's 5% sampling, giving more accurate results.
     User can write CloudWatch Logs Insights queries to group, list attribute with sum, avg.
+    If source code is not accessible, consider querying with code-level attributes.
+    ⚠️ Use CORRECT attribute names: attributes.code.file.path, attributes.code.function.name, attributes.code.line.number
 
     ```
     FILTER attributes.aws.local.service = "customers-service-java" and attributes.aws.local.environment = "eks:demo/default" and attributes.aws.remote.operation="InvokeModel"
@@ -226,20 +228,86 @@ async def search_transaction_spans(
                 elif status == 'Complete':
                     logger.debug(f'Query returned {len(response.get("results", []))} results')
 
+                # Convert results to list of dictionaries
+                results = [
+                    {field.get('field', ''): field.get('value', '') for field in line}  # type: ignore
+                    for line in response.get('results', [])
+                ]
+
+                # Check for code-level attributes following OpenTelemetry semantic conventions
+                # Only supported attributes: code.file.path, code.function.name, code.line.number
+                code_level_attribute_names = [
+                    'code.file.path',
+                    'code.function.name',
+                    'code.line.number',
+                ]
+
+                # Check with both prefixed and unprefixed versions
+                code_level_attributes_set = set()
+                for attr in code_level_attribute_names:
+                    code_level_attributes_set.add(attr)
+                    code_level_attributes_set.add(f'attributes.{attr}')
+
+                # Check if code-level attributes are requested in the query
+                query_lower = query_string.lower()
+                requested_in_query = any(
+                    attr.lower() in query_lower or f'`{attr}`'.lower() in query_lower
+                    for attr in code_level_attributes_set
+                )
+
+                # Check if any code-level attributes are present in results
+                detected_attributes = set()
+                for result in results:
+                    for field_name in result.keys():
+                        if field_name in code_level_attributes_set:
+                            # Normalize attribute name (remove 'attributes.' prefix if present)
+                            normalized_name = field_name.replace('attributes.', '')
+                            detected_attributes.add(normalized_name)
+
+                code_level_detected = len(detected_attributes) > 0
+
+                # Build code-level attributes status
+                code_level_status = {
+                    'detected': code_level_detected,
+                    'attributes_found': sorted(detected_attributes),
+                    'requested_in_query': requested_in_query,
+                }
+
+                if not code_level_detected:
+                    if requested_in_query:
+                        # Attributes were requested but not found - instrumentation not enabled
+                        code_level_status['message'] = (
+                            'Code-level attributes not available in span data. '
+                            'If source code is not accessible and code-level context is needed, '
+                            'enable code-level attributes by setting OTEL_AWS_EXPERIMENTAL_CODE_ATTRIBUTES=true. '
+                            'It is only supported in Python and requires the latest ADOT Python SDK.'
+                        )
+                        code_level_status['suggestion'] = (
+                            'Enable code-level attributes if source code is not accessible.'
+                        )
+                        logger.debug(
+                            'Code-level attributes requested in query but not found in data'
+                        )
+                else:
+                    code_level_status['message'] = (
+                        f'✅ Code-Level Attributes Available: {", ".join(sorted(detected_attributes))}'
+                    )
+                    logger.debug(
+                        f'Code-level attributes detected - attributes: {", ".join(sorted(detected_attributes))}'
+                    )
+
                 return {
                     'queryId': query_id,
                     'status': status,
                     'statistics': response.get('statistics', {}),
-                    'results': [
-                        {field.get('field', ''): field.get('value', '') for field in line}  # type: ignore
-                        for line in response.get('results', [])
-                    ],
+                    'results': results,
                     'transaction_search_status': {
                         'enabled': True,
                         'destination': 'CloudWatchLogs',
                         'status': 'ACTIVE',
                         'message': '✅ Using 100% sampled trace data from Transaction Search',
                     },
+                    'code_level_attributes_status': code_level_status,
                 }
 
             await asyncio.sleep(1)

@@ -263,43 +263,62 @@ class ResponseSanitizer:
         "image_pull_failures",
     }
 
+    # Fields exempt from sanitization by tool (contain AWS resource identifiers)
+    # Only exempt for specific tools that legitimately return these values
+    EXEMPT_FIELDS_BY_TOOL: Dict[str, Set[str]] = {
+        "build_and_push_image_to_ecr": {
+            "repository_uri",
+            "image_tag",
+            "full_image_uri",
+        },
+    }
+
     @classmethod
-    def sanitize(cls, response: Any) -> Any:
+    def sanitize(cls, response: Any, tool_name: Optional[str] = None) -> Any:
         """
         Sanitizes a response to remove sensitive information.
 
         Args:
             response: The response to sanitize
+            tool_name: Name of the tool generating the response (for context-aware exemptions)
 
         Returns:
             Any: The sanitized response
         """
         if isinstance(response, dict):
-            return cls._sanitize_dict(response)
+            return cls._sanitize_dict(response, tool_name)
         elif isinstance(response, list):
-            return [cls.sanitize(item) for item in response]
+            return [cls.sanitize(item, tool_name) for item in response]
         elif isinstance(response, str):
             return cls._sanitize_string(response)
         else:
             return response
 
     @classmethod
-    def _sanitize_dict(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_dict(
+        cls, data: Dict[str, Any], tool_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Sanitizes a dictionary.
 
         Args:
             data: The dictionary to sanitize
+            tool_name: Name of the tool generating the response
 
         Returns:
             Dict[str, Any]: The sanitized dictionary
         """
         result = {}
+        # Get exempt fields for this specific tool (empty set if tool not in dict)
+        exempt_fields = cls.EXEMPT_FIELDS_BY_TOOL.get(tool_name or "", set())
+
         for key, value in data.items():
-            # Include all keys but sanitize values
-            # This is more permissive than the original implementation
-            # which only included allowed fields
-            result[key] = cls.sanitize(value)
+            # Skip sanitization only for exempt fields from the specific tool
+            if key in exempt_fields:
+                result[key] = value
+            else:
+                # Include all keys but sanitize values
+                result[key] = cls.sanitize(value, tool_name)
         return result
 
     @classmethod
@@ -364,8 +383,8 @@ def secure_tool(
                 check_permission(config, permission_type)
                 # Call the original function if validation passes
                 response = await func(*args, **kwargs)
-                # Sanitize the response
-                sanitized_response = ResponseSanitizer.sanitize(response)
+                # Sanitize the response with tool name context
+                sanitized_response = ResponseSanitizer.sanitize(response, tool_name)
                 # Add warnings for public endpoints
                 sanitized_response = ResponseSanitizer.add_public_endpoint_warning(
                     sanitized_response

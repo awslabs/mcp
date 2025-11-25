@@ -68,10 +68,14 @@ def _discover_tasks(task_dir: Path) -> tuple[List[Task], Dict[str, List[Task]]]:
     if task_dir_str not in sys.path:
         sys.path.insert(0, task_dir_str)
 
-    task_modules = [f.stem for f in task_dir.glob('*_tasks.py')]
-    logger.debug(f'Discovered task modules in {task_dir}: {task_modules}')
+    task_files = list(task_dir.rglob('*_tasks.py'))
+    logger.debug(f'Discovered task files in {task_dir}: {task_files}')
 
-    for module_name in task_modules:
+    for task_file in task_files:
+        # Convert file path to module name relative to task_dir
+        rel_path = task_file.relative_to(task_dir)
+        module_name = str(rel_path.with_suffix('')).replace('/', '.')
+
         try:
             module = importlib.import_module(module_name)
 
@@ -99,16 +103,22 @@ def _discover_tasks(task_dir: Path) -> tuple[List[Task], Dict[str, List[Task]]]:
     return all_tasks, tasks_by_module
 
 
-def _report_task_results(task: Task, result: TaskResult) -> None:
+def _report_task_results(task: Task, result: TaskResult, verbose: bool = False) -> None:
     """Report results for a single task.
 
     Args:
         task: Task instance
         result: TaskResult from EvalRunner
+        verbose: If True, include captured data in output
     """
     # TODO: Export detailed results to file and print only brief summary (pass/fail).
     # Need more usage/feedback to determine what belongs in summary vs detailed report.
     print(result)
+
+    if verbose:
+        print('\n')
+        print(result.get_captured_data_str())
+        print('\n')
 
 
 async def main():
@@ -213,7 +223,7 @@ async def main():
 
         # Report results
         for task, result in zip(tasks, results):
-            _report_task_results(task, result)
+            _report_task_results(task, result, verbose=args.verbose)
 
         # TODO: Investigate more reliable subprocess cleanup mechanism
         # Give subprocess time to clean up before event loop closes (Python < 3.11)

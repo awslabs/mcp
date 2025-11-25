@@ -1,0 +1,66 @@
+{
+  "AuditFindings": [
+    {
+      "AuditorResults": [
+        {
+          "Auditor": "SLO",
+          "Description": "SLO get-latency is in breach.",
+          "Severity": "HIGH"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricGraph": {
+        "EndTime": "2024-11-12 14:50:00-08:00",
+        "MetricDataQueries": [
+          {
+            "AccountId": "123456789012",
+            "Id": "m1",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "Operation",
+                    "Value": "GET /documents/{document_id}"
+                  },
+                  {
+                    "Name": "Service",
+                    "Value": "document-manager"
+                  },
+                  {
+                    "Name": "Environment",
+                    "Value": "ec2:default"
+                  }
+                ],
+                "MetricName": "Latency",
+                "Namespace": "ApplicationSignals"
+              },
+              "Period": 600,
+              "Stat": "p99"
+            },
+            "Period": 600,
+            "ReturnData": true
+          }
+        ],
+        "StartTime": "2024-11-12 14:50:00-08:00"
+      },
+      "Operation": "GET /documents/{document_id}",
+      "Type": "Latency"
+    }
+  ],
+  "ResponseMetadata": {
+    "HTTPHeaders": {
+      "connection": "keep-alive",
+      "content-length": "1058",
+      "content-type": "application/json",
+      "date": "Wed, 12 Nov 2024 23:55:00 GMT",
+      "x-amzn-requestid": "f3653ffe-8c6c-4d0d-a115-cd5acde7f8f8"
+    },
+    "HTTPStatusCode": 200,
+    "RequestId": "f3653ffe-8c6c-4d0d-a115-cd5acde7f8f8",
+    "RetryAttempts": 0
+  }
+}

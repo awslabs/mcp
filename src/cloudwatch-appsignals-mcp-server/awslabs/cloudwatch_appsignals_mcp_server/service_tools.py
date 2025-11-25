@@ -14,6 +14,7 @@
 
 """CloudWatch Application Signals MCP Server - Service-related tools."""
 
+import warnings
 from .aws_clients import appsignals_client, cloudwatch_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
@@ -24,6 +25,8 @@ from time import perf_counter as timer
 
 async def list_monitored_services() -> str:
     """OPTIONAL TOOL for service discovery - audit_services() can automatically discover services using wildcard patterns.
+
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_monitored_services tool in the cloudwatch-applicationsignals-mcp-server instead.
 
     **IMPORTANT: For service auditing and operation analysis, use audit_services() as the PRIMARY tool instead.**
 
@@ -71,6 +74,8 @@ async def list_monitored_services() -> str:
     """
     start_time_perf = timer()
     logger.debug('Starting list_application_signals_services request')
+    msg = 'list_monitored_services tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_monitored_services tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Calculate time range (last 24 hours)
@@ -129,6 +134,8 @@ async def get_service_detail(
 ) -> str:
     """Get detailed information about a specific Application Signals service.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the get_service_detail tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **IMPORTANT: For operation auditing, use audit_services() as the PRIMARY tool instead.**
 
     **RECOMMENDED WORKFLOW FOR OPERATION AUDITING:**
@@ -161,6 +168,8 @@ async def get_service_detail(
     """
     start_time_perf = timer()
     logger.debug(f'Starting get_service_healthy_detail request for service: {service_name}')
+    msg = 'get_service_detail tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the get_service_detail tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Calculate time range (last 24 hours)
@@ -273,6 +282,8 @@ async def query_service_metrics(
 ) -> str:
     """Get CloudWatch metrics for a specific Application Signals service.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the query_service_metrics tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     Use this tool to:
     - Analyze service performance (latency, throughput)
     - Check error rates and reliability
@@ -298,6 +309,8 @@ async def query_service_metrics(
     logger.info(
         f'Starting query_service_metrics request - service: {service_name}, metric: {metric_name}, hours: {hours}'
     )
+    msg = 'query_service_metrics tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the query_service_metrics tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Calculate time range
@@ -469,6 +482,8 @@ async def list_service_operations(
 ) -> str:
     """OPERATION DISCOVERY TOOL - For operation inventory only. Use audit_services() as PRIMARY tool for operation auditing.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_service_operations tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **IMPORTANT: For operation auditing and performance analysis, use audit_services() as the PRIMARY tool instead.**
 
     **CRITICAL LIMITATION: This tool only discovers operations that have been ACTIVELY INVOKED in the specified time window.**
@@ -517,6 +532,8 @@ async def list_service_operations(
     """
     start_time_perf = timer()
     logger.debug(f'Starting list_service_operations request for service: {service_name}')
+    msg = 'list_service_operations tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_service_operations tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Calculate time range - enforce 24 hour maximum for Application Signals operation discovery

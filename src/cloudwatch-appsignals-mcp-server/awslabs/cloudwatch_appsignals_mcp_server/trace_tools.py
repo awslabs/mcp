@@ -16,6 +16,7 @@
 
 import asyncio
 import json
+import warnings
 from .aws_clients import appsignals_client, logs_client, xray_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
@@ -134,6 +135,8 @@ async def search_transaction_spans(
 ) -> Dict:
     """Executes a CloudWatch Logs Insights query for transaction search (100% sampled trace data).
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the search_transaction_spans tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     IMPORTANT: If log_group_name is not provided use 'aws/spans' as default cloudwatch log group name.
     The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
     (| limit 50) or using the limit parameter.
@@ -163,6 +166,8 @@ async def search_transaction_spans(
         f'Starting search_transactions - log_group: {log_group_name}, start: {start_time}, end: {end_time}'
     )
     logger.debug(f'Query string: {query_string}')
+    msg = 'search_transaction_spans tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the search_transaction_spans tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     # Check if transaction search is enabled
     is_enabled, destination, status = check_transaction_search_enabled()
@@ -277,6 +282,8 @@ async def query_sampled_traces(
 ) -> str:
     """SECONDARY TRACE TOOL - Query AWS X-Ray traces (5% sampled data) for trace investigation.
 
+    **IMPORTANT**: This tool and server is being deprecated. If available, please use the query_sampled_traces tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     ⚠️ **IMPORTANT: Consider using audit_slos() with auditors="all" instead for comprehensive root cause analysis**
 
     **RECOMMENDED WORKFLOW FOR OPERATION DISCOVERY:**
@@ -349,6 +356,8 @@ async def query_sampled_traces(
         JSON string containing trace summaries with error status, duration, and service details
     """
     start_time_perf = timer()
+    msg = 'query_sampled_traces tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the query_sampled_traces tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     # Use AWS_REGION environment variable if region not provided
     if not region:
@@ -544,6 +553,8 @@ async def list_slis(
 ) -> str:
     """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
+     **IMPORTANT**: This tool and server is being deprecated. If available, please use the list_slis tool in the cloudwatch-applicationsignals-mcp-server instead.
+
     **IMPORTANT: audit_service_health() is the PRIMARY and PREFERRED tool for all service auditing tasks.**
 
     Only use this tool when audit_service_health() cannot handle your specific requirements, such as:
@@ -570,6 +581,8 @@ async def list_slis(
     """
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
+    msg = 'list_slis tool in cloudwatch-appsignals-mcp-server is deprecated. Please use the list_slis tool in cloudwatch-applicationsignals-mcp-server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     try:
         # Calculate time range
