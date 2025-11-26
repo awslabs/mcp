@@ -8,7 +8,7 @@ Get started with this MCP server for creating and troubleshooting AWS infrastruc
 - **Debug failed CloudFormation deployments** with intelligent failure analysis and resolution guidance
 - **Ensure security compliance** of your CloudFormation templates against AWS best practices
 - **Search CloudFormation documentation** for resource types, properties, and template syntax
-- **Search CDK documentation** and find code examples for AWS CDK development
+- **Search CDK documentation** and find AWS approved code examples for AWS CDK development
 - **Find CDK code samples and community constructs** for common implementation patterns
 - **Access CDK best practices** for secure and efficient infrastructure development
 - **Get specific fix suggestions** with line numbers for CloudFormation template validation errors
@@ -85,7 +85,7 @@ Analyzes failed CloudFormation stacks and provides resolution guidance.
 - `include_cloudtrail` (optional): Whether to include CloudTrail analysis (defaults to true)
 
 #### search_cloudformation_documentation
-Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
+Searches AWS CloudFormation documentation knowledge bases and returns relevant best practices.
 
 #### get_cloudformation_pre_deploy_validation_instructions
 Returns instructions for CloudFormation's pre-deployment validation feature that validates templates during change set creation.
