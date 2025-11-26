@@ -8,10 +8,12 @@ This MCP server is in general availability.
 
 ### Key Features
 
-- Real-time access to AWS documentation, API references, and architectural guidance
+- Real-time access to AWS documentation, API references, troubleshooting guidelines, and architectural guidance
 - Less local setup compared to client-hosted servers
 - Structured access to AWS knowledge for AI agents
 - Regional availability information for AWS APIs and CloudFormation resources
+- Full-stack development guidance including Amplify framework documentation, patterns, and best practices
+- Access the latest CDK and CloudFormation documentation, best practices, and high-quality examples to facilitate a better infrastructure-as-code development experience.
 
 ### AWS Knowledge capabilities
 
@@ -19,14 +21,16 @@ This MCP server is in general availability.
 - **API documentation**: Learn about how to call APIs including required and optional parameters and flags
 - **Getting started**: Find out how to quickly get started using AWS services while following best practices
 - **The latest information**: Access the latest announcements about new AWS services and features
+- **Full-stack development**: Learn how to build complete applications using AWS Amplify with frontend and backend integration guidance
+- **Infrastructure as code development**: Access the latest CDK and CloudFormation guidance, best practices, and code examples to model your infrastructure in code
 
 ### Tools
 
-1. `search_documentation`: Search across all AWS documentation
+1. `search_documentation`: Search across all AWS documentation with optional topic-based filtering for more targeted result
 2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
 3. `recommend`: Get content recommendations for AWS documentation pages
-4. `list_regions` _(Experimental)_: Retrieve a list of all AWS regions, including their identifiers and names
-5. `get_regional_availability`_(Experimental)_: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
+4. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
+5. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
 
 ### Current knowledge sources
 
@@ -38,6 +42,10 @@ This MCP server is in general availability.
 - Blog posts
 - Architectural references
 - Well-Architected guidance
+- Troubleshooting guides and error solutions
+- AWS Amplify Documentation
+- CDK documentation, CLI guides, constructs, and patterns
+- CloudFormation templates and references
 
 ### Learn about AWS with natural language
 
@@ -53,16 +61,17 @@ You can configure the Knowledge MCP server for use with any MCP client that supp
 https://knowledge-mcp.global.api.aws
 ```
 
-**Note:** The specific configuration format varies by MCP client. Below is an example for [Amazon Q CLI](https://github.com/aws/amazon-q-developer-cli). If you are using a different client, refer to your client's documentation on how to add remote MCP servers using the URL above.
+**Note:** The specific configuration format varies by MCP client. Below is an example for [Kiro CLI](https://kiro.dev/). If you are using a different client, refer to your client's documentation on how to add remote MCP servers using the URL above.
 
-**Q-CLI**
+**Kiro CLI**
 
 ```json
 {
   "mcpServers": {
     "aws-knowledge-mcp-server": {
       "url": "https://knowledge-mcp.global.api.aws",
-      "type": "http"
+      "type": "http",
+      "disabled": false
     }
   }
 }
@@ -129,3 +138,15 @@ Yes, you will need to be able to access the public internet to access the AWS Kn
 #### 3. Do I need an AWS account?
 
 No. You can get started with the Knowledge MCP server without an AWS account. The Knowledge MCP is subject to the [AWS Site Terms](https://aws.amazon.com/terms/)
+
+#### 4. Can I use the AWS Knowledge MCP Server for application development on AWS?
+
+Yes. The Knowledge MCP server provides guidance for building mobile, web, and serverless applications with AWS Amplify, framework-specific examples for web (React/Vue/Angular), mobile (React Native/Android/Swift), and Flutter, and key AWS service patterns for Lambda and API Gateway, authentication with Cognito, GraphQL with AppSync, and CI/CD pipelines with CodePipeline and Amplify Hosting.
+
+#### 5. Can I use AWS Knowledge MCP Server for infrastructure-as-code development?
+
+Yes. The Knowledge MCP server provides comprehensive documentation, templates, and code examples for AWS CloudFormation and AWS CDK (Cloud Development Kit). You can find guidance on defining and deploying AWS resources programmatically across multiple languages, helping you build scalable and maintainable infrastructure automation.
+
+#### 6. Can I use AWS Knowledge MCP Server for AWS Management Console-based development?
+
+Yes. The Knowledge MCP server offers guidance for configuring and managing AWS services directly through the AWS Management Console. Whether you're exploring service capabilities, setting up resources visually, or learning how services work, the server provides the resources needed to effectively manage your AWS applications and infrastructure.
