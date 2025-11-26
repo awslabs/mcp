@@ -819,18 +819,6 @@ def insert_items(dynamodb_client, items: dict) -> Dict[str, Any]:
     return item_insertion_response
 
 
-def get_user_working_directory() -> str:
-    """Get the current working directory where the user launched the application.
-
-    Uses PWD environment variable (Unix/Linux/macOS) or CD environment variable (Windows)
-    to determine the directory where the user launched the application.
-
-    Returns:
-        str: The user's current working directory path
-    """
-    return os.environ.get('PWD') or os.environ.get('CD') or os.getcwd()
-
-
 def get_validation_result_transform_prompt() -> str:
     """Provides transformation prompt for converting DynamoDB access pattern validation result to markdown format.
 
