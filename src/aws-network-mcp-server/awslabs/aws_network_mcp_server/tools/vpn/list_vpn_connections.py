@@ -16,7 +16,7 @@
 from awslabs.aws_network_mcp_server.utils.aws_common import get_aws_client
 from fastmcp.exceptions import ToolError
 from pydantic import Field
-from typing import Annotated, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 
 async def list_vpn_connections(
@@ -28,7 +28,7 @@ async def list_vpn_connections(
             description='AWS CLI Profile Name to access the AWS account where the resources are deployed. By default uses the profile configured in MCP configuration',
         ),
     ] = None,
-):
+) -> List[Dict[str, Any]]:
     """List all Site-to-Site VPN connections in specified AWS region.
 
     Use this tool when:
