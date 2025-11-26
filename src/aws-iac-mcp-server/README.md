@@ -4,12 +4,12 @@ MCP server for CloudFormation template validation, compliance checking, deployme
 
 ## MCP highlights
 
-- **Validate Infrastructure as Code templates** before deployment to catch errors early
+- **Validate CloudFormation templates** before deployment to catch errors early
 - **Debug failed CloudFormation deployments** with intelligent failure analysis and resolution guidance
-- **Ensure security compliance** of your infrastructure templates against AWS best practices
+- **Ensure security compliance** of your CloudFormation templates against AWS best practices
 - **Search CDK documentation** and find code examples for AWS CDK development
-- **Get specific fix suggestions** with line numbers for template validation errors
-- **Access CloudTrail deep links** for deployment troubleshooting
+- **Get specific fix suggestions** with line numbers for CloudFormation template validation errors
+- **Access CloudTrail deep links** for CloudFormation deployment troubleshooting
 
 ## Features
 
