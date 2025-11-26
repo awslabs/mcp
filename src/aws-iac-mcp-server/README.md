@@ -1,15 +1,19 @@
 # AWS Infrastructure as Code MCP Server
 
-MCP server for CloudFormation template validation, compliance checking, deployment troubleshooting, and AWS CDK documentation search with official CDK knowledge bases.
+Get started with this MCP server for creating and troubleshooting AWS infrastructure as code. Tools include CloudFormation template validation, compliance checking, deployment troubleshooting, CloudFormation documentation search, AWS CDK documentation search with official CDK knowledge bases, CDK code samples and constructs, and CDK and CloudFormation best practices.
 
 ## MCP highlights
 
 - **Validate CloudFormation templates** before deployment to catch errors early
 - **Debug failed CloudFormation deployments** with intelligent failure analysis and resolution guidance
 - **Ensure security compliance** of your CloudFormation templates against AWS best practices
+- **Search CloudFormation documentation** for resource types, properties, and template syntax
 - **Search CDK documentation** and find code examples for AWS CDK development
+- **Find CDK code samples and community constructs** for common implementation patterns
+- **Access CDK best practices** for secure and efficient infrastructure development
 - **Get specific fix suggestions** with line numbers for CloudFormation template validation errors
 - **Access CloudTrail deep links** for CloudFormation deployment troubleshooting
+
 
 ## Features
 
@@ -25,9 +29,21 @@ MCP server for CloudFormation template validation, compliance checking, deployme
 - **Intelligent Failure Analysis** - Analyze and resolve CloudFormation deployment failures
 - Pattern matching against 30+ known failure cases with CloudTrail deep links
 
+### CloudFormation Documentation Search
+- **CloudFormation Knowledge Access** - Search official CloudFormation documentation for resource types, properties, and syntax
+- Find implementation guidance and examples for CloudFormation templates
+
 ### CDK Documentation Search
 - **CDK Knowledge Access** - Search AWS CDK documentation, API references, and best practices
 - Access to CDK API Reference, Best Practices Guide, Code Samples & Patterns, and CDK-NAG security checks
+
+### CDK Code Samples & Constructs
+- **Working Code Examples** - Find CDK code samples and community constructs for common patterns
+- Search across multiple programming languages (TypeScript, Python, Java, C#, Go)
+
+### CDK Best Practices
+- **Security and Development Guidelines** - Access comprehensive CDK best practices for application configuration, coding, constructs, security, and testing
+- Follow AWS-recommended patterns for secure and efficient infrastructure
 
 ## Available MCP Tools
 
@@ -46,7 +62,7 @@ Validates CloudFormation template syntax, schema, and resource properties using 
 - `ignore_checks` (optional): List of cfn-lint check IDs to ignore
 
 #### check_template_compliance
-Validates templates against security and compliance rules using cfn-guard.
+Validates CloudFormation templates against security and compliance rules using cfn-guard.
 
 **Use this tool to:**
 - Ensure templates meet security and compliance requirements
