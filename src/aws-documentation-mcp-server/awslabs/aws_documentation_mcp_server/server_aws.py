@@ -193,7 +193,7 @@ async def search_documentation(
     - Include service names to narrow results (e.g., "S3 bucket versioning" instead of just "versioning")
     - Use quotes for exact phrase matching (e.g., "AWS Lambda function URLs")
     - Include abbreviations and alternative terms to improve results
-    - Use gude_type and product_type filters from search_documentation's "facets" field:
+    - Use guide_type and product_type filters from search_documentation's "facets" field:
         - Filter **only** for broad search queries with patterns like:
             - "What is [service]?" → product_types: ["AWS Lambda"] or ["Amazon Simple Storage Service"]
             - "How to use [service]?" → product_types: [<service name(s) from facets>]
