@@ -2,6 +2,15 @@
 
 MCP server for CloudFormation template validation, compliance checking, deployment troubleshooting, and AWS CDK documentation search with official CDK knowledge bases.
 
+## MCP highlights
+
+- **Validate Infrastructure as Code templates** before deployment to catch errors early
+- **Debug failed CloudFormation deployments** with intelligent failure analysis and resolution guidance
+- **Ensure security compliance** of your infrastructure templates against AWS best practices
+- **Search CDK documentation** and find code examples for AWS CDK development
+- **Get specific fix suggestions** with line numbers for template validation errors
+- **Access CloudTrail deep links** for deployment troubleshooting
+
 ## Features
 
 ### Template Validation
@@ -22,7 +31,9 @@ MCP server for CloudFormation template validation, compliance checking, deployme
 
 ## Available MCP Tools
 
-### validate_cloudformation_template
+### CloudFormation Tools
+
+#### validate_cloudformation_template
 Validates CloudFormation template syntax, schema, and resource properties using cfn-lint.
 
 **Use this tool to:**
@@ -34,7 +45,7 @@ Validates CloudFormation template syntax, schema, and resource properties using 
 - `regions` (optional): List of AWS regions to validate against
 - `ignore_checks` (optional): List of cfn-lint check IDs to ignore
 
-### check_template_compliance
+#### check_template_compliance
 Validates templates against security and compliance rules using cfn-guard.
 
 **Use this tool to:**
@@ -45,7 +56,7 @@ Validates templates against security and compliance rules using cfn-guard.
 - `template_content` (required): CloudFormation template as string
 - `custom_rules` (optional): Custom cfn-guard rules to apply
 
-### troubleshoot_deployment
+#### troubleshoot_deployment
 Analyzes failed CloudFormation stacks and provides resolution guidance.
 
 **Use this tool to:**
@@ -57,7 +68,15 @@ Analyzes failed CloudFormation stacks and provides resolution guidance.
 - `region` (required): AWS region where the stack exists
 - `include_cloudtrail` (optional): Whether to include CloudTrail analysis (defaults to true)
 
-### search_cdk_documentation
+#### search_cloudformation_documentation
+Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
+
+**Parameters:**
+- `query` (required): Search query for CloudFormation documentation
+
+### CDK Tools
+
+#### search_cdk_documentation
 Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 
 **Use this tool to:**
@@ -81,31 +100,89 @@ Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 - Use boolean operators: "DynamoDB AND table", "Lambda OR Function"
 - Search for specific properties: "bucket encryption", "lambda environment variables"
 
-### read_cdk_documentation_page
+#### read_cdk_documentation_page
 Fetches and converts an AWS CDK documentation page to markdown format.
 
 **Parameters:**
 - `url` (required): URL from search results to read the full page content
 - `starting_index` (optional): Starting character index for pagination (default: 0)
 
-### search_cloudformation_documentation
-Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
-
-**Parameters:**
-- `query` (required): Search query for CloudFormation documentation
-
-### search_cdk_samples_and_constructs
+#### search_cdk_samples_and_constructs
 Searches CDK code samples, examples, constructs, and patterns documentation.
 
 **Parameters:**
 - `query` (required): Search query for CDK samples and constructs
 - `language` (optional): Programming language filter (default: "typescript")
 
-### cdk_best_practices
+#### cdk_best_practices
 Provides CDK best practices for application configuration, coding, constructs, security, and testing.
 
 **Parameters:**
 - None
+
+## Usage Examples
+
+### CloudFormation Examples
+
+#### Validate a Template
+```
+Validate this CloudFormation template:
+[paste your template content]
+```
+
+#### Check Compliance
+```
+Check this template for security and compliance issues:
+[paste your template content]
+```
+
+#### Troubleshoot a Failed Deployment
+```
+Troubleshoot my CloudFormation stack named "my-app-stack" in us-east-1
+```
+
+#### Search CloudFormation Documentation
+```
+Search CloudFormation documentation for AWS::Lambda::Function properties
+```
+
+### CDK Examples
+
+#### Search CDK Documentation
+```
+Search CDK documentation for S3 bucket encryption best practices
+```
+
+```
+Find CDK examples for Lambda function with VPC configuration
+```
+
+```
+Show me CDK constructs for DynamoDB table with encryption
+```
+
+#### Read CDK Documentation Page
+```
+Read the full CDK documentation for aws-s3.Bucket from this URL: [URL from search results]
+```
+
+#### Search CDK Samples and Constructs
+```
+Find CDK code samples for serverless API with TypeScript
+```
+
+```
+Show me Python CDK examples for API Gateway with Lambda integration
+```
+
+#### Consult CDK Best Practices
+```
+Suggest improvements to my CDK setup based on the best practices
+```
+
+```
+What are the CDK security best practices for S3 buckets?
+```
 
 ## Prerequisites
 
@@ -207,66 +284,6 @@ NOTE: Docker installation is optional
 ```
 
 NOTE: Your credentials will need to be kept refreshed from your host
-
-## Usage Examples
-
-### Validate a Template
-
-```
-Validate this CloudFormation template:
-[paste your template content]
-```
-
-### Check Compliance
-
-```
-Check this template for security and compliance issues:
-[paste your template content]
-```
-
-### Troubleshoot a Failed Deployment
-
-```
-Troubleshoot my CloudFormation stack named "my-app-stack" in us-east-1
-```
-
-### Search CDK Documentation
-
-```
-Search CDK documentation for S3 bucket encryption best practices
-```
-
-```
-Find CDK examples for Lambda function with VPC configuration
-```
-
-```
-Show me CDK constructs for DynamoDB table with encryption
-```
-
-### Read CDK Documentation Page
-
-```
-Read the full CDK documentation for aws-s3.Bucket from this URL: [URL from search results]
-```
-
-### Search CloudFormation Documentation
-
-```
-Search CloudFormation documentation for AWS::Lambda::Function properties
-```
-
-### Search CDK Samples and Constructs
-
-```
-Find CDK code samples for serverless API with TypeScript
-```
-
-### Consult CDK best practices
-
-```
-Suggest improvements to my CDK setup based on the best practices
-```
 
 ## Security Considerations
 
