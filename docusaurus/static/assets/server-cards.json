@@ -57,24 +57,48 @@
   ],
   "servers": [
     {
-      "category": "Documentation",
-      "description": "Get latest AWS docs and APIs",
-      "icon": "\ud83d\udcda",
-      "id": "aws-documentation-mcp-server",
-      "name": "AWS Documentation MCP Server",
-      "source_path": "src/aws-documentation-mcp-server/",
-      "subcategory": "Real-time Documentation Access",
+      "category": "Developer Tools & Support",
+      "description": "Comprehensive network packet capture and analysis using Wireshark/tshark with 31 specialized tools",
+      "icon": "🛠️",
+      "id": "pcap-analyzer-mcp-server",
+      "name": "PCAP Analyzer MCP Server",
+      "source_path": "src/pcap-analyzer-mcp-server/",
+      "subcategory": "Network Analysis",
       "tags": [
-        "documentation",
-        "real-time-access",
-        "api-reference",
+        "developer-tools",
+        "network-analysis",
+        "packet-capture",
+        "wireshark",
+        "tshark",
+        "security-analysis",
+        "performance-monitoring",
+        "troubleshooting",
         "vibe-coding",
-        "conversational",
-        "core-development"
+        "network-troubleshooting"
       ],
       "workflows": [
-        "vibe-coding",
-        "conversational"
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Prometheus-compatible operations",
+      "icon": "🛠️",
+      "id": "prometheus-mcp-server",
+      "name": "AWS Managed Prometheus MCP Server",
+      "source_path": "src/prometheus-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "prometheus",
+        "monitoring",
+        "metrics",
+        "observability",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
       ]
     },
     {
