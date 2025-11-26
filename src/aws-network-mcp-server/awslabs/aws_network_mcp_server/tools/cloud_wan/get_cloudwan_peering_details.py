@@ -86,7 +86,6 @@ async def get_cloudwan_peering_details(
             route_tables_response = ec2_client.describe_transit_gateway_route_tables(
                 Filters=[{'Name': 'transit-gateway-id', 'Values': [tgw_id]}]
             )
-            print(route_tables_response)
             for rt in route_tables_response.get('TransitGatewayRouteTables', []):
                 associations_response = ec2_client.get_transit_gateway_route_table_associations(
                     TransitGatewayRouteTableId=rt['TransitGatewayRouteTableId']
