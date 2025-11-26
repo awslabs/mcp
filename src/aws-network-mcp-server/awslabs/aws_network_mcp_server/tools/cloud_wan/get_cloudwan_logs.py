@@ -21,7 +21,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_cloudwan_logs(
+async def get_cwan_logs(
     time_period: Annotated[
         Optional[int],
         Field(

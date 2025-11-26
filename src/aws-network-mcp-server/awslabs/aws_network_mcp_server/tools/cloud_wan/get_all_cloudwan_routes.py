@@ -18,7 +18,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_all_cloudwan_routes(
+async def get_all_cwan_routes(
     cloudwan_region: Annotated[
         str, Field(..., description='AWS region where the Cloud WAN is deployed.')
     ],

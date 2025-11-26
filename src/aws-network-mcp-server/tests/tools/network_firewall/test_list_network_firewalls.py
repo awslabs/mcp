@@ -50,7 +50,7 @@ class TestListNetworkFirewalls:
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': sample_firewalls}
 
-        result = await nfw_list_module.list_network_firewalls(region='us-east-1')
+        result = await nfw_list_module.list_firewalls(region='us-east-1')
 
         assert result == {'firewalls': sample_firewalls, 'region': 'us-east-1', 'total_count': 1}
         mock_get_client.assert_called_once_with('network-firewall', 'us-east-1', None)
@@ -61,7 +61,7 @@ class TestListNetworkFirewalls:
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': []}
 
-        result = await nfw_list_module.list_network_firewalls(region='us-west-2')
+        result = await nfw_list_module.list_firewalls(region='us-west-2')
 
         assert result['firewalls'] == []
         assert result['total_count'] == 0
@@ -72,7 +72,7 @@ class TestListNetworkFirewalls:
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {}
 
-        result = await nfw_list_module.list_network_firewalls(region='us-east-1')
+        result = await nfw_list_module.list_firewalls(region='us-east-1')
 
         assert result['firewalls'] == []
         assert result['total_count'] == 0
@@ -83,9 +83,7 @@ class TestListNetworkFirewalls:
         mock_get_client.return_value = mock_client
         mock_client.list_firewalls.return_value = {'Firewalls': []}
 
-        await nfw_list_module.list_network_firewalls(
-            region='eu-west-1', profile_name='test-profile'
-        )
+        await nfw_list_module.list_firewalls(region='eu-west-1', profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('network-firewall', 'eu-west-1', 'test-profile')
 
@@ -96,4 +94,4 @@ class TestListNetworkFirewalls:
         mock_client.list_firewalls.side_effect = Exception('API Error')
 
         with pytest.raises(ToolError, match='Error listing Network Firewalls: API Error'):
-            await nfw_list_module.list_network_firewalls(region='us-east-1')
+            await nfw_list_module.list_firewalls(region='us-east-1')

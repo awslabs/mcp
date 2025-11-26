@@ -63,7 +63,7 @@ class TestGetCloudwanRoutes:
     async def test_missing_parameters(self):
         """Test error when neither segment nor network_function_group provided."""
         with pytest.raises(ToolError, match='Please provide a segment or network_function_group'):
-            await routes_module.get_cloudwan_routes(
+            await routes_module.get_cwan_routes(
                 core_network_id='core-network-123', region='us-east-1'
             )
 
@@ -75,7 +75,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='There was an error getting AWS Core Network details'):
-            await routes_module.get_cloudwan_routes(
+            await routes_module.get_cwan_routes(
                 core_network_id='core-network-123', region='us-east-1', segment='segment-a'
             )
 
@@ -87,7 +87,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
 
         with pytest.raises(ToolError, match='Segment invalid-segment not found'):
-            await routes_module.get_cloudwan_routes(
+            await routes_module.get_cwan_routes(
                 core_network_id='core-network-123', region='us-east-1', segment='invalid-segment'
             )
 
@@ -99,7 +99,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
 
         with pytest.raises(ToolError, match='Network function group invalid-nfg not found'):
-            await routes_module.get_cloudwan_routes(
+            await routes_module.get_cwan_routes(
                 core_network_id='core-network-123',
                 region='us-east-1',
                 network_function_group='invalid-nfg',
@@ -115,7 +115,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
         mock_client.get_network_routes.return_value = mock_routes_response
 
-        result = await routes_module.get_cloudwan_routes(
+        result = await routes_module.get_cwan_routes(
             core_network_id='core-network-123', region='us-east-1', segment='segment-a'
         )
 
@@ -136,7 +136,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
         mock_client.get_network_routes.return_value = mock_routes_response
 
-        result = await routes_module.get_cloudwan_routes(
+        result = await routes_module.get_cwan_routes(
             core_network_id='core-network-123', region='us-east-1', network_function_group='nfg-1'
         )
 
@@ -153,7 +153,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
         mock_client.get_network_routes.return_value = mock_routes_response
 
-        result = await routes_module.get_cloudwan_routes(
+        result = await routes_module.get_cwan_routes(
             core_network_id='core-network-123',
             region='us-east-1',
             segment='segment-a',
@@ -173,7 +173,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
         mock_client.get_network_routes.return_value = {'NetworkRoutes': []}
 
-        result = await routes_module.get_cloudwan_routes(
+        result = await routes_module.get_cwan_routes(
             core_network_id='core-network-123', region='us-east-1', segment='segment-a'
         )
 
@@ -189,7 +189,7 @@ class TestGetCloudwanRoutes:
         mock_client.get_core_network.return_value = mock_core_network
         mock_client.get_network_routes.return_value = mock_routes_response
 
-        await routes_module.get_cloudwan_routes(
+        await routes_module.get_cwan_routes(
             core_network_id='core-network-123',
             region='us-east-1',
             segment='segment-a',

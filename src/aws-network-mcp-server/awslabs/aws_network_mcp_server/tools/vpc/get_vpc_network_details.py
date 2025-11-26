@@ -26,7 +26,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_vpc_network_details(
+async def get_vpc_network(
     vpc_id: Annotated[
         Optional[str],
         Field(..., description='VPC ID for which to return route table information '),

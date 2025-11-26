@@ -19,7 +19,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_cloudwan_routes(
+async def get_cwan_routes(
     core_network_id: Annotated[str, Field(..., description='Cloud WAN Core Network ID.')],
     region: Annotated[str, Field(..., description='AWS region to get routes for.')],
     segment: Annotated[

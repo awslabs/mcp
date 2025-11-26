@@ -40,7 +40,7 @@ async def test_vpc_attachment_success(mock_get_client):
         }
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-123', 'us-east-1')
 
     assert result['attachment_type'] == 'VPC'
     assert result['attachment']['AttachmentId'] == 'attachment-123'
@@ -65,7 +65,7 @@ async def test_connect_attachment_success(mock_get_client):
         }
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-456', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-456', 'us-east-1')
 
     assert result['attachment_type'] == 'CONNECT'
     assert result['attachment']['AttachmentId'] == 'attachment-456'
@@ -88,7 +88,7 @@ async def test_direct_connect_gateway_attachment_success(mock_get_client):
         }
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-789', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-789', 'us-east-1')
 
     assert result['attachment_type'] == 'DIRECT_CONNECT_GATEWAY'
     assert result['attachment']['AttachmentId'] == 'attachment-789'
@@ -114,7 +114,7 @@ async def test_site_to_site_vpn_attachment_success(mock_get_client):
         }
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-vpn', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-vpn', 'us-east-1')
 
     assert result['attachment_type'] == 'SITE_TO_SITE_VPN'
     assert result['attachment']['AttachmentId'] == 'attachment-vpn'
@@ -142,7 +142,7 @@ async def test_transit_gateway_route_table_attachment_success(mock_get_client):
         }
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-tgw', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-tgw', 'us-east-1')
 
     assert result['attachment_type'] == 'TRANSIT_GATEWAY_ROUTE_TABLE'
     assert result['attachment']['AttachmentId'] == 'attachment-tgw'
@@ -166,7 +166,7 @@ async def test_attachment_not_found(mock_get_client):
     mock_client.get_transit_gateway_route_table_attachment.return_value = {}
 
     with pytest.raises(ToolError) as exc_info:
-        await attachment_module.get_cloudwan_attachment_details('invalid-attachment', 'us-east-1')
+        await attachment_module.get_cwan_attachment('invalid-attachment', 'us-east-1')
 
     assert 'Attachment invalid-attachment not found or unsupported attachment type' in str(
         exc_info.value
@@ -186,9 +186,7 @@ async def test_with_profile_name(mock_get_client):
         }
     }
 
-    await attachment_module.get_cloudwan_attachment_details(
-        'attachment-123', 'us-east-1', 'custom-profile'
-    )
+    await attachment_module.get_cwan_attachment('attachment-123', 'us-east-1', 'custom-profile')
 
     mock_get_client.assert_called_with('networkmanager', 'us-east-1', 'custom-profile')
 
@@ -203,7 +201,7 @@ async def test_vpc_attachment_with_missing_optional_fields(mock_get_client):
         'VpcAttachment': {'Attachment': {'AttachmentId': 'attachment-123'}}
     }
 
-    result = await attachment_module.get_cloudwan_attachment_details('attachment-123', 'us-east-1')
+    result = await attachment_module.get_cwan_attachment('attachment-123', 'us-east-1')
 
     assert result['attachment_type'] == 'VPC'
     assert result['vpc_specific']['subnet_arns'] is None

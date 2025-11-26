@@ -38,7 +38,7 @@ async def test_get_cloudwan_details_success(mock_get_client):
     }
     mock_client.list_attachments.return_value = {'Attachments': [], 'NextToken': None}
 
-    result = await details_module.get_cloudwan_details('core-123', 'us-east-1')
+    result = await details_module.get_cwan('core-123', 'us-east-1')
 
     assert 'core_network' in result
     assert 'live_policy' in result
@@ -54,7 +54,7 @@ async def test_get_cloudwan_details_pagination(mock_get_client):
 
     mock_client.list_attachments.return_value = {'Attachments': [], 'NextToken': None}
 
-    result = await details_module.get_cloudwan_details('core-123', 'us-east-1', next_token='token')
+    result = await details_module.get_cwan('core-123', 'us-east-1', next_token='token')
 
     assert 'attachments' in result
     assert 'core_network' not in result
@@ -71,6 +71,6 @@ async def test_get_cloudwan_details_error(mock_get_client):
     mock_client.get_core_network.side_effect = Exception('Network not found')
 
     with pytest.raises(ToolError) as exc_info:
-        await details_module.get_cloudwan_details('invalid', 'us-east-1')
+        await details_module.get_cwan('invalid', 'us-east-1')
 
     assert 'There was an error getting AWS Core Network details' in str(exc_info.value)

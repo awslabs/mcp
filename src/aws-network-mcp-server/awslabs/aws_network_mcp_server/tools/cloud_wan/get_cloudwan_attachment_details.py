@@ -18,7 +18,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_cloudwan_attachment_details(
+async def get_cwan_attachment(
     attachment_id: Annotated[str, Field(..., description='AWS Cloud WAN attachment ID')],
     core_network_region: Annotated[
         str, Field(..., description='AWS region where the Cloud WAN is deployed')

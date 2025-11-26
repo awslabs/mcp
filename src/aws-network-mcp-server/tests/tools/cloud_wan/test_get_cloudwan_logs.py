@@ -69,7 +69,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        result = await logs_module.get_cloudwan_logs()
+        result = await logs_module.get_cwan_logs()
 
         assert 'summary' in result
         assert 'events_by_location' in result
@@ -88,7 +88,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        await logs_module.get_cloudwan_logs(event_type='Network Manager Topology Change')
+        await logs_module.get_cwan_logs(event_type='Network Manager Topology Change')
 
         call_args = mock_logs.start_query.call_args
         query_string = call_args[1]['queryString']
@@ -104,7 +104,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        await logs_module.get_cloudwan_logs(event_type='Network Manager Routing Update')
+        await logs_module.get_cwan_logs(event_type='Network Manager Routing Update')
 
         call_args = mock_logs.start_query.call_args
         query_string = call_args[1]['queryString']
@@ -114,7 +114,7 @@ class TestGetCloudwanLogs:
     async def test_invalid_event_type(self, mock_get_client):
         """Test error handling for invalid event type."""
         with pytest.raises(ToolError, match='Event type invalid is not supported'):
-            await logs_module.get_cloudwan_logs(event_type='invalid')
+            await logs_module.get_cwan_logs(event_type='invalid')
 
     @patch.object(logs_module, 'get_aws_client')
     @patch('time.sleep')
@@ -127,7 +127,7 @@ class TestGetCloudwanLogs:
         mock_logs.get_query_results.return_value = {'status': 'Complete', 'results': []}
 
         with pytest.raises(ToolError, match='No flow logs found'):
-            await logs_module.get_cloudwan_logs()
+            await logs_module.get_cwan_logs()
 
     @patch.object(logs_module, 'get_aws_client')
     @patch('time.sleep')
@@ -140,7 +140,7 @@ class TestGetCloudwanLogs:
         mock_logs.get_query_results.return_value = {'status': 'Failed'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await logs_module.get_cloudwan_logs()
+            await logs_module.get_cwan_logs()
 
     @patch.object(logs_module, 'get_aws_client')
     @patch('time.sleep')
@@ -153,7 +153,7 @@ class TestGetCloudwanLogs:
         mock_logs.get_query_results.return_value = {'status': 'Timeout'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await logs_module.get_cloudwan_logs()
+            await logs_module.get_cwan_logs()
 
     @patch.object(logs_module, 'get_aws_client')
     @patch('time.sleep')
@@ -165,7 +165,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        await logs_module.get_cloudwan_logs(time_period=60)
+        await logs_module.get_cwan_logs(time_period=60)
 
         call_args = mock_logs.start_query.call_args
         # Verify time range is 60 minutes
@@ -181,7 +181,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.side_effect = Exception('Access denied')
 
         with pytest.raises(ToolError, match='There was an error getting AWS Cloud WAN logs'):
-            await logs_module.get_cloudwan_logs()
+            await logs_module.get_cwan_logs()
 
     @patch.object(logs_module, 'get_aws_client')
     @patch('time.sleep')
@@ -226,7 +226,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        result = await logs_module.get_cloudwan_logs()
+        result = await logs_module.get_cwan_logs()
 
         assert result['summary']['total_events'] == 2
         assert result['summary']['by_change_type']['ATTACHMENT_CREATED'] == 1
@@ -245,7 +245,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        await logs_module.get_cloudwan_logs(profile_name='test-profile')
+        await logs_module.get_cwan_logs(profile_name='test-profile')
 
         mock_get_client.assert_called_once_with('logs', 'us-west-2', 'test-profile')
 
@@ -259,7 +259,7 @@ class TestGetCloudwanLogs:
         mock_logs.start_query.return_value = {'queryId': 'query-123'}
         mock_logs.get_query_results.return_value = query_results
 
-        await logs_module.get_cloudwan_logs()
+        await logs_module.get_cwan_logs()
 
         call_args = mock_logs.start_query.call_args
         assert call_args[1]['logGroupName'] == '/aws/events/networkmanagerloggroup'

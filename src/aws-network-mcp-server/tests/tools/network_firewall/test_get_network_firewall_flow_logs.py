@@ -85,7 +85,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        result = await nfw_flow_module.get_network_firewall_flow_logs(
+        result = await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall', region='us-east-1'
         )
 
@@ -109,7 +109,7 @@ class TestGetNetworkFirewallFlowLogs:
             ToolError,
             match='flow log for the AWS Network Firewall.*are not stored in CloudWatch Logs',
         ):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -137,7 +137,7 @@ class TestGetNetworkFirewallFlowLogs:
             ToolError,
             match='flow log for the AWS Network Firewall.*are not stored in CloudWatch Logs',
         ):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -159,7 +159,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(
+        await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall',
             region='us-east-1',
             srcaddr='10.0.1.5',
@@ -196,7 +196,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(
+        await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall',
             region='us-east-1',
             start_time='2024-01-15T10:00:00Z',
@@ -226,7 +226,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Timeout'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -248,7 +248,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Failed'}
 
         with pytest.raises(ToolError, match='There was an error with the query'):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -270,7 +270,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.get_query_results.return_value = {'status': 'Complete', 'results': []}
 
         with pytest.raises(ToolError, match='No flow logs found'):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -297,7 +297,7 @@ class TestGetNetworkFirewallFlowLogs:
             query_results_response,
         ]
 
-        result = await nfw_flow_module.get_network_firewall_flow_logs(
+        result = await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall', region='us-east-1'
         )
 
@@ -313,7 +313,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_fw_client.describe_logging_configuration.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='Error getting AWS Network Firewall flow logs'):
-            await nfw_flow_module.get_network_firewall_flow_logs(
+            await nfw_flow_module.get_firewall_flow_logs(
                 firewall_name='test-firewall', region='us-east-1'
             )
 
@@ -335,7 +335,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(firewall_name='test-firewall')
+        await nfw_flow_module.get_firewall_flow_logs(firewall_name='test-firewall')
 
         # Verify default limit and time period
         call_args = mock_logs_client.start_query.call_args
@@ -374,7 +374,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(
+        await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall', region='us-east-1'
         )
 
@@ -400,7 +400,7 @@ class TestGetNetworkFirewallFlowLogs:
         mock_logs_client.start_query.return_value = {'queryId': 'query-123'}
         mock_logs_client.get_query_results.return_value = query_results_response
 
-        await nfw_flow_module.get_network_firewall_flow_logs(
+        await nfw_flow_module.get_firewall_flow_logs(
             firewall_name='test-firewall',
             region='us-east-1',
             srcaddr='2001:db8::1',

@@ -18,7 +18,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def get_tgw_details(
+async def get_tgw(
     transit_gateway_id: Annotated[
         str, Field(..., description='Transit Gateway ID for which to get the details.')
     ],

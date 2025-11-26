@@ -54,7 +54,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
             'CoreNetworkPolicy': {'PolicyDocument': json.dumps(policy_doc)}
         }
 
-        result = await detect_module.detect_cloudwan_inspection(
+        result = await detect_module.detect_cwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='dev',
@@ -84,7 +84,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
             'CoreNetworkPolicy': {'PolicyDocument': json.dumps(policy_doc)}
         }
 
-        result = await detect_module.detect_cloudwan_inspection(
+        result = await detect_module.detect_cwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='dev',
@@ -113,7 +113,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
             'CoreNetworkPolicy': {'PolicyDocument': json.dumps(policy_doc)}
         }
 
-        result = await detect_module.detect_cloudwan_inspection(
+        result = await detect_module.detect_cwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='invalid',
@@ -133,7 +133,7 @@ async def test_detect_cloudwan_inspection_with_nfgs():
         mock_nm_client.get_core_network_policy.side_effect = Exception('AccessDenied')
 
         with pytest.raises(ToolError, match='Error detecting inspection in path'):
-            await detect_module.detect_cloudwan_inspection(
+            await detect_module.detect_cwan_inspection(
                 core_network_id='core-network-12345678',
                 source_segment='prod',
                 destination_segment='dev',
@@ -156,7 +156,7 @@ async def test_detect_cloudwan_inspection_malformed_policy():
             'CoreNetworkPolicy': {'PolicyDocument': '{"invalid": json"}'}  # Invalid JSON
         }
 
-        result = await detect_module.detect_cloudwan_inspection(
+        result = await detect_module.detect_cwan_inspection(
             core_network_id='core-network-12345678',
             source_segment='prod',
             destination_segment='dev',

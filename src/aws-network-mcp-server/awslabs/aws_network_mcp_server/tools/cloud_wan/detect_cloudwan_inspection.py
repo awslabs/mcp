@@ -20,7 +20,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def detect_cloudwan_inspection(
+async def detect_cwan_inspection(
     core_network_id: Annotated[str, Field(..., description='AWS Cloud WAN Core Network ID')],
     source_segment: Annotated[str, Field(..., description='Source segment name')],
     destination_segment: Annotated[

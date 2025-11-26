@@ -18,7 +18,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 
 
-async def list_cloudwan_peerings(
+async def list_cwan_peerings(
     core_network_id: Annotated[str, Field(..., description='Cloud WAN Core Network ID.')],
     core_network_region: Annotated[
         str, Field(..., description='Region where Cloud WAN core network is deployed.')

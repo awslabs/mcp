@@ -20,7 +20,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 
 
-async def simulate_cloud_wan_route_change(
+async def simulate_cwan_route_change(
     changes: Annotated[
         List[Dict[str, str]],
         Field(

@@ -14,7 +14,7 @@
 
 from .detect_transit_gateway_inspection import detect_tgw_inspection
 from .get_all_transit_gateway_routes import get_all_tgw_routes
-from .get_transit_gateway_details import get_tgw_details
+from .get_transit_gateway_details import get_tgw
 from .get_transit_gateway_routes import get_tgw_routes
 from .get_transit_gateway_flow_logs import get_tgw_flow_logs
 from .list_transit_gateway_peerings import list_tgw_peerings
@@ -23,7 +23,7 @@ from .list_transit_gateways import list_transit_gateways
 __all__ = [
     'detect_tgw_inspection',
     'get_all_tgw_routes',
-    'get_tgw_details',
+    'get_tgw',
     'get_tgw_routes',
     'get_tgw_flow_logs',
     'list_tgw_peerings',

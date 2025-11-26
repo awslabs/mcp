@@ -20,7 +20,7 @@ from pydantic import Field
 from typing import Annotated, List, Optional
 
 
-async def get_network_firewall_flow_logs(
+async def get_firewall_flow_logs(
     firewall_name: Annotated[
         str, Field(..., description='AWS Network Firewall name to search flow logs for.')
     ],

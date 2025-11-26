@@ -89,9 +89,7 @@ class TestGetCloudwanPeeringDetails:
             associations_response
         )
 
-        result = await peering_details_module.get_cloudwan_peering_details(
-            'peering-123', 'us-east-1'
-        )
+        result = await peering_details_module.get_cwan_peering('peering-123', 'us-east-1')
 
         assert result['cloudwan_peering'] == peering_response['TransitGatewayPeering']
         assert result['cloudwan_segment'] == 'production'
@@ -118,9 +116,7 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.return_value = peering_response
         mock_ec2_client.describe_transit_gateways.return_value = tgw_response
 
-        result = await peering_details_module.get_cloudwan_peering_details(
-            'peering-123', 'us-east-1'
-        )
+        result = await peering_details_module.get_cwan_peering('peering-123', 'us-east-1')
 
         assert result['peering_attachment_id'] is None
         assert result['peering_route_table_id'] is None
@@ -135,9 +131,7 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.return_value = peering_response
         mock_ec2_client.describe_transit_gateways.return_value = {'TransitGateways': []}
 
-        result = await peering_details_module.get_cloudwan_peering_details(
-            'peering-123', 'us-east-1'
-        )
+        result = await peering_details_module.get_cwan_peering('peering-123', 'us-east-1')
 
         assert result['transit_gateway'] is None
 
@@ -157,9 +151,7 @@ class TestGetCloudwanPeeringDetails:
             'Associations': []
         }
 
-        result = await peering_details_module.get_cloudwan_peering_details(
-            'peering-123', 'us-east-1'
-        )
+        result = await peering_details_module.get_cwan_peering('peering-123', 'us-east-1')
 
         assert result['peering_route_table_id'] is None
 
@@ -171,9 +163,7 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.side_effect = Exception('Peering not found')
 
         with pytest.raises(ToolError, match='Error getting Cloud WAN peering details'):
-            await peering_details_module.get_cloudwan_peering_details(
-                'invalid-peering', 'us-east-1'
-            )
+            await peering_details_module.get_cwan_peering('invalid-peering', 'us-east-1')
 
     @patch.object(peering_details_module, 'get_aws_client')
     async def test_with_profile(self, mock_get_client, peering_response, tgw_response):
@@ -185,9 +175,7 @@ class TestGetCloudwanPeeringDetails:
         mock_nm_client.get_transit_gateway_peering.return_value = peering_response
         mock_ec2_client.describe_transit_gateways.return_value = tgw_response
 
-        await peering_details_module.get_cloudwan_peering_details(
-            'peering-123', 'us-east-1', 'custom-profile'
-        )
+        await peering_details_module.get_cwan_peering('peering-123', 'us-east-1', 'custom-profile')
 
         mock_get_client.assert_any_call('networkmanager', 'us-east-1', 'custom-profile')
         mock_get_client.assert_any_call('ec2', 'us-west-2', 'custom-profile')

@@ -56,7 +56,7 @@ class TestGetAllCloudwanRoutes:
             ]
         }
 
-        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cwan_routes('us-east-1', 'core-123')
 
         assert result['core_network_id'] == 'core-123'
         routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
@@ -70,7 +70,7 @@ class TestGetAllCloudwanRoutes:
             'CoreNetwork': {'GlobalNetworkId': 'global-123', 'Segments': [], 'Edges': []}
         }
 
-        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cwan_routes('us-east-1', 'core-123')
 
         assert result['regions'] == {}
 
@@ -85,7 +85,7 @@ class TestGetAllCloudwanRoutes:
         }
         mock_client.get_network_routes.return_value = {'NetworkRoutes': []}
 
-        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cwan_routes('us-east-1', 'core-123')
 
         assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
 
@@ -100,7 +100,7 @@ class TestGetAllCloudwanRoutes:
         }
         mock_client.get_network_routes.side_effect = Exception('Access denied')
 
-        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cwan_routes('us-east-1', 'core-123')
 
         assert result['regions']['us-east-1']['segments']['seg-a']['routes'] == []
 
@@ -122,7 +122,7 @@ class TestGetAllCloudwanRoutes:
             ]
         }
 
-        result = await routes_module.get_all_cloudwan_routes('us-east-1', 'core-123')
+        result = await routes_module.get_all_cwan_routes('us-east-1', 'core-123')
 
         routes = result['regions']['us-east-1']['segments']['seg-a']['routes']
         assert routes[0]['type'] == ''

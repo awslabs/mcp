@@ -92,7 +92,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'attachment-123', 'segment': 'segment-b'}]
 
-        result = await simulate_module.simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cwan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -134,7 +134,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'attachment-123'}]
 
-        result = await simulate_module.simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cwan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -155,7 +155,7 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
 
         with pytest.raises(ToolError) as exc_info:
-            await simulate_module.simulate_cloud_wan_route_change(
+            await simulate_module.simulate_cwan_route_change(
                 changes=[],
                 region='us-east-1',
                 cloudwan_region='us-east-1',
@@ -181,7 +181,7 @@ class TestSimulateCloudWanRouteChange:
 
         changes = [{'attachment_id': 'non-existent', 'segment': 'segment-b'}]
 
-        result = await simulate_module.simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cwan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -208,7 +208,7 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
         mock_format_routes.side_effect = lambda x, y: x
 
-        result = await simulate_module.simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cwan_route_change(
             changes=[], region='us-east-1', cloudwan_region='us-east-1', core_network_id='core-123'
         )
 
@@ -253,7 +253,7 @@ class TestSimulateCloudWanRouteChange:
             {'attachment_id': 'attachment-456'},
         ]
 
-        result = await simulate_module.simulate_cloud_wan_route_change(
+        result = await simulate_module.simulate_cwan_route_change(
             changes=changes,
             region='us-east-1',
             cloudwan_region='us-east-1',
@@ -276,7 +276,7 @@ class TestSimulateCloudWanRouteChange:
         mock_get_client.return_value = mock_client
         mock_format_routes.side_effect = lambda x, y: x
 
-        await simulate_module.simulate_cloud_wan_route_change(
+        await simulate_module.simulate_cwan_route_change(
             changes=[],
             region='us-east-1',
             cloudwan_region='us-east-1',

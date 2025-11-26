@@ -18,7 +18,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def list_network_firewalls(
+async def list_firewalls(
     region: Annotated[
         Optional[str],
         Field(..., description='AWS region where the Network Firewalls are deployed.'),

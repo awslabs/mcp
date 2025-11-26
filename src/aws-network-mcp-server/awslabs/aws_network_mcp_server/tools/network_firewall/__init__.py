@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .get_firewall_rules import get_firewall_rules
-from .get_network_firewall_flow_logs import get_network_firewall_flow_logs
-from .list_network_firewalls import list_network_firewalls
+from .get_network_firewall_flow_logs import get_firewall_flow_logs
+from .list_network_firewalls import list_firewalls
 
-__all__ = ['get_firewall_rules', 'get_network_firewall_flow_logs', 'list_network_firewalls']
+__all__ = ['get_firewall_rules', 'get_firewall_flow_logs', 'list_firewalls']

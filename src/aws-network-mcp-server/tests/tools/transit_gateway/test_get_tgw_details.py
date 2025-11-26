@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details import (
-    get_tgw_details,
+    get_tgw,
 )
 from datetime import datetime
 from fastmcp.exceptions import ToolError
@@ -68,7 +68,7 @@ class TestGetTgwDetails:
         mock_get_client.return_value = mock_client
         mock_client.describe_transit_gateways.return_value = sample_tgw_response
 
-        result = await get_tgw_details('tgw-12345678', 'us-east-1')
+        result = await get_tgw('tgw-12345678', 'us-east-1')
 
         assert result['transit_gateway_id'] == 'tgw-12345678'
         assert result['state'] == 'available'
@@ -87,7 +87,7 @@ class TestGetTgwDetails:
         mock_get_client.return_value = mock_client
         mock_client.describe_transit_gateways.return_value = sample_tgw_response
 
-        await get_tgw_details('tgw-12345678', 'us-west-2', 'test-profile')
+        await get_tgw('tgw-12345678', 'us-west-2', 'test-profile')
 
         mock_get_client.assert_called_once_with('ec2', 'us-west-2', 'test-profile')
 
@@ -101,7 +101,7 @@ class TestGetTgwDetails:
         mock_client.describe_transit_gateways.return_value = {'TransitGateways': []}
 
         with pytest.raises(ToolError, match='Transit Gateway was not found'):
-            await get_tgw_details('tgw-nonexistent', 'us-east-1')
+            await get_tgw('tgw-nonexistent', 'us-east-1')
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
@@ -117,7 +117,7 @@ class TestGetTgwDetails:
         with pytest.raises(
             ToolError, match='There was an error getting AWS Transit Gateway details'
         ):
-            await get_tgw_details('tgw-invalid', 'us-east-1')
+            await get_tgw('tgw-invalid', 'us-east-1')
 
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_details.get_aws_client'
@@ -144,7 +144,7 @@ class TestGetTgwDetails:
         mock_get_client.return_value = mock_client
         mock_client.describe_transit_gateways.return_value = minimal_response
 
-        result = await get_tgw_details('tgw-minimal', 'us-east-1')
+        result = await get_tgw('tgw-minimal', 'us-east-1')
 
         assert result['transit_gateway_id'] == 'tgw-minimal'
         assert result['transit_gateway_arn'] == ''
