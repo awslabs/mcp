@@ -37,7 +37,15 @@ const config: Config = {
   plugins: [],
 
   // Add scripts to be loaded in the client
-  scripts: [],
+  scripts: [
+    {
+      src: 'https://www.googletagmanager.com/gtag/js?id=G-V54QR8KV3L',
+      async: true
+    },
+    {
+      src: 'scripts/analytics.js'
+    },
+  ],
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
