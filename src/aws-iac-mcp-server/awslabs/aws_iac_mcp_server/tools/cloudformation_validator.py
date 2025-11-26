@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from .config import DEFAULT_REGION, MAX_TEMPLATE_SIZE_BYTES
+from ..config import DEFAULT_REGION, MAX_TEMPLATE_SIZE_BYTES
 from cfnlint.api import lint as cfn_lint
 from cfnlint.match import Match
 from typing import Any, Sequence

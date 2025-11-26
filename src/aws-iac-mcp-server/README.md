@@ -34,7 +34,7 @@ Validates CloudFormation template syntax, schema, and resource properties using 
 - `regions` (optional): List of AWS regions to validate against
 - `ignore_checks` (optional): List of cfn-lint check IDs to ignore
 
-### check_template_compliance
+### check_cloudformation_template_compliance
 Validates templates against security and compliance rules using cfn-guard.
 
 **Use this tool to:**
@@ -45,7 +45,7 @@ Validates templates against security and compliance rules using cfn-guard.
 - `template_content` (required): CloudFormation template as string
 - `custom_rules` (optional): Custom cfn-guard rules to apply
 
-### troubleshoot_deployment
+### troubleshoot_cloudformation_deployment
 Analyzes failed CloudFormation stacks and provides resolution guidance.
 
 **Use this tool to:**
@@ -56,6 +56,12 @@ Analyzes failed CloudFormation stacks and provides resolution guidance.
 - `stack_name` (required): Name of the failed CloudFormation stack
 - `region` (required): AWS region where the stack exists
 - `include_cloudtrail` (optional): Whether to include CloudTrail analysis (defaults to true)
+
+### get_cloudformation_pre_deploy_validation_instructions
+Returns instructions for CloudFormation's pre-deployment validation feature that validates templates during change set creation.
+
+**Parameters:**
+None - returns JSON with CLI commands and remediation guidance.
 
 ### search_cdk_documentation
 Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
