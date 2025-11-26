@@ -24,7 +24,6 @@ from awslabs.dynamodb_mcp_server.database_analyzers import (
 )
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
     create_validation_resources,
-    get_user_working_directory,
     get_validation_result_transform_prompt,
     setup_dynamodb_local,
 )
@@ -32,7 +31,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pathlib import Path
 from pydantic import Field
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 
 DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
@@ -291,14 +290,12 @@ async def source_db_analyzer(
 async def execute_dynamodb_command(
     command: str = Field(description="AWS CLI DynamoDB command (must start with 'aws dynamodb')"),
     endpoint_url: Optional[str] = Field(default=None, description='DynamoDB endpoint URL'),
-    ctx: Optional[Context] = Field(default=None, description='Execution context'),
 ):
     """Execute AWSCLI DynamoDB commands.
 
     Args:
         command: AWS CLI command string (e.g., "aws dynamodb query --table-name MyTable")
         endpoint_url: DynamoDB endpoint URL
-        ctx: Execution context
 
     Returns:
         AWS CLI command execution results or error response
@@ -317,60 +314,15 @@ async def execute_dynamodb_command(
         command += f' --endpoint-url {endpoint_url}'
 
     try:
-        return await call_aws(command, ctx)
+        return await call_aws(command, Context())
     except Exception as e:
         return e
-
-
-async def execute_access_patterns(
-    access_patterns, endpoint_url: Optional[str] = None, ctx: Optional[Context] = None
-) -> dict:
-    """Execute all data model validation access patterns operations.
-
-    Args:
-        access_patterns: List of access patterns to test
-        endpoint_url: DynamoDB endpoint URL
-        ctx: Execution context
-
-    Returns:
-        Dictionary with all execution results
-    """
-    try:
-        results = []
-        for pattern in access_patterns:
-            if 'implementation' not in pattern:
-                results.append(pattern)
-                continue
-
-            command = pattern['implementation']
-            result = await execute_dynamodb_command(command, endpoint_url, ctx)
-            results.append(
-                {
-                    'pattern_id': pattern.get('pattern'),
-                    'description': pattern.get('description'),
-                    'dynamodb_operation': pattern.get('dynamodb_operation'),
-                    'command': command,
-                    'response': result if isinstance(result, dict) else str(result),
-                }
-            )
-
-        validation_response = {'validation_response': results}
-
-        user_dir = get_user_working_directory()
-        output_file = os.path.join(user_dir, DATA_MODEL_VALIDATION_RESULT_JSON_FILE)
-        with open(output_file, 'w') as f:
-            json.dump(validation_response, f, indent=2)
-
-        return validation_response
-    except Exception as e:
-        logger.error(f'Failed to execute access patterns validation: {e}')
-        return {'validation_response': [], 'error': str(e)}
 
 
 @app.tool()
 @handle_exceptions
 async def dynamodb_data_model_validation(
-    ctx: Optional[Context] = Field(default=None, description='Execution context'),
+    workspace_dir: str = Field(description='Absolute path of the workspace directory'),
 ) -> str:
     """Validates and tests DynamoDB data models against DynamoDB Local.
 
@@ -399,15 +351,14 @@ async def dynamodb_data_model_validation(
        - Transforms results to markdown format for comprehensive review
 
     Args:
-        ctx: Execution context
+        workspace_dir: Absolute path of the workspace directory
 
     Returns:
         JSON generation guide (if file missing) or validation results with transformation prompt (if file exists)
     """
     try:
         # Step 1: Get current working directory reliably
-        user_dir = get_user_working_directory()
-        data_model_path = os.path.join(user_dir, DATA_MODEL_JSON_FILE)
+        data_model_path = os.path.join(workspace_dir, DATA_MODEL_JSON_FILE)
 
         if not os.path.exists(data_model_path):
             # Return the JSON generation guide to help users create the required file
@@ -444,7 +395,9 @@ async def dynamodb_data_model_validation(
 
         # Step 5: Execute access patterns
         logger.info('Executing access patterns')
-        await execute_access_patterns(data_model.get('access_patterns', []), endpoint_url, ctx)
+        await _execute_access_patterns(
+            workspace_dir, data_model.get('access_patterns', []), endpoint_url
+        )
 
         # Step 6: Transform validation results to markdown
         return get_validation_result_transform_prompt()
@@ -460,6 +413,52 @@ async def dynamodb_data_model_validation(
 def main():
     """Main entry point for the MCP server application."""
     app.run()
+
+
+async def _execute_access_patterns(
+    workspace_dir: str,
+    access_patterns: List[Dict[str, Any]],
+    endpoint_url: Optional[str] = None,
+) -> dict:
+    """Execute all data model validation access patterns operations.
+
+    Args:
+        workspace_dir: Absolute path of the workspace directory
+        access_patterns: List of access patterns to test
+        endpoint_url: DynamoDB endpoint URL
+
+    Returns:
+        Dictionary with all execution results
+    """
+    try:
+        results = []
+        for pattern in access_patterns:
+            if 'implementation' not in pattern:
+                results.append(pattern)
+                continue
+
+            command = pattern['implementation']
+            result = await execute_dynamodb_command(command, endpoint_url)
+            results.append(
+                {
+                    'pattern_id': pattern.get('pattern'),
+                    'description': pattern.get('description'),
+                    'dynamodb_operation': pattern.get('dynamodb_operation'),
+                    'command': command,
+                    'response': result if isinstance(result, dict) else str(result),
+                }
+            )
+
+        validation_response = {'validation_response': results}
+
+        output_file = os.path.join(workspace_dir, DATA_MODEL_VALIDATION_RESULT_JSON_FILE)
+        with open(output_file, 'w') as f:
+            json.dump(validation_response, f, indent=2)
+
+        return validation_response
+    except Exception as e:
+        logger.error(f'Failed to execute access patterns validation: {e}')
+        return {'validation_response': [], 'error': str(e)}
 
 
 if __name__ == '__main__':
