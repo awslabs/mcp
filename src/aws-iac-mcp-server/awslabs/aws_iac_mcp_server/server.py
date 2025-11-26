@@ -22,6 +22,7 @@ from .deployment_troubleshooter import DeploymentTroubleshooter
 from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
+    cdk_best_practices_tool,
     read_cdk_documentation_page_tool,
     search_cdk_documentation_tool,
     search_cdk_samples_and_constructs_tool,
@@ -50,6 +51,7 @@ mcp = FastMCP(
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
                 - Use `read_cdk_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
                 - Use `search_cloudformation_documentation` when: You need Cloudformation related official documentation, resource type information or template syntax
+                - Use `cdk_best_practices` when: You need to generate or review CDK code
 
               """,
 )
@@ -468,6 +470,50 @@ async def search_cdk_samples_and_constructs(
         List of search results with URLs, titles, and context snippets
     """
     result = await search_cdk_samples_and_constructs_tool(query, language)
+
+    # Convert CDKToolResponse to dict for JSON serialization
+    response_dict = asdict(result)
+
+    return sanitize_tool_response(json.dumps(response_dict))
+
+
+@mcp.tool()
+async def cdk_best_practices() -> str:
+    """Returns CDK best practices and security guidelines.
+
+    ## Usage
+
+    This tool provides comprehensive CDK development guidelines, security best practices, and architectural recommendations. Always run this tool when asked to generate or review CDK code and follow the guidelines returned.
+
+    ## When to Use
+
+    - Get CDK security best practices and compliance guidelines
+    - Look up architectural patterns and recommendations
+    - Get guidance on CDK application structure and organization
+    - Research performance optimization techniques
+    - Learn about proper construct usage and design patterns
+    - Understand deployment and testing best practices
+
+    ## Result Interpretation
+
+    Returns JSON with:
+    - knowledge_response: Details of the response
+      - results: Array with single result containing:
+        - rank: Always 1
+        - title: Document title or filename
+        - url: Source URL of the CDK best practices
+        - context: A summary of the CDK best practices
+    - next_step_guidance: If present, suggested next actions to take for answering user query
+
+    ## Args
+
+    No parameters required - this tool returns the complete best practices guide.
+
+    ## Returns
+
+    Complete best practices documentation as text, including security guidelines, architectural patterns, development workflow, and compliance requirements.
+    """
+    result = await cdk_best_practices_tool()
 
     # Convert CDKToolResponse to dict for JSON serialization
     response_dict = asdict(result)
