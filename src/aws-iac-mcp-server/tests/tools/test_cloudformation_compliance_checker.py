@@ -15,7 +15,7 @@
 """Tests for compliance_checker module."""
 
 import json
-from awslabs.aws_iac_mcp_server.compliance_checker import (
+from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
     _extract_remediation_from_rules,
     _parse_template_resources,
     check_compliance,
@@ -152,7 +152,10 @@ class TestCheckCompliance:
         assert 'compliance_results' in result
         assert result['compliance_results']['overall_status'] == 'ERROR'
 
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', None)
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._RULES_CONTENT_CACHE',
+        None,
+    )
     @patch('builtins.open', side_effect=FileNotFoundError)
     def test_check_compliance_rules_not_found(self, mock_file):
         """Test compliance check when rules file not found."""
@@ -319,8 +322,13 @@ class TestCheckComplianceDetailed:
         assert 'message' in result
         assert 'empty' in result['message'].lower()
 
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', None)
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker.initialize_guard_rules')
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._RULES_CONTENT_CACHE',
+        None,
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker.initialize_guard_rules'
+    )
     def test_check_compliance_rules_init_failure(self, mock_init):
         """Test compliance check when rules initialization fails."""
         mock_init.return_value = False
@@ -331,9 +339,16 @@ class TestCheckComplianceDetailed:
         assert 'message' in result
         assert 'failed' in result['message'].lower()
 
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', 'cached rules')
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._REMEDIATION_CACHE', {})
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker.guardpycfn.validate_with_guard'
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._RULES_CONTENT_CACHE',
+        'cached rules',
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._REMEDIATION_CACHE', {}
+    )
     def test_check_compliance_guard_validation_failure(self, mock_validate):
         """Test compliance check when guard validation fails."""
         mock_validate.return_value = {'success': False}
@@ -344,8 +359,13 @@ class TestCheckComplianceDetailed:
         assert 'message' in result
         assert 'failed' in result['message'].lower()
 
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', 'cached rules')
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker.guardpycfn.validate_with_guard'
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._RULES_CONTENT_CACHE',
+        'cached rules',
+    )
     def test_check_compliance_exception_handling(self, mock_validate):
         """Test compliance check exception handling."""
         mock_validate.side_effect = Exception('Validation error')
@@ -356,10 +376,16 @@ class TestCheckComplianceDetailed:
         assert 'message' in result
         assert 'Validation error' in result['message']
 
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker.guardpycfn.validate_with_guard')
-    @patch('awslabs.aws_iac_mcp_server.compliance_checker._RULES_CONTENT_CACHE', 'cached rules')
     @patch(
-        'awslabs.aws_iac_mcp_server.compliance_checker._REMEDIATION_CACHE', {'TEST_RULE': 'Fix it'}
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker.guardpycfn.validate_with_guard'
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._RULES_CONTENT_CACHE',
+        'cached rules',
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker._REMEDIATION_CACHE',
+        {'TEST_RULE': 'Fix it'},
     )
     def test_check_compliance_with_violations_full_path(self, mock_validate):
         """Test full compliance check path with violations."""
@@ -508,7 +534,9 @@ class TestComplianceCheckerWithRealTemplate:
 
     def test_extract_resource_info_with_paths(self):
         """Test _extract_resource_info with resource paths."""
-        from awslabs.aws_iac_mcp_server.compliance_checker import _extract_resource_info
+        from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
+            _extract_resource_info,
+        )
 
         node = {'path': '/Resources/MyBucket/Type', 'value': 'AWS::S3::Bucket'}
         template_resources = {'MyBucket': 'AWS::S3::Bucket'}
@@ -520,7 +548,9 @@ class TestComplianceCheckerWithRealTemplate:
 
     def test_extract_resource_info_with_s3_fallback(self):
         """Test _extract_resource_info S3 fallback logic."""
-        from awslabs.aws_iac_mcp_server.compliance_checker import _extract_resource_info
+        from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
+            _extract_resource_info,
+        )
 
         node = {}
         template_resources = {'MyBucket': 'AWS::S3::Bucket', 'MyInstance': 'AWS::EC2::Instance'}
@@ -532,7 +562,9 @@ class TestComplianceCheckerWithRealTemplate:
 
     def test_extract_resource_info_no_dict(self):
         """Test _extract_resource_info with non-dict input."""
-        from awslabs.aws_iac_mcp_server.compliance_checker import _extract_resource_info
+        from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
+            _extract_resource_info,
+        )
 
         resource_name, resource_type = _extract_resource_info('not a dict', {})  # type: ignore[arg-type]
 
@@ -541,7 +573,9 @@ class TestComplianceCheckerWithRealTemplate:
 
     def test_extract_resource_info_no_resources(self):
         """Test _extract_resource_info with no template resources."""
-        from awslabs.aws_iac_mcp_server.compliance_checker import _extract_resource_info
+        from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
+            _extract_resource_info,
+        )
 
         node = {'path': '/some/path'}
 
@@ -579,7 +613,7 @@ class TestComplianceCheckerWithRealTemplate:
     def test_initialize_guard_rules_exception_handling(self):
         """Test initialize_guard_rules handles import exceptions."""
         with patch(
-            'awslabs.aws_iac_mcp_server.compliance_checker.os.path.dirname',
+            'awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker.os.path.dirname',
             side_effect=Exception('Import error'),
         ):
             result = initialize_guard_rules()

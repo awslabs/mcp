@@ -45,7 +45,7 @@ def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
             import awslabs.aws_iac_mcp_server
 
             package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
-            rules_file_path = os.path.join(package_dir, 'default_guard_rules.guard')
+            rules_file_path = os.path.join(package_dir, 'data', 'default_guard_rules.guard')
         except Exception:
             return False
 

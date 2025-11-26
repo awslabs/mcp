@@ -14,7 +14,7 @@
 
 """Tests for failure_cases module."""
 
-from awslabs.aws_iac_mcp_server.failure_cases import match_failure_case
+from awslabs.aws_iac_mcp_server.data.cloudformation_failure_cases import match_failure_case
 
 
 class TestMatchFailureCase:

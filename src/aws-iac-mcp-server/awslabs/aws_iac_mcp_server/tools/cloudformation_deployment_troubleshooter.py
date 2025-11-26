@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
-import botocore.config
 import json
-from .failure_cases import match_failure_case
+from ..client.aws_client import get_aws_client
+from ..data.cloudformation_failure_cases import match_failure_case
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 
 # CloudFormation's source IP in CloudTrail events
 CLOUDTRAIL_SOURCE_IP_FOR_CLOUDFORMATION = 'cloudformation.amazonaws.com'
-
-session_config = botocore.config.Config(
-    user_agent_extra='aws-iac-mcp-server/1.0.0',
-)
 
 
 class DeploymentTroubleshooter:
@@ -52,10 +47,8 @@ class DeploymentTroubleshooter:
     def __init__(self, region: str = 'us-east-1'):
         """Initialize troubleshooter with AWS region."""
         self.region = region
-        self.cfn_client = boto3.client('cloudformation', region_name=region, config=session_config)
-        self.cloudtrail_client = boto3.client(
-            'cloudtrail', region_name=region, config=session_config
-        )
+        self.cfn_client = get_aws_client('cloudformation', region_name=region)
+        self.cloudtrail_client = get_aws_client('cloudtrail', region_name=region)
 
     def filter_cloudtrail_events(
         self, cloudtrail_events: List[Dict], cloudformation_events: List[Dict]
