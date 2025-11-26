@@ -464,7 +464,7 @@ class ApiWithDatabase extends Construct {
 ### Compliance and Wrapper Constructs
 
 **Don't rely solely on wrapper constructs for compliance**
-- Wrapper constructs can be bypassed
+- Wrapper constructs can be circumvented
 - Use service control policies and permission boundaries for enforcement
 - Use Aspects and CloudFormation Guard for validation
 - Wrapper constructs may prevent use of third-party construct libraries
