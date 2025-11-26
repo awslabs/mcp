@@ -1,0 +1,8 @@
+{
+  "_description": "S3 Public Access Block configuration for secure buckets",
+  "_parameters": [],
+  "BlockPublicAcls": true,
+  "IgnorePublicAcls": true,
+  "BlockPublicPolicy": true,
+  "RestrictPublicBuckets": true
+}
