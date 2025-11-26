@@ -6,7 +6,7 @@ The Amazon SageMaker AI MCP server provides agents with tools to enable high-per
 
 ### SageMaker HyperPod
 
-Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrated with Amazon EKS or Slurm, including cluster deployment, node management, and lifecycle operations. See the [HyperPod documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/sagemaker_hyperpod/README.md) for detailed information on the supported tools.
+Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrated with Amazon EKS or Slurm, including cluster deployment, node management, and lifecycle operations. See the [HyperPod documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/README.md) for detailed information on the supported tools.
 
 ## Prerequisites
 
@@ -16,7 +16,14 @@ Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrat
 
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli).
+This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli).
+
+
+**Set up Cursor**
+
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.sagemaker-ai-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLnNhZ2VtYWtlci1haS1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=SageMaker%20AI%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.sagemaker-ai-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
 **Set up the Amazon Q Developer CLI**
 
@@ -334,9 +341,9 @@ The MCP server can create a templated params json file to a user-specified absol
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For service-specific issues, consult the relevant service documentation:
-- [HyperPod Documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/sagemaker_hyperpod/README.md)
+- [HyperPod Documentation](https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/awslabs/sagemaker_ai_mcp_server/README.md)
 - [Amazon SageMaker AI Documentation](https://docs.aws.amazon.com/sagemaker/)
 
 ## Version
 
-Current MCP server version: 0.0.1
+Current MCP server version: 1.0.0
