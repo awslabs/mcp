@@ -18,16 +18,20 @@ from typing import List, Dict, Any, Union
 from valkey.exceptions import ValkeyError
 from valkey.commands.search.query import Query
 import struct
+import json
 
 
 @mcp.tool()
 async def vector_search(index: str, field: str, vector: List[float], offset: int = 0, count: int = 10) -> Union[str, List[Dict[str, Any]]]:
-    """Perform a Valkey vector search using the FT.SEARCH command
+    """Perform a Valkey vector search using the FT.SEARCH command.
+
+    This tool performs K-nearest neighbors (KNN) search on vector embeddings stored in Valkey.
+    It finds documents whose vector embeddings are most similar to the provided query vector.
 
     Args:
-        index: Name of the index to use
-        field: Name of the vector field in the index to search
-        vector: The vector query as a list of floats
+        index: Name of the Valkey search index to use
+        field: Name of the vector field in the index to search against
+        vector: The query vector as a list of floats (must match the dimensionality of indexed vectors)
         offset: Record offset determining the window slice of results to render (default: 0)
         count: Size of the window slice of results to render (default: 10)
 
@@ -35,6 +39,14 @@ async def vector_search(index: str, field: str, vector: List[float], offset: int
         A list of matching documents as dictionaries containing all document fields
         (excluding the vector field itself), or an error message if there was a failure
 
+    Example:
+        # Search for documents similar to a query vector
+        results = await vector_search(
+            index="products_idx",
+            field="description_vector",
+            vector=[0.1, 0.2, 0.3, ...],  # 768-dimensional vector
+            count=5
+        )
     """
     try:
         # Use connection with decode_responses=True for fetching document fields
@@ -56,21 +68,21 @@ async def vector_search(index: str, field: str, vector: List[float], offset: int
         if result.total == 0:
             return []
 
+        # Use decode_responses=False to handle binary embeddings properly
+        r_raw = ValkeyConnectionManager.get_connection(decode_responses=False)
+
         documents_list = []
         for doc in result.docs:
             # Get the document ID
             doc_id = doc.id
 
-            # Fetch all fields from the document hash
-            doc_fields = r.hgetall(doc_id)
+            # Fetch the document hash
+            doc_fields = r_raw.hgetall(doc_id.encode() if isinstance(doc_id, str) else doc_id)
 
-            if doc_fields:
-                # Remove the vector field from the results since it's binary data
-                # and not useful for display
-                doc_dict = {key: value for key, value in doc_fields.items() if key != field}
-                # Add the document ID to the results
-                doc_dict['id'] = doc_id
-                documents_list.append(doc_dict)
+            if doc_fields and b'document_json' in doc_fields:
+                # Parse the document_json field which contains the original document
+                document = json.loads(doc_fields[b'document_json'].decode('utf-8'))
+                documents_list.append(document)
 
         return documents_list
 
