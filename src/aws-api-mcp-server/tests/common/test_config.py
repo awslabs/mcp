@@ -206,7 +206,7 @@ def test_user_agent_with_context(mock_get_context):
 
     # Verify context information is included in user agent
     assert 'via/test-fastmcp' in user_agent
-    assert 'MCPClient/test-client-1.0.0' in user_agent
+    assert 'MCPClient/test-client#1.0.0' in user_agent
     assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
 
 
