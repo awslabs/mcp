@@ -1020,6 +1020,7 @@ async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
     'service, operation',
     [
         ('s3', 'ls'),
+        ('s3api', 'list-buckets'),
         ('ec2', 'describe-instances'),
         ('lambda', 'list-functions'),
         ('dynamodb', 'list-tables'),

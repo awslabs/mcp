@@ -21,6 +21,8 @@ from loguru import logger
 from typing import Any
 
 
+SERVICE_NAME_MAPPING = frozenset({('s3api', 's3')})
+
 IGNORED_ARGUMENTS = frozenset({'cli-input-json', 'generate-cli-skeleton'})
 
 
@@ -37,7 +39,12 @@ def _clean_description(description: str) -> str:
 
 def generate_help_document(service_name: str, operation_name: str) -> dict[str, Any] | None:
     """Generate a document for a single AWS API operation."""
-    command = driver._get_command_table()[service_name]
+    normalized_service_name = (
+        SERVICE_NAME_MAPPING[service_name]
+        if service_name in SERVICE_NAME_MAPPING
+        else service_name
+    )
+    command = driver._get_command_table()[normalized_service_name]
     if isinstance(command, BasicCommand):
         command_table = command.subcommand_table
     elif isinstance(command, ServiceCommand):
