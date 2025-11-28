@@ -126,11 +126,14 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
 
 
 async def get_help_document(
-    ir_command: IRCommand,
+    cli_command: str,
     ctx: Context,
 ) -> ProgramInterpretationResponse:
     """Get help command response."""
-    help_document = generate_help_document(ir_command.service_name, ir_command.operation_cli_name)
+    args = split_cli_command(cli_command)[1:]
+    service_name = args[0]
+    operation_name = args[1]
+    help_document = generate_help_document(service_name, operation_name)
     if help_document is None:
         error_message = 'Failed to generate help document'
         await ctx.error(error_message)

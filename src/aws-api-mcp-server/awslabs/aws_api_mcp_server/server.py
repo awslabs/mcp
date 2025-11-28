@@ -286,7 +286,7 @@ async def call_aws_helper(
                 await request_consent(cli_command, ctx)
 
         if ir.command and ir.command.is_help_operation:
-            return await get_help_document(ir.command, ctx)
+            return await get_help_document(cli_command, ctx)
 
         if ir.command and ir.command.is_awscli_customization:
             return execute_awscli_customization(
