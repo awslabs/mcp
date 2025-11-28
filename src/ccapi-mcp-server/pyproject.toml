@@ -8,8 +8,8 @@ dependencies = [
     "loguru>=0.7.0",
     "pydantic>=2.10.6",
     "mcp[cli]>=1.11.0",
-    "boto3>=1.34.0",
-    "botocore>=1.34.0",
+    "boto3[crt]>=1.41.0",
+    "botocore[crt]>=1.41.0",
     "checkov>=3.0.0",
 ]
 license = {text = "Apache-2.0"}

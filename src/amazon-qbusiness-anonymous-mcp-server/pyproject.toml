@@ -8,7 +8,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Q Busi
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.38.45",
+    "boto3[crt]>=1.41.0",
     "boto3-stubs[qbusiness]>=1.38.46",
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
