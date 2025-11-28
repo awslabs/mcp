@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.mark.parametrize(
     'origin_value,allowed_origins',
     [
-        ('example.com', 'example.com'),  # Exact match
-        ('example.com:3000', 'example.com'),  # With port
-        ('example.com', 'example.com,other.com'),  # Multiple allowed origins
-        ('other.com', 'example.com,other.com'),  # Second in list
-        ('example.com', '*'),  # Wildcard
-        ('any-domain.com', '*'),  # Wildcard allows any
+        ('http://example.com', 'http://example.com'),  # Exact match
+        ('https://example.com:3000', 'https://example.com'),  # With port
+        ('http://example.com', 'http://example.com,http://other.com'),  # Multiple allowed origins
+        ('http://other.com', 'http://example.com,http://other.com'),  # Second in list
+        ('https://example.com', '*'),  # Wildcard
+        ('http://any-domain.com', '*'),  # Wildcard allows any
     ],
 )
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -43,9 +43,9 @@ async def test_origin_header_validation_passes(
 @pytest.mark.parametrize(
     'origin_value,allowed_origins',
     [
-        ('forbidden.com', 'example.com'),  # Not in allowed list
-        ('forbidden.com', 'example.com,other.com'),  # Not in multiple allowed
-        ('sub.example.com', 'example.com'),  # Subdomain not matched
+        ('http://forbidden.com', 'http://example.com'),  # Not in allowed list
+        ('http://forbidden.com', 'http://example.com,http://other.com'),  # Not in multiple allowed
+        ('http://sub.example.com', 'http://example.com'),  # Subdomain not matched
     ],
 )
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -148,7 +148,7 @@ async def test_both_headers_validated_independently(mock_get_headers: MagicMock)
     """Test that both host and origin headers are validated independently."""
     # Both headers present
     mock_get_headers.return_value = {
-        'origin': 'example.com',
+        'origin': 'http://example.com',
         'host': 'example.com',
     }
 
@@ -159,7 +159,7 @@ async def test_both_headers_validated_independently(mock_get_headers: MagicMock)
     with (
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-            'example.com',
+            'http://example.com',
         ),
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
@@ -178,7 +178,7 @@ async def test_host_fails_validation_when_both_present(mock_get_headers: MagicMo
     """Test that host validation fails even when origin is valid."""
     # Both headers present, origin valid but host invalid
     mock_get_headers.return_value = {
-        'origin': 'example.com',
+        'origin': 'http://example.com',
         'host': 'malicious.com',
     }
 
@@ -189,7 +189,7 @@ async def test_host_fails_validation_when_both_present(mock_get_headers: MagicMo
     with (
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-            'example.com',
+            'http://example.com',
         ),
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
@@ -208,7 +208,7 @@ async def test_origin_fails_validation_when_both_present(mock_get_headers: Magic
     """Test that origin validation fails even when host is valid."""
     # Both headers present, host valid but origin invalid
     mock_get_headers.return_value = {
-        'origin': 'malicious.com',
+        'origin': 'http://malicious.com',
         'host': 'example.com',
     }
 
@@ -219,7 +219,7 @@ async def test_origin_fails_validation_when_both_present(mock_get_headers: Magic
     with (
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-            'example.com',
+            'http://example.com',
         ),
         patch(
             'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_HOSTS',
@@ -248,13 +248,13 @@ async def test_no_origin_or_host_headers(mock_get_headers: MagicMock):
 
 
 @pytest.mark.parametrize(
-    'origin_with_port,expected_hostname',
+    'origin_with_port,expected_origin',
     [
-        ('example.com:3000', 'example.com'),
-        ('example.com:8080', 'example.com'),
-        ('localhost:5000', 'localhost'),
-        ('192.168.1.1:8000', '192.168.1.1'),
-        ('example.com', 'example.com'),
+        ('http://example.com:3000', 'http://example.com'),
+        ('https://example.com:8080', 'https://example.com'),
+        ('http://localhost:5000', 'http://localhost'),
+        ('http://192.168.1.1:8000', 'http://192.168.1.1'),
+        ('https://example.com', 'https://example.com'),
     ],
 )
 @patch('awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.get_http_headers')
@@ -262,9 +262,9 @@ async def test_no_origin_or_host_headers(mock_get_headers: MagicMock):
 async def test_port_removal_from_origin(
     mock_get_headers: MagicMock,
     origin_with_port: str,
-    expected_hostname: str,
+    expected_origin: str,
 ):
-    """Test that port is correctly removed from origin/host before validation."""
+    """Test that port is correctly removed from origin before validation."""
     mock_get_headers.return_value = {'origin': origin_with_port}
 
     middleware = HTTPHeaderValidationMiddleware()
@@ -273,7 +273,7 @@ async def test_port_removal_from_origin(
 
     with patch(
         'awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware.ALLOWED_ORIGINS',
-        expected_hostname,
+        expected_origin,
     ):
         result = await middleware.on_request(context, call_next)
         assert result == 'success'
@@ -284,7 +284,7 @@ async def test_port_removal_from_origin(
 @pytest.mark.asyncio
 async def test_empty_allowed_origins(mock_get_headers: MagicMock):
     """Test behavior when ALLOWED_ORIGINS is empty."""
-    mock_get_headers.return_value = {'origin': 'example.com'}
+    mock_get_headers.return_value = {'origin': 'http://example.com'}
 
     middleware = HTTPHeaderValidationMiddleware()
     context = MagicMock()

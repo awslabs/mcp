@@ -17,6 +17,7 @@ from fastmcp.exceptions import ClientError
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from loguru import logger
+from urllib.parse import urlparse
 
 
 class HTTPHeaderValidationMiddleware(Middleware):
@@ -41,7 +42,10 @@ class HTTPHeaderValidationMiddleware(Middleware):
                 raise ClientError(error_msg)
 
         if origin := headers.get('origin'):
-            origin = origin.split(':')[0]  # Strip port if present
+            # Strip port if present
+            parsed_origin = urlparse(origin)
+            origin = f'{parsed_origin.scheme}://{parsed_origin.hostname}'
+
             allowed_origins = ALLOWED_ORIGINS.split(',')
 
             if '*' not in allowed_origins and origin not in allowed_origins:
