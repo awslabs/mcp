@@ -41,6 +41,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/aws-knowledge-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust # @tkaria @animebar
 /src/aws-location-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy # @scouturier
 /src/aws-msk-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @elmoctarebnou @dingyiheng
+/src/aws-network-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
 /src/aws-pricing-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
 /src/aws-serverless-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900
 /src/aws-support-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
