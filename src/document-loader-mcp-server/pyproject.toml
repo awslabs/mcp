@@ -5,7 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for document pars
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastmcp>=2.11.1",
+    "fastmcp>=2.13.0",
     "pdfplumber>=0.10.0",
     "markitdown[docx,xlsx,pptx]>=0.1.2",
     "loguru>=0.7.0",

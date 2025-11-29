@@ -1987,7 +1987,7 @@ async def test_create_case(mock_support_client):
             'attachment_set_id': 'test-attachment-set-id',
         }
 
-        result = await create_support_case(context, **request_data)
+        result = await create_support_case.fn(context, **request_data)
 
     # Verify
     mock_support_client.create_case.assert_called_once()
@@ -2061,7 +2061,7 @@ async def test_describe_cases(mock_support_client):
             'next_token': 'test-next-token',
         }
 
-        result = await describe_support_cases(context, **request_data)
+        result = await describe_support_cases.fn(context, **request_data)
 
     # Verify
     mock_support_client.describe_cases.assert_called_once()
@@ -2099,7 +2099,7 @@ async def test_add_communication_to_case(mock_support_client):
             'attachment_set_id': 'test-attachment-set-id',
         }
 
-        result = await add_communication_to_case(context, **request_data)
+        result = await add_communication_to_case.fn(context, **request_data)
 
     # Verify
     mock_support_client.add_communication_to_case.assert_called_once()
@@ -2126,7 +2126,7 @@ async def test_resolve_case(mock_support_client):
     ) as mock_to_api_params:
         mock_to_api_params.return_value = {'case_id': 'test-case-id'}
 
-        result = await resolve_support_case(context, case_id='test-case-id')
+        result = await resolve_support_case.fn(context, case_id='test-case-id')
 
     # Verify
     mock_support_client.resolve_case.assert_called_once()
