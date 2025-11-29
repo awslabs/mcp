@@ -571,3 +571,9 @@ src/openapi-mcp-server/*.txt
 src/openapi-mcp-server/*-coverage.xml
 src/openapi-mcp-server/junit.xml
 executive-summary.md
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
