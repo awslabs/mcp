@@ -2105,7 +2105,9 @@ async def test_create_case_validation_error(mock_support_client):
     with patch('awslabs.aws_support_mcp_server.server.CreateCaseResponse') as mock_response:
         from pydantic import ValidationError as PydanticValidationError
 
-        mock_response.side_effect = PydanticValidationError.from_exception_data('CreateCaseResponse', [])
+        mock_response.side_effect = PydanticValidationError.from_exception_data(
+            'CreateCaseResponse', []
+        )
 
         result = await _create_support_case_logic(
             context,
@@ -2260,7 +2262,9 @@ async def test_add_communication_validation_error(mock_support_client):
     with patch('awslabs.aws_support_mcp_server.server.AddCommunicationResponse') as mock_response:
         from pydantic import ValidationError as PydanticValidationError
 
-        mock_response.side_effect = PydanticValidationError.from_exception_data('AddCommunicationResponse', [])
+        mock_response.side_effect = PydanticValidationError.from_exception_data(
+            'AddCommunicationResponse', []
+        )
 
         result = await _add_communication_to_case_logic(
             context, case_id='test-case-id', communication_body='Test body'
@@ -2324,7 +2328,9 @@ async def test_resolve_case_validation_error(mock_support_client):
     with patch('awslabs.aws_support_mcp_server.server.ResolveCaseResponse') as mock_response:
         from pydantic import ValidationError as PydanticValidationError
 
-        mock_response.side_effect = PydanticValidationError.from_exception_data('ResolveCaseResponse', [])
+        mock_response.side_effect = PydanticValidationError.from_exception_data(
+            'ResolveCaseResponse', []
+        )
 
         result = await _resolve_support_case_logic(context, case_id='test-case-id')
 
