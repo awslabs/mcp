@@ -61,7 +61,7 @@ Before diving into specific AWS services, set up these fundamental MCP servers f
 
 <div className={styles.cardGrid}>
   <a href="https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html" className={styles.serverCardLink}>
-    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+    <div className={styles.serverCard} style={{ minHeight: '260px' }}>
     <div className={styles.serverCardHeader}>
       <div className={styles.serverCardIcon}>
         <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
@@ -75,7 +75,7 @@ Before diving into specific AWS services, set up these fundamental MCP servers f
     </div>
     <div className={styles.serverCardContent}>
       <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
-        This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, Getting Started information, and brings support for Agent standard operating procedures (SOPs) helping agents complete AWS tasks more accurately.
+        Start here for complete AWS interactions! This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, Getting Started information, and brings support for Agent standard operating procedures (SOPs) helping agents complete AWS tasks more accurately. Features command validation, security controls, and access to all AWS services for managing infrastructure, exploring resources, and executing AWS operations through natural language.
       </p>
     </div>
   </div>
