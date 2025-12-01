@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
-from awslabs.aws_iac_mcp_server.tools.cdk_tools import read_cdk_documentation_page_tool
+from awslabs.aws_iac_mcp_server.tools.cdk_tools import read_iac_documentation_page_tool
 from unittest.mock import AsyncMock, patch
 
 
@@ -40,7 +40,7 @@ class TestReadCDKDocumentationPage:
         ) as mock_read:
             mock_read.return_value = mock_response
 
-            result = await read_cdk_documentation_page_tool(
+            result = await read_iac_documentation_page_tool(
                 'https://docs.aws.amazon.com/cdk/test.html'
             )
 
@@ -60,7 +60,7 @@ class TestReadCDKDocumentationPage:
         ) as mock_read:
             mock_read.return_value = []
 
-            await read_cdk_documentation_page_tool(
+            await read_iac_documentation_page_tool(
                 'https://docs.aws.amazon.com/cdk/test.html', 100
             )
 
@@ -78,4 +78,4 @@ class TestReadCDKDocumentationPage:
             mock_read.side_effect = Exception('Read failed')
 
             with pytest.raises(Exception, match='Read failed'):
-                await read_cdk_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html')
+                await read_iac_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html')

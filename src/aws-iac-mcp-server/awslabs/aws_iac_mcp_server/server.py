@@ -19,7 +19,7 @@ from .sanitizer import sanitize_tool_response
 from .tools.cdk_tools import (
     SupportedLanguages,
     cdk_best_practices_tool,
-    read_cdk_documentation_page_tool,
+    read_iac_documentation_page_tool,
     search_cdk_documentation_tool,
     search_cdk_samples_and_constructs_tool,
     search_cloudformation_documentation_tool,
@@ -334,15 +334,15 @@ async def search_cdk_documentation(query: str) -> str:
 
 
 @mcp.tool()
-async def read_cdk_documentation_page(
+async def read_iac_documentation_page(
     url: str,
     starting_index: int = 0,
 ) -> str:
-    """Fetch and convert an AWS CDK documentation page to markdown format.
+    """Fetch and convert any IaC documentation page to markdown format.
 
     ## Usage
 
-    This tool retrieves the complete content of a specific CDK documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
+    This tool retrieves the complete content of a specific CDK or CloudFormation documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
 
     ## When to Use
 
@@ -380,7 +380,7 @@ async def read_cdk_documentation_page(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await read_cdk_documentation_page_tool(url, starting_index)
+    result = await read_iac_documentation_page_tool(url, starting_index)
 
     # Convert dataclass to dict for JSON serialization
     response_dict = asdict(result)

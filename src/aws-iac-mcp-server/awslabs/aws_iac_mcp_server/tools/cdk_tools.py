@@ -49,7 +49,7 @@ async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     )
 
 
-async def read_cdk_documentation_page_tool(url: str, starting_index: int = 0) -> CDKToolResponse:
+async def read_iac_documentation_page_tool(url: str, starting_index: int = 0) -> CDKToolResponse:
     """Read CDK documentation page.
 
     Args:
