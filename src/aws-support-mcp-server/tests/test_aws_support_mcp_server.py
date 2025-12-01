@@ -44,10 +44,10 @@ from awslabs.aws_support_mcp_server.formatters import (
     format_severity_levels,
 )
 from awslabs.aws_support_mcp_server.server import (
-    add_communication_to_case,
-    create_support_case,
-    describe_support_cases,
-    resolve_support_case,
+    _add_communication_to_case_logic,
+    _create_support_case_logic,
+    _describe_support_cases_logic,
+    _resolve_support_case_logic,
 )
 from botocore.exceptions import ClientError
 from pydantic import ValidationError
@@ -1958,41 +1958,24 @@ async def test_create_case(mock_support_client):
     context = MagicMock()
     context.error = AsyncMock(return_value={'status': 'error', 'message': 'Error message'})
 
-    # Call create_case
-    request_data = {
-        'subject': 'Test subject',
-        'service_code': 'test-service',
-        'category_code': 'test-category',
-        'severity_code': 'low',
-        'communication_body': 'Test body',
-        'cc_email_addresses': ['test@example.com'],
-        'language': 'en',
-        'issue_type': 'technical',
-        'attachment_set_id': 'test-attachment-set-id',
-    }
-
-    # Patch the to_api_params method to return the correct parameter names
-    with patch(
-        'awslabs.aws_support_mcp_server.models.CreateCaseRequest.to_api_params'
-    ) as mock_to_api_params:
-        mock_to_api_params.return_value = {
-            'subject': 'Test subject',
-            'service_code': 'test-service',
-            'category_code': 'test-category',
-            'severity_code': 'low',
-            'communication_body': 'Test body',
-            'cc_email_addresses': ['test@example.com'],
-            'language': 'en',
-            'issue_type': 'technical',
-            'attachment_set_id': 'test-attachment-set-id',
-        }
-
-        result = await create_support_case.fn(context, **request_data)
+    # Call the logic function directly
+    result = await _create_support_case_logic(
+        context,
+        subject='Test subject',
+        service_code='test-service',
+        category_code='test-category',
+        severity_code='low',
+        communication_body='Test body',
+        cc_email_addresses=['test@example.com'],
+        language='en',
+        issue_type='technical',
+        attachment_set_id='test-attachment-set-id',
+    )
 
     # Verify
     mock_support_client.create_case.assert_called_once()
-    assert 'case_id' in result
-    assert result['case_id'] == 'test-case-id'
+    assert 'caseId' in result
+    assert result['caseId'] == 'test-case-id'
 
 
 @patch('awslabs.aws_support_mcp_server.server.support_client')
@@ -2031,37 +2014,20 @@ async def test_describe_cases(mock_support_client):
     context = MagicMock()
     context.error = AsyncMock(return_value={'status': 'error', 'message': 'Error message'})
 
-    # Call describe_cases
-    request_data = {
-        'case_id_list': ['test-case-id'],
-        'display_id': 'test-display-id',
-        'after_time': '2023-01-01T00:00:00Z',
-        'before_time': '2023-01-31T23:59:59Z',
-        'include_resolved_cases': True,
-        'include_communications': True,
-        'language': 'en',
-        'max_results': 10,
-        'next_token': 'test-next-token',
-        'format': 'json',
-    }
-
-    # Patch the to_api_params method to return the correct parameter names
-    with patch(
-        'awslabs.aws_support_mcp_server.models.DescribeCasesRequest.to_api_params'
-    ) as mock_to_api_params:
-        mock_to_api_params.return_value = {
-            'case_id_list': ['test-case-id'],
-            'display_id': 'test-display-id',
-            'after_time': '2023-01-01T00:00:00Z',
-            'before_time': '2023-01-31T23:59:59Z',
-            'include_resolved_cases': True,
-            'include_communications': True,
-            'language': 'en',
-            'max_results': 10,
-            'next_token': 'test-next-token',
-        }
-
-        result = await describe_support_cases.fn(context, **request_data)
+    # Call the logic function directly
+    result = await _describe_support_cases_logic(
+        context,
+        case_id_list=['test-case-id'],
+        display_id='test-display-id',
+        after_time='2023-01-01T00:00:00Z',
+        before_time='2023-01-31T23:59:59Z',
+        include_resolved_cases=True,
+        include_communications=True,
+        language='en',
+        max_results=10,
+        next_token='test-next-token',
+        format='json',
+    )
 
     # Verify
     mock_support_client.describe_cases.assert_called_once()
@@ -2080,26 +2046,14 @@ async def test_add_communication_to_case(mock_support_client):
     context = MagicMock()
     context.error = AsyncMock(return_value={'status': 'error', 'message': 'Error message'})
 
-    # Call add_communication_to_case
-    request_data = {
-        'case_id': 'test-case-id',
-        'communication_body': 'Test body',
-        'cc_email_addresses': ['test@example.com'],
-        'attachment_set_id': 'test-attachment-set-id',
-    }
-
-    # Patch the to_api_params method to return the correct parameter names
-    with patch(
-        'awslabs.aws_support_mcp_server.models.AddCommunicationRequest.to_api_params'
-    ) as mock_to_api_params:
-        mock_to_api_params.return_value = {
-            'case_id': 'test-case-id',
-            'communication_body': 'Test body',
-            'cc_email_addresses': ['test@example.com'],
-            'attachment_set_id': 'test-attachment-set-id',
-        }
-
-        result = await add_communication_to_case.fn(context, **request_data)
+    # Call the logic function directly
+    result = await _add_communication_to_case_logic(
+        context,
+        case_id='test-case-id',
+        communication_body='Test body',
+        cc_email_addresses=['test@example.com'],
+        attachment_set_id='test-attachment-set-id',
+    )
 
     # Verify
     mock_support_client.add_communication_to_case.assert_called_once()
@@ -2119,21 +2073,15 @@ async def test_resolve_case(mock_support_client):
     context = MagicMock()
     context.error = AsyncMock(return_value={'status': 'error', 'message': 'Error message'})
 
-    # Call resolve_case
-    # Patch the to_api_params method to return the correct parameter names
-    with patch(
-        'awslabs.aws_support_mcp_server.models.ResolveCaseRequest.to_api_params'
-    ) as mock_to_api_params:
-        mock_to_api_params.return_value = {'case_id': 'test-case-id'}
-
-        result = await resolve_support_case.fn(context, case_id='test-case-id')
+    # Call the logic function directly
+    result = await _resolve_support_case_logic(context, case_id='test-case-id')
 
     # Verify
     mock_support_client.resolve_case.assert_called_once()
-    assert 'initial_case_status' in result
-    assert result['initial_case_status'] == 'opened'
-    assert 'final_case_status' in result
-    assert result['final_case_status'] == 'resolved'
+    assert 'initialCaseStatus' in result
+    assert result['initialCaseStatus'] == 'opened'
+    assert 'finalCaseStatus' in result
+    assert result['finalCaseStatus'] == 'resolved'
 
 
 async def test_error_handling():
