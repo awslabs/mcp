@@ -52,7 +52,7 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 }}>
 
   <div>
-    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS New York Summit 2025!</div>
+    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS re:Invent 2025!</div>
     <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>Essential MCP servers for AWS resource management</div>
   </div>
 </div>
@@ -60,14 +60,14 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 Before diving into specific AWS services, set up these fundamental MCP servers for working with AWS resources:
 
 <div className={styles.cardGrid}>
-  <a href="/mcp/servers/aws-api-mcp-server" className={styles.serverCardLink}>
-    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+  <a href="https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ minHeight: '260px' }}>
     <div className={styles.serverCardHeader}>
       <div className={styles.serverCardIcon}>
         <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
       </div>
       <div className={styles.serverCardTitleSection}>
-        <h3 className={styles.serverCardTitle}>AWS API MCP</h3>
+        <h3 className={styles.serverCardTitle}>AWS MCP</h3>
         <div className={styles.serverCardTags}>
           <span className={styles.serverCardCategory}>Essential Setup</span>
         </div>
@@ -75,28 +75,7 @@ Before diving into specific AWS services, set up these fundamental MCP servers f
     </div>
     <div className={styles.serverCardContent}>
       <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
-        Set up secure programmatic access to AWS services with credential management and authentication handling. Manage infrastructure, explore resources, and execute AWS operations through natural language.
-      </p>
-    </div>
-  </div>
-  </a>
-
-  <a href="/mcp/servers/aws-knowledge-mcp-server" className={styles.serverCardLink}>
-    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
-    <div className={styles.serverCardHeader}>
-      <div className={styles.serverCardIcon}>
-        <img src="/mcp/assets/icons/book-open.svg" alt="Documentation icon" style={{ width: '22px', height: '22px' }} />
-      </div>
-      <div className={styles.serverCardTitleSection}>
-        <h3 className={styles.serverCardTitle}>AWS Knowledge MCP</h3>
-        <div className={styles.serverCardTags}>
-          <span className={styles.serverCardCategory}>Essential Setup</span>
-        </div>
-      </div>
-    </div>
-    <div className={styles.serverCardContent}>
-      <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
-        An AWS-managed remote MCP server that provides instant access to up-to-date AWS docs, API references, What's New posts, Getting Started information, Builder Library, blog posts, architectural references, and contextual guidance.
+        Start here for complete AWS interactions! This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, Getting Started information, and brings support for Agent standard operating procedures (SOPs) helping agents complete AWS tasks more accurately. Features command validation, security controls, and access to all AWS services for managing infrastructure, exploring resources, and executing AWS operations through natural language.
       </p>
     </div>
   </div>
