@@ -338,7 +338,7 @@ async def read_iac_documentation_page(
     url: str,
     starting_index: int = 0,
 ) -> str:
-    """Fetch and convert any Infrastructure as code (CDK or CloudFormation) documentation page to markdown format.
+    """Fetch and convert any Infrastructure as Code (CDK or CloudFormation) documentation page to markdown format.
 
     ## Usage
 
