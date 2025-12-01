@@ -192,7 +192,7 @@ Find CDK examples for Lambda function with VPC configuration
 Show me CDK constructs for DynamoDB table with encryption
 ```
 
-#### Read Infrastructure Documentation Page
+#### Read Infrastructure as Code Documentation Page
 ```
 Read the full CDK documentation for aws-s3.Bucket from this URL: [URL from search results]
 ```
