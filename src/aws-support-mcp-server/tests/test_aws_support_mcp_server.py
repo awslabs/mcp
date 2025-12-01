@@ -16,6 +16,7 @@
 import asyncio
 import json
 import pytest
+import tempfile
 import time
 from awslabs.aws_support_mcp_server.client import SupportClient
 from awslabs.aws_support_mcp_server.consts import (
@@ -2524,7 +2525,8 @@ class TestServer:
         from awslabs.aws_support_mcp_server.server import main
 
         # Setup
-        sys.argv = ['server.py', '--debug', '--log-file', '/tmp/test/server.log']
+        tmpdir = tempfile.mkdtemp()
+        sys.argv = ['server.py', '--debug', '--log-file', f'{tmpdir}/test/server.log']
         mock_exists.return_value = False  # Directory doesn't exist
 
         # Call main (but mock the actual server run)
@@ -2532,7 +2534,7 @@ class TestServer:
             main()
 
         # Verify directory was created
-        mock_makedirs.assert_called_once_with('/tmp/test')
+        mock_makedirs.assert_called_once_with(f'{tmpdir}/test')
         # Verify logging was configured
         assert mock_logger.add.call_count >= 2  # Console and file logging
 
