@@ -35,6 +35,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     GetMetricDataResponse,
     MetricData,
     MetricDataPoint,
+    MetricDataQueryInput,
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
@@ -129,6 +130,9 @@ class CloudWatchMetricsTools:
         """Register all CloudWatch Metrics tools with the MCP server."""
         # Register get_metric_data tool
         mcp.tool(name='get_metric_data')(self.get_metric_data)
+
+        # Register get_metric_data_with_queries tool (advanced queries with percentile support)
+        mcp.tool(name='get_metric_data_with_queries')(self.get_metric_data_with_queries)
 
         # Register get_metric_metadata tool
         mcp.tool(name='get_metric_metadata')(self.get_metric_metadata)
@@ -1033,6 +1037,352 @@ class CloudWatchMetricsTools:
                 values = list(values)
 
         return MetricData(period_seconds=period_seconds, timestamps=timestamps, values=values)
+
+    def _convert_query_input_to_aws(
+        self, query: MetricDataQueryInput, default_period: int
+    ) -> Dict[str, Any]:
+        """Convert MetricDataQueryInput to AWS SDK format.
+
+        Args:
+            query: The input query model
+            default_period: Default period to use if not specified in query
+
+        Returns:
+            Dict formatted for AWS GetMetricData API
+        """
+        aws_query = {
+            'Id': query.id,
+            'ReturnData': query.return_data,
+        }
+
+        # Determine the period to use (precedence: query.period > metric_stat.period > default_period)
+        if query.period is not None:
+            period = query.period
+        elif query.metric_stat and query.metric_stat.period is not None:
+            period = query.metric_stat.period
+        else:
+            period = default_period
+
+        # Add label if provided
+        if query.label:
+            aws_query['Label'] = query.label
+
+        # Build MetricStat or Expression
+        if query.metric_stat:
+            # Convert dimensions to AWS format
+            aws_dimensions = [
+                {'Name': dim.name, 'Value': dim.value} for dim in query.metric_stat.dimensions
+            ]
+
+            # For MetricStat queries, Period goes ONLY inside MetricStat
+            aws_query['MetricStat'] = {
+                'Metric': {
+                    'Namespace': query.metric_stat.namespace,
+                    'MetricName': query.metric_stat.metric_name,
+                    'Dimensions': aws_dimensions,
+                },
+                'Period': period,
+                'Stat': self._map_to_cloudwatch_statistic(query.metric_stat.statistic),
+            }
+        elif query.expression:
+            # For Expression queries, Period goes at the top level
+            aws_query['Period'] = period
+            aws_query['Expression'] = query.expression
+
+        return aws_query
+
+    async def get_metric_data_with_queries(
+        self,
+        ctx: Context,
+        queries: List[MetricDataQueryInput],
+        start_time: Union[str, datetime],
+        end_time: Annotated[
+            Union[str, datetime] | None,
+            Field(description='End time for query (ISO format), defaults to current time'),
+        ] = None,
+        target_datapoints: Annotated[
+            int,
+            Field(description='Target number of data points (default: 60)'),
+        ] = 60,
+        region: Annotated[
+            str | None,
+            Field(
+                description='AWS region to query. Defaults to us-east-1 if not set.'
+            ),
+        ] = "us-east-1",
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+            ),
+        ] = None,
+    ) -> GetMetricDataResponse:
+        """Retrieves CloudWatch metric data using advanced queries with support for multiple metrics,
+        percentiles, and math expressions.
+
+        This tool exposes the full power of the AWS CloudWatch GetMetricData API, enabling:
+        - **Multiple metrics in a single call** - Reduce API calls and get related metrics together
+        - **Percentile statistics** (p50, p90, p95, p99, p99.9) - Essential for latency analysis
+        - **Math expressions** - Calculate derived metrics like error rates, ratios, and aggregations
+        - **Metrics Insights queries** - Advanced filtering and aggregation
+        - **Complex queries** - Combine multiple data sources with expressions
+
+        When to use this tool vs get_metric_data:
+        - Use get_metric_data_with_queries when you need percentiles, multiple metrics, or calculations
+        - Use get_metric_data for simple single-metric queries with standard statistics (Average, Sum, etc.)
+
+        Args:
+            ctx: The MCP context object for error handling and logging
+            queries: List of metric queries (MetricDataQueryInput objects)
+            start_time: Start time for the query (ISO format string or datetime)
+            end_time: End time for the query (ISO format string or datetime), defaults to now
+            target_datapoints: Target number of data points (default: 60), controls granularity
+            region: AWS region to query (default: us-east-1)
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
+
+        Returns:
+            GetMetricDataResponse: Object containing results for all queries with return_data=True
+
+        Example 1 - Lambda Latency Percentiles (Performance Monitoring):
+            Monitor Lambda function latency across different percentiles to understand
+            performance distribution and identify slow invocations.
+
+            result = await get_metric_data_with_queries(
+                ctx,
+                queries=[
+                    MetricDataQueryInput(
+                        id="p50",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Duration",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="p50"
+                        ),
+                        label="Median Latency"
+                    ),
+                    MetricDataQueryInput(
+                        id="p90",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Duration",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="p90"
+                        ),
+                        label="p90 Latency"
+                    ),
+                    MetricDataQueryInput(
+                        id="p99",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Duration",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="p99"
+                        ),
+                        label="p99 Latency"
+                    )
+                ],
+                start_time="2025-12-21T00:00:00Z",
+                end_time="2025-12-21T23:59:59Z"
+            )
+
+            # Access results
+            for metric_result in result.metricDataResults:
+                print(f"{metric_result.label}:")
+                for dp in metric_result.datapoints:
+                    print(f"  {dp.timestamp}: {dp.value}ms")
+
+        Example 2 - Error Rate Calculation (Reliability Monitoring):
+            Calculate error rate percentage from error and request counts.
+            Uses return_data=False to exclude intermediate metrics from results.
+
+            result = await get_metric_data_with_queries(
+                ctx,
+                queries=[
+                    MetricDataQueryInput(
+                        id="errors",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Errors",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="Sum"
+                        ),
+                        return_data=False  # Don't include in results
+                    ),
+                    MetricDataQueryInput(
+                        id="invocations",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/Lambda",
+                            metric_name="Invocations",
+                            dimensions=[Dimension(name="FunctionName", value="my-api-function")],
+                            statistic="Sum"
+                        ),
+                        return_data=False  # Don't include in results
+                    ),
+                    MetricDataQueryInput(
+                        id="error_rate",
+                        expression="(errors / invocations) * 100",
+                        label="Error Rate %"
+                    )
+                ],
+                start_time="2025-12-21T00:00:00Z"
+            )
+
+            # Result contains only the calculated error_rate
+
+        Example 3 - System Health Dashboard (Multiple Resource Metrics):
+            Monitor CPU, memory, and disk utilization for an EC2 instance in one call.
+
+            result = await get_metric_data_with_queries(
+                ctx,
+                queries=[
+                    MetricDataQueryInput(
+                        id="cpu",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/EC2",
+                            metric_name="CPUUtilization",
+                            dimensions=[Dimension(name="InstanceId", value="i-1234567890abcdef0")],
+                            statistic="Average"
+                        ),
+                        label="CPU %"
+                    ),
+                    MetricDataQueryInput(
+                        id="memory",
+                        metric_stat=MetricStatInput(
+                            namespace="CWAgent",
+                            metric_name="mem_used_percent",
+                            dimensions=[Dimension(name="InstanceId", value="i-1234567890abcdef0")],
+                            statistic="Average"
+                        ),
+                        label="Memory %"
+                    ),
+                    MetricDataQueryInput(
+                        id="disk",
+                        metric_stat=MetricStatInput(
+                            namespace="CWAgent",
+                            metric_name="disk_used_percent",
+                            dimensions=[
+                                Dimension(name="InstanceId", value="i-1234567890abcdef0"),
+                                Dimension(name="path", value="/")
+                            ],
+                            statistic="Average"
+                        ),
+                        label="Disk %"
+                    )
+                ],
+                start_time="2025-12-21T12:00:00Z",
+                target_datapoints=120  # Get 2 hours of 1-minute data
+            )
+
+        Example 4 - API Success Rate (Complex Expression):
+            Calculate successful request percentage from 2xx vs all status codes.
+
+            result = await get_metric_data_with_queries(
+                ctx,
+                queries=[
+                    MetricDataQueryInput(
+                        id="success",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/ApiGateway",
+                            metric_name="Count",
+                            dimensions=[
+                                Dimension(name="ApiId", value="abc123xyz"),
+                                Dimension(name="Stage", value="prod")
+                            ],
+                            statistic="Sum"
+                        ),
+                        return_data=False
+                    ),
+                    MetricDataQueryInput(
+                        id="errors_4xx",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/ApiGateway",
+                            metric_name="4XXError",
+                            dimensions=[
+                                Dimension(name="ApiId", value="abc123xyz"),
+                                Dimension(name="Stage", value="prod")
+                            ],
+                            statistic="Sum"
+                        ),
+                        return_data=False
+                    ),
+                    MetricDataQueryInput(
+                        id="errors_5xx",
+                        metric_stat=MetricStatInput(
+                            namespace="AWS/ApiGateway",
+                            metric_name="5XXError",
+                            dimensions=[
+                                Dimension(name="ApiId", value="abc123xyz"),
+                                Dimension(name="Stage", value="prod")
+                            ],
+                            statistic="Sum"
+                        ),
+                        return_data=False
+                    ),
+                    MetricDataQueryInput(
+                        id="total_requests",
+                        expression="success + errors_4xx + errors_5xx",
+                        return_data=False
+                    ),
+                    MetricDataQueryInput(
+                        id="success_rate",
+                        expression="(success / total_requests) * 100",
+                        label="Success Rate %"
+                    )
+                ],
+                start_time="2025-12-21T00:00:00Z"
+            )
+
+        Example 5 - Metrics Insights Query:
+            Use Metrics Insights expression for advanced querying.
+
+            result = await get_metric_data_with_queries(
+                ctx,
+                queries=[
+                    MetricDataQueryInput(
+                        id="top_instances",
+                        expression='SELECT AVG(CPUUtilization) FROM SCHEMA("AWS/EC2", InstanceId) GROUP BY InstanceId ORDER BY AVG() DESC LIMIT 5',
+                        period=300
+                    )
+                ],
+                start_time="2025-12-21T00:00:00Z"
+            )
+
+        Best Practices:
+        - Use return_data=False for intermediate calculations to reduce response size
+        - Set appropriate target_datapoints based on your time range (60 for hourly, 1440 for daily)
+        - Combine related metrics in one call to reduce API overhead
+
+        Common Use Cases:
+        - Performance monitoring: Track latency percentiles (p50, p90, p99)
+        - Reliability monitoring: Calculate error rates and success rates
+        - Cost optimization: Compare usage across resources
+        - Capacity planning: Monitor resource utilization trends
+        - SLA compliance: Track metrics against SLA thresholds
+        """
+        try:
+            # Process time parameters and calculate default period
+            start_time, end_time, default_period = self._prepare_time_parameters(
+                start_time, end_time, target_datapoints
+            )
+
+            # Convert all queries to AWS format
+            aws_queries = [self._convert_query_input_to_aws(q, default_period) for q in queries]
+
+            # Create CloudWatch client
+            cloudwatch_client = get_aws_client('cloudwatch', region, profile_name)
+
+            # Call GetMetricData API
+            response = cloudwatch_client.get_metric_data(
+                MetricDataQueries=aws_queries, StartTime=start_time, EndTime=end_time
+            )
+
+            # Process and return response
+            return self._process_metric_data_response(response)
+
+        except Exception as e:
+            logger.error(f'Error in get_metric_data_with_queries: {str(e)}')
+            await ctx.error(f'Error getting metric data with queries: {str(e)}')
+            raise
 
     async def analyze_metric(
         self,
