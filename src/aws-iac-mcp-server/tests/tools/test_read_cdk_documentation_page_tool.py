@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
-from awslabs.aws_iac_mcp_server.tools.cdk_tools import read_iac_documentation_page_tool
+from awslabs.aws_iac_mcp_server.tools.iac_tools import read_iac_documentation_page_tool
 from unittest.mock import AsyncMock, patch
 
 
@@ -35,7 +35,7 @@ class TestReadCDKDocumentationPage:
             )
         ]
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.return_value = mock_response
@@ -55,7 +55,7 @@ class TestReadCDKDocumentationPage:
     async def test_read_cdk_documentation_page_with_start_index(self):
         """Test CDK documentation page read with start index."""
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.return_value = []
@@ -72,7 +72,7 @@ class TestReadCDKDocumentationPage:
     async def test_read_cdk_documentation_page_error(self):
         """Test CDK documentation page read with error handling."""
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.side_effect = Exception('Read failed')
