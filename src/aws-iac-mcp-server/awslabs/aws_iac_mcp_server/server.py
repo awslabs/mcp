@@ -49,7 +49,7 @@ mcp = FastMCP(
                 - Use `troubleshoot_cloudformation_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
-                - Use `read_cdk_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
+                - Use `read_iac_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
                 - Use `search_cloudformation_documentation` when: You need Cloudformation related official documentation, resource type information or template syntax
                 - Use `cdk_best_practices` when: You need to generate or review CDK code
 
