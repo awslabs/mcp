@@ -2088,6 +2088,282 @@ async def test_error_handling():
     """Test that the server handles errors correctly."""
 
 
+# Server Logic Error Handling Tests
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_create_case_validation_error(mock_support_client):
+    """Test create_case_logic handles ValidationError correctly."""
+    # Setup mocks
+    mock_support_client.create_case = AsyncMock(return_value={'caseId': 'test-case-id'})
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Validation error'})
+
+    # Mock CreateCaseResponse to raise ValidationError
+    with patch('awslabs.aws_support_mcp_server.server.CreateCaseResponse') as mock_response:
+        from pydantic import ValidationError as PydanticValidationError
+
+        mock_response.side_effect = PydanticValidationError.from_exception_data('CreateCaseResponse', [])
+
+        result = await _create_support_case_logic(
+            context,
+            subject='Test',
+            service_code='test-service',
+            category_code='test-category',
+            severity_code='low',
+            communication_body='Test body',
+        )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_create_case_client_error(mock_support_client):
+    """Test create_case_logic handles ClientError correctly."""
+    # Setup mocks
+    error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}
+    mock_support_client.create_case = AsyncMock(
+        side_effect=ClientError(error_response, 'create_case')
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Client error'})
+
+    result = await _create_support_case_logic(
+        context,
+        subject='Test',
+        service_code='test-service',
+        category_code='test-category',
+        severity_code='low',
+        communication_body='Test body',
+    )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_create_case_general_error(mock_support_client):
+    """Test create_case_logic handles general Exception correctly."""
+    # Setup mocks
+    mock_support_client.create_case = AsyncMock(side_effect=Exception('Unexpected error'))
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'General error'})
+
+    result = await _create_support_case_logic(
+        context,
+        subject='Test',
+        service_code='test-service',
+        category_code='test-category',
+        severity_code='low',
+        communication_body='Test body',
+    )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_cases_validation_error(mock_support_client):
+    """Test describe_cases_logic handles ValidationError correctly."""
+    # Setup mocks
+    mock_support_client.describe_cases = AsyncMock(
+        return_value={'cases': [{'caseId': 'test-case-id', 'invalid_field': 'value'}]}
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Validation error'})
+
+    # This should raise ValidationError when creating SupportCase
+    result = await _describe_support_cases_logic(context)
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_cases_client_error(mock_support_client):
+    """Test describe_cases_logic handles ClientError correctly."""
+    # Setup mocks
+    error_response = {'Error': {'Code': 'CaseIdNotFound', 'Message': 'Case not found'}}
+    mock_support_client.describe_cases = AsyncMock(
+        side_effect=ClientError(error_response, 'describe_cases')
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Client error'})
+
+    result = await _describe_support_cases_logic(context)
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_cases_general_error(mock_support_client):
+    """Test describe_cases_logic handles general Exception correctly."""
+    # Setup mocks
+    mock_support_client.describe_cases = AsyncMock(side_effect=Exception('Unexpected error'))
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'General error'})
+
+    result = await _describe_support_cases_logic(context)
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_describe_cases_markdown_format(mock_support_client):
+    """Test describe_cases_logic with markdown format."""
+    # Setup mocks
+    mock_support_client.describe_cases = AsyncMock(
+        return_value={
+            'cases': [
+                {
+                    'caseId': 'test-case-id',
+                    'subject': 'Test subject',
+                    'status': 'opened',
+                    'serviceCode': 'test-service',
+                    'categoryCode': 'test-category',
+                    'severityCode': 'low',
+                    'submittedBy': 'test-user',
+                    'timeCreated': '2023-01-01T00:00:00Z',
+                }
+            ]
+        }
+    )
+
+    # Create mock context
+    context = MagicMock()
+
+    result = await _describe_support_cases_logic(context, format='markdown')
+
+    assert 'markdown' in result
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_communication_validation_error(mock_support_client):
+    """Test add_communication_logic handles ValidationError correctly."""
+    # Setup mocks
+    mock_support_client.add_communication_to_case = AsyncMock(return_value={'result': True})
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Validation error'})
+
+    # Mock AddCommunicationResponse to raise ValidationError
+    with patch('awslabs.aws_support_mcp_server.server.AddCommunicationResponse') as mock_response:
+        from pydantic import ValidationError as PydanticValidationError
+
+        mock_response.side_effect = PydanticValidationError.from_exception_data('AddCommunicationResponse', [])
+
+        result = await _add_communication_to_case_logic(
+            context, case_id='test-case-id', communication_body='Test body'
+        )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_communication_client_error(mock_support_client):
+    """Test add_communication_logic handles ClientError correctly."""
+    # Setup mocks
+    error_response = {'Error': {'Code': 'CaseIdNotFound', 'Message': 'Case not found'}}
+    mock_support_client.add_communication_to_case = AsyncMock(
+        side_effect=ClientError(error_response, 'add_communication_to_case')
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Client error'})
+
+    result = await _add_communication_to_case_logic(
+        context, case_id='test-case-id', communication_body='Test body'
+    )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_add_communication_general_error(mock_support_client):
+    """Test add_communication_logic handles general Exception correctly."""
+    # Setup mocks
+    mock_support_client.add_communication_to_case = AsyncMock(
+        side_effect=Exception('Unexpected error')
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'General error'})
+
+    result = await _add_communication_to_case_logic(
+        context, case_id='test-case-id', communication_body='Test body'
+    )
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_resolve_case_validation_error(mock_support_client):
+    """Test resolve_case_logic handles ValidationError correctly."""
+    # Setup mocks
+    mock_support_client.resolve_case = AsyncMock(
+        return_value={'initialCaseStatus': 'opened', 'finalCaseStatus': 'resolved'}
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Validation error'})
+
+    # Mock ResolveCaseResponse to raise ValidationError
+    with patch('awslabs.aws_support_mcp_server.server.ResolveCaseResponse') as mock_response:
+        from pydantic import ValidationError as PydanticValidationError
+
+        mock_response.side_effect = PydanticValidationError.from_exception_data('ResolveCaseResponse', [])
+
+        result = await _resolve_support_case_logic(context, case_id='test-case-id')
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_resolve_case_client_error(mock_support_client):
+    """Test resolve_case_logic handles ClientError correctly."""
+    # Setup mocks
+    error_response = {'Error': {'Code': 'CaseIdNotFound', 'Message': 'Case not found'}}
+    mock_support_client.resolve_case = AsyncMock(
+        side_effect=ClientError(error_response, 'resolve_case')
+    )
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'Client error'})
+
+    result = await _resolve_support_case_logic(context, case_id='test-case-id')
+
+    assert result['status'] == 'error'
+
+
+@patch('awslabs.aws_support_mcp_server.server.support_client')
+async def test_resolve_case_general_error(mock_support_client):
+    """Test resolve_case_logic handles general Exception correctly."""
+    # Setup mocks
+    mock_support_client.resolve_case = AsyncMock(side_effect=Exception('Unexpected error'))
+
+    # Create mock context
+    context = MagicMock()
+    context.error = AsyncMock(return_value={'status': 'error', 'message': 'General error'})
+
+    result = await _resolve_support_case_logic(context, case_id='test-case-id')
+
+    assert result['status'] == 'error'
+
+
 # Debug Helper Tests
 class TestDiagnosticsTracker:
     """Tests for the DiagnosticsTracker class."""
@@ -2230,3 +2506,59 @@ class TestServer:
         mock_logger.add.assert_called()
         # Verify debug level was set
         assert any('DEBUG' in str(call) for call in mock_logger.add.call_args_list)
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    def test_main_with_log_file_and_directory_creation(
+        self, mock_makedirs, mock_exists, mock_logger
+    ):
+        """Test main function with log file argument and directory creation."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+
+        # Setup
+        sys.argv = ['server.py', '--debug', '--log-file', '/tmp/test/server.log']
+        mock_exists.return_value = False  # Directory doesn't exist
+
+        # Call main (but mock the actual server run)
+        with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
+            main()
+
+        # Verify directory was created
+        mock_makedirs.assert_called_once_with('/tmp/test')
+        # Verify logging was configured
+        assert mock_logger.add.call_count >= 2  # Console and file logging
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    def test_main_without_debug_flag(self, mock_logger):
+        """Test main function without debug flag."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+
+        # Setup
+        sys.argv = ['server.py']
+
+        # Call main (but mock the actual server run)
+        with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
+            main()
+
+        # Verify INFO level logging was set (not DEBUG)
+        assert any('INFO' in str(call) for call in mock_logger.add.call_args_list)
+
+    @patch('awslabs.aws_support_mcp_server.server.logger')
+    @patch('awslabs.aws_support_mcp_server.server.diagnostics')
+    def test_main_debug_enables_diagnostics(self, mock_diagnostics, mock_logger):
+        """Test main function with debug flag enables diagnostics."""
+        import sys
+        from awslabs.aws_support_mcp_server.server import main
+
+        # Setup
+        sys.argv = ['server.py', '--debug']
+
+        # Call main (but mock the actual server run)
+        with patch('awslabs.aws_support_mcp_server.server.mcp.run'):
+            main()
+
+        # Verify diagnostics were enabled
+        mock_diagnostics.enable.assert_called_once()
