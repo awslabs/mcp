@@ -274,3 +274,49 @@ class AlarmRecommendationResult(BaseModel):
         ...,
         description='Message describing the success/failure of generating alarm recommendation.',
     )
+
+
+class MetricStatInput(BaseModel):
+    """Represents the MetricStat portion of a MetricDataQuery for input parameters."""
+
+    namespace: str = Field(..., description='The namespace of the metric')
+    metric_name: str = Field(..., description='The name of the metric')
+    dimensions: List[Dimension] = Field(
+        default_factory=list, description='The dimensions for the metric'
+    )
+    statistic: str = Field(
+        ...,
+        description='The statistic to use (e.g., Average, Sum, Maximum, Minimum, SampleCount, or percentile like p50, p90, p99)',
+    )
+    period: Optional[int] = Field(
+        default=None, description='The period in seconds (overrides default if provided)'
+    )
+
+
+class MetricDataQueryInput(BaseModel):
+    """Represents a MetricDataQuery for input parameters with validation."""
+
+    id: str = Field(..., description='A unique identifier for the query')
+    metric_stat: Optional[MetricStatInput] = Field(
+        default=None, description='The metric stat configuration (for direct metric queries)'
+    )
+    expression: Optional[str] = Field(
+        default=None,
+        description='A math expression or Metrics Insights query (for expression-based queries)',
+    )
+    label: Optional[str] = Field(default=None, description='A label for the query result')
+    return_data: bool = Field(
+        default=True, description='Whether to return data for this query or use it only in other expressions'
+    )
+    period: Optional[int] = Field(
+        default=None, description='The period in seconds (overrides metric_stat period and default)'
+    )
+
+    @model_validator(mode='after')
+    def validate_query_type(self):
+        """Validate that either metric_stat or expression is provided, but not both."""
+        if not self.metric_stat and not self.expression:
+            raise ValueError('Either metric_stat or expression must be provided')
+        if self.metric_stat and self.expression:
+            raise ValueError('Cannot specify both metric_stat and expression')
+        return self
