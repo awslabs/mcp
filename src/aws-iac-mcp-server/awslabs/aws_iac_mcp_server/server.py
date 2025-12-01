@@ -346,16 +346,7 @@ async def read_iac_documentation_page(
 
     ## When to Use
 
-    - Read complete documentation pages rather than just excerpts
-    - Get the full content of a specific document from search results
-    - Access detailed API documentation for specific constructs
-    - Read module READMEs and interface documentation
-    - Get detailed CloudFormation template syntax and examples
-    - Access CloudFormation API reference documentation
-    - Read CloudFormation hooks and lifecycle management guides
-    - Review CFN Guard policy validation rules and syntax
-    - Access CloudFormation CLI documentation and usage patterns
-
+    After using a search tool, use this tool to fetch the complete content of any relevant page in the search results.
 
     ## Supported Document Types
 
