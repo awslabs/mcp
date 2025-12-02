@@ -20,11 +20,11 @@ from awslabs.aws_iac_mcp_server.tools.iac_tools import read_iac_documentation_pa
 from unittest.mock import AsyncMock, patch
 
 
-class TestReadCDKDocumentationPage:
-    """Test read_cdk_documentation_page_tool function."""
+class TestReadIaCDocumentationPage:
+    """Test read_iac_documentation_page_tool function."""
 
     @pytest.mark.asyncio
-    async def test_read_cdk_documentation_page_success(self):
+    async def test_read_iac_documentation_page_success(self):
         """Test successful CDK documentation page read."""
         mock_response = [
             KnowledgeResult(
@@ -52,7 +52,7 @@ class TestReadCDKDocumentationPage:
             )
 
     @pytest.mark.asyncio
-    async def test_read_cdk_documentation_page_with_start_index(self):
+    async def test_read_iac_documentation_page_with_start_index(self):
         """Test CDK documentation page read with start index."""
         with patch(
             'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
@@ -69,7 +69,7 @@ class TestReadCDKDocumentationPage:
             )
 
     @pytest.mark.asyncio
-    async def test_read_cdk_documentation_page_error(self):
+    async def test_read_iac_documentation_page_error(self):
         """Test CDK documentation page read with error handling."""
         with patch(
             'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',

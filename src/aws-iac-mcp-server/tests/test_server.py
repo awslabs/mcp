@@ -201,7 +201,7 @@ class TestTroubleshootDeployment:
         """Test successful CDK documentation search."""
         mock_response = CDKToolResponse(
             knowledge_response=[],
-            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.',
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.',
         )
         mock_search.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -213,8 +213,8 @@ class TestTroubleshootDeployment:
         mock_sanitize.assert_called_once()
 
 
-class TestReadCdkDocumentationPage:
-    """Test read_cdk_documentation_page tool."""
+class TestReadIaCDocumentationPage:
+    """Test read_iac_documentation_page tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.read_iac_documentation_page_tool')
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
@@ -280,7 +280,7 @@ class TestSearchCdkSamplesAndConstructs:
         """Test successful CDK samples and constructs search."""
         mock_response = CDKToolResponse(
             knowledge_response=[],
-            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.',
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool.',
         )
         mock_search.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
@@ -300,7 +300,7 @@ class TestSearchCdkSamplesAndConstructs:
         """Test CDK samples search with specific language."""
         mock_response = CDKToolResponse(
             knowledge_response=[],
-            next_step_guidance='To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.',
+            next_step_guidance='To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool.',
         )
         mock_search.return_value = mock_response
         mock_sanitize.return_value = 'sanitized response'
