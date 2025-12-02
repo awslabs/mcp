@@ -17,7 +17,7 @@
 import argparse
 import json
 from awslabs.iam_mcp_server.aws_client import get_iam_client
-from awslabs.iam_mcp_server.context import Context
+from awslabs.iam_mcp_server.context import Context as ServerContext
 from awslabs.iam_mcp_server.errors import IamClientError, IamValidationError, handle_iam_error
 from awslabs.iam_mcp_server.models import (
     AccessKey,
@@ -37,8 +37,7 @@ from awslabs.iam_mcp_server.models import (
     UsersListResponse,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
-from mcp.types import CallToolResult
+from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
@@ -86,7 +85,7 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def list_users(
-    ctx: CallToolResult,
+    ctx: Context,
     path_prefix: Optional[str] = Field(
         description='Path prefix to filter users (e.g., "/division_abc/")', default=None
     ),
@@ -154,7 +153,7 @@ async def list_users(
 
 @mcp.tool()
 async def get_user(
-    ctx: CallToolResult, user_name: str = Field(description='The name of the IAM user to retrieve')
+    ctx: Context, user_name: str = Field(description='The name of the IAM user to retrieve')
 ) -> UserDetailsResponse:
     """Get detailed information about a specific IAM user.
 
@@ -242,7 +241,7 @@ async def get_user(
 
 @mcp.tool()
 async def create_user(
-    ctx: CallToolResult,
+    ctx: Context,
     user_name: str = Field(description='The name of the new IAM user'),
     path: str = Field(description='The path for the user', default='/'),
     permissions_boundary: Optional[str] = Field(
@@ -273,7 +272,7 @@ async def create_user(
         logger.info(f'Creating IAM user: {user_name}')
 
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot create user: server is running in read-only mode')
 
         if not user_name:
@@ -332,7 +331,7 @@ async def delete_user(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot delete user: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -448,7 +447,7 @@ async def create_role(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot create role: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -633,7 +632,7 @@ async def attach_user_policy(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot attach policy: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -666,7 +665,7 @@ async def detach_user_policy(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot detach policy: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -697,7 +696,7 @@ async def create_access_key(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot create access key: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -737,7 +736,7 @@ async def delete_access_key(
     """
     try:
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError('Cannot delete access key: server is running in read-only mode')
 
         iam = get_iam_client()
@@ -840,7 +839,7 @@ async def list_groups(
     Returns:
         GroupsListResponse containing list of groups and metadata
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         # List operations are allowed in read-only mode
         pass
 
@@ -896,7 +895,7 @@ async def get_group(
     Returns:
         GroupDetailsResponse containing comprehensive group information
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         # Get operations are allowed in read-only mode
         pass
 
@@ -962,7 +961,7 @@ async def create_group(
     Returns:
         CreateGroupResponse containing the created group details
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot create group in read-only mode')
 
     try:
@@ -1003,7 +1002,7 @@ async def delete_group(
     Returns:
         Dictionary containing deletion status
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot delete group in read-only mode')
 
     try:
@@ -1048,7 +1047,7 @@ async def add_user_to_group(
     Returns:
         GroupMembershipResponse containing operation status
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot add user to group in read-only mode')
 
     try:
@@ -1079,7 +1078,7 @@ async def remove_user_from_group(
     Returns:
         GroupMembershipResponse containing operation status
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot remove user from group in read-only mode')
 
     try:
@@ -1110,7 +1109,7 @@ async def attach_group_policy(
     Returns:
         GroupPolicyAttachmentResponse containing operation status
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot attach policy to group in read-only mode')
 
     try:
@@ -1141,7 +1140,7 @@ async def detach_group_policy(
     Returns:
         GroupPolicyAttachmentResponse containing operation status
     """
-    if Context.is_readonly():
+    if ServerContext.is_readonly():
         raise IamValidationError('Cannot detach policy from group in read-only mode')
 
     try:
@@ -1193,7 +1192,7 @@ async def put_user_policy(
         logger.info(f'Creating/updating inline policy {policy_name} for user: {user_name}')
 
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError(
                 'Cannot create/update inline policy: server is running in read-only mode'
             )
@@ -1299,7 +1298,7 @@ async def delete_user_policy(
         logger.info(f'Deleting inline policy {policy_name} from user: {user_name}')
 
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError(
                 'Cannot delete inline policy: server is running in read-only mode'
             )
@@ -1355,7 +1354,7 @@ async def put_role_policy(
         logger.info(f'Creating/updating inline policy {policy_name} for role: {role_name}')
 
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError(
                 'Cannot create/update inline policy: server is running in read-only mode'
             )
@@ -1461,7 +1460,7 @@ async def delete_role_policy(
         logger.info(f'Deleting inline policy {policy_name} from role: {role_name}')
 
         # Check if server is in read-only mode
-        if Context.is_readonly():
+        if ServerContext.is_readonly():
             raise IamClientError(
                 'Cannot delete inline policy: server is running in read-only mode'
             )
@@ -1583,7 +1582,7 @@ def main():
 
     # Set read-only mode if specified
     if args.readonly:
-        Context.set_readonly(True)
+        ServerContext.set_readonly(True)
         logger.info('Server started in READ-ONLY mode - all mutating operations are disabled')
     else:
         logger.info('Server started in FULL ACCESS mode')
