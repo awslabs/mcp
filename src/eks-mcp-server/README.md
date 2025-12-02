@@ -4,6 +4,10 @@ The Amazon EKS MCP server provides AI code assistants with resource management t
 
 Integrating the EKS MCP server into AI code assistants enhances development workflow across all phases, from simplifying initial cluster setup with automated prerequisite creation and application of best practices. Further, it streamlines application deployment with high-level workflows and automated code generation. Finally, it accelerates troubleshooting through intelligent debugging tools and knowledge base access. All of this simplifies complex operations through natural language interactions in AI code assistants.
 
+**AWS now offers a fully managed, hosted version of the EKS MCP Server** that eliminates local installation and maintenance. The hosted service provides automatic updates, centralized IAM-based security, and comprehensive audit logging through AWS CloudTrail. See [Option 1 (Recommended)](#option-1-recommended-hosted-mcp-server) below for setup instructions.
+
+> **Note**: The hosted Amazon EKS MCP Server is in preview and subject to change.
+
 ## Key features
 
 * Enables users of AI code assistants to create new EKS clusters, complete with prerequisites such as dedicated VPCs, networking, and EKS Auto Mode node pools, by translating requests into the appropriate AWS CloudFormation actions.
@@ -20,6 +24,58 @@ Integrating the EKS MCP server into AI code assistants enhances development work
 * [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
 
 ## Setup
+
+### Option 1 (Recommended): Hosted MCP Server
+
+Use the AWS-managed EKS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
+
+#### Prerequisites
+
+- [Python 3.10+](https://www.python.org/downloads/release/python-3100/) and [uv package manager](https://docs.astral.sh/uv/getting-started/installation/)
+- [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with valid credentials
+- IAM permissions for EKS MCP (see below)
+
+#### Configuration
+
+The hosted EKS MCP Server uses the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) to provide secure, authenticated access. Add the following to your MCP client configuration file:
+
+**For Mac/Linux:**
+```json
+{
+  "mcpServers": {
+    "eks-mcp": {
+      "disabled": false,
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://eks-mcp.us-east-1.api.aws/mcp",
+        "--service",
+        "eks-mcp",
+        "--profile",
+        "default",
+        "--region",
+        "us-east-1"
+      ]
+    }
+  }
+}
+```
+
+Replace `us-east-1` with your desired AWS region and `default` with your AWS CLI profile name. Add `--read-only` flag to restrict to read-only operations.
+
+#### IAM Permissions
+
+Your IAM role or user must have the following managed policies attached:
+
+- **For read-only operations**: `AmazonEKSMCPReadOnlyAccess`
+- **For write operations**: Create a custom policy following the [write policy guide](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html#_step_2_optional_create_a_write_policy)
+
+For complete setup instructions and additional configuration options, see the [Amazon EKS MCP Server documentation](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html).
+
+### Option 2: Local MCP Server (Legacy)
+
+> **Note**: This is the legacy local installation method that will no longer receive updates. We recommend using [Option 1 (Hosted MCP Server)](#option-1-recommended-hosted-mcp-server) instead.
 
 Add these IAM policies to the IAM role or user that you use to manage your EKS cluster resources.
 
