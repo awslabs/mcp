@@ -193,12 +193,12 @@ async def search_documentation(
     - Include service names to narrow results (e.g., "S3 bucket versioning" instead of just "versioning")
     - Use quotes for exact phrase matching (e.g., "AWS Lambda function URLs")
     - Include abbreviations and alternative terms to improve results
-    - Use guide_type and product_type filters from a SearchResponse's "facets" property:
-        - Filter **only** for broad search queries with patterns like:
-            - "What is [service]?" → product_types: ["AWS Lambda"] or ["Amazon Simple Storage Service"]
-            - "How to use [service]?" → product_types: [<service name(s) from facets>]
-            - "[service] getting started" → product_types + guide_types: ["User Guide"]
-            - "API reference for [service]" → product_types + guide_types: ["API Reference"]
+    - Use guide_type and product_type filters found from a SearchResponse's "facets" property:
+        - Filter only for broad search queries with patterns:
+            - "What is [service]?" -> product_types: ["Amazon Simple Storage Service"]
+            - "How to use <service 1> with <service 2>?" -> product_types: [<service 1>, <service 2>]
+            - "[service] getting started" -> product_types: [<service>] + guide_types: ["User Guide, "Developer Guide"]
+            - "API reference for [service]" -> product_types: [<service>] + guide_types: ["API Reference"]
 
     ## Result Interpretation
 
