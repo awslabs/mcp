@@ -317,7 +317,7 @@ async def search_cdk_documentation(query: str) -> str:
 
     Use rank to prioritize results. Check error field first - if not null, the search failed.
 
-    If a content snippet is relevant to your query but doesn't show all necessary information, use `read_cdk_documentation_page` with the URL to get the complete content.
+    If a content snippet is relevant to your query but doesn't show all necessary information, use `read_iac_documentation_page` with the URL to get the complete content.
 
     Args:
         query: Search query for CDK documentation (required)
