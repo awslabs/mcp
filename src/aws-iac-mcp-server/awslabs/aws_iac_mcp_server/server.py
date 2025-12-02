@@ -16,18 +16,18 @@ from __future__ import annotations
 
 import json
 from .sanitizer import sanitize_tool_response
-from .tools.cdk_tools import (
-    SupportedLanguages,
-    cdk_best_practices_tool,
-    read_cdk_documentation_page_tool,
-    search_cdk_documentation_tool,
-    search_cdk_samples_and_constructs_tool,
-    search_cloudformation_documentation_tool,
-)
 from .tools.cloudformation_compliance_checker import check_compliance, initialize_guard_rules
 from .tools.cloudformation_deployment_troubleshooter import DeploymentTroubleshooter
 from .tools.cloudformation_pre_deploy_validation import cloudformation_pre_deploy_validation
 from .tools.cloudformation_validator import validate_template
+from .tools.iac_tools import (
+    SupportedLanguages,
+    cdk_best_practices_tool,
+    read_iac_documentation_page_tool,
+    search_cdk_documentation_tool,
+    search_cdk_samples_and_constructs_tool,
+    search_cloudformation_documentation_tool,
+)
 from dataclasses import asdict
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
@@ -49,7 +49,7 @@ mcp = FastMCP(
                 - Use `troubleshoot_cloudformation_deployment` when: You need to diagnose CloudFormation deployment failures with root cause analysis and CloudTrail integration
                 - Use `search_cdk_documentation` when: You need specific CDK construct APIs, properties, or official documentation from AWS CDK knowledge bases
                 - Use `search_cdk_samples_and_constructs` when: You need working code examples, implementation patterns, or community constructs
-                - Use `read_cdk_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
+                - Use `read_iac_documentation_page` when: You have a specific documentation URL from search results and need complete content with pagination support
                 - Use `search_cloudformation_documentation` when: You need Cloudformation related official documentation, resource type information or template syntax
                 - Use `cdk_best_practices` when: You need to generate or review CDK code
 
@@ -308,7 +308,7 @@ async def search_cdk_documentation(query: str) -> str:
     Returns JSON with:
     - knowledge_response: Details of the response
         - results: Array with single result containing:
-            - rank: Always 1 for document reads
+            - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
             - title: Document title or filename
             - url: Source URL of the document
             - context: Full or paginated document content
@@ -334,22 +334,19 @@ async def search_cdk_documentation(query: str) -> str:
 
 
 @mcp.tool()
-async def read_cdk_documentation_page(
+async def read_iac_documentation_page(
     url: str,
     starting_index: int = 0,
 ) -> str:
-    """Fetch and convert an AWS CDK documentation page to markdown format.
+    """Fetch and convert any Infrastructure as Code (CDK or CloudFormation) documentation page to markdown format.
 
     ## Usage
 
-    This tool retrieves the complete content of a specific CDK documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
+    This tool retrieves the complete content of a specific CDK or CloudFormation documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
 
     ## When to Use
 
-    - Read complete documentation pages rather than just excerpts
-    - Get the full content of a specific document from search results
-    - Access detailed API documentation for specific constructs
-    - Read module READMEs and interface documentation
+    After using a search tool, use this tool to fetch the complete content of any relevant page in the search results.
 
     ## Supported Document Types
 
@@ -380,7 +377,7 @@ async def read_cdk_documentation_page(
     Returns:
         List of search results with URLs, titles, and context snippets
     """
-    result = await read_cdk_documentation_page_tool(url, starting_index)
+    result = await read_iac_documentation_page_tool(url, starting_index)
 
     # Convert dataclass to dict for JSON serialization
     response_dict = asdict(result)
@@ -420,7 +417,7 @@ async def search_cloudformation_documentation(query: str) -> str:
     Returns JSON with:
     - knowledge_response: Details of the response
       - results: Array with single result containing:
-        - rank: Always 1 for document reads
+        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
         - url: Source URL of the document
         - context: Full or paginated document content
@@ -488,7 +485,7 @@ async def search_cdk_samples_and_constructs(
     Returns JSON with:
     - knowledge_response: Details of the response
       - results: Array with single result containing:
-        - rank: Always 1 for document reads
+        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
         - url: Source URL of the document
         - context: Full or paginated document content

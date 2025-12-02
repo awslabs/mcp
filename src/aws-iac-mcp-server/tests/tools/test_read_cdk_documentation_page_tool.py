@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
-from awslabs.aws_iac_mcp_server.tools.cdk_tools import read_cdk_documentation_page_tool
+from awslabs.aws_iac_mcp_server.tools.iac_tools import read_iac_documentation_page_tool
 from unittest.mock import AsyncMock, patch
 
 
@@ -35,12 +35,12 @@ class TestReadCDKDocumentationPage:
             )
         ]
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.return_value = mock_response
 
-            result = await read_cdk_documentation_page_tool(
+            result = await read_iac_documentation_page_tool(
                 'https://docs.aws.amazon.com/cdk/test.html'
             )
 
@@ -55,12 +55,12 @@ class TestReadCDKDocumentationPage:
     async def test_read_cdk_documentation_page_with_start_index(self):
         """Test CDK documentation page read with start index."""
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.return_value = []
 
-            await read_cdk_documentation_page_tool(
+            await read_iac_documentation_page_tool(
                 'https://docs.aws.amazon.com/cdk/test.html', 100
             )
 
@@ -72,10 +72,10 @@ class TestReadCDKDocumentationPage:
     async def test_read_cdk_documentation_page_error(self):
         """Test CDK documentation page read with error handling."""
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.read_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.read_documentation',
             new_callable=AsyncMock,
         ) as mock_read:
             mock_read.side_effect = Exception('Read failed')
 
             with pytest.raises(Exception, match='Read failed'):
-                await read_cdk_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html')
+                await read_iac_documentation_page_tool('https://docs.aws.amazon.com/cdk/test.html')

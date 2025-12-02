@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.aws_iac_mcp_server.knowledge_models import KnowledgeResult
-from awslabs.aws_iac_mcp_server.tools.cdk_tools import search_cdk_documentation_tool
+from awslabs.aws_iac_mcp_server.tools.iac_tools import search_cdk_documentation_tool
 from unittest.mock import AsyncMock, patch
 
 
@@ -35,7 +35,7 @@ class TestSearchCDKDocumentation:
             )
         ]
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.search_documentation',
             new_callable=AsyncMock,
         ) as mock_search:
             mock_search.return_value = mock_response
@@ -53,7 +53,7 @@ class TestSearchCDKDocumentation:
     async def test_search_cdk_documentation_error(self):
         """Test CDK documentation search with error handling."""
         with patch(
-            'awslabs.aws_iac_mcp_server.tools.cdk_tools.search_documentation',
+            'awslabs.aws_iac_mcp_server.tools.iac_tools.search_documentation',
             new_callable=AsyncMock,
         ) as mock_search:
             mock_search.side_effect = Exception('Network error')

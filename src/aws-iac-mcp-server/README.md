@@ -47,6 +47,20 @@ Get started with this MCP server for creating and troubleshooting AWS infrastruc
 
 ## Available MCP Tools
 
+### Read Documentation Tool
+
+#### read_iac_documentation_page
+Fetches and converts any Infrastructure as Code (CDK or CloudFormation) documentation page to markdown format.
+
+**Use this tool to:**
+- Read complete CDK documentation pages rather than just excerpts
+- Read complete CloudFormation resource type documentation and property references
+- Get detailed CloudFormation template syntax and examples
+- Access CloudFormation API reference documentation
+- Read CloudFormation hooks and lifecycle management guides
+- Review CFN Guard policy validation rules and syntax
+- Access CloudFormation CLI documentation and usage patterns
+
 ### CloudFormation Tools
 
 #### validate_cloudformation_template
@@ -119,8 +133,6 @@ Searches AWS CDK documentation knowledge bases and returns relevant excerpts.
 - Use boolean operators: "DynamoDB AND table", "Lambda OR Function"
 - Search for specific properties: "bucket encryption", "lambda environment variables"
 
-#### read_cdk_documentation_page
-Fetches and converts an AWS CDK documentation page to markdown format.
 
 **Parameters:**
 - `url` (required): URL from search results to read the full page content
@@ -180,9 +192,13 @@ Find CDK examples for Lambda function with VPC configuration
 Show me CDK constructs for DynamoDB table with encryption
 ```
 
-#### Read CDK Documentation Page
+#### Read Infrastructure as Code Documentation Page
 ```
 Read the full CDK documentation for aws-s3.Bucket from this URL: [URL from search results]
+```
+
+```
+Read the complete CloudFormation documentation for AWS::S3::Bucket from this URL: [URL from search results]
 ```
 
 #### Search CDK Samples and Constructs
