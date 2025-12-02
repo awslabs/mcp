@@ -26,7 +26,8 @@
     "include": [
       "**/*.py",
       "**/*Dockerfile",
-      "**/*.sh"
+      "**/*.sh",
+      "**/*.guard"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
   },

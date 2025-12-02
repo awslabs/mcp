@@ -1373,10 +1373,10 @@ class TestGetPricingAttributeValues:
 
             # Verify MaxResults=5000 is used in both calls
             first_call_kwargs = pricing_client.get_attribute_values.call_args_list[0][1]
-            assert first_call_kwargs.get('MaxResults') == 5000
+            assert first_call_kwargs.get('MaxResults') == 10000
 
             second_call_kwargs = pricing_client.get_attribute_values.call_args_list[1][1]
-            assert second_call_kwargs.get('MaxResults') == 5000
+            assert second_call_kwargs.get('MaxResults') == 10000
             assert second_call_kwargs.get('NextToken') == 'token'
 
     @pytest.mark.asyncio

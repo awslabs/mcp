@@ -1131,12 +1131,12 @@ async def _get_single_attribute_values(
                 response = pricing_client.get_attribute_values(
                     ServiceCode=service_code,
                     AttributeName=attribute_name,
-                    MaxResults=5000,
+                    MaxResults=10000,
                     NextToken=next_token,
                 )
             else:
                 response = pricing_client.get_attribute_values(
-                    ServiceCode=service_code, AttributeName=attribute_name, MaxResults=5000
+                    ServiceCode=service_code, AttributeName=attribute_name, MaxResults=10000
                 )
 
             for attr_value in response.get('AttributeValues', []):

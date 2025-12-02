@@ -18,7 +18,7 @@ NOTICE                                           @awslabs/mcp-admins
 
 ## Alphabetical listing of MCP servers
 
-/src/amazon-bedrock-agentcore-mcp-server         @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1
+/src/amazon-bedrock-agentcore-mcp-server         @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1 @jesseturner21 @AlexanderRichey
 /src/amazon-kendra-index-mcp-server              @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @scottschreckengaust # @tomron-aws
 /src/amazon-keyspaces-mcp-server                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
 /src/amazon-mq-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
@@ -36,10 +36,12 @@ NOTICE                                           @awslabs/mcp-admins
 /src/aws-documentation-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen
 /src/document-loader-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/aws-healthomics-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan
+/src/aws-iac-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat
 /src/aws-iot-sitewise-mcp-server                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
 /src/aws-knowledge-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust # @tkaria @animebar
 /src/aws-location-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy # @scouturier
 /src/aws-msk-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @elmoctarebnou @dingyiheng
+/src/aws-network-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
 /src/aws-pricing-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
 /src/aws-serverless-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900
 /src/aws-support-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
@@ -75,6 +77,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/prometheus-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @MohamedSherifAbdelsamiea
 /src/redshift-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp
 /src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr @okhomin @Zh111602
+/src/sagemaker-ai-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @dparkar @githuboston @jade710 @JunqiYe
 /src/stepfunctions-tool-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/syntheticdata-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
 /src/terraform-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
