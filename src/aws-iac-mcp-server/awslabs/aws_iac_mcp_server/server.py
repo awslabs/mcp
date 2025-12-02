@@ -308,7 +308,7 @@ async def search_cdk_documentation(query: str) -> str:
     Returns JSON with:
     - knowledge_response: Details of the response
         - results: Array with single result containing:
-            - rank: Always 1 for document reads
+            - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
             - title: Document title or filename
             - url: Source URL of the document
             - context: Full or paginated document content
@@ -417,7 +417,7 @@ async def search_cloudformation_documentation(query: str) -> str:
     Returns JSON with:
     - knowledge_response: Details of the response
       - results: Array with single result containing:
-        - rank: Always 1 for document reads
+        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
         - url: Source URL of the document
         - context: Full or paginated document content
@@ -485,7 +485,7 @@ async def search_cdk_samples_and_constructs(
     Returns JSON with:
     - knowledge_response: Details of the response
       - results: Array with single result containing:
-        - rank: Always 1 for document reads
+        - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
         - url: Source URL of the document
         - context: Full or paginated document content
