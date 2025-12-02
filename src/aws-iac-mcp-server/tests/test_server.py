@@ -213,7 +213,7 @@ class TestTroubleshootDeployment:
         mock_sanitize.assert_called_once()
 
 
-class TestReadCdkDocumentationPage:
+class TestReadIaCDocumentationPage:
     """Test read_iac_documentation_page tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.read_iac_documentation_page_tool')

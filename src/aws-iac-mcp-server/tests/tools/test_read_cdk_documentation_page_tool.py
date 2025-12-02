@@ -20,7 +20,7 @@ from awslabs.aws_iac_mcp_server.tools.iac_tools import read_iac_documentation_pa
 from unittest.mock import AsyncMock, patch
 
 
-class TestReadCDKDocumentationPage:
+class TestReadIaCDocumentationPage:
     """Test read_iac_documentation_page_tool function."""
 
     @pytest.mark.asyncio
