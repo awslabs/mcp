@@ -24,7 +24,7 @@ jobs:
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
       - name: Find Dockerfiles
         id: find-dockerfiles
         run: |
@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@bb62109f04532df81644eb76173ad4f987ab6033
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@c20bf031655b0bd8ade680cfbe041b0dee122c7c
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -57,7 +57,7 @@ jobs:
 
       - name: Checkout code
         id: checkout-code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}

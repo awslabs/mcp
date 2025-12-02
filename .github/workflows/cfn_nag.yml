@@ -25,7 +25,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so follow-up steps can access it
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 #v6.0.0
 
       - name: Simple test
         uses: stelligent/cfn_nag@8b5f03da74202ba323a145e9d037ddce6cab9dec
