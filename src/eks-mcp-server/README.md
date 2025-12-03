@@ -50,8 +50,6 @@ The hosted EKS MCP Server uses the [MCP Proxy for AWS](https://github.com/aws/mc
       "args": [
         "mcp-proxy-for-aws@latest",
         "https://eks-mcp.us-east-1.api.aws/mcp",
-        "--service",
-        "eks-mcp",
         "--profile",
         "default",
         "--region",
@@ -68,7 +66,7 @@ Replace `us-east-1` with your desired AWS region and `default` with your AWS CLI
 
 Your IAM role or user must have the following managed policies attached:
 
-- **For read-only operations**: `AmazonEKSMCPReadOnlyAccess`
+- **For read-only operations**: [AmazonEKSMCPReadOnlyAccess](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonEKSMCPReadOnlyAccess.html)
 - **For write operations**: Create a custom policy following the [write policy guide](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html#_step_2_optional_create_a_write_policy)
 
 For complete setup instructions and additional configuration options, see the [Amazon EKS MCP Server documentation](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html).

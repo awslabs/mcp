@@ -18,11 +18,6 @@
           }
         },
         {
-          "name": "--service",
-          "type": "named",
-          "value": "eks-mcp"
-        },
-        {
           "default": "default",
           "description": "AWS CLI profile to use for credentials",
           "name": "--profile",
