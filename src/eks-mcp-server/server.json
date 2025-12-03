@@ -1,60 +1,60 @@
 {
-    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-    "description": "AI-powered Amazon EKS cluster management and troubleshooting",
-    "name": "io.github.awslabs/eks-mcp-server",
-    "packages": [
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "description": "AI-powered Amazon EKS cluster management and troubleshooting",
+  "name": "io.github.awslabs/eks-mcp-server",
+  "packages": [
+    {
+      "identifier": "mcp-proxy-for-aws",
+      "packageArguments": [
         {
-            "identifier": "mcp-proxy-for-aws",
-            "packageArguments": [
-                {
-                    "type": "positional",
-                    "value": "https://eks-mcp.{region}.api.aws/mcp",
-                    "variables": {
-                        "region": {
-                            "default": "us-east-1",
-                            "description": "AWS region for EKS MCP service",
-                            "isRequired": true
-                        }
-                    }
-                },
-                {
-                    "name": "--service",
-                    "type": "named",
-                    "value": "eks-mcp"
-                },
-                {
-                    "default": "default",
-                    "description": "AWS CLI profile to use for credentials",
-                    "name": "--profile",
-                    "type": "named"
-                },
-                {
-                    "name": "--region",
-                    "type": "named",
-                    "value": "{region}",
-                    "variables": {
-                        "region": {
-                            "default": "us-east-1",
-                            "description": "AWS region"
-                        }
-                    }
-                }
-            ],
-            "registryBaseUrl": "https://pypi.org",
-            "registryType": "pypi",
-            "runtimeHint": "uvx",
-            "transport": {
-                "type": "stdio"
-            },
-            "version": "1.1.1"
+          "type": "positional",
+          "value": "https://eks-mcp.{region}.api.aws/mcp",
+          "variables": {
+            "region": {
+              "default": "us-east-1",
+              "description": "AWS region for EKS MCP service",
+              "isRequired": true
+            }
+          }
+        },
+        {
+          "name": "--service",
+          "type": "named",
+          "value": "eks-mcp"
+        },
+        {
+          "default": "default",
+          "description": "AWS CLI profile to use for credentials",
+          "name": "--profile",
+          "type": "named"
+        },
+        {
+          "name": "--region",
+          "type": "named",
+          "value": "{region}",
+          "variables": {
+            "region": {
+              "default": "us-east-1",
+              "description": "AWS region"
+            }
+          }
         }
-    ],
-    "repository": {
-        "source": "github",
-        "subfolder": "src/eks-mcp-server",
-        "url": "https://github.com/awslabs/mcp"
-    },
-    "title": "Amazon EKS MCP Server",
-    "version": "1.0.0",
-    "websiteUrl": "https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html"
+      ],
+      "registryBaseUrl": "https://pypi.org",
+      "registryType": "pypi",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "version": "1.1.1"
+    }
+  ],
+  "repository": {
+    "source": "github",
+    "subfolder": "src/eks-mcp-server",
+    "url": "https://github.com/awslabs/mcp"
+  },
+  "title": "Amazon EKS MCP Server",
+  "version": "1.0.0",
+  "websiteUrl": "https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html"
 }
