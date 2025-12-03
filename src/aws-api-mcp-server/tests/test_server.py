@@ -1,6 +1,8 @@
 import pytest
 import requests
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError, CommandValidationError
+from awslabs.aws_api_mcp_server.core.common.help_command import generate_help_document
+from awslabs.aws_api_mcp_server.core.common.helpers import as_json
 from awslabs.aws_api_mcp_server.core.common.models import (
     AwsCliAliasResponse,
     Consent,
@@ -62,6 +64,8 @@ async def test_call_aws_success(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -160,6 +164,7 @@ async def test_call_aws_helper_passes_region_to_customization(
     # Arrange IR with customization flag
     mock_command = MagicMock()
     mock_command.is_awscli_customization = True
+    mock_command.is_help_operation = False
     mock_command.service_name = 's3'
     mock_command.operation_cli_name = 'ls'
     mock_ir = MagicMock()
@@ -202,6 +207,7 @@ async def test_call_aws_helper_passes_region_to_interpret(
     # Arrange IR without customization
     mock_command = MagicMock()
     mock_command.is_awscli_customization = False
+    mock_command.is_help_operation = False
     mock_command.service_name = 's3api'
     mock_command.operation_cli_name = 'list-buckets'
     mock_ir = MagicMock()
@@ -272,6 +278,8 @@ async def test_call_aws_with_consent_and_accept(
     mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -315,6 +323,7 @@ async def test_call_aws_with_consent_and_reject(
     mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -367,6 +376,8 @@ async def test_call_aws_without_consent(
     mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -427,6 +438,8 @@ async def test_call_aws_no_credentials_error(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -462,6 +475,8 @@ async def test_call_aws_execution_error_awsmcp_error(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -503,6 +518,8 @@ async def test_call_aws_execution_error_generic_exception(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -552,6 +569,8 @@ async def test_when_operation_is_not_allowed(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_read_operations_only_mode.return_value = True
@@ -583,6 +602,8 @@ async def test_call_aws_validation_failures(mock_translate_cli_to_ir, mock_valid
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     # Mock validation response with validation failures
@@ -614,6 +635,8 @@ async def test_call_aws_failed_constraints(mock_translate_cli_to_ir, mock_valida
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     # Mock validation response with failed constraints
@@ -647,6 +670,8 @@ async def test_call_aws_both_validation_failures_and_constraints(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     # Mock validation response with both validation failures and failed constraints
@@ -681,6 +706,7 @@ async def test_call_aws_awscli_customization_success(
     mock_ir = MagicMock()
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = True
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -719,6 +745,7 @@ async def test_call_aws_awscli_customization_error(
     mock_ir = MagicMock()
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = True
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -912,6 +939,7 @@ async def test_call_aws_helper_with_credentials(mock_translate, mock_validate, m
     mock_ir.command_metadata.service_sdk_name = 's3api'
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
     mock_translate.return_value = mock_ir
 
     mock_validation = MagicMock()
@@ -947,6 +975,7 @@ async def test_call_aws_helper_without_credentials(mock_translate, mock_validate
     mock_ir.command_metadata.service_sdk_name = 's3api'
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_ir.command.is_help_operation = False
     mock_translate.return_value = mock_ir
 
     mock_validation = MagicMock()
@@ -985,3 +1014,78 @@ async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
         cli_command='aws s3api list-buckets', ctx=ctx, max_results=None, credentials=None
     )
     assert result == mock_response
+
+
+@pytest.mark.parametrize(
+    'service, operation',
+    [
+        ('s3', 'ls'),
+        ('s3api', 'list-buckets'),
+        ('ec2', 'describe-instances'),
+        ('lambda', 'list-functions'),
+        ('dynamodb', 'list-tables'),
+        ('iam', 'get-user'),
+        ('cloudwatch', 'get-metric-data'),
+        ('apigateway', 'get-rest-apis'),
+        ('rds', 'describe-db-instances'),
+        ('sns', 'list-topics'),
+        ('sqs', 'list-queues'),
+        ('sts', 'get-caller-identity'),
+        ('cloudformation', 'describe-stacks'),
+        ('kms', 'list-keys'),
+        ('elasticbeanstalk', 'describe-environments'),
+        ('organizations', 'list-accounts'),
+        ('ec2', 'describe-volumes'),
+        ('ecs', 'list-clusters'),
+        ('efs', 'describe-file-systems'),
+        ('route53', 'list-hosted-zones'),
+        ('lightsail', 'get-instances'),
+    ],
+)
+async def test_call_aws_help_command_success(service, operation):
+    """Test call_aws returns success response for help command."""
+    help_document = generate_help_document(service, operation)
+    assert help_document is not None
+    expected_response = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json=as_json(help_document), status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+
+    result = await call_aws.fn(f'aws {service} {operation} help', DummyCtx())
+
+    assert result == expected_response
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_help_document')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_help_command_failure(
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_get_help_document,
+):
+    """Test call_aws raises error when help command fails."""
+    mock_ir = MagicMock()
+    mock_ir.command = MagicMock()
+    mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = True
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_response = MagicMock()
+    mock_response.validation_failed = False
+    mock_validate.return_value = mock_response
+
+    mock_get_help_document.side_effect = AwsApiMcpError('Failed to generate help document')
+
+    with pytest.raises(AwsApiMcpError) as exc_info:
+        await call_aws.fn('aws non-existing-service non-existing-operation help', DummyCtx())
+
+    assert 'Failed to generate help document' in str(exc_info.value)
+    mock_translate_cli_to_ir.assert_called_once_with(
+        'aws non-existing-service non-existing-operation help'
+    )
+    mock_validate.assert_called_once_with(mock_ir)
+    mock_get_help_document.assert_called_once()

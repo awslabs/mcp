@@ -16,6 +16,7 @@ import contextlib
 from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
+from ..common.help_command import generate_help_document
 from ..common.models import (
     AwsCliAliasResponse,
     Consent,
@@ -36,7 +37,7 @@ from ..parser.lexer import split_cli_command
 from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
-from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
+from awslabs.aws_api_mcp_server.core.common.helpers import as_json, operation_timer
 from fastmcp import Context
 from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
@@ -121,6 +122,24 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
     return ProgramValidationResponse(
         missing_context_failures=_to_missing_context_failures(ir.missing_context_failures),
         validation_failures=_to_validation_failures(ir.validation_or_translation_failures),
+    )
+
+
+async def get_help_document(
+    cli_command: str,
+    ctx: Context,
+) -> ProgramInterpretationResponse:
+    """Get help command response."""
+    args = split_cli_command(cli_command)[1:]
+    service_name = args[0]
+    operation_name = args[1]
+    help_document = generate_help_document(service_name, operation_name)
+    if help_document is None:
+        error_message = 'Failed to generate help document'
+        await ctx.error(error_message)
+        raise AwsApiMcpError(error_message)
+    return ProgramInterpretationResponse(
+        response=InterpretationResponse(json=as_json(help_document), status_code=200, error=None)
     )
 
 

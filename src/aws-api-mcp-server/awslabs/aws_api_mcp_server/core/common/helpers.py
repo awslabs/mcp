@@ -65,6 +65,11 @@ def expand_user_home_directory(args: list[str]) -> list[str]:
     return [os.path.expanduser(arg) for arg in args]
 
 
+def is_help_operation(args: list[Any]) -> bool:
+    """Check if the command is a help operation."""
+    return any(str(arg).lower() in ['help', '--help'] for arg in args)
+
+
 def validate_aws_region(region: str):
     """Checks if provided region is a valid AWS Region."""
     aws_region_pattern = '^(\\w{1,10})-(\\w{1,10}-)?(\\w{1,10})-\\d{1,2}$'
