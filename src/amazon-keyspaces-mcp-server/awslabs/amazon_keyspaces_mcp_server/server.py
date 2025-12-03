@@ -32,7 +32,7 @@ from .llm_context import (
 )
 from .services import DataService, QueryAnalysisService, SchemaService
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Optional
 
