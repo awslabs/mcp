@@ -293,6 +293,10 @@ def main():
                     secret_arn=args.secret_arn,
                     region=args.region,
                 )
+                # Initialize the pool immediately
+                asyncio.run(db_connection.initialize_pool())
+                # Store in singleton so tools can access it
+                DBConnectionSingleton._instance = type('obj', (object,), {'db_connection': db_connection})()
             except Exception as e:
                 logger.exception(f'Failed to create PostgreSQL connection: {str(e)}')
                 sys.exit(1)
