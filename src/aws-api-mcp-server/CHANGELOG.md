@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated default AWS API connect and read timeout and make it configurable (#1876)
+- Updated default AWS API connect and read timeout (#1876)
 
 ## [1.1.8] - 2025-11-28
 
