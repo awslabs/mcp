@@ -33,6 +33,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
+[project.optional-dependencies]
+hosted = ["mcp-proxy-for-aws>=1.1.1"]
+
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
 docs = "https://awslabs.github.io/mcp/servers/eks-mcp-server/"
