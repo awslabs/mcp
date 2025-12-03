@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-  "description": "AI-powered Amazon ECS cluster management and troubleshooting",
+  "description": "Amazon ECS cluster management and troubleshooting",
   "name": "io.github.awslabs/ecs-mcp-server",
   "packages": [
     {

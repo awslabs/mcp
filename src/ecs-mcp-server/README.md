@@ -31,40 +31,7 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 Use the AWS-managed ECS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
 
-#### Prerequisites
-
-- [Python 3.10+](https://www.python.org/downloads/release/python-3100/) and [uv package manager](https://docs.astral.sh/uv/getting-started/installation/)
-- [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with valid credentials
-- IAM permissions for ECS MCP
-
-#### Configuration
-
-The hosted ECS MCP Server uses the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) to provide secure, authenticated access. Add the following to your MCP client configuration file:
-
-**For Mac/Linux:**
-```json
-{
-  "mcpServers": {
-    "ecs-mcp": {
-      "disabled": false,
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "mcp-proxy-for-aws@latest",
-        "https://ecs-mcp.us-east-1.api.aws/mcp",
-        "--profile",
-        "default",
-        "--region",
-        "us-east-1"
-      ]
-    }
-  }
-}
-```
-
-Replace `us-east-1` with your desired AWS region and `default` with your AWS CLI profile name.
-
-For complete setup instructions and additional configuration options, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
+For complete setup instructions, configuration examples, and IAM permissions, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
 
 ### Option 2: Local MCP Server (Legacy)
 
