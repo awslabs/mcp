@@ -14,5 +14,4 @@
 
 """aws.postgres-mcp-server.connection"""
 
-from awslabs.postgres_mcp_server.connection.db_connection_singleton import DBConnectionSingleton
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
