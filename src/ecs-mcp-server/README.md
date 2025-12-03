@@ -27,7 +27,50 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
-### Prerequisites
+### Option 1 (Recommended): Hosted MCP Server
+
+Use the AWS-managed ECS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
+
+#### Prerequisites
+
+- [Python 3.10+](https://www.python.org/downloads/release/python-3100/) and [uv package manager](https://docs.astral.sh/uv/getting-started/installation/)
+- [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with valid credentials
+- IAM permissions for ECS MCP
+
+#### Configuration
+
+The hosted ECS MCP Server uses the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) to provide secure, authenticated access. Add the following to your MCP client configuration file:
+
+**For Mac/Linux:**
+```json
+{
+  "mcpServers": {
+    "ecs-mcp": {
+      "disabled": false,
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://ecs-mcp.us-east-1.api.aws/mcp",
+        "--profile",
+        "default",
+        "--region",
+        "us-east-1"
+      ]
+    }
+  }
+}
+```
+
+Replace `us-east-1` with your desired AWS region and `default` with your AWS CLI profile name.
+
+For complete setup instructions and additional configuration options, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
+
+### Option 2: Local MCP Server (Legacy)
+
+> **Note**: This is the legacy local installation method that will no longer receive updates. We recommend using [Option 1 (Hosted MCP Server)](#option-1-recommended-hosted-mcp-server) instead.
+
+#### Prerequisites
 
 Before installing the ECS MCP Server, ensure you have the following prerequisites installed:
 
@@ -38,7 +81,7 @@ Before installing the ECS MCP Server, ensure you have the following prerequisite
 2. **UV**: Required for package management and running MCP servers
    - Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 
-### Installation Steps
+#### Installation Steps
 
 ```bash
 # Install using uv
