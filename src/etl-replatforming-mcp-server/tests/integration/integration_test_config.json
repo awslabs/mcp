@@ -1,0 +1,8 @@
+{
+  "llm_config": {
+    "max_tokens": 50000,
+    "model_id": "anthropic.claude-3-sonnet-20240229-v1:0",
+    "region": "us-east-1",
+    "temperature": 0.1
+  }
+}
