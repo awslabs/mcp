@@ -150,3 +150,5 @@ FILE_ACCESS_MODE = get_file_access_mode()
 ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
     'ENDPOINT_SUGGEST_AWS_COMMANDS', 'https://api-mcp.global.api.aws/suggest-aws-commands'
 )
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 60
