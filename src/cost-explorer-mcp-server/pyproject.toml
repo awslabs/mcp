@@ -5,7 +5,7 @@ description = "MCP server for analyzing AWS costs and usage data through the AWS
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.38.40",
+    "boto3[crt]>=1.41.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
     "pandas>=2.2.3",

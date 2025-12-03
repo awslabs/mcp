@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "bandit>=1.8.6",
-    "boto3>=1.40.53",
+    "boto3[crt]>=1.41.0",
     "diagrams>=0.24.4",
     "mcp[cli]>=1.17.0",
     "pydantic>=2.12.2",

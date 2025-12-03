@@ -5,7 +5,7 @@ description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.38.12",
+    "boto3[crt]>=1.41.0",
     "fastmcp>=2.3.4",
     "langdetect>=1.0.9",
     "loguru>=0.7.0",
