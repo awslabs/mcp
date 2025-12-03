@@ -18,7 +18,7 @@ from .cdk_best_practices import CDK_BEST_PRACTICES_KNOWLEDGE
 from typing import Literal
 
 
-SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.'
+SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.'
 
 READ_TOOL_NEXT_STEPS_GUIDANCE = (
     'If you need code examples, use `search_cdk_samples_and_constructs` tool.'
@@ -27,7 +27,7 @@ READ_TOOL_NEXT_STEPS_GUIDANCE = (
 SEARCH_CDK_DOCUMENTATION_TOPIC = 'cdk_docs'
 SEARCH_CLOUDFORMATION_DOCUMENTATION_TOPIC = 'cloudformation'
 SEARCH_CDK_CONSTRUCTS_TOPIC = 'cdk_constructs'
-SAMPLE_CONSTRUCT_SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_cdk_documentation_page` tool.'
+SAMPLE_CONSTRUCT_SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool.'
 
 SupportedLanguages = Literal['typescript', 'python', 'java', 'csharp', 'go']
 
@@ -49,8 +49,8 @@ async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     )
 
 
-async def read_cdk_documentation_page_tool(url: str, starting_index: int = 0) -> CDKToolResponse:
-    """Read CDK documentation page.
+async def read_iac_documentation_page_tool(url: str, starting_index: int = 0) -> CDKToolResponse:
+    """Read IaC documentation page.
 
     Args:
         url: URL from search results to read the full page content.
