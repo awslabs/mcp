@@ -42,6 +42,8 @@ dev = [
     "ruff>=0.11.11",
 ]
 
+hosted = ["mcp-proxy-for-aws>=1.1.1"]
+
 [project.urls]
 Homepage = "https://github.com/awslabs/mcp"
 Documentation = "https://awslabs.github.io/mcp/servers/ecs-mcp-server/"
