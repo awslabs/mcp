@@ -61,7 +61,7 @@ async def add_documents(
     documents: List[Dict[str, Any]],
     text_fields: Optional[List[str]] = None,
     embedding_dimensions: Optional[int] = None
-) -> Union[Dict[str, Any], str]:
+) -> Dict[str, Any]:
     """Add documents to a collection with automatic embedding generation.
 
     This tool stores documents in a searchable collection, automatically generating
@@ -80,7 +80,9 @@ async def add_documents(
         embedding_dimensions: Vector dimensions (auto-detected if not specified)
 
     Returns:
-        Summary of the operation including number of documents added and provider info
+        Summary of the operation including number of documents added and provider info, or in the case
+        of an error, the error message, in a similar structure.  In both cases, the "status" and "added" fields
+        indicate the overall result of the operation and the number of documents successfully added.
 
     Example:
         result = await add_documents(
@@ -168,7 +170,12 @@ async def add_documents(
         }
 
     except Exception as e:
-        return f"Error adding documents: {str(e)}"
+        return {
+            "status": "error",
+            "added": 0,
+            "collection": collection,
+            "reason": str(e)
+        }
 
 
 @mcp.tool()
