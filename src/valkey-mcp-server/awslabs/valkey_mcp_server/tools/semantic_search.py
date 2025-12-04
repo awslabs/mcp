@@ -24,6 +24,8 @@ from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.embeddings import create_embeddings_provider
 from awslabs.valkey_mcp_server.tools.vss import vector_search
 from typing import Any, Dict, List, Optional, Union
+from valkey import Valkey
+from valkey.cluster import ValkeyCluster
 from valkey.exceptions import ValkeyError
 import json
 import struct
@@ -41,6 +43,16 @@ def _get_collection_index_name(collection: str) -> str:
 def _get_document_key(collection: str, document_id: str) -> str:
     """Get the Valkey key for a document."""
     return f"semantic_collection_{collection}:doc:{document_id}"
+
+
+def _index_exists(conn: Union[Valkey, ValkeyCluster], collection: str, ) -> bool:
+    """Check if a collection index exists."""
+    index_name = _get_collection_index_name(collection)
+    try:
+        conn.execute_command('FT.INFO', index_name)
+        return True
+    except ValkeyError:
+        return False
 
 
 @mcp.tool()
@@ -91,13 +103,7 @@ async def add_documents(
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
         index_name = _get_collection_index_name(collection)
-
-        # Check if index exists
-        try:
-            r.execute_command('FT.INFO', index_name)
-            index_exists = True
-        except ValkeyError:
-            index_exists = False
+        index_exists = _index_exists(r, collection)
 
         # Process and store each document
         added_count = 0
