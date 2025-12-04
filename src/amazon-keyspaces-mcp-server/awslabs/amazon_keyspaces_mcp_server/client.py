@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, Session
-from cassandra.io.asyncioreactor import AsyncioConnection
 
 from .consts import (
     CERT_DIRECTORY,
@@ -70,19 +69,23 @@ class UnifiedCassandraClient:
         """Initialize the client with the given configuration."""
         self.database_config = database_config
         self.is_keyspaces = database_config.use_keyspaces
+        self._session: Optional[Session] = None
 
-        # Initialize session for the configured database type (Keyspaces or Cassandra)
-        try:
-            if self.is_keyspaces:
-                self.session = self._create_keyspaces_session()
-                logger.info('Connected to Amazon Keyspaces')
-            else:
-                self.session = self._create_cassandra_session()
-                logger.info('Connected to Cassandra cluster')
-        except Exception as e:
-            target = 'Amazon Keyspaces' if self.is_keyspaces else 'Cassandra cluster'
-            logger.error('Failed to connect to %s: %s', target, str(e))
-            raise RuntimeError(f'Failed to connect to {target}: {str(e)}') from e
+    async def get_session(self) -> Session:
+        """Get or create database session lazily."""
+        if self._session is None:
+            try:
+                if self.is_keyspaces:
+                    self._session = self._create_keyspaces_session()
+                    logger.info('Connected to Amazon Keyspaces')
+                else:
+                    self._session = self._create_cassandra_session()
+                    logger.info('Connected to Cassandra cluster')
+            except Exception as e:
+                target = 'Amazon Keyspaces' if self.is_keyspaces else 'Cassandra cluster'
+                logger.error('Failed to connect to %s: %s', target, str(e))
+                raise RuntimeError(f'Failed to connect to {target}: {str(e)}') from e
+        return self._session
 
     def _create_cassandra_session(self) -> Session:
         """Create a session for Apache Cassandra."""
@@ -101,8 +104,6 @@ class UnifiedCassandraClient:
             control_connection_timeout=CONTROL_CONNECTION_TIMEOUT,
             connect_timeout=int(CONNECTION_TIMEOUT),
         )
-
-        cluster.connection_class = AsyncioConnection
 
         return cluster.connect()
 
@@ -144,8 +145,6 @@ class UnifiedCassandraClient:
                 connect_timeout=int(CONNECTION_TIMEOUT),
             )
 
-        cluster.connection_class = AsyncioConnection
-
         return cluster.connect()
 
     def _create_ssl_context_for_keyspaces(self) -> ssl.SSLContext:
@@ -171,13 +170,14 @@ class UnifiedCassandraClient:
         """Check if the client is using Amazon Keyspaces."""
         return self.is_keyspaces
 
-    def list_keyspaces(self) -> List[KeyspaceInfo]:
+    async def list_keyspaces(self) -> List[KeyspaceInfo]:
         """List all keyspaces in the database."""
         keyspaces = []
 
         try:
             query = 'SELECT keyspace_name, replication FROM system_schema.keyspaces'
-            rows = self.session.execute(query)
+            session = await self.get_session()
+            rows = session.execute(query)
 
             for row in rows:
                 name = row.keyspace_name
@@ -199,13 +199,14 @@ class UnifiedCassandraClient:
             logger.error('Error listing keyspaces: %s', str(e))
             raise RuntimeError(f'Failed to list keyspaces: {str(e)}') from e
 
-    def list_tables(self, keyspace_name: str) -> List[TableInfo]:
+    async def list_tables(self, keyspace_name: str) -> List[TableInfo]:
         """List all tables in a keyspace."""
         tables = []
 
         try:
             query = 'SELECT table_name FROM system_schema.tables WHERE keyspace_name = %s'
-            rows = self.session.execute(query, [keyspace_name])
+            session = await self.get_session()
+            rows = session.execute(query, [keyspace_name])
 
             for row in rows:
                 name = row.table_name
@@ -218,11 +219,13 @@ class UnifiedCassandraClient:
                 f'Failed to list tables for keyspace {keyspace_name}: {str(e)}'
             ) from e
 
-    def describe_keyspace(self, keyspace_name: str) -> Dict[str, Any]:
+    async def describe_keyspace(self, keyspace_name: str) -> Dict[str, Any]:
         """Get detailed information about a keyspace."""
         try:
             query = 'SELECT * FROM system_schema.keyspaces WHERE keyspace_name = %s'
-            row = self.session.execute(query, [keyspace_name]).one()
+            session = await self.get_session()
+
+            row = session.execute(query, [keyspace_name]).one()
 
             if not row:
                 raise RuntimeError(f'Keyspace not found: {keyspace_name}')
@@ -245,14 +248,16 @@ class UnifiedCassandraClient:
             logger.error('Error describing keyspace %s: %s', keyspace_name, str(e))
             raise RuntimeError(f'Failed to describe keyspace {keyspace_name}: {str(e)}') from e
 
-    def describe_table(self, keyspace_name: str, table_name: str) -> Dict[str, Any]:
+    async def describe_table(self, keyspace_name: str, table_name: str) -> Dict[str, Any]:
         """Get detailed information about a table."""
         try:
             query = (
                 'SELECT * FROM system_schema.tables WHERE '
                 'keyspace_name = %s AND table_name = %s'
             )
-            table_row = self.session.execute(query, [keyspace_name, table_name]).one()
+            session = await self.get_session()
+
+            table_row = session.execute(query, [keyspace_name, table_name]).one()
 
             if not table_row:
                 raise RuntimeError(f'Table not found: {keyspace_name}.{table_name}')
@@ -266,7 +271,9 @@ class UnifiedCassandraClient:
             query = (
                 'SELECT * FROM system_schema.columns WHERE keyspace_name = %s AND table_name = %s'
             )
-            column_rows = self.session.execute(query, [keyspace_name, table_name])
+            session = await self.get_session()
+
+            column_rows = session.execute(query, [keyspace_name, table_name])
 
             columns = []
             for column_row in column_rows:
@@ -284,7 +291,9 @@ class UnifiedCassandraClient:
             query = (
                 'SELECT * FROM system_schema.indexes WHERE keyspace_name = %s AND table_name = %s'
             )
-            index_rows = self.session.execute(query, [keyspace_name, table_name])
+            session = await self.get_session()
+
+            index_rows = session.execute(query, [keyspace_name, table_name])
 
             indexes = []
             for index_row in index_rows:
@@ -307,7 +316,9 @@ class UnifiedCassandraClient:
                         'SELECT custom_properties FROM system_schema_mcs.tables '
                         'WHERE keyspace_name = %s AND table_name = %s'
                     )
-                    capacity_row = self.session.execute(
+                    session = await self.get_session()
+
+                    capacity_row = session.execute(
                         query, [keyspace_name, table_name]
                     ).one()
 
@@ -339,7 +350,7 @@ class UnifiedCassandraClient:
                 f'Failed to describe table {keyspace_name}.{table_name}: {str(e)}'
             ) from e
 
-    def execute_read_only_query(
+    async def execute_read_only_query(
         self, query: str, params: Optional[List[Any]] = None
     ) -> Dict[str, Any]:
         """Execute a read-only SELECT query against the database."""
@@ -360,9 +371,13 @@ class UnifiedCassandraClient:
 
             # Execute the query
             if params:
-                rs = self.session.execute(query, params)
+                session = await self.get_session()
+
+                rs = session.execute(query, params)
             else:
-                rs = self.session.execute(query)
+                session = await self.get_session()
+
+                rs = session.execute(query)
 
             # Process the results
             rows = []

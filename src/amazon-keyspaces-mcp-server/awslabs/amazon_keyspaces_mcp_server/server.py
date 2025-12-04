@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 from fastmcp import Context, FastMCP
 from loguru import logger
-from pydantic import Field
 
 from .client import UnifiedCassandraClient
 from .config import AppConfig
@@ -42,12 +41,14 @@ from .llm_context import (
     build_query_result_context,
     build_table_details_context,
 )
+from .models import KeyspaceInput, QueryInput, TableInput
 from .services import DataService, QueryAnalysisService, SchemaService
 
 
 # Remove all default handlers then add our own
 logger.remove()
 logger.add(sys.stderr, level='INFO')
+
 
 mcp = FastMCP(
     name=SERVER_NAME,
@@ -79,10 +80,10 @@ This MCP server enables interaction with Amazon Keyspaces (for Apache Cassandra)
 _PROXY = None
 
 
-def get_proxy():
+async def get_proxy():
     """Returns a singleton instance of the main Keyspaces MCP server implementation.
 
-    The singleton is initialized lazily.
+    The singleton is initialized lazily when first accessed (ensuring event loop is running).
     """
     global _PROXY  # pylint: disable=global-statement
     if _PROXY is None:
@@ -110,7 +111,8 @@ async def list_keyspaces(
     ctx: Optional[Context] = None,
 ) -> str:
     """Lists all keyspaces in the Cassandra/Keyspaces database."""
-    return await get_proxy()._handle_list_keyspaces(ctx)  # pylint: disable=protected-access
+    proxy = await get_proxy()
+    return await proxy._handle_list_keyspaces(ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
@@ -118,11 +120,12 @@ async def list_keyspaces(
     description='Lists all tables in a specified keyspace - args: keyspace',
 )
 async def list_tables(
-    keyspace: str = Field(..., description='The keyspace to list tables from.'),
+    input: KeyspaceInput,
     ctx: Optional[Context] = None,
 ) -> str:
     """Lists all tables in a specified keyspace."""
-    return await get_proxy()._handle_list_tables(keyspace, ctx)  # pylint: disable=protected-access
+    proxy = await get_proxy()
+    return await proxy._handle_list_tables(input.keyspace, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
@@ -130,11 +133,12 @@ async def list_tables(
     description='Gets detailed information about a keyspace - args: keyspace',
 )
 async def describe_keyspace(
-    keyspace: str = Field(..., description='The keyspace to retrieve metadata for.'),
+    input: KeyspaceInput,
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a keyspace."""
-    return await get_proxy()._handle_describe_keyspace(keyspace, ctx)  # pylint: disable=protected-access
+    proxy = await get_proxy()
+    return await proxy._handle_describe_keyspace(input.keyspace, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
@@ -142,12 +146,12 @@ async def describe_keyspace(
     description='Gets detailed information about a table - args: keyspace, table',
 )
 async def describe_table(
-    keyspace: str = Field(..., description='The keyspace containing the table'),
-    table: str = Field(..., description='The name of the table to describe'),
+    input: TableInput,
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a table."""
-    return await get_proxy()._handle_describe_table(keyspace, table, ctx)  # pylint: disable=protected-access
+    proxy = await get_proxy()
+    return await proxy._handle_describe_table(input.keyspace, input.table, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
@@ -155,12 +159,12 @@ async def describe_table(
     description='Executes a read-only SELECT query against the database - args: keyspace, query',
 )
 async def execute_query(
-    keyspace: str = Field(..., description='The keyspace to execute the query against'),
-    query: str = Field(..., description='The CQL SELECT query to execute'),
+    input: QueryInput,
     ctx: Optional[Context] = None,
 ) -> str:
     """Executes a read-only (SELECT) query against the database."""
-    return await get_proxy()._handle_execute_query(keyspace, query, ctx)  # pylint: disable=protected-access
+    proxy = await get_proxy()
+    return await proxy._handle_execute_query(input.keyspace, input.query, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
@@ -168,14 +172,13 @@ async def execute_query(
     description='Analyzes the performance characteristics of a CQL query - args: keyspace, query',
 )
 async def analyze_query_performance(
-    keyspace: str = Field(..., description='The keyspace to analyze the query against'),
-    query: str = Field(..., description='The CQL query to analyze for performance'),
+    input: QueryInput,
     ctx: Optional[Context] = None,
 ) -> str:
     """Analyzes the performance characteristics of a CQL query."""
-    proxy = get_proxy()
+    proxy = await get_proxy()
     return await proxy._handle_analyze_query_performance(  # pylint: disable=protected-access
-        keyspace, query, ctx
+        input.keyspace, input.query, ctx
     )
 
 
@@ -196,7 +199,7 @@ class KeyspacesMcpStdioServer:
     async def _handle_list_keyspaces(self, ctx: Optional[Any] = None) -> str:
         """Handle the listKeyspaces tool."""
         try:
-            keyspaces = self.schema_service.list_keyspaces()
+            keyspaces = await self.schema_service.list_keyspaces()
 
             # Format keyspace names as a markdown list for better display
             keyspace_names = [k.name for k in keyspaces]
@@ -225,7 +228,7 @@ class KeyspacesMcpStdioServer:
             if not keyspace:
                 raise ValidationError('Keyspace name is required')
 
-            tables = self.schema_service.list_tables(keyspace)
+            tables = await self.schema_service.list_tables(keyspace)
 
             # Format table names as a markdown list for better display
             table_names = [t.name for t in tables]
@@ -256,7 +259,7 @@ class KeyspacesMcpStdioServer:
             if not keyspace:
                 raise ValidationError('Keyspace name is required')
 
-            keyspace_details = self.schema_service.describe_keyspace(keyspace)
+            keyspace_details = await self.schema_service.describe_keyspace(keyspace)
 
             # Format keyspace details as markdown
             formatted_text = f'## Keyspace: `{keyspace}`\n\n'
@@ -303,7 +306,7 @@ class KeyspacesMcpStdioServer:
             if not table:
                 raise ValidationError('Table name is required')
 
-            table_details = self.schema_service.describe_table(keyspace, table)
+            table_details = await self.schema_service.describe_table(keyspace, table)
 
             # Format table details as markdown
             formatted_text = f'## Table: `{keyspace}.{table}`\n\n'
@@ -382,7 +385,7 @@ class KeyspacesMcpStdioServer:
                 raise QuerySecurityError('Query contains potentially unsafe operations')
 
             # Execute the query using the DataService
-            query_results = self.data_service.execute_read_only_query(keyspace, query)
+            query_results = await self.data_service.execute_read_only_query(keyspace, query)
 
             # Format the results for display
             formatted_text = '## Query Results\n\n'
@@ -447,7 +450,7 @@ class KeyspacesMcpStdioServer:
             if not query:
                 raise ValidationError('Query is required')
 
-            analysis_result = self.query_analysis_service.analyze_query(keyspace, query)
+            analysis_result = await self.query_analysis_service.analyze_query(keyspace, query)
 
             # Build a user-friendly response
             formatted_text = '## Query Analysis Results\n\n'
@@ -478,6 +481,17 @@ class KeyspacesMcpStdioServer:
 
 def main():
     """Run the MCP server."""
+    import asyncio
+    
+    # Validate connection before starting server
+    try:
+        proxy = asyncio.run(get_proxy())
+        asyncio.run(proxy.schema_service.cassandra_client.get_session())
+        logger.success('Successfully validated database connection')
+    except Exception as e:
+        logger.error(f'Failed to connect to database: {e}')
+        sys.exit(1)
+    
     mcp.run()
 
 

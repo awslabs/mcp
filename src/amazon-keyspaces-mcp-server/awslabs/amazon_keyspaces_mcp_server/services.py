@@ -35,7 +35,7 @@ class DataService:
             cassandra_client.is_using_keyspaces(),
         )
 
-    def execute_read_only_query(self, keyspace_name: str, query: str) -> Dict[str, Any]:
+    async def execute_read_only_query(self, keyspace_name: str, query: str) -> Dict[str, Any]:
         """Execute a read-only SELECT query against the database."""
         logger.info('Executing read-only query on keyspace %s: %s', keyspace_name, query)
 
@@ -86,25 +86,25 @@ class SchemaService:
             cassandra_client.is_using_keyspaces(),
         )
 
-    def list_keyspaces(self) -> List[KeyspaceInfo]:
+    async def list_keyspaces(self) -> List[KeyspaceInfo]:
         """List all keyspaces in the database."""
         logger.info('Listing keyspaces')
-        return self.cassandra_client.list_keyspaces()
+        return await self.cassandra_client.list_keyspaces()
 
-    def list_tables(self, keyspace_name: str) -> List[TableInfo]:
+    async def list_tables(self, keyspace_name: str) -> List[TableInfo]:
         """List all tables in a keyspace."""
         logger.info('Listing tables for keyspace: %s', keyspace_name)
-        return self.cassandra_client.list_tables(keyspace_name)
+        return await self.cassandra_client.list_tables(keyspace_name)
 
-    def describe_keyspace(self, keyspace_name: str) -> Dict[str, Any]:
+    async def describe_keyspace(self, keyspace_name: str) -> Dict[str, Any]:
         """Get detailed information about a keyspace."""
         logger.info('Describing keyspace: %s', keyspace_name)
-        return self.cassandra_client.describe_keyspace(keyspace_name)
+        return await self.cassandra_client.describe_keyspace(keyspace_name)
 
-    def describe_table(self, keyspace_name: str, table_name: str) -> Dict[str, Any]:
+    async def describe_table(self, keyspace_name: str, table_name: str) -> Dict[str, Any]:
         """Get detailed information about a table."""
         logger.info('Describing table: %s.%s', keyspace_name, table_name)
-        return self.cassandra_client.describe_table(keyspace_name, table_name)
+        return await self.cassandra_client.describe_table(keyspace_name, table_name)
 
 
 class QueryAnalysisService:
@@ -116,7 +116,7 @@ class QueryAnalysisService:
         self.schema_service = schema_service
         logger.info('QueryAnalysisService initialized')
 
-    def analyze_query(self, keyspace_name: str, query: str) -> QueryAnalysisResult:
+    async def analyze_query(self, keyspace_name: str, query: str) -> QueryAnalysisResult:
         """Analyze a CQL query for performance characteristics."""
         logger.info('Analyzing query for keyspace %s: %s', keyspace_name, query)
 
@@ -139,7 +139,7 @@ class QueryAnalysisService:
                 return result
 
             # Get table schema information
-            tables = self.schema_service.list_tables(keyspace_name)
+            tables = await self.schema_service.list_tables(keyspace_name)
             table_info = next((t for t in tables if t.name.lower() == table_name.lower()), None)
 
             if not table_info:
@@ -150,7 +150,7 @@ class QueryAnalysisService:
                 return result
 
             # Get table details
-            table_details = self.schema_service.describe_table(keyspace_name, table_name)
+            table_details = await self.schema_service.describe_table(keyspace_name, table_name)
 
             # Extract WHERE conditions
             where_conditions = self._extract_where_conditions(normalized_query)

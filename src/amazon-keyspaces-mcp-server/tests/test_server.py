@@ -16,7 +16,7 @@
 import pytest
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
 from awslabs.amazon_keyspaces_mcp_server.models import (
@@ -37,9 +37,9 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.mock_data_service = Mock()
-        self.mock_query_analysis_service = Mock()
-        self.mock_schema_service = Mock()
+        self.mock_data_service = AsyncMock()
+        self.mock_query_analysis_service = AsyncMock()
+        self.mock_schema_service = AsyncMock()
         self.server = KeyspacesMcpStdioServer(
             self.mock_data_service, self.mock_query_analysis_service, self.mock_schema_service
         )
@@ -461,7 +461,8 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
 
 @patch('awslabs.amazon_keyspaces_mcp_server.server.UnifiedCassandraClient')
 @patch('awslabs.amazon_keyspaces_mcp_server.server.AppConfig')
-def test_get_proxy(mock_app_config, mock_client_class):
+@pytest.mark.asyncio
+async def test_get_proxy(mock_app_config, mock_client_class):
     """Test the get_proxy function."""
     # Set up the mocks
     mock_app_config_instance = Mock()
@@ -471,10 +472,10 @@ def test_get_proxy(mock_app_config, mock_client_class):
     mock_client_class.return_value = mock_client_instance
 
     # Call the function
-    proxy = get_proxy()
+    proxy = await get_proxy()
 
     # Call it again to test singleton behavior
-    proxy2 = get_proxy()
+    proxy2 = await get_proxy()
 
     # Verify the results
     assert proxy is proxy2  # Should return the same instance
