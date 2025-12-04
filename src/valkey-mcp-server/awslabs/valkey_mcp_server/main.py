@@ -29,6 +29,7 @@ from awslabs.valkey_mcp_server.tools import (
     sorted_set,  # noqa: F401
     stream,  # noqa: F401
     string,  # noqa: F401
+    vss
 )
 from loguru import logger
 from starlette.requests import Request  # noqa: F401
