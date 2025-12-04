@@ -13,12 +13,14 @@
 # limitations under the License.
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
+from awslabs.valkey_mcp_server.common.server import mcp
 from typing import List, Dict, Any, Union
 from valkey.exceptions import ValkeyError
 from valkey.commands.search.query import Query
 import struct
 
 
+@mcp.tool()
 async def vector_search(index: str, field: str, vector: List[float], offset: int = 0, count: int = 10) -> Union[str, List[Dict[str, Any]]]:
     """Perform a Valkey vector search using the FT.SEARCH command
 
