@@ -465,3 +465,123 @@ class WaitClusterResponse(CallToolResult):
     cluster_id: str = Field(..., description='ID of the cluster')
     state: str = Field(..., description='Current state of the cluster')
     operation: str = Field(default='wait', description='Operation performed')
+
+
+# Response models for EMR Serverless Operations
+
+
+class CreateApplicationResponse(CallToolResult):
+    """Response model for create EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the created application')
+    name: str = Field(..., description='Name of the created application')
+    arn: str = Field(..., description='ARN of the created application')
+    operation: str = Field(default='create-application', description='Operation performed')
+
+
+class GetApplicationResponse(CallToolResult):
+    """Response model for get EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application: Dict[str, Any] = Field(..., description='Application details')
+    operation: str = Field(default='get-application', description='Operation performed')
+
+
+class UpdateApplicationResponse(CallToolResult):
+    """Response model for update EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application: Dict[str, Any] = Field(..., description='Updated application details')
+    operation: str = Field(default='update-application', description='Operation performed')
+
+
+class DeleteApplicationResponse(CallToolResult):
+    """Response model for delete EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the deleted application')
+    operation: str = Field(default='delete-application', description='Operation performed')
+
+
+class ListApplicationsResponse(CallToolResult):
+    """Response model for list EMR Serverless applications operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    applications: List[Dict[str, Any]] = Field(..., description='List of applications')
+    count: int = Field(..., description='Number of applications found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-applications', description='Operation performed')
+
+
+class StartApplicationResponse(CallToolResult):
+    """Response model for start EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the started application')
+    operation: str = Field(default='start-application', description='Operation performed')
+
+
+class StopApplicationResponse(CallToolResult):
+    """Response model for stop EMR Serverless application operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the stopped application')
+    operation: str = Field(default='stop-application', description='Operation performed')
+
+
+class StartJobRunResponse(CallToolResult):
+    """Response model for start EMR Serverless job run operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the application')
+    job_run_id: str = Field(..., description='ID of the started job run')
+    arn: str = Field(..., description='ARN of the job run')
+    operation: str = Field(default='start-job-run', description='Operation performed')
+
+
+class GetJobRunResponse(CallToolResult):
+    """Response model for get EMR Serverless job run operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    job_run: Dict[str, Any] = Field(..., description='Job run details')
+    operation: str = Field(default='get-job-run', description='Operation performed')
+
+
+class CancelJobRunResponse(CallToolResult):
+    """Response model for cancel EMR Serverless job run operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    application_id: str = Field(..., description='ID of the application')
+    job_run_id: str = Field(..., description='ID of the cancelled job run')
+    operation: str = Field(default='cancel-job-run', description='Operation performed')
+
+
+class ListJobRunsResponse(CallToolResult):
+    """Response model for list EMR Serverless job runs operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    job_runs: List[Dict[str, Any]] = Field(..., description='List of job runs')
+    count: int = Field(..., description='Number of job runs found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-job-runs', description='Operation performed')
+
+
+class GetDashboardForJobRunResponse(CallToolResult):
+    """Response model for get dashboard for EMR Serverless job run operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    url: str = Field(..., description='Dashboard URL for the job run')
+    operation: str = Field(default='get-dashboard-for-job-run', description='Operation performed')

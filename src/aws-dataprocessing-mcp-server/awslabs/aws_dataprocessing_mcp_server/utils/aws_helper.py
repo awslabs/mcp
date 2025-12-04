@@ -20,6 +20,7 @@ from .consts import (
     CUSTOM_TAGS_ENV_VAR,
     DEFAULT_RESOURCE_TAGS,
     EMR_CLUSTER_RESOURCE_TYPE,
+    EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
     MCP_CREATION_TIME_TAG_KEY,
     MCP_MANAGED_TAG_KEY,
     MCP_MANAGED_TAG_VALUE,
@@ -424,4 +425,65 @@ class AwsHelper:
 
         except Exception as e:
             result['error_message'] = f'Error getting data catalog: {str(e)}'
+            return result
+
+    @classmethod
+    def verify_emr_serverless_application_managed_by_mcp(
+        cls,
+        emr_serverless_client: Any,
+        application_id: str,
+        expected_resource_type: str = EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
+    ) -> Dict[str, Any]:
+        """Verify if an EMR Serverless application is managed by the MCP server and has the expected resource type.
+
+        This method checks if the EMR Serverless application has the MCP managed tag and the correct resource type tag.
+
+        Args:
+            emr_serverless_client: EMR Serverless boto3 client
+            application_id: ID of the EMR Serverless application to verify
+            expected_resource_type: The expected resource type value (default: EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE)
+
+        Returns:
+            Dictionary with verification result:
+                - is_valid: True if verification passed, False otherwise
+                - error_message: Error message if verification failed, None otherwise
+        """
+        # If custom tags are enabled, skip verification
+        if cls.is_custom_tags_enabled():
+            return {'is_valid': True, 'error_message': None}
+
+        result = {'is_valid': False, 'error_message': None}
+
+        try:
+            response = emr_serverless_client.get_application(applicationId=application_id)
+            tags_dict = response.get('application', {}).get('tags', {})
+
+            # Convert tags dictionary to list format for verification
+            tags_list = [{'Key': key, 'Value': value} for key, value in tags_dict.items()]
+
+            # Check if the resource is managed by MCP
+            if not cls.verify_resource_managed_by_mcp(tags_list):
+                result['error_message'] = (
+                    f'Application {application_id} is not managed by MCP (missing required tags)'
+                )
+                return result
+
+            # Check if the resource has the expected resource type
+            actual_type = tags_dict.get(MCP_RESOURCE_TYPE_TAG_KEY, 'unknown')
+            if (
+                actual_type != expected_resource_type
+                and actual_type != EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+            ):
+                result['error_message'] = (
+                    f'Application {application_id} has incorrect type (expected {expected_resource_type}, got {actual_type})'
+                )
+                return result
+
+            # All checks passed
+            result['is_valid'] = True
+            return result
+
+        except ClientError as e:
+            # If we can't get the application information, return error
+            result['error_message'] = f'Error retrieving application {application_id}: {str(e)}'
             return result
