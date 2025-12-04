@@ -347,6 +347,35 @@ class TestSearchDocumentation:
             assert len(results) == 0
             mock_post.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_filters(self):
+        """Test searching AWS documentation with product and guide filters."""
+        search_phrase = 'test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {'suggestions': []}
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            await search_documentation(
+                ctx,
+                search_phrase=search_phrase,
+                limit=10,
+                product_types=['Amazon S3', 'AWS Lambda'],
+                guide_types=['User Guide', 'API Reference'],
+            )
+
+            request_body = mock_post.call_args[1]['json']
+            context_attrs = request_body['contextAttributes']
+
+            assert {'key': 'aws-docs-search-product', 'value': 'Amazon S3'} in context_attrs
+            assert {'key': 'aws-docs-search-product', 'value': 'AWS Lambda'} in context_attrs
+            assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
+            assert {'key': 'aws-docs-search-guide', 'value': 'API Reference'} in context_attrs
+
 
 class TestRecommend:
     """Tests for the recommend function."""

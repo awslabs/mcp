@@ -295,8 +295,7 @@ async def search_documentation(
                         facets['product_types'] = value
                     elif key == 'aws-docs-search-guide':
                         facets['guide_types'] = value
-                    else:
-                        facets[key] = value
+
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
             logger.error(error_msg)
