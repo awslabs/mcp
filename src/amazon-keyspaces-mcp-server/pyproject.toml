@@ -126,6 +126,9 @@ markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]
+filterwarnings = [
+    "ignore::pytest.PytestAssertRewriteWarning"
+]
 
 [tool.coverage.report]
 exclude_also = [

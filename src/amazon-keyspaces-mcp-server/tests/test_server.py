@@ -13,10 +13,10 @@
 # and limitations under the License.
 """Unit tests for the server module."""
 
+import pytest
+
 import unittest
 from unittest.mock import Mock, patch
-
-import pytest
 
 from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
 from awslabs.amazon_keyspaces_mcp_server.models import (
