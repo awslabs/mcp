@@ -16,29 +16,23 @@
 
 import os
 from .base import EmbeddingsProvider
-from .providers import (
-    OllamaEmbeddings,
-    OpenAIEmbeddings,
-    BedrockEmbeddings,
-    CohereEmbeddings,
-    HashEmbeddings
-)
+from .providers import OllamaEmbeddings, BedrockEmbeddings
 
 
 def create_embeddings_provider() -> EmbeddingsProvider:
-    """Create an embeddings provider based on environment configuration.
+    """Create an embeddings provider based on environment configuration.  This list of providers can be extended
+    in the future to support additional embeddings providers such as OpenAI or Cohere etc.
 
     Configuration via environment variables:
-    - EMBEDDINGS_PROVIDER: Provider type (ollama, openai, bedrock, cohere, hash)
+    - EMBEDDINGS_PROVIDER: Provider type (ollama, bedrock)
+
+    For Ollama provider:
     - OLLAMA_HOST: Ollama server URL (default: http://localhost:11434)
     - OLLAMA_EMBEDDING_MODEL: Ollama model name (default: nomic-embed-text)
-    - OPENAI_API_KEY: OpenAI API key
-    - OPENAI_EMBEDDING_MODEL: OpenAI model name (default: text-embedding-3-small)
+
+    For Titan / Bedrock provider:
     - AWS_REGION: AWS region for Bedrock (default: us-east-1)
     - BEDROCK_MODEL_ID: Bedrock model ID (default: amazon.titan-embed-text-v1)
-    - COHERE_API_KEY: Cohere API key
-    - COHERE_EMBEDDING_MODEL: Cohere model name (default: embed-english-v3.0)
-    - HASH_EMBEDDING_DIMENSIONS: Dimensions for hash embeddings (default: 384)
 
     Returns:
         Configured embeddings provider instance
@@ -54,33 +48,11 @@ def create_embeddings_provider() -> EmbeddingsProvider:
             model=os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')
         )
 
-    elif provider_type == 'openai':
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI provider")
-        return OpenAIEmbeddings(
-            api_key=api_key,
-            model=os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
-        )
-
     elif provider_type == 'bedrock':
         return BedrockEmbeddings(
             region_name=os.getenv('AWS_REGION', 'us-east-1'),
             model_id=os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1')
         )
-
-    elif provider_type == 'cohere':
-        api_key = os.getenv('COHERE_API_KEY')
-        if not api_key:
-            raise ValueError("COHERE_API_KEY environment variable is required for Cohere provider")
-        return CohereEmbeddings(
-            api_key=api_key,
-            model=os.getenv('COHERE_EMBEDDING_MODEL', 'embed-english-v3.0')
-        )
-
-    elif provider_type == 'hash':
-        dimensions = int(os.getenv('HASH_EMBEDDING_DIMENSIONS', '384'))
-        return HashEmbeddings(dimensions=dimensions)
 
     else:
         raise ValueError(
@@ -92,9 +64,6 @@ def create_embeddings_provider() -> EmbeddingsProvider:
 __all__ = [
     'EmbeddingsProvider',
     'OllamaEmbeddings',
-    'OpenAIEmbeddings',
     'BedrockEmbeddings',
-    'CohereEmbeddings',
-    'HashEmbeddings',
     'create_embeddings_provider'
 ]
