@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Agent script data models."""
+"""Agent script data models - Separated for clarity."""
 
-from pydantic import BaseModel
+from .agent_script import AgentScript
+from .script_index import ScriptIndex
+from .template import Template
 
-
-class Script(BaseModel):
-    """Script model with name, description, and content."""
-
-    name: str
-    description: str
-    content: str
+__all__ = ['AgentScript', 'ScriptIndex', 'Template']
