@@ -1,18 +1,29 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# or in the 'license' file accompanying this file.
+# This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied.
+# See the License for the specific language governing permissions
 # and limitations under the License.
 """Unit tests for the server module."""
 
 import unittest
+from unittest.mock import Mock, patch
+
+import pytest
+
 from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
-from awslabs.amazon_keyspaces_mcp_server.models import KeyspaceInfo, QueryAnalysisResult, TableInfo
+from awslabs.amazon_keyspaces_mcp_server.models import (
+    KeyspaceInfo,
+    QueryAnalysisResult,
+    TableInfo,
+)
 from awslabs.amazon_keyspaces_mcp_server.server import (
     KeyspacesMcpStdioServer,
     get_proxy,
@@ -32,17 +43,18 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.server = KeyspacesMcpStdioServer(
             self.mock_data_service, self.mock_query_analysis_service, self.mock_schema_service
         )
-        self.mock_context = AsyncMock(spec=Context)
+        self.mock_context = Mock(spec=Context)
+        self.mock_context.info = Mock(return_value=None)
 
-    def test_handle_list_keyspaces(self):
-        """Test the handle_list_keyspaces method."""
+    async def test_handle_list_keyspaces(self):
+        """Test the _handle_list_keyspaces method."""
         # Set up the mock
         keyspace1 = KeyspaceInfo(name='system')
         keyspace2 = KeyspaceInfo(name='mykeyspace')
         self.mock_schema_service.list_keyspaces.return_value = [keyspace1, keyspace2]
 
         # Call the method
-        result = self.server.handle_list_keyspaces(self.mock_context)
+        result = await self.server._handle_list_keyspaces(self.mock_context)
 
         # Verify the result
         self.assertIn('## Available Keyspaces', result)
@@ -51,13 +63,13 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.list_keyspaces.assert_called_once()
         self.mock_context.info.assert_called_once()
 
-    def test_handle_list_keyspaces_empty(self):
-        """Test the handle_list_keyspaces method with no keyspaces."""
+    async def test_handle_list_keyspaces_empty(self):
+        """Test the _handle_list_keyspaces method with no keyspaces."""
         # Set up the mock
         self.mock_schema_service.list_keyspaces.return_value = []
 
         # Call the method
-        result = self.server.handle_list_keyspaces(self.mock_context)
+        result = await self.server._handle_list_keyspaces(self.mock_context)
 
         # Verify the result
         self.assertIn('## Available Keyspaces', result)
@@ -65,19 +77,19 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.list_keyspaces.assert_called_once()
         self.mock_context.info.assert_called_once()
 
-    def test_handle_list_keyspaces_error(self):
+    async def test_handle_list_keyspaces_error(self):
         """Test the handle_list_keyspaces method with an error."""
         # Set up the mock
         self.mock_schema_service.list_keyspaces.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server.handle_list_keyspaces(self.mock_context)
+            await self.server._handle_list_keyspaces(self.mock_context)
 
         self.assertIn('Error listing keyspaces', str(context.exception))
         self.mock_schema_service.list_keyspaces.assert_called_once()
 
-    def test_handle_list_tables(self):
+    async def test_handle_list_tables(self):
         """Test the _handle_list_tables method."""
         # Set up the mock
         table1 = TableInfo(name='users', keyspace='mykeyspace')
@@ -85,7 +97,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.list_tables.return_value = [table1, table2]
 
         # Call the method
-        result = self.server._handle_list_tables('mykeyspace', self.mock_context)
+        result = await self.server._handle_list_tables('mykeyspace', self.mock_context)
 
         # Verify the result
         self.assertIn('## Tables in Keyspace `mykeyspace`', result)
@@ -94,13 +106,13 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.list_tables.assert_called_once_with('mykeyspace')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_list_tables_empty(self):
+    async def test_handle_list_tables_empty(self):
         """Test the _handle_list_tables method with no tables."""
         # Set up the mock
         self.mock_schema_service.list_tables.return_value = []
 
         # Call the method
-        result = self.server._handle_list_tables('mykeyspace', self.mock_context)
+        result = await self.server._handle_list_tables('mykeyspace', self.mock_context)
 
         # Verify the result
         self.assertIn('## Tables in Keyspace `mykeyspace`', result)
@@ -108,19 +120,19 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.list_tables.assert_called_once_with('mykeyspace')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_list_tables_error(self):
+    async def test_handle_list_tables_error(self):
         """Test the _handle_list_tables method with an error."""
         # Set up the mock
         self.mock_schema_service.list_tables.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_list_tables('mykeyspace', self.mock_context)
+            await self.server._handle_list_tables('mykeyspace', self.mock_context)
 
         self.assertIn('Error listing tables', str(context.exception))
         self.mock_schema_service.list_tables.assert_called_once_with('mykeyspace')
 
-    def test_handle_describe_keyspace(self):
+    async def test_handle_describe_keyspace(self):
         """Test the _handle_describe_keyspace method."""
         # Set up the mock
         keyspace_details = {
@@ -131,7 +143,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_keyspace.return_value = keyspace_details
 
         # Call the method
-        result = self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
+        result = await self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
 
         # Verify the result
         self.assertIn('## Keyspace: `mykeyspace`', result)
@@ -142,7 +154,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_keyspace.assert_called_once_with('mykeyspace')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_describe_keyspace_simple_strategy(self):
+    async def test_handle_describe_keyspace_simple_strategy(self):
         """Test the _handle_describe_keyspace method with SimpleStrategy."""
         # Set up the mock
         keyspace_details = {
@@ -153,7 +165,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_keyspace.return_value = keyspace_details
 
         # Call the method
-        result = self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
+        result = await self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
 
         # Verify the result
         self.assertIn('## Keyspace: `mykeyspace`', result)
@@ -164,19 +176,19 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_keyspace.assert_called_once_with('mykeyspace')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_describe_keyspace_error(self):
+    async def test_handle_describe_keyspace_error(self):
         """Test the _handle_describe_keyspace method with an error."""
         # Set up the mock
         self.mock_schema_service.describe_keyspace.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
+            await self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
 
         self.assertIn('Error describing keyspace', str(context.exception))
         self.mock_schema_service.describe_keyspace.assert_called_once_with('mykeyspace')
 
-    def test_handle_describe_table(self):
+    async def test_handle_describe_table(self):
         """Test the _handle_describe_table method."""
         # Set up the mock
         table_details = {
@@ -193,7 +205,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_table.return_value = table_details
 
         # Call the method
-        result = self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
+        result = await self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
 
         # Verify the result
         self.assertIn('## Table: `mykeyspace.users`', result)
@@ -208,7 +220,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_table.assert_called_once_with('mykeyspace', 'users')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_describe_table_with_clustering_columns(self):
+    async def test_handle_describe_table_with_clustering_columns(self):
         """Test the _handle_describe_table method with clustering columns."""
         # Set up the mock
         table_details = {
@@ -225,7 +237,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_table.return_value = table_details
 
         # Call the method
-        result = self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
+        result = await self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
 
         # Verify the result
         self.assertIn('## Table: `mykeyspace.users`', result)
@@ -241,19 +253,19 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_schema_service.describe_table.assert_called_once_with('mykeyspace', 'users')
         self.mock_context.info.assert_called_once()
 
-    def test_handle_describe_table_error(self):
+    async def test_handle_describe_table_error(self):
         """Test the _handle_describe_table method with an error."""
         # Set up the mock
         self.mock_schema_service.describe_table.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
+            await self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
 
         self.assertIn('Error describing table', str(context.exception))
         self.mock_schema_service.describe_table.assert_called_once_with('mykeyspace', 'users')
 
-    def test_handle_execute_query(self):
+    async def test_handle_execute_query(self):
         """Test the _handle_execute_query method."""
         # Set up the mock
         query_results = {
@@ -264,7 +276,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_data_service.execute_read_only_query.return_value = query_results
 
         # Call the method
-        result = self.server._handle_execute_query(
+        result = await self.server._handle_execute_query(
             'mykeyspace', 'SELECT * FROM users', self.mock_context
         )
 
@@ -279,14 +291,14 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_context.info.assert_called_once()
 
-    def test_handle_execute_query_no_rows(self):
-        """Test the _handle_execute_query method with no rows."""
+    async def test_handle_execute_query_no_rows(self):
+        """Test the handle_execute_query method with no rows."""
         # Set up the mock
         query_results = {'columns': ['id', 'name'], 'rows': [], 'row_count': 0}
         self.mock_data_service.execute_read_only_query.return_value = query_results
 
         # Call the method
-        result = self.server._handle_execute_query(
+        result = await self.server._handle_execute_query(
             'mykeyspace', 'SELECT * FROM users WHERE id = 999', self.mock_context
         )
 
@@ -300,8 +312,8 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_context.info.assert_called_once()
 
-    def test_handle_execute_query_many_rows(self):
-        """Test the _handle_execute_query method with many rows."""
+    async def test_handle_execute_query_many_rows(self):
+        """Test the handle_execute_query method with many rows."""
         # Set up the mock
         rows = []
         for i in range(MAX_DISPLAY_ROWS + 5):  # More than MAX_DISPLAY_ROWS
@@ -311,7 +323,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_data_service.execute_read_only_query.return_value = query_results
 
         # Call the method
-        result = self.server._handle_execute_query(
+        result = await self.server._handle_execute_query(
             'mykeyspace', 'SELECT * FROM users', self.mock_context
         )
 
@@ -325,11 +337,11 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_context.info.assert_called_once()
 
-    def test_handle_execute_query_non_select(self):
-        """Test the _handle_execute_query method with a non-SELECT query."""
+    async def test_handle_execute_query_non_select(self):
+        """Test the handle_execute_query method with a non-SELECT query."""
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_execute_query(
+            await self.server._handle_execute_query(
                 'mykeyspace',
                 "INSERT INTO users (id, name) VALUES (1, 'test')",
                 self.mock_context,
@@ -338,11 +350,11 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Only SELECT queries are allowed', str(context.exception))
         self.mock_data_service.execute_read_only_query.assert_not_called()
 
-    def test_handle_execute_query_unsafe_operations(self):
-        """Test the _handle_execute_query method with unsafe operations."""
+    async def test_handle_execute_query_unsafe_operations(self):
+        """Test the handle_execute_query method with unsafe operations."""
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_execute_query(
+            await self.server._handle_execute_query(
                 'mykeyspace',
                 'SELECT * FROM users; DROP TABLE users;',
                 self.mock_context,
@@ -351,14 +363,14 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.assertIn('potentially unsafe operations', str(context.exception))
         self.mock_data_service.execute_read_only_query.assert_not_called()
 
-    def test_handle_execute_query_error(self):
-        """Test the _handle_execute_query method with an error."""
+    async def test_handle_execute_query_error(self):
+        """Test the handle_execute_query method with an error."""
         # Set up the mock
         self.mock_data_service.execute_read_only_query.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_execute_query(
+            await self.server._handle_execute_query(
                 'mykeyspace', 'SELECT * FROM users', self.mock_context
             )
 
@@ -367,8 +379,8 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
             'mykeyspace', 'SELECT * FROM users'
         )
 
-    def test_handle_analyze_query_performance(self):
-        """Test the _handle_analyze_query_performance method."""
+    async def test_handle_analyze_query_performance(self):
+        """Test the handle_analyze_query_performance method."""
         # Set up the mock
         analysis_result = QueryAnalysisResult(
             query='SELECT * FROM users WHERE id = 1',
@@ -380,7 +392,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_query_analysis_service.analyze_query.return_value = analysis_result
 
         # Call the method
-        result = self.server._handle_analyze_query_performance(
+        result = await self.server._handle_analyze_query_performance(
             'mykeyspace',
             'SELECT * FROM users WHERE id = 1',
             self.mock_context,
@@ -399,8 +411,8 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_context.info.assert_called_once()
 
-    def test_handle_analyze_query_performance_no_recommendations(self):
-        """Test the _handle_analyze_query_performance method with no recommendations."""
+    async def test_handle_analyze_query_performance_no_recommendations(self):
+        """Test the handle_analyze_query_performance method with no recommendations."""
         # Set up the mock
         analysis_result = QueryAnalysisResult(
             query='SELECT * FROM users WHERE id = 1',
@@ -412,7 +424,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         self.mock_query_analysis_service.analyze_query.return_value = analysis_result
 
         # Call the method
-        result = self.server._handle_analyze_query_performance(
+        result = await self.server._handle_analyze_query_performance(
             'mykeyspace',
             'SELECT * FROM users WHERE id = 1',
             self.mock_context,
@@ -430,14 +442,14 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_context.info.assert_called_once()
 
-    def test_handle_analyze_query_performance_error(self):
-        """Test the _handle_analyze_query_performance method with an error."""
+    async def test_handle_analyze_query_performance_error(self):
+        """Test the handle_analyze_query_performance method with an error."""
         # Set up the mock
         self.mock_query_analysis_service.analyze_query.side_effect = Exception('Test error')
 
         # Call the method and verify it raises an exception
         with self.assertRaises(Exception) as context:
-            self.server._handle_analyze_query_performance(
+            await self.server._handle_analyze_query_performance(
                 'mykeyspace', 'SELECT * FROM users', self.mock_context
             )
 
@@ -471,4 +483,9 @@ def test_get_proxy(mock_app_config, mock_client_class):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    import sys
+
+    print('\n' + '='*70)
+    print('Running Amazon Keyspaces MCP Server Tests')
+    print('='*70 + '\n')
+    sys.exit(pytest.main([__file__, '-v', '--tb=short']))

@@ -85,7 +85,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.37.27" },
-    { name = "cassandra-driver", specifier = ">=3.25.0" },
+    { name = "cassandra-driver", specifier = ">=3.29.2" },
     { name = "fastmcp", specifier = ">=2.8.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", specifier = ">=1.11.0" },

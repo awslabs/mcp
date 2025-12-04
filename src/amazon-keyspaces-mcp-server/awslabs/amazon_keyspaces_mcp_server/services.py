@@ -15,9 +15,10 @@
 
 import logging
 import re
+from typing import Any, Dict, List
+
 from .client import UnifiedCassandraClient
 from .models import KeyspaceInfo, QueryAnalysisResult, TableInfo
-from typing import Any, Dict, List
 
 
 logger = logging.getLogger(__name__)
@@ -30,12 +31,13 @@ class DataService:
         """Initialize the service with the given client."""
         self.cassandra_client = cassandra_client
         logger.info(
-            f'SchemaService initialized. Using Keyspaces: {cassandra_client.is_using_keyspaces()}'
+            'SchemaService initialized. Using Keyspaces: %s',
+            cassandra_client.is_using_keyspaces(),
         )
 
     def execute_read_only_query(self, keyspace_name: str, query: str) -> Dict[str, Any]:
         """Execute a read-only SELECT query against the database."""
-        logger.info(f'Executing read-only query on keyspace {keyspace_name}: {query}')
+        logger.info('Executing read-only query on keyspace %s: %s', keyspace_name, query)
 
         # If keyspace is specified, qualify the query with the keyspace
         full_query = query
@@ -80,7 +82,8 @@ class SchemaService:
         """Initialize the service with the given client."""
         self.cassandra_client = cassandra_client
         logger.info(
-            f'SchemaService initialized. Using Keyspaces: {cassandra_client.is_using_keyspaces()}'
+            'SchemaService initialized. Using Keyspaces: %s',
+            cassandra_client.is_using_keyspaces(),
         )
 
     def list_keyspaces(self) -> List[KeyspaceInfo]:
@@ -90,17 +93,17 @@ class SchemaService:
 
     def list_tables(self, keyspace_name: str) -> List[TableInfo]:
         """List all tables in a keyspace."""
-        logger.info(f'Listing tables for keyspace: {keyspace_name}')
+        logger.info('Listing tables for keyspace: %s', keyspace_name)
         return self.cassandra_client.list_tables(keyspace_name)
 
     def describe_keyspace(self, keyspace_name: str) -> Dict[str, Any]:
         """Get detailed information about a keyspace."""
-        logger.info(f'Describing keyspace: {keyspace_name}')
+        logger.info('Describing keyspace: %s', keyspace_name)
         return self.cassandra_client.describe_keyspace(keyspace_name)
 
     def describe_table(self, keyspace_name: str, table_name: str) -> Dict[str, Any]:
         """Get detailed information about a table."""
-        logger.info(f'Describing table: {keyspace_name}.{table_name}')
+        logger.info('Describing table: %s.%s', keyspace_name, table_name)
         return self.cassandra_client.describe_table(keyspace_name, table_name)
 
 
@@ -115,12 +118,13 @@ class QueryAnalysisService:
 
     def analyze_query(self, keyspace_name: str, query: str) -> QueryAnalysisResult:
         """Analyze a CQL query for performance characteristics."""
-        logger.info(f'Analyzing query for keyspace {keyspace_name}: {query}')
+        logger.info('Analyzing query for keyspace %s: %s', keyspace_name, query)
 
         result = QueryAnalysisResult(query=query)
 
         try:
-            # Normalize query for analysis (remove extra whitespace, convert to lowercase for pattern matching)
+            # Normalize query for analysis
+            # (remove extra whitespace, convert to lowercase for pattern matching)
             normalized_query = self._normalize_query(query)
 
             # Extract table name from the query
@@ -187,8 +191,8 @@ class QueryAnalysisService:
             )
 
             return result
-        except Exception as e:
-            logger.error(f'Error analyzing query: {str(e)}')
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error('Error analyzing query: %s', str(e))
             result.performance_assessment = f'Error analyzing query: {str(e)}'
             return result
 
@@ -319,15 +323,20 @@ class QueryAnalysisService:
         if not result.uses_partition_key:
             assessment.append(
                 'HIGH COST QUERY: This query does not filter on all partition key columns. '
-                'It will require scanning multiple partitions, which is expensive in Cassandra/Keyspaces.\n'
+                'It will require scanning multiple partitions, '
+                'which is expensive in Cassandra/Keyspaces.\n'
             )
 
             result.recommendations.append(
-                f'Include all partition key columns in your WHERE clause: {", ".join(partition_key_columns)}'
+                (
+                    'Include all partition key columns in your WHERE clause: '
+                    f'{", ".join(partition_key_columns)}'
+                )
             )
         else:
             assessment.append(
-                'EFFICIENT PARTITION KEY USAGE: This query correctly filters on all partition key columns, '
+                'EFFICIENT PARTITION KEY USAGE: This query correctly filters '
+                'on all partition key columns, '
                 'which allows Cassandra to efficiently locate the relevant data partitions.\n'
             )
 
@@ -335,11 +344,15 @@ class QueryAnalysisService:
         if not result.uses_clustering_columns and clustering_columns:
             assessment.append(
                 'POTENTIAL OPTIMIZATION: This query does not filter on any clustering columns. '
-                'Adding filters on clustering columns can further improve performance by reducing the amount of data read within partitions.\n'
+                'Adding filters on clustering columns can further improve '
+                'performance by reducing the amount of data read within partitions.\n'
             )
 
             result.recommendations.append(
-                f'Consider adding filters on clustering columns when possible: {", ".join(clustering_columns)}'
+                (
+                    'Consider adding filters on clustering columns when possible: '
+                    f'{", ".join(clustering_columns)}'
+                )
             )
         elif result.uses_clustering_columns:
             assessment.append(
@@ -350,13 +363,17 @@ class QueryAnalysisService:
         # Assess based on ALLOW FILTERING usage
         if result.uses_allow_filtering:
             assessment.append(
-                'WARNING - ALLOW FILTERING: This query uses ALLOW FILTERING, which can be extremely expensive '
+                'WARNING - ALLOW FILTERING: This query uses ALLOW FILTERING, '
+                'which can be extremely expensive '
                 'as it may force Cassandra to scan and filter large amounts of data.\n'
             )
 
             result.recommendations.append('Avoid using ALLOW FILTERING in production environments')
             result.recommendations.append(
-                'Consider creating a secondary index for the filtered columns or redesign your data model'
+                (
+                    'Consider creating a secondary index for the filtered columns '
+                    'or redesign your data model'
+                )
             )
 
         # Assess based on secondary index usage
@@ -371,19 +388,27 @@ class QueryAnalysisService:
                 'Monitor the performance of queries using secondary indexes'
             )
             result.recommendations.append(
-                'Consider denormalizing your data model instead of relying on secondary indexes for frequently used queries'
+                (
+                    'Consider denormalizing your data model instead of relying on '
+                    'secondary indexes for frequently used queries'
+                )
             )
 
         # Assess based on full table scan
         if result.is_full_table_scan:
             assessment.append(
-                'CRITICAL PERFORMANCE ISSUE - FULL TABLE SCAN: This query will perform a full table scan, '
-                'which is extremely expensive in Cassandra/Keyspaces and should be avoided in production.\n'
+                'CRITICAL PERFORMANCE ISSUE - FULL TABLE SCAN: '
+                'This query will perform a full table scan, '
+                'which is extremely expensive in Cassandra/Keyspaces '
+                'and should be avoided in production.\n'
             )
 
             result.recommendations.append('Redesign your query to include partition key filters')
             result.recommendations.append(
-                'Consider creating a materialized view or a new table with a different primary key structure'
+                (
+                    'Consider creating a materialized view or a new table '
+                    'with a different primary key structure'
+                )
             )
 
         result.performance_assessment = '\n'.join(assessment)
