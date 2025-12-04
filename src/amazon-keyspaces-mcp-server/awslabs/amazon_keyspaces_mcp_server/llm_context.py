@@ -34,7 +34,7 @@ def build_list_keyspaces_context(_keyspaces: List[KeyspaceInfo]) -> str:
         ),
         "limitations": (
             "Amazon Keyspaces doesn't support all Apache Cassandra 3.11 features. "
-            "Unsupported features include logged batches, materialized views, "
+            "Unsupported features include materialized views, "
             "indexes, aggregate functions like COUNT and SUM, prepared statements "
             "for DDL operations, DROP COLUMN, TRUNCATE TABLE, user-defined functions, "
             "the inequality operator for user-defined types, or the IN keyword in "
@@ -83,6 +83,16 @@ def build_list_tables_context(_keyspace_name: str, _tables: List[TableInfo]) -> 
             "entity they represent."
         ),
     }
+    
+    # Add guidance for empty results
+    if not _tables:
+        tables_guidance["empty_result_interpretation"] = (
+            "When no tables are found, this could mean either: (1) the keyspace exists "
+            "but contains no tables, or (2) the keyspace does not exist. If you suspect "
+            "the keyspace might not exist, use the listKeyspaces tool to verify the "
+            "keyspace name is correct before concluding it's empty."
+        )
+    
     context['tables_guidance'] = tables_guidance
 
     return dict_to_markdown(context)
@@ -281,7 +291,7 @@ def build_amazon_keyspaces_knowledge() -> Dict[str, str]:
         ),
         "differences_from_cassandra": (
             "Amazon Keyspaces doesn't support all Apache Cassandra 3.11 features. "
-            "Unsupported features include logged batches, materialized views, indexes, "
+            "Unsupported features include materialized views, indexes, "
             "aggregate functions like COUNT and SUM, prepared statements for DDL "
             "operations, DROP COLUMN, TRUNCATE TABLE, user-defined functions, the "
             "inequality operator for user-defined types, or the IN keyword in INSERT "
