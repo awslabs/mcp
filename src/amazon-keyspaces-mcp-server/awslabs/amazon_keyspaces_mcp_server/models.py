@@ -19,7 +19,17 @@ from typing import Any, Dict, List
 
 @dataclass
 class KeyspaceInfo:
-    """Information about a Cassandra keyspace."""
+    """Information about a Cassandra keyspace.
+
+    This model represents metadata about a keyspace in Cassandra or Amazon Keyspaces,
+    including its replication configuration.
+
+    Attributes:
+        name: The name of the keyspace.
+        replication_strategy: The replication strategy class (e.g., SimpleStrategy,
+            NetworkTopologyStrategy).
+        replication_factor: The number of replicas for the keyspace data.
+    """
 
     name: str
     replication_strategy: str = ''
@@ -28,7 +38,18 @@ class KeyspaceInfo:
 
 @dataclass
 class ColumnInfo:
-    """Information about a Cassandra column."""
+    """Information about a Cassandra column.
+
+    This model represents metadata about a column in a Cassandra table,
+    including its data type and role in the primary key structure.
+
+    Attributes:
+        name: The name of the column.
+        type: The CQL data type of the column (e.g., text, int, uuid).
+        is_primary_key: Whether this column is part of the primary key.
+        is_partition_key: Whether this column is part of the partition key.
+        is_clustering_column: Whether this column is a clustering column.
+    """
 
     name: str
     type: str
@@ -39,7 +60,16 @@ class ColumnInfo:
 
 @dataclass
 class TableInfo:
-    """Information about a Cassandra table."""
+    """Information about a Cassandra table.
+
+    This model represents metadata about a table in Cassandra or Amazon Keyspaces,
+    including its columns and schema information.
+
+    Attributes:
+        name: The name of the table.
+        keyspace: The keyspace containing this table.
+        columns: List of column metadata for the table.
+    """
 
     name: str
     keyspace: str
@@ -48,7 +78,19 @@ class TableInfo:
 
 @dataclass
 class QueryResult:
-    """Result of a CQL query execution."""
+    """Result of a CQL query execution.
+
+    This model encapsulates the results returned from executing a CQL query,
+    including the data rows and execution metadata.
+
+    Attributes:
+        columns: List of column names in the result set.
+        rows: List of result rows, where each row is a dictionary mapping
+            column names to values.
+        row_count: Total number of rows returned by the query.
+        execution_info: Additional execution metadata such as queried host
+            and performance metrics.
+    """
 
     columns: List[str]
     rows: List[Dict[str, Any]]
@@ -58,7 +100,22 @@ class QueryResult:
 
 @dataclass
 class QueryAnalysisResult:
-    """Result of a query performance analysis."""
+    """Result of a query performance analysis.
+
+    This model contains the analysis results for a CQL query, identifying
+    potential performance issues and providing optimization recommendations.
+
+    Attributes:
+        query: The CQL query that was analyzed.
+        table_name: The name of the table being queried.
+        uses_partition_key: Whether the query filters on the partition key.
+        uses_clustering_columns: Whether the query uses clustering columns in WHERE clause.
+        uses_allow_filtering: Whether the query uses ALLOW FILTERING clause.
+        uses_secondary_index: Whether the query uses a secondary index.
+        is_full_table_scan: Whether the query requires a full table scan.
+        recommendations: List of optimization recommendations for the query.
+        performance_assessment: Overall assessment of the query's performance characteristics.
+    """
 
     query: str
     table_name: str = ''
