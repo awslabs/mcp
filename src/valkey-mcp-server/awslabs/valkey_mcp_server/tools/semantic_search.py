@@ -17,6 +17,7 @@
 This module provides high-level, document-oriented tools for AI assistants to work with
 vector embeddings without needing to understand low-level implementation details.
 """
+import logging
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
@@ -104,6 +105,7 @@ async def add_documents(
 
         for doc in documents:
             if 'id' not in doc:
+                logging.warning(f"Document with keys {list(doc.keys())} is missing 'id', skipping")
                 continue  # Skip documents without ID
 
             doc_id = doc['id']
