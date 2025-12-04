@@ -217,7 +217,7 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error listing keyspaces: {str(e)}')
-            raise SchemaError(f'Error listing keyspaces: {str(e)}') from e
+            raise SchemaError('Unable to retrieve keyspace information') from e
 
     async def _handle_list_tables(self, keyspace: str, ctx: Optional[Context] = None) -> str:
         """Handle the listTables tool."""
@@ -246,7 +246,7 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error listing tables: {str(e)}')
-            raise SchemaError(f'Error listing tables: {str(e)}') from e
+            raise SchemaError('Unable to retrieve table information') from e
 
     async def _handle_describe_keyspace(
         self, keyspace: str, ctx: Optional[Context] = None
@@ -290,7 +290,7 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error describing keyspace: {str(e)}')
-            raise SchemaError(f'Error describing keyspace: {str(e)}') from e
+            raise SchemaError('Unable to retrieve keyspace details') from e
 
     async def _handle_describe_table(
         self, keyspace: str, table: str, ctx: Optional[Context] = None
@@ -359,7 +359,7 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error describing table: {str(e)}')
-            raise SchemaError(f'Error describing table: {str(e)}') from e
+            raise SchemaError('Unable to retrieve table details') from e
 
     async def _handle_execute_query(
         self, keyspace: str, query: str, ctx: Optional[Context] = None
@@ -434,7 +434,7 @@ class KeyspacesMcpStdioServer:
             raise
         except Exception as e:
             logger.error(f'Error executing query: {str(e)}')
-            raise QueryExecutionError(f'Error executing query: {str(e)}') from e
+            raise QueryExecutionError('Unable to execute query') from e
 
     async def _handle_analyze_query_performance(
         self, keyspace: str, query: str, ctx: Optional[Context] = None
@@ -473,7 +473,7 @@ class KeyspacesMcpStdioServer:
             raise
         except Exception as e:
             logger.error(f'Error analyzing query: {str(e)}')
-            raise QueryExecutionError(f'Error analyzing query: {str(e)}') from e
+            raise QueryExecutionError('Unable to analyze query') from e
 
 
 def main():
