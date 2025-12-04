@@ -9,6 +9,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Origin header parsing (#1851)
+
+## [1.1.7] - 2025-11-20
+
+### Added
+
+- Allow disabling local file system access (#1774)
+
+### Fixed
+
+- Deprecation warnings for passing transport settings when creating the server (#1772)
+
+## [1.1.6] - 2025-11-19
+
+### Changed
+
+- Bump FastMCP to 2.13.1
+
+## [1.1.5] - 2025-11-13
+
+### Changed
+
+- Add MCPClient and via to user agent (#1724)
+
+### Fixed
+
+- Throw error instead of return response in MCP tools (#1704)
+
+## [1.1.4] - 2025-11-07
+
+### Fixed
+
+- Validate origin/host headers in streamable-http mode (#1683)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.65 (#1646)
+
+## [1.1.3] - 2025-11-03
+
+### Fixed
+
+- Change priorities of default_region parameters in call_aws_helper (#1641)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.64 (#1637)
+
+## [1.1.2] - 2025-10-31
+
+### Changed
+
+- Add region parameter support to call_aws_helper (#1622)
+
+## [1.1.1] - 2025-10-25
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.57 (#1573)
+
+## [1.1.0] - 2025-10-22
+
+### Fixed
+
+- Log errors thrown by the agent scripts manager (#1533)
+
+### Changed
+
+- Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
+- Add call_aws helper function to consume credentials from other sources (#1547)
+
+## [1.0.2] - 2025-10-13
+
+### Fixed
+
+- CLI commands that don't expect any parameters (#1494)
+
+### Added
+
+- Support for `--endpoint-url` flag for localhost endpoints (#1452)
+- Change max retries to 3 when interpreting CLI command (#1485)
+
+## [1.0.1] - 2025-10-06
+
+### Added
+
+- Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
+
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
+### Fixed
+
 - Mark sts:AssumeRole as mutating (#1364)
 
 ## [0.3.1] - 2025-09-23

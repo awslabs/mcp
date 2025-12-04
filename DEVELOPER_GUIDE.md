@@ -90,16 +90,19 @@ where `<absolute path to your server code>` is the absolute path to the server c
 
 Inspector will run your server on locahost (for instance: http://127.0.0.1:6274). You can then open your browser and connect to the server. For up to date instructions on how to use Inspector, please refer to the [official documentation](https://modelcontextprotocol.io/docs/tools/inspector).
 
-### Unit tests
+### Tests
 
 ![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp?link=https%3A%2F%2Fapp.codecov.io%2Fgh%2Fawslabs%2Fmcp)
 
-Each MCP server is expected to have a `tests` folder containing unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+Each MCP server is expected to have a `tests` folder containing:
+
+- unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+- `integ` tests in the same folder, containing integration tests for the server. For this, you can use the utilities provided in the [testing folder](./testing/). The expected convention for naming is integ_<test-name>.py. You can look at examples [here](./src/aws-documentation-mcp-server/tests/test_integ_basic.py).
 
 | Action            | Explanation                                |
 | :------------------ | :------------------------------------------- |
 | `cd src/example-mcp-server` | This is the directory containing your server files. |
-| `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing` | This will run all unit tests for the server and display code coverage. |
+| `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing` | This will run all tests (unit+integ) for the server and display code coverage. |
 
 ## Opening your Pull Request
 

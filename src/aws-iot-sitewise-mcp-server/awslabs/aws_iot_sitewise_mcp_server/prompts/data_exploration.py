@@ -14,6 +14,9 @@
 
 """AWS IoT SiteWise Data Exploration Prompt using executeQuery API."""
 
+from awslabs.aws_iot_sitewise_mcp_server.validation import (
+    validate_string_for_injection,
+)
 from mcp.server.fastmcp.prompts import Prompt
 
 
@@ -29,10 +32,8 @@ def data_exploration_helper(exploration_goal: str, time_range: str = 'last 7 day
         exploration_goal: Description of what you want to explore (
             e.g.,
             "temperature trends",
-            "equipment efficiency") \
-        time_range: Time range for the analysis \
-                \
-                (
+            "equipment efficiency")
+        time_range: Time range for the analysis (
             e.g.,
             "last 7 days",
             "January 2024")
@@ -40,6 +41,9 @@ def data_exploration_helper(exploration_goal: str, time_range: str = 'last 7 day
     Returns:
         Comprehensive data exploration strategy guide with correct SQL syntax
     """
+    # Validate input strings for injections
+    validate_string_for_injection(exploration_goal)
+    validate_string_for_injection(time_range)
     return f"""
 You are an AWS IoT SiteWise data analytics expert helping to explore \
     industrial IoT data using the executeQuery API with correct view schemas \

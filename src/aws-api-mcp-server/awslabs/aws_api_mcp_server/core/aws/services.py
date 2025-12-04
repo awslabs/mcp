@@ -15,7 +15,14 @@
 import awscli.clidriver
 import re
 from ..common.config import get_user_agent_extra
-from awscli.paramfile import LOCAL_PREFIX_MAP, URIArgumentHandler
+from ..common.file_system_controls import (
+    get_file_validated,
+    is_streaming_blob_argument,
+    validate_file_path,
+)
+from ..common.models import Credentials
+from awscli.arguments import CLIArgument
+from awscli.paramfile import URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
 from loguru import logger
@@ -29,7 +36,8 @@ def _deny_remote_prefix(prefix, _uri):
 
 RESTRICTED_URI_HANDLER = URIArgumentHandler(
     prefixes={
-        **LOCAL_PREFIX_MAP,
+        'file://': (get_file_validated, {'mode': 'r'}),
+        'fileb://': (get_file_validated, {'mode': 'rb'}),
         'http://': (_deny_remote_prefix, {}),
         'https://': (_deny_remote_prefix, {}),
     }
@@ -48,12 +56,28 @@ class ConfigResult(NamedTuple):
 
 filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 
-driver = awscli.clidriver.create_clidriver()
-session = driver.session
-session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
 
-# append user agent to session for aws cli customizations
-session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
+def _validate_streaming_blob_path(cli_argument: CLIArgument, value: Any, **_kwargs):
+    if is_streaming_blob_argument(cli_argument) and isinstance(value, str):
+        validate_file_path(value)
+
+
+def get_awscli_driver(credentials: Credentials | None = None) -> awscli.clidriver.CLIDriver:
+    """Create a AWS CLI driver to execute aws commands."""
+    driver = awscli.clidriver.create_clidriver()
+    session = driver.session
+    session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
+    session.register('process-cli-arg.*.*', _validate_streaming_blob_path)
+
+    # append user agent to session for aws cli customizations
+    session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
+    if credentials:
+        session.set_credentials(
+            access_key=credentials.access_key_id,
+            secret_key=credentials.secret_access_key,
+            token=credentials.session_token,
+        )
+    return driver
 
 
 class OperationFilters:
@@ -190,23 +214,3 @@ def extract_pagination_config(
 
     pagination_config['MaxItems'] = max_items
     return ConfigResult(parameters, pagination_config)
-
-
-endpoint_resolver = session._internal_components.get_component('endpoint_resolver')
-partitions = endpoint_resolver._endpoint_data['partitions']
-
-
-def check_service_has_default_region(service: str, region: str):
-    """Check if the service has a default region configured."""
-    for partition in partitions:
-        endpoint_config = endpoint_resolver._endpoint_for_partition(
-            partition, service, region, use_dualstack_endpoint=False, use_fips_endpoint=False
-        )
-        if not endpoint_config:
-            continue
-
-        credentials_scope = endpoint_config.get('credentialScope')
-        if credentials_scope and credentials_scope['region'] != region:
-            return True
-
-    return False

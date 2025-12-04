@@ -46,6 +46,7 @@ class IRCommand:
     client_side_filter: ParsedResult | None = None
     is_awscli_customization: bool = False
     output_file: OutputFile | None = None
+    endpoint_url: str | None = None
 
     @property
     def operation_python_name(self):

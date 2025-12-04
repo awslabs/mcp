@@ -406,6 +406,28 @@
     },
     {
       "category": "AI & Machine Learning",
+      "description": "Model Context Protocol (MCP) server for document parsing and content extraction",
+      "icon": "\ud83e\udd16",
+      "id": "document-loader-mcp-server",
+      "name": "Document Loader MCP Server",
+      "source_path": "src/document-loader-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "ai-ml",
+        "document-processing",
+        "content-extraction",
+        "pdf-parsing",
+        "office-documents",
+        "image-analysis",
+        "conversational",
+        "content-processing"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
       "description": "AI image generation with text and color guidance",
       "icon": "\ud83e\udd16",
       "id": "nova-canvas-mcp-server",
@@ -420,26 +442,6 @@
         "color-guidance",
         "conversational",
         "content-generation"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
-      "description": "Analyze images using computer vision capabilities",
-      "icon": "\ud83e\udd16",
-      "id": "amazon-rekognition-mcp-server",
-      "name": "Amazon Rekognition MCP Server",
-      "source_path": "src/amazon-rekognition-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "computer-vision",
-        "rekognition",
-        "image-analysis",
-        "conversational",
-        "content-processing"
       ],
       "workflows": [
         "conversational"
@@ -477,6 +479,29 @@
       "tags": [
         "ai-ml",
         "bedrock",
+        "vibe-coding",
+        "conversational",
+        "machine-learning",
+        "ai-tools",
+        "serverless"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational",
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "SageMaker AI resource management and model development",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "sagemaker-ai-mcp-server",
+      "name": "Amazon SageMaker AI MCP Server",
+      "source_path": "src/sagemaker-ai-mcp-server/",
+      "subcategory": "Model Orchestration",
+      "tags": [
+        "ai-ml",
+        "model-development",
         "vibe-coding",
         "conversational",
         "machine-learning",
@@ -996,9 +1021,9 @@
       "category": "Cost & Operations",
       "description": "AWS Billing and Cost Management",
       "icon": "\ud83d\udcb0",
-      "id": "billing_cost_management_mcp_server",
+      "id": "billing-cost-management-mcp-server",
       "name": "AWS Billing and Cost Management MCP Server",
-      "source_path": "src/billing_cost_management_mcp_server/",
+      "source_path": "src/billing-cost-management-mcp-server/",
       "subcategory": "Cost Management",
       "tags": [
         "billing",
@@ -1164,9 +1189,9 @@
       "category": "Cost & Operations",
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
-      "id": "cloudwatch-appsignals-mcp-server",
+      "id": "cloudwatch-applicationsignals-mcp-server",
       "name": "Amazon CloudWatch Application Signals MCP Server",
-      "source_path": "src/cloudwatch-appsignals-mcp-server/",
+      "source_path": "src/cloudwatch-applicationsignals-mcp-server/",
       "subcategory": "Monitoring & Logging",
       "tags": [
         "cost-operations",
@@ -1294,6 +1319,30 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Allows you to build, deploy, and manage intelligent agents with advanced capabilities like memory, OAuth authentication, and gateway integrations",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-bedrock-agentcore-mcp-server",
+      "name": "Amazon Bedrock AgentCore MCP Server",
+      "source_path": "src/amazon-bedrock-agentcore-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "conversational",
+        "knowledge-search",
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
+      ],
+      "workflows": [
+        "conversational"
       ]
     },
     {

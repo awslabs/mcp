@@ -2,6 +2,7 @@ import pytest
 from awslabs.aws_api_mcp_server.core.aws.driver import (
     IRTranslation,
     get_local_credentials,
+    interpret_command,
     translate_cli_to_ir,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
@@ -22,7 +23,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
 )
 from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from botocore.exceptions import NoCredentialsError
-from tests.fixtures import S3_CLI_NO_REGION
+from tests.fixtures import S3_CLI_NO_REGION, TEST_CREDENTIALS, patch_botocore
 from unittest.mock import MagicMock, patch
 
 
@@ -127,18 +128,6 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws dynamodb wait table-exists --table-name MyTable',
-            IRTranslation(
-                command=IRCommand(
-                    command_metadata=CommandMetadata('dynamodb', None, 'wait table-exists'),
-                    region='us-east-1',
-                    parameters={'--table-name': 'MyTable'},
-                    is_awscli_customization=True,
-                ),
-                command_metadata=CommandMetadata('dynamodb', None, 'wait table-exists'),
-            ),
-        ),
-        (
             'aws ec2 lss',
             IRTranslation(
                 validation_failures=[InvalidServiceOperationError('ec2', 'lss').as_failure()]
@@ -187,14 +176,13 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws batch list-jobs --no-verify-ssl --debug --endpoint-url http://gooble.com --no-sign-request',
+            'aws batch list-jobs --no-verify-ssl --debug --no-sign-request',
             IRTranslation(
                 validation_failures=[
                     DeniedGlobalArgumentsError(
                         'batch',
                         [
                             '--debug',
-                            '--endpoint-url',
                             '--no-sign-request',
                             '--no-verify-ssl',
                         ],
@@ -396,3 +384,55 @@ def test_driver(command, program):
 def test_invalid_region(command):
     """Test that invalid or unavailable regions are handled correctly."""
     translate_cli_to_ir(command)
+
+
+# Tests for credentials integration changes
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_with_credentials_parameter(mock_get_local_credentials):
+    """Test that interpret_command uses provided credentials instead of calling get_local_credentials."""
+    # Create test credentials
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    # Mock get_local_credentials to ensure it's not called
+    mock_get_local_credentials.return_value = test_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets', credentials=test_credentials)
+
+    # Verify get_local_credentials was not called when credentials were provided
+    mock_get_local_credentials.assert_not_called()
+    assert result is not None
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_without_credentials_parameter(mock_get_local_credentials):
+    """Test that interpret_command falls back to get_local_credentials when no credentials provided."""
+    # Create test credentials
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_get_local_credentials.return_value = test_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets')
+
+    # Verify get_local_credentials was called when no credentials were provided
+    mock_get_local_credentials.assert_called_once()
+    assert result is not None
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_credentials_precedence(mock_get_local_credentials):
+    """Test that provided credentials take precedence over local credentials."""
+    # Create different credentials to test precedence
+    local_credentials = Credentials(**TEST_CREDENTIALS)
+
+    provided_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_get_local_credentials.return_value = local_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets', credentials=provided_credentials)
+
+    # Verify get_local_credentials was not called when credentials were provided
+    mock_get_local_credentials.assert_not_called()
+    assert result is not None

@@ -419,7 +419,10 @@ Your AWS credentials need the following IAM permissions:
         "redshift-serverless:GetWorkgroup",
         "redshift-data:ExecuteStatement",
         "redshift-data:DescribeStatement",
-        "redshift-data:GetStatementResult"
+        "redshift-data:GetStatementResult",
+        "redshift-serverless:GetCredentials",
+        "redshift:GetClusterCredentialsWithIAM",
+        "redshift:GetClusterCredentials"
       ],
       "Resource": "*"
     }

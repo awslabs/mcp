@@ -109,7 +109,7 @@ def test_server_initialization_with_aws_profile_coverage():
 
 def test_initialize_aws_clients_with_profile():
     """Test _initialize_aws_clients function with AWS_PROFILE set."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import _initialize_aws_clients
+    from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import _initialize_aws_clients
 
     # Mock the necessary components
     mock_session = MagicMock()
@@ -119,10 +119,14 @@ def test_initialize_aws_clients_with_profile():
     mock_session_instance.client.return_value = mock_client
 
     with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-east-1'}):
-        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.boto3.Session', mock_session):
-            with patch('awslabs.cloudwatch_appsignals_mcp_server.server.Config'):
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.boto3.Session', mock_session
+        ):
+            with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config'):
                 # Call the initialization function
-                logs, appsignals, cloudwatch, xray = _initialize_aws_clients()
+                logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts = (
+                    _initialize_aws_clients()
+                )
 
                 # Verify Session was called with the profile
                 mock_session.assert_called_once()
@@ -131,7 +135,7 @@ def test_initialize_aws_clients_with_profile():
                 assert call_kwargs['region_name'] == 'us-east-1'
 
                 # Verify all clients were created
-                assert mock_session_instance.client.call_count == 4
+                assert mock_session_instance.client.call_count == 9
                 client_calls = [call[0][0] for call in mock_session_instance.client.call_args_list]
                 assert 'logs' in client_calls
                 assert 'application-signals' in client_calls

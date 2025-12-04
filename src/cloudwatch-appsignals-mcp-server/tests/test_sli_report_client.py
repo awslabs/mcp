@@ -10,7 +10,7 @@ from awslabs.cloudwatch_appsignals_mcp_server.sli_report_client import (
 )
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestAWSConfig:
@@ -133,23 +133,17 @@ class TestSLIReportClient:
     @pytest.fixture
     def mock_aws_clients(self):
         """Mock AWS clients."""
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.boto3.client'
-        ) as mock_client:
-            mock_signals = MagicMock()
-            mock_cloudwatch = MagicMock()
-
-            def client_side_effect(service_name, **kwargs):
-                if service_name == 'application-signals':
-                    return mock_signals
-                elif service_name == 'cloudwatch':
-                    return mock_cloudwatch
-
-            mock_client.side_effect = client_side_effect
+        with (
+            patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.appsignals_client'
+            ) as mock_signals,
+            patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.cloudwatch_client'
+            ) as mock_cloudwatch,
+        ):
             yield {
                 'signals_client': mock_signals,
                 'cloudwatch_client': mock_cloudwatch,
-                'mock_client': mock_client,
             }
 
     def test_init_success(self, mock_aws_clients):
@@ -161,22 +155,16 @@ class TestSLIReportClient:
         assert client.signals_client == mock_aws_clients['signals_client']
         assert client.cloudwatch_client == mock_aws_clients['cloudwatch_client']
 
-        # Verify clients were created with correct region
-        calls = mock_aws_clients['mock_client'].call_args_list
-        assert calls[0][0][0] == 'application-signals'
-        assert calls[0][1]['region_name'] == 'us-west-2'
-        assert calls[1][0][0] == 'cloudwatch'
-        assert calls[1][1]['region_name'] == 'us-west-2'
-
     def test_init_failure(self, mock_aws_clients):
         """Test SLIReportClient initialization failure."""
-        mock_aws_clients['mock_client'].side_effect = Exception('Failed to connect')
-
+        # Since SLIReportClient now uses shared clients, initialization doesn't fail
+        # Instead, we test that the client assignment works correctly
         config = AWSConfig()
-        with pytest.raises(Exception) as exc_info:
-            SLIReportClient(config)
+        client = SLIReportClient(config)
 
-        assert 'Failed to connect' in str(exc_info.value)
+        # Verify that the client uses the mocked shared clients
+        assert client.signals_client == mock_aws_clients['signals_client']
+        assert client.cloudwatch_client == mock_aws_clients['cloudwatch_client']
 
     def test_get_slo_summaries_success(self, mock_aws_clients):
         """Test successful retrieval of SLO summaries."""

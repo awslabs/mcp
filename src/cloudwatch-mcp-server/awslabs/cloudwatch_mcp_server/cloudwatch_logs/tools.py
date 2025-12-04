@@ -168,12 +168,37 @@ class CloudWatchLogsTools:
         """
         poll_start = timer()
         while poll_start + max_timeout > timer():
-            response = logs_client.get_query_results(queryId=query_id)
-            status = response['status']
+            try:
+                response = logs_client.get_query_results(queryId=query_id)
+                status = response['status']
 
-            if status in {'Complete', 'Failed', 'Cancelled'}:
-                logger.info(f'Query {query_id} finished with status {status}')
-                return self._process_query_results(response, query_id)
+                logger.debug(f'Query {query_id} status: {status}')
+
+                if status in {'Complete', 'Failed', 'Cancelled'}:
+                    logger.info(f'Query {query_id} finished with status {status}')
+                    result = self._process_query_results(response, query_id)
+
+                    # Handle case where query completed but returned no results
+                    if status == 'Complete' and not result.get('results'):
+                        logger.info(f'Query {query_id} completed but returned no results')
+                        result['results'] = []
+
+                    return result
+
+                # Handle unexpected status states
+                if status not in {'Scheduled', 'Running'}:
+                    logger.warning(f'Query {query_id} has unexpected status: {status}')
+                    return self._process_query_results(response, query_id)
+
+            except Exception as e:
+                logger.error(f'Error polling for query {query_id} completion: {str(e)}')
+                await ctx.error(f'Error during query polling: {str(e)}')
+                return {
+                    'queryId': query_id,
+                    'status': 'Error',
+                    'message': f'Error occurred while polling: {str(e)}',
+                    'results': [],
+                }
 
             await asyncio.sleep(1)
 
@@ -184,6 +209,7 @@ class CloudWatchLogsTools:
             'queryId': query_id,
             'status': 'Polling Timeout',
             'message': msg,
+            'results': [],
         }
 
     def register(self, mcp):
@@ -576,8 +602,16 @@ class CloudWatchLogsTools:
 
         except Exception as e:
             logger.error(f'Error in execute_log_insights_query_tool: {str(e)}')
-            await ctx.error(f'Error executing CloudWatch Logs Insights query: {str(e)}')
-            raise
+            error_msg = f'Error executing CloudWatch Logs Insights query: {str(e)}'
+            await ctx.error(error_msg)
+
+            # Instead of raising, return a consistent error result
+            return {
+                'queryId': '',
+                'status': 'Error',
+                'message': error_msg,
+                'results': [],
+            }
 
     async def get_logs_insight_query_results(
         self,
@@ -612,11 +646,26 @@ class CloudWatchLogsTools:
 
             logger.info(f'Retrieved results for query ID {query_id}')
 
-            return self._process_query_results(response, query_id)
+            result = self._process_query_results(response, query_id)
+
+            # Ensure results is always an array, even if empty
+            if not result.get('results'):
+                result['results'] = []
+
+            return result
+
         except Exception as e:
             logger.error(f'Error in get_query_results_tool: {str(e)}')
-            await ctx.error(f'Error retrieving CloudWatch Logs Insights query results: {str(e)}')
-            raise
+            error_msg = f'Error retrieving CloudWatch Logs Insights query results: {str(e)}'
+            await ctx.error(error_msg)
+
+            # Return consistent error structure instead of raising
+            return {
+                'queryId': query_id,
+                'status': 'Error',
+                'message': error_msg,
+                'results': [],
+            }
 
     async def cancel_logs_insight_query(
         self,

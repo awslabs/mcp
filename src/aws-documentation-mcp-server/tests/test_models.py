@@ -28,11 +28,13 @@ class TestSearchResult:
             rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
             title='Welcome to AWS Lambda',
+            query_id='test-query-id',
             context='AWS Lambda is a compute service...',
         )
         assert result.rank_order == 1
         assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
         assert result.title == 'Welcome to AWS Lambda'
+        assert result.query_id == 'test-query-id'
         assert result.context == 'AWS Lambda is a compute service...'
 
     def test_search_result_without_context(self):
@@ -41,10 +43,12 @@ class TestSearchResult:
             rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
             title='Welcome to AWS Lambda',
+            query_id='test-query-id',
         )
         assert result.rank_order == 1
         assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
         assert result.title == 'Welcome to AWS Lambda'
+        assert result.query_id == 'test-query-id'
         assert result.context is None
 
 

@@ -61,17 +61,17 @@ def hello_world():
         import asyncio
         from awslabs.aws_diagram_mcp_server.scanner import scan_python_code
 
-        # Test with code that should trigger security warnings
+        # Test with code that should trigger security warnings (without imports)
         unsafe_code = """
-import subprocess
-subprocess.call("echo test", shell=True)
+exec("print('Hello')")
+eval("2 + 2")
 """
 
         async def run_test():
             result = await scan_python_code(unsafe_code)
             assert result is not None
             assert result.syntax_valid is True
-            # Should have security issues due to subprocess.call with shell=True
+            # Should have security issues due to exec/eval
             assert result.has_errors is True
             assert len(result.security_issues) > 0
             return result
@@ -80,11 +80,11 @@ subprocess.call("echo test", shell=True)
         result = asyncio.run(run_test())
 
         # Verify we found the expected security issue
-        found_subprocess_issue = any(
-            'subprocess' in issue.issue_text.lower() or 'shell' in issue.issue_text.lower()
+        found_dangerous_function = any(
+            'exec' in issue.issue_text.lower() or 'eval' in issue.issue_text.lower()
             for issue in result.security_issues
         )
-        assert found_subprocess_issue, 'Should detect subprocess security issue'
+        assert found_dangerous_function, 'Should detect exec/eval security issue'
 
     def test_diagram_generation_unaffected(self):
         """Test that diagram generation still works normally after the fix."""
@@ -96,8 +96,6 @@ subprocess.call("echo test", shell=True)
         # Simple diagram code
         diagram_code = """
 with Diagram("Test Diagram", show=False):
-    from diagrams.aws.compute import EC2
-    from diagrams.aws.database import RDS
 
     web = EC2("Web Server")
     db = RDS("Database")

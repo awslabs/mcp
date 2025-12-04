@@ -25,9 +25,9 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.webapp_deployment_help impo
 )
 
 __all__ = [
-    ConfigureDomainTool,
-    GetMetricsTool,
-    UpdateFrontendTool,
-    DeployWebAppTool,
-    WebappDeploymentHelpTool,
+    'ConfigureDomainTool',
+    'GetMetricsTool',
+    'UpdateFrontendTool',
+    'DeployWebAppTool',
+    'WebappDeploymentHelpTool',
 ]

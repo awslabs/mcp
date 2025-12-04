@@ -1,11 +1,11 @@
 [project]
 name = "awslabs.cloudwatch-appsignals-mcp-server"
-version = "0.1.7"
+version = "0.1.13"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Application Signals"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.24",
+    "boto3>=1.40.41",
     "httpx>=0.24.0",
     "loguru>=0.7.3",
     "mcp[cli]>=1.11.0",
@@ -50,6 +50,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.1",
     "pytest-cov>=4.1.0",
+    "bandit>=1.8.6",
 ]
 
 [build-system]

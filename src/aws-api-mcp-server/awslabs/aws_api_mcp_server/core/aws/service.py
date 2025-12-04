@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import contextlib
-import json
-from ..aws.services import driver
+from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
 from ..common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
+    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
     InterpretedProgram,
@@ -30,7 +29,6 @@ from ..common.models import (
 )
 from ..common.models import Context as ContextAPIModel
 from ..common.models import ValidationFailure as FailureAPIModel
-from ..common.scrubber import sensitive_data_scrubber
 from ..metadata.read_only_operations_list import (
     ReadOnlyOperations,
 )
@@ -39,10 +37,10 @@ from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
+from fastmcp import Context
+from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
 from loguru import logger
-from mcp.server.elicitation import AcceptedElicitation
-from mcp.server.fastmcp import Context
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from typing import Any
@@ -53,7 +51,7 @@ async def request_consent(cli_command: str, ctx: Context):
     try:
         elicitation_result = await ctx.elicit(
             message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
-            schema=Consent,
+            response_type=Consent,
         )
 
         if (
@@ -127,8 +125,11 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
 
 
 def execute_awscli_customization(
-    cli_command: str, ir_command: IRCommand
-) -> AwsCliAliasResponse | AwsApiMcpServerErrorResponse:
+    cli_command: str,
+    ir_command: IRCommand,
+    credentials: Credentials | None = None,
+    default_region_override: str | None = None,
+) -> AwsCliAliasResponse:
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
 
@@ -147,8 +148,9 @@ def execute_awscli_customization(
             with operation_timer(
                 ir_command.service_name,
                 ir_command.operation_name,
-                ir_command.region or DEFAULT_REGION,
+                ir_command.region or default_region_override or DEFAULT_REGION,
             ):
+                driver = get_awscli_driver(credentials)
                 driver.main(args)
 
         stdout_output = stdout_capture.getvalue()
@@ -156,20 +158,21 @@ def execute_awscli_customization(
 
         return AwsCliAliasResponse(response=stdout_output, error=stderr_output)
     except Exception as e:
-        return AwsApiMcpServerErrorResponse(
-            error=True,
-            detail=f"Error while executing '{cli_command}': {e}",
-        )
+        raise AwsApiMcpError(f"Error while executing '{cli_command}': {e}")
 
 
 def interpret_command(
     cli_command: str,
     max_results: int | None = None,
+    credentials: Credentials | None = None,
+    default_region_override: str | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
         max_results=max_results,
+        credentials=credentials,
+        default_region_override=default_region_override,
     )
 
     validation_failures = (
@@ -199,8 +202,6 @@ def interpret_command(
     else:
         response = None
 
-    _log_successful_execution(response)
-
     return ProgramInterpretationResponse(
         response=response,
         metadata=_ir_metadata(interpreted_program),
@@ -208,14 +209,6 @@ def interpret_command(
         missing_context_failures=_to_missing_context_failures(missing_context_failures),
         failed_constraints=failed_constraints,
     )
-
-
-def _log_successful_execution(response: InterpretationResponse | None):
-    if response and response.error_code is None and response.as_json is not None:
-        logger.info(
-            'AWS CLI command executed successfully: {}',
-            sensitive_data_scrubber.scrub_creds(json.loads(response.as_json)),
-        )
 
 
 def _ir_metadata(program: InterpretedProgram | None) -> InterpretationMetadata | None:

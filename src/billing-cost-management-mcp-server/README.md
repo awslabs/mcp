@@ -39,6 +39,10 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Multi-account analysis**: Analyze costs across multiple linked accounts
 - **Cost driver identification**: Identify key factors driving cost changes
 
+### AWS Billing and Cost Management Pricing Calculator
+
+- **Workload estimate insights**: Query workload estimates to see what usage you have estimated
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -219,6 +223,12 @@ AWS Pricing:
 AWS Free Tier:
 - freetier:GetFreeTierUsage
 
+AWS Billing and Cost Management Pricing Calculator:
+- bcm-pricing-calculator:GetPreferences
+- bcm-pricing-calculator:GetWorkloadEstimate
+- bcm-pricing-calculator:ListWorkloadEstimateUsage
+- bcm-pricing-calculator:ListWorkloadEstimates
+
 Storage Lens (Athena and S3):
 - athena:StartQueryExecution
 - athena:GetQueryExecution
@@ -306,5 +316,11 @@ The server currently supports the following AWS services
    - get_idle_recommendations
    - get_enrollment_status
 
-7. **S3 Storage Lens**
+7. **Pricing Calculator**
+   - get-preferences
+   - get-workload-estimate
+   - list-workload-estimate-usage
+   - list-workload-estimates
+
+8. **S3 Storage Lens**
    - storage_lens_run_query (custom implementation using Athena)

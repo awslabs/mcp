@@ -22,6 +22,7 @@ import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
+from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict
 
@@ -92,6 +93,9 @@ def get_aws_session() -> boto3.Session:
 
     Returns:
         boto3.Session: Configured AWS session
+
+    Raises:
+        ImportError: If boto3 is not available
     """
     botocore_session = botocore.session.Session()
     user_agent_extra = f'awslabs/mcp/aws-healthomics-mcp-server/{__version__}'
@@ -206,3 +210,46 @@ def get_ssm_client() -> Any:
         Exception: If client creation fails
     """
     return create_aws_client('ssm')
+
+
+def get_account_id() -> str:
+    """Get the current AWS account ID.
+
+    Returns:
+        str: AWS account ID
+
+    Raises:
+        Exception: If unable to retrieve account ID
+    """
+    try:
+        session = get_aws_session()
+        sts_client = session.client('sts')
+        response = sts_client.get_caller_identity()
+        return response['Account']
+    except Exception as e:
+        logger.error(f'Failed to get AWS account ID: {str(e)}')
+        raise
+
+
+@lru_cache(maxsize=1)
+def get_partition() -> str:
+    """Get the current AWS partition (memoized).
+
+    Returns:
+        str: AWS partition (e.g., 'aws', 'aws-cn', 'aws-us-gov')
+
+    Raises:
+        Exception: If unable to retrieve partition
+    """
+    try:
+        session = get_aws_session()
+        sts_client = session.client('sts')
+        response = sts_client.get_caller_identity()
+        # Extract partition from the ARN: arn:partition:sts::account-id:assumed-role/...
+        arn = response['Arn']
+        partition = arn.split(':')[1]
+        logger.debug(f'Detected AWS partition: {partition}')
+        return partition
+    except Exception as e:
+        logger.error(f'Failed to get AWS partition: {str(e)}')
+        raise

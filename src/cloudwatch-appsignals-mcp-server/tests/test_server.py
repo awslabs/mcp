@@ -2,19 +2,21 @@
 
 import json
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import (
-    check_transaction_search_enabled,
+from awslabs.cloudwatch_appsignals_mcp_server.server import _filter_operation_targets, main
+from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
-    get_slo,
-    get_trace_summaries_paginated,
     list_monitored_services,
-    list_slis,
-    main,
-    query_sampled_traces,
     query_service_metrics,
-    remove_null_values,
+)
+from awslabs.cloudwatch_appsignals_mcp_server.slo_tools import get_slo
+from awslabs.cloudwatch_appsignals_mcp_server.trace_tools import (
+    check_transaction_search_enabled,
+    get_trace_summaries_paginated,
+    list_slis,
+    query_sampled_traces,
     search_transaction_spans,
 )
+from awslabs.cloudwatch_appsignals_mcp_server.utils import remove_null_values
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -28,26 +30,90 @@ def mock_aws_clients():
     mock_appsignals_client = MagicMock()
     mock_cloudwatch_client = MagicMock()
     mock_xray_client = MagicMock()
+    mock_synthetics_client = MagicMock()
+    mock_s3_client = MagicMock()
 
-    # Patch the clients at module level
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.logs_client', mock_logs_client):
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.appsignals_client',
+    # Patch the clients in all modules where they're imported
+    patches = [
+        # Original aws_clients module
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.logs_client', mock_logs_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.appsignals_client',
             mock_appsignals_client,
-        ):
-            with patch(
-                'awslabs.cloudwatch_appsignals_mcp_server.server.cloudwatch_client',
-                mock_cloudwatch_client,
-            ):
-                with patch(
-                    'awslabs.cloudwatch_appsignals_mcp_server.server.xray_client', mock_xray_client
-                ):
-                    yield {
-                        'logs_client': mock_logs_client,
-                        'appsignals_client': mock_appsignals_client,
-                        'cloudwatch_client': mock_cloudwatch_client,
-                        'xray_client': mock_xray_client,
-                    }
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.cloudwatch_client',
+            mock_cloudwatch_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.xray_client', mock_xray_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.synthetics_client',
+            mock_synthetics_client,
+        ),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.s3_client', mock_s3_client),
+        # Service tools module (check what's actually imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.service_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.service_tools.cloudwatch_client',
+            mock_cloudwatch_client,
+        ),
+        # SLO tools module (check what's actually imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.slo_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        # Trace tools module (logs_client, xray_client, and appsignals_client are imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.logs_client', mock_logs_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.xray_client', mock_xray_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        # SLI report client module (appsignals_client and cloudwatch_client are imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.appsignals_client',
+            mock_appsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.cloudwatch_client',
+            mock_cloudwatch_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.synthetics_client',
+            mock_synthetics_client,
+        ),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.s3_client', mock_s3_client),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', MagicMock()),
+    ]
+
+    # Start all patches
+    for p in patches:
+        p.start()
+
+    try:
+        yield {
+            'logs_client': mock_logs_client,
+            'appsignals_client': mock_appsignals_client,
+            'cloudwatch_client': mock_cloudwatch_client,
+            'xray_client': mock_xray_client,
+            'synthetics_client': mock_synthetics_client,
+            's3_client': mock_s3_client,
+        }
+    finally:
+        # Stop all patches
+        for p in patches:
+            p.stop()
 
 
 @pytest.fixture
@@ -315,7 +381,7 @@ async def test_search_transaction_spans_success(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -340,7 +406,7 @@ async def test_search_transaction_spans_success(mock_aws_clients):
 async def test_search_transaction_spans_not_enabled(mock_aws_clients):
     """Test when transaction search is not enabled."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (False, 'XRay', 'INACTIVE')
 
@@ -372,29 +438,56 @@ async def test_list_slis_success(mock_aws_clients):
         ]
     }
 
-    # Mock SLIReportClient
-    with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.SLIReportClient'
-    ) as mock_sli_client:
+    # Mock boto3.client calls in SLIReportClient
+    with patch('boto3.client') as mock_boto3_client:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
+            # Configure boto3.client to return our mocked clients
+            def boto3_client_side_effect(service_name, **kwargs):
+                if service_name == 'application-signals':
+                    return mock_aws_clients['appsignals_client']
+                elif service_name == 'cloudwatch':
+                    return mock_aws_clients['cloudwatch_client']
+                else:
+                    return MagicMock()
+
+            mock_boto3_client.side_effect = boto3_client_side_effect
+
             mock_aws_clients[
                 'appsignals_client'
             ].list_services.return_value = mock_services_response
             mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
 
-            # Mock SLI report
-            mock_report = MagicMock()
-            mock_report.breached_slo_count = 1
-            mock_report.breached_slo_names = ['test-slo']
-            mock_report.ok_slo_count = 2
-            mock_report.total_slo_count = 3
-            mock_report.sli_status = 'BREACHED'
-            mock_report.start_time = datetime.now(timezone.utc) - timedelta(hours=24)
-            mock_report.end_time = datetime.now(timezone.utc)
+            # Mock SLO summaries response for SLIReportClient
+            mock_slo_response = {
+                'SloSummaries': [
+                    {
+                        'Name': 'test-slo',
+                        'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/test-slo',
+                        'KeyAttributes': {'Name': 'test-service'},
+                        'OperationName': 'GET /api',
+                        'CreatedTime': datetime.now(timezone.utc),
+                    }
+                ]
+            }
+            mock_aws_clients[
+                'appsignals_client'
+            ].list_service_level_objectives.return_value = mock_slo_response
 
-            mock_sli_client.return_value.generate_sli_report.return_value = mock_report
+            # Mock metric data response showing breach
+            mock_metric_response = {
+                'MetricDataResults': [
+                    {
+                        'Id': 'slo0',
+                        'Timestamps': [datetime.now(timezone.utc)],
+                        'Values': [1.0],  # Breach count > 0 indicates breach
+                    }
+                ]
+            }
+            mock_aws_clients[
+                'cloudwatch_client'
+            ].get_metric_data.return_value = mock_metric_response
 
             result = await list_slis(hours=24)
 
@@ -430,10 +523,10 @@ async def test_query_sampled_traces_success(mock_aws_clients):
     ]
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_get_traces:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
             mock_get_traces.return_value = mock_traces
             mock_check.return_value = (False, 'XRay', 'INACTIVE')
@@ -683,9 +776,9 @@ async def test_query_service_metrics_no_datapoints(mock_aws_clients):
 async def test_search_transaction_spans_timeout(mock_aws_clients):
     """Test search transaction spans with timeout."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
-        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.timer') as mock_timer:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.trace_tools.timer') as mock_timer:
             # Mock asyncio.sleep to prevent actual waiting
             with patch('asyncio.sleep', new_callable=AsyncMock):
                 mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
@@ -803,10 +896,10 @@ async def test_list_slis_with_error_in_sli_client(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.SLIReportClient'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.SLIReportClient'
     ) as mock_sli_client:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
             mock_aws_clients[
                 'appsignals_client'
@@ -943,7 +1036,7 @@ async def test_query_service_metrics_client_error(mock_aws_clients):
 async def test_search_transaction_spans_failed_query(mock_aws_clients):
     """Test search transaction spans when query fails."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -987,7 +1080,7 @@ async def test_get_slo_client_error(mock_aws_clients):
 async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
     """Test search transaction spans with empty log group defaults to aws/spans."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -998,7 +1091,7 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
         }
 
         await search_transaction_spans(
-            log_group_name='',  # Empty string will be used as-is
+            log_group_name='',  # Empty string should default to 'aws/spans'
             start_time='2024-01-01T00:00:00+00:00',
             end_time='2024-01-01T01:00:00+00:00',
             query_string='fields @timestamp',
@@ -1006,10 +1099,10 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify start_query was called with empty string (current behavior)
+        # Verify start_query was called with default 'aws/spans'
         mock_aws_clients['logs_client'].start_query.assert_called()
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert '' in call_args['logGroupNames']
+        assert 'aws/spans' in call_args['logGroupNames']
 
 
 @pytest.mark.asyncio
@@ -1122,7 +1215,7 @@ async def test_query_service_metrics_general_exception(mock_aws_clients):
 async def test_search_transaction_spans_general_exception(mock_aws_clients):
     """Test search transaction spans with general exception."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.side_effect = Exception('Query failed')
@@ -1138,9 +1231,6 @@ async def test_search_transaction_spans_general_exception(mock_aws_clients):
             )
 
         assert 'Query failed' in str(exc_info.value)
-
-
-# Additional tests to improve server.py coverage to 90%
 
 
 @pytest.mark.asyncio
@@ -1372,7 +1462,7 @@ async def test_get_slo_general_exception(mock_aws_clients):
 async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
     """Test search_transaction_spans when log_group_name is None."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -1401,7 +1491,7 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
 async def test_search_transaction_spans_complete_with_statistics(mock_aws_clients):
     """Test search_transaction_spans when query completes with detailed statistics."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -1483,7 +1573,7 @@ async def test_query_sampled_traces_with_defaults(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = mock_trace_response['TraceSummaries']
 
@@ -1525,7 +1615,7 @@ async def test_query_sampled_traces_with_annotations(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 
@@ -1556,7 +1646,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
         'Duration': 100,
         'HasFault': True,
         'FaultRootCauses': [
-            {'Services': [{'Name': 'service1'}]},
+            {'Services': [{'Name': 'service1', 'Exceptions': [{'Message': 'Test fault error'}]}]},
             {'Services': [{'Name': 'service2'}]},
             {'Services': [{'Name': 'service3'}]},
             {'Services': [{'Name': 'service4'}]},  # Should be limited to 3
@@ -1565,7 +1655,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 
@@ -1585,7 +1675,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
 async def test_query_sampled_traces_general_exception(mock_aws_clients):
     """Test query_sampled_traces with general exception."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.side_effect = Exception('Trace query failed')
 
@@ -1612,7 +1702,7 @@ async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 
@@ -1629,6 +1719,157 @@ async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
             'StartTime' not in trace_summary
         )  # These fields are not included in the simplified output
         assert 'EndTime' not in trace_summary
+
+
+@pytest.mark.asyncio
+async def test_query_sampled_traces_deduplication(mock_aws_clients):
+    """Test query_sampled_traces deduplicates traces with same fault message.
+
+    Note: Only FaultRootCauses are deduplicated, not ErrorRootCauses.
+    This is because the primary use case is investigating server faults (5xx errors),
+    not client errors (4xx).
+    """
+    # Create 5 traces with the same fault message
+    mock_traces = [
+        {
+            'Id': f'trace{i}',
+            'Duration': 100 + i * 10,
+            'ResponseTime': 95 + i * 10,
+            'HasFault': True,
+            'FaultRootCauses': [
+                {
+                    'Services': [
+                        {
+                            'Name': 'test-service',
+                            'Exceptions': [{'Message': 'Database connection timeout'}],
+                        }
+                    ]
+                }
+            ],
+        }
+        for i in range(1, 6)
+    ]
+
+    # Add 2 traces with ErrorRootCauses (these should NOT be deduplicated)
+    mock_traces.extend(
+        [
+            {
+                'Id': 'trace6',
+                'Duration': 200,
+                'HasError': True,
+                'ErrorRootCauses': [
+                    {
+                        'Services': [
+                            {
+                                'Name': 'api-service',
+                                'Exceptions': [{'Message': 'Invalid API key'}],
+                            }
+                        ]
+                    }
+                ],
+            },
+            {
+                'Id': 'trace7',
+                'Duration': 210,
+                'HasError': True,
+                'ErrorRootCauses': [
+                    {
+                        'Services': [
+                            {
+                                'Name': 'api-service',
+                                'Exceptions': [{'Message': 'Invalid API key'}],
+                            }
+                        ]
+                    }
+                ],
+            },
+        ]
+    )
+
+    # Add 2 healthy traces
+    mock_traces.extend(
+        [
+            {
+                'Id': 'trace8',
+                'Duration': 50,
+                'ResponseTime': 45,
+                'HasError': False,
+                'HasFault': False,
+            },
+            {
+                'Id': 'trace9',
+                'Duration': 55,
+                'ResponseTime': 50,
+                'HasError': False,
+                'HasFault': False,
+            },
+        ]
+    )
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
+    ) as mock_paginated:
+        mock_paginated.return_value = mock_traces
+
+        result_json = await query_sampled_traces(
+            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
+        )
+
+        result = json.loads(result_json)
+
+        # Verify deduplication worked - should only have 5 traces
+        # 1 for database timeout fault (deduplicated from 5)
+        # 2 for API key errors (NOT deduplicated - only faults are deduped)
+        # 2 healthy traces (not deduplicated)
+        assert result['TraceCount'] == 5
+        assert len(result['TraceSummaries']) == 5
+
+        # Verify deduplication stats
+        assert 'DeduplicationStats' in result
+        assert result['DeduplicationStats']['OriginalTraceCount'] == 9
+        assert result['DeduplicationStats']['DuplicatesRemoved'] == 4  # 9 - 5 = 4
+        assert (
+            result['DeduplicationStats']['UniqueFaultMessages'] == 1
+        )  # Only counting FaultRootCauses
+
+        # Find the trace with fault
+        db_trace = next(
+            (
+                t
+                for t in result['TraceSummaries']
+                if t.get('FaultRootCauses')
+                and any(
+                    'Database connection timeout' in str(s.get('Exceptions', []))
+                    for cause in t['FaultRootCauses']
+                    for s in cause.get('Services', [])
+                )
+            ),
+            None,
+        )
+        assert db_trace is not None
+        assert db_trace['HasFault'] is True
+
+        # Verify both error traces are present (not deduplicated)
+        error_traces = [
+            t
+            for t in result['TraceSummaries']
+            if t.get('ErrorRootCauses')
+            and any(
+                'Invalid API key' in str(s.get('Exceptions', []))
+                for cause in t['ErrorRootCauses']
+                for s in cause.get('Services', [])
+            )
+        ]
+        assert len(error_traces) == 2  # Both error traces should be kept
+        assert all(t['HasError'] is True for t in error_traces)
+
+        # Verify healthy traces are included
+        healthy_count = sum(
+            1
+            for t in result['TraceSummaries']
+            if not t.get('HasError') and not t.get('HasFault') and not t.get('HasThrottle')
+        )
+        assert healthy_count == 2
 
 
 def test_main_success(mock_aws_clients):
@@ -1667,3 +1908,1145 @@ def test_main_entry_point(mock_aws_clients):
         mock_mcp.run.side_effect = KeyboardInterrupt()
         # Should handle KeyboardInterrupt gracefully
         main()
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_no_runs(mock_aws_clients):
+    """Test analyze_canary_failures when no runs are found."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': []}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {'Name': 'test-canary'}
+    }
+
+    result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+    assert 'No run history found for test-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_healthy_canary(mock_aws_clients):
+    """Test analyze_canary_failures with healthy canary."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'run1',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {'Name': 'test-canary'}
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.return_value = 'Telemetry insights available'
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert 'Canary is healthy - no failures since last success' in result
+        assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_telemetry_unavailable(mock_aws_clients):
+    """Test analyze_canary_failures when telemetry is unavailable."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'run1',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {
+        'Canary': {'Name': 'test-canary'}
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.side_effect = Exception('Telemetry API error')
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert 'Telemetry API unavailable: Telemetry API error' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_with_failures(mock_aws_clients):
+    """Test analyze_canary_failures with actual failures."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T01:00:00Z'},
+        },
+        {
+            'Id': 'failed-run-2',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T00:30:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 artifacts
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/screenshot.png'},
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/logs.txt'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_screenshots'
+            ) as mock_screenshots:
+                with patch(
+                    'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_log_files'
+                ) as mock_logs:
+                    mock_insights.return_value = 'Telemetry insights'
+                    mock_har.return_value = {
+                        'failed_requests': 2,
+                        'total_requests': 10,
+                        'request_details': [
+                            {'url': 'https://example.com', 'status': 500, 'time': 1000}
+                        ],
+                    }
+                    mock_screenshots.return_value = {'insights': ['Screenshot analysis']}
+                    mock_logs.return_value = {'insights': ['Log analysis']}
+
+                    result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+                    assert 'Found 2 consecutive failures since last success' in result
+                    assert 'All failures have same cause: Navigation timeout' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_iam_analysis(mock_aws_clients):
+    """Test analyze_canary_failures with IAM-related failures."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Access denied'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_iam_role_and_policies'
+        ) as mock_iam:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.check_resource_arns_correct'
+            ) as mock_arn:
+                mock_insights.return_value = 'Telemetry insights'
+                mock_iam.return_value = {
+                    'status': 'issues_found',
+                    'checks': {'role_exists': 'PASS', 'policies_attached': 'FAIL'},
+                    'issues_found': ['Missing S3 permissions'],
+                    'recommendations': ['Add S3 read permissions'],
+                }
+                mock_arn.return_value = {
+                    'correct': False,
+                    'error': 'Invalid bucket ARN',
+                    'issues': ['Bucket name mismatch'],
+                }
+
+                result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+                assert 'RUNNING COMPREHENSIVE IAM ANALYSIS' in result
+                assert 'IAM Role Analysis Status: issues_found' in result
+                assert 'ALL IAM ISSUES FOUND (2 total):' in result
+                assert 'IAM Policy: Missing S3 permissions' in result
+                assert 'Resource ARN: Bucket name mismatch' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_enospc_error(mock_aws_clients):
+    """Test analyze_canary_failures with ENOSPC error."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'ENOSPC: no space left on device'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.extract_disk_memory_usage_metrics'
+        ) as mock_metrics:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_metrics.return_value = {
+                'maxEphemeralStorageUsageInMb': 512.5,
+                'maxEphemeralStorageUsagePercent': 95.2,
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert 'DISK USAGE ROOT CAUSE ANALYSIS:' in result
+            assert 'Storage: 512.5 MB peak' in result
+            assert 'Usage: 95.2% peak' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_protocol_error(mock_aws_clients):
+    """Test analyze_canary_failures with protocol error."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {
+                'State': 'FAILED',
+                'StateReason': 'Protocol error (Target.activateTarget): Session closed',
+            },
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.extract_disk_memory_usage_metrics'
+        ) as mock_metrics:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_metrics.return_value = {'maxSyntheticsMemoryUsageInMB': 256.8}
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert 'MEMORY USAGE ROOT CAUSE ANALYSIS:' in result
+            assert 'Memory: 256.8 MB peak' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clients):
+    """Test analyze_canary_failures with navigation timeout and HAR analysis."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timed out after 30000ms'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return HAR files
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_har.return_value = {
+                'failed_requests': 5,
+                'total_requests': 10,
+                'request_details': [
+                    {'url': 'https://example.com/slow', 'status': 200, 'time': 5000}
+                ],
+                'insights': [
+                    'Slow DNS resolution detected',
+                    'High server response time',
+                    'Network connectivity issues',
+                    'Resource loading delays',
+                    'JavaScript execution timeout',
+                ],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+            assert 'Slow DNS resolution detected' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_s3_exception(mock_aws_clients):
+    """Test analyze_canary_failures when S3 operations fail."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    mock_aws_clients['s3_client'].list_objects_v2.side_effect = Exception('S3 access denied')
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_logs:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_logs.return_value = {
+                'status': 'success',
+                'time_window': '2024-01-01 00:00:00 - 2024-01-01 00:05:00',
+                'total_events': 5,
+                'error_events': [
+                    {'timestamp': datetime.now(timezone.utc), 'message': 'Test error message'}
+                ],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            # Should fall back to CloudWatch Logs analysis when S3 fails
+            assert '⚠️ Artifacts not available - Checking CloudWatch Logs for root cause' in result
+            assert 'CLOUDWATCH LOGS ANALYSIS' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_visual_variation(mock_aws_clients):
+    """Test analyze_canary_failures with visual variation error."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Visual variation detected'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code') as mock_code:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_code.return_value = {'code_content': 'const synthetics = require("Synthetics");'}
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert 'VISUAL MONITORING ISSUE DETECTED' in result
+            assert 'Website UI changed - not a technical failure' in result
+            assert 'canary code:' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_get_canary_code_exception(mock_aws_clients):
+    """Test analyze_canary_failures when get_canary_code fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code') as mock_code:
+            mock_insights.return_value = 'Telemetry insights'
+            # Make get_canary_code raise an exception
+            mock_code.side_effect = Exception('Code retrieval failed')
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert 'Note: Could not retrieve canary code: Code retrieval failed' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_iam_analysis_exception(mock_aws_clients):
+    """Test analyze_canary_failures when IAM analysis fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Access denied'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_iam_role_and_policies'
+        ) as mock_iam:
+            mock_insights.return_value = 'Telemetry insights'
+            # Make IAM analysis raise an exception
+            mock_iam.side_effect = Exception('IAM analysis failed')
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert '⚠️ IAM analysis failed: IAM analysis failed' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_disk_usage_exception(mock_aws_clients):
+    """Test analyze_canary_failures when disk usage analysis fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'ENOSPC: no space left on device'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.extract_disk_memory_usage_metrics'
+        ) as mock_metrics:
+            mock_insights.return_value = 'Telemetry insights'
+            # Make disk usage analysis raise an exception
+            mock_metrics.side_effect = Exception('Disk usage analysis failed')
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert (
+                '⚠️ Could not generate disk usage debugging code: Disk usage analysis failed'
+                in result
+            )
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_memory_usage_exception(mock_aws_clients):
+    """Test analyze_canary_failures when memory usage analysis fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {
+                'State': 'FAILED',
+                'StateReason': 'Protocol error (Target.activateTarget): Session closed',
+            },
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.extract_disk_memory_usage_metrics'
+        ) as mock_metrics:
+            mock_insights.return_value = 'Telemetry insights'
+            # Make memory usage analysis raise an exception
+            mock_metrics.side_effect = Exception('Memory usage analysis failed')
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert (
+                '⚠️ Could not collect memory usage metrics: Memory usage analysis failed' in result
+            )
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_har_timeout_exception(mock_aws_clients):
+    """Test analyze_canary_failures when HAR timeout analysis fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timed out after 30000ms'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return HAR files
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            # Make HAR analysis raise an exception
+            mock_har.side_effect = Exception('HAR analysis failed')
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert '⚠️ HAR analysis failed: HAR analysis failed' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clients):
+    """Test analyze_canary_failures when success artifacts retrieval fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return failure artifacts but fail on success artifacts
+    def s3_side_effect(*args, **kwargs):
+        prefix = kwargs.get('Prefix', '')
+        if 'success' in prefix or len(prefix.split('/')) > 5:  # Simulate success path failure
+            raise Exception('Success artifacts access failed')
+        return {
+            'Contents': [
+                {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+            ]
+        }
+
+    mock_aws_clients['s3_client'].list_objects_v2.side_effect = s3_side_effect
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_har.return_value = {
+                'failed_requests': 2,
+                'total_requests': 10,
+                'request_details': [],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            # Should still process failure artifacts even if success artifacts fail
+            assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_no_failure_timestamp(mock_aws_clients):
+    """Test analyze_canary_failures when failure has no timestamp."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {},  # No Started timestamp
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.return_value = 'Telemetry insights'
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert '📋 No failure timestamp available for targeted log analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_log_analysis_failure(mock_aws_clients):
+    """Test analyze_canary_failures when log analysis fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_canary_logs_with_time_window'
+        ) as mock_logs:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_logs.return_value = {
+                'status': 'failed',
+                'insights': ['Log analysis failed due to missing log group'],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            assert '📋 Log analysis failed due to missing log group' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_main_exception(mock_aws_clients):
+    """Test analyze_canary_failures when main function fails."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    # Make get_canary_runs raise an exception
+    mock_aws_clients['synthetics_client'].get_canary_runs.side_effect = Exception('API error')
+
+    result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+    assert '❌ Error in comprehensive failure analysis: API error' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_no_har_files_navigation_timeout(mock_aws_clients):
+    """Test analyze_canary_failures navigation timeout without HAR files."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timed out after 30000ms'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.return_value = 'Telemetry insights'
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert 'NAVIGATION TIMEOUT DETECTED:' in result
+        assert 'No HAR files available for detailed analysis' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_aws_clients):
+    """Test analyze_canary_failures with artifact location without s3:// prefix."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 'test-bucket/canary/us-east-1/test-canary',  # No s3:// prefix
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return artifacts
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_har.return_value = {
+                'failed_requests': 1,
+                'total_requests': 5,
+                'request_details': [],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            # Should still process artifacts even without s3:// prefix
+            assert 'FAILURE ANALYSIS' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
+    """Test analyze_canary_failures with empty base path."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket',  # Only bucket, no path
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return artifacts
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_har.return_value = {
+                'failed_requests': 1,
+                'total_requests': 5,
+                'request_details': [],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            # Should construct default canary path when base_path is empty
+            assert 'FAILURE ANALYSIS' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients):
+    """Test analyze_canary_failures with multiple different failure causes."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+        {
+            'Id': 'failed-run-2',
+            'Status': {'State': 'FAILED', 'StateReason': 'Access denied'},
+            'Timeline': {'Started': '2024-01-01T00:01:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2023-12-31T23:59:00Z'},
+        },
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.return_value = 'Telemetry insights'
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert 'Multiple failure causes (2 different issues):' in result
+        assert '1. **Navigation timeout** (1 occurrences)' in result
+        assert '2. **Access denied** (1 occurrences)' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients):
+    """Test analyze_canary_failures fallback when no failure time."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run',
+            'Status': {'State': 'FAILED', 'StateReason': 'Test failure'},
+            'Timeline': {},  # No Started time
+        }
+    ]
+
+    mock_canary = {
+        'Name': 'test-canary',
+        'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
+    }
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    # Mock S3 to return artifacts
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
+            mock_insights.return_value = 'Telemetry insights'
+            mock_har.return_value = {
+                'failed_requests': 1,
+                'total_requests': 5,
+                'request_details': [],
+            }
+
+            result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+            # Should use current time when no failure time available
+            assert 'FAILURE ANALYSIS' in result
+
+
+def test_filter_operation_targets_fault_to_availability():
+    """Test _filter_operation_targets converts Fault to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify the MetricType was changed from Fault to Availability
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_non_fault_unchanged():
+    """Test _filter_operation_targets leaves non-Fault MetricTypes unchanged."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Latency',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'Error',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify non-Fault MetricTypes are unchanged
+    assert len(operation_targets) == 2
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Latency'
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'Error'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_multiple_fault_conversions():
+    """Test _filter_operation_targets converts multiple Fault entries to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-1'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'Latency',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-3'},
+                    'Operation': 'PUT /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify multiple Fault entries are converted
+    assert len(operation_targets) == 3
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'Latency'
+    assert operation_targets[2]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_with_wildcards():
+    """Test _filter_operation_targets detects wildcards and converts Fault to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': '*payment*'},
+                    'Operation': '*GET*',
+                    'MetricType': 'Fault',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify wildcard detection and Fault conversion
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is True
+
+
+def test_filter_operation_targets_ignores_non_service_operation():
+    """Test _filter_operation_targets ignores non-service_operation targets."""
+    provided = [
+        {
+            'Type': 'service',
+            'Data': {'Service': {'Type': 'Service', 'Name': 'test-service'}},
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify only service_operation targets are included
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Type'] == 'service_operation'
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_empty_metric_type():
+    """Test _filter_operation_targets handles empty MetricType gracefully."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': '',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify empty MetricType is unchanged
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == ''
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_missing_metric_type():
+    """Test _filter_operation_targets handles missing MetricType gracefully."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    # MetricType is missing
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify missing MetricType doesn't cause errors
+    assert len(operation_targets) == 1
+    # MetricType should remain missing (empty string from .get())
+    assert operation_targets[0]['Data']['ServiceOperation'].get('MetricType', '') == ''
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_case_sensitive():
+    """Test _filter_operation_targets is case-sensitive for Fault conversion."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'fault',  # lowercase
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'FAULT',  # uppercase
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify only exact case "Fault" is converted
+    assert len(operation_targets) == 2
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
+    assert has_wildcards is False

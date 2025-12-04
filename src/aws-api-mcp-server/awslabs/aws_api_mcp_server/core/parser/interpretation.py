@@ -38,6 +38,7 @@ def interpret(
     region: str,
     client_side_filter: ParsedResult | None = None,
     max_results: int | None = None,
+    endpoint_url: str | None = None,
 ) -> dict[str, Any]:
     """Interpret the given intermediate representation into boto3 calls.
 
@@ -52,7 +53,7 @@ def interpret(
         region_name=region,
         connect_timeout=TIMEOUT_AFTER_SECONDS,
         read_timeout=TIMEOUT_AFTER_SECONDS,
-        retries={'max_attempts': 1},
+        retries={'max_attempts': 3, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
 
@@ -63,6 +64,7 @@ def interpret(
             aws_secret_access_key=secret_access_key,
             aws_session_token=session_token,
             config=config,
+            endpoint_url=endpoint_url,
         )
 
         if client.can_paginate(ir.operation_python_name):

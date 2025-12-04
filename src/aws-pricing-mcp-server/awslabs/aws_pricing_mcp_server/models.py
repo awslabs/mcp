@@ -59,7 +59,7 @@ class OutputOptions(BaseModel):
 
     pricing_terms: Optional[List[str]] = Field(
         None,
-        description='List of pricing terms to include (e.g., ["OnDemand"], ["Reserved"], ["OnDemand", "Reserved"]). Default: include all terms. Use ["OnDemand"] to significantly reduce response size for large services like EC2.',
+        description='List of pricing terms to include (e.g., ["OnDemand", "FlatRate"], ["Reserved"]). Default: include all terms. Use ["OnDemand", "FlatRate"] to significantly reduce response size for large services like EC2.',
     )
 
     product_attributes: Optional[List[str]] = Field(
@@ -79,8 +79,8 @@ SERVICE_CODE_FIELD = Field(
 )
 
 REGION_FIELD = Field(
-    ...,
-    description='AWS region(s) - single region string (e.g., "us-east-1") or list for multi-region comparison (e.g., ["us-east-1", "us-west-2", "eu-west-1"])',
+    None,
+    description='AWS region(s) - single region string (e.g., "us-east-1") or list for multi-region comparison (e.g., ["us-east-1", "us-west-2", "eu-west-1"]). Optional: omit for global services like DataTransfer or CloudFront that don\'t have region-specific pricing.',
 )
 
 ATTRIBUTE_NAMES_FIELD = Field(
@@ -101,7 +101,7 @@ EFFECTIVE_DATE_FIELD = Field(
 
 OUTPUT_OPTIONS_FIELD = Field(
     None,
-    description='Optional output filtering options to reduce response size. Use {"pricing_terms": ["OnDemand"]} to significantly reduce response size for large services like EC2.',
+    description='Optional output filtering options to reduce response size. Use {"pricing_terms": ["OnDemand", "FlatRate"]} to significantly reduce response size for large services like EC2.',
 )
 
 MAX_RESULTS_FIELD = Field(
@@ -114,4 +114,17 @@ MAX_RESULTS_FIELD = Field(
 NEXT_TOKEN_FIELD = Field(
     None,
     description='Pagination token from previous response to get next page of results',
+)
+
+SERVICE_CODES_FILTER_FIELD = Field(
+    None, description='Optional case-insensitive regex pattern to filter service codes'
+)
+
+SERVICE_ATTRIBUTES_FILTER_FIELD = Field(
+    None, description='Optional case-insensitive regex pattern to filter service attribute names'
+)
+
+ATTRIBUTE_VALUES_FILTERS_FIELD = Field(
+    None,
+    description='Optional dictionary mapping attribute names to regex patterns for filtering their values (e.g., {"instanceType": "t3", "operatingSystem": "Linux"})',
 )

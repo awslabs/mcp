@@ -22,7 +22,26 @@ from typing import List
 SERVICE_REFERENCE_URL = 'https://servicereference.us-east-1.amazonaws.com/'
 METADATA_FILE = 'data/api_metadata.json'
 DEFAULT_REQUEST_TIMEOUT = 5
-OVERRIDES = {'sts': {'AssumeRole': False}}
+OVERRIDES = {
+    'sts': {
+        'AssumeRole': False,
+        'AssumeRoleWithWebIdentity': False,
+        'AssumeRoleWithSAML': False,
+        'GetSessionToken': False,
+        'GetFederationToken': False,
+        'AssumeRoot': False,
+    },
+    'iam': {
+        'CreateAccessKey': False,
+    },
+    'cognito-identity': {
+        'GetCredentialsForIdentity': False,
+        'GetOpenIdToken': False,
+    },
+    'sso': {
+        'GetRoleCredentials': False,
+    },
+}
 
 
 class ServiceReferenceUrlsByService(dict):

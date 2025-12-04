@@ -8,6 +8,7 @@ const config: Config = {
   title: 'AWS MCP Servers',
   tagline: 'Get started with AWS MCP Servers and learn core features',
   favicon: 'img/aws-logo.svg',
+  trailingSlash: false,
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -26,7 +27,11 @@ const config: Config = {
   projectName: 'mcp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'throw',
+  markdown: {
+    hooks:  {
+      onBrokenMarkdownLinks: 'throw'
+    }
+  },
 
   // Add plugins
   plugins: [],

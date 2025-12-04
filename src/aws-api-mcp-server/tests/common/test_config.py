@@ -2,6 +2,8 @@ import awslabs.aws_api_mcp_server.core.common.config as config_module
 import importlib
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
+    FileAccessMode,
+    get_file_access_mode,
     get_region,
     get_server_directory,
     get_transport_from_env,
@@ -188,6 +190,45 @@ def test_user_agent_without_telemetry():
     assert 'cfg/scripts#' not in user_agent
 
 
+@patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_user_agent_with_context(mock_get_context):
+    """Test user agent when context is present."""
+    # Create mock context with fastmcp name and client params
+    mock_context = MagicMock()
+    mock_context.fastmcp.name = 'test-fastmcp'
+    mock_context.session.client_params.clientInfo.name = 'test-client'
+    mock_context.session.client_params.clientInfo.version = '1.0.0'
+
+    mock_get_context.return_value = mock_context
+
+    user_agent = get_user_agent_extra()
+
+    # Verify context information is included in user agent
+    assert 'via/test-fastmcp' in user_agent
+    assert 'MCPClient/test-client-1.0.0' in user_agent
+    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_user_agent_with_context_no_client_params(mock_get_context):
+    """Test user agent when context is present but client_params is None."""
+    # Create mock context with fastmcp name but no client params
+    mock_context = MagicMock()
+    mock_context.fastmcp.name = 'test-fastmcp'
+    mock_context.session.client_params = None
+
+    mock_get_context.return_value = mock_context
+
+    user_agent = get_user_agent_extra()
+
+    # Verify fastmcp name is included but client info is not
+    assert 'via/test-fastmcp' in user_agent
+    assert 'MCPClient/' not in user_agent
+    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+
+
 @patch('importlib.metadata.version')
 def test_package_version_fallback_to_unknown(mock_version):
     """Test that PACKAGE_VERSION falls back to 'unknown' when package not found."""
@@ -203,3 +244,82 @@ def test_package_version_fallback_to_unknown(mock_version):
 
     # Restore original state
     config_module.PACKAGE_VERSION = original_version
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('unrestricted', FileAccessMode.UNRESTRICTED),
+        ('true', FileAccessMode.UNRESTRICTED),
+        ('yes', FileAccessMode.UNRESTRICTED),
+        ('1', FileAccessMode.UNRESTRICTED),
+        ('Unrestricted', FileAccessMode.UNRESTRICTED),
+        ('True', FileAccessMode.UNRESTRICTED),
+        ('YES', FileAccessMode.UNRESTRICTED),
+        ('TRUE', FileAccessMode.UNRESTRICTED),
+    ],
+)
+def test_get_file_access_mode_unrestricted(monkeypatch, env_value, expected_mode):
+    """Test that 'true', 'yes', '1' map to FileAccessMode.UNRESTRICTED (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('false', FileAccessMode.WORKDIR),
+        ('no', FileAccessMode.WORKDIR),
+        ('0', FileAccessMode.WORKDIR),
+        ('workdir', FileAccessMode.WORKDIR),
+        ('False', FileAccessMode.WORKDIR),
+        ('NO', FileAccessMode.WORKDIR),
+        ('WORKDIR', FileAccessMode.WORKDIR),
+        ('Workdir', FileAccessMode.WORKDIR),
+    ],
+)
+def test_get_file_access_mode_workdir(monkeypatch, env_value, expected_mode):
+    """Test that 'false', 'no', '0', 'workdir' map to FileAccessMode.WORKDIR (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+@pytest.mark.parametrize(
+    'env_value,expected_mode',
+    [
+        ('no-access', FileAccessMode.NO_ACCESS),
+        ('NO-ACCESS', FileAccessMode.NO_ACCESS),
+        ('No-Access', FileAccessMode.NO_ACCESS),
+    ],
+)
+def test_get_file_access_mode_no_access(monkeypatch, env_value, expected_mode):
+    """Test that 'no-access' maps to FileAccessMode.NO_ACCESS (case-insensitive)."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == expected_mode
+
+
+def test_get_file_access_mode_default(monkeypatch):
+    """Test that default value is FileAccessMode.WORKDIR when env var is not set."""
+    monkeypatch.delenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', raising=False)
+    result = get_file_access_mode()
+    assert result == FileAccessMode.WORKDIR
+
+
+@pytest.mark.parametrize(
+    'env_value',
+    [
+        'invalid',
+        'random',
+        'unknown',
+        '',
+        'yes_access',
+    ],
+)
+def test_get_file_access_mode_unknown_defaults_to_workdir(monkeypatch, env_value):
+    """Test that unknown values default to FileAccessMode.WORKDIR."""
+    monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
+    result = get_file_access_mode()
+    assert result == FileAccessMode.WORKDIR

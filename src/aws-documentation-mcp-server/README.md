@@ -34,7 +34,8 @@ Configure the MCP server in your MCP client configuration:
       "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
+        "AWS_DOCUMENTATION_PARTITION": "aws",
+        "MCP_USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
       },
       "disabled": false,
       "autoApprove": []
@@ -98,6 +99,8 @@ For Windows users, the MCP server configuration format is slightly different:
 
 
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
+>
+> **Corporate Networks**: If you're behind a corporate proxy or firewall that blocks certain User-Agent strings, set `MCP_USER_AGENT` to match your browser's User-Agent to an allowable string.
 
 or docker after a successful `docker build -t mcp/aws-documentation .`:
 
@@ -120,6 +123,26 @@ or docker after a successful `docker build -t mcp/aws-documentation .`:
       "disabled": false,
       "autoApprove": []
     }
+  }
+}
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `FASTMCP_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `WARNING` |
+| `AWS_DOCUMENTATION_PARTITION` | AWS partition (`aws` or `aws-cn`) | `aws` |
+| `MCP_USER_AGENT` | Custom User-Agent string for HTTP requests | Chrome-based default |
+
+### Corporate Network Support
+
+For corporate environments with proxy servers or firewalls that block certain User-Agent strings:
+
+```json
+{
+  "env": {
+    "MCP_USER_AGENT": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
   }
 }
 ```

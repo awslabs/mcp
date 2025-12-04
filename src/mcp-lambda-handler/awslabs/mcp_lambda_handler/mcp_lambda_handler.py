@@ -166,12 +166,9 @@ class MCPLambdaHandler:
         """
 
         def decorator(func: Callable):
-            # Get function name and convert to camelCase for tool name
+            # Get function name and preserve original snake_case naming
             func_name = func.__name__
-            tool_name = ''.join(
-                [func_name.split('_')[0]]
-                + [word.capitalize() for word in func_name.split('_')[1:]]
-            )
+            tool_name = func_name
 
             # Get docstring and parse into description
             doc = inspect.getdoc(func) or ''

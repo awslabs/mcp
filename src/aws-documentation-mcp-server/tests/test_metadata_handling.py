@@ -37,6 +37,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -51,7 +52,7 @@ class TestMetadataHandling:
                         },
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -70,6 +71,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -83,7 +85,7 @@ class TestMetadataHandling:
                         },
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -102,6 +104,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -112,7 +115,7 @@ class TestMetadataHandling:
                         'metadata': {},
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -131,6 +134,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -140,7 +144,7 @@ class TestMetadataHandling:
                         'metadata': {},
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -159,6 +163,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -167,7 +172,7 @@ class TestMetadataHandling:
                         'metadata': {},
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -186,6 +191,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -195,7 +201,7 @@ class TestMetadataHandling:
                         'metadata': {},
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -214,6 +220,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -247,7 +254,7 @@ class TestMetadataHandling:
                         'metadata': {},
                     }
                 },
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -270,6 +277,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -293,7 +301,7 @@ class TestMetadataHandling:
                         'metadata': {'last_updated': '2025-08-23T15:00:48.000Z', 'summary': 'S3'},
                     }
                 },
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -318,6 +326,7 @@ class TestMetadataHandling:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -327,7 +336,7 @@ class TestMetadataHandling:
                         # No metadata field at all
                     }
                 }
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:

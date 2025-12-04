@@ -46,6 +46,7 @@ def check_aws_credentials() -> dict:
                 'AWS_PROFILE': environ.get('AWS_PROFILE', ''),
                 'AWS_REGION': environ.get('AWS_REGION', ''),
                 'SECURITY_SCANNING': environ.get('SECURITY_SCANNING', 'enabled'),
+                'DEFAULT_TAGS': environ.get('DEFAULT_TAGS', 'enabled'),
             },
         }
     except Exception as e:
@@ -59,6 +60,7 @@ def check_aws_credentials() -> dict:
                 'AWS_PROFILE': environ.get('AWS_PROFILE', ''),
                 'AWS_REGION': environ.get('AWS_REGION', ''),
                 'SECURITY_SCANNING': environ.get('SECURITY_SCANNING', 'enabled'),
+                'DEFAULT_TAGS': environ.get('DEFAULT_TAGS', 'enabled'),
             },
         }
 

@@ -16,8 +16,12 @@
 
 import html
 import re
+from .validation_utils import validate_asset_or_model_id
 from datetime import datetime
 from typing import Any, Dict, List, Union
+
+
+COMPUTATION_MODEL_NAME_DESCRIPTION_PATTERN = re.compile(r'^[a-zA-Z0-9 _\-#$*!@]+$')
 
 
 class ValidationError(Exception):
@@ -27,24 +31,43 @@ class ValidationError(Exception):
 
 
 def validate_asset_id(asset_id: str) -> None:
-    """Validate asset ID format."""
-    if not asset_id:
-        raise ValidationError('Asset ID cannot be empty')
-    if len(asset_id) > 36:
-        raise ValidationError('Asset ID cannot exceed 36 characters')
-    # Asset IDs are typically UUIDs or custom identifiers
-    if not re.match(r'^[a-zA-Z0-9_-]+$', asset_id):
-        raise ValidationError('Asset ID contains invalid characters')
+    """Validate asset ID format - accepts UUID or external ID format."""
+    try:
+        validate_asset_or_model_id(asset_id, 'assetId')
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
 def validate_asset_model_id(asset_model_id: str) -> None:
-    """Validate asset model ID format."""
-    if not asset_model_id:
-        raise ValidationError('Asset model ID cannot be empty')
-    if len(asset_model_id) > 36:
-        raise ValidationError('Asset model ID cannot exceed 36 characters')
-    if not re.match(r'^[a-zA-Z0-9_-]+$', asset_model_id):
-        raise ValidationError('Asset model ID contains invalid characters')
+    """Validate asset model ID format - accepts UUID or external ID format."""
+    try:
+        validate_asset_or_model_id(asset_model_id, 'assetModelId')
+    except ValueError as e:
+        raise ValidationError(str(e))
+
+
+def validate_computation_model_name(computation_model_name: str) -> None:
+    """Validate computation model name constraints."""
+    if not computation_model_name:
+        raise ValidationError('Computation model name cannot be empty')
+    if len(computation_model_name) > 256:
+        raise ValidationError('Computation model name cannot exceed 256 characters')
+    if not COMPUTATION_MODEL_NAME_DESCRIPTION_PATTERN.match(computation_model_name):
+        raise ValidationError(
+            'Computation model name must match pattern: ^[a-zA-Z0-9 _\\-#$*!@]+$'
+        )
+
+
+def validate_computation_model_description(computation_model_description: str) -> None:
+    """Validate computation model description constraints."""
+    if not computation_model_description:
+        raise ValidationError('Computation model description cannot be empty')
+    if len(computation_model_description) > 2048:
+        raise ValidationError('Computation model description cannot exceed 2048 characters')
+    if not COMPUTATION_MODEL_NAME_DESCRIPTION_PATTERN.match(computation_model_description):
+        raise ValidationError(
+            'Computation model description must match pattern: ^[a-zA-Z0-9 _\\-#$*!@]+$'
+        )
 
 
 def validate_asset_name(asset_name: str) -> None:
@@ -492,3 +515,53 @@ def validate_safe_identifier(identifier: str, field_name: str = 'identifier') ->
 
     if len(identifier) > 256:
         raise ValidationError(f'{field_name} cannot exceed 256 characters')
+
+
+def check_storage_configuration_requirements(client, adaptive_ingestion: bool) -> None:
+    """Check storage configuration requirements for bulk import jobs.
+
+    For bulk import jobs with adaptive_ingestion=False, either:
+    1. Multi-layer storage must be configured, OR
+    2. Warm tier must be enabled for default storage
+
+    Args:
+        client: IoT SiteWise client
+        adaptive_ingestion: Whether adaptive ingestion is enabled
+
+    Raises:
+        ValidationError: If storage configuration requirements are not met
+    """
+    if adaptive_ingestion:
+        return
+
+    try:
+        response = client.describe_storage_configuration()
+        storage_type = response.get('storageType', 'SITEWISE_DEFAULT_STORAGE')
+
+        if storage_type == 'SITEWISE_DEFAULT_STORAGE':
+            # Check if warm tier is enabled for default storage
+            warm_tier = response.get('warmTier')
+            if not warm_tier or warm_tier.get('state') != 'ENABLED':
+                raise ValidationError(
+                    'For bulk import jobs with adaptive ingestion disabled, either multi-layer storage '
+                    'must be configured or warm tier must be enabled. Current configuration has default '
+                    'storage without warm tier enabled.'
+                    'Ask the user if they can enable adaptive_ingestion if data is within 30 days or they wants to enable cold/warm tier'
+                )
+
+        elif storage_type == 'MULTI_LAYER_STORAGE':
+            # Verify multi-layer storage is properly configured
+            multilayer_storage = response.get('multiLayerStorage', {})
+            customer_managed_s3_storage = multilayer_storage.get('customerManagedS3Storage', {})
+            if not customer_managed_s3_storage:
+                raise ValidationError(
+                    'Multi-layer storage is configured but customer managed S3 storage is not properly set up.'
+                )
+
+        else:
+            raise ValidationError(f'Unknown storage type: {storage_type}')
+
+    except Exception as e:
+        if isinstance(e, ValidationError):
+            raise
+        raise ValidationError(f'Failed to validate storage configuration: {str(e)}')
