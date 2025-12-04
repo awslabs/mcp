@@ -135,7 +135,7 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
 
     """
     for _, search_responses in enumerate(SEARCH_RESULT_CACHE):
-        for search_result in search_responses.searchResults:
+        for search_result in search_responses.search_results:
             if search_result.url == url:
                 # Sanitization of query_id just in case
                 query_id = quote(search_responses.query_id)

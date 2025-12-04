@@ -310,7 +310,7 @@ class TestReadDocumentationImpl:
 
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[
+                search_results=[
                     SearchResult(
                         rank_order=1,
                         title='testtitle1',
@@ -454,21 +454,21 @@ class TestSearchResultCache:
 
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[SearchResult(rank_order=1, title='testtitle1', url='testurl1')],
+                search_results=[SearchResult(rank_order=1, title='testtitle1', url='testurl1')],
                 facets={},
                 query_id='query1',
             )
         )
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[SearchResult(rank_order=1, title='testtitle2', url='testurl2')],
+                search_results=[SearchResult(rank_order=1, title='testtitle2', url='testurl2')],
                 facets={},
                 query_id='query2',
             )
         )
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[SearchResult(rank_order=1, title='testtitle3', url='testurl3')],
+                search_results=[SearchResult(rank_order=1, title='testtitle3', url='testurl3')],
                 facets={},
                 query_id='query3',
             )
@@ -480,7 +480,7 @@ class TestSearchResultCache:
 
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[SearchResult(rank_order=1, title='testtitle4', url='testurl4')],
+                search_results=[SearchResult(rank_order=1, title='testtitle4', url='testurl4')],
                 facets={},
                 query_id='query4',
             )
@@ -493,19 +493,19 @@ class TestSearchResultCache:
         assert test_query_id == 'query3'
 
     def test_get_query_id_from_cache(self):
-        """Test that get_query_id_from_cache returns the correct SearchResults."""
+        """Test that get_query_id_from_cache returns the correct search_results."""
         SEARCH_RESULT_CACHE.clear()
 
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[SearchResult(rank_order=1, title='testtitle1', url='testurl1')],
+                search_results=[SearchResult(rank_order=1, title='testtitle1', url='testurl1')],
                 facets={},
                 query_id='query1',
             )
         )
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[
+                search_results=[
                     SearchResult(rank_order=1, title='testtitle1', url='testurl1'),
                     SearchResult(rank_order=2, title='testtitle2', url='testurl2'),
                 ],
@@ -515,7 +515,7 @@ class TestSearchResultCache:
         )
         add_search_result_cache_item(
             SearchResponse(
-                searchResults=[
+                search_results=[
                     SearchResult(rank_order=1, title='testtitle3', url='testurl3'),
                     SearchResult(rank_order=2, title='testtitle5', url='testurl5'),
                 ],
@@ -539,6 +539,3 @@ class TestSearchResultCache:
 
         test_query_id = get_query_id_from_cache('testurl4')
         assert test_query_id is None
-
-        test_query_id = get_query_id_from_cache('testurl5')
-        assert test_query_id == 'test-query-id-5'

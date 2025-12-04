@@ -29,7 +29,7 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     """Complete search response including results and facets."""
 
-    searchResults: List[SearchResult]
+    search_results: List[SearchResult]
     facets: Optional[Dict[str, List[str]]] = None
     query_id: str
 

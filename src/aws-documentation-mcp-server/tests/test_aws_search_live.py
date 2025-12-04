@@ -44,7 +44,7 @@ async def test_search_documentation_live():
         response = await search_documentation(
             ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
         )
-        results = response.searchResults
+        results = response.search_results
         # Verify the results
         assert results is not None
         assert len(results) > 0
@@ -85,7 +85,7 @@ async def test_search_documentation_empty_results():
         response = await search_documentation(
             ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
         )
-        results = response.searchResults
+        results = response.search_results
 
         # We don't assert on the number of results, as it might change over time
         # Just verify that the function returns a valid response
@@ -118,12 +118,12 @@ async def test_search_documentation_limit():
         response_small = await search_documentation(
             ctx, search_phrase=search_phrase, limit=3, product_types=None, guide_types=None
         )
-        results_small = response_small.searchResults
+        results_small = response_small.search_results
         # Test with limit=10
         response_large = await search_documentation(
             ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
-        results_large = response_large.searchResults
+        results_large = response_large.search_results
 
         # Verify that the limits are respected
         assert len(results_small) <= 3
@@ -152,7 +152,7 @@ async def test_search_documentation_with_product_type():
         first_response = await search_documentation(
             ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
-        first_results = first_response.searchResults
+        first_results = first_response.search_results
         # Verify first search results
         assert first_response is not None
         assert first_results is not None
@@ -173,12 +173,13 @@ async def test_search_documentation_with_product_type():
             product_types=[first_product_type],
             guide_types=None,
         )
-        second_results = second_response.searchResults
+        second_results = second_response.search_results
 
         # Verify second search results
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
+        assert first_product_type in second_response.facets['product_types']
 
 
 @pytest.mark.asyncio
@@ -196,7 +197,7 @@ async def test_search_documentation_with_guide_type():
         first_response = await search_documentation(
             ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
         )
-        first_results = first_response.searchResults
+        first_results = first_response.search_results
         # Verify first search results
         assert first_response is not None
         assert first_results is not None
@@ -217,12 +218,13 @@ async def test_search_documentation_with_guide_type():
             product_types=None,
             guide_types=[first_guide_type],
         )
-        second_results = second_response.searchResults
+        second_results = second_response.search_results
 
         # Verify second search results
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
+        assert first_guide_type in second_response.facets['guide_types']
 
 
 if __name__ == '__main__':

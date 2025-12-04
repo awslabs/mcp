@@ -202,8 +202,8 @@ async def search_documentation(
 
     ## Result Interpretation
 
-    Each result includes:
-    - searchResults: List of documentation pages, each with:
+    Each SearchResponse includes:
+    - search_results: List of documentation pages, each with:
         - rank_order: The relevance ranking (lower is more relevant)
         - url: The documentation page URL
         - title: The page title
@@ -267,7 +267,7 @@ async def search_documentation(
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchResponse(
-                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
                 facets=None,
                 query_id='',
             )
@@ -277,7 +277,7 @@ async def search_documentation(
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchResponse(
-                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
                 facets=None,
                 query_id='',
             )
@@ -301,7 +301,7 @@ async def search_documentation(
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchResponse(
-                searchResults=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
                 facets=None,
                 query_id='',
             )
@@ -336,11 +336,11 @@ async def search_documentation(
 
     logger.debug(f'Found {len(results)} search results for: {search_phrase}')
     logger.debug(f'Search query ID: {query_id}')
-    finalSearchResponse = SearchResponse(
-        searchResults=results, facets=facets if facets else None, query_id=query_id
+    final_search_response = SearchResponse(
+        search_results=results, facets=facets if facets else None, query_id=query_id
     )
-    add_search_result_cache_item(finalSearchResponse)
-    return finalSearchResponse
+    add_search_result_cache_item(final_search_response)
+    return final_search_response
 
 
 @mcp.tool()

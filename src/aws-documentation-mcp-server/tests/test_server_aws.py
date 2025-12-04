@@ -169,7 +169,7 @@ class TestSearchDocumentation:
             response = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 2
             assert results[0].rank_order == 1
             assert results[0].url == 'https://docs.aws.amazon.com/test1'
@@ -241,7 +241,7 @@ class TestSearchDocumentation:
             results = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            search_results = results.searchResults
+            search_results = results.search_results
             assert len(search_results) == 2
             mock_post.assert_called_once()
 
@@ -273,7 +273,7 @@ class TestSearchDocumentation:
             response = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].rank_order == 1
             assert results[0].url == ''
@@ -295,7 +295,7 @@ class TestSearchDocumentation:
             response = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
 
             assert len(results) == 1
             assert results[0].rank_order == 1
@@ -319,7 +319,7 @@ class TestSearchDocumentation:
             response = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
 
             assert len(results) == 1
             assert results[0].rank_order == 1
@@ -343,7 +343,7 @@ class TestSearchDocumentation:
             response = await search_documentation(
                 ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 0
             mock_post.assert_called_once()
 
@@ -373,7 +373,8 @@ class TestSearchDocumentation:
                 product_types=['Amazon S3', 'AWS Lambda'],
                 guide_types=['User Guide', 'API Reference'],
             )
-            context_attrs = mock_post.call_args[1]['json']['contextAttributes']
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
             assert {'key': 'aws-docs-search-product', 'value': 'Amazon S3'} in context_attrs
             assert {'key': 'aws-docs-search-product', 'value': 'AWS Lambda'} in context_attrs
             assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
@@ -387,14 +388,16 @@ class TestSearchDocumentation:
             await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=['Amazon S3'], guide_types=None
             )
-            context_attrs = mock_post.call_args[1]['json']['contextAttributes']
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
             assert {'key': 'aws-docs-search-product', 'value': 'Amazon S3'} in context_attrs
 
             # Test only guide filter
             await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=['User Guide']
             )
-            context_attrs = mock_post.call_args[1]['json']['contextAttributes']
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
             assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
 
 

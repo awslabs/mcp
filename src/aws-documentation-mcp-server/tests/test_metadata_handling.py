@@ -61,7 +61,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'SEO optimized abstract'
 
@@ -96,7 +96,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'Regular abstract'
 
@@ -128,7 +128,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -159,7 +159,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'Suggestion body text'
 
@@ -189,7 +189,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context is None
 
@@ -220,7 +220,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -275,7 +275,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 4
             assert results[0].context == 'SEO abstract 1'
             assert results[1].context == 'Regular abstract 2'
@@ -324,7 +324,7 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='s3', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 2
             # First result should use seo_abstract
             assert (
@@ -361,6 +361,6 @@ class TestMetadataHandling:
             response = await search_documentation(
                 ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
             )
-            results = response.searchResults
+            results = response.search_results
             assert len(results) == 1
             assert results[0].context == 'Regular summary'

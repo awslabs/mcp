@@ -68,11 +68,11 @@ class TestSearchResponse:
         }
 
         response = SearchResponse(
-            searchResults=search_results, facets=facets, query_id='test-query-id'
+            search_results=search_results, facets=facets, query_id='test-query-id'
         )
 
-        assert len(response.searchResults) == 1
-        assert response.searchResults[0].title == 'Test 1'
+        assert len(response.search_results) == 1
+        assert response.search_results[0].title == 'Test 1'
         assert response.facets == facets
         assert response.query_id == 'test-query-id'
 
@@ -86,9 +86,9 @@ class TestSearchResponse:
             )
         ]
 
-        response = SearchResponse(searchResults=search_results, query_id='test-query-id')
+        response = SearchResponse(search_results=search_results, query_id='test-query-id')
 
-        assert len(response.searchResults) == 1
+        assert len(response.search_results) == 1
         assert response.facets is None
         assert response.query_id == 'test-query-id'
 
