@@ -86,7 +86,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception) as context:
             await self.server._handle_list_keyspaces(self.mock_context)
 
-        self.assertIn('Error listing keyspaces', str(context.exception))
+        self.assertIn('Unable to retrieve keyspace information', str(context.exception))
         self.mock_schema_service.list_keyspaces.assert_called_once()
 
     async def test_handle_list_tables(self):
@@ -129,7 +129,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception) as context:
             await self.server._handle_list_tables('mykeyspace', self.mock_context)
 
-        self.assertIn('Error listing tables', str(context.exception))
+        self.assertIn('Unable to retrieve table information', str(context.exception))
         self.mock_schema_service.list_tables.assert_called_once_with('mykeyspace')
 
     async def test_handle_describe_keyspace(self):
@@ -185,7 +185,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception) as context:
             await self.server._handle_describe_keyspace('mykeyspace', self.mock_context)
 
-        self.assertIn('Error describing keyspace', str(context.exception))
+        self.assertIn('Unable to retrieve keyspace details', str(context.exception))
         self.mock_schema_service.describe_keyspace.assert_called_once_with('mykeyspace')
 
     async def test_handle_describe_table(self):
@@ -262,7 +262,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception) as context:
             await self.server._handle_describe_table('mykeyspace', 'users', self.mock_context)
 
-        self.assertIn('Error describing table', str(context.exception))
+        self.assertIn('Unable to retrieve table details', str(context.exception))
         self.mock_schema_service.describe_table.assert_called_once_with('mykeyspace', 'users')
 
     async def test_handle_execute_query(self):
@@ -374,7 +374,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
                 'mykeyspace', 'SELECT * FROM users', self.mock_context
             )
 
-        self.assertIn('Error executing query', str(context.exception))
+        self.assertIn('Unable to execute query', str(context.exception))
         self.mock_data_service.execute_read_only_query.assert_called_once_with(
             'mykeyspace', 'SELECT * FROM users'
         )
@@ -453,7 +453,7 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
                 'mykeyspace', 'SELECT * FROM users', self.mock_context
             )
 
-        self.assertIn('Error analyzing query', str(context.exception))
+        self.assertIn('Unable to analyze query', str(context.exception))
         self.mock_query_analysis_service.analyze_query.assert_called_once_with(
             'mykeyspace', 'SELECT * FROM users'
         )
