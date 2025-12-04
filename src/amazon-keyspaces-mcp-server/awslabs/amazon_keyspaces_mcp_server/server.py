@@ -49,9 +49,33 @@ from .services import DataService, QueryAnalysisService, SchemaService
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-mcp = FastMCP(name=SERVER_NAME, version=SERVER_VERSION)
+mcp = FastMCP(
+    name=SERVER_NAME,
+    version=SERVER_VERSION,
+    instructions="""
+# Amazon Keyspaces MCP Server
 
-# Global handle to hold the proxy to the specific db client
+This MCP server enables interaction with Amazon Keyspaces (for Apache Cassandra) and Apache Cassandra databases through natural language.
+
+## Available Tools
+
+- **listKeyspaces**: Lists all keyspaces in the database
+- **listTables**: Lists tables in a specific keyspace
+- **describeKeyspace**: Gets detailed keyspace information including replication strategy
+- **describeTable**: Gets table schema including columns, data types, and primary keys
+- **executeQuery**: Executes read-only SELECT queries
+- **analyzeQueryPerformance**: Analyzes query performance and provides optimization recommendations
+
+## Usage Guidelines
+
+1. Start by listing keyspaces to understand the database structure
+2. Use describeTable to understand table schemas before querying
+3. Only SELECT queries are permitted for data safety
+4. Use analyzeQueryPerformance to optimize queries before execution
+""",
+)
+
+# Global handle to hold the proxy to the specific database client
 _PROXY = None
 
 
