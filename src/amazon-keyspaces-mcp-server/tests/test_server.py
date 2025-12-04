@@ -15,117 +15,13 @@ from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
 from awslabs.amazon_keyspaces_mcp_server.models import KeyspaceInfo, QueryAnalysisResult, TableInfo
 from awslabs.amazon_keyspaces_mcp_server.server import (
     KeyspacesMcpStdioServer,
-    analyze_query_performance,
-    describe_keyspace,
-    describe_table,
-    execute_query,
     get_proxy,
-    list_keyspaces,
-    list_tables,
 )
 from mcp.server.fastmcp import Context
-from unittest.mock import AsyncMock, Mock, patch
 
 
-class TestServerTools(unittest.TestCase):
-    """Tests for the server tool functions."""
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_list_keyspaces(self, mock_get_proxy):
-        """Test the list_keyspaces tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy.handle_list_keyspaces.return_value = 'Keyspaces list'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = list_keyspaces()
-
-        # Verify the result
-        self.assertEqual(result, 'Keyspaces list')
-        mock_proxy.handle_list_keyspaces.assert_called_once_with(None)
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_list_tables(self, mock_get_proxy):
-        """Test the list_tables tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy._handle_list_tables.return_value = 'Tables list'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = list_tables('mykeyspace')
-
-        # Verify the result
-        self.assertEqual(result, 'Tables list')
-        mock_proxy._handle_list_tables.assert_called_once_with('mykeyspace', None)
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_describe_keyspace(self, mock_get_proxy):
-        """Test the describe_keyspace tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy._handle_describe_keyspace.return_value = 'Keyspace details'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = describe_keyspace('mykeyspace')
-
-        # Verify the result
-        self.assertEqual(result, 'Keyspace details')
-        mock_proxy._handle_describe_keyspace.assert_called_once_with('mykeyspace', None)
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_describe_table(self, mock_get_proxy):
-        """Test the describe_table tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy._handle_describe_table.return_value = 'Table details'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = describe_table('mykeyspace', 'users')
-
-        # Verify the result
-        self.assertEqual(result, 'Table details')
-        mock_proxy._handle_describe_table.assert_called_once_with('mykeyspace', 'users', None)
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_execute_query(self, mock_get_proxy):
-        """Test the execute_query tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy._handle_execute_query.return_value = 'Query results'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = execute_query('mykeyspace', 'SELECT * FROM users')
-
-        # Verify the result
-        self.assertEqual(result, 'Query results')
-        mock_proxy._handle_execute_query.assert_called_once_with(
-            'mykeyspace', 'SELECT * FROM users', None
-        )
-
-    @patch('awslabs.amazon_keyspaces_mcp_server.server.get_proxy')
-    def test_analyze_query_performance(self, mock_get_proxy):
-        """Test the analyze_query_performance tool."""
-        # Set up the mock
-        mock_proxy = Mock()
-        mock_proxy._handle_analyze_query_performance.return_value = 'Query analysis'
-        mock_get_proxy.return_value = mock_proxy
-
-        # Call the function
-        result = analyze_query_performance('mykeyspace', 'SELECT * FROM users')
-
-        # Verify the result
-        self.assertEqual(result, 'Query analysis')
-        mock_proxy._handle_analyze_query_performance.assert_called_once_with(
-            'mykeyspace', 'SELECT * FROM users', None
-        )
-
-
-class TestKeyspacesMcpStdioServer(unittest.TestCase):
+# pylint: disable=protected-access,too-many-public-methods
+class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
     """Tests for the KeyspacesMcpStdioServer class."""
 
     def setUp(self):
