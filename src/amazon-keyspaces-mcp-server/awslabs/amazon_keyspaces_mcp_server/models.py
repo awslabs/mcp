@@ -13,8 +13,11 @@
 # limitations under the License.
 """Data models for Keyspaces MCP Server."""
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field, field_validator
 
 
 @dataclass
@@ -126,3 +129,50 @@ class QueryAnalysisResult:
     is_full_table_scan: bool = False
     recommendations: List[str] = field(default_factory=list)
     performance_assessment: str = ''
+
+
+# Pydantic models for input validation
+class KeyspaceInput(BaseModel):
+    """Validated keyspace input."""
+    keyspace: str = Field(
+        ...,
+        min_length=1,
+        max_length=48,
+        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$',
+        description='Keyspace name (alphanumeric and underscore only)'
+    )
+
+
+class TableInput(BaseModel):
+    """Validated table input."""
+    keyspace: str = Field(
+        ...,
+        min_length=1,
+        max_length=48,
+        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
+    )
+    table: str = Field(
+        ...,
+        min_length=1,
+        max_length=48,
+        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
+    )
+
+
+class QueryInput(BaseModel):
+    """Validated query input."""
+    keyspace: str = Field(
+        ...,
+        min_length=1,
+        max_length=48,
+        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
+    )
+    query: str = Field(..., min_length=1, max_length=10000)
+
+    @field_validator('query')
+    @classmethod
+    def sanitize_query(cls, v: str) -> str:
+        """Strip hidden unicode and control characters."""
+        v = re.sub(r'[\u200B-\u200D\uFEFF\u0000-\u001F\u007F-\u009F]', '', v)
+        return v.strip()
+
