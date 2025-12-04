@@ -60,6 +60,42 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 - **get_cluster_telemetry**: Retrieves telemetry data for MSK clusters
 - **get_cluster_best_practices**: Gets best practices and recommendations for MSK clusters
 
+### Topic Operations
+
+- **get_topic_info**: View MSK topics and partition metadata (supports actions `list`, `describe`, `partitions`).
+  - action=`list`: lists topics in a cluster (supports pagination using `max_results` and `next_token`).
+  - action=`describe`: returns topic-level metadata; requires `topic_name`.
+  - action=`partitions`: returns partition-level metadata for a topic; requires `topic_name`.
+
+Example MCP call payloads (JSON):
+
+action = list:
+```json
+{"tool":"get_topic_info","args":{"action":"list","cluster_arn":"arn:aws:kafka:us-east-1:123456789012:cluster/my-cluster/abcdef","max_results":20}}
+```
+
+action = describe:
+```json
+{"tool":"get_topic_info","args":{"action":"describe","cluster_arn":"arn:aws:kafka:us-east-1:123456789012:cluster/my-cluster/abcdef","topic_name":"my-topic"}}
+```
+
+action = partitions:
+```json
+{"tool":"get_topic_info","args":{"action":"partitions","cluster_arn":"arn:aws:kafka:us-east-1:123456789012:cluster/my-cluster/abcdef","topic_name":"my-topic","max_results":100}}
+```
+
+Quick Python example (helper functions in the package):
+
+```py
+from awslabs.aws_msk_mcp_server.tools.read_topic import list_topics, describe_topic, describe_topic_partitions
+# list topics
+result = list_topics(cluster_arn, client, max_results=20)
+# describe topic
+result = describe_topic(cluster_arn, "my-topic", client)
+# partitions
+result = describe_topic_partitions(cluster_arn, "my-topic", client, max_results=100)
+```
+
 ## Usage
 
 This MCP server can be used by AI assistants to help users manage their Amazon MSK resources. It provides structured access to MSK APIs, making it easier for AI to understand and interact with MSK clusters.
