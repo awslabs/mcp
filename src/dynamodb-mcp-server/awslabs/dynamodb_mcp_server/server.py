@@ -17,7 +17,10 @@
 import json
 import os
 from awslabs.aws_api_mcp_server.server import call_aws
-from awslabs.dynamodb_mcp_server.common import handle_exceptions
+from awslabs.dynamodb_mcp_server.common import (
+    handle_exceptions,
+    validate_delete_table_operation,
+)
 from awslabs.dynamodb_mcp_server.database_analyzers import (
     DatabaseAnalyzer,
     DatabaseAnalyzerRegistry,
@@ -303,6 +306,11 @@ async def execute_dynamodb_command(
     # Validate command starts with 'aws dynamodb'
     if not command.strip().startswith('aws dynamodb'):
         raise ValueError("Command must start with 'aws dynamodb'")
+
+    # Validate delete-table operations
+    is_allowed, error_message = validate_delete_table_operation(command, endpoint_url)
+    if not is_allowed:
+        raise ValueError(error_message)
 
     # Configure environment with fake AWS credentials if endpoint_url is present
     if endpoint_url:

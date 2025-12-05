@@ -56,6 +56,7 @@ dev = [
     "pytest-mock>=3.12.0",
     "moto>=5.1.4",
     "boto3>=1.38.14",
+    "hypothesis>=6.0.0",
 ]
 
 [build-system]
@@ -138,7 +139,8 @@ testpaths = [ "tests"]
 asyncio_mode = "auto"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "asyncio: marks tests that use asyncio",
+    "hypothesis: marks property-based tests using Hypothesis"
 ]
 
 [tool.coverage.report]
