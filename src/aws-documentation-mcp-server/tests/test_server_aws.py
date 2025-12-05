@@ -141,6 +141,10 @@ class TestSearchDocumentation:
         mock_response.status_code = 200
         mock_response.json.return_value = {
             'queryId': 'test-query-id',
+            'facets': {
+                'aws-docs-search-product': ['Amazon S3', 'AWS Lambda'],
+                'aws-docs-search-guide': ['User Guide', 'API Reference'],
+            },
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -162,8 +166,10 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
-
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            results = response.search_results
             assert len(results) == 2
             assert results[0].rank_order == 1
             assert results[0].url == 'https://docs.aws.amazon.com/test1'
@@ -173,6 +179,16 @@ class TestSearchDocumentation:
             assert results[1].url == 'https://docs.aws.amazon.com/test2'
             assert results[1].title == 'Test 2'
             assert results[1].context == 'This is test 2.'
+            assert response.query_id == 'test-query-id'
+            assert response.facets == {
+                'product_types': ['Amazon S3', 'AWS Lambda'],
+                'guide_types': ['User Guide', 'API Reference'],
+            }
+            assert response.query_id == 'test-query-id'
+            assert response.facets == {
+                'product_types': ['Amazon S3', 'AWS Lambda'],
+                'guide_types': ['User Guide', 'API Reference'],
+            }
             mock_post.assert_called_once()
 
             for call in mock_post.call_args_list:
@@ -222,9 +238,11 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
-
-            assert len(results) == 2
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            search_results = results.search_results
+            assert len(search_results) == 2
             mock_post.assert_called_once()
 
             for call in mock_post.call_args_list:
@@ -252,8 +270,10 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.HTTPError('Connection error')
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
-
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            results = response.search_results
             assert len(results) == 1
             assert results[0].rank_order == 1
             assert results[0].url == ''
@@ -272,7 +292,10 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            results = response.search_results
 
             assert len(results) == 1
             assert results[0].rank_order == 1
@@ -293,7 +316,10 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            results = response.search_results
 
             assert len(results) == 1
             assert results[0].rank_order == 1
@@ -314,10 +340,65 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
-
+            response = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+            results = response.search_results
             assert len(results) == 0
             mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_filters(self):
+        """Test searching AWS documentation with product and guide filters."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'facets': {
+                'aws-docs-search-product': ['Amazon S3'],
+                'aws-docs-search-guide': ['User Guide'],
+            },
+            'suggestions': [],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            # Test both filters
+            response = await search_documentation(
+                ctx,
+                search_phrase='test',
+                limit=10,
+                product_types=['Amazon S3', 'AWS Lambda'],
+                guide_types=['User Guide', 'API Reference'],
+            )
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
+            assert {'key': 'aws-docs-search-product', 'value': 'Amazon S3'} in context_attrs
+            assert {'key': 'aws-docs-search-product', 'value': 'AWS Lambda'} in context_attrs
+            assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
+            assert {'key': 'aws-docs-search-guide', 'value': 'API Reference'} in context_attrs
+            assert response.facets == {
+                'product_types': ['Amazon S3'],
+                'guide_types': ['User Guide'],
+            }
+
+            # Test only product filter
+            await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=['Amazon S3'], guide_types=None
+            )
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
+            assert {'key': 'aws-docs-search-product', 'value': 'Amazon S3'} in context_attrs
+
+            # Test only guide filter
+            await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=['User Guide']
+            )
+            args, kwargs = mock_post.call_args
+            context_attrs = kwargs['json']['contextAttributes']
+            assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
 
 
 class TestRecommend:
