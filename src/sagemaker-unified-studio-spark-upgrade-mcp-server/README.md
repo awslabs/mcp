@@ -86,7 +86,7 @@ See [Using the Upgrade Agent](https://docs.aws.amazon.com/emr/latest/ReleaseGuid
 1. **Run the spark upgrade analysis**:
   - EMR-S
     ```
-    Help me upgrade my spark application in <project-path> from Spark 2.4 to Spark 3.5. you can use EMR-S Application id xxg017hmd2agxxxx to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    Help me upgrade my spark application in <project-path> from Spark version 2.4 to 3.5. you can use EMR-S Application id xxg017hmd2agxxxx and execution role <role name> to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
     ```
   - EMR-EC2
     ```
