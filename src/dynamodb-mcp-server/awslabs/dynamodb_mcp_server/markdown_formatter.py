@@ -14,11 +14,7 @@
 
 import logging
 import os
-from awslabs.dynamodb_mcp_server.database_analysis_queries import (
-    get_performance_queries,
-    get_query_descriptions,
-    get_schema_queries,
-)
+from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
@@ -30,17 +26,28 @@ logger = logging.getLogger(__name__)
 class MarkdownFormatter:
     """Formats database analysis results into LLM-optimized Markdown files."""
 
-    def __init__(self, results: Dict[str, Any], metadata: Dict[str, Any], output_dir: str):
+    def __init__(
+        self,
+        results: Dict[str, Any],
+        metadata: Dict[str, Any],
+        output_dir: str,
+        plugin: DatabasePlugin,
+    ):
         """Initialize formatter with analysis results.
 
         Args:
             results: Dictionary of query results from DatabaseAnalyzer
             metadata: Analysis metadata (database name, dates, etc.)
             output_dir: Directory where Markdown files will be saved
+            plugin: DatabasePlugin instance for getting query definitions (required)
         """
+        if plugin is None:
+            raise ValueError('plugin parameter is required and cannot be None')
+
         self.results = results
         self.metadata = metadata
         self.output_dir = output_dir
+        self.plugin = plugin
         self.file_registry: List[str] = []  # Track generated files for manifest
         self.skipped_queries: Dict[str, str] = {}  # Track skipped queries and reasons
         self.errors: List[Tuple[str, str]] = []  # Track errors (query_name, error_message)
@@ -273,10 +280,10 @@ class MarkdownFormatter:
             performance_status = 'Enabled' if performance_enabled else 'Disabled'
             content_parts.append(f'- **Performance Schema**: {performance_status}\n')
 
-            # Get query categories and descriptions from database_analysis_queries
-            schema_queries = get_schema_queries()
-            performance_queries = get_performance_queries()
-            query_descriptions = get_query_descriptions()
+            # Get query categories and descriptions from plugin
+            schema_queries = self.plugin.get_queries_by_category('information_schema')
+            performance_queries = self.plugin.get_queries_by_category('performance_schema')
+            query_descriptions = self.plugin.get_query_descriptions()
 
             # Add Query Results Files section
             content_parts.append('## Query Results Files\n')
@@ -356,15 +363,16 @@ class MarkdownFormatter:
                 fk_data = self.results['foreign_key_analysis'].get('data', [])
                 total_foreign_keys = len(fk_data) if fk_data else 0
 
-            if 'all_queries_stats' in self.results:
-                query_data = self.results['all_queries_stats'].get('data', [])
+            if 'query_performance_stats' in self.results:
+                query_data = self.results['query_performance_stats'].get('data', [])
                 total_queries = len(query_data) if query_data else 0
-                # Count stored procedures from all_queries_stats (source_type = 'PROCEDURE')
-                total_procedures = (
-                    sum(1 for row in query_data if row.get('source_type') == 'PROCEDURE')
-                    if query_data
-                    else 0
-                )
+                # Count stored procedures - check if source_type column exists (MySQL-specific)
+                if query_data and len(query_data) > 0 and 'source_type' in query_data[0]:
+                    total_procedures = sum(
+                        1 for row in query_data if row.get('source_type') == 'PROCEDURE'
+                    )
+                else:
+                    total_procedures = 0
 
             if 'triggers_stats' in self.results:
                 trigger_data = self.results['triggers_stats'].get('data', [])
@@ -376,8 +384,12 @@ class MarkdownFormatter:
             content_parts.append(f'- **Total Indexes**: {total_indexes}')
             content_parts.append(f'- **Total Foreign Keys**: {total_foreign_keys}')
             content_parts.append(f'- **Query Patterns Analyzed**: {total_queries}')
-            content_parts.append(f'- **Stored Procedures**: {total_procedures}')
-            content_parts.append(f'- **Triggers**: {total_triggers}')
+
+            # Only show procedures/triggers if they exist in the results
+            if total_procedures > 0:
+                content_parts.append(f'- **Stored Procedures**: {total_procedures}')
+            if total_triggers > 0:
+                content_parts.append(f'- **Triggers**: {total_triggers}')
 
             # Add errors section if any errors occurred
             if self.errors:
@@ -422,9 +434,9 @@ class MarkdownFormatter:
                 self.errors.append(('directory_creation', error_msg))
                 return [], self.errors
 
-            # Get all expected queries from centralized definitions
-            schema_queries = get_schema_queries()
-            performance_queries = get_performance_queries()
+            # Get all expected queries from plugin
+            schema_queries = self.plugin.get_queries_by_category('information_schema')
+            performance_queries = self.plugin.get_queries_by_category('performance_schema')
             expected_queries = schema_queries + performance_queries
 
             # Check if performance schema is disabled
