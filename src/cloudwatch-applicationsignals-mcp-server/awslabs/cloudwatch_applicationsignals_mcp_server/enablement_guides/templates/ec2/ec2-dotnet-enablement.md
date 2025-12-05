@@ -172,6 +172,21 @@ instance.userData.addCommands(
 - If no system update commands exist, add it at the very beginning of UserData
 - This should come before any application dependency installations or application setup commands
 
+**For Windows instances:**
+
+**CDK TypeScript example:**
+```typescript
+instance.userData.addCommands(
+  '# Download and install CloudWatch Agent',
+  'Invoke-WebRequest -Uri "https://amazoncloudwatch-agent.s3.amazonaws.com/windows/amd64/latest/amazon-cloudwatch-agent.msi" -OutFile "C:\\amazon-cloudwatch-agent.msi"',
+  'Start-Process msiexec.exe -Wait -ArgumentList "/i C:\\amazon-cloudwatch-agent.msi /quiet"',
+  'Remove-Item "C:\\amazon-cloudwatch-agent.msi"',
+  // ... rest of UserData follows
+);
+```
+
+**Placement:** Add these commands early in the UserData script, before any application setup commands.
+
 **For other Linux distributions:** CloudWatch Agent may not be available via the OS package manager. Refer to [AWS CloudWatch Agent installation docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/manual-installation.html) for distribution-specific instructions.
 
 ### Step 5: Modify UserData - Configure CloudWatch Agent
@@ -208,6 +223,32 @@ instance.userData.addCommands(
 );
 ```
 
+**For Windows instances:**
+
+**CDK TypeScript example:**
+```typescript
+instance.userData.addCommands(
+  '# Create CloudWatch Agent configuration for Application Signals',
+  '@"',
+  '{',
+  '  "traces": {',
+  '    "traces_collected": {',
+  '      "application_signals": {}',
+  '    }',
+  '  },',
+  '  "logs": {',
+  '    "metrics_collected": {',
+  '      "application_signals": {}',
+  '    }',
+  '  }',
+  '}',
+  '"@ | Out-File -FilePath "C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json" -Encoding ASCII',
+  '',
+  '# Start CloudWatch Agent with Application Signals configuration',
+  '& "C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1" -a fetch-config -m ec2 -s -c file:"C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json"',
+);
+```
+
 ### Step 6: Install ADOT .NET Auto-Instrumentation
 
 Choose based on deployment type and OS identified in "Before You Start".
@@ -239,6 +280,8 @@ RUN curl -L -O https://github.com/aws-observability/aws-otel-dotnet-instrumentat
 
 #### Option B: Non-Docker Deployment - Modify UserData
 
+**For Linux instances:**
+
 For non-Docker deployments, add to UserData AFTER CloudWatch Agent configuration:
 
 ```typescript
@@ -251,6 +294,21 @@ instance.userData.addCommands(
   'chmod +x ./aws-otel-dotnet-install.sh',
   'OTEL_DOTNET_AUTO_HOME="/opt/otel-dotnet-auto" ./aws-otel-dotnet-install.sh',
   'chmod -R 755 /opt/otel-dotnet-auto',
+);
+```
+
+**For Windows instances:**
+
+For non-Docker deployments, add to UserData AFTER CloudWatch Agent configuration:
+
+```typescript
+instance.userData.addCommands(
+  '# Download and install ADOT .NET auto-instrumentation',
+  '$module_url = "https://github.com/aws-observability/aws-otel-dotnet-instrumentation/releases/latest/download/AWS.Otel.DotNet.Auto.psm1"',
+  '$download_path = Join-Path $env:temp "AWS.Otel.DotNet.Auto.psm1"',
+  'Invoke-WebRequest -Uri $module_url -OutFile $download_path',
+  'Import-Module $download_path',
+  'Install-OpenTelemetryCore',
 );
 ```
 
@@ -308,6 +366,18 @@ instance.userData.addCommands(
   '# Start application (existing command remains unchanged)',
   '# Example: dotnet run --urls http://0.0.0.0:8080',
   '# The OTEL environment variables will automatically enable instrumentation',
+);
+```
+
+**For Windows instances:**
+
+```typescript
+instance.userData.addCommands(
+  '# Set OpenTelemetry environment variables and register for IIS',
+  '$env:OTEL_RESOURCE_ATTRIBUTES = "service.name={{SERVICE_NAME}}"',
+  'Register-OpenTelemetryForCurrentSession -OTelServiceName "{{SERVICE_NAME}}"',
+  '# Register Application signals in IIS after starting the IIS/W3SVC service and starting the WebAppPool',
+  'Register-OpenTelemetryForIIS',
 );
 ```
 
