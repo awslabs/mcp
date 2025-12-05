@@ -9,7 +9,7 @@ A fully managed remote MCP server that provides specialized tools and guidance f
 - **Project Analysis & Planning**: Deep analysis of Spark application structure, dependencies, and API usage to generate comprehensive step-by-step upgrade plans with risk assessment
 - **Automated Code Transformation**: Automated PySpark and Scala code updates for version compatibility, handling API changes and deprecations
 - **Dependency & Build Management**: Update and manage Maven/SBT/pip dependencies and build environments for target Spark versions with iterative error resolution
-- **Comprehensive Testing & Validation**: Execute unit tests, integration tests and EMR validation jobs
+- **Comprehensive Testing & Validation**: Execute unit tests, integration tests and EMR validation jobs and validates the upgraded application against target spark version
 - **Data Quality Validation**: Ensure data integrity throughout the upgrade process with validation rules
 - **EMR Integration & Monitoring**: Submit and monitor EMR jobs for upgrade validation across Amazon EMR on EC2 and Amazon EMR Serverless
 - **Observability & Progress Tracking**: Track upgrade progress, analyze results, and provide detailed insights throughout the upgrade process
@@ -25,11 +25,11 @@ The AI assistant will orchestrate the upgrade using specialized tools provided b
 
 - **Planning**: The agent analyzes your project structure and generates or revises an upgrade plan that guides the end-to-end Spark upgrade process.
 
-- **Compile & build**: Agent updates the build environment and dependencies, compiles the project, and iteratively fixes build and test failures.
+- **Compile & Build**: Agent updates the build environment and dependencies, compiles the project, and iteratively fixes build and test failures.
 
 - **Spark code edit tool**: Applies targeted code updates to resolve Spark version incompatibilities, fixing both build-time and runtime errors.
 
-- **Execution & Validation**: Submits remote validation jobs to EMR, monitors execution and logs, and iteratively fixes runtime and data-quality issues.status.
+- **Execution & Validation**: Submits remote validation jobs to EMR, monitors execution and logs, and iteratively fixes runtime and data-quality issues.
 
 - **Observability**: Tracks upgrade progress using EMR observability tools and allows users to view upgrade analyses and status at any time.
 
@@ -51,6 +51,7 @@ Please refer to [Using Spark Upgrade Tools](https://docs.aws.amazon.com/emr/late
 
 ## Configuration
 **Note:** The specific configuration format varies by MCP client. Below is an example for [Kiro CLI](https://kiro.dev/).
+
 
 **Kiro CLI**
 
@@ -90,7 +91,7 @@ See [Using the Upgrade Agent](https://docs.aws.amazon.com/emr/latest/ReleaseGuid
     ```
   - EMR-EC2
     ```
-    Upgrade my Spark application <local-project-path> from EMR-S version 6.0.0 to 7.12.0. Use EMR-EC2 Cluster j-PPXXXXTG09XX to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    Upgrade my Spark application <local-project-path> from EMR-S version 6.6.0 to 7.12.0. Use EMR-EC2 Cluster j-PPXXXXTG09XX to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
     ```
 
 2. **List the analyses**:
