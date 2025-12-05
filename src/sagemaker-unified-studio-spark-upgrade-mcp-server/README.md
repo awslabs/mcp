@@ -9,8 +9,8 @@ A fully managed remote MCP server that provides specialized tools and guidance f
 - **Project Analysis & Planning**: Deep analysis of Spark application structure, dependencies, and API usage to generate comprehensive step-by-step upgrade plans with risk assessment
 - **Automated Code Transformation**: Automated PySpark and Scala code updates for version compatibility, handling API changes and deprecations
 - **Dependency & Build Management**: Update and manage Maven/SBT/pip dependencies and build environments for target Spark versions with iterative error resolution
-- **Comprehensive Testing & Validation**: Execute unit tests, integration tests, EMR validation jobs, and comprehensive test suites with validation workflows
-- **Data Quality Validation**: Ensure data integrity throughout the upgrade process with configurable validation rules
+- **Comprehensive Testing & Validation**: Execute unit tests, integration tests and EMR validation jobs
+- **Data Quality Validation**: Ensure data integrity throughout the upgrade process with validation rules
 - **EMR Integration & Monitoring**: Submit and monitor EMR jobs for upgrade validation across Amazon EMR on EC2 and Amazon EMR Serverless
 - **Observability & Progress Tracking**: Track upgrade progress, analyze results, and provide detailed insights throughout the upgrade process
 
@@ -86,11 +86,11 @@ See [Using the Upgrade Agent](https://docs.aws.amazon.com/emr/latest/ReleaseGuid
 1. **Run the spark upgrade analysis**:
   - EMR-S
     ```
-    Help me upgrade my spark application in <project-path> from Spark version 2.4 to 3.5. you can use EMR-S Application id xxg017hmd2agxxxx and execution role <role name> to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    Help me upgrade my spark application in <project-path> from EMR-EC2 version 6.0.0 to 7.12.0. you can use EMR-S Application id xxg017hmd2agxxxx and execution role <role name> to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
     ```
   - EMR-EC2
     ```
-    Upgrade my Spark application <local-project-path> from Spark 2.4 to Spark 3.5. Use EMR-EC2 Cluster j-PPXXXXTG09XX to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    Upgrade my Spark application <local-project-path> from EMR-S version 6.0.0 to 7.12.0. Use EMR-EC2 Cluster j-PPXXXXTG09XX to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
     ```
 
 2. **List the analyses**:
