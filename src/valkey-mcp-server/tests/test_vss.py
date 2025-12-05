@@ -42,21 +42,11 @@ class TestSearch:
         vector = [0.1, 0.2, 0.3, 0.4]
         count = 5
 
-        # Create mock documents with various fields
-        doc1_fields = {
-            'title': 'First Document',
-            'content': 'This is the first document content',
-            'author': 'Alice',
-            field: b'\x00\x01\x02\x03'  # Binary vector data (will be filtered out)
-        }
-        doc2_fields = {
-            'title': 'Second Document',
-            'content': 'This is the second document content',
-            'author': 'Bob',
-            field: b'\x04\x05\x06\x07'  # Binary vector data (will be filtered out)
-        }
+        # Create mock documents with document_json field
+        doc1_fields = {b'document_json': b'{"id": "doc1", "title": "First Document", "content": "This is the first document content", "author": "Alice"}'}
+        doc2_fields = {b'document_json': b'{"id": "doc2", "title": "Second Document", "content": "This is the second document content", "author": "Bob"}'}
 
-        # Create mock search result with just IDs (NOCONTENT query)
+        # Create mock search result
         mock_doc1 = Mock()
         mock_doc1.id = 'doc1'
 
@@ -76,7 +66,7 @@ class TestSearch:
         mock_conn.hgetall.side_effect = [doc1_fields, doc2_fields]
 
         # Execute search
-        result = await vector_search(index, field, vector, 0, count)
+        result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify results
         assert isinstance(result, list)
@@ -87,22 +77,83 @@ class TestSearch:
         assert result[0]['title'] == 'First Document'
         assert result[0]['content'] == 'This is the first document content'
         assert result[0]['author'] == 'Alice'
-        assert field not in result[0]  # Vector field should be excluded
 
         # Verify second document
         assert result[1]['id'] == 'doc2'
         assert result[1]['title'] == 'Second Document'
         assert result[1]['content'] == 'This is the second document content'
         assert result[1]['author'] == 'Bob'
-        assert field not in result[1]  # Vector field should be excluded
 
         # Verify correct method calls
         mock_conn.ft.assert_called_once_with(index)
 
-        # Verify hgetall was called to fetch all document fields
-        assert mock_conn.hgetall.call_count == 2
-        mock_conn.hgetall.assert_any_call('doc1')
-        mock_conn.hgetall.assert_any_call('doc2')
+    @pytest.mark.asyncio
+    async def test_vector_search_with_filter_expression(self, mock_connection):
+        """Test vector search with filter expression."""
+        mock_conn = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2, 0.3]
+        filter_expression = "@category:electronics"
+        count = 3
+
+        # Create mock document
+        doc_fields = {b'document_json': b'{"id": "doc1", "title": "Laptop", "category": "electronics", "price": 999}'}
+
+        mock_doc = Mock()
+        mock_doc.id = 'doc1'
+
+        mock_result = Mock()
+        mock_result.total = 1
+        mock_result.docs = [mock_doc]
+
+        # Setup mock search interface
+        mock_ft = Mock()
+        mock_ft.search.return_value = mock_result
+        mock_conn.ft.return_value = mock_ft
+
+        # Setup mock connection to return document fields
+        mock_conn.hgetall.return_value = doc_fields
+
+        # Execute search with filter
+        result = await vector_search(index, field, vector, filter_expression=filter_expression, count=count)
+
+        # Verify results
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]['category'] == 'electronics'
+        assert result[0]['title'] == 'Laptop'
+
+    @pytest.mark.asyncio
+    async def test_vector_search_with_no_content(self, mock_connection):
+        """Test vector search with no_content parameter."""
+        mock_conn = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2]
+        count = 5
+
+        # Create mock search result
+        mock_result = Mock()
+        mock_result.total = 0
+        mock_result.docs = []
+
+        # Setup mock search interface
+        mock_ft = Mock()
+        mock_ft.search.return_value = mock_result
+        mock_conn.ft.return_value = mock_ft
+
+        # Execute search with no_content=True
+        result = await vector_search(index, field, vector, no_content=True, count=count)
+
+        # Verify empty list returned
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+        # Verify search was called
+        mock_ft.search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_vector_search_no_results(self, mock_connection):
@@ -210,12 +261,8 @@ class TestSearch:
         vector = [float(i) * 0.01 for i in range(100)]  # 100-dimensional vector
         count = 3
 
-        # Create mock document with large vector
-        doc_fields = {
-            'title': 'High Dimensional Document',
-            'description': 'Document with 100-dimensional embedding',
-            field: b'\x00' * 400  # Binary vector data (100 floats * 4 bytes each)
-        }
+        # Create mock document with document_json field
+        doc_fields = {b'document_json': b'{"id": "doc1", "title": "High Dimensional Document", "description": "Document with 100-dimensional embedding"}'}
 
         # Create mock document
         mock_doc = Mock()
@@ -235,13 +282,10 @@ class TestSearch:
         mock_conn.hgetall.return_value = doc_fields
 
         # Execute search
-        result = await vector_search(index, field, vector, 0, count)
+        result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify search was called
         mock_ft.search.assert_called_once()
-
-        # Verify hgetall was called
-        mock_conn.hgetall.assert_called_once_with('doc1')
 
         # Verify result is correct
         assert isinstance(result, list)
@@ -249,11 +293,10 @@ class TestSearch:
         assert result[0]['id'] == 'doc1'
         assert result[0]['title'] == 'High Dimensional Document'
         assert result[0]['description'] == 'Document with 100-dimensional embedding'
-        assert field not in result[0]  # Vector field should be excluded
 
     @pytest.mark.asyncio
     async def test_vector_search_missing_document(self, mock_connection):
-        """Test vector search when document doesn't exist or has no fields."""
+        """Test vector search when document doesn't exist or has no document_json field."""
         mock_conn = mock_connection
 
         index = 'test_index'
@@ -274,12 +317,12 @@ class TestSearch:
         mock_ft.search.return_value = mock_result
         mock_conn.ft.return_value = mock_ft
 
-        # Setup mock fetch to return None or empty dict (document doesn't exist)
-        mock_conn.hgetall.return_value = None
+        # Setup mock fetch to return dict without document_json field
+        mock_conn.hgetall.return_value = {b'other_field': b'value'}
 
         # Execute search
-        result = await vector_search(index, field, vector, 0, count)
+        result = await vector_search(index, field, vector, offset=0, count=count)
 
-        # Verify empty list since document doesn't have any fields
+        # Verify empty list since document doesn't have document_json field
         assert isinstance(result, list)
         assert len(result) == 0

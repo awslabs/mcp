@@ -184,8 +184,9 @@ async def semantic_search(
     query: str,
     offset: int = 0,
     limit: int = 10,
-    include_content: bool = True
-) -> Union[List[Dict[str, Any]], str]:
+    include_content: bool = True,
+    filter_expression: Optional[str] = None
+) -> Dict[str, Any]:
     """Search for documents using natural language queries.
 
     This tool performs semantic similarity search, finding documents whose meaning
@@ -199,7 +200,9 @@ async def semantic_search(
         include_content: Whether to include full document content (default: True)
 
     Returns:
-        List of matching documents with similarity scores and metadata
+        An object indicating the results of the operation, with a "status" field set toe either "success" or "error",
+        and a "reason" field (in the event of an error) set to the error reason, otherwise a "results" field
+        containing a list of matching documents with similarity scores and metadata
 
     Example:
         results = await semantic_search(
@@ -212,46 +215,91 @@ async def semantic_search(
     try:
         r_check = ValkeyConnectionManager.get_connection(decode_responses=True)
         index_name = _get_collection_index_name(collection)
-
-        # Check if collection exists
-        try:
-            r_check.execute_command('FT.INFO', index_name)
-        except ValkeyError:
-            return []  # Collection doesn't exist
+        if not _index_exists(r_check, collection):
+            return {
+                "status": "error",
+                "type": "index",
+                "reason": f"Index '{index_name}' does not exist"
+            }
 
         # Generate embedding for query
-        query_embedding = await _embeddings_provider.generate_embedding(query)
+        try:
+            query_embedding = await _embeddings_provider.generate_embedding(query)
+        except Exception as e:
+            return {
+                "status": "error",
+                "type": "embedding",
+                "reason": f"Failed to generate embedding: {str(e)}"
+            }
 
-        search_results = await vector_search(
-            index=index_name,
-            field='embedding',
-            vector=query_embedding,
-            offset=offset,
-            count=limit
-        )
+        try:
+            search_results = await vector_search(
+                index=index_name,
+                field='embedding',
+                vector=query_embedding,
+                offset=offset,
+                count=limit,
+                no_content=not include_content,
+                filter_expression=filter_expression
+            )
+        except Exception as e:
+            return {
+                "status": "error",
+                "type": "vector_search",
+                "reason": f"Vector search failed: {str(e)}"
+            }
 
-        # vector_search returns either a list of dicts or an error string
-        if isinstance(search_results, str):
-            # Error occurred
-            return f"Semantic search failed: {search_results}"
+        # vector_search now returns a structured dict with status/results
+        if search_results['status'] != 'success':
+            # Error occurred in vector_search
+            return {
+                "status": "error",
+                "type": search_results.get('type', 'valkey'),
+                "reason": search_results.get('reason', 'Unknown vector search error')
+            }
+
+        # Extract the actual results list
+        results_list = search_results['results']
 
         # If we don't need full content, filter to minimal fields
         if not include_content:
             results = []
-            for doc in search_results:
-                results.append({
-                    "id": doc.get("id"),
-                    "title": doc.get("title", ""),
-                    "name": doc.get("name", "")
-                })
-            return results
+            for doc in results_list:
+                if isinstance(doc, dict):
+                    results.append({
+                        "id": doc.get("id"),
+                        "title": doc.get("title", ""),
+                        "name": doc.get("name", "")
+                    })
+                else:
+                    # Handle unexpected format
+                    return {
+                        "status": "error",
+                        "type": "format",
+                        "reason": f"Unexpected document format in results: {type(doc)}"
+                    }
+            return {
+                "status": "success",
+                "results": results
+            }
 
-        return search_results
+        return {
+            "status": "success",
+            "results": results_list
+        }
 
     except ValkeyError as ex:
-        return f"Valkey error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "valkey",
+            "reason": str(ex)
+        }
     except Exception as ex:
-        return f"General error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "general",
+            "reason": str(ex)
+        }
 
 
 @mcp.tool()
@@ -260,7 +308,7 @@ async def find_similar_documents(
     document_id: str,
     offset: int = 0,
     limit: int = 10
-) -> Union[List[Dict[str, Any]], str]:
+) -> Dict[str, Any]:
     """Find documents similar to an existing document.
 
     Args:
@@ -270,7 +318,9 @@ async def find_similar_documents(
         limit: Maximum number of results (default: 10)
 
     Returns:
-        List of similar documents
+        An object indicating the results of the operation, with a "status" field set to either "success" or "error",
+        and a "reason" field (in the event of an error) set to the error reason, otherwise a "results" field
+        containing a list of similar documents
 
     Example:
         similar = await find_similar_documents(
@@ -286,14 +336,18 @@ async def find_similar_documents(
         # Get the document's embedding
         embedding_bytes = r.hget(doc_key, b'embedding')
         if not embedding_bytes:
-            return []
+            return {
+                "status": "error",
+                "type": "content",
+                "reason": f"Document '{document_id}' not found in collection '{collection}'"
+            }
 
         # Unpack the embedding vector
         num_floats = len(embedding_bytes) // 4  # 4 bytes per float32
         embedding = list(struct.unpack(f'{num_floats}f', embedding_bytes))
 
         index_name = _get_collection_index_name(collection)
-        search_results = await vector_search(
+        search_result = await vector_search(
             index=index_name,
             field='embedding',
             vector=embedding,
@@ -301,30 +355,45 @@ async def find_similar_documents(
             count=limit + 1  # Get one extra since we'll filter out the source doc
         )
 
-        # vector_search returns either a list of dicts or an error string
-        if isinstance(search_results, str):
-            return []
+        # vector_search returns structured dict
+        if search_result['status'] != 'success':
+            return {
+                "status": "error",
+                "type": search_result.get('type', 'vss'),
+                "reason": search_result.get('reason', 'Vector search failed')
+            }
 
         # Filter out the source document itself
         results = [
-            doc for doc in search_results
+            doc for doc in search_result['results']
             if doc.get('id') != document_id
         ]
 
         # Return only the requested limit
-        return results[:limit]
+        return {
+            "status": "success",
+            "results": results[:limit]
+        }
 
     except ValkeyError as ex:
-        return f"Valkey error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "valkey",
+            "reason": str(ex)
+        }
     except Exception as ex:
-        return f"General error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "general",
+            "reason": str(ex)
+        }
 
 
 @mcp.tool()
 async def get_document(
     collection: str,
     document_id: str
-) -> Union[Optional[Dict[str, Any]], str]:
+) -> Dict[str, Any]:
     """Retrieve a specific document by ID.
 
     Args:
@@ -332,7 +401,9 @@ async def get_document(
         document_id: Document ID
 
     Returns:
-        The document, or None if not found
+        An object indicating the results of the operation, with a "status" field set to either "success" or "error",
+        and a "reason" field (in the event of an error) set to the error reason, otherwise a "result" field
+        containing the document, or None if not found
 
     Example:
         doc = await get_document(
@@ -346,29 +417,65 @@ async def get_document(
 
         doc_data = r.hgetall(doc_key)
         if b'document_json' in doc_data:
-            return json.loads(doc_data[b'document_json'].decode('utf-8'))
-        return None
+            try:
+                document_json_bytes = doc_data[b'document_json']
+                if isinstance(document_json_bytes, bytes):
+                    document_json_str = document_json_bytes.decode('utf-8')
+                else:
+                    document_json_str = str(document_json_bytes)
+                
+                document = json.loads(document_json_str)
+                return {
+                    "status": "success",
+                    "result": document
+                }
+            except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                return {
+                    "status": "error",
+                    "type": "decode",
+                    "reason": f"Failed to decode document: {str(e)}"
+                }
+        
+        return {
+            "status": "success",
+            "result": None
+        }
 
     except ValkeyError as ex:
-        return f"Valkey error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "valkey",
+            "reason": str(ex)
+        }
+    except Exception as ex:
+        return {
+            "status": "error",
+            "type": "general",
+            "reason": str(ex)
+        }
 
 
 @mcp.tool()
-async def list_collections(limit: int = 100) -> Union[List[Dict[str, Any]], str]:
+async def list_collections(limit: int = 100) -> Dict[str, Any]:
     """List all available document collections.
 
     Args:
         limit: Maximum number of collections to return (default: 100)
 
     Returns:
-        List of collections with metadata
+        An object indicating the results of the operation, with a "status" field set to either "success" or "error",
+        and a "reason" field (in the event of an error) set to the error reason, otherwise a "results" field
+        containing a list of collections with metadata
 
     Example:
         collections = await list_collections(limit=10)
-        # Returns: [
-        #   {"name": "research_papers", "document_count": 150},
-        #   {"name": "customer_reviews", "document_count": 500}
-        # ]
+        # Returns: {
+        #   "status": "success",
+        #   "results": [
+        #     {"name": "research_papers", "document_count": 150},
+        #     {"name": "customer_reviews", "document_count": 500}
+        #   ]
+        # }
     """
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
@@ -397,7 +504,20 @@ async def list_collections(limit: int = 100) -> Union[List[Dict[str, Any]], str]
                 if len(collections) >= limit:
                     break
 
-        return collections
+        return {
+            "status": "success",
+            "results": collections
+        }
 
     except ValkeyError as ex:
-        return f"Valkey error: {str(ex)}"
+        return {
+            "status": "error",
+            "type": "valkey",
+            "reason": str(ex)
+        }
+    except Exception as ex:
+        return {
+            "status": "error",
+            "type": "general",
+            "reason": str(ex)
+        }
