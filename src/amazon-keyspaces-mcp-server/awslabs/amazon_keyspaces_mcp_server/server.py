@@ -73,8 +73,259 @@ This MCP server enables interaction with Amazon Keyspaces (for Apache Cassandra)
 2. Use describeTable to understand table schemas before querying
 3. Only SELECT queries are permitted for data safety
 4. Use analyzeQueryPerformance to optimize queries before execution
+
+## Resources
+
+- **keyspaces://developer-guide**: Complete developer guide with best practices
+- **keyspaces://cql-reference**: CQL language reference for Keyspaces
+- **keyspaces://api-reference**: AWS Keyspaces API documentation
+- **keyspaces://streams-api**: Keyspaces Streams API reference
+- **keyspaces://code-examples**: Sample code repository
 """,
 )
+
+
+@mcp.resource('keyspaces://developer-guide')
+def get_developer_guide() -> str:
+    """Amazon Keyspaces Developer Guide with best practices and tutorials."""
+    return """# Amazon Keyspaces Developer Guide
+
+Complete guide for developing applications with Amazon Keyspaces.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/devguide/AmazonKeyspaces.pdf
+
+## Key Topics
+
+### Getting Started
+- Setting up credentials and connections
+- Creating keyspaces and tables
+- Loading data
+
+### Data Modeling
+- Partition key design
+- Clustering column strategies
+- Denormalization patterns
+
+### Performance
+- Read/write capacity modes
+- Auto-scaling configuration
+- Query optimization
+
+### Security
+- IAM authentication
+- Encryption at rest and in transit
+- VPC endpoints
+
+### Monitoring
+- CloudWatch metrics
+- CloudTrail logging
+- Point-in-time recovery
+
+Refer to the full PDF for detailed examples and best practices.
+"""
+
+
+@mcp.resource('keyspaces://cql-reference')
+def get_cql_reference() -> str:
+    """CQL language reference for Amazon Keyspaces."""
+    return """# Amazon Keyspaces CQL Reference
+
+Cassandra Query Language (CQL) syntax and operations supported by Keyspaces.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/devguide/AmazonKeyspaces.pdf
+
+## Supported CQL Operations
+
+### Data Definition (DDL)
+- CREATE/ALTER/DROP KEYSPACE
+- CREATE/ALTER/DROP TABLE
+- CREATE/DROP INDEX
+
+### Data Manipulation (DML)
+- SELECT (with WHERE, ORDER BY, LIMIT)
+- INSERT, UPDATE, DELETE
+- BATCH operations
+
+### Data Types
+- Primitive: text, int, bigint, boolean, decimal, timestamp, uuid
+- Collections: list, set, map
+- Special: frozen, tuple
+
+### Limitations
+- No materialized views
+- No user-defined functions
+- No aggregate functions (COUNT, SUM)
+- No TRUNCATE TABLE
+
+See full PDF for complete syntax and examples.
+"""
+
+
+@mcp.resource('keyspaces://api-reference')
+def get_api_reference() -> str:
+    """AWS Keyspaces API Reference for management operations."""
+    return """# Amazon Keyspaces API Reference
+
+Complete API documentation for Amazon Keyspaces management operations.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/APIReference/keyspaces-api.pdf
+
+## Key API Operations
+
+### Keyspace Management
+- CreateKeyspace, DeleteKeyspace, GetKeyspace, ListKeyspaces
+
+### Table Management  
+- CreateTable, DeleteTable, GetTable, UpdateTable, ListTables, RestoreTable
+
+### Configuration
+- GetTableAutoScalingSettings
+- TagResource, UntagResource, ListTagsForResource
+
+### Capacity Modes
+- PAY_PER_REQUEST: Serverless, pay per request
+- PROVISIONED: Fixed capacity with auto-scaling support
+
+### Encryption
+- AWS_OWNED_KMS_KEY (default)
+- CUSTOMER_MANAGED_KMS_KEY
+
+### Point-in-Time Recovery
+- Continuous backups for up to 35 days
+- Restore to any point within recovery window
+
+For detailed schemas, parameters, and examples, refer to the full PDF documentation.
+"""
+
+
+@mcp.resource('keyspaces://streams-api')
+def get_streams_api() -> str:
+    """Amazon Keyspaces Streams API Reference for change data capture."""
+    return """# Amazon Keyspaces Streams API Reference
+
+API for capturing and processing change data from Keyspaces tables.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/StreamsAPIReference/keyspaces-streams-api.pdf
+
+## Overview
+
+Keyspaces Streams captures item-level changes (inserts, updates, deletes) in near real-time.
+
+## Key Operations
+
+### Stream Management
+- GetRecords: Read change records from a stream
+- DescribeStream: Get stream metadata
+- ListStreams: List available streams
+
+### Use Cases
+- Real-time analytics
+- Data replication
+- Audit logging
+- Event-driven architectures
+
+### Integration
+- AWS Lambda triggers
+- Kinesis Data Streams
+- Custom consumers
+
+Refer to the full PDF for detailed API specifications and examples.
+"""
+
+
+@mcp.resource('keyspaces://code-examples')
+def get_code_examples() -> str:
+    """Amazon Keyspaces code examples and sample applications."""
+    return """# Amazon Keyspaces Code Examples
+
+Sample code and reference implementations for common use cases.
+
+**Repository**: https://github.com/aws-samples/amazon-keyspaces-examples
+
+## Available Examples
+
+### Connection Patterns
+- Python, Java, Node.js drivers
+- IAM authentication
+- SSL/TLS configuration
+
+### Data Operations
+- CRUD operations
+- Batch processing
+- Pagination
+
+### Advanced Features
+- Point-in-time recovery
+- Auto-scaling setup
+- Multi-region replication
+
+### Integration Examples
+- Lambda functions
+- ECS/EKS deployments
+- Spring Boot applications
+
+Clone the repository for complete, runnable examples with detailed README files.
+"""
+
+
+@mcp.resource('cassandra://cql-reference')
+def get_cassandra_cql_reference() -> str:
+    """Apache Cassandra CQL reference documentation."""
+    return """# Apache Cassandra CQL Reference
+
+Complete CQL language reference for Apache Cassandra.
+
+**Documentation**: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/index.html
+
+## Key Sections
+
+### CQL Basics
+- Definitions: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/definitions.html
+- Data Types: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/types.html
+
+### Operations
+- DDL (Data Definition): https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/ddl.html
+- DML (Data Manipulation): https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/dml.html
+- Operators: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/operators.html
+
+### Advanced Features
+- Indexing: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/indexing/indexing-concepts.html
+- Materialized Views: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/mvs.html
+- Functions: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/functions.html
+- JSON Support: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/json.html
+
+### Reference
+- CQL Commands: https://cassandra.apache.org/doc/trunk/cassandra/reference/cql-commands/commands-toc.html
+- Single File Reference: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/cql_singlefile.html
+"""
+
+
+@mcp.resource('cassandra://data-modeling')
+def get_cassandra_data_modeling() -> str:
+    """Apache Cassandra data modeling guide."""
+    return """# Apache Cassandra Data Modeling
+
+Comprehensive guide to data modeling in Cassandra.
+
+**Documentation**: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/index.html
+
+## Key Topics
+
+### Conceptual Modeling
+- Introduction: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/intro.html
+- Concepts: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_conceptual.html
+
+### Design Process
+- RDBMS Design: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_rdbms.html
+- Query Patterns: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_queries.html
+- Logical Modeling: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_logical.html
+- Physical Modeling: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_physical.html
+
+### Best Practices
+- Evaluation: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_refining.html
+- Schema Definition: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_schema.html
+"""
+
 
 # Global handle to hold the proxy to the specific database client
 _PROXY = None
