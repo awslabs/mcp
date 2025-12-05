@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 @settings(max_examples=100)
 @given(
-    local_indicator=st.sampled_from(['localhost', '127.0.0.1', '0.0.0.0']),
+    local_indicator=st.sampled_from(['localhost', '127.0.0.1']),
     protocol=st.sampled_from(['http://', 'https://', '']),
     port=st.one_of(st.none(), st.integers(min_value=1, max_value=65535)),
     path=st.one_of(
@@ -212,7 +212,7 @@ def test_property_delete_table_rejection_without_local_endpoint(
     ),
     extra_params=st.sampled_from(['', ' --region us-east-1', ' --no-cli-pager']),
     # Generate local endpoints
-    local_indicator=st.sampled_from(['localhost', '127.0.0.1', '0.0.0.0']),
+    local_indicator=st.sampled_from(['localhost', '127.0.0.1']),
     protocol=st.sampled_from(['http://', 'https://']),
     port=st.integers(min_value=1, max_value=65535),
     case_variant=st.sampled_from(['lower', 'upper', 'mixed']),

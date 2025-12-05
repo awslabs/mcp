@@ -54,7 +54,10 @@ def is_dynamodb_local(endpoint_url: Optional[str]) -> bool:
         return False
 
     # Parse URL to extract hostname
-    parsed = urlparse(endpoint_url)
+
+    # Handle URLs without protocol by adding one for parsing
+    url_to_parse = endpoint_url if '://' in endpoint_url else f'http://{endpoint_url}'
+    parsed = urlparse(url_to_parse)
     hostname = parsed.hostname
 
     # Check for DynamoDB Local indicators
