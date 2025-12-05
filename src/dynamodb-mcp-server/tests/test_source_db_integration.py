@@ -93,11 +93,11 @@ def test_query_limit_parameter_override(monkeypatch):
 def test_performance_schema_detection():
     """Test MySQL performance schema detection."""
     # Test enabled case
-    result_enabled = [{'': '1'}]  # MySQL returns empty string as key
+    result_enabled = [{'@@performance_schema': '1'}]  # MySQL returns @@performance_schema as key
     assert MySQLAnalyzer.is_performance_schema_enabled(result_enabled) is True
 
     # Test disabled case
-    result_disabled = [{'': '0'}]
+    result_disabled = [{'@@performance_schema': '0'}]
     assert MySQLAnalyzer.is_performance_schema_enabled(result_disabled) is False
 
     # Test empty result
@@ -119,7 +119,7 @@ async def test_source_db_analyzer_integration(tmp_path):
     )
 
     # Should return error message about missing parameters
-    assert 'To analyze your mysql database, I need:' in result
+    assert 'Missing required parameters: Database name to analyze' in result
 
 
 def test_build_connection_params_invalid_directory():
@@ -378,8 +378,12 @@ async def test_execute_query_batch_handles_error_results():
 async def test_performance_schema_disabled_workflow():
     """Test performance schema disabled workflow using correct data format."""
     # Test the actual is_performance_schema_enabled method with correct format
-    disabled_result = [{'': '0'}]  # Correct format: empty string key with '0' value
-    enabled_result = [{'': '1'}]  # Correct format: empty string key with '1' value
+    disabled_result = [
+        {'@@performance_schema': '0'}
+    ]  # Correct format: @@performance_schema key with '0' value
+    enabled_result = [
+        {'@@performance_schema': '1'}
+    ]  # Correct format: @@performance_schema key with '1' value
 
     assert not MySQLAnalyzer.is_performance_schema_enabled(disabled_result)
     assert MySQLAnalyzer.is_performance_schema_enabled(enabled_result)
@@ -391,12 +395,30 @@ async def test_performance_schema_disabled_workflow():
 
 def test_validate_connection_params_mysql():
     """Test MySQL connection parameter validation."""
+    # Test with only cluster_arn (missing other required params)
     params = {'cluster_arn': 'test'}
     missing, descriptions = DatabaseAnalyzer.validate_connection_params('mysql', params)
     assert 'secret_arn' in missing
     assert 'database' in missing
     assert 'region' in missing
-    assert descriptions['cluster_arn'] == 'AWS cluster ARN'
+
+    # Test with no connection method specified
+    params_no_connection = {'secret_arn': 'test', 'database': 'test', 'region': 'test'}
+    missing, descriptions = DatabaseAnalyzer.validate_connection_params(
+        'mysql', params_no_connection
+    )
+    assert 'cluster_arn OR hostname' in missing
+
+    # Test with both connection methods (should pass - no conflict validation)
+    params_both = {
+        'cluster_arn': 'test',
+        'hostname': 'test',
+        'secret_arn': 'test',
+        'database': 'test',
+        'region': 'test',
+    }
+    missing, descriptions = DatabaseAnalyzer.validate_connection_params('mysql', params_both)
+    assert len(missing) == 0  # Should pass since both methods are valid
 
 
 def test_save_analysis_files_json_error(tmp_path, monkeypatch):
@@ -483,7 +505,15 @@ async def test_analyze_performance_enabled():
         'execute_query_batch',
         side_effect=[
             ({'comprehensive_table_analysis': {'description': 'Tables', 'data': []}}, []),
-            ({'performance_schema_check': {'description': 'Check', 'data': [{'': '1'}]}}, []),
+            (
+                {
+                    'performance_schema_check': {
+                        'description': 'Check',
+                        'data': [{'@@performance_schema': '1'}],
+                    }
+                },
+                [],
+            ),
             ({'all_queries_stats': {'description': 'Patterns', 'data': []}}, []),
         ],
     ):

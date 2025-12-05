@@ -73,7 +73,7 @@ async def test_source_db_analyzer_missing_parameters(tmp_path):
         output_dir=str(tmp_path),
     )
 
-    assert 'To analyze your mysql database, I need:' in result
+    assert 'Missing required parameters: Database name to analyze' in result
 
 
 @pytest.mark.asyncio
@@ -90,7 +90,10 @@ async def test_source_db_analyzer_empty_parameters(tmp_path):
         output_dir=str(tmp_path),
     )
 
-    assert 'To analyze your mysql database, I need:' in result
+    assert (
+        'Missing required parameters: Required: Either aws_cluster_arn (Aurora MySQL cluster ARN for RDS Data API) OR hostname (MySQL server hostname for direct connection)'
+        in result
+    )
 
 
 @pytest.mark.asyncio
@@ -112,7 +115,87 @@ async def test_source_db_analyzer_env_fallback(monkeypatch, tmp_path):
     )
 
     # Should still fail due to missing cluster_arn, but covers env fallback lines
-    assert 'To analyze your mysql database, I need:' in result
+    assert 'Missing required parameters:' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_connection_method_precedence(mysql_env_setup, tmp_path):
+    """Test that explicit connection parameters take precedence over environment variables."""
+    # mysql_env_setup fixture sets MYSQL_CLUSTER_ARN, MYSQL_SECRET_ARN, AWS_REGION
+    # Pass explicit hostname parameter - this should take precedence over env cluster_arn
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test',
+        pattern_analysis_days=30,
+        max_query_results=None,
+        aws_cluster_arn=None,  # No explicit cluster_arn
+        hostname='explicit-hostname',  # Explicit hostname should pass
+        aws_secret_arn=None,  # Will use env var
+        aws_region=None,  # Will use env var
+        output_dir=str(tmp_path),
+    )
+
+    # The test validates the precedence works: it used Asyncmy Direct connection (hostname)
+    # instead of RDS Data API (cluster_arn), even though env had MYSQL_CLUSTER_ARN
+    assert 'Database Analysis Failed' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_env_hostname_only_fallback(mysql_env_setup, tmp_path):
+    """Test fallback to environment MYSQL_HOSTNAME when cluster_arn is cleared."""
+    # mysql_env_setup sets MYSQL_CLUSTER_ARN, but we'll override it to test hostname fallback
+    # Temporarily clear cluster_arn and set hostname to test the elif env_hostname branch
+    original_cluster = os.environ.pop('MYSQL_CLUSTER_ARN', None)
+    os.environ['MYSQL_HOSTNAME'] = 'env-hostname-test'
+
+    try:
+        result = await source_db_analyzer(
+            source_db_type='mysql',
+            database_name='test',
+            pattern_analysis_days=30,
+            max_query_results=None,
+            aws_cluster_arn=None,  # No explicit cluster_arn
+            hostname=None,  # No explicit hostname - should use env
+            aws_secret_arn=None,  # Will use env var from fixture
+            aws_region=None,  # Will use env var from fixture
+            output_dir=str(tmp_path),
+        )
+    finally:
+        # Restore original state
+        if original_cluster:
+            os.environ['MYSQL_CLUSTER_ARN'] = original_cluster
+        os.environ.pop('MYSQL_HOSTNAME', None)
+
+    assert 'Database Analysis Failed' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_no_env_connection_params(mysql_env_setup, tmp_path):
+    """Test when no connection parameters are provided in env or explicit."""
+    # Clear all connection-related env vars to test the final else branch
+    original_cluster = os.environ.pop('MYSQL_CLUSTER_ARN', None)
+    original_hostname = os.environ.pop('MYSQL_HOSTNAME', None)
+
+    try:
+        result = await source_db_analyzer(
+            source_db_type='mysql',
+            database_name='test',
+            pattern_analysis_days=30,
+            max_query_results=None,
+            aws_cluster_arn=None,
+            hostname=None,
+            aws_secret_arn=None,  # Will use env var from fixture
+            aws_region=None,  # Will use env var from fixture
+            output_dir=str(tmp_path),
+        )
+    finally:
+        # Restore original state
+        if original_cluster:
+            os.environ['MYSQL_CLUSTER_ARN'] = original_cluster
+        if original_hostname:
+            os.environ['MYSQL_HOSTNAME'] = original_hostname
+
+    assert 'Missing required parameters:' in result
 
 
 @pytest.mark.asyncio

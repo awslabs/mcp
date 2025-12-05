@@ -14,7 +14,7 @@ The DynamoDB MCP server provides four tools for data modeling and validation:
 
   **Example invocation:** "Validate my DynamoDB data model"
 
-- `source_db_analyzer` - Analyzes existing MySQL/Aurora databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Requires AWS RDS Data API and credentials in Secrets Manager.
+- `source_db_analyzer` - Analyzes existing MySQL/Aurora databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both AWS RDS Data API (Aurora MySQL) and direct connections (RDS/self-hosted MySQL).
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
@@ -159,11 +159,24 @@ The tool automates the traditional manual validation process:
 
 The `source_db_analyzer` tool analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling. This is useful when migrating from relational databases.
 
+The tool supports two connection methods:
+- **AWS RDS Data API** (Aurora MySQL): Serverless connection using cluster ARN
+- **Direct Connection** (RDS/self-hosted MySQL): Traditional connection using hostname/port
+
 #### Prerequisites for MySQL Integration
 
+**For AWS RDS Data API (Aurora MySQL):**
 1. Aurora MySQL Cluster with credentials stored in AWS Secrets Manager
 2. Enable RDS Data API for your Aurora MySQL Cluster
-3. Enable Performance Schema for access pattern analysis (optional but recommended):
+3. AWS credentials with permissions to access RDS Data API and AWS Secrets Manager
+
+**For Direct Connection (RDS/self-hosted MySQL):**
+1. MySQL server (RDS, Aurora, or self-hosted) accessible from your environment
+2. Database credentials stored in AWS Secrets Manager
+3. AWS credentials with permissions to access AWS Secrets Manager
+
+**For both connection methods:**
+4. Enable Performance Schema for access pattern analysis (optional but recommended):
    - Set `performance_schema` parameter to 1 in your DB parameter group
    - Reboot the DB instance after changes
    - Verify with: `SHOW GLOBAL VARIABLES LIKE '%performance_schema'`
@@ -172,17 +185,27 @@ The `source_db_analyzer` tool analyzes existing MySQL/Aurora databases to extrac
      - `performance_schema_max_digest_length` - Maximum byte length per statement digest (default: 1024)
    - Without Performance Schema, analysis is based on information schema only
 
-4. AWS credentials with permissions to access RDS Data API and AWS Secrets Manager
-
 #### MySQL Environment Variables
 
 Add these environment variables to enable MySQL integration:
 
+**For AWS RDS Data API (Aurora MySQL):**
 - `MYSQL_CLUSTER_ARN`: Aurora MySQL cluster Resource ARN
 - `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
 - `MYSQL_DATABASE`: Database name to analyze
 - `AWS_REGION`: AWS region of the Aurora MySQL cluster
+
+**For Direct Connection (RDS/self-hosted MySQL):**
+- `MYSQL_HOSTNAME`: MySQL server hostname or endpoint
+- `MYSQL_PORT`: MySQL server port (optional, default: 3306)
+- `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
+- `MYSQL_DATABASE`: Database name to analyze
+- `AWS_REGION`: AWS region where Secrets Manager is located
+
+**Common options:**
 - `MYSQL_MAX_QUERY_RESULTS`: Maximum rows in analysis output files (optional, default: 500)
+
+**Note:** Explicit tool parameters take precedence over environment variables. Only one connection method (cluster ARN or hostname) should be specified.
 
 #### MCP Configuration with MySQL
 
