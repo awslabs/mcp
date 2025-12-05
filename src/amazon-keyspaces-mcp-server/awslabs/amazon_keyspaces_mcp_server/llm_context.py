@@ -83,7 +83,7 @@ def build_list_tables_context(_keyspace_name: str, _tables: List[TableInfo]) -> 
             "entity they represent."
         ),
     }
-    
+
     # Add guidance for empty results
     if not _tables:
         tables_guidance["empty_result_interpretation"] = (
@@ -92,7 +92,7 @@ def build_list_tables_context(_keyspace_name: str, _tables: List[TableInfo]) -> 
             "the keyspace might not exist, use the listKeyspaces tool to verify the "
             "keyspace name is correct before concluding it's empty."
         )
-    
+
     context['tables_guidance'] = tables_guidance
 
     return dict_to_markdown(context)

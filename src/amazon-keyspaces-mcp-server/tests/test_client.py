@@ -613,6 +613,251 @@ class TestUnifiedCassandraClient(unittest.IsolatedAsyncioTestCase):
 
             self.assertIn('Failed to connect to Cassandra cluster', str(context.exception))
 
+    async def test_list_keyspaces_with_invalid_replication_factor_value_error(self):
+        """Test listing keyspaces with invalid replication_factor (ValueError)."""
+        mock_row = Mock()
+        mock_row.keyspace_name = 'test_ks'
+        mock_row.replication = {'class': 'SimpleStrategy', 'replication_factor': 'invalid'}
+
+        self.mock_session.execute.return_value = [mock_row]
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.cassandra_config)
+            keyspaces = await client.list_keyspaces()
+
+            self.assertEqual(len(keyspaces), 1)
+            self.assertEqual(keyspaces[0].replication_factor, 0)
+
+    async def test_list_keyspaces_with_none_replication_factor_type_error(self):
+        """Test listing keyspaces with None replication_factor (TypeError)."""
+        mock_row = Mock()
+        mock_row.keyspace_name = 'test_ks'
+        mock_row.replication = {'class': 'SimpleStrategy', 'replication_factor': None}
+
+        self.mock_session.execute.return_value = [mock_row]
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.cassandra_config)
+            keyspaces = await client.list_keyspaces()
+
+            self.assertEqual(len(keyspaces), 1)
+            self.assertEqual(keyspaces[0].replication_factor, 0)
+
+    def test_build_service_characteristics(self):
+        """Test building service characteristics for Keyspaces."""
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster'):
+            client = UnifiedCassandraClient(self.keyspaces_config)
+            characteristics = client._build_service_characteristics()  # pylint: disable=protected-access
+
+            self.assertIn('write_throughput_limitation', characteristics)
+            self.assertIn('implementation_notes', characteristics)
+            self.assertIn('response_guidance', characteristics)
+            self.assertIn('do_not_mention', characteristics['response_guidance'])
+            self.assertIn('preferred_terminology', characteristics['response_guidance'])
+            self.assertEqual(len(characteristics['response_guidance']['do_not_mention']), 3)
+            self.assertEqual(len(characteristics['response_guidance']['preferred_terminology']), 3)
+
+    def test_close_without_session(self):
+        """Test closing the client when no session exists."""
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster'):
+            client = UnifiedCassandraClient(self.cassandra_config)
+            client.close()  # Should not raise an exception
+
+    async def test_close_without_cluster(self):
+        """Test closing the client when session exists but cluster is None."""
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+            self.mock_session.cluster = None
+
+            client = UnifiedCassandraClient(self.cassandra_config)
+            await client.get_session()
+            client.close()
+
+            self.mock_session.shutdown.assert_called_once()
+
+    async def test_describe_table_with_capacity_mode(self):
+        """Test describing a Keyspaces table with capacity mode information."""
+        mock_table_row = Mock()
+        mock_table_row.table_name = 'users'
+        mock_table_row.keyspace_name = 'mykeyspace'
+
+        mock_capacity_row = Mock()
+        mock_capacity_row.custom_properties = {
+            'capacity_mode': 'PROVISIONED',
+            'read_capacity_units': '100',
+            'write_capacity_units': '50'
+        }
+
+        def mock_execute(query, _params=None):
+            if 'tables' in query and 'system_schema_mcs' not in query:
+                result = Mock()
+                result.one.return_value = mock_table_row
+                return result
+            elif 'columns' in query:
+                return []
+            elif 'indexes' in query:
+                return []
+            elif 'system_schema_mcs' in query:
+                result = Mock()
+                result.one.return_value = mock_capacity_row
+                return result
+            return []
+
+        self.mock_session.execute = mock_execute
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.keyspaces_config)
+            table_details = await client.describe_table('mykeyspace', 'users')
+
+            self.assertEqual(table_details['capacity_mode'], 'PROVISIONED')
+            self.assertEqual(table_details['read_capacity_units'], 100)
+            self.assertEqual(table_details['write_capacity_units'], 50)
+
+    async def test_execute_read_only_query_with_column_error(self):
+        """Test query execution when getting column value raises an error."""
+        mock_column_names = ['id', 'bad_column']
+        mock_row = Mock()
+        mock_row.id = 1
+        type(mock_row).bad_column = property(lambda self: (_ for _ in ()).throw(ValueError('Bad column')))
+
+        mock_result_set = Mock()
+        mock_result_set.column_names = mock_column_names
+        mock_result_set.__iter__ = lambda self: iter([mock_row])
+        mock_result_set.response_future = None
+
+        self.mock_session.execute.return_value = mock_result_set
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.cassandra_config)
+            result = await client.execute_read_only_query('SELECT * FROM users')
+
+            self.assertEqual(result['rows'][0]['id'], 1)
+            self.assertIsNone(result['rows'][0]['bad_column'])
+
+    async def test_describe_table_without_capacity_mode(self):
+        """Test table without capacity_mode in custom_properties."""
+        mock_table_row = Mock()
+        mock_table_row.table_name = 'users'
+        mock_table_row.keyspace_name = 'mykeyspace'
+
+        mock_capacity_row = Mock()
+        mock_capacity_row.custom_properties = {'other_property': 'value'}
+
+        def mock_execute(query, _params=None):
+            if 'tables' in query and 'system_schema_mcs' not in query:
+                result = Mock()
+                result.one.return_value = mock_table_row
+                return result
+            elif 'columns' in query:
+                return []
+            elif 'indexes' in query:
+                return []
+            elif 'system_schema_mcs' in query:
+                result = Mock()
+                result.one.return_value = mock_capacity_row
+                return result
+            return []
+
+        self.mock_session.execute = mock_execute
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.keyspaces_config)
+            table_details = await client.describe_table('mykeyspace', 'users')
+
+            self.assertNotIn('capacity_mode', table_details)
+            self.assertNotIn('read_capacity_units', table_details)
+            self.assertNotIn('write_capacity_units', table_details)
+
+
+    async def test_describe_table_with_on_demand_capacity(self):
+        """Test table with ON_DEMAND capacity mode."""
+        mock_table_row = Mock()
+        mock_table_row.table_name = 'users'
+        mock_table_row.keyspace_name = 'mykeyspace'
+
+        mock_capacity_row = Mock()
+        mock_capacity_row.custom_properties = {'capacity_mode': 'ON_DEMAND'}
+
+        def mock_execute(query, _params=None):
+            if 'tables' in query and 'system_schema_mcs' not in query:
+                result = Mock()
+                result.one.return_value = mock_table_row
+                return result
+            elif 'columns' in query:
+                return []
+            elif 'indexes' in query:
+                return []
+            elif 'system_schema_mcs' in query:
+                result = Mock()
+                result.one.return_value = mock_capacity_row
+                return result
+            return []
+
+        self.mock_session.execute = mock_execute
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.keyspaces_config)
+            table_details = await client.describe_table('mykeyspace', 'users')
+
+            self.assertEqual(table_details['capacity_mode'], 'ON_DEMAND')
+            self.assertNotIn('read_capacity_units', table_details)
+            self.assertNotIn('write_capacity_units', table_details)
+
+    async def test_describe_table_provisioned_missing_capacity_units(self):
+        """Test PROVISIONED mode without required capacity units raises error."""
+        mock_table_row = Mock()
+        mock_table_row.table_name = 'users'
+        mock_table_row.keyspace_name = 'mykeyspace'
+
+        mock_capacity_row = Mock()
+        mock_capacity_row.custom_properties = {'capacity_mode': 'PROVISIONED'}
+
+        def mock_execute(query, _params=None):
+            if 'tables' in query and 'system_schema_mcs' not in query:
+                result = Mock()
+                result.one.return_value = mock_table_row
+                return result
+            elif 'columns' in query:
+                return []
+            elif 'indexes' in query:
+                return []
+            elif 'system_schema_mcs' in query:
+                result = Mock()
+                result.one.return_value = mock_capacity_row
+                return result
+            return []
+
+        self.mock_session.execute = mock_execute
+
+        with patch('awslabs.amazon_keyspaces_mcp_server.client.Cluster') as mock_cluster_class:
+            mock_cluster_instance = mock_cluster_class.return_value
+            mock_cluster_instance.connect.return_value = self.mock_session
+
+            client = UnifiedCassandraClient(self.keyspaces_config)
+            table_details = await client.describe_table('mykeyspace', 'users')
+
+            self.assertNotIn('read_capacity_units', table_details)
+            self.assertNotIn('write_capacity_units', table_details)
+
 
 if __name__ == '__main__':
     unittest.main()

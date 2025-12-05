@@ -148,3 +148,8 @@ class TestSchemaService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result['columns']), 2)
         self.assertEqual(result['columns'][0]['name'], 'user_id')
         self.assertEqual(result['partition_key'], ['user_id'])
+
+
+if __name__ == '__main__':
+    unittest.main()
+
