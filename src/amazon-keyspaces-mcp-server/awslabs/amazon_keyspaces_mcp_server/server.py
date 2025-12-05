@@ -371,7 +371,7 @@ async def list_keyspaces(
     description='Lists all tables in a specified keyspace - args: keyspace',
 )
 async def list_tables(
-    input: KeyspaceInput,
+    input: KeyspaceInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Lists all tables in a specified keyspace."""
@@ -384,7 +384,7 @@ async def list_tables(
     description='Gets detailed information about a keyspace - args: keyspace',
 )
 async def describe_keyspace(
-    input: KeyspaceInput,
+    input: KeyspaceInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a keyspace."""
@@ -397,7 +397,7 @@ async def describe_keyspace(
     description='Gets detailed information about a table - args: keyspace, table',
 )
 async def describe_table(
-    input: TableInput,
+    input: TableInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a table."""
@@ -410,7 +410,7 @@ async def describe_table(
     description='Executes a read-only SELECT query against the database - args: keyspace, query',
 )
 async def execute_query(
-    input: QueryInput,
+    input: QueryInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Executes a read-only (SELECT) query against the database."""
@@ -423,7 +423,7 @@ async def execute_query(
     description='Analyzes the performance characteristics of a CQL query - args: keyspace, query',
 )
 async def analyze_query_performance(
-    input: QueryInput,
+    input: QueryInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Analyzes the performance characteristics of a CQL query."""
@@ -732,17 +732,17 @@ class KeyspacesMcpStdioServer:
 
 def main():
     """Run the MCP server."""
-    import asyncio
-    
+    import asyncio  # pylint: disable=import-outside-toplevel
+
     # Validate connection before starting server
     try:
         proxy = asyncio.run(get_proxy())
         asyncio.run(proxy.schema_service.cassandra_client.get_session())
         logger.success('Successfully validated database connection')
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f'Failed to connect to database: {e}')
         sys.exit(1)
-    
+
     mcp.run()
 
 

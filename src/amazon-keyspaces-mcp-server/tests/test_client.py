@@ -222,7 +222,9 @@ class TestUnifiedCassandraClient(unittest.IsolatedAsyncioTestCase):
         mock_ssl.SSLError = ssl.SSLError
 
         # Make load_verify_locations raise an exception
-        mock_ssl_context.load_verify_locations.side_effect = FileNotFoundError('Certificate not found')
+        mock_ssl_context.load_verify_locations.side_effect = FileNotFoundError(
+            'Certificate not found'
+        )
 
         # Create the client and get session
         client = UnifiedCassandraClient(self.keyspaces_config)
@@ -728,7 +730,9 @@ class TestUnifiedCassandraClient(unittest.IsolatedAsyncioTestCase):
         mock_column_names = ['id', 'bad_column']
         mock_row = Mock()
         mock_row.id = 1
-        type(mock_row).bad_column = property(lambda self: (_ for _ in ()).throw(ValueError('Bad column')))
+        type(mock_row).bad_column = property(
+            lambda self: (_ for _ in ()).throw(ValueError('Bad column'))
+        )
 
         mock_result_set = Mock()
         mock_result_set.column_names = mock_column_names
