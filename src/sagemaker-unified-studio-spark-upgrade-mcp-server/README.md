@@ -23,15 +23,15 @@ The upgrade agent has three main components: any MCP-compatible AI Assistant in 
 
 The AI assistant will orchestrate the upgrade using specialized tools provided by the MCP server following these steps:
 
-- **Planning**: The agent will analyze your project structure and generate an upgrade plan. You may generate a new plan or leverage an existing plan and you may also review the plan and revise it.
+- **Planning**: The agent analyzes your project structure and generates or revises an upgrade plan that guides the end-to-end Spark upgrade process.
 
-- **Compile and build**: The agent will review and update build environment and upgrade the project build configuration, it will build the project and make iterative changes to fix build errors until the application compiles and builds successfully.
+- **Compile & build**: Agent updates the build environment and dependencies, compiles the project, and iteratively fixes build and test failures.
 
-- **Spark code edit tools**: The agent can update the project build configuration, compile and build the project in build Step, or fix Spark upgrade errors detected at runtime.
+- **Spark code edit tool**: Applies targeted code updates to resolve Spark version incompatibilities, fixing both build-time and runtime errors.
 
-- **Execution & Validation**: The agent can run unit test and integration test locally, and also submit EMR validation job run, the agent can monitor the job status and verify the upgrade job execution status and data quality validation status.
+- **Execution & Validation**: Submits remote validation jobs to EMR, monitors execution and logs, and iteratively fixes runtime and data-quality issues.status.
 
-- **Observability**: The upgrade process can be tracked by the agent using observability tools built for EMR platform. Users are also able to list their upgrade analysis and review their status by respective tools.
+- **Observability**: Tracks upgrade progress using EMR observability tools and allows users to view upgrade analyses and status at any time.
 
 Please refer to [Using Spark Upgrade Tools](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-upgrade-agent-tools.html) for a list of major tools for each steps.
 
