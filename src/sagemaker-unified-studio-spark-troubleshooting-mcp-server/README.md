@@ -8,15 +8,14 @@ A fully managed remote MCP server that provides specialized tools for troublesho
 
 - **Intelligent Failure Analysis**: Automatically analyzes Spark event logs, error messages, and resource usage to pinpoint exact issues including memory problems, configuration errors, and code bugs
 - **Multi-Platform Support**: Troubleshoot PySpark and Scala applications across Amazon EMR on EC2, EMR Serverless, AWS Glue, and Amazon SageMaker Notebooks
-- **Automated Feature Extraction**: Connects to platform-specific UIs (EMR Persistent UI, Glue Studio Spark UI, EMR-Serverless Spark History Server) to extract comprehensive context
+- **Automated Feature Extraction**: Connects to platform-specific spark history server (EMR, Glue, EMR-Serverless) to extract comprehensive context
 - **GenAI Root Cause Analysis**: Leverages AI models and Spark knowledge base to correlate features and identify root causes of performance issues or failures
 - **Code Recommendation Engine**: Provides actionable code modifications, configuration adjustments, and architectural improvements with concrete examples
 - **Natural Language Interface**: Use conversational prompts to request troubleshooting analysis and code recommendations
-- **Cross-Region Processing**: Uses advanced inference capabilities to process natural language requests and generate intelligent responses
 
 ## Architecture
 
-The troubleshooting agent has three main components: any MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication between your client and the MCP server, and the Amazon SageMaker Unified Studio Managed MCP Server that provides specialized Spark troubleshooting tools for Amazon EMR, AWS Glue, and Amazon SageMaker Notebooks.
+The troubleshooting agent has three main components: an MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication and authentication between your client and AWS services, and the Amazon SageMaker Unified Studio Remote MCP Server (preview) that provides specialized Spark troubleshooting tools for Amazon EMR, AWS Glue and Amazon SageMaker Notebooks. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Remote MCP Server through your AI Assistant.
 
 ![img](https://docs.aws.amazon.com/images/emr/latest/ReleaseGuide/images/spark-troubleshooting-agent-architecture.png)
 
@@ -220,13 +219,13 @@ This server processes your Spark application logs and configuration files to pro
 The agent supports both PySpark and Scala Spark applications running on Amazon EMR on EC2, EMR Serverless, AWS Glue, and Amazon SageMaker Notebooks.
 
 ### 2. What happens if my Spark job is still running?
-The troubleshooting tools only support analysis of failed Spark workloads. You'll need to wait for the job to complete (and fail) before analysis can be performed.
+The troubleshooting tools only support analysis of failed Spark workloads.
 
 ### 3. Can I get code recommendations for successful jobs?
 Code recommendations are primarily focused on fixing issues in failed workloads, but you can request code-level suggestions for optimization even without a full failure analysis.
 
 ### 4. How does the agent access my Spark logs?
-The agent connects to platform-specific interfaces: EMR Persistent UI for EMR-EC2, Glue Studio Spark UI for AWS Glue, and Spark History Server for EMR Serverless to extract necessary telemetry data.
+The agent connects to platform-specific interfaces: EMR Persistent UI for EMR-EC2, Glue Studio Spark UI for AWS Glue, Spark History Server for EMR Serverless And S3/Cloudwatch logs to extract necessary telemetry data.
 
 ### 5. Is my data secure during the troubleshooting process?
 Yes, all processing follows AWS data protection standards. The agent analyzes logs and configurations temporarily to provide recommendations without permanently storing sensitive data.
