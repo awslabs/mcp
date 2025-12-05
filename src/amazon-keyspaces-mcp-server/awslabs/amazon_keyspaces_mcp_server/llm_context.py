@@ -34,15 +34,10 @@ def build_list_keyspaces_context(_keyspaces: List[KeyspaceInfo]) -> str:
         ),
         "limitations": (
             "Amazon Keyspaces doesn't support all Apache Cassandra 3.11 features. "
-            "Unsupported features include materialized views, "
-            "indexes, aggregate functions like COUNT and SUM, prepared statements "
-            "for DDL operations, DROP COLUMN, TRUNCATE TABLE, user-defined functions, "
-            "the inequality operator for user-defined types, or the IN keyword in "
-            "INSERT and UPDATE statements. Keyspaces uses AWS IAM for authentication "
-            "and authorization, and not Cassandra's security configuration and "
-            "commands. Additionally, some operations that are synchronous in Cassandra "
-            "are asynchronous in Keyspaces, such as DDL operations and range delete "
-            "operations."
+            "For the most current list of unsupported features and CQL limitations, "
+            "refer to the CQL Reference resource (keyspaces://cql-reference) which "
+            "includes up-to-date information on supported operations, data types, "
+            "and known restrictions."
         ),
         "replication_strategy": (
             "In Cassandra, common replication strategies include SimpleStrategy and "
@@ -69,14 +64,9 @@ def build_list_tables_context(_keyspace_name: str, _tables: List[TableInfo]) -> 
     # Add table-specific guidance
     tables_guidance = {
         "data_modeling": (
-            "In Cassandra, tables are containers for related data, similar to tables "
-            "in relational databases. However, Cassandra tables are optimized for "
-            "specific access patterns based on their primary key design. The primary "
-            "key determines how data is distributed physically in the database, and "
-            "the attributes that can be specified for efficient query execution. "
-            "Primary keys consist of a partition key (which determines data "
-            "distribution) and optional cluster columns which determine how data is "
-            "ordered within a partition."
+            "For detailed information on Cassandra data modeling, primary keys, "
+            "partition keys, and clustering columns, refer to the Developer Guide "
+            "resource (keyspaces://developer-guide)."
         ),
         "naming_conventions": (
             "Table names typically use snake_case and should be descriptive of the "
@@ -285,21 +275,16 @@ def build_amazon_keyspaces_knowledge() -> Dict[str, str]:
     """Provide Amazon Keyspaces specific knowledge."""
     knowledge = {
         "compatibility": (
-            "Amazon Keyspaces is compatible with Apache Cassandra 3.11. This means "
-            "that it supports most of the same CQL language features and is "
-            "driver-protocol compatible with Cassandra 3.11."
+            "For current compatibility information with Apache Cassandra, refer to "
+            "the Developer Guide resource (keyspaces://developer-guide)."
         ),
         "differences_from_cassandra": (
-            "Amazon Keyspaces doesn't support all Apache Cassandra 3.11 features. "
-            "Unsupported features include materialized views, indexes, "
-            "aggregate functions like COUNT and SUM, prepared statements for DDL "
-            "operations, DROP COLUMN, TRUNCATE TABLE, user-defined functions, the "
-            "inequality operator for user-defined types, or the IN keyword in INSERT "
-            "and UPDATE statements. Keyspaces uses AWS IAM for authentication and "
-            "authorization, and not Cassandra's security configuration and commands. "
-            "Additionally, some operations that are synchronous in Cassandra are "
-            "asynchronous in Keyspaces, such as DDL operations and range delete "
-            "operations."
+            "For Apache Cassandra features and capabilities, refer to the official "
+            "Apache Cassandra documentation at https://cassandra.apache.org/doc/. "
+            "For differences between Amazon Keyspaces and Apache Cassandra, including "
+            "unsupported features and operational differences, refer to the CQL "
+            "Reference resource (keyspaces://cql-reference) and Developer Guide "
+            "resource (keyspaces://developer-guide)."
         ),
     }
 
