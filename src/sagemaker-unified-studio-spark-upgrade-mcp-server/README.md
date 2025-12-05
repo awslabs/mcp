@@ -4,25 +4,15 @@ A fully managed remote MCP server that provides specialized tools and guidance f
 
 **Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server.
 
-## Key Features
+## Key Features & Capabilities
 
-- **Automated Upgrade Planning**: Analyze project structure and generate comprehensive upgrade plans
-- **Code Transformation**: Automated PySpark and Scala code updates for version compatibility
-- **Build Configuration**: Update and manage project dependencies and build environments
-- **Validation & Testing**: Run unit tests, integration tests, and EMR validation jobs
-- **Data Quality Validation**: Ensure data integrity throughout the upgrade process
-- **Cross-Platform Support**: Works with Amazon EMR on EC2 and Amazon EMR Serverless
-
-## Apache Spark Upgrade Agent Capabilities
-
-- **Project Analysis**: Deep analysis of Spark application structure, dependencies, and API usage
-- **Upgrade Planning**: Generate step-by-step upgrade plans with risk assessment
-- **Code Migration**: Automated code transformations for API changes and deprecations
-- **Dependency Management**: Update Maven/SBT/pip dependencies for target Spark versions
-- **Build Validation**: Compile and build projects with iterative error resolution
-- **Testing Integration**: Execute comprehensive test suites and validation workflows
-- **EMR Integration**: Submit and monitor EMR jobs for upgrade validation
-- **Observability**: Track upgrade progress and analyze results
+- **Project Analysis & Planning**: Deep analysis of Spark application structure, dependencies, and API usage to generate comprehensive step-by-step upgrade plans with risk assessment
+- **Automated Code Transformation**: Automated PySpark and Scala code updates for version compatibility, handling API changes and deprecations
+- **Dependency & Build Management**: Update and manage Maven/SBT/pip dependencies and build environments for target Spark versions with iterative error resolution
+- **Comprehensive Testing & Validation**: Execute unit tests, integration tests, EMR validation jobs, and comprehensive test suites with validation workflows
+- **Data Quality Validation**: Ensure data integrity throughout the upgrade process with configurable validation rules
+- **EMR Integration & Monitoring**: Submit and monitor EMR jobs for upgrade validation across Amazon EMR on EC2 and Amazon EMR Serverless
+- **Observability & Progress Tracking**: Track upgrade progress, analyze results, and provide detailed insights throughout the upgrade process
 
 
 ## Architecture
@@ -44,27 +34,20 @@ The AI assistant will orchestrate the upgrade using specialized tools provided b
 Please refer to [Using Spark Upgrade Tools](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-upgrade-agent-tools.html) for a list of major tools for each steps.
 
 ### Supported Upgrade Paths
-- **Spark 2.x to 3.x**: Major version upgrades with breaking changes
-- **Spark 3.x to 3.y**: Minor version upgrades with compatibility updates
+- We support Apache Spark upgrades from version 2.4 to 3.5. The corresponding deployment mode mappings are as follows
 - **EMR Release Upgrades**:
     - For EMR-EC2
         - Source Version: EMR 5.20.0 and later
-        - Target Version: Any version above EMR 5.20.0 and below EMR 7.12.0
+        - Target Version: EMR 7.12.0 and earlier, should be newer than EMR 5.20.0
 
     - For EMR-Serverless
         - Source Version: EMR Serverless 6.6.0 and later
-        - Target Version: Any version above EMR Serverless 6.6.0 and below EMR Serverless 7.12.0
+        - Target Version: EMR Serverless 7.12.0 and earlier
+
 
 
 
 ## Configuration
-
-You can configure the Apache Spark Upgrade Agent MCP server for use with any MCP client using the following URL:
-
-```url
-https://sagemaker-unified-studio-mcp.us-east-1.api.aws/spark-upgrade/mcp
-```
-
 **Note:** The specific configuration format varies by MCP client. Below is an example for [Kiro CLI](https://kiro.dev/).
 
 **Kiro CLI**
@@ -99,9 +82,14 @@ See [Using the Upgrade Agent](https://docs.aws.amazon.com/emr/latest/ReleaseGuid
 ## Usage Examples
 
 1. **Run the spark upgrade analysis**:
-   ```
-   Help me upgrade my spark application in <project-path> from 2.4 to Spark 3.5. you can use EMR-S Application is xxg017hmd2agxxxx to run the validation and s3 paths s3://<s3-staging-path> to store updated application artifacts.
-   ```
+  - EMR-S
+    ```
+    Help me upgrade my spark application in <project-path> from Spark 2.4 to Spark 3.5. you can use EMR-S Application id xxg017hmd2agxxxx to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    ```
+  - EMR-EC2
+    ```
+    Upgrade my Spark application <local-project-path> from Spark 2.4 to Spark 3.5. Use EMR-EC2 Cluster j-PPXXXXTG09XX to run the validation and s3 paths s3://s3-staging-path to store updated application artifacts.
+    ```
 
 2. **List the analyses**:
    ```
@@ -142,17 +130,13 @@ This server processes your code and configuration files to provide upgrade recom
 ## FAQs
 
 ### 1. Which Spark versions are supported?
-For EMR-EC2
+- For EMR-EC2
+    - Source Version: EMR 5.20.0 and later
+    - Target Version: EMR 7.12.0 and earlier, should be newer than EMR 5.20.0
 
-    Source Version: EMR 5.20.0 and later
-
-    Target Version: Any version above EMR 5.20.0 and below EMR 7.12.0
-
-For EMR-Serverless
-
-    Source Version: EMR Serverless 6.6.0 and later
-
-    Target Version: Any version above EMR Serverless 6.6.0 and below EMR Serverless 7.12.0
+- For EMR-Serverless
+    - Source Version: EMR Serverless 6.6.0 and later
+    - Target Version: EMR Serverless 7.12.0 and earlier
 
 
 
@@ -166,7 +150,7 @@ The agent analyzes custom dependencies and provides guidance for updating user-d
 
 ### 4. How does data quality validation work?
 
-The agent compares output data between old and new Spark versions using configurable validation rules and statistical analysis.
+The agent compares output data between old and new Spark versions using validation rules and statistical analysis.
 
 ### 5. Can I customize the upgrade process?
 
