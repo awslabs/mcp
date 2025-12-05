@@ -328,12 +328,13 @@ class UnifiedCassandraClient:
                             table_details['capacity_mode'] = props['capacity_mode']
 
                             if props['capacity_mode'] == 'PROVISIONED':
-                                table_details['read_capacity_units'] = int(
-                                    props.get('read_capacity_units', 0)
-                                )
-                                table_details['write_capacity_units'] = int(
-                                    props.get('write_capacity_units', 0)
-                                )
+                                if 'read_capacity_units' not in props or 'write_capacity_units' not in props:
+                                    raise RuntimeError(
+                                        f'PROVISIONED capacity mode requires both read_capacity_units '
+                                        f'and write_capacity_units for table {keyspace_name}.{table_name}'
+                                    )
+                                table_details['read_capacity_units'] = int(props['read_capacity_units'])
+                                table_details['write_capacity_units'] = int(props['write_capacity_units'])
                 except (RuntimeError, ValueError, AttributeError) as e:
                     # Ignore errors when trying to get capacity information
                     logger.warning(
