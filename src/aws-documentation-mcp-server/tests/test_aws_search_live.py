@@ -179,7 +179,8 @@ async def test_search_documentation_with_product_type():
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
-        assert first_product_type in second_response.facets['product_types']
+        assert len(second_response.facets['product_types']) == 1
+        assert first_product_type == second_response.facets['product_types'][0]
 
 
 @pytest.mark.asyncio
@@ -224,7 +225,8 @@ async def test_search_documentation_with_guide_type():
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
-        assert first_guide_type in second_response.facets['guide_types']
+        assert len(second_response.facets['guide_types']) == 1
+        assert first_guide_type == second_response.facets['guide_types'][0]
 
 
 if __name__ == '__main__':
