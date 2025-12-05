@@ -33,7 +33,7 @@ The AI assistant will orchestrate the upgrade using specialized tools provided b
 
 - **Planner**: The agent will analyze your project structure and generate an upgrade plan. You may generate a new plan or leverage an existing plan and you may also review the plan and revise it.
 
-- **Build and execute**: The agent will review and update build environment and upgrade the project build configuration, it will build the project and make iterative changes to fix build errors until the application compiles and builds successfully.
+- **Compile and build**: The agent will review and update build environment and upgrade the project build configuration, it will build the project and make iterative changes to fix build errors until the application compiles and builds successfully.
 
 - **Spark code edit**: The agent can update the project build configuration, compile and build the project in build Step, or fix Spark upgrade errors detected at runtime.
 
@@ -46,7 +46,14 @@ Please refer to [Using Spark Upgrade Tools](https://docs.aws.amazon.com/emr/late
 ### Supported Upgrade Paths
 - **Spark 2.x to 3.x**: Major version upgrades with breaking changes
 - **Spark 3.x to 3.y**: Minor version upgrades with compatibility updates
-- **EMR Release Upgrades**: EMR-specific release migrations
+- **EMR Release Upgrades**:
+    - For EMR-EC2
+        - Source Version: EMR 5.20.0 and later
+        - Target Version: Any version above EMR 5.20.0 and below EMR 7.12.0
+
+    - For EMR-Serverless
+        - Source Version: EMR Serverless 6.6.0 and later
+        - Target Version: Any version above EMR Serverless 6.6.0 and below EMR Serverless 7.12.0
 
 
 
