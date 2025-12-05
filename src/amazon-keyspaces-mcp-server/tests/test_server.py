@@ -13,10 +13,10 @@
 # and limitations under the License.
 """Unit tests for the server module."""
 
-import pytest
-
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
 from awslabs.amazon_keyspaces_mcp_server.models import (
@@ -458,12 +458,90 @@ class TestKeyspacesMcpStdioServer(unittest.IsolatedAsyncioTestCase):
             'mykeyspace', 'SELECT * FROM users'
         )
 
+    async def test_handle_execute_query_mixed_case_unsafe(self):
+        """Test query validation with mixed case unsafe operations."""
+        with self.assertRaises(Exception) as context:
+            await self.server._handle_execute_query(
+                'mykeyspace', 'SeLeCt * FrOm users; DrOp TaBlE users;', self.mock_context
+            )
+        self.assertIn('potentially unsafe operations', str(context.exception))
+
+    async def test_handle_execute_query_comment_with_unsafe_keyword(self):
+        """Test query with comment containing unsafe keyword is blocked."""
+        with self.assertRaises(Exception) as context:
+            await self.server._handle_execute_query(
+                'mykeyspace', 'SELECT * FROM users -- this is a DROP comment', self.mock_context
+            )
+        self.assertIn('potentially unsafe operations', str(context.exception))
+
+    async def test_handle_execute_query_whitespace_variations(self):
+        """Test query validation with various whitespace."""
+        with self.assertRaises(Exception) as context:
+            await self.server._handle_execute_query(
+                'mykeyspace', '  \n\t SELECT * FROM users ; \n DROP TABLE users', self.mock_context
+            )
+        self.assertIn('potentially unsafe operations', str(context.exception))
+
+    async def test_handle_execute_query_special_chars_in_columns(self):
+        """Test result formatting with special characters in column names."""
+        query_results = {
+            'columns': ['user_id', 'first-name', 'email@domain'],
+            'rows': [{'user_id': 1, 'first-name': 'John', 'email@domain': 'test@example.com'}],
+            'row_count': 1,
+        }
+        self.mock_data_service.execute_read_only_query.return_value = query_results
+
+        result = await self.server._handle_execute_query(
+            'mykeyspace', 'SELECT * FROM users', self.mock_context
+        )
+        self.assertIn('user_id', result)
+        self.assertIn('first-name', result)
+        self.assertIn('email@domain', result)
+
+    async def test_handle_execute_query_long_values(self):
+        """Test result formatting with very long column values."""
+        long_text = 'x' * 1000
+        query_results = {
+            'columns': ['id', 'description'],
+            'rows': [{'id': 1, 'description': long_text}],
+            'row_count': 1,
+        }
+        self.mock_data_service.execute_read_only_query.return_value = query_results
+
+        result = await self.server._handle_execute_query(
+            'mykeyspace', 'SELECT * FROM users', self.mock_context
+        )
+        self.assertIn(long_text, result)
+
+    async def test_handle_execute_query_null_values_mixed(self):
+        """Test result formatting with null values in different positions."""
+        query_results = {
+            'columns': ['id', 'name', 'email'],
+            'rows': [
+                {'id': 1, 'name': None, 'email': 'test@example.com'},
+                {'id': None, 'name': 'John', 'email': None},
+            ],
+            'row_count': 2,
+        }
+        self.mock_data_service.execute_read_only_query.return_value = query_results
+
+        result = await self.server._handle_execute_query(
+            'mykeyspace', 'SELECT * FROM users', self.mock_context
+        )
+        self.assertIn('null', result)
+        self.assertEqual(result.count('null'), 3)
+
 
 @patch('awslabs.amazon_keyspaces_mcp_server.server.UnifiedCassandraClient')
 @patch('awslabs.amazon_keyspaces_mcp_server.server.AppConfig')
 @pytest.mark.asyncio
 async def test_get_proxy(mock_app_config, mock_client_class):
     """Test the get_proxy function."""
+    # Reset the global proxy
+    # pylint: disable=import-outside-toplevel
+    import awslabs.amazon_keyspaces_mcp_server.server as server_module
+    server_module._PROXY = None  # pylint: disable=protected-access
+
     # Set up the mocks
     mock_app_config_instance = Mock()
     mock_app_config.from_env.return_value = mock_app_config_instance

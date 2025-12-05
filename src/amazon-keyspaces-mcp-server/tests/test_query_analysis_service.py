@@ -1,22 +1,30 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may not use this file except in compliance with the License.
+# A copy of the License is located at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# or in the 'license' file accompanying this file.
+# This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied.
+# See the License for the specific language governing permissions
 # and limitations under the License.
 """Unit tests for the QueryAnalysisService class."""
 
 import unittest
+from unittest.mock import AsyncMock, Mock, PropertyMock
+
 from awslabs.amazon_keyspaces_mcp_server.models import QueryAnalysisResult
-from awslabs.amazon_keyspaces_mcp_server.services import QueryAnalysisService, SchemaService
-from unittest.mock import Mock, PropertyMock
+from awslabs.amazon_keyspaces_mcp_server.services import (
+    QueryAnalysisService,
+    SchemaService,
+)
 
 
-class TestQueryAnalysisService(unittest.TestCase):
+# pylint: disable=protected-access
+class TestQueryAnalysisService(unittest.IsolatedAsyncioTestCase):
     """Tests for the QueryAnalysisService class."""
 
     def setUp(self):
@@ -217,29 +225,28 @@ class TestQueryAnalysisService(unittest.TestCase):
         self.assertIn('SECONDARY INDEX USAGE', result.performance_assessment)
         self.assertIn('Monitor the performance', ' '.join(result.recommendations))
 
-    def test_analyze_query_integration(self):
+    async def test_analyze_query_integration(self):
         """Test the analyze_query method with a complete integration test."""
-        # Mock the schema service responses
         table_info_mock = Mock()
         type(table_info_mock).name = PropertyMock(return_value='users')
-        self.mock_schema_service.list_tables.return_value = [table_info_mock]
-        self.mock_schema_service.describe_table.return_value = {
-            'columns': [
-                {'name': 'id', 'is_partition_key': True},
-                {'name': 'name', 'is_partition_key': False},
-                {'name': 'created_at', 'is_clustering_column': True},
-            ],
-            'partition_key': ['id'],
-            'clustering_columns': ['created_at'],
-            'indexes': [],
-        }
+        self.mock_schema_service.list_tables = AsyncMock(return_value=[table_info_mock])
+        self.mock_schema_service.describe_table = AsyncMock(
+            return_value={
+                'columns': [
+                    {'name': 'id', 'is_partition_key': True},
+                    {'name': 'name', 'is_partition_key': False},
+                    {'name': 'created_at', 'is_clustering_column': True},
+                ],
+                'partition_key': ['id'],
+                'clustering_columns': ['created_at'],
+                'indexes': [],
+            }
+        )
 
-        # Call the analyze_query method
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks', "SELECT * FROM users WHERE id = 1 AND name = 'test'"
         )
 
-        # Verify the result
         self.assertEqual(result.table_name, 'users')
         self.assertTrue(result.uses_partition_key)
         self.assertFalse(result.uses_clustering_columns)
@@ -248,98 +255,96 @@ class TestQueryAnalysisService(unittest.TestCase):
         self.assertFalse(result.is_full_table_scan)
         self.assertIn('EFFICIENT PARTITION KEY USAGE', result.performance_assessment)
 
-    def test_analyze_query_with_error(self):
+    async def test_analyze_query_with_error(self):
         """Test the analyze_query method when an error occurs."""
-        # Mock the schema service to raise an exception
-        self.mock_schema_service.list_tables.side_effect = Exception('Test error')
+        self.mock_schema_service.list_tables = AsyncMock(side_effect=Exception('Test error'))
 
-        # Call the analyze_query method
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks', 'SELECT * FROM users WHERE id = 1'
         )
 
-        # Verify the result contains the error
         self.assertIn('Error analyzing query', result.performance_assessment)
         self.assertEqual(result.table_name, 'users')
 
-    def test_analyze_query_with_allow_filtering(self):
+    async def test_analyze_query_with_allow_filtering(self):
         """Test analyzing a query with ALLOW FILTERING."""
-        # Mock the schema service responses
         table_info_mock = Mock()
         type(table_info_mock).name = PropertyMock(return_value='users')
-        self.mock_schema_service.list_tables.return_value = [table_info_mock]
-        self.mock_schema_service.describe_table.return_value = {
-            'columns': [
-                {'name': 'id', 'is_partition_key': True},
-                {'name': 'name', 'is_partition_key': False},
-            ],
-            'partition_key': ['id'],
-            'clustering_columns': [],
-            'indexes': [],
-        }
+        self.mock_schema_service.list_tables = AsyncMock(return_value=[table_info_mock])
+        self.mock_schema_service.describe_table = AsyncMock(
+            return_value={
+                'columns': [
+                    {'name': 'id', 'is_partition_key': True},
+                    {'name': 'name', 'is_partition_key': False},
+                ],
+                'partition_key': ['id'],
+                'clustering_columns': [],
+                'indexes': [],
+            }
+        )
 
-        # Call the analyze_query method
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks', "SELECT * FROM users WHERE name = 'test' ALLOW FILTERING"
         )
 
-        # Verify the result
         self.assertTrue(result.uses_allow_filtering)
         self.assertIn('ALLOW FILTERING', result.performance_assessment)
         self.assertIn('Avoid using ALLOW FILTERING', ' '.join(result.recommendations))
 
-    def test_analyze_query_with_secondary_index(self):
+    async def test_analyze_query_with_secondary_index(self):
         """Test analyzing a query that uses a secondary index."""
         table_info_mock = Mock()
         type(table_info_mock).name = PropertyMock(return_value='users')
-        self.mock_schema_service.list_tables.return_value = [table_info_mock]
-        self.mock_schema_service.describe_table.return_value = {
-            'columns': [
-                {'name': 'id', 'is_partition_key': True},
-                {'name': 'name', 'is_partition_key': False},
-            ],
-            'partition_key': ['id'],
-            'clustering_columns': [],
-            'indexes': [{'options': {'target': 'name'}}],
-        }
+        self.mock_schema_service.list_tables = AsyncMock(return_value=[table_info_mock])
+        self.mock_schema_service.describe_table = AsyncMock(
+            return_value={
+                'columns': [
+                    {'name': 'id', 'is_partition_key': True},
+                    {'name': 'name', 'is_partition_key': False},
+                ],
+                'partition_key': ['id'],
+                'clustering_columns': [],
+                'indexes': [{'options': {'target': 'name'}}],
+            }
+        )
 
-        # Call the analyze_query method
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks', "SELECT * FROM users WHERE name = 'test'"
         )
 
-        # Verify the result
         self.assertTrue(result.uses_secondary_index)
         self.assertIn('SECONDARY INDEX USAGE', result.performance_assessment)
         self.assertIn('Monitor the performance', ' '.join(result.recommendations))
 
-    def test_analyze_query_table_not_found(self):
+    async def test_analyze_query_table_not_found(self):
         """Test analyzing a query when the table is not found."""
-        # Mock the schema service responses
-        self.mock_schema_service.list_tables.return_value = []
+        self.mock_schema_service.list_tables = AsyncMock(return_value=[])
 
-        # Call the analyze_query method
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks', 'SELECT * FROM users WHERE id = 1'
         )
 
-        # Verify the result
         self.assertEqual(result.table_name, 'users')
         self.assertIn("Table 'users' not found", result.performance_assessment)
         self.assertIn('Verify the table name', result.recommendations[0])
 
-    def test_analyze_query_unable_to_determine_table(self):
+    async def test_analyze_query_unable_to_determine_table(self):
         """Test analyzing a query when the table name cannot be determined."""
-        # Call the analyze_query method with a malformed query
-        result = self.query_analysis_service.analyze_query(
+        result = await self.query_analysis_service.analyze_query(
             'myks',
-            'SELECT * WHERE id = 1',  # Missing FROM clause
+            'SELECT * WHERE id = 1',
         )
 
-        # Verify the result
         self.assertEqual(result.table_name, '')
         self.assertIn('Unable to determine table name', result.performance_assessment)
         self.assertIn('Ensure the query follows standard CQL', result.recommendations[0])
+
+    async def test_extract_where_conditions_no_where(self):
+        """Test extracting WHERE conditions from query without WHERE clause."""
+        conditions = self.query_analysis_service._extract_where_conditions(
+            'SELECT * FROM users'
+        )
+        self.assertEqual(conditions, [])
 
 
 if __name__ == '__main__':

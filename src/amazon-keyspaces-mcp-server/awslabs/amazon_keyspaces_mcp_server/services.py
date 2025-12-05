@@ -72,7 +72,7 @@ class DataService:
                                 + query[table_name_start:]
                             )
 
-        return self.cassandra_client.execute_read_only_query(full_query)
+        return await self.cassandra_client.execute_read_only_query(full_query)
 
 
 class SchemaService:

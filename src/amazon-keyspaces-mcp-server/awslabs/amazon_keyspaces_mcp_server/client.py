@@ -456,8 +456,8 @@ class UnifiedCassandraClient:
 
     def close(self) -> None:
         """Close the session."""
-        if hasattr(self, 'session') and self.session:
-            if self.session.cluster:
-                self.session.cluster.shutdown()
-            self.session.shutdown()
+        if self._session:
+            if self._session.cluster:
+                self._session.cluster.shutdown()
+            self._session.shutdown()
             logger.info('Closed session')
