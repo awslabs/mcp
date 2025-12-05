@@ -19,6 +19,7 @@ authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
     {name = "Joel Shepherd", email="shepherd@amazon.com"},
+    {name = "Michael Christensen", email="mlynnc@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",

@@ -1,10 +1,10 @@
-# AWS Labs amazon-keyspaces MCP Server
+# AWS Labs Amazon Keyspaces MCP Server
 
 An Amazon Keyspaces (for Apache Cassandra) MCP server for interacting with Amazon Keyspaces and Apache Cassandra.
 
 ## Overview
 
-The Amazon Keyspaces MCP server implements the Model Context Protocol (MCP) to enable AI assistants like Amazon Q to
+The Amazon Keyspaces MCP server implements the Model Context Protocol (MCP) to enable AI assistants like Kiro to
 interact with Amazon Keyspaces or Apache Cassandra databases through natural language. This server allows you to explore
  database schemas, execute queries, and analyze query performance without having to write CQL code directly.
 
@@ -34,7 +34,7 @@ Here are some example prompts that this MCP server can help with:
 
 ### Prerequisites
 
-- Python 3.10 or 3.11 (Python 3.12+ is not fully supported due to asyncore module removal)
+- Python 3.10+
 - Access to an Amazon Keyspaces instance or Apache Cassandra cluster that supports password authentication
 - Appropriate Cassandra log-in credentials
 - Starfield digital certificate (required for Amazon Keyspaces)
@@ -123,30 +123,36 @@ After installation, you can run the server directly:
 awslabs.amazon-keyspaces-mcp-server
 ```
 
-## Configuring Amazon Q to Use the MCP Server
+## Configuring Kiro CLI to Use the MCP Server
 
-To use the Amazon Keyspaces MCP server with Amazon Q CLI, you need to configure it in your Q configuration file.
+To use the Amazon Keyspaces MCP server with Kiro CLI, you need to configure it in your Kiro configuration file.
 
-### Configuration for Amazon Q CLI
+### Configuration for Kiro CLI
 
-Edit the Q configuration file at `~/.aws/amazonq/mcp.json`:
+Edit the Kiro configuration file at `~/.kiro/settings/mcp.json`:
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "keyspaces-mcp",
-      "command": "awslabs.amazon-keyspaces-mcp-server",
-      "args": [],
-      "env": {}
+  "mcpServers": {
+    "aws-labs-keyspaces-mcp" : {
+      "command" : "uvx",
+      "args" : ["awslabs.amazon-keyspaces-mcp-server@latest"],
+      "env" : {
+        "AWS_PROFILE" : "your-aws-profile",
+        "AWS_REGION" : "us-east-1",
+        "FASTMCP_LOG_LEVEL" : "ERROR"
+      },
+      "disabled" : false,
+      "autoApprove" : []
     }
-  ]
+  }
+  
 }
 ```
 
 ### Windows Installation
 
-For Windows users, the MCP server configuration format is slightly different. Edit your MCP configuration file (e.g., `~/.aws/amazonq/mcp.json` for Amazon Q CLI) with the following format:
+For Windows users, the MCP server configuration format is slightly different. Edit your MCP configuration file (e.g., `~/.kiro/settings/mcp.json` for Kiro CLI) with the following format:
 
 ```json
 {
@@ -176,7 +182,7 @@ For Windows users, the MCP server configuration format is slightly different. Ed
 
 If the file doesn't exist yet or doesn't have an `mcpServers` section, create it with the structure shown above.
 
-Now when you use Q Chat by running `q chat`, it will automatically connect to your Keyspaces MCP server.
+Now when you use Kiro CLI by running `kiro-cli chat`, it will automatically connect to your Keyspaces MCP server.
 
 ## Available Tools
 
@@ -206,11 +212,6 @@ invoke AWS SDK operations on your behalf, including mutating operations.
 - Check that your database is accessible from your network.
 - For Amazon Keyspaces, verify that the Starfield certificate is correctly installed in the `.keyspaces-mcp/certs` directory.
 - If you get SSL/TLS errors, check that the certificate path is correct and the certificate is valid.
-
-### Python Version Compatibility
-
-- The MCP server works best with Python 3.10 or 3.11.
-- Python 3.12+ may have issues due to the removal of the asyncore module which the Cassandra driver depends on.
 
 ### Cassandra Driver Issues
 
