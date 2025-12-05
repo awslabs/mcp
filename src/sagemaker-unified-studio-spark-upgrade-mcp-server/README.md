@@ -18,16 +18,18 @@ A fully managed remote MCP server that provides specialized tools and guidance f
 ## Architecture
 The upgrade agent has three main components: any MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication between your client and the MCP server, and the Amazon SageMaker Unified Studio Managed MCP Server (in preview) that provides specialized Spark upgrade tools for Amazon EMR. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Managed MCP Server through your AI Assistant.
 
+![img](https://docs.aws.amazon.com/images/emr/latest/ReleaseGuide/images/SparkUpgradeIntroduction.png)
+
 
 The AI assistant will orchestrate the upgrade using specialized tools provided by the MCP server following these steps:
 
-- **Planner**: The agent will analyze your project structure and generate an upgrade plan. You may generate a new plan or leverage an existing plan and you may also review the plan and revise it.
+- **Planning**: The agent will analyze your project structure and generate an upgrade plan. You may generate a new plan or leverage an existing plan and you may also review the plan and revise it.
 
 - **Compile and build**: The agent will review and update build environment and upgrade the project build configuration, it will build the project and make iterative changes to fix build errors until the application compiles and builds successfully.
 
-- **Spark code edit**: The agent can update the project build configuration, compile and build the project in build Step, or fix Spark upgrade errors detected at runtime.
+- **Spark code edit tools**: The agent can update the project build configuration, compile and build the project in build Step, or fix Spark upgrade errors detected at runtime.
 
-- **Build & test**: The agent can run unit test and integration test locally, and also submit EMR validation job run, the agent can monitor the job status and verify the upgrade job execution status and data quality validation status.
+- **Execution & Validation**: The agent can run unit test and integration test locally, and also submit EMR validation job run, the agent can monitor the job status and verify the upgrade job execution status and data quality validation status.
 
 - **Observability**: The upgrade process can be tracked by the agent using observability tools built for EMR platform. Users are also able to list their upgrade analysis and review their status by respective tools.
 
