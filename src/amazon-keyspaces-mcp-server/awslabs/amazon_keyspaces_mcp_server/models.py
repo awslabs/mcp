@@ -176,3 +176,14 @@ class QueryInput(BaseModel):
         v = re.sub(r'[\u200B-\u200D\uFEFF\u0000-\u001F\u007F-\u009F]', '', v)
         return v.strip()
 
+
+class ResourceArnInput(BaseModel):
+    """Validated resource ARN input."""
+    resource_arn: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description='ARN of the resource (keyspace or table)'
+    )
+
+
