@@ -158,7 +158,7 @@ async def check_cdk_nag_suppressions_tool(
     """
     msg = 'CheckCDKNagSuppressions tool is deprecated. Please use the AWS IaC MCP Server instead.'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
-    
+
     # Use the imported function from cdk_nag_parser.py
     return check_cdk_nag_suppressions(code=code, file_path=file_path)
 
@@ -249,9 +249,11 @@ async def bedrock_schema_generator_from_file(
         Dictionary with schema generation results, including status, path to generated schema,
         and diagnostic information if errors occurred
     """
-    msg = 'GenerateBedrockAgentSchema tool is deprecated. Please use the AWS IaC MCP Server instead.'
+    msg = (
+        'GenerateBedrockAgentSchema tool is deprecated. Please use the AWS IaC MCP Server instead.'
+    )
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
-    
+
     # Ensure the output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
