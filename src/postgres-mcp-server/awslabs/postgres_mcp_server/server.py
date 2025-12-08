@@ -140,7 +140,7 @@ async def run_query(
         db_endpoint=db_endpoint, 
         database=database)
     if not db_connection:
-        err = (f'No database connection available for method:{connection_method},',
+        err = (f'No database connection available for method:{connection_method},'
                f' cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}')
         logger.error(err)
         await ctx.error(err)

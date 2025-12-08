@@ -778,9 +778,9 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
     db_connection_map.set(
         ConnectionMethod.RDS_API,
         'example-cluster-name',
-        None,
+        '',
         'postgres',
-        mock_connection
+        mock_connection  # type: ignore
     )
 
     # This test of main() will succeed in parsing parameters and create connection object.
@@ -889,7 +889,10 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
         database,
         readonly,
         secret_arn,
+        db_user,
         region,
+        is_iam_auth=False,
+        pool_expiry_min=30,
         min_size=1,
         max_size=10,
         is_test=False,
@@ -902,7 +905,10 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             database,
             readonly,
             secret_arn,
+            db_user,
             region,
+            is_iam_auth,
+            pool_expiry_min,
             min_size,
             max_size,
             is_test=True,
@@ -1024,7 +1030,7 @@ def test_get_database_connection_info_with_connections():
         'test-cluster',
         'test-endpoint',
         'test-db',
-        mock_conn
+        mock_conn  # type: ignore
     )
     
     result = get_database_connection_info()
@@ -1102,7 +1108,7 @@ def test_is_database_connected_true():
         'test-cluster',
         '',
         'test-db',
-        mock_conn
+        mock_conn  # type: ignore
     )
     
     result = is_database_connected(
@@ -1125,7 +1131,7 @@ def test_is_database_connected_with_endpoint():
         'test-cluster',
         'test-endpoint.amazonaws.com',
         'test-db',
-        mock_conn
+        mock_conn  # type: ignore
     )
     
     # Test with matching endpoint

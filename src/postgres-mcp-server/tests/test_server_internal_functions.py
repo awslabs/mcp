@@ -45,7 +45,7 @@ class TestInternalConnectToDatabase:
             internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
-                connection_method=None,
+                connection_method=None,  # type: ignore
                 cluster_identifier='test-cluster',
                 db_endpoint='test.endpoint.com',
                 port=5432,
@@ -57,7 +57,7 @@ class TestInternalConnectToDatabase:
         with pytest.raises(ValueError, match="database_type can't be none or empty"):
             internal_connect_to_database(
                 region='us-east-1',
-                database_type=None,
+                database_type=None,  # type: ignore
                 connection_method=ConnectionMethod.RDS_API,
                 cluster_identifier='test-cluster',
                 db_endpoint='test.endpoint.com',
