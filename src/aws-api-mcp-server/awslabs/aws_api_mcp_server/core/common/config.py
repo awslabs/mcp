@@ -117,7 +117,7 @@ def get_user_agent_extra() -> str:
 
         if client_params := ctx.session.client_params:
             user_agent_extra += (
-                f' MCPClient/{client_params.clientInfo.name}-{client_params.clientInfo.version}'
+                f' MCPClient/{client_params.clientInfo.name}#{client_params.clientInfo.version}'
             )
     except RuntimeError:
         pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
