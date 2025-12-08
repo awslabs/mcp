@@ -7,9 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Updated default AWS API connect and read timeout (#1876)
+
+## [1.1.8] - 2025-11-28
+
+
+### Fixed
+
+- Origin header parsing (#1851)
+
+## [1.1.7] - 2025-11-20
+
+### Added
+
+- Allow disabling local file system access (#1774)
+
 ### Fixed
 
 - Deprecation warnings for passing transport settings when creating the server (#1772)
+
+## [1.1.6] - 2025-11-19
+
+### Changed
+
+- Bump FastMCP to 2.13.1
 
 ## [1.1.5] - 2025-11-13
 
