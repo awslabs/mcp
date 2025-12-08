@@ -15,19 +15,28 @@
 """Main server module for Amazon SNS and SQS MCP server."""
 
 import argparse
-from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.sns import register_sns_tools
 from awslabs.amazon_sns_sqs_mcp_server.sqs import register_sqs_tools
 from mcp.server.fastmcp import FastMCP
 
+# Define server instructions and dependencies
+SERVER_INSTRUCTIONS = """Manage Amazon SNS topics, subscriptions, and Amazon SQS queues for messaging."""
 
-# instantiate base server
-mcp = FastMCP(
-    'awslabs.amazon-sns-sqs-mcp-server',
-    instructions="""Manage Amazon SNS topics, subscriptions, and Amazon SQS queues for messaging.""",
-    dependencies=['pydantic', 'boto3'],
-    version=MCP_SERVER_VERSION,
-)
+SERVER_DEPENDENCIES = [
+    'pydantic',
+    'boto3'
+]
+
+def create_server():
+    """Create and configure the MCP server instance."""
+    return FastMCP(
+        'awslabs.amazon-sns-sqs-mcp-server',
+        instructions=SERVER_INSTRUCTIONS,
+        dependencies=SERVER_DEPENDENCIES
+    )
+
+
+mcp = create_server()
 
 
 def main():
@@ -50,7 +59,6 @@ def main():
     register_sqs_tools(mcp, disallow_resource_creation)
 
     mcp.run()
-
 
 if __name__ == '__main__':
     main()
