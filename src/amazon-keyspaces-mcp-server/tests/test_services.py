@@ -14,10 +14,9 @@
 """Unit tests for the services module."""
 
 import unittest
-from unittest.mock import AsyncMock, Mock
-
 from awslabs.amazon_keyspaces_mcp_server.models import KeyspaceInfo, TableInfo
 from awslabs.amazon_keyspaces_mcp_server.services import DataService, SchemaService
+from unittest.mock import AsyncMock, Mock
 
 
 class TestDataService(unittest.IsolatedAsyncioTestCase):
@@ -152,4 +151,3 @@ class TestSchemaService(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -13,11 +13,8 @@
 # and limitations under the License.
 """Unit tests for the server module."""
 
-import unittest
-from unittest.mock import AsyncMock, Mock, patch
-
 import pytest
-
+import unittest
 from awslabs.amazon_keyspaces_mcp_server.consts import MAX_DISPLAY_ROWS
 from awslabs.amazon_keyspaces_mcp_server.models import (
     KeyspaceInfo,
@@ -29,6 +26,7 @@ from awslabs.amazon_keyspaces_mcp_server.server import (
     get_proxy,
 )
 from mcp.server.fastmcp import Context
+from unittest.mock import AsyncMock, Mock, patch
 
 
 # pylint: disable=protected-access,too-many-public-methods
@@ -540,6 +538,7 @@ async def test_get_proxy(mock_app_config, mock_client_class):
     # Reset the global proxy
     # pylint: disable=import-outside-toplevel
     import awslabs.amazon_keyspaces_mcp_server.server as server_module
+
     server_module._PROXY = None  # pylint: disable=protected-access
 
     # Set up the mocks
@@ -564,7 +563,7 @@ async def test_get_proxy(mock_app_config, mock_client_class):
 if __name__ == '__main__':
     import sys
 
-    print('\n' + '='*70)
+    print('\n' + '=' * 70)
     print('Running Amazon Keyspaces MCP Server Tests')
-    print('='*70 + '\n')
+    print('=' * 70 + '\n')
     sys.exit(pytest.main([__file__, '-v', '--tb=short']))

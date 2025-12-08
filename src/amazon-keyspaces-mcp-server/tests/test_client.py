@@ -15,11 +15,6 @@
 
 import ssl
 import unittest
-from unittest.mock import Mock, patch
-
-from cassandra.auth import PlainTextAuthProvider
-from cassandra.cluster import Cluster, Session
-
 from awslabs.amazon_keyspaces_mcp_server.client import UnifiedCassandraClient
 from awslabs.amazon_keyspaces_mcp_server.config import DatabaseConfig
 from awslabs.amazon_keyspaces_mcp_server.consts import (
@@ -27,6 +22,9 @@ from awslabs.amazon_keyspaces_mcp_server.consts import (
     KEYSPACES_DEFAULT_PORT,
 )
 from awslabs.amazon_keyspaces_mcp_server.models import TableInfo
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster, Session
+from unittest.mock import Mock, patch
 
 
 # pylint: disable=no-member
@@ -694,7 +692,7 @@ class TestUnifiedCassandraClient(unittest.IsolatedAsyncioTestCase):
         mock_capacity_row.custom_properties = {
             'capacity_mode': 'PROVISIONED',
             'read_capacity_units': '100',
-            'write_capacity_units': '50'
+            'write_capacity_units': '50',
         }
 
         def mock_execute(query, _params=None):
@@ -787,7 +785,6 @@ class TestUnifiedCassandraClient(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('capacity_mode', table_details)
             self.assertNotIn('read_capacity_units', table_details)
             self.assertNotIn('write_capacity_units', table_details)
-
 
     async def test_describe_table_with_on_demand_capacity(self):
         """Test table with ON_DEMAND capacity mode."""

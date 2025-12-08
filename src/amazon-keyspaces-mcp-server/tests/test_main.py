@@ -14,9 +14,8 @@
 """Tests for the main function in server.py."""
 
 import inspect
-from unittest.mock import patch
-
 from awslabs.amazon_keyspaces_mcp_server.server import main
+from unittest.mock import patch
 
 
 class TestMain:

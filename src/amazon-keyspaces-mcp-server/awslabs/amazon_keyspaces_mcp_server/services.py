@@ -15,10 +15,9 @@
 
 import logging
 import re
-from typing import Any, Dict, List
-
 from .client import UnifiedCassandraClient
 from .models import KeyspaceInfo, QueryAnalysisResult, TableInfo
+from typing import Any, Dict, List
 
 
 logger = logging.getLogger(__name__)

@@ -21,11 +21,6 @@ through the Cassandra driver.
 import logging
 import os
 import ssl
-from typing import Any, Dict, List, Optional
-
-from cassandra.auth import PlainTextAuthProvider
-from cassandra.cluster import Cluster, Session
-
 from .consts import (
     CERT_DIRECTORY,
     CERT_FILENAME,
@@ -35,6 +30,9 @@ from .consts import (
     PROTOCOL_VERSION,
     UNSAFE_OPERATIONS,
 )
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster, Session
+from typing import Any, Dict, List, Optional
 
 
 # Older versions of the Cassandra Python driver may not include SSLOptions. Conditionally
@@ -252,8 +250,7 @@ class UnifiedCassandraClient:
         """Get detailed information about a table."""
         try:
             query = (
-                'SELECT * FROM system_schema.tables WHERE '
-                'keyspace_name = %s AND table_name = %s'
+                'SELECT * FROM system_schema.tables WHERE keyspace_name = %s AND table_name = %s'
             )
             session = await self.get_session()
 
@@ -318,9 +315,7 @@ class UnifiedCassandraClient:
                     )
                     session = await self.get_session()
 
-                    capacity_row = session.execute(
-                        query, [keyspace_name, table_name]
-                    ).one()
+                    capacity_row = session.execute(query, [keyspace_name, table_name]).one()
 
                     if capacity_row and capacity_row.custom_properties:
                         props = capacity_row.custom_properties
@@ -328,13 +323,20 @@ class UnifiedCassandraClient:
                             table_details['capacity_mode'] = props['capacity_mode']
 
                             if props['capacity_mode'] == 'PROVISIONED':
-                                if 'read_capacity_units' not in props or 'write_capacity_units' not in props:
+                                if (
+                                    'read_capacity_units' not in props
+                                    or 'write_capacity_units' not in props
+                                ):
                                     raise RuntimeError(
                                         f'PROVISIONED capacity mode requires both read_capacity_units '
                                         f'and write_capacity_units for table {keyspace_name}.{table_name}'
                                     )
-                                table_details['read_capacity_units'] = int(props['read_capacity_units'])
-                                table_details['write_capacity_units'] = int(props['write_capacity_units'])
+                                table_details['read_capacity_units'] = int(
+                                    props['read_capacity_units']
+                                )
+                                table_details['write_capacity_units'] = int(
+                                    props['write_capacity_units']
+                                )
                 except (RuntimeError, ValueError, AttributeError) as e:
                     # Ignore errors when trying to get capacity information
                     logger.warning(
@@ -361,10 +363,7 @@ class UnifiedCassandraClient:
             raise ValueError('Only SELECT queries are allowed for read-only execution')
 
         # Check for any modifications that might be disguised as SELECT
-        if any(
-            op in trimmed_query
-            for op in UNSAFE_OPERATIONS
-        ):
+        if any(op in trimmed_query for op in UNSAFE_OPERATIONS):
             raise ValueError('Query contains potentially unsafe operations')
 
         try:
@@ -398,9 +397,7 @@ class UnifiedCassandraClient:
                         if hasattr(row, col_name) and getattr(row, col_name) is not None:
                             value = getattr(row, col_name)
                     except (AttributeError, TypeError, ValueError) as e:
-                        logger.warning(
-                            'Error getting value for column %s: %s', col_name, str(e)
-                        )
+                        logger.warning('Error getting value for column %s: %s', col_name, str(e))
                     row_data[col_name] = value
                 rows.append(row_data)
 

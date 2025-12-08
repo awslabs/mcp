@@ -15,7 +15,6 @@
 """Tests for llm_context module."""
 
 import unittest
-
 from awslabs.amazon_keyspaces_mcp_server.llm_context import (
     build_query_result_context,
     build_table_details_context,
@@ -31,9 +30,7 @@ class TestLlmContext(unittest.TestCase):
         table_details = {
             'keyspace_name': 'test_ks',
             'table_name': 'test_table',
-            '_keyspaces_context': {
-                'service_characteristics': 'serverless'
-            }
+            '_keyspaces_context': {'service_characteristics': 'serverless'},
         }
         result = build_table_details_context(table_details)
         self.assertIn('Service Characteristics', result)
@@ -41,11 +38,7 @@ class TestLlmContext(unittest.TestCase):
 
     def test_build_query_result_context_large_result(self):
         """Test query result context with large result set."""
-        query_results = {
-            'row_count': 150,
-            'columns': ['id'],
-            'rows': []
-        }
+        query_results = {'row_count': 150, 'columns': ['id'], 'rows': []}
         result = build_query_result_context(query_results)
         self.assertIn('Large Result', result)
 

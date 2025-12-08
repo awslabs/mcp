@@ -146,7 +146,7 @@ Edit the Kiro configuration file at `~/.kiro/settings/mcp.json`:
       "autoApprove" : []
     }
   }
-  
+
 }
 ```
 

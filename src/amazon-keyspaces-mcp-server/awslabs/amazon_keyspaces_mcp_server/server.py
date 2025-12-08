@@ -14,11 +14,6 @@
 """awslabs MCP Server implementation for Amazon Keyspaces (for Apache Cassandra)."""
 
 import sys
-from typing import Any, Optional
-
-from fastmcp import Context, FastMCP
-from loguru import logger
-
 from .client import UnifiedCassandraClient
 from .config import AppConfig
 from .consts import (
@@ -43,6 +38,9 @@ from .llm_context import (
 )
 from .models import KeyspaceInput, QueryInput, TableInput
 from .services import DataService, QueryAnalysisService, SchemaService
+from fastmcp import Context, FastMCP
+from loguru import logger
+from typing import Any, Optional
 
 
 # Remove all default handlers then add our own
@@ -175,7 +173,7 @@ Complete API documentation for Amazon Keyspaces management operations.
 ### Keyspace Management
 - CreateKeyspace, DeleteKeyspace, GetKeyspace, ListKeyspaces
 
-### Table Management  
+### Table Management
 - CreateTable, DeleteTable, GetTable, UpdateTable, ListTables, RestoreTable
 
 ### Configuration
@@ -463,9 +461,7 @@ class KeyspacesMcpStdioServer:
 
             # Add contextual information about Cassandra/Keyspaces
             if ctx:
-                ctx.info(
-                    'Adding contextual information about Cassandra/Keyspaces'
-                )  # type: ignore[unused-coroutine]
+                ctx.info('Adding contextual information about Cassandra/Keyspaces')  # type: ignore[unused-coroutine]
                 formatted_text += build_list_keyspaces_context(keyspaces)
 
             return formatted_text
@@ -492,9 +488,7 @@ class KeyspacesMcpStdioServer:
 
             # Add contextual information about tables in Cassandra
             if ctx:
-                ctx.info(
-                    f'Adding contextual information about tables in keyspace {keyspace}'
-                )  # type: ignore[unused-coroutine]
+                ctx.info(f'Adding contextual information about tables in keyspace {keyspace}')  # type: ignore[unused-coroutine]
                 formatted_text += build_list_tables_context(keyspace, tables)
 
             return formatted_text
@@ -502,9 +496,7 @@ class KeyspacesMcpStdioServer:
             logger.error(f'Error listing tables: {str(e)}')
             raise SchemaError('Unable to retrieve table information') from e
 
-    async def _handle_describe_keyspace(
-        self, keyspace: str, ctx: Optional[Context] = None
-    ) -> str:
+    async def _handle_describe_keyspace(self, keyspace: str, ctx: Optional[Context] = None) -> str:
         """Handle the describeKeyspace tool."""
         try:
             if not keyspace:
@@ -522,7 +514,7 @@ class KeyspacesMcpStdioServer:
 
             # Add replication factor or datacenter details
             if 'SimpleStrategy' in replication.get('class', ''):
-                rf = replication.get("replication_factor", "Unknown")
+                rf = replication.get('replication_factor', 'Unknown')
                 formatted_text += f'- **Replication Factor**: `{rf}`\n'
             elif 'NetworkTopologyStrategy' in replication.get('class', ''):
                 formatted_text += '- **Datacenter Replication**:\n'
@@ -536,9 +528,7 @@ class KeyspacesMcpStdioServer:
 
             # Add contextual information about replication strategies
             if ctx:
-                ctx.info(
-                    'Adding contextual information about replication strategies'
-                )  # type: ignore[unused-coroutine]
+                ctx.info('Adding contextual information about replication strategies')  # type: ignore[unused-coroutine]
                 formatted_text += build_keyspace_details_context(keyspace_details)
 
             return formatted_text
@@ -605,8 +595,7 @@ class KeyspacesMcpStdioServer:
             # Add contextual information about Cassandra data types and primary keys
             if ctx:
                 ctx.info(
-                    'Adding contextual information about Cassandra data types and '
-                    'primary keys'
+                    'Adding contextual information about Cassandra data types and primary keys'
                 )  # type: ignore[unused-coroutine]
                 formatted_text += build_table_details_context(table_details)
 
@@ -678,9 +667,7 @@ class KeyspacesMcpStdioServer:
 
             # Add contextual information about CQL queries
             if ctx:
-                ctx.info(
-                    'Adding contextual information about CQL queries'
-                )  # type: ignore[unused-coroutine]
+                ctx.info('Adding contextual information about CQL queries')  # type: ignore[unused-coroutine]
                 formatted_text += build_query_result_context(query_results)
 
             return formatted_text
@@ -717,9 +704,7 @@ class KeyspacesMcpStdioServer:
 
             # Add contextual information about query performance in Cassandra
             if ctx:
-                ctx.info(
-                    'Adding contextual information about query performance in Cassandra'
-                )  # type: ignore[unused-coroutine]
+                ctx.info('Adding contextual information about query performance in Cassandra')  # type: ignore[unused-coroutine]
                 formatted_text += build_query_analysis_context(analysis_result)
 
             return formatted_text

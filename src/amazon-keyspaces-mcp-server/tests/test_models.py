@@ -15,7 +15,6 @@
 """Tests for models module."""
 
 import unittest
-
 from awslabs.amazon_keyspaces_mcp_server.models import QueryInput
 
 
@@ -24,10 +23,7 @@ class TestModels(unittest.TestCase):
 
     def test_sanitize_query_with_hidden_characters(self):
         """Test query sanitization removes hidden unicode characters."""
-        input_data = QueryInput(
-            keyspace='test',
-            query='SELECT\u200B * FROM\uFEFF users\u0000'
-        )
+        input_data = QueryInput(keyspace='test', query='SELECT\u200b * FROM\ufeff users\u0000')
         self.assertEqual(input_data.query, 'SELECT * FROM users')
 
 

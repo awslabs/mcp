@@ -15,9 +15,8 @@
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
-
 from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, List
 
 
 @dataclass
@@ -134,39 +133,27 @@ class QueryAnalysisResult:
 # Pydantic models for input validation
 class KeyspaceInput(BaseModel):
     """Validated keyspace input."""
+
     keyspace: str = Field(
         ...,
         min_length=1,
         max_length=48,
         pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$',
-        description='Keyspace name (alphanumeric and underscore only)'
+        description='Keyspace name (alphanumeric and underscore only)',
     )
 
 
 class TableInput(BaseModel):
     """Validated table input."""
-    keyspace: str = Field(
-        ...,
-        min_length=1,
-        max_length=48,
-        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
-    )
-    table: str = Field(
-        ...,
-        min_length=1,
-        max_length=48,
-        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
-    )
+
+    keyspace: str = Field(..., min_length=1, max_length=48, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
+    table: str = Field(..., min_length=1, max_length=48, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
 
 
 class QueryInput(BaseModel):
     """Validated query input."""
-    keyspace: str = Field(
-        ...,
-        min_length=1,
-        max_length=48,
-        pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$'
-    )
+
+    keyspace: str = Field(..., min_length=1, max_length=48, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
     query: str = Field(..., min_length=1, max_length=10000)
 
     @field_validator('query')
@@ -179,11 +166,7 @@ class QueryInput(BaseModel):
 
 class ResourceArnInput(BaseModel):
     """Validated resource ARN input."""
+
     resource_arn: str = Field(
-        ...,
-        min_length=1,
-        max_length=1000,
-        description='ARN of the resource (keyspace or table)'
+        ..., min_length=1, max_length=1000, description='ARN of the resource (keyspace or table)'
     )
-
-

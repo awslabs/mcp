@@ -13,9 +13,8 @@
 # limitations under the License.
 """LLM context builder for Keyspaces MCP Server."""
 
-from typing import Any, Dict, List
-
 from .models import KeyspaceInfo, QueryAnalysisResult, TableInfo
+from typing import Any, Dict, List
 
 
 def build_list_keyspaces_context(_keyspaces: List[KeyspaceInfo]) -> str:
@@ -27,26 +26,25 @@ def build_list_keyspaces_context(_keyspaces: List[KeyspaceInfo]) -> str:
 
     # Add keyspace-specific guidance
     list_keyspaces_guidance = {
-        "compatibility": (
-            "Amazon Keyspaces is compatible with Apache Cassandra 3.11. "
-            "This means that it supports most of the same CQL language features "
-            "and is driver-protocol compatible with Cassandra 3.11."
+        'compatibility': (
+            'Amazon Keyspaces is compatible with Apache Cassandra 3.11. '
+            'This means that it supports most of the same CQL language features '
+            'and is driver-protocol compatible with Cassandra 3.11.'
         ),
-        "limitations": (
+        'limitations': (
             "Amazon Keyspaces doesn't support all Apache Cassandra 3.11 features. "
-            "For the most current list of unsupported features and CQL limitations, "
-            "refer to the CQL Reference resource (keyspaces://cql-reference) which "
-            "includes up-to-date information on supported operations, data types, "
-            "and known restrictions."
+            'For the most current list of unsupported features and CQL limitations, '
+            'refer to the CQL Reference resource (keyspaces://cql-reference) which '
+            'includes up-to-date information on supported operations, data types, '
+            'and known restrictions.'
         ),
-        "replication_strategy": (
-            "In Cassandra, common replication strategies include SimpleStrategy and "
-            "NetworkTopologyStrategy. Amazon Keyspaces uses a single-region "
-            "replication strategy with 3x replication for durability."
+        'replication_strategy': (
+            'In Cassandra, common replication strategies include SimpleStrategy and '
+            'NetworkTopologyStrategy. Amazon Keyspaces uses a single-region '
+            'replication strategy with 3x replication for durability.'
         ),
-        "naming_conventions": (
-            "Keyspace names typically use snake_case and represent logical data "
-            "domains."
+        'naming_conventions': (
+            'Keyspace names typically use snake_case and represent logical data domains.'
         ),
     }
     context['list_keyspaces_guidance'] = list_keyspaces_guidance
@@ -63,23 +61,23 @@ def build_list_tables_context(_keyspace_name: str, _tables: List[TableInfo]) -> 
 
     # Add table-specific guidance
     tables_guidance = {
-        "data_modeling": (
-            "For detailed information on Cassandra data modeling, primary keys, "
-            "partition keys, and clustering columns, refer to the Developer Guide "
-            "resource (keyspaces://developer-guide)."
+        'data_modeling': (
+            'For detailed information on Cassandra data modeling, primary keys, '
+            'partition keys, and clustering columns, refer to the Developer Guide '
+            'resource (keyspaces://developer-guide).'
         ),
-        "naming_conventions": (
-            "Table names typically use snake_case and should be descriptive of the "
-            "entity they represent."
+        'naming_conventions': (
+            'Table names typically use snake_case and should be descriptive of the '
+            'entity they represent.'
         ),
     }
 
     # Add guidance for empty results
     if not _tables:
-        tables_guidance["empty_result_interpretation"] = (
-            "When no tables are found, this could mean either: (1) the keyspace exists "
-            "but contains no tables, or (2) the keyspace does not exist. If you suspect "
-            "the keyspace might not exist, use the listKeyspaces tool to verify the "
+        tables_guidance['empty_result_interpretation'] = (
+            'When no tables are found, this could mean either: (1) the keyspace exists '
+            'but contains no tables, or (2) the keyspace does not exist. If you suspect '
+            'the keyspace might not exist, use the listKeyspaces tool to verify the '
             "keyspace name is correct before concluding it's empty."
         )
 
@@ -97,14 +95,14 @@ def build_keyspace_details_context(_keyspace_details: Dict[str, Any]) -> str:
 
     # Add keyspace-specific guidance
     keyspace_guidance = {
-        "replication_strategy": (
-            "Replication strategy determines how data is distributed across nodes. "
-            "Amazon Keyspaces manages replication automatically for high availability."
+        'replication_strategy': (
+            'Replication strategy determines how data is distributed across nodes. '
+            'Amazon Keyspaces manages replication automatically for high availability.'
         ),
-        "durable_writes": (
-            "Durable writes ensure data is written to the commit log before "
-            "acknowledging the write. This provides durability in case of node "
-            "failures."
+        'durable_writes': (
+            'Durable writes ensure data is written to the commit log before '
+            'acknowledging the write. This provides durability in case of node '
+            'failures.'
         ),
     }
     context['keyspace_guidance'] = keyspace_guidance
@@ -131,18 +129,18 @@ def build_table_details_context(table_details: Dict[str, Any]) -> str:
 
     # Add table-specific guidance
     table_guidance = {
-        "partition_key": (
-            "Partition keys determine data distribution across the cluster. "
-            "Queries are most efficient when they include the partition key."
+        'partition_key': (
+            'Partition keys determine data distribution across the cluster. '
+            'Queries are most efficient when they include the partition key.'
         ),
-        "clustering_columns": (
-            "Clustering columns determine the sort order within a partition. "
-            "They enable range queries within a partition."
+        'clustering_columns': (
+            'Clustering columns determine the sort order within a partition. '
+            'They enable range queries within a partition.'
         ),
-        "secondary_indexes": (
-            "Secondary indexes should be used sparingly in Cassandra. "
-            "They are best for low-cardinality columns and can impact write "
-            "performance."
+        'secondary_indexes': (
+            'Secondary indexes should be used sparingly in Cassandra. '
+            'They are best for low-cardinality columns and can impact write '
+            'performance.'
         ),
     }
     context['table_guidance'] = table_guidance
@@ -159,19 +157,19 @@ def build_query_result_context(query_results: Dict[str, Any]) -> str:
 
     # Add query-specific guidance
     query_guidance = {
-        "performance_considerations": (
-            "Cassandra queries are most efficient when they include the partition key. "
-            "Queries without a partition key may require a full table scan, which can "
-            "be inefficient for large tables."
+        'performance_considerations': (
+            'Cassandra queries are most efficient when they include the partition key. '
+            'Queries without a partition key may require a full table scan, which can '
+            'be inefficient for large tables.'
         ),
-        "pagination": (
-            "For large result sets, consider using pagination with the LIMIT clause "
-            "and token-based paging to avoid loading too many rows in memory."
+        'pagination': (
+            'For large result sets, consider using pagination with the LIMIT clause '
+            'and token-based paging to avoid loading too many rows in memory.'
         ),
-        "consistency_level": (
-            "The consistency level determines how many replicas must acknowledge a "
-            "read request before returning data. Higher consistency levels provide "
-            "stronger guarantees but may increase latency."
+        'consistency_level': (
+            'The consistency level determines how many replicas must acknowledge a '
+            'read request before returning data. Higher consistency levels provide '
+            'stronger guarantees but may increase latency.'
         ),
     }
 
@@ -181,14 +179,14 @@ def build_query_result_context(query_results: Dict[str, Any]) -> str:
 
     result_guidance = {}
     if row_count == 0:
-        result_guidance["empty_result"] = (
-            "No rows were returned. This could mean either no matching data exists "
-            "or the query conditions were too restrictive."
+        result_guidance['empty_result'] = (
+            'No rows were returned. This could mean either no matching data exists '
+            'or the query conditions were too restrictive.'
         )
     elif row_count > 100:
-        result_guidance["large_result"] = (
-            "A large number of rows were returned. Consider adding more specific "
-            "filtering conditions or using pagination for better performance."
+        result_guidance['large_result'] = (
+            'A large number of rows were returned. Consider adding more specific '
+            'filtering conditions or using pagination for better performance.'
         )
 
     context['result_guidance'] = result_guidance
@@ -205,28 +203,28 @@ def build_query_analysis_context(analysis_result: QueryAnalysisResult) -> str:
 
     # Add query performance guidance
     performance_guidance = {
-        "partition_key_importance": (
+        'partition_key_importance': (
             "In Cassandra/Keyspaces, queries that don't filter on partition key "
-            "require scanning all partitions, which is extremely expensive and should "
-            "be avoided."
+            'require scanning all partitions, which is extremely expensive and should '
+            'be avoided.'
         ),
-        "clustering_column_usage": (
-            "After partition keys, clustering columns should be used in WHERE clauses "
-            "to further narrow down the data that needs to be read within a partition."
+        'clustering_column_usage': (
+            'After partition keys, clustering columns should be used in WHERE clauses '
+            'to further narrow down the data that needs to be read within a partition.'
         ),
-        "allow_filtering_warning": (
-            "The ALLOW FILTERING clause forces Cassandra to scan potentially all "
-            "partitions, which is very inefficient and should be avoided in production."
+        'allow_filtering_warning': (
+            'The ALLOW FILTERING clause forces Cassandra to scan potentially all '
+            'partitions, which is very inefficient and should be avoided in production.'
         ),
-        "secondary_indexes": (
-            "Secondary indexes in Cassandra are not as efficient as in relational "
-            "databases. They still require reading from multiple partitions and should "
-            "be used sparingly."
+        'secondary_indexes': (
+            'Secondary indexes in Cassandra are not as efficient as in relational '
+            'databases. They still require reading from multiple partitions and should '
+            'be used sparingly.'
         ),
-        "full_table_scan": (
-            "Full table scans in Cassandra are extremely expensive operations that "
-            "should be avoided. Always design your data model and queries to avoid "
-            "scanning entire tables."
+        'full_table_scan': (
+            'Full table scans in Cassandra are extremely expensive operations that '
+            'should be avoided. Always design your data model and queries to avoid '
+            'scanning entire tables.'
         ),
     }
 
@@ -249,22 +247,22 @@ def build_query_analysis_context(analysis_result: QueryAnalysisResult) -> str:
 def build_cassandra_knowledge() -> Dict[str, str]:
     """Provide general Cassandra knowledge."""
     knowledge = {
-        "data_model": (
-            "Cassandra uses a wide-column store data model optimized for write "
-            "performance and horizontal scalability."
+        'data_model': (
+            'Cassandra uses a wide-column store data model optimized for write '
+            'performance and horizontal scalability.'
         ),
-        "query_patterns": (
-            "Cassandra is optimized for high write throughput and queries that "
-            "specify the partition key."
+        'query_patterns': (
+            'Cassandra is optimized for high write throughput and queries that '
+            'specify the partition key.'
         ),
-        "limitations": (
-            "Cassandra has limited support for joins, aggregations, and transactions. "
-            "Data modeling should denormalize data to support specific query patterns."
+        'limitations': (
+            'Cassandra has limited support for joins, aggregations, and transactions. '
+            'Data modeling should denormalize data to support specific query patterns.'
         ),
-        "keyspaces_vs_cassandra": (
-            "Amazon Keyspaces is a managed Cassandra-compatible service with some "
-            "differences in performance characteristics and feature support compared "
-            "to self-managed Cassandra."
+        'keyspaces_vs_cassandra': (
+            'Amazon Keyspaces is a managed Cassandra-compatible service with some '
+            'differences in performance characteristics and feature support compared '
+            'to self-managed Cassandra.'
         ),
     }
 
@@ -274,17 +272,17 @@ def build_cassandra_knowledge() -> Dict[str, str]:
 def build_amazon_keyspaces_knowledge() -> Dict[str, str]:
     """Provide Amazon Keyspaces specific knowledge."""
     knowledge = {
-        "compatibility": (
-            "For current compatibility information with Apache Cassandra, refer to "
-            "the Developer Guide resource (keyspaces://developer-guide)."
+        'compatibility': (
+            'For current compatibility information with Apache Cassandra, refer to '
+            'the Developer Guide resource (keyspaces://developer-guide).'
         ),
-        "differences_from_cassandra": (
-            "For Apache Cassandra features and capabilities, refer to the official "
-            "Apache Cassandra documentation at https://cassandra.apache.org/doc/. "
-            "For differences between Amazon Keyspaces and Apache Cassandra, including "
-            "unsupported features and operational differences, refer to the CQL "
-            "Reference resource (keyspaces://cql-reference) and Developer Guide "
-            "resource (keyspaces://developer-guide)."
+        'differences_from_cassandra': (
+            'For Apache Cassandra features and capabilities, refer to the official '
+            'Apache Cassandra documentation at https://cassandra.apache.org/doc/. '
+            'For differences between Amazon Keyspaces and Apache Cassandra, including '
+            'unsupported features and operational differences, refer to the CQL '
+            'Reference resource (keyspaces://cql-reference) and Developer Guide '
+            'resource (keyspaces://developer-guide).'
         ),
     }
 

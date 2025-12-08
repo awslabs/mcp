@@ -17,7 +17,7 @@
 class KeyspacesException(Exception):
     """Base exception for Keyspaces MCP server errors."""
 
-    def __init__(self, message: str, details: str = ""):
+    def __init__(self, message: str, details: str = ''):
         """Initialize exception with message and optional details."""
         self.message = message
         self.details = details

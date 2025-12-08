@@ -14,13 +14,12 @@
 """Unit tests for the QueryAnalysisService class."""
 
 import unittest
-from unittest.mock import AsyncMock, Mock, PropertyMock
-
 from awslabs.amazon_keyspaces_mcp_server.models import QueryAnalysisResult
 from awslabs.amazon_keyspaces_mcp_server.services import (
     QueryAnalysisService,
     SchemaService,
 )
+from unittest.mock import AsyncMock, Mock, PropertyMock
 
 
 # pylint: disable=protected-access
@@ -341,9 +340,7 @@ class TestQueryAnalysisService(unittest.IsolatedAsyncioTestCase):
 
     async def test_extract_where_conditions_no_where(self):
         """Test extracting WHERE conditions from query without WHERE clause."""
-        conditions = self.query_analysis_service._extract_where_conditions(
-            'SELECT * FROM users'
-        )
+        conditions = self.query_analysis_service._extract_where_conditions('SELECT * FROM users')
         self.assertEqual(conditions, [])
 
 
