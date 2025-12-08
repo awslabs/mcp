@@ -76,10 +76,6 @@ def setup_server_config():
     auth_provider = None
     middleware = []
 
-    print(
-        f'Relevant env variables are: AUTH_TYPE={AUTH_TYPE}, AUTH_ISSUER={AUTH_ISSUER}, AUTH_JWKS_URI={AUTH_JWKS_URI}, TRANSPORT={TRANSPORT}'
-    )
-
     if TRANSPORT != 'streamable-http':
         return auth_provider, middleware
 
