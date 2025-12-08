@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Fixed
+### Added
+* AWS CLI operations 'help' command support (#1858)
 
+## [1.1.8] - 2025-11-28
+
+### Fixed
 - Origin header parsing (#1851)
 
 ## [1.1.7] - 2025-11-20
