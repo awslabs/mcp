@@ -14,14 +14,13 @@
 
 """Tests for AbstractDBConnection class."""
 
-import pytest
-from typing import Any, Dict, List, Optional
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from typing import Any, Dict, List, Optional
 
 
 class ConcreteDBConnection(AbstractDBConnection):
     """Minimal concrete implementation for testing AbstractDBConnection initialization.
-    
+
     These abstract method implementations are required by Python's ABC but are not
     used in the tests. They exist only to allow instantiation of the class.
     """
@@ -43,10 +42,10 @@ class ConcreteDBConnection(AbstractDBConnection):
 
 class TestAbstractDBConnection:
     """Test suite for AbstractDBConnection class.
-    
+
     Note: This class primarily tests the initialization and readonly_query property.
     The abstract methods (execute_query, close, check_connection_health) are tested
-    in the concrete implementation test files (test_rds_api_connection.py, 
+    in the concrete implementation test files (test_rds_api_connection.py,
     test_psycopg_connector.py).
     """
 

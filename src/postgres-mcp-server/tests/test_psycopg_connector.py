@@ -17,8 +17,8 @@ import concurrent.futures
 import pytest
 import threading
 import time
-from datetime import datetime, timedelta
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -875,7 +875,7 @@ class TestPsycopgConnector:
         """Test initializing pool with Secrets Manager credentials."""
         with patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool') as mock_pool_class, \
              patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds:
-            
+
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
             mock_get_creds.return_value = ('db_user', 'db_password')
@@ -903,7 +903,7 @@ class TestPsycopgConnector:
         """Test initializing pool with IAM auth token."""
         with patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool') as mock_pool_class, \
              patch.object(PsycopgPoolConnection, 'get_iam_auth_token') as mock_get_token:
-            
+
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
             mock_get_token.return_value = 'iam_token_123'
@@ -984,7 +984,7 @@ class TestPsycopgConnector:
         """Test check_expiry when pool is expired."""
         with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class, \
              patch.object(PsycopgPoolConnection, 'initialize_pool') as mock_init:
-            
+
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 

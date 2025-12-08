@@ -3,17 +3,14 @@
 """Unit tests for DBConnectionMap class."""
 
 import json
+import pytest
 import threading
 import time
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.db_connection_map import (
-    DBConnectionMap,
     ConnectionMethod,
+    DBConnectionMap,
 )
+from unittest.mock import MagicMock, patch
 
 
 class TestDBConnectionMap:
@@ -276,7 +273,7 @@ class TestDBConnectionMap:
         assert len(keys) == 3
 
         key_tuples = [
-            (k["connection_method"], k["cluster_identifier"], k["db_endpoint"], k["database"]) 
+            (k["connection_method"], k["cluster_identifier"], k["db_endpoint"], k["database"])
             for k in keys
         ]
         assert (ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1") in key_tuples
@@ -344,7 +341,7 @@ class TestDBConnectionMap:
         conn1 = MagicMock()
         conn2 = MagicMock()
         conn3 = MagicMock()
-        
+
         # Make close() synchronous
         conn1.close = MagicMock()
         conn2.close = MagicMock(side_effect=Exception("Connection close failed"))
@@ -370,7 +367,7 @@ class TestDBConnectionMap:
         conn1 = MagicMock()
         conn2 = MagicMock()
         conn3 = MagicMock()
-        
+
         # Make close() synchronous and make conn1 and conn3 raise exceptions
         conn1.close = MagicMock(side_effect=Exception("First failure"))
         conn2.close = MagicMock()
@@ -387,7 +384,7 @@ class TestDBConnectionMap:
         conn1.close.assert_called_once()
         conn2.close.assert_called_once()  # Should succeed
         conn3.close.assert_called_once()
-        
+
         # Map should be cleared (this is the important behavior)
         assert connection_map.map == {}
 

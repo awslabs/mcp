@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for server helper functions."""
 
-import pytest
 from awslabs.postgres_mcp_server.server import extract_cell, parse_execute_response
 
 

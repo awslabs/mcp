@@ -20,23 +20,30 @@ import json
 import sys
 import threading
 import traceback
-import boto3
-
-from awslabs.postgres_mcp_server.connection.db_connection_map import DBConnectionMap, ConnectionMethod, DatabaseType
-from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_get_cluster_properties, internal_create_serverless_cluster, setup_aurora_iam_policy_for_current_user, internal_get_instance_properties
-from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    internal_create_serverless_cluster,
+    internal_get_cluster_properties,
+    internal_get_instance_properties,
+    setup_aurora_iam_policy_for_current_user,
+)
+from awslabs.postgres_mcp_server.connection.db_connection_map import (
+    ConnectionMethod,
+    DatabaseType,
+    DBConnectionMap,
+)
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
+from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
-from datetime import datetime
 
 
 db_connection_map = DBConnectionMap()
@@ -109,7 +116,6 @@ async def run_query(
     query_parameters: Annotated[
         Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
     ] = None) -> list[dict]:  # type: ignore
-
     """Run a SQL query against PostgreSQL.
 
     Args:
@@ -135,13 +141,15 @@ async def run_query(
              f'sql:{sql}')
 
     db_connection = db_connection_map.get(
-        method=connection_method, 
-        cluster_identifier=cluster_identifier, 
-        db_endpoint=db_endpoint, 
+        method=connection_method,
+        cluster_identifier=cluster_identifier,
+        db_endpoint=db_endpoint,
         database=database)
     if not db_connection:
-        err = (f'No database connection available for method:{connection_method},'
-               f' cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}')
+        err = (
+            f'No database connection available for method:{connection_method}, '
+            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}'
+        )
         logger.error(err)
         await ctx.error(err)
         return [{'error': err}]
@@ -243,32 +251,31 @@ def connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')]) -> str:
-        
-    """Connect to a specific database save the connection internally
+    """Connect to a specific database save the connection internally.
 
     Args:
         region: region of the database. Required parametere.
         database_type: Either APG for Aurora Postgres or RPG for RDS Postgres cluster. Required parameter
-        connection_type: Either RDS_API, IAM, or PG_AUTH. Required parameter
+        connection_method: Either RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL. Required parameter
         cluster_identifier: Either Aurora Postgres cluster identifier or RDS Postgres cluster identifier
         db_endpoint: database endpoint
+        port: database port
         database: database name. Required parameter
 
         Supported scenario:
-        1. Aurora Postgres database with RDS_API + Credential Manager: 
+        1. Aurora Postgres database with RDS_API + Credential Manager:
             cluster_identifier must be set
             db_endpoint and port will be ignored
-        2. Aurora Postgres database with direct connection + IAM: 
+        2. Aurora Postgres database with direct connection + IAM:
             cluster_identifier must be set
             db_endpoint must be set
-        3. Aurora Postgres database with direct connection + PG_AUTH (Credential Manager): 
+        3. Aurora Postgres database with direct connection + PG_AUTH (Credential Manager):
             cluster_identifier must be set
             db_endpoint must be set
         4. RDS Postgres database with direct connection + PG_AUTH (Credential Manager):
             credential manager setting is either on instance or cluster
             db_endpoint must be set
     """
-
     try:
         db_connection, llm_response = internal_connect_to_database(
             region=region,
@@ -290,9 +297,9 @@ def connect_to_database(
                 "status":"Failed",
                 "error":str(e)
             }
-        return json.dumps(llm_response, indent=2) 
+        return json.dumps(llm_response, indent=2)
 
-    
+
 @mcp.tool(
     name='is_database_connected',
     description='Check if a connection has been established')
@@ -300,8 +307,7 @@ def is_database_connected(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')] = '',
     database: Annotated[str, Field(description='database name')] = 'postgres')->bool:
-
-    """Check if a connection has been established
+    """Check if a connection has been established.
 
     Args:
         cluster_identifier: cluster identifier
@@ -311,11 +317,10 @@ def is_database_connected(
     Returns:
         result in boolean
     """
-
     global db_connection_map
     if db_connection_map.get(ConnectionMethod.RDS_API, cluster_identifier, db_endpoint, database):
         return True
-    
+
     if db_connection_map.get(ConnectionMethod.PG_WIRE_PROTOCOL, cluster_identifier, db_endpoint, database):
         return True
 
@@ -328,13 +333,11 @@ def is_database_connected(
     name='get_database_connection_info',
     description='Get all cached database connection information')
 def get_database_connection_info()->str:
-       
-    """
-        Get all cached database connection information
-        Return:
-            A list of cached connection information
-    """
+    """Get all cached database connection information.
 
+    Return:
+        A list of cached connection information.
+    """
     global db_connection_map
     return db_connection_map.get_keys_json()
 
@@ -347,8 +350,7 @@ def create_cluster(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     database: Annotated[str, Field(description='default database name')] = 'postgres',
     engine_version: Annotated[str, Field(description='engine version')] = '17.5') -> str:
-
-    """Create an RDS/Aurora cluster
+    """Create an RDS/Aurora cluster.
 
     Args:
         region: region
@@ -359,7 +361,6 @@ def create_cluster(
     Returns:
         result
     """
-
     logger.info(f'Entered create_cluster with region:{region}, '
                 f'cluster_identifier:{cluster_identifier} '
                 f'database:{database} '
@@ -386,7 +387,7 @@ def create_cluster(
     logger.info(f"start_create_cluster_job return with job_id:{job_id}"
                 f"region:{region} cluster_identifier:{cluster_identifier} database:{database} "
                 f"engine_version:{engine_version}")
-    
+
     result = {
             "status": "Pending",
             "message": "cluster creation started",
@@ -403,8 +404,7 @@ def create_cluster(
     name='get_job_status',
     description='get background job status')
 def get_job_status(job_id: str) -> dict:
-
-    """Get background job status
+    """Get background job status.
 
     Args:
         job_id: job id
@@ -421,13 +421,14 @@ def get_job_status(job_id: str) -> dict:
         async_job_status_lock.release()
 
 def create_cluster_worker(
-        job_id:str, 
-        region:str, 
+        job_id:str,
+        region:str,
         database_type: DatabaseType,
         connection_method: ConnectionMethod,
-        cluster_identifier:str, 
-        engine_version:str, 
+        cluster_identifier:str,
+        engine_version:str,
         database:str):
+    """Background worker to create a cluster asynchronously."""
     global db_connection_map
     global async_job_status
     global async_job_status_lock
@@ -439,12 +440,12 @@ def create_cluster_worker(
             cluster_identifier = cluster_identifier,
             engine_version = engine_version,
             database_name = database)
-        
+
         setup_aurora_iam_policy_for_current_user(
             db_user=cluster_result['MasterUsername'],
-            cluster_resource_id=cluster_result['DbClusterResourceId'], 
+            cluster_resource_id=cluster_result['DbClusterResourceId'],
             cluster_region=region)
-        
+
         internal_connect_to_database(
             region = region,
             database_type = database_type,
@@ -453,7 +454,7 @@ def create_cluster_worker(
             db_endpoint=cluster_result["Endpoint"],
             port=5432,
             database=database)
-    
+
         try:
             async_job_status_lock.acquire()
             async_job_status[job_id]["state"] = "succeeded"
@@ -477,18 +478,17 @@ def internal_connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres') -> Tuple:
-        
-    """Connect to a specific database save the connection internally
+    """Connect to a specific database save the connection internally.
 
     Args:
         region: region
-        database_type: 
-        connection_method: 
+        database_type: database type (APG or RPG)
+        connection_method: connection method (RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL)
         cluster_identifier: cluster identifier
         db_endpoint: database endpoint
+        port: database port
         database: database name
     """
-
     global db_connection_map
     global readonly_query
 
@@ -503,13 +503,13 @@ def internal_connect_to_database(
 
     if not region:
         raise ValueError("region can't be none or empty")
-    
+
     if not connection_method:
         raise ValueError("connection_method can't be none or empty")
-    
+
     if not database_type:
         raise ValueError("database_type can't be none or empty")
-    
+
     if database_type == DatabaseType.APG and not cluster_identifier:
         raise ValueError("cluster_identifier can't be none or empty for Aurora Postgres Database")
 
@@ -523,16 +523,16 @@ def internal_connect_to_database(
                 "port": port
             }, indent=2, default=str)
         return (existing_conn, llm_response)
-    
+
     enable_data_api:bool = False
     masteruser:str = ''
     cluster_arn:str = ''
     secret_arn:str = ''
-    
+
     if cluster_identifier:
         # Can be either APG (APG always requires cluster) or RPG multi-AZ cluster deployment case
         cluster_properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier, 
+            cluster_identifier=cluster_identifier,
             region=region)
 
         enable_data_api = cluster_properties.get("HttpEndpointEnabled", False)
@@ -573,7 +573,7 @@ def internal_connect_to_database(
             db_user=masteruser,
             region=region,
             is_iam_auth=True)
-        
+
     elif connection_method == ConnectionMethod.RDS_API:
         db_connection = RDSDataAPIConnection(
             cluster_arn=cluster_arn,
@@ -592,7 +592,7 @@ def internal_connect_to_database(
             db_user='',
             region=region,
             is_iam_auth=False)
-    
+
     if db_connection:
         db_connection_map.set(connection_method, cluster_identifier, db_endpoint, database, db_connection)
         llm_response = json.dumps({
@@ -607,10 +607,8 @@ def internal_connect_to_database(
     raise ValueError("Can't create connection because invalid input parameter combination")
 
 def main():
+    """Main entry point for the MCP server application.
 
-    """
-    Main entry point for the MCP server application.
-    
     Runs the MCP server with CLI argument support for PostgreSQL connections.
     """
     global db_connection_map
@@ -639,7 +637,7 @@ def main():
                 f"allow_write_query:{args.allow_write_query}\n"
                 f"database:{args.database}\n"
                 f"port:{args.port}\n")
-    
+
     readonly_query = not args.allow_write_query
 
     try:
@@ -660,7 +658,7 @@ def main():
             # Test database connection
             if db_connection:
                 ctx = DummyCtx()
-                response = asyncio.run(run_query('SELECT 1', ctx, 
+                response = asyncio.run(run_query('SELECT 1', ctx,
                     ConnectionMethod[args.connection_method], cluster_identifier, args.db_endpoint, args.database))
                 if (
                     isinstance(response, list)

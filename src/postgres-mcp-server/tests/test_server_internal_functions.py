@@ -15,12 +15,12 @@
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
-from awslabs.postgres_mcp_server.server import (
-    internal_connect_to_database,
-    create_cluster_worker,
-)
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server.server import (
+    create_cluster_worker,
+    internal_connect_to_database,
+)
+from unittest.mock import MagicMock, patch
 
 
 class TestInternalConnectToDatabase:
@@ -81,10 +81,10 @@ class TestInternalConnectToDatabase:
     def test_returns_existing_connection(self):
         """Test that existing connection is returned if available."""
         mock_connection = MagicMock()
-        
+
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map:
             mock_map.get.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -94,7 +94,7 @@ class TestInternalConnectToDatabase:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert conn == mock_connection
             response_dict = json.loads(response)
             assert response_dict['cluster_identifier'] == 'test-cluster'
@@ -105,7 +105,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map, \
              patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_props, \
              patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn:
-            
+
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'HttpEndpointEnabled': True,
@@ -117,7 +117,7 @@ class TestInternalConnectToDatabase:
             }
             mock_connection = MagicMock()
             mock_rds_conn.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -127,7 +127,7 @@ class TestInternalConnectToDatabase:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert conn == mock_connection
             mock_map.set.assert_called_once()
 
@@ -136,7 +136,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map, \
              patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_props, \
              patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn:
-            
+
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'HttpEndpointEnabled': False,
@@ -148,7 +148,7 @@ class TestInternalConnectToDatabase:
             }
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -158,7 +158,7 @@ class TestInternalConnectToDatabase:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert conn == mock_connection
             mock_pg_conn.assert_called_once()
             call_kwargs = mock_pg_conn.call_args[1]
@@ -169,7 +169,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map, \
              patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_props, \
              patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn:
-            
+
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'HttpEndpointEnabled': False,
@@ -181,7 +181,7 @@ class TestInternalConnectToDatabase:
             }
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -191,7 +191,7 @@ class TestInternalConnectToDatabase:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert conn == mock_connection
             mock_pg_conn.assert_called_once()
             call_kwargs = mock_pg_conn.call_args[1]
@@ -203,7 +203,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map, \
              patch('awslabs.postgres_mcp_server.server.internal_get_instance_properties') as mock_props, \
              patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn:
-            
+
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -212,7 +212,7 @@ class TestInternalConnectToDatabase:
             }
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.RPG,
@@ -222,7 +222,7 @@ class TestInternalConnectToDatabase:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert conn == mock_connection
             mock_props.assert_called_once()
 
@@ -231,7 +231,7 @@ class TestInternalConnectToDatabase:
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map, \
              patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_props, \
              patch('awslabs.postgres_mcp_server.server.RDSDataAPIConnection') as mock_rds_conn:
-            
+
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'HttpEndpointEnabled': True,
@@ -243,7 +243,7 @@ class TestInternalConnectToDatabase:
             }
             mock_connection = MagicMock()
             mock_rds_conn.return_value = mock_connection
-            
+
             conn, response = internal_connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -253,7 +253,7 @@ class TestInternalConnectToDatabase:
                 port=0,  # Should be overridden
                 database='testdb'
             )
-            
+
             response_dict = json.loads(response)
             assert response_dict['db_endpoint'] == 'cluster.endpoint.com'
             assert response_dict['port'] == 5432
@@ -267,9 +267,9 @@ class TestCreateClusterWorker:
         with patch('awslabs.postgres_mcp_server.server.internal_create_serverless_cluster') as mock_create, \
              patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'), \
              patch('awslabs.postgres_mcp_server.server.internal_connect_to_database'), \
-             patch('awslabs.postgres_mcp_server.server.async_job_status') as mock_status, \
+             patch('awslabs.postgres_mcp_server.server.async_job_status'), \
              patch('awslabs.postgres_mcp_server.server.async_job_status_lock') as mock_lock:
-            
+
             mock_create.return_value = {
                 'MasterUsername': 'postgres',
                 'DbClusterResourceId': 'cluster-123',
@@ -277,7 +277,7 @@ class TestCreateClusterWorker:
             }
             mock_lock.acquire = MagicMock()
             mock_lock.release = MagicMock()
-            
+
             create_cluster_worker(
                 job_id='test-job',
                 region='us-east-1',
@@ -287,7 +287,7 @@ class TestCreateClusterWorker:
                 engine_version='17.5',
                 database='testdb'
             )
-            
+
             # Verify job status was updated
             assert mock_lock.acquire.called
             assert mock_lock.release.called
@@ -295,13 +295,13 @@ class TestCreateClusterWorker:
     def test_worker_failure_updates_job_status(self):
         """Test that worker updates job status on failure."""
         with patch('awslabs.postgres_mcp_server.server.internal_create_serverless_cluster') as mock_create, \
-             patch('awslabs.postgres_mcp_server.server.async_job_status') as mock_status, \
+             patch('awslabs.postgres_mcp_server.server.async_job_status'), \
              patch('awslabs.postgres_mcp_server.server.async_job_status_lock') as mock_lock:
-            
+
             mock_create.side_effect = Exception('Cluster creation failed')
             mock_lock.acquire = MagicMock()
             mock_lock.release = MagicMock()
-            
+
             create_cluster_worker(
                 job_id='test-job',
                 region='us-east-1',
@@ -311,7 +311,7 @@ class TestCreateClusterWorker:
                 engine_version='17.5',
                 database='testdb'
             )
-            
+
             # Verify job status was updated with failure
             assert mock_lock.acquire.called
             assert mock_lock.release.called

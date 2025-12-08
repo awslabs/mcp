@@ -15,13 +15,13 @@
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from awslabs.postgres_mcp_server.server import (
-    run_query,
-    connect_to_database,
-    DummyCtx,
-)
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server.server import (
+    DummyCtx,
+    connect_to_database,
+    run_query,
+)
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestRunQueryErrorHandling:
@@ -31,10 +31,10 @@ class TestRunQueryErrorHandling:
     async def test_run_query_no_connection_available(self):
         """Test run_query when no database connection is available."""
         ctx = DummyCtx()
-        
+
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map:
             mock_map.get.return_value = None
-            
+
             result = await run_query(
                 sql='SELECT 1',
                 ctx=ctx,
@@ -43,7 +43,7 @@ class TestRunQueryErrorHandling:
                 db_endpoint='test.endpoint.com',
                 database='testdb'
             )
-            
+
             assert isinstance(result, list)
             assert len(result) == 1
             assert 'error' in result[0]
@@ -59,10 +59,10 @@ class TestRunQueryErrorHandling:
             'columnMetadata': [{'name': 'result'}],
             'records': [[{'longValue': 42}]]
         }
-        
+
         with patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map:
             mock_map.get.return_value = mock_connection
-            
+
             parameters = [{'name': 'id', 'value': {'longValue': 1}}]
             result = await run_query(
                 sql='SELECT * FROM users WHERE id = :id',
@@ -73,7 +73,7 @@ class TestRunQueryErrorHandling:
                 database='testdb',
                 query_parameters=parameters
             )
-            
+
             assert len(result) == 1
             assert result[0]['result'] == 42
             mock_connection.execute_query.assert_called_once_with(
@@ -89,7 +89,7 @@ class TestConnectToDatabaseErrorHandling:
         """Test connect_to_database handles exceptions properly."""
         with patch('awslabs.postgres_mcp_server.server.internal_connect_to_database') as mock_connect:
             mock_connect.side_effect = ValueError('Connection failed')
-            
+
             result = connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -99,7 +99,7 @@ class TestConnectToDatabaseErrorHandling:
                 port=5432,
                 database='testdb'
             )
-            
+
             result_dict = json.loads(result)
             assert result_dict['status'] == 'Failed'
             assert 'Connection failed' in result_dict['error']
@@ -114,10 +114,10 @@ class TestConnectToDatabaseErrorHandling:
             'database': 'testdb',
             'port': 5432
         }
-        
+
         with patch('awslabs.postgres_mcp_server.server.internal_connect_to_database') as mock_connect:
             mock_connect.return_value = (mock_connection, json.dumps(mock_response))
-            
+
             result = connect_to_database(
                 region='us-east-1',
                 database_type=DatabaseType.APG,
@@ -127,7 +127,7 @@ class TestConnectToDatabaseErrorHandling:
                 port=5432,
                 database='testdb'
             )
-            
+
             assert 'test-cluster' in result
             assert 'rdsapi' in result
 

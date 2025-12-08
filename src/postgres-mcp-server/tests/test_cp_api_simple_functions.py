@@ -14,9 +14,11 @@
 """Tests for simple cp_api_connection functions."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    internal_get_instance_properties,
+)
 from botocore.exceptions import ClientError
-from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_get_instance_properties
+from unittest.mock import MagicMock, patch
 
 
 class TestInternalGetInstanceProperties:
@@ -27,10 +29,10 @@ class TestInternalGetInstanceProperties:
         """Test successfully getting instance properties."""
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
-        
+
         mock_paginator = MagicMock()
         mock_rds_client.get_paginator.return_value = mock_paginator
-        
+
         mock_paginator.paginate.return_value = [
             {
                 'DBInstances': [
@@ -53,9 +55,9 @@ class TestInternalGetInstanceProperties:
                 ]
             }
         ]
-        
+
         result = internal_get_instance_properties('test-instance.abc123.us-east-1.rds.amazonaws.com', 'us-east-1')
-        
+
         assert result['DBInstanceIdentifier'] == 'test-instance'
         assert result['MasterUsername'] == 'postgres'
         assert result['Endpoint']['Port'] == 5432
@@ -66,10 +68,10 @@ class TestInternalGetInstanceProperties:
         """Test getting instance properties when instance not found."""
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
-        
+
         mock_paginator = MagicMock()
         mock_rds_client.get_paginator.return_value = mock_paginator
-        
+
         mock_paginator.paginate.return_value = [
             {
                 'DBInstances': [
@@ -80,7 +82,7 @@ class TestInternalGetInstanceProperties:
                 ]
             }
         ]
-        
+
         with pytest.raises(ValueError, match="AWS error fetching instance by endpoint"):
             internal_get_instance_properties('nonexistent.us-east-1.rds.amazonaws.com', 'us-east-1')
 
@@ -89,15 +91,15 @@ class TestInternalGetInstanceProperties:
         """Test getting instance properties with AWS client error."""
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
-        
+
         mock_paginator = MagicMock()
         mock_rds_client.get_paginator.return_value = mock_paginator
-        
+
         mock_paginator.paginate.side_effect = ClientError(
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
             'DescribeDBInstances'
         )
-        
+
         with pytest.raises(ClientError):
             internal_get_instance_properties('test.us-east-1.rds.amazonaws.com', 'us-east-1')
 
@@ -106,12 +108,12 @@ class TestInternalGetInstanceProperties:
         """Test getting instance properties with generic exception."""
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
-        
+
         mock_paginator = MagicMock()
         mock_rds_client.get_paginator.return_value = mock_paginator
-        
+
         mock_paginator.paginate.side_effect = Exception('Unexpected error')
-        
+
         with pytest.raises(Exception, match='Unexpected error'):
             internal_get_instance_properties('test.us-east-1.rds.amazonaws.com', 'us-east-1')
 
@@ -120,10 +122,10 @@ class TestInternalGetInstanceProperties:
         """Test getting instance properties across multiple pages."""
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
-        
+
         mock_paginator = MagicMock()
         mock_rds_client.get_paginator.return_value = mock_paginator
-        
+
         # Simulate multiple pages
         mock_paginator.paginate.return_value = [
             {
@@ -144,8 +146,8 @@ class TestInternalGetInstanceProperties:
                 ]
             }
         ]
-        
+
         result = internal_get_instance_properties('target.us-east-1.rds.amazonaws.com', 'us-east-1')
-        
+
         assert result['DBInstanceIdentifier'] == 'target-instance'
         assert result['MasterUsername'] == 'admin'

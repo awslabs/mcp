@@ -14,8 +14,8 @@
 """Tests for the RDS Data API connection functionality."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
+from unittest.mock import MagicMock, patch
 
 
 class TestRDSDataAPIConnection:
@@ -95,7 +95,7 @@ class TestRDSDataAPIConnection:
         rds_connection.data_client = mock_client
 
         parameters = [{'name': 'id', 'value': {'longValue': 1}}]
-        result = await rds_connection.execute_query('SELECT name FROM users WHERE id = :id', parameters)
+        await rds_connection.execute_query('SELECT name FROM users WHERE id = :id', parameters)
 
         # Verify the client was called with parameters
         mock_client.execute_statement.assert_called_once()
@@ -114,7 +114,7 @@ class TestRDSDataAPIConnection:
         }
         rds_connection_readonly.data_client = mock_client
 
-        result = await rds_connection_readonly.execute_query('SELECT 1')
+        await rds_connection_readonly.execute_query('SELECT 1')
 
         # Verify transaction was started
         mock_client.begin_transaction.assert_called_once_with(
@@ -149,7 +149,7 @@ class TestRDSDataAPIConnection:
         rds_connection_readonly.data_client = mock_client
 
         parameters = [{'name': 'id', 'value': {'longValue': 1}}]
-        result = await rds_connection_readonly.execute_query('SELECT name FROM users WHERE id = :id', parameters)
+        await rds_connection_readonly.execute_query('SELECT name FROM users WHERE id = :id', parameters)
 
         # Verify the query was executed with parameters
         second_call = mock_client.execute_statement.call_args_list[1][1]

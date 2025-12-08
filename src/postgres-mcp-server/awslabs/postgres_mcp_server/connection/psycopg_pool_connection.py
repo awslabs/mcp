@@ -19,15 +19,14 @@ It supports both Aurora PostgreSQL and RDS PostgreSQL instances via direct conne
 parameters (host, port, database, user, password) or via AWS Secrets Manager.
 """
 
-import asyncio
-import json
-from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
-from loguru import logger
 import boto3
+import json
+from aiorwlock import RWLock
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from datetime import datetime, timedelta
+from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
-from aiorwlock import RWLock
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
@@ -64,12 +63,14 @@ class PsycopgPoolConnection(AbstractDBConnection):
             database: Database name
             readonly: Whether connections should be read-only
             secret_arn: ARN of the secret containing credentials
+            db_user: Database username
             region: AWS region for Secrets Manager
+            is_iam_auth: Whether to use IAM authentication
+            pool_expiry_min: Pool expiry time in minutes
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
         """
-        
         super().__init__(readonly)
         self.host = host
         self.port = port
@@ -89,20 +90,19 @@ class PsycopgPoolConnection(AbstractDBConnection):
         if is_iam_auth:
             #if db_user is set, then it is IAM auth scenario and iam_auth_token must be set
             if not db_user:
-                raise ValueError(f'db_user must be set when is_iam_auth is True')
-            
+                raise ValueError('db_user must be set when is_iam_auth is True')
+
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
             logger.info(f'Use IAM auth for user: {db_user}')
 
-        
+
     async def initialize_pool(self):
         """Initialize the connection pool."""
-
         async with self.rw_lock.reader_lock:
             if self.pool is not None:
                 return
-        
+
         async with self.rw_lock.writer_lock:
             if self.pool is not None:
                 return
@@ -135,7 +135,6 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
     async def _get_connection(self):
         """Get a database connection from the pool."""
-
         await self.check_expiry()
 
         async with self.rw_lock.reader_lock:
@@ -144,12 +143,11 @@ class PsycopgPoolConnection(AbstractDBConnection):
             return self.pool.connection(timeout=15.0)
 
     async def check_expiry(self):
-        """Check and handle pool expiry"""
-
+        """Check and handle pool expiry."""
         async with self.rw_lock.reader_lock:
             if self.pool and datetime.now() - self.created_time < timedelta(minutes=self.pool_expiry_min):
                 return
-            
+
         await self.close()
         await self.initialize_pool()
 
@@ -162,7 +160,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        logger.info(f"SET TRANSACTION READ ONLY")
+                        logger.info("SET TRANSACTION READ ONLY")
                         await conn.execute('SET TRANSACTION READ ONLY')
 
                     # Create a cursor for better control
@@ -310,7 +308,6 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
     async def get_pool_stats(self) -> Dict[str, int]:
         """Get current connection pool statistics."""
-
         async with self.rw_lock.reader_lock:
             if not hasattr(self, 'pool') or self.pool is None:
                 return {'size': 0, 'min_size': self.min_size, 'max_size': self.max_size, 'idle': 0}
@@ -322,8 +319,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
             idle = getattr(self.pool, 'idle', 0)
 
             return {'size': size, 'min_size': min_size, 'max_size': max_size, 'idle': idle}
-    
+
     def get_iam_auth_token(self) -> str:
+        """Generate an IAM authentication token for RDS."""
         rds_client = boto3.client('rds', region_name=self.region)
         return rds_client.generate_db_auth_token(
             DBHostname=self.host,
