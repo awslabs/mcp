@@ -1,0 +1,43 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "TestTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "User": {
+          "entity_type": "USER",
+          "pk_template": "{user_id}",
+          "pk_params": ["user_id"],
+          "sk_template": "USER",
+          "sk_params": [],
+          "fields": [
+            {
+              "name": "user_id",
+              "type": "string",
+              "required": true
+            }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "create_user",
+              "description": "Create user",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "user",
+                  "type": "entity",
+                  "entity_type": "NonExistentEntity"
+                }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

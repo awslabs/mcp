@@ -1,0 +1,142 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "TestTable",
+        "partition_key": "pk"
+      },
+      "entities": {
+        "TestEntity": {
+          "entity_type": "TEST",
+          "pk_template": "{user_id}",
+          "pk_params": ["user_id"],
+          "sk_template": "TEST",
+          "sk_params": [],
+          "fields": [
+            {
+              "name": "user_id",
+              "type": "strng",
+              "required": true
+            },
+            {
+              "name": "data",
+              "type": "array"
+            },
+            {
+              "name": "invalid_field",
+              "type": "invalid_type",
+              "required": true
+            },
+            {
+              "name": "duplicate_field",
+              "type": "string",
+              "required": true
+            },
+            {
+              "name": "duplicate_field",
+              "type": "integer",
+              "required": false
+            }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_test",
+              "description": "Get test entity with typo in operation",
+              "operation": "GetItm",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "return_type": "single_entitty"
+            },
+            {
+              "pattern_id": 1,
+              "name": "get_test",
+              "description": "Duplicate pattern ID and name",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 2,
+              "name": "invalid_operation_pattern",
+              "description": "Pattern with completely invalid operation",
+              "operation": "InvalidOperation",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "return_type": "invalid_return_type"
+            },
+            {
+              "pattern_id": 3,
+              "name": "entity_param_pattern",
+              "description": "Pattern with entity parameter missing entity_type",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "entity",
+                  "type": "entity"
+                }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 4,
+              "name": "invalid_entity_ref_pattern",
+              "description": "Pattern with invalid entity reference",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "entity",
+                  "type": "entity",
+                  "entity_type": "NonExistentEntity"
+                }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "AnotherEntity": {
+          "entity_type": "ANOTHER",
+          "pk_template": "{id}",
+          "pk_params": ["id"],
+          "sk_template": "ANOTHER",
+          "sk_params": [],
+          "fields": [
+            {
+              "name": "id",
+              "type": "string",
+              "required": true
+            }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "duplicate_across_entities",
+              "description": "This pattern_id conflicts with TestEntity",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,540 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "description": "Get patient profile by ID",
+      "entity": "Patient",
+      "index_name": null,
+      "method_name": "get_patient",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "PatientRepository",
+      "return_type": "Patient | None"
+    },
+    "10": {
+      "description": "Create new provider profile",
+      "entity": "Provider",
+      "index_name": null,
+      "method_name": "create_provider",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Provider",
+          "name": "provider",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "ProviderRepository",
+      "return_type": "Provider | None"
+    },
+    "11": {
+      "description": "Update provider availability status",
+      "entity": "Provider",
+      "index_name": null,
+      "method_name": "update_provider_availability",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        },
+        {
+          "name": "accepting_new_patients",
+          "type": "boolean"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "ProviderRepository",
+      "return_type": "Provider | None"
+    },
+    "12": {
+      "description": "Get all providers for a specific specialty",
+      "entity": "ProviderSpecialty",
+      "index_name": null,
+      "method_name": "get_providers_by_specialty",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "specialty_name",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "ProviderSpecialtyRepository",
+      "return_type": "tuple[list[ProviderSpecialty], dict | None]"
+    },
+    "13": {
+      "description": "Add provider to specialty index",
+      "entity": "ProviderSpecialty",
+      "index_name": null,
+      "method_name": "add_provider_specialty",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProviderSpecialty",
+          "name": "specialty_item",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "ProviderSpecialtyRepository",
+      "return_type": "ProviderSpecialty | None"
+    },
+    "14": {
+      "description": "Get provider schedule for date range",
+      "entity": "ProviderSchedule",
+      "index_name": null,
+      "method_name": "get_provider_schedule",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        },
+        {
+          "name": "end_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "ProviderScheduleRepository",
+      "return_type": "tuple[list[ProviderSchedule], dict | None]"
+    },
+    "15": {
+      "description": "Get available appointment slots for provider",
+      "entity": "ProviderSchedule",
+      "index_name": null,
+      "method_name": "get_available_slots",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        },
+        {
+          "name": "date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "ProviderScheduleRepository",
+      "return_type": "tuple[list[ProviderSchedule], dict | None]"
+    },
+    "16": {
+      "description": "Get appointment details by ID",
+      "entity": "Appointment",
+      "index_name": null,
+      "method_name": "get_appointment",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "appointment_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "AppointmentRepository",
+      "return_type": "Appointment | None"
+    },
+    "17": {
+      "description": "Create new appointment with patient and provider references",
+      "entity": "Appointment",
+      "index_name": null,
+      "method_name": "create_appointment_with_refs",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Appointment",
+          "name": "appointment",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Patient",
+          "name": "patient",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Provider",
+          "name": "provider",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "AppointmentRepository",
+      "return_type": "Appointment | None"
+    },
+    "18": {
+      "description": "Update appointment status and check-in time",
+      "entity": "Appointment",
+      "index_name": null,
+      "method_name": "update_appointment_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "appointment_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "name": "checked_in_at",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 18,
+      "range_condition": null,
+      "repository": "AppointmentRepository",
+      "return_type": "Appointment | None"
+    },
+    "19": {
+      "description": "Get all appointments for patient (sorted by date/time)",
+      "entity": "PatientAppointment",
+      "index_name": null,
+      "method_name": "get_patient_appointments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 19,
+      "range_condition": null,
+      "repository": "PatientAppointmentRepository",
+      "return_type": "tuple[list[PatientAppointment], dict | None]"
+    },
+    "2": {
+      "description": "Create new patient record",
+      "entity": "Patient",
+      "index_name": null,
+      "method_name": "create_patient",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Patient",
+          "name": "patient",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "PatientRepository",
+      "return_type": "Patient | None"
+    },
+    "20": {
+      "description": "Get upcoming appointments for patient",
+      "entity": "PatientAppointment",
+      "index_name": null,
+      "method_name": "get_patient_upcoming_appointments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 20,
+      "range_condition": null,
+      "repository": "PatientAppointmentRepository",
+      "return_type": "tuple[list[PatientAppointment], dict | None]"
+    },
+    "21": {
+      "description": "Add appointment to patient's appointment history",
+      "entity": "PatientAppointment",
+      "index_name": null,
+      "method_name": "add_appointment_to_patient",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "PatientAppointment",
+          "name": "patient_appointment",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 21,
+      "range_condition": null,
+      "repository": "PatientAppointmentRepository",
+      "return_type": "PatientAppointment | None"
+    },
+    "22": {
+      "description": "Get all appointments for provider (sorted by date/time)",
+      "entity": "ProviderAppointment",
+      "index_name": null,
+      "method_name": "get_provider_appointments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 22,
+      "range_condition": null,
+      "repository": "ProviderAppointmentRepository",
+      "return_type": "tuple[list[ProviderAppointment], dict | None]"
+    },
+    "23": {
+      "description": "Get provider's appointments for specific date",
+      "entity": "ProviderAppointment",
+      "index_name": null,
+      "method_name": "get_provider_daily_schedule",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        },
+        {
+          "name": "appointment_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 23,
+      "range_condition": null,
+      "repository": "ProviderAppointmentRepository",
+      "return_type": "tuple[list[ProviderAppointment], dict | None]"
+    },
+    "24": {
+      "description": "Add appointment to provider's schedule with cross-table references",
+      "entity": "ProviderAppointment",
+      "index_name": null,
+      "method_name": "add_appointment_to_provider",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProviderAppointment",
+          "name": "provider_appointment",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Patient",
+          "name": "patient",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Appointment",
+          "name": "appointment",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 24,
+      "range_condition": null,
+      "repository": "ProviderAppointmentRepository",
+      "return_type": "ProviderAppointment | None"
+    },
+    "25": {
+      "description": "Get all notes for an appointment",
+      "entity": "AppointmentNote",
+      "index_name": null,
+      "method_name": "get_appointment_notes",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "appointment_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 25,
+      "range_condition": null,
+      "repository": "AppointmentNoteRepository",
+      "return_type": "tuple[list[AppointmentNote], dict | None]"
+    },
+    "26": {
+      "description": "Add clinical note to appointment with provider reference",
+      "entity": "AppointmentNote",
+      "index_name": null,
+      "method_name": "add_appointment_note",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "AppointmentNote",
+          "name": "note",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Provider",
+          "name": "provider",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 26,
+      "range_condition": null,
+      "repository": "AppointmentNoteRepository",
+      "return_type": "AppointmentNote | None"
+    },
+    "3": {
+      "description": "Update patient contact and insurance information",
+      "entity": "Patient",
+      "index_name": null,
+      "method_name": "update_patient_info",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        },
+        {
+          "entity_type": "Patient",
+          "name": "updates",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "PatientRepository",
+      "return_type": "Patient | None"
+    },
+    "4": {
+      "description": "Get medical history for patient (sorted by date)",
+      "entity": "PatientMedicalHistory",
+      "index_name": null,
+      "method_name": "get_patient_medical_history_list",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "PatientMedicalHistoryRepository",
+      "return_type": "tuple[list[PatientMedicalHistory], dict | None]"
+    },
+    "5": {
+      "description": "Get patient medical history within date range",
+      "entity": "PatientMedicalHistory",
+      "index_name": null,
+      "method_name": "get_patient_history_by_date_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        },
+        {
+          "name": "end_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "PatientMedicalHistoryRepository",
+      "return_type": "tuple[list[PatientMedicalHistory], dict | None]"
+    },
+    "6": {
+      "description": "Add medical record with provider reference",
+      "entity": "PatientMedicalHistory",
+      "index_name": null,
+      "method_name": "add_medical_record",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "PatientMedicalHistory",
+          "name": "medical_record",
+          "type": "entity"
+        },
+        {
+          "name": "provider_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "PatientMedicalHistoryRepository",
+      "return_type": "PatientMedicalHistory | None"
+    },
+    "7": {
+      "description": "Get all active allergies for patient",
+      "entity": "PatientAllergy",
+      "index_name": null,
+      "method_name": "get_patient_allergies",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "patient_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "PatientAllergyRepository",
+      "return_type": "tuple[list[PatientAllergy], dict | None]"
+    },
+    "8": {
+      "description": "Add allergy record for patient",
+      "entity": "PatientAllergy",
+      "index_name": null,
+      "method_name": "add_patient_allergy",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "PatientAllergy",
+          "name": "allergy",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "PatientAllergyRepository",
+      "return_type": "PatientAllergy | None"
+    },
+    "9": {
+      "description": "Get provider profile by ID",
+      "entity": "Provider",
+      "index_name": null,
+      "method_name": "get_provider",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "provider_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "ProviderRepository",
+      "return_type": "Provider | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 26
+  }
+}

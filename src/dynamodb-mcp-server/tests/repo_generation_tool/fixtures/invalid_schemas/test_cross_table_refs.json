@@ -1,0 +1,59 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "Table1",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "EntityA": {
+          "entity_type": "A",
+          "pk_template": "{id}",
+          "pk_params": ["id"],
+          "sk_template": "A",
+          "sk_params": [],
+          "fields": [
+            {"name": "id", "type": "string", "required": true}
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "create_a",
+              "description": "Create A",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "entity",
+                  "type": "entity",
+                  "entity_type": "EntityB"
+                }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "Table2",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "EntityB": {
+          "entity_type": "B",
+          "pk_template": "{id}",
+          "pk_params": ["id"],
+          "sk_template": "B",
+          "sk_params": [],
+          "fields": [
+            {"name": "id", "type": "string", "required": true}
+          ],
+          "access_patterns": []
+        }
+      }
+    }
+  ]
+}

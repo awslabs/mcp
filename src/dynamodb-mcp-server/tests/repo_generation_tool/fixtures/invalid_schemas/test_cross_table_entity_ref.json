@@ -1,0 +1,64 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "Table1",
+        "partition_key": "pk1",
+        "sort_key": "sk1"
+      },
+      "entities": {
+        "User": {
+          "entity_type": "USER",
+          "pk_template": "{id}",
+          "pk_params": ["id"],
+          "sk_template": "USER",
+          "sk_params": [],
+          "fields": [
+            { "name": "id", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "create_user",
+              "description": "Create user - This should fail because it references Post entity from another table",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "user", "type": "entity", "entity_type": "Post" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "Table2",
+        "partition_key": "pk2",
+        "sort_key": "sk2"
+      },
+      "entities": {
+        "Post": {
+          "entity_type": "POST",
+          "pk_template": "{id}",
+          "pk_params": ["id"],
+          "sk_template": "POST",
+          "sk_params": [],
+          "fields": [
+            { "name": "id", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 2,
+              "name": "get_post",
+              "description": "Get post",
+              "operation": "GetItem",
+              "parameters": [{ "name": "id", "type": "string" }],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

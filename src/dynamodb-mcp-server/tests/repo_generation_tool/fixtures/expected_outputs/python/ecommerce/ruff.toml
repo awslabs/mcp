@@ -1,0 +1,42 @@
+# Ruff configuration for generated code
+line-length = 99
+target-version = "py310"
+
+[lint]
+# Enable specific rule sets for generated code
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings  
+    "F",  # pyflakes
+    "I",  # isort
+    "D",  # pydocstyle (docstring conventions)
+    "N",  # pep8-naming
+    "UP", # pyupgrade
+]
+
+# Ignore specific rules that might be problematic for generated code
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "F401",  # unused import (might be needed for type hints)
+    "N806",  # variable in function should be lowercase (DynamoDB field names)
+    "D100",  # missing docstring in public module (generated code)
+    "D101",  # missing docstring in public class (generated code)
+    "D102",  # missing docstring in public method (generated code)
+    "D106",  # missing docstring in public nested class (generated code)
+    "D107",  # missing docstring in __init__ (generated code)
+    "D415",  # first line should end with period (generated code may have short descriptions)
+]
+
+[lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true

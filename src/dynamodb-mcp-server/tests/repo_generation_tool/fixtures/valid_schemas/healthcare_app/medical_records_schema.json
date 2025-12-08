@@ -1,0 +1,491 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "PatientTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Patient": {
+          "entity_type": "PATIENT",
+          "pk_template": "PATIENT#{patient_id}",
+          "sk_template": "PROFILE",
+          "fields": [
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "medical_record_number", "type": "string", "required": true },
+            { "name": "first_name", "type": "string", "required": true },
+            { "name": "last_name", "type": "string", "required": true },
+            { "name": "date_of_birth", "type": "string", "required": true },
+            { "name": "gender", "type": "string", "required": true },
+            { "name": "phone", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": false },
+            { "name": "address", "type": "object", "required": true },
+            { "name": "emergency_contact", "type": "object", "required": true },
+            { "name": "insurance_info", "type": "object", "required": false },
+            { "name": "primary_care_provider_id", "type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_patient",
+              "description": "Get patient profile by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "patient_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 2,
+              "name": "create_patient",
+              "description": "Create new patient record",
+              "operation": "PutItem",
+              "parameters": [{ "name": "patient", "type": "entity", "entity_type": "Patient" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 3,
+              "name": "update_patient_info",
+              "description": "Update patient contact and insurance information",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "patient_id", "type": "string" },
+                { "name": "updates", "type": "entity", "entity_type": "Patient" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "PatientMedicalHistory": {
+          "entity_type": "MEDICAL_HISTORY",
+          "pk_template": "PATIENT#{patient_id}",
+          "sk_template": "HISTORY#{record_date}#{record_id}",
+          "fields": [
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "record_id", "type": "string", "required": true },
+            { "name": "record_date", "type": "string", "required": true },
+            { "name": "record_type", "type": "string", "required": true },
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "diagnosis_codes", "type": "array", "item_type": "string", "required": false },
+            { "name": "procedure_codes", "type": "array", "item_type": "string", "required": false },
+            { "name": "medications", "type": "array", "item_type": "string", "required": false },
+            { "name": "allergies", "type": "array", "item_type": "string", "required": false },
+            { "name": "vital_signs", "type": "object", "required": false },
+            { "name": "notes", "type": "string", "required": false },
+            { "name": "attachments", "type": "array", "item_type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 4,
+              "name": "get_patient_medical_history",
+              "description": "Get medical history for patient (sorted by date)",
+              "operation": "Query",
+              "parameters": [{ "name": "patient_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 5,
+              "name": "get_patient_history_by_date_range",
+              "description": "Get patient medical history within date range",
+              "operation": "Query",
+              "parameters": [
+                { "name": "patient_id", "type": "string" },
+                { "name": "start_date", "type": "string" },
+                { "name": "end_date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 6,
+              "name": "add_medical_record",
+              "description": "Add medical record with provider reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "medical_record", "type": "entity", "entity_type": "PatientMedicalHistory" },
+                { "name": "provider_id", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "PatientAllergy": {
+          "entity_type": "ALLERGY",
+          "pk_template": "PATIENT#{patient_id}",
+          "sk_template": "ALLERGY#{allergy_id}",
+          "fields": [
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "allergy_id", "type": "string", "required": true },
+            { "name": "allergen", "type": "string", "required": true },
+            { "name": "allergy_type", "type": "string", "required": true },
+            { "name": "severity", "type": "string", "required": true },
+            { "name": "reaction", "type": "string", "required": false },
+            { "name": "onset_date", "type": "string", "required": false },
+            { "name": "notes", "type": "string", "required": false },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 7,
+              "name": "get_patient_allergies",
+              "description": "Get all active allergies for patient",
+              "operation": "Query",
+              "parameters": [{ "name": "patient_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 8,
+              "name": "add_patient_allergy",
+              "description": "Add allergy record for patient",
+              "operation": "PutItem",
+              "parameters": [{ "name": "allergy", "type": "entity", "entity_type": "PatientAllergy" }],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "ProviderTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Provider": {
+          "entity_type": "PROVIDER",
+          "pk_template": "PROVIDER#{provider_id}",
+          "sk_template": "PROFILE",
+          "fields": [
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "npi_number", "type": "string", "required": true },
+            { "name": "first_name", "type": "string", "required": true },
+            { "name": "last_name", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "specialties", "type": "array", "item_type": "string", "required": true },
+            { "name": "license_number", "type": "string", "required": true },
+            { "name": "license_state", "type": "string", "required": true },
+            { "name": "phone", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": true },
+            { "name": "practice_address", "type": "object", "required": true },
+            { "name": "hospital_affiliations", "type": "array", "item_type": "string", "required": false },
+            { "name": "languages", "type": "array", "item_type": "string", "required": false },
+            { "name": "accepting_new_patients", "type": "boolean", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 9,
+              "name": "get_provider",
+              "description": "Get provider profile by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "provider_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 10,
+              "name": "create_provider",
+              "description": "Create new provider profile",
+              "operation": "PutItem",
+              "parameters": [{ "name": "provider", "type": "entity", "entity_type": "Provider" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 11,
+              "name": "update_provider_availability",
+              "description": "Update provider availability status",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "provider_id", "type": "string" },
+                { "name": "accepting_new_patients", "type": "boolean" },
+                { "name": "status", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "ProviderSpecialty": {
+          "entity_type": "SPECIALTY",
+          "pk_template": "SPECIALTY#{specialty_name}",
+          "sk_template": "PROVIDER#{provider_id}",
+          "fields": [
+            { "name": "specialty_name", "type": "string", "required": true },
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "provider_name", "type": "string", "required": true },
+            { "name": "years_experience", "type": "integer", "required": false },
+            { "name": "board_certified", "type": "boolean", "required": true },
+            { "name": "accepting_new_patients", "type": "boolean", "required": true },
+            { "name": "practice_location", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 12,
+              "name": "get_providers_by_specialty",
+              "description": "Get all providers for a specific specialty",
+              "operation": "Query",
+              "parameters": [{ "name": "specialty_name", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 13,
+              "name": "add_provider_specialty",
+              "description": "Add provider to specialty index",
+              "operation": "PutItem",
+              "parameters": [{ "name": "specialty_item", "type": "entity", "entity_type": "ProviderSpecialty" }],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "ProviderSchedule": {
+          "entity_type": "SCHEDULE",
+          "pk_template": "PROVIDER#{provider_id}",
+          "sk_template": "SCHEDULE#{date}#{time_slot}",
+          "fields": [
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "date", "type": "string", "required": true },
+            { "name": "time_slot", "type": "string", "required": true },
+            { "name": "duration_minutes", "type": "integer", "required": true },
+            { "name": "appointment_type", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "location", "type": "string", "required": true },
+            { "name": "notes", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 14,
+              "name": "get_provider_schedule",
+              "description": "Get provider schedule for date range",
+              "operation": "Query",
+              "parameters": [
+                { "name": "provider_id", "type": "string" },
+                { "name": "start_date", "type": "string" },
+                { "name": "end_date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 15,
+              "name": "get_available_slots",
+              "description": "Get available appointment slots for provider",
+              "operation": "Query",
+              "parameters": [
+                { "name": "provider_id", "type": "string" },
+                { "name": "date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "AppointmentTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Appointment": {
+          "entity_type": "APPOINTMENT",
+          "pk_template": "APPOINTMENT#{appointment_id}",
+          "sk_template": "DETAILS",
+          "fields": [
+            { "name": "appointment_id", "type": "string", "required": true },
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "appointment_date", "type": "string", "required": true },
+            { "name": "appointment_time", "type": "string", "required": true },
+            { "name": "duration_minutes", "type": "integer", "required": true },
+            { "name": "appointment_type", "type": "string", "required": true },
+            { "name": "reason", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "location", "type": "string", "required": true },
+            { "name": "notes", "type": "string", "required": false },
+            { "name": "insurance_authorization", "type": "string", "required": false },
+            { "name": "copay_amount", "type": "decimal", "required": false },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true },
+            { "name": "checked_in_at", "type": "string", "required": false },
+            { "name": "completed_at", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 16,
+              "name": "get_appointment",
+              "description": "Get appointment details by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "appointment_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 17,
+              "name": "create_appointment",
+              "description": "Create new appointment with patient and provider references",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "appointment", "type": "entity", "entity_type": "Appointment" },
+                { "name": "patient", "type": "entity", "entity_type": "Patient" },
+                { "name": "provider", "type": "entity", "entity_type": "Provider" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 18,
+              "name": "update_appointment_status",
+              "description": "Update appointment status and check-in time",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "appointment_id", "type": "string" },
+                { "name": "status", "type": "string" },
+                { "name": "checked_in_at", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "PatientAppointment": {
+          "entity_type": "PATIENT_APPOINTMENT",
+          "pk_template": "PATIENT#{patient_id}",
+          "sk_template": "APPOINTMENT#{appointment_date}#{appointment_time}#{appointment_id}",
+          "fields": [
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "appointment_id", "type": "string", "required": true },
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "provider_name", "type": "string", "required": true },
+            { "name": "appointment_date", "type": "string", "required": true },
+            { "name": "appointment_time", "type": "string", "required": true },
+            { "name": "appointment_type", "type": "string", "required": true },
+            { "name": "reason", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "location", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 19,
+              "name": "get_patient_appointments",
+              "description": "Get all appointments for patient (sorted by date/time)",
+              "operation": "Query",
+              "parameters": [{ "name": "patient_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 20,
+              "name": "get_patient_upcoming_appointments",
+              "description": "Get upcoming appointments for patient",
+              "operation": "Query",
+              "parameters": [
+                { "name": "patient_id", "type": "string" },
+                { "name": "start_date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 21,
+              "name": "add_appointment_to_patient",
+              "description": "Add appointment to patient's appointment history",
+              "operation": "PutItem",
+              "parameters": [{ "name": "patient_appointment", "type": "entity", "entity_type": "PatientAppointment" }],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "ProviderAppointment": {
+          "entity_type": "PROVIDER_APPOINTMENT",
+          "pk_template": "PROVIDER#{provider_id}",
+          "sk_template": "APPOINTMENT#{appointment_date}#{appointment_time}#{appointment_id}",
+          "fields": [
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "appointment_id", "type": "string", "required": true },
+            { "name": "patient_id", "type": "string", "required": true },
+            { "name": "patient_name", "type": "string", "required": true },
+            { "name": "appointment_date", "type": "string", "required": true },
+            { "name": "appointment_time", "type": "string", "required": true },
+            { "name": "duration_minutes", "type": "integer", "required": true },
+            { "name": "appointment_type", "type": "string", "required": true },
+            { "name": "reason", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "location", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 22,
+              "name": "get_provider_appointments",
+              "description": "Get all appointments for provider (sorted by date/time)",
+              "operation": "Query",
+              "parameters": [{ "name": "provider_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 23,
+              "name": "get_provider_daily_schedule",
+              "description": "Get provider's appointments for specific date",
+              "operation": "Query",
+              "parameters": [
+                { "name": "provider_id", "type": "string" },
+                { "name": "appointment_date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 24,
+              "name": "add_appointment_to_provider",
+              "description": "Add appointment to provider's schedule with cross-table references",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "provider_appointment", "type": "entity", "entity_type": "ProviderAppointment" },
+                { "name": "patient", "type": "entity", "entity_type": "Patient" },
+                { "name": "appointment", "type": "entity", "entity_type": "Appointment" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "AppointmentNote": {
+          "entity_type": "APPOINTMENT_NOTE",
+          "pk_template": "APPOINTMENT#{appointment_id}",
+          "sk_template": "NOTE#{created_at}#{note_id}",
+          "fields": [
+            { "name": "appointment_id", "type": "string", "required": true },
+            { "name": "note_id", "type": "string", "required": true },
+            { "name": "provider_id", "type": "string", "required": true },
+            { "name": "note_type", "type": "string", "required": true },
+            { "name": "content", "type": "string", "required": true },
+            { "name": "diagnosis_codes", "type": "array", "item_type": "string", "required": false },
+            { "name": "procedure_codes", "type": "array", "item_type": "string", "required": false },
+            { "name": "medications_prescribed", "type": "array", "item_type": "string", "required": false },
+            { "name": "follow_up_required", "type": "boolean", "required": true },
+            { "name": "follow_up_date", "type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 25,
+              "name": "get_appointment_notes",
+              "description": "Get all notes for an appointment",
+              "operation": "Query",
+              "parameters": [{ "name": "appointment_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 26,
+              "name": "add_appointment_note",
+              "description": "Add clinical note to appointment with provider reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "note", "type": "entity", "entity_type": "AppointmentNote" },
+                { "name": "provider", "type": "entity", "entity_type": "Provider" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
