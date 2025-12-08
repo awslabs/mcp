@@ -95,7 +95,6 @@ def setup_server_config():
 # Configure server
 auth_provider, middleware = setup_server_config()
 
-print(f'Auth provider: {auth_provider}')
 server = FastMCP(
     name='AWS-API-MCP',
     auth=auth_provider,
