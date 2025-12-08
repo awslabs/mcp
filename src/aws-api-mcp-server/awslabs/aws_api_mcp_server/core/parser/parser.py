@@ -55,7 +55,7 @@ from ..common.errors import (
     UnsupportedFilterError,
 )
 from ..common.file_system_controls import extract_file_paths_from_parameters, validate_file_path
-from ..common.helpers import expand_user_home_directory
+from ..common.helpers import expand_user_home_directory, is_help_operation
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
 from .custom_validators.ssm_validator import perform_ssm_validations
@@ -388,19 +388,20 @@ def parse(cli_command: str, default_region_override: str | None = None) -> IRCom
     tokens = split_cli_command(cli_command)
     # Strip `aws` and expand paths beginning with ~
     tokens = expand_user_home_directory(tokens[1:])
-    global_args, remaining = parser.parse_known_args(tokens)
-    service_command = command_table[global_args.command]
-
-    # Not all commands have parsers as some of them are "aliases" to existing services
-    if isinstance(service_command, ServiceCommand):
-        return _handle_service_command(
-            service_command, global_args, remaining, default_region_override
-        )
+    service_namespace, args = parser.parse_known_args(tokens)
+    service_command = command_table[service_namespace.command]
 
     if service_command.name in DENIED_CUSTOM_SERVICES:
         raise ServiceNotAllowedError(service_command.name)
 
-    return _handle_awscli_customization(global_args, remaining, tokens[0], default_region_override)
+    if isinstance(service_command, ServiceCommand):
+        return _handle_service_command(
+            service_command, service_namespace, args, default_region_override
+        )
+
+    return _handle_awscli_customization(
+        service_namespace, args, tokens[0], default_region_override
+    )
 
 
 def _handle_service_command(
@@ -918,6 +919,10 @@ def _construct_command(
     endpoint_url = getattr(global_args, 'endpoint_url', None)
     _validate_endpoint(endpoint_url)
 
+    explicitly_passed_arguments = list(parameters.values()) + (
+        parsed_args.given_args if parsed_args else []
+    )
+
     profile = getattr(global_args, 'profile', None)
     region = (
         getattr(global_args, 'region', None)
@@ -953,6 +958,7 @@ def _construct_command(
         profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        is_help_operation=is_help_operation(explicitly_passed_arguments),
         output_file=output_file,
         endpoint_url=global_args.endpoint_url,
     )

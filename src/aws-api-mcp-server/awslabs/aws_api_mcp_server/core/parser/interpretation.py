@@ -18,7 +18,7 @@ from ..aws.services import (
     extract_pagination_config,
 )
 from ..common.command import IRCommand, OutputFile
-from ..common.config import get_user_agent_extra
+from ..common.config import CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS, get_user_agent_extra
 from ..common.file_system_controls import validate_file_path
 from ..common.helpers import operation_timer
 from botocore.config import Config
@@ -51,8 +51,8 @@ def interpret(
 
     config = Config(
         region_name=region,
-        connect_timeout=TIMEOUT_AFTER_SECONDS,
-        read_timeout=TIMEOUT_AFTER_SECONDS,
+        connect_timeout=CONNECT_TIMEOUT_SECONDS,
+        read_timeout=READ_TIMEOUT_SECONDS,
         retries={'max_attempts': 3, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )

@@ -45,6 +45,7 @@ class IRCommand:
     profile: str | None = None
     client_side_filter: ParsedResult | None = None
     is_awscli_customization: bool = False
+    is_help_operation: bool = False
     output_file: OutputFile | None = None
     endpoint_url: str | None = None
 
