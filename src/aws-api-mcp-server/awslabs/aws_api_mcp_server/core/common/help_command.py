@@ -69,6 +69,7 @@ def generate_help_document(service_name: str, operation_name: str) -> dict[str, 
         event_handler.doc_option(help_command=help_command, arg_name=arg_name)
         key = arg.group_name if arg.group_name else arg_name
         params[key] = _clean_text(help_command.doc.getvalue().decode('utf-8').strip())
+        params[key] = params[key][:500] if len(params[key]) > 500 else params[key]
         if arg.group_name:
             # To avoid adding arguments like --disable-rollback and --no-disable-rollback separately
             # we need to make sure a group name is only processed once
