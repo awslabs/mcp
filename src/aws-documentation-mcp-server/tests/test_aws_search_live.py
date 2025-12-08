@@ -41,8 +41,10 @@ async def test_search_documentation_live():
         TEST_USER_AGENT,
     ):
         # Call the search_documentation function
-        results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
-
+        response = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
+        )
+        results = response.search_results
         # Verify the results
         assert results is not None
         assert len(results) > 0
@@ -52,8 +54,8 @@ async def test_search_documentation_live():
             assert result.rank_order > 0
             assert result.url is not None and result.url != ''
             assert result.title is not None and result.title != ''
-            assert result.query_id is not None and result.query_id != ''
-            # Context is optional, so we don't assert on it
+        assert response.query_id is not None and response.query_id != ''
+        # Context is optional, so we don't assert on it
 
         # Print results for debugging (will show in pytest output with -v flag)
         print(f"\nReceived {len(results)} search results for '{search_phrase}':")
@@ -62,9 +64,9 @@ async def test_search_documentation_live():
             print(f'Rank: {result.rank_order}')
             print(f'Title: {result.title}')
             print(f'URL: {result.url}')
-            print(f'Query ID: {result.query_id}')
             if result.context:
                 print(f'Context: {result.context}')
+        print(f'Query ID: {response.query_id}')
 
 
 @pytest.mark.asyncio
@@ -80,7 +82,10 @@ async def test_search_documentation_empty_results():
         TEST_USER_AGENT,
     ):
         # Call the search_documentation function
-        results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
+        response = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=5, product_types=None, guide_types=None
+        )
+        results = response.search_results
 
         # We don't assert on the number of results, as it might change over time
         # Just verify that the function returns a valid response
@@ -93,9 +98,9 @@ async def test_search_documentation_empty_results():
             print(f'Rank: {result.rank_order}')
             print(f'Title: {result.title}')
             print(f'URL: {result.url}')
-            print(f'Query ID: {result.query_id}')
             if result.context:
                 print(f'Context: {result.context}')
+        print(f'Query ID: {response.query_id}')
 
 
 @pytest.mark.asyncio
@@ -110,10 +115,15 @@ async def test_search_documentation_limit():
         TEST_USER_AGENT,
     ):
         # Test with limit=3
-        results_small = await search_documentation(ctx, search_phrase=search_phrase, limit=3)
-
+        response_small = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=3, product_types=None, guide_types=None
+        )
+        results_small = response_small.search_results
         # Test with limit=10
-        results_large = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+        response_large = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+        )
+        results_large = response_large.search_results
 
         # Verify that the limits are respected
         assert len(results_small) <= 3
@@ -125,6 +135,98 @@ async def test_search_documentation_limit():
 
         print(f'\nReceived {len(results_small)} results with limit=3')
         print(f'Received {len(results_large)} results with limit=10')
+
+
+@pytest.mark.asyncio
+@pytest.mark.live
+async def test_search_documentation_with_product_type():
+    """Test search_documentation with an initial search then use product filter for a second search with same query."""
+    search_phrase = 'AWS Lambda'
+    ctx = MockContext()
+
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # First search without filters
+        first_response = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+        )
+        first_results = first_response.search_results
+        # Verify first search results
+        assert first_response is not None
+        assert first_results is not None
+
+        # Get first product filter facet
+        assert first_response.facets is not None
+        assert 'product_types' in first_response.facets
+        product_types = first_response.facets['product_types']
+        assert len(product_types) > 0
+
+        first_product_type = product_types[0]
+
+        # Second search with the product filter
+        second_response = await search_documentation(
+            ctx,
+            search_phrase=search_phrase,
+            limit=10,
+            product_types=[first_product_type],
+            guide_types=None,
+        )
+        second_results = second_response.search_results
+
+        # Verify second search results
+        assert second_response is not None
+        assert second_results is not None
+        assert len(second_results) > 0
+        assert len(second_response.facets['product_types']) == 1
+        assert first_product_type == second_response.facets['product_types'][0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.live
+async def test_search_documentation_with_guide_type():
+    """Test search_documentation with an initial search then use guide filter for a second search with same query."""
+    search_phrase = 'AWS Lambda'
+    ctx = MockContext()
+
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # First search without filters
+        first_response = await search_documentation(
+            ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+        )
+        first_results = first_response.search_results
+        # Verify first search results
+        assert first_response is not None
+        assert first_results is not None
+
+        # Get first guide filter facet
+        assert first_response.facets is not None
+        assert 'guide_types' in first_response.facets
+        guide_types = first_response.facets['guide_types']
+        assert len(guide_types) > 0
+
+        first_guide_type = guide_types[0]
+
+        # Second search with the guide filter
+        second_response = await search_documentation(
+            ctx,
+            search_phrase=search_phrase,
+            limit=10,
+            product_types=None,
+            guide_types=[first_guide_type],
+        )
+        second_results = second_response.search_results
+
+        # Verify second search results
+        assert second_response is not None
+        assert second_results is not None
+        assert len(second_results) > 0
+        assert len(second_response.facets['guide_types']) == 1
+        assert first_guide_type == second_response.facets['guide_types'][0]
 
 
 if __name__ == '__main__':
