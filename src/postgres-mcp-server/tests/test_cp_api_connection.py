@@ -8,8 +8,7 @@ from typing import Dict, List, Optional
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_create_serverless_cluster,
     internal_create_rds_client,
-    internal_get_cluster_properties,
-    internal_create_express_cluster,
+    internal_get_cluster_properties
 )
 
 
@@ -165,23 +164,10 @@ class TestInternalCreateRdsClient:
     def test_create_rds_client_standard(self, mock_boto3_client):
         """Test creating standard RDS client."""
         
-        internal_create_rds_client(region='us-west-2', with_express_configuration=False)
+        internal_create_rds_client(region='us-west-2')
         
         mock_boto3_client.assert_called_once_with('rds', region_name='us-west-2')
     
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3.client')
-    def test_create_rds_client_with_express(self, mock_boto3_client):
-        """Test creating RDS client with express configuration."""
-        
-        internal_create_rds_client(region='us-west-2', with_express_configuration=True)
-        
-        # Verify the client is created with express configuration
-        mock_boto3_client.assert_called_once_with(
-            'rds',
-            region_name='us-east-2',
-            endpoint_url='https://rds-preview.us-east-2.amazonaws.com'
-        )
-
 
 # =============================================================================
 # TESTS FOR: internal_get_cluster_properties
@@ -231,24 +217,10 @@ class TestInternalGetClusterProperties:
         # Verify
         assert result['DBClusterIdentifier'] == 'test-cluster'
         assert result['Status'] == 'available'
-        mock_create_client.assert_called_once_with('us-west-2', False)
+        mock_create_client.assert_called_once_with('us-west-2')
         mock_rds_client.describe_db_clusters.assert_called_once_with(
             DBClusterIdentifier='test-cluster'
         )
-    
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
-    def test_get_cluster_properties_with_express(self, mock_create_client):
-        """Test retrieving cluster properties with express configuration."""
-        
-        mock_rds_client = MagicMock()
-        mock_create_client.return_value = mock_rds_client
-        mock_rds_client.describe_db_clusters.return_value = {
-            'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]
-        }
-        
-        internal_get_cluster_properties('test-cluster', 'us-west-2', with_express_configuration=True)
-        
-        mock_create_client.assert_called_once_with('us-west-2', True)
     
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
     def test_get_cluster_properties_client_error(self, mock_create_client):
@@ -263,104 +235,6 @@ class TestInternalGetClusterProperties:
         
         with pytest.raises(ClientError):
             internal_get_cluster_properties('test-cluster', 'us-west-2')
-
-
-# =============================================================================
-# TESTS FOR: internal_create_express_cluster
-# =============================================================================
-
-class TestInternalCreateExpressCluster:
-    """Tests for internal_create_express_cluster function."""
-    
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
-    def test_create_express_cluster_success(self, mock_time, mock_create_client):
-        """Test successful express cluster creation."""
-        
-        # Setup mocks
-        mock_rds_client = MagicMock()
-        mock_create_client.return_value = mock_rds_client
-        mock_time.time.side_effect = [100.0, 200.0]  # Start and end times
-        
-        mock_rds_client.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'express-cluster',
-                'Status': 'creating',
-                'Engine': 'aurora-postgresql'
-            }]
-        }
-        
-        mock_waiter = MagicMock()
-        mock_rds_client.get_waiter.return_value = mock_waiter
-        
-        # Execute
-        result = internal_create_express_cluster('express-cluster')
-        
-        # Verify
-        assert result['DBClusterIdentifier'] == 'express-cluster'
-        mock_create_client.assert_called_once_with(region='us-east-2', with_express_configuration=True)
-        
-        # Verify create_db_cluster was called with correct parameters
-        mock_rds_client.create_db_cluster.assert_called_once()
-        call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
-        assert call_kwargs['DBClusterIdentifier'] == 'express-cluster'
-        assert call_kwargs['Engine'] == 'aurora-postgresql'
-        assert call_kwargs['WithExpressConfiguration'] is True
-        assert any(tag['Key'] == 'CreatedBy' and tag['Value'] == 'MCP' for tag in call_kwargs['Tags'])
-        
-        # Verify waiter was used
-        mock_rds_client.get_waiter.assert_called_once_with('db_cluster_available')
-        mock_waiter.wait.assert_called_once()
-    
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
-    def test_create_express_cluster_create_fails(self, mock_create_client):
-        """Test handling of cluster creation failure."""
-        
-        mock_rds_client = MagicMock()
-        mock_create_client.return_value = mock_rds_client
-        mock_rds_client.create_db_cluster.side_effect = ClientError(
-            {'Error': {'Code': 'DBClusterAlreadyExistsFault', 'Message': 'Cluster already exists'}},
-            'CreateDBCluster'
-        )
-        
-        with pytest.raises(ClientError) as exc_info:
-            internal_create_express_cluster('express-cluster')
-        
-        assert exc_info.value.response['Error']['Code'] == 'DBClusterAlreadyExistsFault'
-    
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
-    def test_create_express_cluster_waiter_timeout(self, mock_create_client):
-        """Test handling of waiter timeout."""
-        
-        mock_rds_client = MagicMock()
-        mock_create_client.return_value = mock_rds_client
-        mock_rds_client.describe_db_clusters.return_value = {
-            'DBClusters': [{'DBClusterIdentifier': 'express-cluster'}]
-        }
-        
-        mock_waiter = MagicMock()
-        mock_waiter.wait.side_effect = WaiterError(
-            name='db_cluster_available',
-            reason='Max attempts exceeded',
-            last_response={}
-        )
-        mock_rds_client.get_waiter.return_value = mock_waiter
-        
-        with pytest.raises(WaiterError):
-            internal_create_express_cluster('express-cluster')
-    
-    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
-    def test_create_express_cluster_unexpected_error(self, mock_create_client):
-        """Test handling of unexpected errors."""
-        
-        mock_rds_client = MagicMock()
-        mock_create_client.return_value = mock_rds_client
-        mock_rds_client.create_db_cluster.side_effect = Exception('Unexpected error')
-        
-        with pytest.raises(Exception) as exc_info:
-            internal_create_express_cluster('express-cluster')
-        
-        assert 'Unexpected error' in str(exc_info.value)
 
 
 # =============================================================================

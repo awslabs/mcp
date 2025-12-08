@@ -8,8 +8,8 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
-    "boto3 @ file:////Users/kennthhz/sources/mcp/src/postgres-mcp-server/dist/boto3-1.40.61-py3-none-any.whl",
-    "botocore @ file:////Users/kennthhz/sources/mcp/src/postgres-mcp-server/dist/botocore-1.40.61-py3-none-any.whl",
+    "boto3>=1.42.4",
+    "botocore>1.42.4",
     "psycopg[pool]>=3.1.12",
     "aiorwlock"
 ]

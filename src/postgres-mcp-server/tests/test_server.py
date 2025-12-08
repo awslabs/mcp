@@ -1149,46 +1149,6 @@ def test_is_database_connected_with_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_create_cluster_express():
-    """Test create_cluster function for express cluster creation."""
-    # Mock the internal_create_express_cluster function
-    with patch('awslabs.postgres_mcp_server.server.internal_create_express_cluster') as mock_create:
-        with patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_get_props:
-            with patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user') as mock_setup_iam:
-                with patch('awslabs.postgres_mcp_server.server.internal_connect_to_database') as mock_connect:
-                    mock_get_props.return_value = {
-                        'Endpoint': 'test-endpoint.amazonaws.com',
-                        'Port': 5432,
-                        'MasterUsername': 'postgres',
-                        'DbClusterResourceId': 'cluster-ABCD1234',
-                        'DBClusterArn': 'arn:aws:rds:us-east-2:123456789012:cluster:test-express-cluster'
-                    }
-                    mock_conn = Mock_DBConnection(readonly=False)
-                    mock_connect.return_value = (mock_conn, "Connected successfully")
-                    
-                    result = create_cluster(
-                        region='us-east-2',
-                        cluster_identifier='test-express-cluster',
-                        database='testdb',
-                        engine_version='15.3',
-                        with_express_configuration=True
-                    )
-                    
-                    # Express cluster returns immediately with status
-                    assert isinstance(result, str)
-                    result_dict = json.loads(result)
-                    assert result_dict['status'] == 'Completed'
-                    assert result_dict['cluster_identifier'] == 'test-express-cluster'
-                    assert 'db_endpoint' in result_dict
-                    
-                    # Verify the mocks were called
-                    mock_create.assert_called_once()
-                    mock_get_props.assert_called_once()
-                    mock_setup_iam.assert_called_once()
-                    mock_connect.assert_called_once()
-
-
-@pytest.mark.asyncio
 async def test_create_cluster_serverless():
     """Test create_cluster function for serverless cluster creation."""
     # Mock the internal_create_serverless_cluster function
@@ -1202,8 +1162,7 @@ async def test_create_cluster_serverless():
                 region='us-west-2',
                 cluster_identifier='test-serverless-cluster',
                 database='testdb',
-                engine_version='15.3',
-                with_express_configuration=False
+                engine_version='15.3'
             )
             
             # Should return job ID
@@ -1233,8 +1192,7 @@ async def test_create_cluster_error_handling():
             region='us-west-2',
             cluster_identifier='test-error-cluster',
             database='testdb',
-            engine_version='15.3',
-            with_express_configuration=False
+            engine_version='15.3'
         )
         
         # Should still return job ID
@@ -1254,36 +1212,6 @@ async def test_create_cluster_error_handling():
                 assert job_status['state'] in ['failed', 'in_progress']  # May still be processing
         finally:
             async_job_status_lock.release()
-
-
-@pytest.mark.asyncio
-async def test_create_cluster_minimal_parameters():
-    """Test create_cluster with minimal required parameters."""
-    # Mock the internal_create_express_cluster function
-    with patch('awslabs.postgres_mcp_server.server.internal_create_express_cluster') as mock_create:
-        with patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_get_props:
-            with patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user') as mock_setup_iam:
-                with patch('awslabs.postgres_mcp_server.server.internal_connect_to_database') as mock_connect:
-                    mock_get_props.return_value = {
-                        'Endpoint': 'minimal-endpoint.amazonaws.com',
-                        'Port': 5432,
-                        'MasterUsername': 'postgres',
-                        'DbClusterResourceId': 'cluster-MINIMAL123',
-                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:minimal-cluster'
-                    }
-                    mock_conn = Mock_DBConnection(readonly=False)
-                    mock_connect.return_value = (mock_conn, "Connected successfully")
-                    
-                    result = create_cluster(
-                        region='us-east-1',
-                        cluster_identifier='minimal-cluster',
-                        with_express_configuration=True
-                    )
-                    
-                    # Should return completed status
-                    assert isinstance(result, str)
-                    result_dict = json.loads(result)
-                    assert result_dict['status'] == 'Completed'
 
 
 if __name__ == '__main__':

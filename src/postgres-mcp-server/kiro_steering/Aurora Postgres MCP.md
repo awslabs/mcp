@@ -25,12 +25,9 @@ Do not use for: speculative answers you can derive from code/docs only, or destr
 
 ## Tool API usage guidance (important)
 ### Cluster Management
-- Express Cluster (Quick Start): Call create_cluster with with_express_configuration=True to create a cluster quickly and synchronously. This operation will block until the cluster is ready (typically under 1 minute).
-- Regular Cluster (Production): Call create_cluster with with_express_configuration=False to create a regular cluster asynchronously. This returns immediately with a job ID.
+- Regular Cluster (Production): Call create_cluster to create a regular cluster asynchronously. This returns immediately with a job ID.
 - Monitoring Async Operations: Call get_job_status with the job ID to check the status of asynchronous cluster creation. Poll every 30-60 seconds until status is COMPLETED or FAILED.
-- When to Use Each:
-  - Use express clusters for quick demos, testing, or one-off queries
-  - Use regular clusters for production workloads requiring specific configurations
+
 ### Database Connections Management
 - Call connect_to_database to establish a connection to a specific database within a cluster
 - You can maintain connections to multiple databases simultaneously

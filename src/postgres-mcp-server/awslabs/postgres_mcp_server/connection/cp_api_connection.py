@@ -6,16 +6,11 @@ from typing import List, Dict, Optional, Tuple, Any
 from loguru import logger
 from botocore.exceptions import ClientError
 
-def internal_create_rds_client(region:str, with_express_configuration:bool):
-    if with_express_configuration:
-        region = 'us-east-2'
-        endpoint_url = f'https://rds-preview.{region}.amazonaws.com'
-        return boto3.client('rds', region_name=region, endpoint_url=endpoint_url)
-    else:
-        return boto3.client('rds', region_name=region)
+def internal_create_rds_client(region:str):
+    return boto3.client('rds', region_name=region)
 
 def internal_get_instance_properties(target_endpoint:str, region:str)-> Dict[str, Any]:
-    rds_client = internal_create_rds_client(region=region, with_express_configuration=False)
+    rds_client = internal_create_rds_client(region=region)
     paginator = rds_client.get_paginator('describe_db_instances')
     
     # Iterate through all instances
@@ -42,8 +37,7 @@ def internal_get_instance_properties(target_endpoint:str, region:str)-> Dict[str
 
 def internal_get_cluster_properties(
     cluster_identifier: str,
-    region: str,
-    with_express_configuration: bool = False
+    region: str
 ) -> Dict[str, Any]:
     """
     Retrieve RDS cluster properties from AWS.
@@ -51,7 +45,6 @@ def internal_get_cluster_properties(
     Args:
         cluster_identifier: RDS cluster identifier
         region: AWS region (e.g., 'us-east-1')
-        with_express_configuration: Use express RDS client config (default: False)
     
     Returns:
         Dict[str, Any]: Cluster properties from AWS RDS API
@@ -69,11 +62,10 @@ def internal_get_cluster_properties(
     if not cluster_identifier or not region:
         raise ValueError("cluster_identifier and region are required")
     
-    logger.info(f"Fetching properties for cluster '{cluster_identifier}' in '{region}' "
-                f"with_express_configuration:{with_express_configuration}")
+    logger.info(f"Fetching properties for cluster '{cluster_identifier}' in '{region}' ")
     
     try:
-        rds_client = internal_create_rds_client(region, with_express_configuration)
+        rds_client = internal_create_rds_client(region)
         response = rds_client.describe_db_clusters(
             DBClusterIdentifier=cluster_identifier
         )
@@ -112,69 +104,6 @@ def internal_get_cluster_properties(
         logger.error(f"Error fetching cluster properties: {type(e).__name__}: {e}")
         raise
 
-
-def internal_create_express_cluster(cluster_identifier: str) -> Dict[str, Any]:
-
-    """
-    Create an Aurora PostgreSQL Express cluster.
-    
-    Args:
-        cluster_identifier: Unique name for the cluster
-    
-    Returns:
-        Dict[str, Any]: Cluster properties
-    
-    Raises:
-        ValueError: If cluster_identifier is invalid
-        ClientError: If AWS API call fails
-    """
-
-    rds_client = internal_create_rds_client(region='us-east-2', with_express_configuration=True) 
-
-    # Add default tags
-    tags = []
-    tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
-
-    logger.info(f'Create express clsuter with cluster_identifier:{cluster_identifier}')
-
-    try:
-        cluster_create_start_time = time.time()
-        rds_client.create_db_cluster(
-            DBClusterIdentifier=cluster_identifier,
-            Engine='aurora-postgresql',
-            Tags=tags,
-            WithExpressConfiguration=True)
-
-        result = rds_client.describe_db_clusters(
-            DBClusterIdentifier=cluster_identifier
-        )['DBClusters'][0]
-        
-        logger.info("Waiting for cluster to become available...")
-        waiter = rds_client.get_waiter('db_cluster_available')
-        waiter.wait(
-            DBClusterIdentifier=cluster_identifier,
-            WaiterConfig={
-                'Delay': 1,
-                'MaxAttempts': 1800
-            }
-        )
-        
-        cluster_create_stop_time = time.time()
-        elapsed_time = cluster_create_stop_time - cluster_create_start_time
-        logger.info(f"Express Cluster {cluster_identifier} created successfully and took {elapsed_time:.2f} seconds")
-        return result
-    
-    except ClientError as e:
-        logger.error(
-            f"AWS error creating express cluster '{cluster_identifier}': "
-            f"{e.response['Error']['Code']} - {e.response['Error']['Message']}"
-        )
-        raise
-    except Exception as e:
-        logger.error(f"Error creating cluster '{cluster_identifier}': {type(e).__name__}: {e}")
-        raise
-
-
 def internal_create_serverless_cluster(
     region: str,
     cluster_identifier: str,
@@ -212,7 +141,7 @@ def internal_create_serverless_cluster(
     if not database_name:
         raise ValueError('database_name is required')
     
-    rds_client = internal_create_rds_client(region=region, with_express_configuration=False)
+    rds_client = internal_create_rds_client(region=region)
 
     
     # Add default tags

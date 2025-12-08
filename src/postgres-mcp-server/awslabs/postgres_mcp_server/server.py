@@ -24,7 +24,7 @@ import boto3
 
 from awslabs.postgres_mcp_server.connection.db_connection_map import DBConnectionMap, ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_get_cluster_properties, internal_create_serverless_cluster, internal_create_express_cluster, setup_aurora_iam_policy_for_current_user, internal_get_instance_properties
+from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_get_cluster_properties, internal_create_serverless_cluster, setup_aurora_iam_policy_for_current_user, internal_get_instance_properties
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
@@ -242,8 +242,7 @@ def connect_to_database(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')],
-    with_express_configuration: Annotated[bool, Field(description='with express configuration')] = False) -> str:
+    database: Annotated[str, Field(description='database name')]) -> str:
         
     """Connect to a specific database save the connection internally
 
@@ -254,7 +253,6 @@ def connect_to_database(
         cluster_identifier: Either Aurora Postgres cluster identifier or RDS Postgres cluster identifier
         db_endpoint: database endpoint
         database: database name. Required parameter
-        with_express_configuration: if the database is associated express configuration
 
         Supported scenario:
         1. Aurora Postgres database with RDS_API + Credential Manager: 
@@ -279,14 +277,13 @@ def connect_to_database(
             cluster_identifier=cluster_identifier,
             db_endpoint=db_endpoint,
             port=port,
-            database=database,
-            with_express_configuration=with_express_configuration
+            database=database
         )
 
         return str(llm_response)
 
     except Exception as e:
-        logger.error(f"internal_create_express_cluster failed with error: {str(e)}")
+        logger.error(f"connect_to_database failed with error: {str(e)}")
         trace_msg = traceback.format_exc()
         logger.error(f"Trace:{trace_msg}")
         llm_response = {
@@ -349,8 +346,7 @@ def create_cluster(
     region: Annotated[str, Field(description='region')],
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     database: Annotated[str, Field(description='default database name')] = 'postgres',
-    engine_version: Annotated[str, Field(description='engine version')] = '17.5',
-    with_express_configuration: Annotated[bool, Field(description='with express configuration')] = False) -> str:
+    engine_version: Annotated[str, Field(description='engine version')] = '17.5') -> str:
 
     """Create an RDS/Aurora cluster
 
@@ -359,7 +355,6 @@ def create_cluster(
         cluster_identifier: cluster identifier
         database: database name
         engine_version: engine version
-        with_express_configuration: create the cluster with express configuration
 
     Returns:
         result
@@ -368,47 +363,10 @@ def create_cluster(
     logger.info(f'Entered create_cluster with region:{region}, '
                 f'cluster_identifier:{cluster_identifier} '
                 f'database:{database} '
-                f'engine_version:{engine_version} '
-                f'with_express_configuration:{with_express_configuration}')
+                f'engine_version:{engine_version}')
 
     database_type = DatabaseType.APG
-    if with_express_configuration:
-        connection_method = ConnectionMethod.PG_WIRE_IAM_PROTOCOL
-    else:
-        connection_method = ConnectionMethod.RDS_API
-
-    if with_express_configuration:
-        internal_create_express_cluster(cluster_identifier)
-
-        properties = internal_get_cluster_properties(
-            cluster_identifier=cluster_identifier, 
-            region=region, 
-            with_express_configuration=with_express_configuration)
-
-        setup_aurora_iam_policy_for_current_user(
-            db_user=properties['MasterUsername'],
-            cluster_resource_id=properties['DbClusterResourceId'], 
-            cluster_region=region)
-        
-        internal_connect_to_database(
-            region = region,
-            database_type = database_type,
-            connection_method = connection_method,
-            cluster_identifier=cluster_identifier,
-            db_endpoint=properties['Endpoint'],
-            port=5432,
-            database=database,
-            with_express_configuration=with_express_configuration)
-
-        result = {
-            "status":"Completed",
-            "cluster_identifier": cluster_identifier,
-            "db_endpoint":properties['Endpoint'],
-            "message":"Express cluster creation completed successfully"
-        }
-
-        return json.dumps(result, indent=2)
-
+    connection_method = ConnectionMethod.RDS_API
 
     job_id = f"create-cluster-{cluster_identifier}-{datetime.now().isoformat(timespec='milliseconds')}"
 
@@ -427,7 +385,7 @@ def create_cluster(
 
     logger.info(f"start_create_cluster_job return with job_id:{job_id}"
                 f"region:{region} cluster_identifier:{cluster_identifier} database:{database} "
-                f"engine_version:{engine_version} with_express_configuration: {with_express_configuration}")
+                f"engine_version:{engine_version}")
     
     result = {
             "status": "Pending",
@@ -518,8 +476,7 @@ def internal_connect_to_database(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
-    database: Annotated[str, Field(description='database name')] = 'postgres',
-    with_express_configuration: Annotated[bool, Field(description='with express configuration')] = False) -> Tuple:
+    database: Annotated[str, Field(description='database name')] = 'postgres') -> Tuple:
         
     """Connect to a specific database save the connection internally
 
@@ -530,7 +487,6 @@ def internal_connect_to_database(
         cluster_identifier: cluster identifier
         db_endpoint: database endpoint
         database: database name
-        with_express_configuration: if the database is associated express configuration
     """
 
     global db_connection_map
@@ -543,8 +499,7 @@ def internal_connect_to_database(
                 f'cluster_identifier:{cluster_identifier}\n'
                 f'db_endpoint:{db_endpoint}\n'
                 f'database:{database}\n'
-                f'readonly_query:{readonly_query}\n'
-                f'with_express_configuration:{with_express_configuration}')
+                f'readonly_query:{readonly_query}')
 
     if not region:
         raise ValueError("region can't be none or empty")
@@ -573,14 +528,12 @@ def internal_connect_to_database(
     masteruser:str = ''
     cluster_arn:str = ''
     secret_arn:str = ''
-    with_express_config:bool = False
     
     if cluster_identifier:
         # Can be either APG (APG always requires cluster) or RPG multi-AZ cluster deployment case
         cluster_properties = internal_get_cluster_properties(
             cluster_identifier=cluster_identifier, 
-            region=region, 
-            with_express_configuration=with_express_configuration)
+            region=region)
 
         enable_data_api = cluster_properties.get("HttpEndpointEnabled", False)
         masteruser = cluster_properties.get("MasterUsername", '')
@@ -605,7 +558,6 @@ def internal_connect_to_database(
         f"secret_arn:{secret_arn}\n"
         f"db_endpoint:{db_endpoint}\n"
         f"port:{port}\n"
-        f"with_express_config:{with_express_config}\n"
         f"region:{region}\n"
         f"readonly:{readonly_query}")
 
