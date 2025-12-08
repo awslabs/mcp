@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:e66df2153a7cc47b4438848efb65e2d9442db4330db9befaee5107fc75464959 AS uv
+FROM public.ecr.aws/docker/library/python:3.14-slim-bookworm@sha256:5d17fc066275d26bb2ffe05bc89367dc665310200b5f4cfa8b294e97dc679bff AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -51,7 +51,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 # RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:e66df2153a7cc47b4438848efb65e2d9442db4330db9befaee5107fc75464959
+FROM public.ecr.aws/docker/library/python:3.14-slim-bookworm@sha256:5d17fc066275d26bb2ffe05bc89367dc665310200b5f4cfa8b294e97dc679bff
 ARG TERRAFORM_VERSION="1.12.2"
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
