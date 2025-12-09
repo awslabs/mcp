@@ -91,6 +91,8 @@ const sidebars: SidebarsConfig = {
             "servers/s3-tables-mcp-server",
             "servers/aws-appsync-mcp-server",
             "servers/aws-iot-sitewise-mcp-server",
+            "servers/sagemaker-unified-studio-spark-troubleshooting-mcp-server",
+            "servers/sagemaker-unified-studio-spark-upgrade-mcp-server"
           ],
         },
         {

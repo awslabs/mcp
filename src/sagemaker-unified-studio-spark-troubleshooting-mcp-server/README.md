@@ -119,7 +119,15 @@ aws configure set profile.smus-mcp-profile.source_profile default
 aws configure set profile.smus-mcp-profile.region ${SMUS_MCP_REGION}
 ```
 
-### Step 5: Configure MCP Client (Kiro CLI Example)
+### One-click Installation
+
+
+|   IDE   |       Install Spark Troubleshooting | Install Spark Code Recommendation |
+| :-----: |  :-----: | :------: |
+| Kiro IDE  | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=spark-troubleshooting&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22mcp-proxy-for-aws%40latest%22%2C%20%22https%3A//sagemaker-unified-studio-mcp.us-east-1.api.aws/spark-troubleshooting/mcp%22%2C%20%22--service%22%2C%20%22sagemaker-unified-studio-mcp%22%2C%20%22--profile%22%2C%20%22smus-mcp-profile%22%2C%20%22--region%22%2C%20%22us-east-1%22%2C%20%22--read-timeout%22%2C%20%22180%22%5D%2C%20%22timeout%22%3A%20180000%7D)  | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=spark-code-rec&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22mcp-proxy-for-aws%40latest%22%2C%20%22https%3A//sagemaker-unified-studio-mcp.us-east-1.api.aws/spark-code-recommendation/mcp%22%2C%20%22--service%22%2C%20%22sagemaker-unified-studio-mcp%22%2C%20%22--profile%22%2C%20%22smus-mcp-profile%22%2C%20%22--region%22%2C%20%22us-east-1%22%2C%20%22--read-timeout%22%2C%20%22180%22%5D%2C%20%22timeout%22%3A%20180000%7D) |
+| VS Code  |  [![Install Troubleshooting VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900)](vscode:mcp/install?%7B%22name%22%3A%22sagemaker-unified-studio-mcp-troubleshooting%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A%2F%2Fsagemaker-unified-studio-mcp.us-east-1.api.aws%2Fspark-troubleshooting%2Fmcp%22%2C%22--service%22%2C%22sagemaker-unified-studio-mcp%22%2C%22--profile%22%2C%22smus-mcp-profile%22%2C%22--region%22%2C%22us-east-1%22%2C%22--read-timeout%22%2C%22180%22%5D%7D) | [![Install Code Recommendation in VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900)](vscode:mcp/install?%7B%22name%22%3A%22sagemaker-unified-studio-mcp-code-rec%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A%2F%2Fsagemaker-unified-studio-mcp.us-east-1.api.aws%2Fspark-code-recommendation%2Fmcp%22%2C%22--service%22%2C%22sagemaker-unified-studio-mcp%22%2C%22--profile%22%2C%22smus-mcp-profile%22%2C%22--region%22%2C%22us-east-1%22%2C%22--read-timeout%22%2C%22180%22%5D%7D) |
+
+### Configure MCP Client (Kiro CLI Example)
 
 ```bash
 # Add Spark Troubleshooting MCP Server

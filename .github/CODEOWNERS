@@ -78,6 +78,8 @@ NOTICE                                           @awslabs/mcp-admins
 /src/redshift-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp
 /src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr @okhomin @Zh111602
 /src/sagemaker-ai-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @dparkar @githuboston @jade710 @JunqiYe
+/src/sagemaker-unified-studio-spark-upgrade-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers   @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
+/src/sagemaker-unified-studio-spark-troubleshooting-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers   @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/stepfunctions-tool-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/syntheticdata-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
 /src/terraform-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
