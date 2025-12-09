@@ -6,8 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10,<3.12"
 dependencies = [
     "boto3>=1.37.27",
-    "cassandra-driver>=3.25.0",
-    "fastmcp>=0.1.0",
+    "cassandra-driver>=3.29.2",
+    "fastmcp>=2.8.0",
     "loguru>=0.7.0",
     "mcp>=1.11.0",
     "pydantic>=2.10.6",
@@ -19,6 +19,7 @@ authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
     {name = "Joel Shepherd", email="shepherd@amazon.com"},
+    {name = "Michael Christensen", email="mlynnc@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -122,9 +123,13 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
+]
+filterwarnings = [
+    "ignore::pytest.PytestAssertRewriteWarning"
 ]
 
 [tool.coverage.report]

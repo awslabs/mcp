@@ -22,6 +22,12 @@ from .consts import (
     SERVER_VERSION,
     UNSAFE_OPERATIONS,
 )
+from .exceptions import (
+    QueryExecutionError,
+    QuerySecurityError,
+    SchemaError,
+    ValidationError,
+)
 from .llm_context import (
     build_keyspace_details_context,
     build_list_keyspaces_context,
@@ -30,10 +36,10 @@ from .llm_context import (
     build_query_result_context,
     build_table_details_context,
 )
+from .models import KeyspaceInput, QueryInput, TableInput
 from .services import DataService, QueryAnalysisService, SchemaService
+from fastmcp import Context, FastMCP
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
 from typing import Any, Optional
 
 
@@ -41,19 +47,295 @@ from typing import Any, Optional
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-mcp = FastMCP(name=SERVER_NAME, version=SERVER_VERSION)
 
-# Global handle to hold the proxy to the specific db client
-_proxy = None
+mcp = FastMCP(
+    name=SERVER_NAME,
+    version=SERVER_VERSION,
+    instructions="""
+# Amazon Keyspaces MCP Server
+
+This MCP server enables interaction with Amazon Keyspaces (for Apache Cassandra) and Apache Cassandra databases through natural language.
+
+## Available Tools
+
+- **listKeyspaces**: Lists all keyspaces in the database
+- **listTables**: Lists tables in a specific keyspace
+- **describeKeyspace**: Gets detailed keyspace information including replication strategy
+- **describeTable**: Gets table schema including columns, data types, and primary keys
+- **executeQuery**: Executes read-only SELECT queries
+- **analyzeQueryPerformance**: Analyzes query performance and provides optimization recommendations
+
+## Usage Guidelines
+
+1. Start by listing keyspaces to understand the database structure
+2. Use describeTable to understand table schemas before querying
+3. Only SELECT queries are permitted for data safety
+4. Use analyzeQueryPerformance to optimize queries before execution
+
+## Resources
+
+- **keyspaces://developer-guide**: Complete developer guide with best practices
+- **keyspaces://cql-reference**: CQL language reference for Keyspaces
+- **keyspaces://api-reference**: AWS Keyspaces API documentation
+- **keyspaces://streams-api**: Keyspaces Streams API reference
+- **keyspaces://code-examples**: Sample code repository
+""",
+)
 
 
-def get_proxy():
+@mcp.resource('keyspaces://developer-guide')
+def get_developer_guide() -> str:
+    """Amazon Keyspaces Developer Guide with best practices and tutorials."""
+    return """# Amazon Keyspaces Developer Guide
+
+Complete guide for developing applications with Amazon Keyspaces.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/devguide/AmazonKeyspaces.pdf
+
+## Key Topics
+
+### Getting Started
+- Setting up credentials and connections
+- Creating keyspaces and tables
+- Loading data
+
+### Data Modeling
+- Partition key design
+- Clustering column strategies
+- Denormalization patterns
+
+### Performance
+- Read/write capacity modes
+- Auto-scaling configuration
+- Query optimization
+
+### Security
+- IAM authentication
+- Encryption at rest and in transit
+- VPC endpoints
+
+### Monitoring
+- CloudWatch metrics
+- CloudTrail logging
+- Point-in-time recovery
+
+Refer to the full PDF for detailed examples and best practices.
+"""
+
+
+@mcp.resource('keyspaces://cql-reference')
+def get_cql_reference() -> str:
+    """CQL language reference for Amazon Keyspaces."""
+    return """# Amazon Keyspaces CQL Reference
+
+Cassandra Query Language (CQL) syntax and operations supported by Keyspaces.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/devguide/AmazonKeyspaces.pdf
+
+## Supported CQL Operations
+
+### Data Definition (DDL)
+- CREATE/ALTER/DROP KEYSPACE
+- CREATE/ALTER/DROP TABLE
+- CREATE/DROP INDEX
+
+### Data Manipulation (DML)
+- SELECT (with WHERE, ORDER BY, LIMIT)
+- INSERT, UPDATE, DELETE
+- BATCH operations
+
+### Data Types
+- Primitive: text, int, bigint, boolean, decimal, timestamp, uuid
+- Collections: list, set, map
+- Special: frozen, tuple
+
+### Limitations
+- No materialized views
+- No user-defined functions
+- No aggregate functions (COUNT, SUM)
+- No TRUNCATE TABLE
+
+See full PDF for complete syntax and examples.
+"""
+
+
+@mcp.resource('keyspaces://api-reference')
+def get_api_reference() -> str:
+    """AWS Keyspaces API Reference for management operations."""
+    return """# Amazon Keyspaces API Reference
+
+Complete API documentation for Amazon Keyspaces management operations.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/APIReference/keyspaces-api.pdf
+
+## Key API Operations
+
+### Keyspace Management
+- CreateKeyspace, DeleteKeyspace, GetKeyspace, ListKeyspaces
+
+### Table Management
+- CreateTable, DeleteTable, GetTable, UpdateTable, ListTables, RestoreTable
+
+### Configuration
+- GetTableAutoScalingSettings
+- TagResource, UntagResource, ListTagsForResource
+
+### Capacity Modes
+- PAY_PER_REQUEST: Serverless, pay per request
+- PROVISIONED: Fixed capacity with auto-scaling support
+
+### Encryption
+- AWS_OWNED_KMS_KEY (default)
+- CUSTOMER_MANAGED_KMS_KEY
+
+### Point-in-Time Recovery
+- Continuous backups for up to 35 days
+- Restore to any point within recovery window
+
+For detailed schemas, parameters, and examples, refer to the full PDF documentation.
+"""
+
+
+@mcp.resource('keyspaces://streams-api')
+def get_streams_api() -> str:
+    """Amazon Keyspaces Streams API Reference for change data capture."""
+    return """# Amazon Keyspaces Streams API Reference
+
+API for capturing and processing change data from Keyspaces tables.
+
+**Documentation**: https://docs.aws.amazon.com/pdfs/keyspaces/latest/StreamsAPIReference/keyspaces-streams-api.pdf
+
+## Overview
+
+Keyspaces Streams captures item-level changes (inserts, updates, deletes) in near real-time.
+
+## Key Operations
+
+### Stream Management
+- GetRecords: Read change records from a stream
+- DescribeStream: Get stream metadata
+- ListStreams: List available streams
+
+### Use Cases
+- Real-time analytics
+- Data replication
+- Audit logging
+- Event-driven architectures
+
+### Integration
+- AWS Lambda triggers
+- Kinesis Data Streams
+- Custom consumers
+
+Refer to the full PDF for detailed API specifications and examples.
+"""
+
+
+@mcp.resource('keyspaces://code-examples')
+def get_code_examples() -> str:
+    """Amazon Keyspaces code examples and sample applications."""
+    return """# Amazon Keyspaces Code Examples
+
+Sample code and reference implementations for common use cases.
+
+**Repository**: https://github.com/aws-samples/amazon-keyspaces-examples
+
+## Available Examples
+
+### Connection Patterns
+- Python, Java, Node.js drivers
+- IAM authentication
+- SSL/TLS configuration
+
+### Data Operations
+- CRUD operations
+- Batch processing
+- Pagination
+
+### Advanced Features
+- Point-in-time recovery
+- Auto-scaling setup
+- Multi-region replication
+
+### Integration Examples
+- Lambda functions
+- ECS/EKS deployments
+- Spring Boot applications
+
+Clone the repository for complete, runnable examples with detailed README files.
+"""
+
+
+@mcp.resource('cassandra://cql-reference')
+def get_cassandra_cql_reference() -> str:
+    """Apache Cassandra CQL reference documentation."""
+    return """# Apache Cassandra CQL Reference
+
+Complete CQL language reference for Apache Cassandra.
+
+**Documentation**: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/index.html
+
+## Key Sections
+
+### CQL Basics
+- Definitions: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/definitions.html
+- Data Types: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/types.html
+
+### Operations
+- DDL (Data Definition): https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/ddl.html
+- DML (Data Manipulation): https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/dml.html
+- Operators: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/operators.html
+
+### Advanced Features
+- Indexing: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/indexing/indexing-concepts.html
+- Materialized Views: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/mvs.html
+- Functions: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/functions.html
+- JSON Support: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/json.html
+
+### Reference
+- CQL Commands: https://cassandra.apache.org/doc/trunk/cassandra/reference/cql-commands/commands-toc.html
+- Single File Reference: https://cassandra.apache.org/doc/trunk/cassandra/developing/cql/cql_singlefile.html
+"""
+
+
+@mcp.resource('cassandra://data-modeling')
+def get_cassandra_data_modeling() -> str:
+    """Apache Cassandra data modeling guide."""
+    return """# Apache Cassandra Data Modeling
+
+Comprehensive guide to data modeling in Cassandra.
+
+**Documentation**: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/index.html
+
+## Key Topics
+
+### Conceptual Modeling
+- Introduction: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/intro.html
+- Concepts: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_conceptual.html
+
+### Design Process
+- RDBMS Design: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_rdbms.html
+- Query Patterns: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_queries.html
+- Logical Modeling: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_logical.html
+- Physical Modeling: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_physical.html
+
+### Best Practices
+- Evaluation: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_refining.html
+- Schema Definition: https://cassandra.apache.org/doc/trunk/cassandra/developing/data-modeling/data-modeling_schema.html
+"""
+
+
+# Global handle to hold the proxy to the specific database client
+_PROXY = None
+
+
+async def get_proxy():
     """Returns a singleton instance of the main Keyspaces MCP server implementation.
 
-    The singleton is initialized lazily.
+    The singleton is initialized lazily when first accessed (ensuring event loop is running).
     """
-    global _proxy
-    if _proxy is None:
+    global _PROXY  # pylint: disable=global-statement
+    if _PROXY is None:
         # Load configuration
         app_config = AppConfig.from_env()
 
@@ -65,83 +347,88 @@ def get_proxy():
         schema_service = SchemaService(cassandra_client)
         query_analysis_service = QueryAnalysisService(cassandra_client, schema_service)
 
-        _proxy = KeyspacesMcpStdioServer(data_service, query_analysis_service, schema_service)
+        _PROXY = KeyspacesMcpStdioServer(data_service, query_analysis_service, schema_service)
 
-    return _proxy
+    return _PROXY
 
 
 @mcp.tool(
     name='listKeyspaces',
     description='Lists all keyspaces in the Cassandra/Keyspaces database - args: none',
 )
-def list_keyspaces(
+async def list_keyspaces(
     ctx: Optional[Context] = None,
 ) -> str:
     """Lists all keyspaces in the Cassandra/Keyspaces database."""
-    return get_proxy().handle_list_keyspaces(ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_list_keyspaces(ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
     name='listTables',
     description='Lists all tables in a specified keyspace - args: keyspace',
 )
-def list_tables(
-    keyspace: str = Field(..., description='The keyspace to list tables from.'),
+async def list_tables(
+    input: KeyspaceInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Lists all tables in a specified keyspace."""
-    return get_proxy()._handle_list_tables(keyspace, ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_list_tables(input.keyspace, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
     name='describeKeyspace',
     description='Gets detailed information about a keyspace - args: keyspace',
 )
-def describe_keyspace(
-    keyspace: str = Field(..., description='The keyspace to retrieve metadata for.'),
+async def describe_keyspace(
+    input: KeyspaceInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a keyspace."""
-    return get_proxy()._handle_describe_keyspace(keyspace, ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_describe_keyspace(input.keyspace, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
     name='describeTable',
     description='Gets detailed information about a table - args: keyspace, table',
 )
-def describe_table(
-    keyspace: str = Field(..., description='The keyspace containing the table'),
-    table: str = Field(..., description='The name of the table to describe'),
+async def describe_table(
+    input: TableInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Gets detailed information about a table."""
-    return get_proxy()._handle_describe_table(keyspace, table, ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_describe_table(input.keyspace, input.table, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
     name='executeQuery',
     description='Executes a read-only SELECT query against the database - args: keyspace, query',
 )
-def execute_query(
-    keyspace: str = Field(..., description='The keyspace to execute the query against'),
-    query: str = Field(..., description='The CQL SELECT query to execute'),
+async def execute_query(
+    input: QueryInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Executes a read-only (SELECT) query against the database."""
-    return get_proxy()._handle_execute_query(keyspace, query, ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_execute_query(input.keyspace, input.query, ctx)  # pylint: disable=protected-access
 
 
 @mcp.tool(
     name='analyzeQueryPerformance',
     description='Analyzes the performance characteristics of a CQL query - args: keyspace, query',
 )
-def analyze_query_performance(
-    keyspace: str = Field(..., description='The keyspace to analyze the query against'),
-    query: str = Field(..., description='The CQL query to analyze for performance'),
+async def analyze_query_performance(
+    input: QueryInput,  # pylint: disable=redefined-builtin
     ctx: Optional[Context] = None,
 ) -> str:
     """Analyzes the performance characteristics of a CQL query."""
-    return get_proxy()._handle_analyze_query_performance(keyspace, query, ctx)
+    proxy = await get_proxy()
+    return await proxy._handle_analyze_query_performance(  # pylint: disable=protected-access
+        input.keyspace, input.query, ctx
+    )
 
 
 class KeyspacesMcpStdioServer:
@@ -158,10 +445,10 @@ class KeyspacesMcpStdioServer:
         self.query_analysis_service = query_analysis_service
         self.schema_service = schema_service
 
-    def handle_list_keyspaces(self, ctx: Optional[Any] = None) -> str:
+    async def _handle_list_keyspaces(self, ctx: Optional[Any] = None) -> str:
         """Handle the listKeyspaces tool."""
         try:
-            keyspaces = self.schema_service.list_keyspaces()
+            keyspaces = await self.schema_service.list_keyspaces()
 
             # Format keyspace names as a markdown list for better display
             keyspace_names = [k.name for k in keyspaces]
@@ -180,15 +467,15 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error listing keyspaces: {str(e)}')
-            raise Exception(f'Error listing keyspaces: {str(e)}')
+            raise SchemaError('Unable to retrieve keyspace information') from e
 
-    def _handle_list_tables(self, keyspace: str, ctx: Optional[Context] = None) -> str:
+    async def _handle_list_tables(self, keyspace: str, ctx: Optional[Context] = None) -> str:
         """Handle the listTables tool."""
         try:
             if not keyspace:
-                raise Exception('Keyspace name is required')
+                raise ValidationError('Keyspace name is required')
 
-            tables = self.schema_service.list_tables(keyspace)
+            tables = await self.schema_service.list_tables(keyspace)
 
             # Format table names as a markdown list for better display
             table_names = [t.name for t in tables]
@@ -207,15 +494,15 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error listing tables: {str(e)}')
-            raise Exception(f'Error listing tables: {str(e)}')
+            raise SchemaError('Unable to retrieve table information') from e
 
-    def _handle_describe_keyspace(self, keyspace: str, ctx: Optional[Context] = None) -> str:
+    async def _handle_describe_keyspace(self, keyspace: str, ctx: Optional[Context] = None) -> str:
         """Handle the describeKeyspace tool."""
         try:
             if not keyspace:
-                raise Exception('Keyspace name is required')
+                raise ValidationError('Keyspace name is required')
 
-            keyspace_details = self.schema_service.describe_keyspace(keyspace)
+            keyspace_details = await self.schema_service.describe_keyspace(keyspace)
 
             # Format keyspace details as markdown
             formatted_text = f'## Keyspace: `{keyspace}`\n\n'
@@ -227,7 +514,8 @@ class KeyspacesMcpStdioServer:
 
             # Add replication factor or datacenter details
             if 'SimpleStrategy' in replication.get('class', ''):
-                formatted_text += f'- **Replication Factor**: `{replication.get("replication_factor", "Unknown")}`\n'
+                rf = replication.get('replication_factor', 'Unknown')
+                formatted_text += f'- **Replication Factor**: `{rf}`\n'
             elif 'NetworkTopologyStrategy' in replication.get('class', ''):
                 formatted_text += '- **Datacenter Replication**:\n'
                 for dc, factor in replication.items():
@@ -246,20 +534,20 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error describing keyspace: {str(e)}')
-            raise Exception(f'Error describing keyspace: {str(e)}')
+            raise SchemaError('Unable to retrieve keyspace details') from e
 
-    def _handle_describe_table(
+    async def _handle_describe_table(
         self, keyspace: str, table: str, ctx: Optional[Context] = None
     ) -> str:
         """Handle the describeTable tool."""
         try:
             if not keyspace:
-                raise Exception('Keyspace name is required')
+                raise ValidationError('Keyspace name is required')
 
             if not table:
-                raise Exception('Table name is required')
+                raise ValidationError('Table name is required')
 
-            table_details = self.schema_service.describe_table(keyspace, table)
+            table_details = await self.schema_service.describe_table(keyspace, table)
 
             # Format table details as markdown
             formatted_text = f'## Table: `{keyspace}.{table}`\n\n'
@@ -314,30 +602,30 @@ class KeyspacesMcpStdioServer:
             return formatted_text
         except Exception as e:
             logger.error(f'Error describing table: {str(e)}')
-            raise Exception(f'Error describing table: {str(e)}')
+            raise SchemaError('Unable to retrieve table details') from e
 
-    def _handle_execute_query(
+    async def _handle_execute_query(
         self, keyspace: str, query: str, ctx: Optional[Context] = None
     ) -> str:
         """Handle the executeQuery tool."""
         try:
             if not keyspace:
-                raise Exception('Keyspace name is required')
+                raise ValidationError('Keyspace name is required')
 
             if not query:
-                raise Exception('Query is required')
+                raise ValidationError('Query is required')
 
             # Validate that this is a read-only query
             trimmed_query = query.strip().lower()
             if not trimmed_query.startswith('select '):
-                raise Exception('Only SELECT queries are allowed for read-only execution')
+                raise QuerySecurityError('Only SELECT queries are allowed for read-only execution')
 
             # Check for any modifications that might be disguised as SELECT
             if any(op in trimmed_query for op in UNSAFE_OPERATIONS):
-                raise Exception('Query contains potentially unsafe operations')
+                raise QuerySecurityError('Query contains potentially unsafe operations')
 
             # Execute the query using the DataService
-            query_results = self.data_service.execute_read_only_query(keyspace, query)
+            query_results = await self.data_service.execute_read_only_query(keyspace, query)
 
             # Format the results for display
             formatted_text = '## Query Results\n\n'
@@ -369,7 +657,11 @@ class KeyspacesMcpStdioServer:
 
                 # Add note if results were truncated
                 if len(rows) > display_limit:
-                    formatted_text += f'\n_Note: Showing {display_limit} of {len(rows)} total rows. Use LIMIT in your query to restrict results._'
+                    note = (
+                        f'\n_Note: Showing {display_limit} of {len(rows)} total rows. '
+                        'Use LIMIT in your query to restrict results._'
+                    )
+                    formatted_text += note
             else:
                 formatted_text += 'No rows returned.'
 
@@ -379,26 +671,24 @@ class KeyspacesMcpStdioServer:
                 formatted_text += build_query_result_context(query_results)
 
             return formatted_text
-        except ValueError as e:
-            # This is thrown for non-SELECT queries
-            logger.warning(f'Invalid query attempt: {str(e)}')
-            raise Exception(str(e))
+        except (ValidationError, QuerySecurityError):
+            raise
         except Exception as e:
             logger.error(f'Error executing query: {str(e)}')
-            raise Exception(f'Error executing query: {str(e)}')
+            raise QueryExecutionError('Unable to execute query') from e
 
-    def _handle_analyze_query_performance(
+    async def _handle_analyze_query_performance(
         self, keyspace: str, query: str, ctx: Optional[Context] = None
     ) -> str:
         """Handle the analyzeQueryPerformance tool."""
         try:
             if not keyspace:
-                raise Exception('Keyspace name is required')
+                raise ValidationError('Keyspace name is required')
 
             if not query:
-                raise Exception('Query is required')
+                raise ValidationError('Query is required')
 
-            analysis_result = self.query_analysis_service.analyze_query(keyspace, query)
+            analysis_result = await self.query_analysis_service.analyze_query(keyspace, query)
 
             # Build a user-friendly response
             formatted_text = '## Query Analysis Results\n\n'
@@ -418,13 +708,26 @@ class KeyspacesMcpStdioServer:
                 formatted_text += build_query_analysis_context(analysis_result)
 
             return formatted_text
+        except ValidationError:
+            raise
         except Exception as e:
             logger.error(f'Error analyzing query: {str(e)}')
-            raise Exception(f'Error analyzing query: {str(e)}')
+            raise QueryExecutionError('Unable to analyze query') from e
 
 
 def main():
     """Run the MCP server."""
+    import asyncio  # pylint: disable=import-outside-toplevel
+
+    # Validate connection before starting server
+    try:
+        proxy = asyncio.run(get_proxy())
+        asyncio.run(proxy.schema_service.cassandra_client.get_session())
+        logger.success('Successfully validated database connection')
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error(f'Failed to connect to database: {e}')
+        sys.exit(1)
+
     mcp.run()
 
 

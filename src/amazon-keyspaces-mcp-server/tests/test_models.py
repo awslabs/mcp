@@ -11,6 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Amazon Keyspaces MCP Server package."""
 
-__version__ = '0.0.6'
+"""Tests for models module."""
+
+import unittest
+from awslabs.amazon_keyspaces_mcp_server.models import QueryInput
+
+
+class TestModels(unittest.TestCase):
+    """Test cases for models."""
+
+    def test_sanitize_query_with_hidden_characters(self):
+        """Test query sanitization removes hidden unicode characters."""
+        input_data = QueryInput(keyspace='test', query='SELECT\u200b * FROM\ufeff users\u0000')
+        self.assertEqual(input_data.query, 'SELECT * FROM users')
+
+
+if __name__ == '__main__':
+    unittest.main()
