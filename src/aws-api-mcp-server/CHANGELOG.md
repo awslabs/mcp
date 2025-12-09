@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- OAuth support (#1902)
+- Add OAuth support (#1902)
 
 ### Fixed
 

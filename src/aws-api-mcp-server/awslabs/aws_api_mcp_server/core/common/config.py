@@ -145,7 +145,7 @@ CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 60
 
 # Authentication Configuration
-AUTH_TYPE = os.getenv('AUTH_TYPE', 'no-auth')
+AUTH_TYPE = os.getenv('AUTH_TYPE', 'oauth')
 AUTH_ISSUER = os.getenv('AUTH_ISSUER')
 AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')
 AUTH_AUDIENCE = os.getenv('AUTH_AUDIENCE')
