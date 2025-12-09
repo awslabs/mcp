@@ -193,7 +193,8 @@ To run in readonly mode with Docker:
 
 ## Configuration
 
-The server can be configured using the following environment variables:
+### Valkey Connection
+The Valkey server can be configured using the following environment variables:
 
 | Name | Description | Default Value |
 |------|-------------|---------------|
@@ -208,6 +209,19 @@ The server can be configured using the following environment variables:
 | `VALKEY_CERT_REQS` | Server certificate verification | `"required"` |
 | `VALKEY_CA_CERTS` | Path to trusted CA certificates | `None` |
 | `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode | `False` |
+
+### Embeddings Provider
+Semantic search requires integration with an embeddings provider.
+The following environment variables are used to configure this:
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama' or 'Bedrock'                         | `"ollama"`                     |
+| `OLLAMA_HOST` | If Ollama is used, this is the URL pointing to the Ollama endpoint             | `"http://localhost:11434"`     |
+| `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
+| `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
+| `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.titan-embed-text-v1"` |
+
 
 ## Example Usage
 

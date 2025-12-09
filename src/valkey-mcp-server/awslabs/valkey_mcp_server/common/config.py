@@ -35,6 +35,16 @@ VALKEY_CFG = {
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
 }
 
+EMBEDDING_CFG = {
+    'provider': os.getenv('EMBEDDING_PROVIDER', 'ollama').lower(),
+
+    'ollama_host': os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
+    'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
+
+    'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
+    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1')
+}
+
 
 def generate_valkey_uri():
     """Generates Valkey URL."""

@@ -17,6 +17,7 @@
 import os
 from .base import EmbeddingsProvider
 from .providers import OllamaEmbeddings, BedrockEmbeddings
+from awslabs.valkey_mcp_server.common.config import EMBEDDING_CFG
 
 
 def create_embeddings_provider() -> EmbeddingsProvider:
@@ -40,24 +41,24 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     Raises:
         ValueError: If provider type is unknown or required credentials are missing
     """
-    provider_type = os.getenv('EMBEDDINGS_PROVIDER', 'ollama').lower()
+    provider_type = EMBEDDING_CFG.get('provider', 'ollama').lower()
 
     if provider_type == 'ollama':
         return OllamaEmbeddings(
-            base_url=os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
-            model=os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text')
+            base_url=EMBEDDING_CFG.get('ollama_host', 'http://localhost:11434'),
+            model=EMBEDDING_CFG.get('ollama_embedding_model', 'nomic-embed-text')
         )
 
     elif provider_type == 'bedrock':
         return BedrockEmbeddings(
-            region_name=os.getenv('AWS_REGION', 'us-east-1'),
-            model_id=os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1')
+            region_name=EMBEDDING_CFG.get('bedrock_region', 'us-east-1'),
+            model_id=EMBEDDING_CFG.get('bedrock_model_id', 'amazon.titan-embed-text-v1')
         )
 
     else:
         raise ValueError(
             f"Unknown embeddings provider: {provider_type}. "
-            f"Supported providers: ollama, openai, bedrock, cohere, hash"
+            f"Supported providers: ollama, bedrock"
         )
 
 

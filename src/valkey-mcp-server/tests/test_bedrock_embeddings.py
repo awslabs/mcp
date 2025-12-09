@@ -104,8 +104,8 @@ class TestBedrockEmbeddingsMocked:
         boto3.client = MagicMock()
         
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        provider = BedrockEmbeddings(model_id="amazon.titan-embed-text-v2")
+        provider = BedrockEmbeddings(model_id="amazon.titan-embed-text-v1")
         
         name = provider.get_provider_name()
         assert "Bedrock" in name
-        assert "amazon.titan-embed-text-v2" in name
+        assert "amazon.titan-embed-text-v1" in name
