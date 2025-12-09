@@ -18,6 +18,8 @@ import os
 from awslabs.aws_dataprocessing_mcp_server import __version__
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
+    CUSTOM_TAGS_ENV_VAR,
+    EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
     MCP_CREATION_TIME_TAG_KEY,
     MCP_MANAGED_TAG_KEY,
     MCP_MANAGED_TAG_VALUE,
@@ -558,6 +560,311 @@ class TestAwsHelper:
         assert result['is_valid'] is False
         assert 'not managed by MCP' in result['error_message']
         mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
+
+    def test_is_custom_tags_enabled_true(self):
+        """Test that is_custom_tags_enabled returns True when CUSTOM_TAGS is set to 'True'."""
+        with patch.dict(os.environ, {CUSTOM_TAGS_ENV_VAR: 'True'}):
+            assert AwsHelper.is_custom_tags_enabled() is True
+
+    def test_is_custom_tags_enabled_true_lowercase(self):
+        """Test that is_custom_tags_enabled returns True when CUSTOM_TAGS is set to 'true'."""
+        with patch.dict(os.environ, {CUSTOM_TAGS_ENV_VAR: 'true'}):
+            assert AwsHelper.is_custom_tags_enabled() is True
+
+    def test_is_custom_tags_enabled_false(self):
+        """Test that is_custom_tags_enabled returns False when CUSTOM_TAGS is set to 'False'."""
+        with patch.dict(os.environ, {CUSTOM_TAGS_ENV_VAR: 'False'}):
+            assert AwsHelper.is_custom_tags_enabled() is False
+
+    def test_is_custom_tags_enabled_not_set(self):
+        """Test that is_custom_tags_enabled returns False when CUSTOM_TAGS is not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            assert AwsHelper.is_custom_tags_enabled() is False
+
+    def test_is_custom_tags_enabled_invalid_value(self):
+        """Test that is_custom_tags_enabled returns False when CUSTOM_TAGS is set to an invalid value."""
+        with patch.dict(os.environ, {CUSTOM_TAGS_ENV_VAR: 'invalid'}):
+            assert AwsHelper.is_custom_tags_enabled() is False
+
+    def test_prepare_resource_tags_with_custom_tags_enabled(self):
+        """Test that prepare_resource_tags returns only additional tags when custom tags are enabled."""
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            # Test with no additional tags
+            tags = AwsHelper.prepare_resource_tags('TestResource')
+            assert tags == {}
+
+            # Test with additional tags
+            additional_tags = {'tag1': 'value1', 'tag2': 'value2'}
+            tags = AwsHelper.prepare_resource_tags('TestResource', additional_tags)
+            assert tags == additional_tags
+            # Ensure MCP tags are not included
+            assert MCP_MANAGED_TAG_KEY not in tags
+            assert MCP_RESOURCE_TYPE_TAG_KEY not in tags
+
+    def test_verify_resource_managed_by_mcp_with_custom_tags_enabled(self):
+        """Test that verify_resource_managed_by_mcp returns True when custom tags are enabled."""
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            # Test with empty tags
+            result = AwsHelper.verify_resource_managed_by_mcp([])
+            assert result is True
+
+            # Test with unmanaged resource tags
+            tags = [{'Key': 'tag1', 'Value': 'value1'}]
+            result = AwsHelper.verify_resource_managed_by_mcp(tags)
+            assert result is True
+
+    def test_is_resource_mcp_managed_with_custom_tags_enabled(self):
+        """Test that is_resource_mcp_managed returns True when custom tags are enabled."""
+        mock_glue_client = MagicMock()
+
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            # Test without parameters
+            result = AwsHelper.is_resource_mcp_managed(
+                mock_glue_client, 'arn:aws:glue:us-west-2:123456789012:database/test-db'
+            )
+            assert result is True
+            # Ensure no API calls were made
+            mock_glue_client.get_tags.assert_not_called()
+
+            # Test with parameters
+            parameters = {'some_key': 'some_value'}
+            result = AwsHelper.is_resource_mcp_managed(
+                mock_glue_client,
+                'arn:aws:glue:us-west-2:123456789012:database/test-db',
+                parameters=parameters,
+            )
+            assert result is True
+            mock_glue_client.get_tags.assert_not_called()
+
+    def test_verify_emr_cluster_managed_by_mcp_with_custom_tags_enabled(self):
+        """Test that verify_emr_cluster_managed_by_mcp returns valid when custom tags are enabled."""
+        mock_emr_client = MagicMock()
+
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                mock_emr_client, 'j-12345ABCDEF', 'EMRCluster'
+            )
+
+            # Verify the result
+            assert result['is_valid'] is True
+            assert result['error_message'] is None
+            # Ensure no API calls were made
+            mock_emr_client.describe_cluster.assert_not_called()
+
+    def test_verify_athena_data_catalog_managed_by_mcp_with_custom_tags_enabled(self):
+        """Test that verify_athena_data_catalog_managed_by_mcp returns valid when custom tags are enabled."""
+        mock_athena_client = MagicMock()
+
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            result = AwsHelper.verify_athena_data_catalog_managed_by_mcp(
+                mock_athena_client, 'test-catalog'
+            )
+
+            # Verify the result
+            assert result['is_valid'] is True
+            assert result['error_message'] is None
+            # Ensure no API calls were made
+            mock_athena_client.get_data_catalog.assert_not_called()
+            mock_athena_client.list_tags_for_resource.assert_not_called()
+
+    def test_verify_emr_serverless_application_managed_by_mcp_success(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp returns valid when the application is managed by MCP."""
+        # Mock the EMR Serverless client
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.return_value = {
+            'application': {
+                'applicationId': 'app-12345ABCDEF',
+                'name': 'TestApplication',
+                'state': 'CREATED',
+                'tags': {
+                    MCP_MANAGED_TAG_KEY: MCP_MANAGED_TAG_VALUE,
+                    MCP_RESOURCE_TYPE_TAG_KEY: EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
+                },
+            }
+        }
+
+        # Test with an application that is managed by MCP
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-12345ABCDEF', EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+        )
+
+        # Verify the result
+        assert result['is_valid'] is True
+        assert result['error_message'] is None
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-12345ABCDEF'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_not_managed(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp returns invalid when the application is not managed by MCP."""
+        # Mock the EMR Serverless client
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.return_value = {
+            'application': {
+                'applicationId': 'app-12345ABCDEF',
+                'name': 'TestApplication',
+                'state': 'CREATED',
+                'tags': {
+                    'SomeOtherTag': 'SomeValue',
+                },
+            }
+        }
+
+        # Test with an application that is not managed by MCP
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-12345ABCDEF', EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'not managed by MCP' in result['error_message']
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-12345ABCDEF'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_wrong_type(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp returns invalid when the application has the wrong resource type."""
+        # Mock the EMR Serverless client
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.return_value = {
+            'application': {
+                'applicationId': 'app-12345ABCDEF',
+                'name': 'TestApplication',
+                'state': 'CREATED',
+                'tags': {
+                    MCP_MANAGED_TAG_KEY: MCP_MANAGED_TAG_VALUE,
+                    MCP_RESOURCE_TYPE_TAG_KEY: 'WrongType',
+                },
+            }
+        }
+
+        # Test with an application that has the wrong resource type
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-12345ABCDEF', 'ExpectedType'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'incorrect type' in result['error_message']
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-12345ABCDEF'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_default_type_acceptance(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp accepts EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE as valid."""
+        # Mock the EMR Serverless client
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.return_value = {
+            'application': {
+                'applicationId': 'app-12345ABCDEF',
+                'name': 'TestApplication',
+                'state': 'CREATED',
+                'tags': {
+                    MCP_MANAGED_TAG_KEY: MCP_MANAGED_TAG_VALUE,
+                    MCP_RESOURCE_TYPE_TAG_KEY: EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
+                },
+            }
+        }
+
+        # Test with an application that has EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE but we're checking for a different type
+        # This should still be valid because EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE is always acceptable
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-12345ABCDEF', 'SomeOtherType'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is True
+        assert result['error_message'] is None
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-12345ABCDEF'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_client_error(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp handles ClientError correctly."""
+        # Mock the EMR Serverless client to raise a ClientError
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.side_effect = ClientError(
+            {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Application not found'}},
+            'GetApplication',
+        )
+
+        # Test with an application that doesn't exist
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-nonexistent', EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'Error retrieving application' in result['error_message']
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-nonexistent'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_no_tags(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp handles applications with no tags."""
+        # Mock the EMR Serverless client
+        mock_emr_serverless_client = MagicMock()
+        mock_emr_serverless_client.get_application.return_value = {
+            'application': {
+                'applicationId': 'app-12345ABCDEF',
+                'name': 'TestApplication',
+                'state': 'CREATED',
+                # No tags field
+            }
+        }
+
+        # Test with an application that has no tags
+        result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+            mock_emr_serverless_client, 'app-12345ABCDEF', EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'not managed by MCP' in result['error_message']
+        mock_emr_serverless_client.get_application.assert_called_once_with(
+            applicationId='app-12345ABCDEF'
+        )
+
+    def test_verify_emr_serverless_application_managed_by_mcp_with_custom_tags_enabled(self):
+        """Test that verify_emr_serverless_application_managed_by_mcp returns valid when custom tags are enabled."""
+        mock_emr_serverless_client = MagicMock()
+
+        with patch.object(AwsHelper, 'is_custom_tags_enabled', return_value=True):
+            result = AwsHelper.verify_emr_serverless_application_managed_by_mcp(
+                mock_emr_serverless_client,
+                'app-12345ABCDEF',
+                EMR_SERVERLESS_APPLICATION_RESOURCE_TYPE,
+            )
+
+            # Verify the result
+            assert result['is_valid'] is True
+            assert result['error_message'] is None
+            # Ensure no API calls were made
+            mock_emr_serverless_client.get_application.assert_not_called()
+
+    def test_get_aws_partition_different_partitions(self):
+        """Test that get_aws_partition correctly extracts different partition types from ARNs."""
+        # Test AWS China partition
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws-cn:sts::123456789012:assumed-role/role-name/session-name'
+        }
+
+        with patch('boto3.client', return_value=mock_sts_client):
+            partition = AwsHelper.get_aws_partition()
+            assert partition == 'aws-cn'
+
+        # Reset cached partition for next test
+        AwsHelper._aws_partition = None
+
+        # Test AWS GovCloud partition
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws-us-gov:sts::123456789012:assumed-role/role-name/session-name'
+        }
+
+        with patch('boto3.client', return_value=mock_sts_client):
+            partition = AwsHelper.get_aws_partition()
+            assert partition == 'aws-us-gov'
 
     def test_verify_athena_data_catalog_managed_by_mcp_success(self):
         """Test that verify_athena_data_catalog_managed_by_mcp returns valid when the data catalog is managed by MCP."""
