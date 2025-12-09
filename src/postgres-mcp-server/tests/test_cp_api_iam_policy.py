@@ -530,3 +530,113 @@ class TestSetupAuroraIamPolicyAdditional:
         # Verify new version was created with both resources
         mock_iam.create_policy_version.assert_called_once()
         assert result == policy_arn
+
+    def test_generic_exception_during_policy_creation(self, mock_boto3_clients):
+        """Test handling of generic exception during policy creation."""
+        from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+            setup_aurora_iam_policy_for_current_user,
+        )
+
+        mock_sts, mock_iam = mock_boto3_clients
+
+        # Mock IAM user identity
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:iam::123456789012:user/testuser',
+            'UserId': 'AIDAI123456789EXAMPLE'
+        }
+
+        # Mock policy doesn't exist
+        mock_iam.get_policy.side_effect = mock_iam.exceptions.NoSuchEntityException(
+            {'Error': {'Code': 'NoSuchEntity'}}, 'GetPolicy'
+        )
+
+        # Mock generic exception during policy creation
+        mock_iam.create_policy.side_effect = Exception('Unexpected error during policy creation')
+
+        with pytest.raises(Exception, match='Unexpected error during policy creation'):
+            setup_aurora_iam_policy_for_current_user(
+                db_user='dbuser',
+                cluster_resource_id='cluster-ABC123',
+                cluster_region='us-east-1'
+            )
+
+    def test_generic_exception_during_policy_update(self, mock_boto3_clients):
+        """Test handling of generic exception during policy update."""
+        from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+            setup_aurora_iam_policy_for_current_user,
+        )
+
+        mock_sts, mock_iam = mock_boto3_clients
+
+        # Mock IAM user identity
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:iam::123456789012:user/testuser',
+            'UserId': 'AIDAI123456789EXAMPLE'
+        }
+
+        # Mock existing policy but get_policy_version fails
+        mock_iam.get_policy.return_value = {
+            'Policy': {
+                'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser',
+                'DefaultVersionId': 'v1'
+            }
+        }
+
+        mock_iam.get_policy_version.side_effect = Exception('Unexpected error fetching policy version')
+
+        with pytest.raises(Exception, match='Unexpected error fetching policy version'):
+            setup_aurora_iam_policy_for_current_user(
+                db_user='dbuser',
+                cluster_resource_id='cluster-ABC123',
+                cluster_region='us-east-1'
+            )
+
+    def test_generic_exception_during_policy_attachment(self, mock_boto3_clients):
+        """Test handling of generic exception during policy attachment."""
+        from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+            setup_aurora_iam_policy_for_current_user,
+        )
+
+        mock_sts, mock_iam = mock_boto3_clients
+
+        # Mock IAM user identity
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:iam::123456789012:user/testuser',
+            'UserId': 'AIDAI123456789EXAMPLE'
+        }
+
+        policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
+
+        # Mock existing policy
+        mock_iam.get_policy.return_value = {
+            'Policy': {
+                'Arn': policy_arn,
+                'DefaultVersionId': 'v1'
+            }
+        }
+
+        mock_iam.get_policy_version.return_value = {
+            'PolicyVersion': {
+                'Document': {
+                    'Version': '2012-10-17',
+                    'Statement': [{
+                        'Effect': 'Allow',
+                        'Action': 'rds-db:connect',
+                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
+                    }]
+                }
+            }
+        }
+
+        # Mock generic exception during attachment
+        mock_iam.list_attached_user_policies.side_effect = Exception('Unexpected IAM error')
+
+        with pytest.raises(Exception, match='Unexpected IAM error'):
+            setup_aurora_iam_policy_for_current_user(
+                db_user='dbuser',
+                cluster_resource_id='cluster-ABC123',
+                cluster_region='us-east-1'
+            )
