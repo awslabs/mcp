@@ -15,6 +15,7 @@
 
 from awslabs.aws_documentation_mcp_server.models import (
     RecommendationResult,
+    SearchResponse,
     SearchResult,
 )
 
@@ -28,13 +29,11 @@ class TestSearchResult:
             rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
             title='Welcome to AWS Lambda',
-            query_id='test-query-id',
             context='AWS Lambda is a compute service...',
         )
         assert result.rank_order == 1
         assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
         assert result.title == 'Welcome to AWS Lambda'
-        assert result.query_id == 'test-query-id'
         assert result.context == 'AWS Lambda is a compute service...'
 
     def test_search_result_without_context(self):
@@ -43,13 +42,55 @@ class TestSearchResult:
             rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
             title='Welcome to AWS Lambda',
-            query_id='test-query-id',
         )
         assert result.rank_order == 1
         assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
         assert result.title == 'Welcome to AWS Lambda'
-        assert result.query_id == 'test-query-id'
         assert result.context is None
+
+
+class TestSearchResponse:
+    """Tests for SearchResponse model."""
+
+    def test_search_response_creation(self):
+        """Test creation of SearchResponse."""
+        search_results = [
+            SearchResult(
+                rank_order=1,
+                url='https://docs.aws.amazon.com/test1',
+                title='Test 1',
+                context='Test context 1',
+            )
+        ]
+        facets = {
+            'product_types': ['Amazon S3', 'AWS Lambda'],
+            'guide_types': ['User Guide', 'API Reference'],
+        }
+
+        response = SearchResponse(
+            search_results=search_results, facets=facets, query_id='test-query-id'
+        )
+
+        assert len(response.search_results) == 1
+        assert response.search_results[0].title == 'Test 1'
+        assert response.facets == facets
+        assert response.query_id == 'test-query-id'
+
+    def test_search_response_without_facets(self):
+        """Test creation of SearchResponse without facets."""
+        search_results = [
+            SearchResult(
+                rank_order=1,
+                url='https://docs.aws.amazon.com/test1',
+                title='Test 1',
+            )
+        ]
+
+        response = SearchResponse(search_results=search_results, query_id='test-query-id')
+
+        assert len(response.search_results) == 1
+        assert response.facets is None
+        assert response.query_id == 'test-query-id'
 
 
 class TestRecommendationResult:
