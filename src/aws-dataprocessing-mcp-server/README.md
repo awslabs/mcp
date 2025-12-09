@@ -373,6 +373,13 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 |-----------|-------------|----------------|--------------|
 | manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, appropriate AWS permissions |
 
+### EMR Serverless Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_emr_serverless_applications | Manage Amazon EMR Serverless applications with comprehensive lifecycle control | create-application, get-application, update-application, delete-application, list-applications, start-application, stop-application | --allow-write flag for create/update/delete/start/stop operations, appropriate AWS permissions |
+| manage_aws_emr_serverless_job_runs | Manage Amazon EMR Serverless job runs for executing data processing workloads | start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run | --allow-write flag for start/cancel operations, application must exist, appropriate AWS permissions |
+
 ### Athena Query Handler Tools
 
 | Tool Name | Description | Key Operations | Requirements |
