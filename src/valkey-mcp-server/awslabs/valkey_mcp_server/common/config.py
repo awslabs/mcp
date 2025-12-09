@@ -43,6 +43,12 @@ EMBEDDING_CFG = {
 
     'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
     'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1'),
+    'bedrock_normalize': os.getenv('BEDROCK_NORMALIZE').lower() in ('true', '1', 't') if os.getenv('BEDROCK_NORMALIZE') else None,
+    'bedrock_dimensions': int(os.getenv('BEDROCK_DIMENSIONS')) if os.getenv('BEDROCK_DIMENSIONS') else None,
+    'bedrock_input_type': os.getenv('BEDROCK_INPUT_TYPE'),
+    'bedrock_max_attempts': int(os.getenv('BEDROCK_MAX_ATTEMPTS', '3')),
+    'bedrock_max_pool_connections': int(os.getenv('BEDROCK_MAX_POOL_CONNECTIONS', '50')),
+    'bedrock_retry_mode': os.getenv('BEDROCK_RETRY_MODE', 'adaptive'),
 
     'openai_api_key': os.getenv('OPENAI_API_KEY'),
     'openai_model': os.getenv('OPENAI_MODEL', 'text-embedding-3-small')

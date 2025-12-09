@@ -56,7 +56,13 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     elif provider_type == 'bedrock':
         return BedrockEmbeddings(
             region_name=EMBEDDING_CFG.get('bedrock_region', 'us-east-1'),
-            model_id=EMBEDDING_CFG.get('bedrock_model_id', 'amazon.titan-embed-text-v1')
+            model_id=EMBEDDING_CFG.get('bedrock_model_id', 'amazon.titan-embed-text-v1'),
+            normalize=EMBEDDING_CFG.get('bedrock_normalize'),
+            dimensions=EMBEDDING_CFG.get('bedrock_dimensions'),
+            input_type=EMBEDDING_CFG.get('bedrock_input_type'),
+            max_attempts=EMBEDDING_CFG.get('bedrock_max_attempts', 3),
+            max_pool_connections=EMBEDDING_CFG.get('bedrock_max_pool_connections', 50),
+            retry_mode=EMBEDDING_CFG.get('bedrock_retry_mode', 'adaptive')
         )
 
     elif provider_type == 'openai':

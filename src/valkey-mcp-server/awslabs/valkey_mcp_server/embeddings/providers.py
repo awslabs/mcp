@@ -66,11 +66,37 @@ class BedrockEmbeddings(EmbeddingsProvider):
         embedding = await provider.generate_embedding("Hello world")
     """
 
-    def __init__(self, region_name: str = "us-east-1", model_id: str = "amazon.titan-embed-text-v1"):
+    def __init__(self, region_name: str = "us-east-1", model_id: str = "amazon.titan-embed-text-v1",
+                 normalize: bool | None = None, dimensions: int | None = None, input_type: str | None = None,
+                 max_attempts: int = 3, max_pool_connections: int = 50, retry_mode: str = "adaptive"):
         import boto3
-        self.client = boto3.client('bedrock-runtime', region_name=region_name)
+        from botocore.config import Config
+        from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+        
+        config = Config(
+            region_name=region_name,
+            retries={'max_attempts': max_attempts, 'mode': retry_mode},
+            max_pool_connections=max_pool_connections
+        )
+        
+        session = boto3.Session()
+        self.client = session.client('bedrock-runtime', config=config)
+        
+        # Validate credentials are available
+        try:
+            self.client.get_caller_identity = session.client('sts', config=config).get_caller_identity
+            self.client.get_caller_identity()
+        except (NoCredentialsError, PartialCredentialsError) as e:
+            raise ValueError(
+                f"AWS credentials not found or incomplete. Please configure AWS credentials using "
+                f"AWS CLI, environment variables, or IAM roles. Error: {e}"
+            )
+        
         self.model_id = model_id
-        self._dimensions = 1536  # Titan default
+        self.normalize = normalize
+        self.dimensions = dimensions
+        self.input_type = input_type
+        self._dimensions = dimensions or 1536  # Titan default
 
     async def generate_embedding(self, text: str) -> List[float]:
         import json
@@ -78,9 +104,19 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         # Bedrock SDK is synchronous, run in executor
         def _invoke():
+            body = {"inputText": text}
+
+            # Add optional parameters if specified
+            if self.normalize is not None:
+                body["normalize"] = self.normalize
+            if self.dimensions is not None:
+                body["dimensions"] = self.dimensions
+            if self.input_type is not None:
+                body["inputType"] = self.input_type
+
             response = self.client.invoke_model(
                 modelId=self.model_id,
-                body=json.dumps({"inputText": text})
+                body=json.dumps(body)
             )
             return json.loads(response['body'].read())['embedding']
 

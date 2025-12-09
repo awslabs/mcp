@@ -221,6 +221,12 @@ The following environment variables are used to configure this:
 | `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
 | `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
 | `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.titan-embed-text-v1"` |
+| `BEDROCK_NORMALIZE` | If Bedrock is used, whether to normalize embeddings | `true` |
+| `BEDROCK_DIMENSIONS` | If Bedrock is used, number of dimensions for embeddings | `None` |
+| `BEDROCK_INPUT_TYPE` | If Bedrock is used, input type for embeddings (e.g., "searchDocument", "searchQuery") | `None` |
+| `BEDROCK_MAX_ATTEMPTS` | If Bedrock is used, maximum retry attempts for failed requests | `3` |
+| `BEDROCK_MAX_POOL_CONNECTIONS` | If Bedrock is used, maximum number of connections in the connection pool | `50` |
+| `BEDROCK_RETRY_MODE` | If Bedrock is used, retry mode for failed requests (e.g., "adaptive", "standard", "legacy") | `"adaptive"` |
 | `OPENAI_API_KEY` | If OpenAI is used, this is the API key for authentication | `None` |
 | `OPENAI_MODEL` | If OpenAI is used, this is the model to use to generate embeddings | `"text-embedding-3-small"` |
 
