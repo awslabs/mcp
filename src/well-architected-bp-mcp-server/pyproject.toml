@@ -23,6 +23,11 @@ dependencies = [
     "fastmcp>=0.6.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/awslabs/mcp"
 Repository = "https://github.com/awslabs/mcp"
