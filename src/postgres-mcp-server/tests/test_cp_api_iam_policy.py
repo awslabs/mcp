@@ -60,17 +60,14 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         # Mock policy document with resource already present
@@ -78,26 +75,26 @@ class TestSetupAuroraIamPolicyAdditional:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock policy already attached
         mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': [
-                {'PolicyName': 'AuroraIAMAuth-dbuser', 'PolicyArn': policy_arn}
-            ]
+            'AttachedPolicies': [{'PolicyName': 'AuroraIAMAuth-dbuser', 'PolicyArn': policy_arn}]
         }
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         assert result == policy_arn
@@ -116,17 +113,14 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
-            'UserId': 'AROAI123456789EXAMPLE:session-name'
+            'UserId': 'AROAI123456789EXAMPLE:session-name',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         # Mock policy document
@@ -134,26 +128,26 @@ class TestSetupAuroraIamPolicyAdditional:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock policy already attached to role
         mock_iam.list_attached_role_policies.return_value = {
-            'AttachedPolicies': [
-                {'PolicyName': 'AuroraIAMAuth-dbuser', 'PolicyArn': policy_arn}
-            ]
+            'AttachedPolicies': [{'PolicyName': 'AuroraIAMAuth-dbuser', 'PolicyArn': policy_arn}]
         }
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         assert result == policy_arn
@@ -171,17 +165,14 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v5'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v5'}
         }
 
         # Mock policy document with different resource
@@ -189,17 +180,22 @@ class TestSetupAuroraIamPolicyAdditional:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock 5 versions (at limit)
         from datetime import datetime
+
         mock_iam.list_policy_versions.return_value = {
             'Versions': [
                 {'VersionId': 'v5', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 5)},
@@ -211,25 +207,18 @@ class TestSetupAuroraIamPolicyAdditional:
         }
 
         mock_iam.delete_policy_version.return_value = {}
-        mock_iam.create_policy_version.return_value = {
-            'PolicyVersion': {'VersionId': 'v6'}
-        }
+        mock_iam.create_policy_version.return_value = {'PolicyVersion': {'VersionId': 'v6'}}
 
-        mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_user_policy.return_value = {}
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-NEW',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-NEW', cluster_region='us-east-1'
         )
 
         # Verify oldest version was deleted
         mock_iam.delete_policy_version.assert_called_once_with(
-            PolicyArn=policy_arn,
-            VersionId='v1'
+            PolicyArn=policy_arn, VersionId='v1'
         )
 
         # Verify new version was created
@@ -248,7 +237,7 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock policy doesn't exist initially
@@ -261,15 +250,11 @@ class TestSetupAuroraIamPolicyAdditional:
             {'Error': {'Code': 'EntityAlreadyExists'}}, 'CreatePolicy'
         )
 
-        mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_user_policy.return_value = {}
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         # Should still return policy ARN
@@ -287,7 +272,7 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
-            'UserId': 'AROAI123456789EXAMPLE:session-name'
+            'UserId': 'AROAI123456789EXAMPLE:session-name',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
@@ -298,24 +283,17 @@ class TestSetupAuroraIamPolicyAdditional:
         )
 
         # Mock policy creation succeeds
-        mock_iam.create_policy.return_value = {
-            'Policy': {'Arn': policy_arn}
-        }
+        mock_iam.create_policy.return_value = {'Policy': {'Arn': policy_arn}}
 
         # Mock attach fails with AccessDenied
-        mock_iam.list_attached_role_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_role_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_role_policy.side_effect = mock_iam.exceptions.AccessDeniedException(
-            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
-            'AttachRolePolicy'
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'AttachRolePolicy'
         )
 
         # Should return policy ARN even though attach failed
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         assert result == policy_arn
@@ -332,42 +310,43 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
-            'UserId': 'AROAI123456789EXAMPLE:session-name'
+            'UserId': 'AROAI123456789EXAMPLE:session-name',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         mock_iam.get_policy_version.return_value = {
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock role not found
-        mock_iam.list_attached_role_policies.side_effect = mock_iam.exceptions.NoSuchEntityException(
-            {'Error': {'Code': 'NoSuchEntity'}}, 'ListAttachedRolePolicies'
+        mock_iam.list_attached_role_policies.side_effect = (
+            mock_iam.exceptions.NoSuchEntityException(
+                {'Error': {'Code': 'NoSuchEntity'}}, 'ListAttachedRolePolicies'
+            )
         )
 
         with pytest.raises(mock_iam.exceptions.NoSuchEntityException):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_attach_policy_limit_exceeded(self, mock_boto3_clients):
@@ -382,46 +361,42 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         mock_iam.get_policy_version.return_value = {
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock limit exceeded
-        mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_user_policy.side_effect = mock_iam.exceptions.LimitExceededException(
-            {'Error': {'Code': 'LimitExceeded', 'Message': 'Limit exceeded'}},
-            'AttachUserPolicy'
+            {'Error': {'Code': 'LimitExceeded', 'Message': 'Limit exceeded'}}, 'AttachUserPolicy'
         )
 
         with pytest.raises(mock_iam.exceptions.LimitExceededException):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_unexpected_arn_format(self, mock_boto3_clients):
@@ -436,14 +411,12 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:unknown/something',
-            'UserId': 'UNKNOWN123'
+            'UserId': 'UNKNOWN123',
         }
 
         with pytest.raises(ValueError, match='Unexpected ARN format'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_sts_get_caller_identity_error(self, mock_boto3_clients):
@@ -456,15 +429,12 @@ class TestSetupAuroraIamPolicyAdditional:
 
         # Mock STS error
         mock_sts.get_caller_identity.side_effect = ClientError(
-            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
-            'GetCallerIdentity'
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetCallerIdentity'
         )
 
         with pytest.raises(ClientError):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_policy_update_with_string_resource(self, mock_boto3_clients):
@@ -479,17 +449,14 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         # Mock policy document with string resource (not list)
@@ -497,34 +464,28 @@ class TestSetupAuroraIamPolicyAdditional:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': 'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser'
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': 'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser',
+                        }
+                    ],
                 }
             }
         }
 
         mock_iam.list_policy_versions.return_value = {
-            'Versions': [
-                {'VersionId': 'v1', 'IsDefaultVersion': True}
-            ]
+            'Versions': [{'VersionId': 'v1', 'IsDefaultVersion': True}]
         }
 
-        mock_iam.create_policy_version.return_value = {
-            'PolicyVersion': {'VersionId': 'v2'}
-        }
+        mock_iam.create_policy_version.return_value = {'PolicyVersion': {'VersionId': 'v2'}}
 
-        mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_user_policy.return_value = {}
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-NEW',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-NEW', cluster_region='us-east-1'
         )
 
         # Verify new version was created with both resources
@@ -543,7 +504,7 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock policy doesn't exist
@@ -556,9 +517,7 @@ class TestSetupAuroraIamPolicyAdditional:
 
         with pytest.raises(Exception, match='Unexpected error during policy creation'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_generic_exception_during_policy_update(self, mock_boto3_clients):
@@ -573,24 +532,24 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock existing policy but get_policy_version fails
         mock_iam.get_policy.return_value = {
             'Policy': {
                 'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser',
-                'DefaultVersionId': 'v1'
+                'DefaultVersionId': 'v1',
             }
         }
 
-        mock_iam.get_policy_version.side_effect = Exception('Unexpected error fetching policy version')
+        mock_iam.get_policy_version.side_effect = Exception(
+            'Unexpected error fetching policy version'
+        )
 
         with pytest.raises(Exception, match='Unexpected error fetching policy version'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_generic_exception_during_policy_attachment(self, mock_boto3_clients):
@@ -605,28 +564,29 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         mock_iam.get_policy_version.return_value = {
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
@@ -636,9 +596,7 @@ class TestSetupAuroraIamPolicyAdditional:
 
         with pytest.raises(Exception, match='Unexpected IAM error'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_policy_update_no_non_default_versions(self, mock_boto3_clients):
@@ -653,17 +611,14 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v5'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v5'}
         }
 
         # Mock policy document with different resource
@@ -671,17 +626,22 @@ class TestSetupAuroraIamPolicyAdditional:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock 5 versions but all are default (edge case)
         from datetime import datetime
+
         mock_iam.list_policy_versions.return_value = {
             'Versions': [
                 {'VersionId': 'v5', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 5)},
@@ -692,19 +652,13 @@ class TestSetupAuroraIamPolicyAdditional:
             ]
         }
 
-        mock_iam.create_policy_version.return_value = {
-            'PolicyVersion': {'VersionId': 'v6'}
-        }
+        mock_iam.create_policy_version.return_value = {'PolicyVersion': {'VersionId': 'v6'}}
 
-        mock_iam.list_attached_user_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_user_policy.return_value = {}
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-NEW',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-NEW', cluster_region='us-east-1'
         )
 
         # Verify no version was deleted (no non-default versions)
@@ -726,47 +680,43 @@ class TestSetupAuroraIamPolicyAdditional:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
-            'UserId': 'AROAI123456789EXAMPLE:session-name'
+            'UserId': 'AROAI123456789EXAMPLE:session-name',
         }
 
         policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
-            'Policy': {
-                'Arn': policy_arn,
-                'DefaultVersionId': 'v1'
-            }
+            'Policy': {'Arn': policy_arn, 'DefaultVersionId': 'v1'}
         }
 
         mock_iam.get_policy_version.return_value = {
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock policy NOT already attached to role
-        mock_iam.list_attached_role_policies.return_value = {
-            'AttachedPolicies': []
-        }
+        mock_iam.list_attached_role_policies.return_value = {'AttachedPolicies': []}
         mock_iam.attach_role_policy.return_value = {}
 
         result = setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         # Verify attach was called
         mock_iam.attach_role_policy.assert_called_once_with(
-            RoleName='MyRole',
-            PolicyArn=policy_arn
+            RoleName='MyRole', PolicyArn=policy_arn
         )
         assert result == policy_arn

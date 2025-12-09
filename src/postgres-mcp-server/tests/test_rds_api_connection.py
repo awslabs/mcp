@@ -47,7 +47,9 @@ class TestRDSDataAPIConnection:
 
     def test_initialization(self, rds_connection):
         """Test that RDSDataAPIConnection initializes correctly."""
-        assert rds_connection.cluster_arn == 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster'
+        assert (
+            rds_connection.cluster_arn == 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster'
+        )
 
     @pytest.mark.asyncio
     async def test_execute_query_with_transaction_rollback_on_error(self, rds_connection_readonly):
@@ -63,7 +65,7 @@ class TestRDSDataAPIConnection:
         # Mock second execute_statement (actual query) to raise an exception
         mock_client.execute_statement.side_effect = [
             {},  # First call succeeds (SET TRANSACTION READ ONLY)
-            Exception('Query execution failed')  # Second call fails
+            Exception('Query execution failed'),  # Second call fails
         ]
 
         # Mock rollback_transaction
@@ -77,7 +79,7 @@ class TestRDSDataAPIConnection:
         mock_client.rollback_transaction.assert_called_once_with(
             resourceArn='arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
             secretArn='arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret',
-            transactionId='tx-12345'
+            transactionId='tx-12345',
         )
 
     @pytest.mark.asyncio
@@ -111,7 +113,7 @@ class TestRDSDataAPIConnection:
         mock_client = MagicMock()
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'result'}],
-            'records': [[{'longValue': 1}]]
+            'records': [[{'longValue': 1}]],
         }
         rds_connection.data_client = mock_client
 
@@ -138,7 +140,7 @@ class TestRDSDataAPIConnection:
         mock_client = MagicMock()
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'name'}],
-            'records': [[{'stringValue': 'test'}]]
+            'records': [[{'stringValue': 'test'}]],
         }
         rds_connection.data_client = mock_client
 
@@ -158,7 +160,7 @@ class TestRDSDataAPIConnection:
         mock_client.begin_transaction.return_value = {'transactionId': 'tx-123'}
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'result'}],
-            'records': [[{'longValue': 1}]]
+            'records': [[{'longValue': 1}]],
         }
         rds_connection_readonly.data_client = mock_client
 
@@ -192,12 +194,14 @@ class TestRDSDataAPIConnection:
         mock_client.begin_transaction.return_value = {'transactionId': 'tx-456'}
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'name'}],
-            'records': [[{'stringValue': 'test'}]]
+            'records': [[{'stringValue': 'test'}]],
         }
         rds_connection_readonly.data_client = mock_client
 
         parameters = [{'name': 'id', 'value': {'longValue': 1}}]
-        await rds_connection_readonly.execute_query('SELECT name FROM users WHERE id = :id', parameters)
+        await rds_connection_readonly.execute_query(
+            'SELECT name FROM users WHERE id = :id', parameters
+        )
 
         # Verify the query was executed with parameters
         second_call = mock_client.execute_statement.call_args_list[1][1]
@@ -211,7 +215,7 @@ class TestRDSDataAPIConnection:
         mock_client.begin_transaction.return_value = {'transactionId': 'tx-789'}
         mock_client.execute_statement.side_effect = [
             None,  # SET TRANSACTION READ ONLY succeeds
-            Exception('Query failed')  # Actual query fails
+            Exception('Query failed'),  # Actual query fails
         ]
         rds_connection_readonly.data_client = mock_client
 
@@ -242,7 +246,7 @@ class TestRDSDataAPIConnection:
         mock_client = MagicMock()
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'result'}],
-            'records': [[{'longValue': 1}]]
+            'records': [[{'longValue': 1}]],
         }
         rds_connection.data_client = mock_client
 
@@ -270,7 +274,7 @@ class TestRDSDataAPIConnection:
         mock_client = MagicMock()
         mock_client.execute_statement.return_value = {
             'columnMetadata': [{'name': 'result'}],
-            'records': []
+            'records': [],
         }
         rds_connection.data_client = mock_client
 
