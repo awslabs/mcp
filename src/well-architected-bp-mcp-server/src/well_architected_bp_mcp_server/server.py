@@ -118,17 +118,29 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
     Returns:
         List of related best practices
     """
-    bp = get_best_practice(id)
+    # Find the BP directly from data
+    bp = None
+    for practices in BEST_PRACTICES.values():
+        for practice in practices:
+            if practice.get("id") == id:
+                bp = practice
+                break
+        if bp:
+            break
+    
     if not bp:
         return []
     
     related_ids = bp.get("relatedIds", [])
     results = []
     
+    # Find related BPs directly from data
     for rid in related_ids:
-        related = get_best_practice(rid)
-        if related:
-            results.append(related)
+        for practices in BEST_PRACTICES.values():
+            for practice in practices:
+                if practice.get("id") == rid:
+                    results.append(practice)
+                    break
     
     return results
 
