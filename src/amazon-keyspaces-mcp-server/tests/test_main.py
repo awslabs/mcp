@@ -15,15 +15,16 @@
 
 import inspect
 from awslabs.amazon_keyspaces_mcp_server.server import main
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 class TestMain:
     """Tests for the main function."""
 
     @patch('awslabs.amazon_keyspaces_mcp_server.server.mcp.run')
+    @patch('awslabs.amazon_keyspaces_mcp_server.client.UnifiedCassandraClient.get_session')
     @patch('sys.argv', ['awslabs.amazon-keyspaces-mcp-server'])
-    def test_main_default(self, mock_run):
+    def test_main_default(self, mock_get_session, mock_run):
         """Test main function with default arguments.
 
         This test verifies that:
@@ -31,6 +32,7 @@ class TestMain:
         2. The mcp.run method is called once
         3. No transport parameter is passed to mcp.run
         """
+        mock_get_session.return_value = AsyncMock()
         main()
         mock_run.assert_called_once()
         assert mock_run.call_args[1].get('transport') is None
