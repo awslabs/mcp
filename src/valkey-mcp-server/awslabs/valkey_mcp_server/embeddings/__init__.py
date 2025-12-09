@@ -16,7 +16,7 @@
 
 import os
 from .base import EmbeddingsProvider
-from .providers import OllamaEmbeddings, BedrockEmbeddings
+from .providers import OllamaEmbeddings, BedrockEmbeddings, OpenAIEmbeddings
 from awslabs.valkey_mcp_server.common.config import EMBEDDING_CFG
 
 
@@ -25,7 +25,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     in the future to support additional embeddings providers such as OpenAI or Cohere etc.
 
     Configuration via environment variables:
-    - EMBEDDINGS_PROVIDER: Provider type (ollama, bedrock)
+    - EMBEDDINGS_PROVIDER: Provider type (ollama, bedrock, openai)
 
     For Ollama provider:
     - OLLAMA_HOST: Ollama server URL (default: http://localhost:11434)
@@ -34,6 +34,10 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     For Titan / Bedrock provider:
     - AWS_REGION: AWS region for Bedrock (default: us-east-1)
     - BEDROCK_MODEL_ID: Bedrock model ID (default: amazon.titan-embed-text-v1)
+
+    For OpenAI provider:
+    - OPENAI_API_KEY: OpenAI API key (required)
+    - OPENAI_MODEL: OpenAI model name (default: text-embedding-3-small)
 
     Returns:
         Configured embeddings provider instance
@@ -55,10 +59,20 @@ def create_embeddings_provider() -> EmbeddingsProvider:
             model_id=EMBEDDING_CFG.get('bedrock_model_id', 'amazon.titan-embed-text-v1')
         )
 
+    elif provider_type == 'openai':
+        api_key = EMBEDDING_CFG.get('openai_api_key')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI provider")
+        
+        return OpenAIEmbeddings(
+            api_key=api_key,
+            model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small')
+        )
+
     else:
         raise ValueError(
             f"Unknown embeddings provider: {provider_type}. "
-            f"Supported providers: ollama, bedrock"
+            f"Supported providers: ollama, bedrock, openai"
         )
 
 
@@ -66,5 +80,6 @@ __all__ = [
     'EmbeddingsProvider',
     'OllamaEmbeddings',
     'BedrockEmbeddings',
+    'OpenAIEmbeddings',
     'create_embeddings_provider'
 ]

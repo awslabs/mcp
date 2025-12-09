@@ -92,3 +92,36 @@ class BedrockEmbeddings(EmbeddingsProvider):
     def get_provider_name(self) -> str:
         return f"AWS Bedrock ({self.model_id})"
 
+
+class OpenAIEmbeddings(EmbeddingsProvider):
+    """OpenAI embeddings provider.
+
+    Requires: pip install openai
+
+    Example:
+        provider = OpenAIEmbeddings(
+            api_key="sk-...",
+            model="text-embedding-3-small"
+        )
+        embedding = await provider.generate_embedding("Hello world")
+    """
+
+    def __init__(self, api_key: str | None, model: str = "text-embedding-3-small"):
+        from openai import AsyncOpenAI
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+        self._dimensions = 1536 if "3-small" in model else 3072
+
+    async def generate_embedding(self, text: str) -> List[float]:
+        response = await self.client.embeddings.create(
+            model=self.model,
+            input=text
+        )
+        return response.data[0].embedding
+
+    def get_dimensions(self) -> int:
+        return self._dimensions
+
+    def get_provider_name(self) -> str:
+        return f"OpenAI ({self.model})"
+

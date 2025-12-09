@@ -42,7 +42,10 @@ EMBEDDING_CFG = {
     'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
 
     'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
-    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1')
+    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1'),
+
+    'openai_api_key': os.getenv('OPENAI_API_KEY'),
+    'openai_model': os.getenv('OPENAI_MODEL', 'text-embedding-3-small')
 }
 
 

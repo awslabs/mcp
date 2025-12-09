@@ -103,7 +103,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "VALKEY_HOST": "127.0.0.1",
         "VALKEY_PORT": "6379",
         "FASTMCP_LOG_LEVEL": "ERROR"
-      },
+      }
     }
   }
 }
@@ -216,11 +216,13 @@ The following environment variables are used to configure this:
 
 | Name | Description                                                                    | Default Value                  |
 |------|--------------------------------------------------------------------------------|--------------------------------|
-| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama' or 'Bedrock'                         | `"ollama"`                     |
+| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama', 'Bedrock', or 'OpenAI')                         | `"ollama"`                     |
 | `OLLAMA_HOST` | If Ollama is used, this is the URL pointing to the Ollama endpoint             | `"http://localhost:11434"`     |
 | `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
 | `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
 | `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.titan-embed-text-v1"` |
+| `OPENAI_API_KEY` | If OpenAI is used, this is the API key for authentication | `None` |
+| `OPENAI_MODEL` | If OpenAI is used, this is the model to use to generate embeddings | `"text-embedding-3-small"` |
 
 
 ## Example Usage
