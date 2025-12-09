@@ -14,3 +14,11 @@
 
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
+from importlib.metadata import version
+
+try:
+    __version__ = version("awslabs.postgres-mcp-server")
+except Exception:
+    __version__ = "0.0.0+dev"
+
+__user_agent__ = f'awslabs/mcp/postgres_mcp_server/{__version__}'

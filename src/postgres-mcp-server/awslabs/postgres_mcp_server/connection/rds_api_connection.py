@@ -19,7 +19,8 @@ import boto3
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from loguru import logger
 from typing import Any, Dict, List, Optional
-
+from awslabs import __user_agent__
+from botocore.config import Config
 
 class RDSDataAPIConnection(AbstractDBConnection):
     """Class that wraps DB connection client by RDS API."""
@@ -48,8 +49,8 @@ class RDSDataAPIConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.database = database
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
-
+            self.data_client = boto3.client('rds-data', region_name=region, config=Config(user_agent_extra=__user_agent__))
+    
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
