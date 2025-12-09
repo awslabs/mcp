@@ -81,11 +81,11 @@ def setup_server_config():
 
     middleware.append(HTTPHeaderValidationMiddleware())
 
-    if AUTH_TYPE == 'no-auth':
+    if AUTH_TYPE != 'oauth':
         return auth_provider, middleware
 
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
-        raise ValueError('AUTH_ENABLED requires AUTH_ISSUER and AUTH_JWKS_URI to be set')
+        raise ValueError('AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set')
 
     auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI, audience=AUTH_AUDIENCE)
 
