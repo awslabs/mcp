@@ -268,7 +268,7 @@ def add_search_intent_to_search_request(search_url: str, search_intent: str) -> 
     :return: search_url with search_intent query parameter added
     :rtype: str
     """
-    if search_intent:
+    if search_intent and search_intent != '':
         # Remove all whitespaces, including tabs and returns
         search_intent = ' '.join(f'{search_intent}'.split())
         if search_intent:
