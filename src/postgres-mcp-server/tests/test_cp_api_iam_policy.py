@@ -640,3 +640,133 @@ class TestSetupAuroraIamPolicyAdditional:
                 cluster_resource_id='cluster-ABC123',
                 cluster_region='us-east-1'
             )
+
+    def test_policy_update_no_non_default_versions(self, mock_boto3_clients):
+        """Test policy update when at version limit but no non-default versions to delete."""
+        from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+            setup_aurora_iam_policy_for_current_user,
+        )
+
+        mock_sts, mock_iam = mock_boto3_clients
+
+        # Mock IAM user identity
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:iam::123456789012:user/testuser',
+            'UserId': 'AIDAI123456789EXAMPLE'
+        }
+
+        policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
+
+        # Mock existing policy
+        mock_iam.get_policy.return_value = {
+            'Policy': {
+                'Arn': policy_arn,
+                'DefaultVersionId': 'v5'
+            }
+        }
+
+        # Mock policy document with different resource
+        mock_iam.get_policy_version.return_value = {
+            'PolicyVersion': {
+                'Document': {
+                    'Version': '2012-10-17',
+                    'Statement': [{
+                        'Effect': 'Allow',
+                        'Action': 'rds-db:connect',
+                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser']
+                    }]
+                }
+            }
+        }
+
+        # Mock 5 versions but all are default (edge case)
+        from datetime import datetime
+        mock_iam.list_policy_versions.return_value = {
+            'Versions': [
+                {'VersionId': 'v5', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 5)},
+                {'VersionId': 'v4', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 4)},
+                {'VersionId': 'v3', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 3)},
+                {'VersionId': 'v2', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 2)},
+                {'VersionId': 'v1', 'IsDefaultVersion': True, 'CreateDate': datetime(2024, 1, 1)},
+            ]
+        }
+
+        mock_iam.create_policy_version.return_value = {
+            'PolicyVersion': {'VersionId': 'v6'}
+        }
+
+        mock_iam.list_attached_user_policies.return_value = {
+            'AttachedPolicies': []
+        }
+        mock_iam.attach_user_policy.return_value = {}
+
+        result = setup_aurora_iam_policy_for_current_user(
+            db_user='dbuser',
+            cluster_resource_id='cluster-NEW',
+            cluster_region='us-east-1'
+        )
+
+        # Verify no version was deleted (no non-default versions)
+        mock_iam.delete_policy_version.assert_not_called()
+
+        # Verify new version was still created
+        mock_iam.create_policy_version.assert_called_once()
+        assert result == policy_arn
+
+    def test_attach_policy_to_role_not_already_attached(self, mock_boto3_clients):
+        """Test attaching policy to role when not already attached."""
+        from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+            setup_aurora_iam_policy_for_current_user,
+        )
+
+        mock_sts, mock_iam = mock_boto3_clients
+
+        # Mock assumed role identity
+        mock_sts.get_caller_identity.return_value = {
+            'Account': '123456789012',
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
+            'UserId': 'AROAI123456789EXAMPLE:session-name'
+        }
+
+        policy_arn = 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
+
+        # Mock existing policy
+        mock_iam.get_policy.return_value = {
+            'Policy': {
+                'Arn': policy_arn,
+                'DefaultVersionId': 'v1'
+            }
+        }
+
+        mock_iam.get_policy_version.return_value = {
+            'PolicyVersion': {
+                'Document': {
+                    'Version': '2012-10-17',
+                    'Statement': [{
+                        'Effect': 'Allow',
+                        'Action': 'rds-db:connect',
+                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
+                    }]
+                }
+            }
+        }
+
+        # Mock policy NOT already attached to role
+        mock_iam.list_attached_role_policies.return_value = {
+            'AttachedPolicies': []
+        }
+        mock_iam.attach_role_policy.return_value = {}
+
+        result = setup_aurora_iam_policy_for_current_user(
+            db_user='dbuser',
+            cluster_resource_id='cluster-ABC123',
+            cluster_region='us-east-1'
+        )
+
+        # Verify attach was called
+        mock_iam.attach_role_policy.assert_called_once_with(
+            RoleName='MyRole',
+            PolicyArn=policy_arn
+        )
+        assert result == policy_arn

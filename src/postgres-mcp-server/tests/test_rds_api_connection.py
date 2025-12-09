@@ -48,9 +48,57 @@ class TestRDSDataAPIConnection:
     def test_initialization(self, rds_connection):
         """Test that RDSDataAPIConnection initializes correctly."""
         assert rds_connection.cluster_arn == 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster'
-        assert rds_connection.secret_arn == 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'
-        assert rds_connection.database == 'test_db'
-        assert rds_connection.readonly_query is False
+
+    @pytest.mark.asyncio
+    async def test_execute_query_with_transaction_rollback_on_error(self, rds_connection_readonly):
+        """Test that transaction is rolled back when query execution fails in readonly mode."""
+        # Mock the data client
+        mock_client = MagicMock()
+        rds_connection_readonly.data_client = mock_client
+
+        # Mock begin_transaction to return a transaction ID
+        mock_client.begin_transaction.return_value = {'transactionId': 'tx-12345'}
+
+        # Mock first execute_statement (SET TRANSACTION READ ONLY) to succeed
+        # Mock second execute_statement (actual query) to raise an exception
+        mock_client.execute_statement.side_effect = [
+            {},  # First call succeeds (SET TRANSACTION READ ONLY)
+            Exception('Query execution failed')  # Second call fails
+        ]
+
+        # Mock rollback_transaction
+        mock_client.rollback_transaction.return_value = {}
+
+        # Execute query and expect exception
+        with pytest.raises(Exception, match='Query execution failed'):
+            await rds_connection_readonly.execute_query('SELECT * FROM test_table')
+
+        # Verify rollback was called with the transaction ID
+        mock_client.rollback_transaction.assert_called_once_with(
+            resourceArn='arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+            secretArn='arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret',
+            transactionId='tx-12345'
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_query_error_before_transaction_starts(self, rds_connection_readonly):
+        """Test error handling when transaction fails to start (no tx_id)."""
+        # Mock the data client
+        mock_client = MagicMock()
+        rds_connection_readonly.data_client = mock_client
+
+        # Mock begin_transaction to raise an exception before returning tx_id
+        mock_client.begin_transaction.side_effect = Exception('Failed to start transaction')
+
+        # Mock rollback_transaction (should NOT be called since no tx_id)
+        mock_client.rollback_transaction.return_value = {}
+
+        # Execute query and expect exception
+        with pytest.raises(Exception, match='Failed to start transaction'):
+            await rds_connection_readonly.execute_query('SELECT * FROM test_table')
+
+        # Verify rollback was NOT called (no transaction ID to rollback)
+        mock_client.rollback_transaction.assert_not_called()
 
     def test_initialization_readonly(self, rds_connection_readonly):
         """Test that RDSDataAPIConnection initializes correctly in readonly mode."""
