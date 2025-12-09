@@ -26,7 +26,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/amazon-qbusiness-anonymous-mcp-server       @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
 /src/amazon-sns-sqs-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
-/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @imforster @wcmjunior
+/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @imforster @wcmjunior @anwesham-lab @benjscho @pkale @amaksimo @mitchell-elholm
 /src/aws-api-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
 /src/aws-bedrock-custom-model-import-mcp-server  @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @alexa-perlov # @saidrhs
@@ -78,6 +78,8 @@ NOTICE                                           @awslabs/mcp-admins
 /src/redshift-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp
 /src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr @okhomin @Zh111602
 /src/sagemaker-ai-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @dparkar @githuboston @jade710 @JunqiYe
+/src/sagemaker-unified-studio-spark-upgrade-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers   @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
+/src/sagemaker-unified-studio-spark-troubleshooting-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers   @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/stepfunctions-tool-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/syntheticdata-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
 /src/terraform-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
