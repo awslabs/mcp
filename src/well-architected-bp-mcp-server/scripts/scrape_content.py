@@ -79,7 +79,7 @@ def add_content_to_bps():
     print(f"\n✅ Processed {total_processed} best practices")
     print("⚠️  Files not saved - uncomment write logic when ready")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     print("AWS Well-Architected Best Practices Content Scraper")
     print("=" * 60)
     print("\n⚠️  This is a template script.")

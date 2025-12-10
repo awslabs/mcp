@@ -7,7 +7,9 @@ from typing import Any
 from fastmcp import FastMCP
 
 # Initialize MCP server
-mcp = FastMCP("AWS Well-Architected Best Practices")
+mcp = FastMCP(
+    "AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, Well-Architected Assessment"
+)
 
 # Load best practices data
 DATA_DIR = Path(__file__).parent / "data"
@@ -43,7 +45,12 @@ def search_best_practices(
     keyword: str | None = None,
     area: str | None = None
 ) -> list[dict[str, Any]]:
-    """Search and filter AWS Well-Architected best practices.
+    """Search AWS Well-Architected Framework best practices and recommendations.
+    
+    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF, 
+    architecture review, best practices, design principles, pillar, security pillar, 
+    reliability pillar, performance efficiency, cost optimization, operational excellence, 
+    sustainability pillar, architecture assessment, framework review, well architected review.
     
     Args:
         pillar: Filter by pillar (OPERATIONAL_EXCELLENCE, SECURITY, RELIABILITY, 
@@ -80,7 +87,10 @@ def search_best_practices(
 
 @mcp.tool()
 def get_best_practice(id: str) -> dict[str, Any] | None:
-    """Get detailed information about a specific best practice.
+    """Get detailed AWS Well-Architected Framework best practice by ID.
+    
+    KEYWORDS: well-architected, well architected, best practice, design principle, 
+    framework guidance, architecture pattern, AWS Well-Architected Framework.
     
     Args:
         id: Best practice ID (e.g., "SEC01-BP01")
@@ -130,6 +140,67 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
     
     if not bp:
         return []
+@mcp.tool()
+def well_architected_framework_review() -> dict[str, Any]:
+    """Complete AWS Well-Architected Framework review and assessment.
+    
+    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF review, 
+    architecture review, framework review, well architected review, architecture assessment, 
+    design principles, pillar review, best practices review, framework assessment.
+    
+    Returns:
+        Comprehensive Well-Architected Framework overview with all pillars and key practices
+    """
+    review = {
+        "framework": "AWS Well-Architected Framework",
+        "pillars": {},
+        "total_practices": 0,
+        "key_areas": [],
+        "assessment_guidance": []
+    }
+    
+    # Aggregate data by pillar
+    pillar_mapping = {
+        "operational_excellence": "Operational Excellence",
+        "security": "Security", 
+        "reliability": "Reliability",
+        "performance_efficiency": "Performance Efficiency",
+        "cost_optimization": "Cost Optimization",
+        "sustainability": "Sustainability"
+    }
+    
+    for key, practices in BEST_PRACTICES.items():
+        if key in pillar_mapping:
+            pillar_name = pillar_mapping[key]
+            review["pillars"][pillar_name] = {
+                "practice_count": len(practices),
+                "high_risk_practices": [p for p in practices if p.get("risk") == "HIGH"],
+                "key_practices": practices[:5]  # Top 5 practices
+            }
+            review["total_practices"] += len(practices)
+    
+    review["key_areas"] = [
+        "Identity and Access Management",
+        "Data Protection", 
+        "Infrastructure Protection",
+        "Incident Response",
+        "Application Security",
+        "Monitoring and Logging",
+        "Cost Management",
+        "Performance Optimization"
+    ]
+    
+    review["assessment_guidance"] = [
+        "Start with Security pillar for foundational protection",
+        "Review Operational Excellence for monitoring and automation",
+        "Assess Reliability for fault tolerance and recovery",
+        "Evaluate Performance Efficiency for optimal resource usage",
+        "Analyze Cost Optimization for financial efficiency",
+        "Consider Sustainability for environmental impact"
+    ]
+    
+    return review
+
     
     related_ids = bp.get("relatedIds", [])
     results = []
@@ -148,5 +219,5 @@ def main():
     """Run the MCP server."""
     mcp.run()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
