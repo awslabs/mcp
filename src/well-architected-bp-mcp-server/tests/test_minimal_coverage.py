@@ -29,7 +29,7 @@ def test_search_no_matches():
 
 def test_load_data_coverage():
     """Test load_data function coverage."""
-    from well_architected_bp_mcp_server.server import load_data, BEST_PRACTICES
+    from well_architected_bp_mcp_server.server import BEST_PRACTICES, load_data
 
     # Call load_data to ensure it's covered
     original_count = len(BEST_PRACTICES)
