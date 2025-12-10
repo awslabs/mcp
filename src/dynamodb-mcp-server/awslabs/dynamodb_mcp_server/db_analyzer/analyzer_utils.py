@@ -100,7 +100,7 @@ def validate_connection_params(
 
         param_descriptions = {
             'cluster_arn': 'AWS cluster ARN',
-            'secret_arn': 'AWS secret ARN',
+            'secret_arn': 'AWS secret ARN',  # pragma: allowlist secret
             'database': 'Database name',
             'region': 'AWS region',
         }

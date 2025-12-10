@@ -38,7 +38,7 @@ class TestBuildConnectionParams:
         params = analyzer_utils.build_connection_params(
             'mysql',
             aws_cluster_arn='test-cluster',
-            aws_secret_arn='test-secret',
+            aws_secret_arn='test-secret',  # pragma: allowlist secret
             database_name='test_db',
             aws_region='us-east-1',
             max_query_results=1000,
@@ -47,7 +47,7 @@ class TestBuildConnectionParams:
         )
 
         assert params['cluster_arn'] == 'test-cluster'
-        assert params['secret_arn'] == 'test-secret'
+        assert params['secret_arn'] == 'test-secret'  # pragma: allowlist secret
         assert params['database'] == 'test_db'
         assert params['region'] == 'us-east-1'
         assert params['max_results'] == 1000
@@ -87,7 +87,7 @@ class TestBuildConnectionParams:
         )
 
         assert params['cluster_arn'] == 'env-cluster'
-        assert params['secret_arn'] == 'env-secret'
+        assert params['secret_arn'] == 'env-secret'  # pragma: allowlist secret
         assert params['database'] == 'env_db'
         assert params['region'] == 'env-region'
         assert params['max_results'] == 999
@@ -100,14 +100,14 @@ class TestBuildConnectionParams:
         params = analyzer_utils.build_connection_params(
             'mysql',
             aws_cluster_arn='explicit-cluster',
-            aws_secret_arn='explicit-secret',
+            aws_secret_arn='explicit-secret',  # pragma: allowlist secret
             database_name='explicit_db',
             aws_region='explicit-region',
             output_dir=str(tmp_path),
         )
 
         assert params['cluster_arn'] == 'explicit-cluster'
-        assert params['secret_arn'] == 'explicit-secret'
+        assert params['secret_arn'] == 'explicit-secret'  # pragma: allowlist secret
         assert params['database'] == 'explicit_db'
         assert params['region'] == 'explicit-region'
 
@@ -129,7 +129,7 @@ class TestValidateConnectionParams:
         """Test validate_connection_params when all params are valid."""
         connection_params = {
             'cluster_arn': 'test-cluster',
-            'secret_arn': 'test-secret',
+            'secret_arn': 'test-secret',  # pragma: allowlist secret
             'database': 'test-db',
             'region': 'us-east-1',
             'output_dir': '/tmp',

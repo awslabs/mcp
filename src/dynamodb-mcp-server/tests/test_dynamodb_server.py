@@ -68,8 +68,8 @@ async def test_source_db_analyzer_missing_parameters(tmp_path):
         execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
-        aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
+        aws_cluster_arn='test-cluster',
         aws_region='us-east-1',
         output_dir=str(tmp_path),
     )
@@ -865,3 +865,73 @@ async def test_dynamodb_data_model_validation_file_permissions():
             result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
             assert 'Permission denied' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_managed_mode_not_implemented(tmp_path):
+    """Test source_db_analyzer when managed mode raises NotImplementedError."""
+    with patch(
+        'awslabs.dynamodb_mcp_server.db_analyzer.analyzer_utils.execute_managed_analysis'
+    ) as mock_execute:
+        mock_execute.side_effect = NotImplementedError(
+            'Managed mode is not yet implemented for PostgreSQL'
+        )
+
+        result = await source_db_analyzer(
+            source_db_type='mysql',
+            database_name='test_db',
+            execution_mode='managed',
+            aws_cluster_arn='test-cluster',
+            aws_secret_arn='test-secret',
+            aws_region='us-east-1',
+            output_dir=str(tmp_path),
+        )
+
+        assert 'Managed mode is not yet implemented' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_invalid_execution_mode(tmp_path):
+    """Test source_db_analyzer with invalid execution mode."""
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='invalid_mode',
+        output_dir=str(tmp_path),
+    )
+
+    assert 'Invalid execution_mode' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_validation_guide_file_not_found():
+    """Test dynamodb_data_model_validation when json_generation_guide.md is missing."""
+    with patch('os.path.exists') as mock_exists:
+        with patch('pathlib.Path.read_text') as mock_read_text:
+            mock_exists.return_value = False  # data_model.json doesn't exist
+            mock_read_text.side_effect = FileNotFoundError('Guide file not found')
+
+            result = await dynamodb_data_model_validation(workspace_dir='/tmp')
+
+            assert 'dynamodb_data_model.json not found' in result
+            assert 'Please generate your data model' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_validation_file_not_found_exception():
+    """Test dynamodb_data_model_validation when FileNotFoundError is raised during validation."""
+    mock_data_model = {'tables': [], 'items': [], 'access_patterns': []}
+
+    with patch('os.path.exists') as mock_exists:
+        with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
+            with patch('awslabs.dynamodb_mcp_server.server.setup_dynamodb_local') as mock_setup:
+                with patch(
+                    'awslabs.dynamodb_mcp_server.server.create_validation_resources'
+                ) as mock_create:
+                    mock_exists.return_value = True
+                    mock_setup.return_value = 'http://localhost:8000'
+                    mock_create.side_effect = FileNotFoundError('Required file missing')
+
+                    result = await dynamodb_data_model_validation(workspace_dir='/tmp')
+
+                    assert 'Required file not found' in result
