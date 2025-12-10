@@ -22,6 +22,7 @@ from botocore.config import Config
 from loguru import logger
 from typing import Any, Dict, List, Optional
 
+
 class RDSDataAPIConnection(AbstractDBConnection):
     """Class that wraps DB connection client by RDS API."""
 
