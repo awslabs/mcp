@@ -129,6 +129,41 @@ class BedrockEmbeddings(EmbeddingsProvider):
         return f"AWS Bedrock ({self.model_id})"
 
 
+class HashEmbeddings(EmbeddingsProvider):
+    """Dummy embeddings provider for testing using basic hash algorithm.
+
+    Example:
+        provider = DummyEmbeddings(dimensions=128)
+        embedding = await provider.generate_embedding("Hello world")
+    """
+
+    def __init__(self, dimensions: int = 128):
+        self._dimensions = dimensions
+
+    async def generate_embedding(self, text: str) -> List[float]:
+        import hashlib
+        
+        # Create a hash of the text
+        hash_obj = hashlib.sha256(text.encode('utf-8'))
+        hash_bytes = hash_obj.digest()
+        
+        # Convert hash bytes to floats and normalize to [-1, 1] range
+        embedding = []
+        for i in range(self._dimensions):
+            byte_val = hash_bytes[i % len(hash_bytes)]
+            # Normalize to [-1, 1] range
+            normalized_val = (byte_val / 255.0) * 2.0 - 1.0
+            embedding.append(normalized_val)
+        
+        return embedding
+
+    def get_dimensions(self) -> int:
+        return self._dimensions
+
+    def get_provider_name(self) -> str:
+        return f"Dummy ({self._dimensions}d)"
+
+
 class OpenAIEmbeddings(EmbeddingsProvider):
     """OpenAI embeddings provider.
 

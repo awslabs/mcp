@@ -1,0 +1,119 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for semantic search functionality using dummy embeddings provider."""
+import pytest
+from unittest.mock import Mock, patch, AsyncMock
+from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search
+from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
+
+
+class TestSemanticSearchUnit:
+    """Unit tests for semantic search functionality."""
+
+    @pytest.fixture
+    def mock_connection(self):
+        """Create a mock Valkey connection."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search.ValkeyConnectionManager') as mock_manager:
+            mock_conn = Mock()
+            mock_manager.get_connection.return_value = mock_conn
+            yield mock_conn
+
+    @pytest.fixture
+    def dummy_embeddings(self):
+        """Create a dummy embeddings provider."""
+        return HashEmbeddings(dimensions=128)
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_successful(self, mock_connection, dummy_embeddings):
+        """Test successful semantic search with dummy embeddings."""
+        # Mock the embeddings provider
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            # Mock vector_search function
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.vector_search') as mock_vector_search:
+                mock_vector_search.return_value = {
+                    'status': 'success',
+                    'results': [
+                        {'id': 'doc1', 'title': 'Test Document', 'content': 'Test content'}
+                    ]
+                }
+                
+                # Execute semantic search
+                result = await semantic_search(
+                    collection="test_collection",
+                    query="test query",
+                    limit=5
+                )
+                
+                # Verify results
+                assert result['status'] == 'success'
+                assert len(result['results']) == 1
+                assert result['results'][0]['id'] == 'doc1'
+                
+                # Verify vector_search was called with correct parameters
+                mock_vector_search.assert_called_once()
+                call_args = mock_vector_search.call_args
+                assert call_args[1]['index'] == 'semantic_collection_test_collection'
+                assert call_args[1]['field'] == 'embedding'
+                assert call_args[1]['count'] == 5
+                assert len(call_args[1]['vector']) == 128  # dummy embeddings dimension
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_no_results(self, mock_connection, dummy_embeddings):
+        """Test semantic search with no results."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.vector_search') as mock_vector_search:
+                mock_vector_search.return_value = {
+                    'status': 'success',
+                    'results': []
+                }
+                
+                result = await semantic_search(
+                    collection="empty_collection",
+                    query="no matches",
+                    limit=10
+                )
+                
+                assert result['status'] == 'success'
+                assert len(result['results']) == 0
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_error_handling(self, mock_connection, dummy_embeddings):
+        """Test semantic search error handling."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.vector_search') as mock_vector_search:
+                mock_vector_search.return_value = {
+                    'status': 'error',
+                    'reason': 'Index not found'
+                }
+                
+                result = await semantic_search(
+                    collection="nonexistent_collection",
+                    query="test query"
+                )
+                
+                assert result['status'] == 'error'
+                assert 'reason' in result
+
+    @pytest.mark.asyncio
+    async def test_dummy_embeddings_consistency(self, dummy_embeddings):
+        """Test that dummy embeddings are consistent for same input."""
+        text = "test input"
+        
+        embedding1 = await dummy_embeddings.generate_embedding(text)
+        embedding2 = await dummy_embeddings.generate_embedding(text)
+        
+        assert embedding1 == embedding2
+        assert len(embedding1) == 128
+        assert all(-1.0 <= val <= 1.0 for val in embedding1)

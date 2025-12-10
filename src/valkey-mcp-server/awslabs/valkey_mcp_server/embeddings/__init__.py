@@ -16,7 +16,7 @@
 
 import os
 from .base import EmbeddingsProvider
-from .providers import OllamaEmbeddings, BedrockEmbeddings, OpenAIEmbeddings
+from .providers import OllamaEmbeddings, BedrockEmbeddings, OpenAIEmbeddings, HashEmbeddings
 from awslabs.valkey_mcp_server.common.config import EMBEDDING_CFG
 
 
@@ -75,6 +75,9 @@ def create_embeddings_provider() -> EmbeddingsProvider:
             model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small')
         )
 
+    elif provider_type == 'hash':
+        return HashEmbeddings()
+
     else:
         raise ValueError(
             f"Unknown embeddings provider: {provider_type}. "
@@ -87,5 +90,6 @@ __all__ = [
     'OllamaEmbeddings',
     'BedrockEmbeddings',
     'OpenAIEmbeddings',
+    'HashEmbeddings',
     'create_embeddings_provider'
 ]
