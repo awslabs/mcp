@@ -234,8 +234,9 @@ def test_main_module_execution():
     # Simulate the __name__ == '__main__' condition
     with unittest.mock.patch.object(sys, 'argv', ['server.py']):
         with unittest.mock.patch('well_architected_bp_mcp_server.server.mcp.run') as mock_run:
-            # Import and execute the module's main block logic
-            exec('if "__main__" == "__main__": from well_architected_bp_mcp_server.server import main; main()')
+            # Test main function directly instead of using exec
+            from well_architected_bp_mcp_server.server import main
+            main()
             mock_run.assert_called_once()
 
 

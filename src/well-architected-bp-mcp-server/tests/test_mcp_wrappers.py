@@ -15,11 +15,11 @@
 """Test MCP wrapper functions directly for patch coverage."""
 
 from well_architected_bp_mcp_server.server import (
-    search_best_practices,
     get_best_practice,
-    list_pillars,
     get_related_practices,
-    well_architected_framework_review
+    list_pillars,
+    search_best_practices,
+    well_architected_framework_review,
 )
 
 
@@ -27,19 +27,19 @@ def test_search_best_practices_wrapper():
     """Test search_best_practices MCP wrapper function."""
     result = search_best_practices.fn()
     assert isinstance(result, list)
-    
+
     result = search_best_practices.fn(pillar="SECURITY")
     assert isinstance(result, list)
-    
+
     result = search_best_practices.fn(risk="HIGH")
     assert isinstance(result, list)
-    
+
     result = search_best_practices.fn(lens="FRAMEWORK")
     assert isinstance(result, list)
-    
+
     result = search_best_practices.fn(keyword="identity")
     assert isinstance(result, list)
-    
+
     result = search_best_practices.fn(area="access")
     assert isinstance(result, list)
 
@@ -52,7 +52,7 @@ def test_get_best_practice_wrapper():
         practice_id = practices[0]["id"]
         result = get_best_practice.fn(practice_id)
         assert result is not None
-    
+
     # Test with invalid ID
     result = get_best_practice.fn("INVALID-ID")
     assert result is None
@@ -74,7 +74,7 @@ def test_get_related_practices_wrapper():
             result = get_related_practices.fn(practice["id"])
             assert isinstance(result, list)
             break
-    
+
     # Test with invalid ID
     result = get_related_practices.fn("INVALID-ID")
     assert isinstance(result, list)

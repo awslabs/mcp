@@ -5,21 +5,27 @@ def test_force_execute_wrapper_returns():
     """Force execution of all MCP wrapper return statements."""
     # Direct imports instead of exec() for security
     from well_architected_bp_mcp_server.server import (
-        search_best_practices_impl, get_best_practice_impl, list_pillars_impl,
-        get_related_practices_impl, well_architected_framework_review_impl
+        get_best_practice_impl,
+        get_related_practices_impl,
+        list_pillars_impl,
+        search_best_practices_impl,
+        well_architected_framework_review_impl,
     )
 
     # Call internal functions to ensure wrappers work
-    result1 = search_best_practices_impl()
-    result2 = get_best_practice_impl("SEC01-BP01")
-    result3 = list_pillars_impl()
-    result4 = get_related_practices_impl("SEC01-BP01")
-    result5 = well_architected_framework_review_impl()
+    search_best_practices_impl()
+    get_best_practice_impl("SEC01-BP01")
+    list_pillars_impl()
+    get_related_practices_impl("SEC01-BP01")
+    well_architected_framework_review_impl()
 
     # Now import wrappers to trigger their return statements
     from well_architected_bp_mcp_server.server import (
-        search_best_practices, get_best_practice, list_pillars,
-        get_related_practices, well_architected_framework_review
+        get_best_practice,
+        get_related_practices,
+        list_pillars,
+        search_best_practices,
+        well_architected_framework_review,
     )
 
     # Access wrapper attributes to force execution
@@ -28,7 +34,7 @@ def test_force_execute_wrapper_returns():
     _ = list_pillars.name if hasattr(list_pillars, 'name') else str(list_pillars)
     _ = get_related_practices.name if hasattr(get_related_practices, 'name') else str(get_related_practices)
     _ = well_architected_framework_review.name if hasattr(well_architected_framework_review, 'name') else str(well_architected_framework_review)
-    
+
     # Verify execution completed
     assert True
 
