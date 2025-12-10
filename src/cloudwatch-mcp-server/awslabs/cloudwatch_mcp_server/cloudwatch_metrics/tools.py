@@ -162,7 +162,10 @@ class CloudWatchMetricsTools:
         ctx: Context,
         namespace: str,
         metric_name: str,
-        start_time: Union[str, datetime],
+        start_time: Annotated[
+            Union[str, datetime],
+            Field(description='The start time for the metric data query (ISO format or datetime)'),
+        ],
         dimensions: List[Dimension] = [],
         end_time: Annotated[
             Union[str, datetime] | None,
