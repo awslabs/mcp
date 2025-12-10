@@ -489,11 +489,7 @@ def validate_normal_query_response(column_records):
 def setup_mock_connection(mock_db_connection, connection_method=ConnectionMethod.RDS_API):
     """Helper function to set up a mock connection in the global db_connection_map."""
     db_connection_map.set(
-        connection_method,
-        'test-cluster',
-        'test-endpoint',
-        'test-db',
-        mock_db_connection
+        connection_method, 'test-cluster', 'test-endpoint', 'test-db', mock_db_connection
     )
 
 
@@ -516,12 +512,7 @@ async def test_run_query_well_formatted_response():
     setup_mock_connection(mock_db_connection)
 
     tool_response = await run_query(
-        sql_text,
-        ctx,
-        ConnectionMethod.RDS_API,
-        'test-cluster',
-        'test-endpoint',
-        'test-db'
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
     )
 
     # validate tool_response
@@ -549,12 +540,7 @@ async def test_run_query_safe_read_queries_on_redonly_settings():
         # Response for the query itself
         mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
         tool_response = await run_query(
-            sql_text,
-            ctx,
-            ConnectionMethod.RDS_API,
-            'test-cluster',
-            'test-endpoint',
-            'test-db'
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         # validate tool_response
@@ -578,12 +564,7 @@ async def test_run_query_risky_queries_without_parameters():
     for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
         ctx = DummyCtx()
         response = await run_query(
-            sql_text,
-            ctx,
-            ConnectionMethod.RDS_API,
-            'test-cluster',
-            'test-endpoint',
-            'test-db'
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert len(response) == 1
         assert len(response[0]) == 1
@@ -596,12 +577,7 @@ async def test_run_query_risky_queries_without_parameters():
     for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
         ctx = DummyCtx()
         response = await run_query(
-            sql_text,
-            ctx,
-            ConnectionMethod.RDS_API,
-            'test-cluster',
-            'test-endpoint',
-            'test-db'
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert len(response) == 1
         assert len(response[0]) == 1
@@ -617,12 +593,7 @@ async def test_run_query_throw_client_error():
 
     ctx = DummyCtx()
     response = await run_query(
-        sql_text,
-        ctx,
-        ConnectionMethod.RDS_API,
-        'test-cluster',
-        'test-endpoint',
-        'test-db'
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
     )
 
     assert len(response) == 1
@@ -640,12 +611,7 @@ async def test_run_query_throw_unexpected_error():
 
     ctx = DummyCtx()
     response = await run_query(
-        sql_text,
-        ctx,
-        ConnectionMethod.RDS_API,
-        'test-cluster',
-        'test-endpoint',
-        'test-db'
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
     )
 
     assert len(response) == 1
@@ -665,12 +631,7 @@ async def test_run_query_write_queries_on_readonly_setting():
     for sql_text in MUTATING_QUERIES:
         ctx = DummyCtx()
         response = await run_query(
-            sql_text,
-            ctx,
-            ConnectionMethod.RDS_API,
-            'test-cluster',
-            'test-endpoint',
-            'test-db'
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         # All query should fail with below signature in response
@@ -695,12 +656,7 @@ async def test_run_query_write_queries_on_write_allowed_setting():
         mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
 
         tool_response = await run_query(
-            sql_text,
-            ctx,
-            ConnectionMethod.RDS_API,
-            'test-cluster',
-            'test-endpoint',
-            'test-db'
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         # validate tool_response
@@ -723,12 +679,7 @@ async def test_get_table_schema():
 
     ctx = DummyCtx()
     tool_response = await get_table_schema(
-        ConnectionMethod.RDS_API,
-        'test-cluster',
-        'test-endpoint',
-        'test-db',
-        'table_name',
-        ctx
+        ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', 'table_name', ctx
     )
 
     # validate tool_response
@@ -781,7 +732,7 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
         'example-cluster-name',
         '',
         'postgres',
-        mock_connection  # type: ignore
+        mock_connection,  # type: ignore
     )
 
     # This test of main() will succeed in parsing parameters and create connection object.
@@ -845,7 +796,7 @@ async def test_run_query_with_psycopg_connection():
         ConnectionMethod.PG_WIRE_PROTOCOL,
         'test-cluster',
         'test-endpoint',
-        'test-db'
+        'test-db',
     )
 
     # validate tool_response
@@ -1011,6 +962,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
 # Tool Handler Tests
 # =============================================================================
 
+
 def test_get_database_connection_info_empty():
     """Test get_database_connection_info with no connections."""
     # Clear the map
@@ -1031,7 +983,7 @@ def test_get_database_connection_info_with_connections():
         'test-cluster',
         'test-endpoint',
         'test-db',
-        mock_conn  # type: ignore
+        mock_conn,  # type: ignore
     )
 
     result = get_database_connection_info()
@@ -1048,7 +1000,7 @@ def test_get_database_connection_info_with_connections():
             assert conn['db_endpoint'] == 'test-endpoint'
             found = True
             break
-    assert found, "Test connection not found in connection info"
+    assert found, 'Test connection not found in connection info'
 
     # Cleanup
     db_connection_map.close_all()
@@ -1067,10 +1019,7 @@ def test_get_job_status_existing_job():
     test_job_id = 'test-job-123'
     try:
         async_job_status_lock.acquire()
-        async_job_status[test_job_id] = {
-            'state': 'completed',
-            'result': {'status': 'success'}
-        }
+        async_job_status[test_job_id] = {'state': 'completed', 'result': {'status': 'success'}}
     finally:
         async_job_status_lock.release()
 
@@ -1093,9 +1042,7 @@ def test_is_database_connected_false():
     db_connection_map.close_all()
 
     result = is_database_connected(
-        cluster_identifier='non-existent',
-        db_endpoint='',
-        database='test'
+        cluster_identifier='non-existent', db_endpoint='', database='test'
     )
     assert result is False
 
@@ -1109,13 +1056,11 @@ def test_is_database_connected_true():
         'test-cluster',
         '',
         'test-db',
-        mock_conn  # type: ignore
+        mock_conn,  # type: ignore
     )
 
     result = is_database_connected(
-        cluster_identifier='test-cluster',
-        db_endpoint='',
-        database='test-db'
+        cluster_identifier='test-cluster', db_endpoint='', database='test-db'
     )
     assert result is True
 
@@ -1132,14 +1077,14 @@ def test_is_database_connected_with_endpoint():
         'test-cluster',
         'test-endpoint.amazonaws.com',
         'test-db',
-        mock_conn  # type: ignore
+        mock_conn,  # type: ignore
     )
 
     # Test with matching endpoint
     result = is_database_connected(
         cluster_identifier='test-cluster',
         db_endpoint='test-endpoint.amazonaws.com',
-        database='test-db'
+        database='test-db',
     )
     assert result is True
 
@@ -1147,7 +1092,7 @@ def test_is_database_connected_with_endpoint():
     result = is_database_connected(
         cluster_identifier='test-cluster',
         db_endpoint='different-endpoint.amazonaws.com',
-        database='test-db'
+        database='test-db',
     )
     assert result is False
 
@@ -1160,7 +1105,9 @@ async def test_create_cluster_serverless():
     """Test create_cluster function for serverless cluster creation."""
     # Mock the internal_create_serverless_cluster function
     with patch('awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'):
-        with patch('awslabs.postgres_mcp_server.server.internal_get_cluster_properties') as mock_get_props:
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+        ) as mock_get_props:
             mock_get_props.return_value = {
                 'DBClusterArn': 'arn:aws:rds:us-west-2:123456789012:cluster:test-serverless-cluster'
             }
@@ -1169,7 +1116,7 @@ async def test_create_cluster_serverless():
                 region='us-west-2',
                 cluster_identifier='test-serverless-cluster',
                 database='testdb',
-                engine_version='15.3'
+                engine_version='15.3',
             )
 
             # Should return job ID
@@ -1192,14 +1139,16 @@ async def test_create_cluster_serverless():
 async def test_create_cluster_error_handling():
     """Test create_cluster error handling when cluster creation fails."""
     # Mock the internal_create_serverless_cluster to raise an error
-    with patch('awslabs.postgres_mcp_server.server.internal_create_serverless_cluster') as mock_create:
-        mock_create.side_effect = Exception("Cluster creation failed")
+    with patch(
+        'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'
+    ) as mock_create:
+        mock_create.side_effect = Exception('Cluster creation failed')
 
         result = create_cluster(
             region='us-west-2',
             cluster_identifier='test-error-cluster',
             database='testdb',
-            engine_version='15.3'
+            engine_version='15.3',
         )
 
         # Should still return job ID

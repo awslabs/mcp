@@ -38,7 +38,7 @@ class TestInternalGetInstanceProperties:
                 'DBInstances': [
                     {
                         'DBInstanceIdentifier': 'other-instance',
-                        'Endpoint': {'Address': 'other.us-east-1.rds.amazonaws.com'}
+                        'Endpoint': {'Address': 'other.us-east-1.rds.amazonaws.com'},
                     },
                     {
                         'DBInstanceIdentifier': 'test-instance',
@@ -46,17 +46,19 @@ class TestInternalGetInstanceProperties:
                         'MasterUsername': 'postgres',
                         'Endpoint': {
                             'Address': 'test-instance.abc123.us-east-1.rds.amazonaws.com',
-                            'Port': 5432
+                            'Port': 5432,
                         },
                         'MasterUserSecret': {
                             'SecretArn': 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'
-                        }
-                    }
+                        },
+                    },
                 ]
             }
         ]
 
-        result = internal_get_instance_properties('test-instance.abc123.us-east-1.rds.amazonaws.com', 'us-east-1')
+        result = internal_get_instance_properties(
+            'test-instance.abc123.us-east-1.rds.amazonaws.com', 'us-east-1'
+        )
 
         assert result['DBInstanceIdentifier'] == 'test-instance'
         assert result['MasterUsername'] == 'postgres'
@@ -77,14 +79,16 @@ class TestInternalGetInstanceProperties:
                 'DBInstances': [
                     {
                         'DBInstanceIdentifier': 'other-instance',
-                        'Endpoint': {'Address': 'other.us-east-1.rds.amazonaws.com'}
+                        'Endpoint': {'Address': 'other.us-east-1.rds.amazonaws.com'},
                     }
                 ]
             }
         ]
 
-        with pytest.raises(ValueError, match="AWS error fetching instance by endpoint"):
-            internal_get_instance_properties('nonexistent.us-east-1.rds.amazonaws.com', 'us-east-1')
+        with pytest.raises(ValueError, match='AWS error fetching instance by endpoint'):
+            internal_get_instance_properties(
+                'nonexistent.us-east-1.rds.amazonaws.com', 'us-east-1'
+            )
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
     def test_get_instance_properties_client_error(self, mock_create_client):
@@ -96,8 +100,7 @@ class TestInternalGetInstanceProperties:
         mock_rds_client.get_paginator.return_value = mock_paginator
 
         mock_paginator.paginate.side_effect = ClientError(
-            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
-            'DescribeDBInstances'
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'DescribeDBInstances'
         )
 
         with pytest.raises(ClientError):
@@ -132,7 +135,7 @@ class TestInternalGetInstanceProperties:
                 'DBInstances': [
                     {
                         'DBInstanceIdentifier': 'instance1',
-                        'Endpoint': {'Address': 'instance1.us-east-1.rds.amazonaws.com'}
+                        'Endpoint': {'Address': 'instance1.us-east-1.rds.amazonaws.com'},
                     }
                 ]
             },
@@ -141,13 +144,15 @@ class TestInternalGetInstanceProperties:
                     {
                         'DBInstanceIdentifier': 'target-instance',
                         'Endpoint': {'Address': 'target.us-east-1.rds.amazonaws.com'},
-                        'MasterUsername': 'admin'
+                        'MasterUsername': 'admin',
                     }
                 ]
-            }
+            },
         ]
 
-        result = internal_get_instance_properties('target.us-east-1.rds.amazonaws.com', 'us-east-1')
+        result = internal_get_instance_properties(
+            'target.us-east-1.rds.amazonaws.com', 'us-east-1'
+        )
 
         assert result['DBInstanceIdentifier'] == 'target-instance'
         assert result['MasterUsername'] == 'admin'

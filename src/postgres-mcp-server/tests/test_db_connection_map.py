@@ -40,10 +40,7 @@ class TestDBConnectionMap:
     def test_get_nonexistent_connection_returns_none(self, connection_map):
         """Test get() returns None when connection doesn't exist."""
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert result is None
 
@@ -51,61 +48,47 @@ class TestDBConnectionMap:
         """Test get() retrieves an existing connection."""
         # Setup
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         # Test
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         assert result is mock_connection
 
     def test_get_with_none_method_raises_error(self, connection_map):
         """Test get() raises ValueError when method is None."""
-        with pytest.raises(ValueError, match="method cannot be None"):
-            connection_map.get(None, "test-cluster", "test-endpoint", "test-db")
+        with pytest.raises(ValueError, match='method cannot be None'):
+            connection_map.get(None, 'test-cluster', 'test-endpoint', 'test-db')
 
     def test_get_with_empty_cluster_allows(self, connection_map):
         """Test get() allows empty cluster identifier (returns None if not found)."""
-        result = connection_map.get(ConnectionMethod.RDS_API, "", "test-endpoint", "test-db")
+        result = connection_map.get(ConnectionMethod.RDS_API, '', 'test-endpoint', 'test-db')
         assert result is None
 
     def test_get_with_none_cluster_allows(self, connection_map):
         """Test get() allows None cluster identifier (returns None if not found)."""
-        result = connection_map.get(ConnectionMethod.RDS_API, None, "test-endpoint", "test-db")
+        result = connection_map.get(ConnectionMethod.RDS_API, None, 'test-endpoint', 'test-db')
         assert result is None
 
     def test_get_with_none_database_raises_error(self, connection_map):
         """Test get() raises ValueError when database is None or empty."""
-        with pytest.raises(ValueError, match="database cannot be None or empty"):
-            connection_map.get(ConnectionMethod.RDS_API, "test-cluster", "test-endpoint", None)
+        with pytest.raises(ValueError, match='database cannot be None or empty'):
+            connection_map.get(ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', None)
 
     # ==================== Set Method Tests ====================
 
     def test_set_new_connection(self, connection_map, mock_connection):
         """Test set() stores a new connection."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         # Verify it was stored
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert result is mock_connection
 
@@ -118,53 +101,50 @@ class TestDBConnectionMap:
 
         # Set initial connection
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            old_conn
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', old_conn
         )
 
         # Overwrite with new connection
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            new_conn
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', new_conn
         )
 
         # Verify new connection is stored
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert result is new_conn
         assert result is not old_conn
 
     def test_set_with_empty_cluster_allows(self, connection_map, mock_connection):
         """Test set() allows empty cluster identifier."""
-        connection_map.set(ConnectionMethod.RDS_API, "", "test-endpoint", "test-db", mock_connection)
-        result = connection_map.get(ConnectionMethod.RDS_API, "", "test-endpoint", "test-db")
+        connection_map.set(
+            ConnectionMethod.RDS_API, '', 'test-endpoint', 'test-db', mock_connection
+        )
+        result = connection_map.get(ConnectionMethod.RDS_API, '', 'test-endpoint', 'test-db')
         assert result is mock_connection
 
     def test_set_with_none_cluster_allows(self, connection_map, mock_connection):
         """Test set() allows None cluster identifier."""
-        connection_map.set(ConnectionMethod.RDS_API, None, "test-endpoint", "test-db", mock_connection)
-        result = connection_map.get(ConnectionMethod.RDS_API, None, "test-endpoint", "test-db")
+        connection_map.set(
+            ConnectionMethod.RDS_API, None, 'test-endpoint', 'test-db', mock_connection
+        )
+        result = connection_map.get(ConnectionMethod.RDS_API, None, 'test-endpoint', 'test-db')
         assert result is mock_connection
 
     def test_set_with_none_database_raises_error(self, connection_map, mock_connection):
         """Test set() raises ValueError when database is None or empty."""
-        with pytest.raises(ValueError, match="database cannot be None or empty"):
-            connection_map.set(ConnectionMethod.RDS_API, "test-cluster", "test-endpoint", None, mock_connection)
+        with pytest.raises(ValueError, match='database cannot be None or empty'):
+            connection_map.set(
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', None, mock_connection
+            )
 
     def test_set_with_none_connection_raises_error(self, connection_map):
         """Test set() raises ValueError when connection is None."""
-        with pytest.raises(ValueError, match="conn cannot be None"):
-            connection_map.set(ConnectionMethod.RDS_API, "test-cluster", "test-endpoint", "test-db", None)
+        with pytest.raises(ValueError, match='conn cannot be None'):
+            connection_map.set(
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', None
+            )
 
     # ==================== Remove Method Tests ====================
 
@@ -172,27 +152,15 @@ class TestDBConnectionMap:
         """Test remove() deletes an existing connection."""
         # Setup
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         # Remove
-        connection_map.remove(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
-        )
+        connection_map.remove(ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db')
 
         # Verify it's gone
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         assert result is None
 
@@ -201,33 +169,33 @@ class TestDBConnectionMap:
         """Test remove() logs info when trying to remove non-existent connection."""
         connection_map.remove(
             ConnectionMethod.RDS_API,
-            "nonexistent-cluster",
-            "nonexistent-endpoint",
-            "nonexistent-db"
+            'nonexistent-cluster',
+            'nonexistent-endpoint',
+            'nonexistent-db',
         )
 
         # Verify log was called
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args[0][0]
-        assert "Try to remove a non-existing connection" in call_args
-        assert "nonexistent-cluster" in call_args
-        assert "nonexistent-endpoint" in call_args
-        assert "nonexistent-db" in call_args
+        assert 'Try to remove a non-existing connection' in call_args
+        assert 'nonexistent-cluster' in call_args
+        assert 'nonexistent-endpoint' in call_args
+        assert 'nonexistent-db' in call_args
 
     def test_remove_with_empty_cluster_allows(self, connection_map):
         """Test remove() allows empty cluster identifier (logs if not found)."""
         # Should not raise an error, just log
-        connection_map.remove(ConnectionMethod.RDS_API, "", "test-endpoint", "test-db")
+        connection_map.remove(ConnectionMethod.RDS_API, '', 'test-endpoint', 'test-db')
 
     def test_remove_with_none_cluster_allows(self, connection_map):
         """Test remove() allows None cluster identifier (logs if not found)."""
         # Should not raise an error, just log
-        connection_map.remove(ConnectionMethod.RDS_API, None, "test-endpoint", "test-db")
+        connection_map.remove(ConnectionMethod.RDS_API, None, 'test-endpoint', 'test-db')
 
     def test_remove_with_none_database_raises_error(self, connection_map):
         """Test remove() raises ValueError when database is None or empty."""
-        with pytest.raises(ValueError, match="database cannot be None or empty"):
-            connection_map.remove(ConnectionMethod.RDS_API, "test-cluster", "test-endpoint", None)
+        with pytest.raises(ValueError, match='database cannot be None or empty'):
+            connection_map.remove(ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', None)
 
     # ==================== Get Keys Method Tests ====================
 
@@ -240,20 +208,16 @@ class TestDBConnectionMap:
     def test_get_keys_single_connection(self, connection_map, mock_connection):
         """Test get_keys_json() returns single key."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         keys_json = connection_map.get_keys_json()
         keys = json.loads(keys_json)
         assert len(keys) == 1
-        assert keys[0]["connection_method"] == ConnectionMethod.RDS_API
-        assert keys[0]["cluster_identifier"] == "test-cluster"
-        assert keys[0]["db_endpoint"] == "test-endpoint"
-        assert keys[0]["database"] == "test-db"
+        assert keys[0]['connection_method'] == ConnectionMethod.RDS_API
+        assert keys[0]['cluster_identifier'] == 'test-cluster'
+        assert keys[0]['db_endpoint'] == 'test-endpoint'
+        assert keys[0]['database'] == 'test-db'
 
     def test_get_keys_multiple_connections(self, connection_map):
         """Test get_keys_json() returns all keys."""
@@ -264,30 +228,28 @@ class TestDBConnectionMap:
         conn3 = MagicMock()
         conn3.close = MagicMock()
 
-        connection_map.set(ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1", conn1)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster2", "endpoint2", "db2", conn2)
-        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, "cluster1", "endpoint1", "db1", conn3)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster1', 'endpoint1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster2', 'endpoint2', 'db2', conn2)
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL, 'cluster1', 'endpoint1', 'db1', conn3
+        )
 
         keys_json = connection_map.get_keys_json()
         keys = json.loads(keys_json)
         assert len(keys) == 3
 
         key_tuples = [
-            (k["connection_method"], k["cluster_identifier"], k["db_endpoint"], k["database"])
+            (k['connection_method'], k['cluster_identifier'], k['db_endpoint'], k['database'])
             for k in keys
         ]
-        assert (ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1") in key_tuples
-        assert (ConnectionMethod.RDS_API, "cluster2", "endpoint2", "db2") in key_tuples
-        assert (ConnectionMethod.PG_WIRE_PROTOCOL, "cluster1", "endpoint1", "db1") in key_tuples
+        assert (ConnectionMethod.RDS_API, 'cluster1', 'endpoint1', 'db1') in key_tuples
+        assert (ConnectionMethod.RDS_API, 'cluster2', 'endpoint2', 'db2') in key_tuples
+        assert (ConnectionMethod.PG_WIRE_PROTOCOL, 'cluster1', 'endpoint1', 'db1') in key_tuples
 
     def test_get_keys_returns_copy(self, connection_map, mock_connection):
         """Test get_keys_json() returns a new JSON string each time."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         keys1 = connection_map.get_keys_json()
@@ -308,9 +270,11 @@ class TestDBConnectionMap:
         conn3 = MagicMock()
         conn3.close = MagicMock()
 
-        connection_map.set(ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1", conn1)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster2", "endpoint2", "db2", conn2)
-        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, "cluster1", "endpoint1", "db1", conn3)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster1', 'endpoint1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster2', 'endpoint2', 'db2', conn2)
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL, 'cluster1', 'endpoint1', 'db1', conn3
+        )
 
         connection_map.close_all()
 
@@ -322,11 +286,7 @@ class TestDBConnectionMap:
     def test_close_all_clears_map(self, connection_map, mock_connection):
         """Test close_all() clears the connection map."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         connection_map.close_all()
@@ -344,12 +304,12 @@ class TestDBConnectionMap:
 
         # Make close() synchronous
         conn1.close = MagicMock()
-        conn2.close = MagicMock(side_effect=Exception("Connection close failed"))
+        conn2.close = MagicMock(side_effect=Exception('Connection close failed'))
         conn3.close = MagicMock()
 
-        connection_map.set(ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1", conn1)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster2", "endpoint2", "db2", conn2)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster3", "endpoint3", "db3", conn3)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster1', 'endpoint1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster2', 'endpoint2', 'db2', conn2)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster3', 'endpoint3', 'db3', conn3)
 
         # Should not raise exception despite conn2 failing
         connection_map.close_all()
@@ -369,13 +329,13 @@ class TestDBConnectionMap:
         conn3 = MagicMock()
 
         # Make close() synchronous and make conn1 and conn3 raise exceptions
-        conn1.close = MagicMock(side_effect=Exception("First failure"))
+        conn1.close = MagicMock(side_effect=Exception('First failure'))
         conn2.close = MagicMock()
-        conn3.close = MagicMock(side_effect=Exception("Third failure"))
+        conn3.close = MagicMock(side_effect=Exception('Third failure'))
 
-        connection_map.set(ConnectionMethod.RDS_API, "cluster1", "endpoint1", "db1", conn1)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster2", "endpoint2", "db2", conn2)
-        connection_map.set(ConnectionMethod.RDS_API, "cluster3", "endpoint3", "db3", conn3)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster1', 'endpoint1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster2', 'endpoint2', 'db2', conn2)
+        connection_map.set(ConnectionMethod.RDS_API, 'cluster3', 'endpoint3', 'db3', conn3)
 
         # Should not raise exception despite conn1 and conn3 failing
         connection_map.close_all()
@@ -398,32 +358,18 @@ class TestDBConnectionMap:
         conn_pg.close = MagicMock()
 
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            conn_rds
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', conn_rds
         )
         connection_map.set(
-            ConnectionMethod.PG_WIRE_PROTOCOL,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            conn_pg
+            ConnectionMethod.PG_WIRE_PROTOCOL, 'test-cluster', 'test-endpoint', 'test-db', conn_pg
         )
 
         # Should retrieve different connections
         result_rds = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
         result_pg = connection_map.get(
-            ConnectionMethod.PG_WIRE_PROTOCOL,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.PG_WIRE_PROTOCOL, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         assert result_rds is conn_rds
@@ -441,31 +387,25 @@ class TestDBConnectionMap:
 
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "test-cluster",
-            "endpoint-a.rds.amazonaws.com",
-            "test-db",
-            conn_endpoint_a
+            'test-cluster',
+            'endpoint-a.rds.amazonaws.com',
+            'test-db',
+            conn_endpoint_a,
         )
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "test-cluster",
-            "endpoint-b.rds.amazonaws.com",
-            "test-db",
-            conn_endpoint_b
+            'test-cluster',
+            'endpoint-b.rds.amazonaws.com',
+            'test-db',
+            conn_endpoint_b,
         )
 
         # Should retrieve different connections
         result_a = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "endpoint-a.rds.amazonaws.com",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'endpoint-a.rds.amazonaws.com', 'test-db'
         )
         result_b = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "endpoint-b.rds.amazonaws.com",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'endpoint-b.rds.amazonaws.com', 'test-db'
         )
 
         assert result_a is conn_endpoint_a
@@ -474,13 +414,15 @@ class TestDBConnectionMap:
 
     def test_get_with_none_endpoint_allows(self, connection_map):
         """Test get() allows None endpoint (returns None if not found)."""
-        result = connection_map.get(ConnectionMethod.RDS_API, "test-cluster", None, "test-db")
+        result = connection_map.get(ConnectionMethod.RDS_API, 'test-cluster', None, 'test-db')
         assert result is None
 
     def test_set_with_none_endpoint_allows(self, connection_map, mock_connection):
         """Test set() allows None endpoint."""
-        connection_map.set(ConnectionMethod.RDS_API, "test-cluster", None, "test-db", mock_connection)
-        result = connection_map.get(ConnectionMethod.RDS_API, "test-cluster", None, "test-db")
+        connection_map.set(
+            ConnectionMethod.RDS_API, 'test-cluster', None, 'test-db', mock_connection
+        )
+        result = connection_map.get(ConnectionMethod.RDS_API, 'test-cluster', None, 'test-db')
         assert result is mock_connection
 
     # ==================== Port Differentiation Tests ====================
@@ -494,35 +436,27 @@ class TestDBConnectionMap:
 
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
             conn_5432,
-            port=5432
+            port=5432,
         )
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
             conn_5433,
-            port=5433
+            port=5433,
         )
 
         # Should retrieve different connections
         result_5432 = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            port=5432
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', port=5432
         )
         result_5433 = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            port=5433
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', port=5433
         )
 
         assert result_5432 is conn_5432
@@ -534,19 +468,16 @@ class TestDBConnectionMap:
         # Set with explicit port=5432
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
             mock_connection,
-            port=5432
+            port=5432,
         )
 
         # Get without specifying port (should default to 5432)
         result = connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
         assert result is mock_connection
@@ -566,10 +497,10 @@ class TestDBConnectionMap:
         def set_connection(index):
             connection_map.set(
                 ConnectionMethod.RDS_API,
-                f"cluster-{index}",
-                f"endpoint-{index}",
-                f"db-{index}",
-                connections[index]
+                f'cluster-{index}',
+                f'endpoint-{index}',
+                f'db-{index}',
+                connections[index],
             )
 
         # Start all threads
@@ -589,21 +520,14 @@ class TestDBConnectionMap:
 
         for i in range(num_threads):
             result = connection_map.get(
-                ConnectionMethod.RDS_API,
-                f"cluster-{i}",
-                f"endpoint-{i}",
-                f"db-{i}"
+                ConnectionMethod.RDS_API, f'cluster-{i}', f'endpoint-{i}', f'db-{i}'
             )
             assert result is connections[i]
 
     def test_concurrent_get_operations(self, connection_map, mock_connection):
         """Test multiple threads can safely get connections concurrently."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         num_threads = 20
@@ -612,10 +536,7 @@ class TestDBConnectionMap:
 
         def get_connection(index):
             results[index] = connection_map.get(
-                ConnectionMethod.RDS_API,
-                "test-cluster",
-                "test-endpoint",
-                "test-db"
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
             )
 
         # Start all threads
@@ -641,19 +562,12 @@ class TestDBConnectionMap:
             conn = MagicMock()
             conn.close = MagicMock()
             connection_map.set(
-                ConnectionMethod.RDS_API,
-                f"cluster-{index}",
-                "test-endpoint",
-                "test-db",
-                conn
+                ConnectionMethod.RDS_API, f'cluster-{index}', 'test-endpoint', 'test-db', conn
             )
             # Small delay to increase chance of race conditions
             time.sleep(0.001)
             result = connection_map.get(
-                ConnectionMethod.RDS_API,
-                f"cluster-{index}",
-                "test-endpoint",
-                "test-db"
+                ConnectionMethod.RDS_API, f'cluster-{index}', 'test-endpoint', 'test-db'
             )
             results[index] = (conn, result)
 
@@ -680,21 +594,14 @@ class TestDBConnectionMap:
             conn = MagicMock()
             conn.close = MagicMock()
             connection_map.set(
-                ConnectionMethod.RDS_API,
-                f"cluster-{i}",
-                "test-endpoint",
-                "test-db",
-                conn
+                ConnectionMethod.RDS_API, f'cluster-{i}', 'test-endpoint', 'test-db', conn
             )
 
         threads = []
 
         def remove_connection(index):
             connection_map.remove(
-                ConnectionMethod.RDS_API,
-                f"cluster-{index}",
-                "test-endpoint",
-                "test-db"
+                ConnectionMethod.RDS_API, f'cluster-{index}', 'test-endpoint', 'test-db'
             )
 
         # Start all threads
@@ -716,11 +623,7 @@ class TestDBConnectionMap:
     def test_concurrent_remove_same_connection(self, mock_logger, connection_map, mock_connection):
         """Test multiple threads removing same connection is safe."""
         connection_map.set(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db",
-            mock_connection
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
         )
 
         num_threads = 5
@@ -728,10 +631,7 @@ class TestDBConnectionMap:
 
         def remove_connection():
             connection_map.remove(
-                ConnectionMethod.RDS_API,
-                "test-cluster",
-                "test-endpoint",
-                "test-db"
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
             )
 
         # Start all threads trying to remove the same connection
@@ -745,12 +645,12 @@ class TestDBConnectionMap:
             thread.join()
 
         # Connection should be gone
-        assert connection_map.get(
-            ConnectionMethod.RDS_API,
-            "test-cluster",
-            "test-endpoint",
-            "test-db"
-        ) is None
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+            )
+            is None
+        )
 
         # At least one thread should have logged about non-existent connection
         # (the ones that tried to remove after it was already gone)
@@ -758,6 +658,7 @@ class TestDBConnectionMap:
 
 
 # ==================== Integration Tests ====================
+
 
 class TestDBConnectionMapIntegration:
     """Integration tests for realistic usage scenarios."""
@@ -771,43 +672,43 @@ class TestDBConnectionMapIntegration:
         """Test a typical connection lifecycle: set, get, use, remove."""
         # Create connection - don't use spec to avoid async issues
         mock_conn = MagicMock()
-        mock_conn.execute_query = MagicMock(return_value="query result")
+        mock_conn.execute_query = MagicMock(return_value='query result')
         mock_conn.close = MagicMock()
 
         # Store connection
         connection_map.set(
             ConnectionMethod.RDS_API,
-            "prod-cluster",
-            "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com",
-            "analytics",
-            mock_conn
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'analytics',
+            mock_conn,
         )
 
         # Retrieve and use connection
         conn = connection_map.get(
             ConnectionMethod.RDS_API,
-            "prod-cluster",
-            "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com",
-            "analytics"
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'analytics',
         )
         assert conn is not None
-        result = conn.execute_query("SELECT * FROM users")
-        assert result == "query result"
+        result = conn.execute_query('SELECT * FROM users')
+        assert result == 'query result'
 
         # Remove connection
         connection_map.remove(
             ConnectionMethod.RDS_API,
-            "prod-cluster",
-            "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com",
-            "analytics"
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'analytics',
         )
 
         # Verify it's gone
         conn = connection_map.get(
             ConnectionMethod.RDS_API,
-            "prod-cluster",
-            "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com",
-            "analytics"
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'analytics',
         )
         assert conn is None
 
@@ -821,14 +722,56 @@ class TestDBConnectionMapIntegration:
         conn_staging.close = MagicMock()
 
         # Add connections to different databases
-        connection_map.set(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "analytics", conn_analytics)
-        connection_map.set(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "reporting", conn_reporting)
-        connection_map.set(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "staging", conn_staging)
+        connection_map.set(
+            ConnectionMethod.RDS_API,
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'analytics',
+            conn_analytics,
+        )
+        connection_map.set(
+            ConnectionMethod.RDS_API,
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'reporting',
+            conn_reporting,
+        )
+        connection_map.set(
+            ConnectionMethod.RDS_API,
+            'prod-cluster',
+            'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'staging',
+            conn_staging,
+        )
 
         # Verify all are stored separately
-        assert connection_map.get(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "analytics") is conn_analytics
-        assert connection_map.get(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "reporting") is conn_reporting
-        assert connection_map.get(ConnectionMethod.RDS_API, "prod-cluster", "prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com", "staging") is conn_staging
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'prod-cluster',
+                'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+                'analytics',
+            )
+            is conn_analytics
+        )
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'prod-cluster',
+                'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+                'reporting',
+            )
+            is conn_reporting
+        )
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'prod-cluster',
+                'prod-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+                'staging',
+            )
+            is conn_staging
+        )
 
         # Verify keys
         keys_json = connection_map.get_keys_json()
@@ -845,10 +788,10 @@ class TestDBConnectionMapIntegration:
             connections.append(conn)
             connection_map.set(
                 ConnectionMethod.RDS_API,
-                f"cluster-{i}",
-                f"cluster-{i}.cluster-xyz789.us-east-1.rds.amazonaws.com",
-                f"db-{i}",
-                conn
+                f'cluster-{i}',
+                f'cluster-{i}.cluster-xyz789.us-east-1.rds.amazonaws.com',
+                f'db-{i}',
+                conn,
             )
 
         # Simulate shutdown
@@ -864,5 +807,5 @@ class TestDBConnectionMapIntegration:
         assert keys == []
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

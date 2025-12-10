@@ -1,4 +1,5 @@
 """Comprehensive test suite for RDS cluster management functions defined in cp_api_connection.py."""
+
 import pytest
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     internal_create_rds_client,
@@ -14,75 +15,67 @@ from unittest.mock import ANY, MagicMock, patch
 # MOCK DATA FACTORIES
 # =============================================================================
 
+
 def create_mock_cluster_response(
-    cluster_id: str = "test-cluster",
-    status: str = "available",
+    cluster_id: str = 'test-cluster',
+    status: str = 'available',
     include_secret: bool = True,
-    members: Optional[List[str]] = None
+    members: Optional[List[str]] = None,
 ) -> Dict:
     """Create a mock RDS cluster response."""
     cluster = {
-        "DBCluster": {
-            "DBClusterIdentifier": cluster_id,
-            "DBClusterArn": f"arn:aws:rds:us-east-1:123456789012:cluster:{cluster_id}",
-            "Status": status,
-            "Endpoint": f"{cluster_id}.cluster-abc123.us-east-1.rds.amazonaws.com",
-            "ReaderEndpoint": f"{cluster_id}.cluster-ro-abc123.us-east-1.rds.amazonaws.com",
-            "Port": 5432,
-            "Engine": "aurora-postgresql",
-            "EngineVersion": "15.3",
-            "MasterUsername": "postgres",
-            "DatabaseName": "postgres",
-            "DBClusterMembers": [
-                {"DBInstanceIdentifier": member} for member in (members or [])
-            ],
+        'DBCluster': {
+            'DBClusterIdentifier': cluster_id,
+            'DBClusterArn': f'arn:aws:rds:us-east-1:123456789012:cluster:{cluster_id}',
+            'Status': status,
+            'Endpoint': f'{cluster_id}.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'ReaderEndpoint': f'{cluster_id}.cluster-ro-abc123.us-east-1.rds.amazonaws.com',
+            'Port': 5432,
+            'Engine': 'aurora-postgresql',
+            'EngineVersion': '15.3',
+            'MasterUsername': 'postgres',
+            'DatabaseName': 'postgres',
+            'DBClusterMembers': [{'DBInstanceIdentifier': member} for member in (members or [])],
         }
     }
 
     if include_secret:
-        cluster["DBCluster"]["MasterUserSecret"] = {
-            "SecretArn": f"arn:aws:secretsmanager:us-east-1:123456789012:secret:{cluster_id}-secret-abc123"
+        cluster['DBCluster']['MasterUserSecret'] = {
+            'SecretArn': f'arn:aws:secretsmanager:us-east-1:123456789012:secret:{cluster_id}-secret-abc123'
         }
 
     return cluster
 
 
 def create_mock_instance_response(
-    instance_id: str = "test-instance",
-    cluster_id: str = "test-cluster",
-    status: str = "available"
+    instance_id: str = 'test-instance', cluster_id: str = 'test-cluster', status: str = 'available'
 ) -> Dict:
     """Create a mock RDS instance response."""
     return {
-        "DBInstance": {
-            "DBInstanceIdentifier": instance_id,
-            "DBInstanceArn": f"arn:aws:rds:us-east-1:123456789012:db:{instance_id}",
-            "DBClusterIdentifier": cluster_id,
-            "DBInstanceStatus": status,
-            "Engine": "aurora-postgresql",
-            "DBInstanceClass": "db.serverless",
+        'DBInstance': {
+            'DBInstanceIdentifier': instance_id,
+            'DBInstanceArn': f'arn:aws:rds:us-east-1:123456789012:db:{instance_id}',
+            'DBClusterIdentifier': cluster_id,
+            'DBInstanceStatus': status,
+            'Engine': 'aurora-postgresql',
+            'DBInstanceClass': 'db.serverless',
         }
     }
 
 
 def create_mock_tags(include_mcp: bool = True) -> Dict:
     """Create a mock tags response."""
-    tags = [{"Key": "Environment", "Value": "test"}]
+    tags = [{'Key': 'Environment', 'Value': 'test'}]
     if include_mcp:
-        tags.append({"Key": "CreatedBy", "Value": "MCP"})
-    return {"TagList": tags}
+        tags.append({'Key': 'CreatedBy', 'Value': 'MCP'})
+    return {'TagList': tags}
 
 
-def create_client_error(error_code: str, message: str = "Test error") -> ClientError:
+def create_client_error(error_code: str, message: str = 'Test error') -> ClientError:
     """Create a mock ClientError."""
     return ClientError(
-        error_response={
-            "Error": {
-                "Code": error_code,
-                "Message": message
-            }
-        },
-        operation_name="TestOperation"
+        error_response={'Error': {'Code': error_code, 'Message': message}},
+        operation_name='TestOperation',
     )
 
 
@@ -90,19 +83,20 @@ def create_client_error(error_code: str, message: str = "Test error") -> ClientE
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def mock_rds_client():
     """Create a mock RDS client with proper waiter handling."""
     client = MagicMock()
 
     # Setup default successful responses
-    client.create_db_cluster.return_value = create_mock_cluster_response(status="creating")
-    client.create_db_instance.return_value = create_mock_instance_response(status="creating")
+    client.create_db_cluster.return_value = create_mock_cluster_response(status='creating')
+    client.create_db_instance.return_value = create_mock_instance_response(status='creating')
     client.describe_db_clusters.return_value = {
-        "DBClusters": [create_mock_cluster_response()["DBCluster"]]
+        'DBClusters': [create_mock_cluster_response()['DBCluster']]
     }
     client.describe_db_instances.return_value = {
-        "DBInstances": [create_mock_instance_response()["DBInstance"]]
+        'DBInstances': [create_mock_instance_response()['DBInstance']]
     }
     client.list_tags_for_resource.return_value = create_mock_tags()
     client.delete_db_cluster.return_value = {}
@@ -124,7 +118,10 @@ def mock_rds_client():
 def mock_boto3_client(mock_rds_client):
     """Mock boto3.client to return our mock RDS client."""
     # NOTE: Change 'awslabs.postgres_mcp_server.connection.cp_api_connection' to actual module name
-    with patch("awslabs.postgres_mcp_server.connection.cp_api_connection.boto3.client", return_value=mock_rds_client) as mock:
+    with patch(
+        'awslabs.postgres_mcp_server.connection.cp_api_connection.boto3.client',
+        return_value=mock_rds_client,
+    ) as mock:
         yield mock
 
 
@@ -132,7 +129,7 @@ def mock_boto3_client(mock_rds_client):
 def mock_time_sleep():
     """Mock time.sleep to speed up tests."""
     # NOTE: Change 'awslabs.postgres_mcp_server.connection.cp_api_connection' to actual module name
-    with patch("awslabs.postgres_mcp_server.connection.cp_api_connection.time.sleep") as mock:
+    with patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time.sleep') as mock:
         yield mock
 
 
@@ -140,20 +137,21 @@ def mock_time_sleep():
 def mock_logger():
     """Mock loguru logger."""
     # NOTE: Change 'awslabs.postgres_mcp_server.connection.cp_api_connection' to actual module name
-    with patch("awslabs.postgres_mcp_server.connection.cp_api_connection.logger") as mock:
+    with patch('awslabs.postgres_mcp_server.connection.cp_api_connection.logger') as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_print():
     """Mock print to avoid cluttering test output."""
-    with patch("builtins.print") as mock:
+    with patch('builtins.print') as mock:
         yield mock
 
 
 # =============================================================================
 # TESTS FOR: internal_create_rds_client
 # =============================================================================
+
 
 class TestInternalCreateRdsClient:
     """Tests for internal_create_rds_client function."""
@@ -170,17 +168,18 @@ class TestInternalCreateRdsClient:
 # TESTS FOR: internal_get_cluster_properties
 # =============================================================================
 
+
 class TestInternalGetClusterProperties:
     """Tests for internal_get_cluster_properties function."""
 
     def test_get_cluster_properties_empty_cluster_id_raises_error(self):
         """Test that empty cluster_identifier raises ValueError."""
-        with pytest.raises(ValueError, match="cluster_identifier and region are required"):
+        with pytest.raises(ValueError, match='cluster_identifier and region are required'):
             internal_get_cluster_properties('', 'us-east-1')
 
     def test_get_cluster_properties_empty_region_raises_error(self):
         """Test that empty region raises ValueError."""
-        with pytest.raises(ValueError, match="cluster_identifier and region are required"):
+        with pytest.raises(ValueError, match='cluster_identifier and region are required'):
             internal_get_cluster_properties('test-cluster', '')
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
@@ -200,11 +199,13 @@ class TestInternalGetClusterProperties:
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
         mock_rds_client.describe_db_clusters.return_value = {
-            'DBClusters': [{
-                'DBClusterIdentifier': 'test-cluster',
-                'Status': 'available',
-                'Engine': 'aurora-postgresql'
-            }]
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'Engine': 'aurora-postgresql',
+                }
+            ]
         }
 
         # Execute
@@ -224,8 +225,7 @@ class TestInternalGetClusterProperties:
         mock_rds_client = MagicMock()
         mock_create_client.return_value = mock_rds_client
         mock_rds_client.describe_db_clusters.side_effect = ClientError(
-            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
-            'DescribeDBClusters'
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'DescribeDBClusters'
         )
 
         with pytest.raises(ClientError):
@@ -235,6 +235,7 @@ class TestInternalGetClusterProperties:
 # =============================================================================
 # TESTS FOR: internal_create_serverless_cluster
 # =============================================================================
+
 
 class TestInternalCreateServerlessCluster:
     """Tests for internal_create_serverless_cluster function."""
@@ -246,7 +247,7 @@ class TestInternalCreateServerlessCluster:
                 region='',
                 cluster_identifier='test-cluster',
                 engine_version='17.5',
-                database_name='testdb'
+                database_name='testdb',
             )
 
     def test_missing_cluster_identifier_raises_error(self):
@@ -256,7 +257,7 @@ class TestInternalCreateServerlessCluster:
                 region='us-east-1',
                 cluster_identifier='',
                 engine_version='17.5',
-                database_name='testdb'
+                database_name='testdb',
             )
 
     def test_missing_engine_version_raises_error(self):
@@ -266,7 +267,7 @@ class TestInternalCreateServerlessCluster:
                 region='us-east-1',
                 cluster_identifier='test-cluster',
                 engine_version='',
-                database_name='testdb'
+                database_name='testdb',
             )
 
     def test_missing_database_name_raises_error(self):
@@ -276,7 +277,7 @@ class TestInternalCreateServerlessCluster:
                 region='us-east-1',
                 cluster_identifier='test-cluster',
                 engine_version='17.5',
-                database_name=''
+                database_name='',
             )
 
     def test_successful_cluster_creation(
@@ -285,49 +286,51 @@ class TestInternalCreateServerlessCluster:
         """Test successful cluster and instance creation."""
         # Execute
         result = internal_create_serverless_cluster(
-            region="us-east-1",
-            cluster_identifier="test-cluster",
-            engine_version="15.3",
-            database_name="testdb",
-            master_username="admin",
+            region='us-east-1',
+            cluster_identifier='test-cluster',
+            engine_version='15.3',
+            database_name='testdb',
+            master_username='admin',
             min_capacity=0.5,
             max_capacity=1.0,
-            enable_cloudwatch_logs=True
+            enable_cloudwatch_logs=True,
         )
 
         # Verify the function returns a dictionary (cluster object)
         assert isinstance(result, dict)
-        assert result["DBClusterIdentifier"] == "test-cluster"
-        assert result["DBClusterArn"] == "arn:aws:rds:us-east-1:123456789012:cluster:test-cluster"
+        assert result['DBClusterIdentifier'] == 'test-cluster'
+        assert result['DBClusterArn'] == 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster'
 
         # Verify MasterUserSecret is present in the response
-        assert "MasterUserSecret" in result
-        assert "SecretArn" in result["MasterUserSecret"]
+        assert 'MasterUserSecret' in result
+        assert 'SecretArn' in result['MasterUserSecret']
 
         # Verify boto3.client was called correctly
-        mock_boto3_client.assert_called_once_with("rds", region_name="us-east-1", config=ANY)
+        mock_boto3_client.assert_called_once_with('rds', region_name='us-east-1', config=ANY)
 
         # Verify create_db_cluster was called with correct params
         mock_rds_client.create_db_cluster.assert_called_once()
         cluster_call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
 
-        assert cluster_call_kwargs["DBClusterIdentifier"] == "test-cluster"
-        assert cluster_call_kwargs["Engine"] == "aurora-postgresql"
-        assert cluster_call_kwargs["EngineVersion"] == "15.3"
-        assert cluster_call_kwargs["MasterUsername"] == "admin"
-        assert cluster_call_kwargs["DatabaseName"] == "testdb"
-        assert cluster_call_kwargs["ManageMasterUserPassword"] is True
-        assert cluster_call_kwargs["EnableCloudwatchLogsExports"] == ["postgresql"]
-        assert cluster_call_kwargs["ServerlessV2ScalingConfiguration"] == {
-            "MinCapacity": 0.5,
-            "MaxCapacity": 1.0
+        assert cluster_call_kwargs['DBClusterIdentifier'] == 'test-cluster'
+        assert cluster_call_kwargs['Engine'] == 'aurora-postgresql'
+        assert cluster_call_kwargs['EngineVersion'] == '15.3'
+        assert cluster_call_kwargs['MasterUsername'] == 'admin'
+        assert cluster_call_kwargs['DatabaseName'] == 'testdb'
+        assert cluster_call_kwargs['ManageMasterUserPassword'] is True
+        assert cluster_call_kwargs['EnableCloudwatchLogsExports'] == ['postgresql']
+        assert cluster_call_kwargs['ServerlessV2ScalingConfiguration'] == {
+            'MinCapacity': 0.5,
+            'MaxCapacity': 1.0,
         }
-        assert any(tag["Key"] == "CreatedBy" and tag["Value"] == "MCP"
-                  for tag in cluster_call_kwargs["Tags"])
+        assert any(
+            tag['Key'] == 'CreatedBy' and tag['Value'] == 'MCP'
+            for tag in cluster_call_kwargs['Tags']
+        )
 
         # Verify waiter was called for cluster
         assert any(
-            call_args[0][0] == "db_cluster_available"
+            call_args[0][0] == 'db_cluster_available'
             for call_args in mock_rds_client.get_waiter.call_args_list
         )
 
@@ -335,21 +338,19 @@ class TestInternalCreateServerlessCluster:
         mock_rds_client.create_db_instance.assert_called_once()
         instance_call_kwargs = mock_rds_client.create_db_instance.call_args[1]
 
-        assert instance_call_kwargs["DBInstanceIdentifier"] == "test-cluster-instance-1"
-        assert instance_call_kwargs["DBInstanceClass"] == "db.serverless"
-        assert instance_call_kwargs["Engine"] == "aurora-postgresql"
-        assert instance_call_kwargs["DBClusterIdentifier"] == "test-cluster"
+        assert instance_call_kwargs['DBInstanceIdentifier'] == 'test-cluster-instance-1'
+        assert instance_call_kwargs['DBInstanceClass'] == 'db.serverless'
+        assert instance_call_kwargs['Engine'] == 'aurora-postgresql'
+        assert instance_call_kwargs['DBClusterIdentifier'] == 'test-cluster'
 
         # Verify waiter was called for instance
         assert any(
-            call_args[0][0] == "db_instance_available"
+            call_args[0][0] == 'db_instance_available'
             for call_args in mock_rds_client.get_waiter.call_args_list
         )
 
         # Verify describe_db_clusters was called to get final details
-        mock_rds_client.describe_db_clusters.assert_called_with(
-            DBClusterIdentifier="test-cluster"
-        )
+        mock_rds_client.describe_db_clusters.assert_called_with(DBClusterIdentifier='test-cluster')
 
         # Verify logging
         assert mock_logger.info.call_count > 0
@@ -357,40 +358,39 @@ class TestInternalCreateServerlessCluster:
     def test_cloudwatch_logs_disabled(self, mock_boto3_client, mock_rds_client, mock_print):
         """Test cluster creation with CloudWatch logs disabled."""
         internal_create_serverless_cluster(
-            region="us-east-1",
-            cluster_identifier="test-cluster",
-            engine_version="15.3",
-            database_name="testdb",
-            master_username="testuser",
+            region='us-east-1',
+            cluster_identifier='test-cluster',
+            engine_version='15.3',
+            database_name='testdb',
+            master_username='testuser',
             min_capacity=0.5,
             max_capacity=1.0,
-            enable_cloudwatch_logs=False
+            enable_cloudwatch_logs=False,
         )
 
         cluster_call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
-        assert cluster_call_kwargs["EnableCloudwatchLogsExports"] == []
+        assert cluster_call_kwargs['EnableCloudwatchLogsExports'] == []
 
     def test_cluster_creation_fails(self, mock_boto3_client, mock_rds_client, mock_print):
         """Test handling of cluster creation failure."""
         # Setup mock to raise error
         mock_rds_client.create_db_cluster.side_effect = create_client_error(
-            "InvalidParameterValue",
-            "Invalid engine version"
+            'InvalidParameterValue', 'Invalid engine version'
         )
 
         # Execute and verify exception
         with pytest.raises(ClientError) as exc_info:
             internal_create_serverless_cluster(
-                region="us-east-1",
-                cluster_identifier="test-cluster",
-                engine_version="invalid",
-                database_name="testdb",
-                master_username="admin",
+                region='us-east-1',
+                cluster_identifier='test-cluster',
+                engine_version='invalid',
+                database_name='testdb',
+                master_username='admin',
                 min_capacity=0.5,
-                max_capacity=1.0
+                max_capacity=1.0,
             )
 
-        assert exc_info.value.response["Error"]["Code"] == "InvalidParameterValue"
+        assert exc_info.value.response['Error']['Code'] == 'InvalidParameterValue'
 
         # Verify instance creation was not attempted
         mock_rds_client.create_db_instance.assert_not_called()
@@ -401,11 +401,9 @@ class TestInternalCreateServerlessCluster:
         # Setup waiter to raise timeout error
         def get_waiter_side_effect(waiter_name):
             mock_waiter = MagicMock()
-            if waiter_name == "db_cluster_available":
+            if waiter_name == 'db_cluster_available':
                 mock_waiter.wait.side_effect = WaiterError(
-                    name="db_cluster_available",
-                    reason="Max attempts exceeded",
-                    last_response={}
+                    name='db_cluster_available', reason='Max attempts exceeded', last_response={}
                 )
             else:
                 mock_waiter.wait.return_value = None
@@ -415,13 +413,13 @@ class TestInternalCreateServerlessCluster:
 
         with pytest.raises(WaiterError):
             internal_create_serverless_cluster(
-                region="us-east-1",
-                cluster_identifier="test-cluster",
-                engine_version="15.3",
-                database_name="testdb",
-                master_username="admin",
+                region='us-east-1',
+                cluster_identifier='test-cluster',
+                engine_version='15.3',
+                database_name='testdb',
+                master_username='admin',
                 min_capacity=0.5,
-                max_capacity=1.0
+                max_capacity=1.0,
             )
 
         # Verify instance creation was not attempted
@@ -431,22 +429,21 @@ class TestInternalCreateServerlessCluster:
         """Test handling of instance creation failure after successful cluster creation."""
         # Setup instance creation to fail
         mock_rds_client.create_db_instance.side_effect = create_client_error(
-            "InvalidParameterCombination",
-            "Invalid instance configuration"
+            'InvalidParameterCombination', 'Invalid instance configuration'
         )
 
         with pytest.raises(ClientError) as exc_info:
             internal_create_serverless_cluster(
-                region="us-east-1",
-                cluster_identifier="test-cluster",
-                engine_version="15.3",
-                database_name="testdb",
-                master_username="admin",
+                region='us-east-1',
+                cluster_identifier='test-cluster',
+                engine_version='15.3',
+                database_name='testdb',
+                master_username='admin',
                 min_capacity=0.5,
-                max_capacity=1.0
+                max_capacity=1.0,
             )
 
-        assert exc_info.value.response["Error"]["Code"] == "InvalidParameterCombination"
+        assert exc_info.value.response['Error']['Code'] == 'InvalidParameterCombination'
 
         # Verify cluster was created but instance failed
         mock_rds_client.create_db_cluster.assert_called_once()
@@ -458,13 +455,11 @@ class TestInternalCreateServerlessCluster:
         # Setup waiters - cluster succeeds, instance times out
         def get_waiter_side_effect(waiter_name):
             mock_waiter = MagicMock()
-            if waiter_name == "db_cluster_available":
+            if waiter_name == 'db_cluster_available':
                 mock_waiter.wait.return_value = None
-            elif waiter_name == "db_instance_available":
+            elif waiter_name == 'db_instance_available':
                 mock_waiter.wait.side_effect = WaiterError(
-                    name="db_instance_available",
-                    reason="Max attempts exceeded",
-                    last_response={}
+                    name='db_instance_available', reason='Max attempts exceeded', last_response={}
                 )
             return mock_waiter
 
@@ -472,13 +467,13 @@ class TestInternalCreateServerlessCluster:
 
         with pytest.raises(WaiterError):
             internal_create_serverless_cluster(
-                region="us-east-1",
-                cluster_identifier="test-cluster",
-                engine_version="15.3",
-                database_name="testdb",
-                master_username="admin",
+                region='us-east-1',
+                cluster_identifier='test-cluster',
+                engine_version='15.3',
+                database_name='testdb',
+                master_username='admin',
                 min_capacity=0.5,
-                max_capacity=1.0
+                max_capacity=1.0,
             )
 
         # Verify both cluster and instance were created
@@ -489,46 +484,47 @@ class TestInternalCreateServerlessCluster:
         """Test handling when MasterUserSecret is not in response."""
         # Setup response without secret
         mock_rds_client.describe_db_clusters.return_value = {
-            "DBClusters": [create_mock_cluster_response(include_secret=False)["DBCluster"]]
+            'DBClusters': [create_mock_cluster_response(include_secret=False)['DBCluster']]
         }
 
         result = internal_create_serverless_cluster(
-            region="us-east-1",
-            cluster_identifier="test-cluster",
-            engine_version="15.3",
-            database_name="testdb",
-            master_username="admin",
+            region='us-east-1',
+            cluster_identifier='test-cluster',
+            engine_version='15.3',
+            database_name='testdb',
+            master_username='admin',
             min_capacity=0.5,
-            max_capacity=1.0
+            max_capacity=1.0,
         )
 
         # Verify the function returns a dictionary (cluster object)
         assert isinstance(result, dict)
-        assert result["DBClusterArn"] == "arn:aws:rds:us-east-1:123456789012:cluster:test-cluster"
+        assert result['DBClusterArn'] == 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster'
         # Verify MasterUserSecret is not in the response
-        assert "MasterUserSecret" not in result
+        assert 'MasterUserSecret' not in result
 
     def test_unexpected_exception(self, mock_boto3_client, mock_rds_client, mock_print):
         """Test handling of unexpected exceptions."""
-        mock_rds_client.create_db_cluster.side_effect = Exception("Unexpected error")
+        mock_rds_client.create_db_cluster.side_effect = Exception('Unexpected error')
 
         with pytest.raises(Exception) as exc_info:
             internal_create_serverless_cluster(
-                region="us-east-1",
-                cluster_identifier="test-cluster",
-                engine_version="15.3",
-                database_name="testdb",
-                master_username="admin",
+                region='us-east-1',
+                cluster_identifier='test-cluster',
+                engine_version='15.3',
+                database_name='testdb',
+                master_username='admin',
                 min_capacity=0.5,
-                max_capacity=1.0
+                max_capacity=1.0,
             )
 
-        assert "Unexpected error" in str(exc_info.value)
+        assert 'Unexpected error' in str(exc_info.value)
 
 
 # =============================================================================
 # TESTS FOR: setup_aurora_iam_policy_for_current_user
 # =============================================================================
+
 
 class TestSetupAuroraIamPolicy:
     """Tests for setup_aurora_iam_policy_for_current_user function."""
@@ -545,7 +541,9 @@ class TestSetupAuroraIamPolicy:
             # Mock IAM exceptions
             class MockIAMExceptions:
                 NoSuchEntityException = type('NoSuchEntityException', (ClientError,), {})
-                EntityAlreadyExistsException = type('EntityAlreadyExistsException', (ClientError,), {})
+                EntityAlreadyExistsException = type(
+                    'EntityAlreadyExistsException', (ClientError,), {}
+                )
 
             mock_iam.exceptions = MockIAMExceptions()
 
@@ -571,7 +569,7 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock policy doesn't exist
@@ -581,18 +579,14 @@ class TestSetupAuroraIamPolicy:
 
         # Mock policy creation
         mock_iam.create_policy.return_value = {
-            'Policy': {
-                'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
-            }
+            'Policy': {'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'}
         }
 
         # Mock policy attachment
         mock_iam.attach_user_policy.return_value = {}
 
         setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         # Verify policy was created
@@ -617,7 +611,7 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/session-name',
-            'UserId': 'AROAI123456789EXAMPLE:session-name'
+            'UserId': 'AROAI123456789EXAMPLE:session-name',
         }
 
         # Mock policy doesn't exist
@@ -627,18 +621,14 @@ class TestSetupAuroraIamPolicy:
 
         # Mock policy creation
         mock_iam.create_policy.return_value = {
-            'Policy': {
-                'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'
-            }
+            'Policy': {'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser'}
         }
 
         # Mock policy attachment
         mock_iam.attach_role_policy.return_value = {}
 
         setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         # Verify policy was attached to base role (not session)
@@ -658,14 +648,12 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:sts::123456789012:federated-user/feduser',
-            'UserId': 'FEDUSER123'
+            'UserId': 'FEDUSER123',
         }
 
         with pytest.raises(ValueError, match='Cannot attach policies to federated users'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_root_user_raises_error(self, mock_sts_client):
@@ -680,14 +668,12 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:root',
-            'UserId': '123456789012'
+            'UserId': '123456789012',
         }
 
         with pytest.raises(ValueError, match='Cannot .* attach policies to root user'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_invalid_db_user_raises_error(self, mock_sts_client):
@@ -698,9 +684,7 @@ class TestSetupAuroraIamPolicy:
 
         with pytest.raises(ValueError, match='db_user must be a non-empty string'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region='us-east-1'
+                db_user='', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
             )
 
     def test_invalid_cluster_resource_id_raises_error(self, mock_sts_client):
@@ -711,9 +695,7 @@ class TestSetupAuroraIamPolicy:
 
         with pytest.raises(ValueError, match='cluster_resource_id must be a non-empty string'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='',
-                cluster_region='us-east-1'
+                db_user='dbuser', cluster_resource_id='', cluster_region='us-east-1'
             )
 
     def test_invalid_cluster_region_raises_error(self, mock_sts_client):
@@ -724,9 +706,7 @@ class TestSetupAuroraIamPolicy:
 
         with pytest.raises(ValueError, match='cluster_region must be a non-empty string'):
             setup_aurora_iam_policy_for_current_user(
-                db_user='dbuser',
-                cluster_resource_id='cluster-ABC123',
-                cluster_region=''
+                db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region=''
             )
 
     def test_policy_update_adds_new_resource(self, mock_sts_client):
@@ -741,14 +721,14 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
             'Policy': {
                 'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser',
-                'DefaultVersionId': 'v1'
+                'DefaultVersionId': 'v1',
             }
         }
 
@@ -757,31 +737,29 @@ class TestSetupAuroraIamPolicy:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock policy versions (less than 5)
         mock_iam.list_policy_versions.return_value = {
-            'Versions': [
-                {'VersionId': 'v1', 'IsDefaultVersion': True, 'CreateDate': '2024-01-01'}
-            ]
+            'Versions': [{'VersionId': 'v1', 'IsDefaultVersion': True, 'CreateDate': '2024-01-01'}]
         }
 
         # Mock policy version creation
-        mock_iam.create_policy_version.return_value = {
-            'PolicyVersion': {'VersionId': 'v2'}
-        }
+        mock_iam.create_policy_version.return_value = {'PolicyVersion': {'VersionId': 'v2'}}
 
         setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-NEW456',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-NEW456', cluster_region='us-east-1'
         )
 
         # Verify new policy version was created
@@ -790,6 +768,7 @@ class TestSetupAuroraIamPolicy:
 
         # Parse the policy document
         import json
+
         policy_doc = json.loads(create_call[1]['PolicyDocument'])
         resources = policy_doc['Statement'][0]['Resource']
 
@@ -810,14 +789,14 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
             'Policy': {
                 'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser',
-                'DefaultVersionId': 'v1'
+                'DefaultVersionId': 'v1',
             }
         }
 
@@ -826,19 +805,21 @@ class TestSetupAuroraIamPolicy:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-ABC123/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-ABC123',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-ABC123', cluster_region='us-east-1'
         )
 
         # Verify no new policy version was created
@@ -856,14 +837,14 @@ class TestSetupAuroraIamPolicy:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/testuser',
-            'UserId': 'AIDAI123456789EXAMPLE'
+            'UserId': 'AIDAI123456789EXAMPLE',
         }
 
         # Mock existing policy
         mock_iam.get_policy.return_value = {
             'Policy': {
                 'Arn': 'arn:aws:iam::123456789012:policy/AuroraIAMAuth-dbuser',
-                'DefaultVersionId': 'v5'
+                'DefaultVersionId': 'v5',
             }
         }
 
@@ -872,17 +853,22 @@ class TestSetupAuroraIamPolicy:
             'PolicyVersion': {
                 'Document': {
                     'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Action': 'rds-db:connect',
-                        'Resource': ['arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser']
-                    }]
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'rds-db:connect',
+                            'Resource': [
+                                'arn:aws:rds-db:us-east-1:123456789012:dbuser:cluster-OLD/dbuser'
+                            ],
+                        }
+                    ],
                 }
             }
         }
 
         # Mock 5 policy versions (at limit)
         from datetime import datetime
+
         mock_iam.list_policy_versions.return_value = {
             'Versions': [
                 {'VersionId': 'v1', 'IsDefaultVersion': False, 'CreateDate': datetime(2024, 1, 1)},
@@ -894,14 +880,10 @@ class TestSetupAuroraIamPolicy:
         }
 
         # Mock policy version creation
-        mock_iam.create_policy_version.return_value = {
-            'PolicyVersion': {'VersionId': 'v6'}
-        }
+        mock_iam.create_policy_version.return_value = {'PolicyVersion': {'VersionId': 'v6'}}
 
         setup_aurora_iam_policy_for_current_user(
-            db_user='dbuser',
-            cluster_resource_id='cluster-NEW',
-            cluster_region='us-east-1'
+            db_user='dbuser', cluster_resource_id='cluster-NEW', cluster_region='us-east-1'
         )
 
         # Verify oldest version was deleted

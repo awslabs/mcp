@@ -492,7 +492,9 @@ class TestPsycopgConnector:
             is_test=True,
         )
 
-        user, password = conn._get_credentials_from_secret('test_secret', 'us-east-1', is_test=True)
+        user, password = conn._get_credentials_from_secret(
+            'test_secret', 'us-east-1', is_test=True
+        )
 
         assert user == 'test_user'
         assert password == 'test_password'
@@ -561,7 +563,9 @@ class TestPsycopgConnector:
                 'SecretString': '{"username": "db_user", "password": "db_pass"}'
             }
 
-            user, password = conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
 
             assert user == 'db_user'
             assert password == 'db_pass'
@@ -587,7 +591,9 @@ class TestPsycopgConnector:
                 'SecretString': '{"user": "db_user", "password": "db_pass"}'
             }
 
-            user, password = conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
 
             assert user == 'db_user'
             assert password == 'db_pass'
@@ -613,7 +619,9 @@ class TestPsycopgConnector:
                 'SecretString': '{"Username": "db_user", "Password": "db_pass"}'
             }
 
-            user, password = conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
 
             assert user == 'db_user'
             assert password == 'db_pass'
@@ -635,9 +643,7 @@ class TestPsycopgConnector:
         with patch('boto3.Session') as mock_session:
             mock_client = MagicMock()
             mock_session.return_value.client.return_value = mock_client
-            mock_client.get_secret_value.return_value = {
-                'SecretString': '{"password": "db_pass"}'
-            }
+            mock_client.get_secret_value.return_value = {'SecretString': '{"password": "db_pass"}'}
 
             with pytest.raises(ValueError, match='Secret does not contain username'):
                 conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
@@ -659,9 +665,7 @@ class TestPsycopgConnector:
         with patch('boto3.Session') as mock_session:
             mock_client = MagicMock()
             mock_session.return_value.client.return_value = mock_client
-            mock_client.get_secret_value.return_value = {
-                'SecretString': '{"username": "db_user"}'
-            }
+            mock_client.get_secret_value.return_value = {'SecretString': '{"username": "db_user"}'}
 
             with pytest.raises(ValueError, match='Secret does not contain password'):
                 conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
@@ -707,7 +711,9 @@ class TestPsycopgConnector:
             mock_session.return_value.client.return_value = mock_client
             mock_client.get_secret_value.side_effect = Exception('AWS Error')
 
-            with pytest.raises(ValueError, match='Failed to retrieve credentials from Secrets Manager'):
+            with pytest.raises(
+                ValueError, match='Failed to retrieve credentials from Secrets Manager'
+            ):
                 conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
 
     def test_get_iam_auth_token(self):
@@ -733,10 +739,7 @@ class TestPsycopgConnector:
 
             assert token == 'test_token_123'
             mock_rds_client.generate_db_auth_token.assert_called_once_with(
-                DBHostname='localhost',
-                Port=5432,
-                DBUsername='iam_user',
-                Region='us-east-1'
+                DBHostname='localhost', Port=5432, DBUsername='iam_user', Region='us-east-1'
             )
 
     @pytest.mark.asyncio
@@ -757,7 +760,7 @@ class TestPsycopgConnector:
         with patch.object(conn, 'execute_query', new_callable=AsyncMock) as mock_execute:
             mock_execute.return_value = {
                 'columnMetadata': [{'name': 'result'}],
-                'records': [[{'longValue': 1}]]
+                'records': [[{'longValue': 1}]],
             }
 
             is_healthy = await conn.check_connection_health()
@@ -803,10 +806,7 @@ class TestPsycopgConnector:
         )
 
         with patch.object(conn, 'execute_query', new_callable=AsyncMock) as mock_execute:
-            mock_execute.return_value = {
-                'columnMetadata': [{'name': 'result'}],
-                'records': []
-            }
+            mock_execute.return_value = {'columnMetadata': [{'name': 'result'}], 'records': []}
 
             is_healthy = await conn.check_connection_health()
 
@@ -873,9 +873,12 @@ class TestPsycopgConnector:
     @pytest.mark.asyncio
     async def test_initialize_pool_with_secrets_manager(self):
         """Test initializing pool with Secrets Manager credentials."""
-        with patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool') as mock_pool_class, \
-             patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds:
-
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+        ):
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
             mock_get_creds.return_value = ('db_user', 'db_password')
@@ -901,9 +904,12 @@ class TestPsycopgConnector:
     @pytest.mark.asyncio
     async def test_initialize_pool_with_iam_auth_token(self):
         """Test initializing pool with IAM auth token."""
-        with patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool') as mock_pool_class, \
-             patch.object(PsycopgPoolConnection, 'get_iam_auth_token') as mock_get_token:
-
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, 'get_iam_auth_token') as mock_get_token,
+        ):
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
             mock_get_token.return_value = 'iam_token_123'
@@ -982,9 +988,10 @@ class TestPsycopgConnector:
     @pytest.mark.asyncio
     async def test_check_expiry_expired(self):
         """Test check_expiry when pool is expired."""
-        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class, \
-             patch.object(PsycopgPoolConnection, 'initialize_pool') as mock_init:
-
+        with (
+            patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class,
+            patch.object(PsycopgPoolConnection, 'initialize_pool') as mock_init,
+        ):
             mock_pool = AsyncMock()
             mock_pool_class.return_value = mock_pool
 
@@ -1010,4 +1017,3 @@ class TestPsycopgConnector:
             # Should close and reinitialize
             mock_pool.close.assert_called_once()
             mock_init.assert_called_once()
-

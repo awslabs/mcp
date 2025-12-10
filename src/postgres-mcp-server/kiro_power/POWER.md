@@ -138,7 +138,7 @@ Call mcp_postgres_run_query with:
 
 2. Analyze query plan:
    ```sql
-   EXPLAIN (ANALYZE, BUFFERS) 
+   EXPLAIN (ANALYZE, BUFFERS)
    SELECT ... FROM ... WHERE ...;
    ```
 
@@ -149,7 +149,7 @@ Call mcp_postgres_run_query with:
 
 4. Add appropriate indexes:
    ```sql
-   CREATE INDEX CONCURRENTLY idx_name 
+   CREATE INDEX CONCURRENTLY idx_name
    ON table_name(column1, column2);
    ```
 
@@ -163,7 +163,7 @@ Call mcp_postgres_run_query with:
 1. Check table size and activity:
    ```sql
    SELECT pg_size_pretty(pg_total_relation_size('table_name')),
-          n_live_tup FROM pg_stat_user_tables 
+          n_live_tup FROM pg_stat_user_tables
    WHERE tablename = 'table_name';
    ```
 
@@ -296,5 +296,5 @@ No additional environment variables required. The MCP server uses AWS credential
 
 ---
 
-**Package:** awslabs.postgres-mcp-server  
+**Package:** awslabs.postgres-mcp-server
 **MCP Server:** postgres

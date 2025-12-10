@@ -3,13 +3,13 @@ inclusion: always
 ---
 <!------------------------------------------------------------------------------------
    Add rules to this file or a short description that will apply across all your workspaces.
-   
+
    Learn about inclusion modes: https://kiro.dev/docs/steering/#inclusion-modes
--------------------------------------------------------------------------------------> 
+------------------------------------------------------------------------------------->
 # Aurora Postgres MCP — Steering
 
 ## Purpose
-Use the awslabs.postgres-mcp-server MCP server to create database and answer data questions against our Aurora PostgreSQL environments. Prefer natural-language → SQL via the MCP tools, with safe defaults and explicit guardrails. 
+Use the awslabs.postgres-mcp-server MCP server to create database and answer data questions against our Aurora PostgreSQL environments. Prefer natural-language → SQL via the MCP tools, with safe defaults and explicit guardrails.
 AWS Labs
 
 ## When to use

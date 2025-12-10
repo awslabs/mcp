@@ -50,7 +50,9 @@ class RDSDataAPIConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.database = database
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region, config=Config(user_agent_extra=__user_agent__))
+            self.data_client = boto3.client(
+                'rds-data', region_name=region, config=Config(user_agent_extra=__user_agent__)
+            )
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None

@@ -77,10 +77,7 @@ class TestParseExecuteResponse:
 
     def test_parse_single_row_single_column(self):
         """Test parsing a single row with single column."""
-        response = {
-            'columnMetadata': [{'name': 'id'}],
-            'records': [[{'longValue': 1}]]
-        }
+        response = {'columnMetadata': [{'name': 'id'}], 'records': [[{'longValue': 1}]]}
         result = parse_execute_response(response)
         assert len(result) == 1
         assert result[0] == {'id': 1}
@@ -88,15 +85,11 @@ class TestParseExecuteResponse:
     def test_parse_multiple_rows_multiple_columns(self):
         """Test parsing multiple rows with multiple columns."""
         response = {
-            'columnMetadata': [
-                {'name': 'id'},
-                {'name': 'name'},
-                {'name': 'active'}
-            ],
+            'columnMetadata': [{'name': 'id'}, {'name': 'name'}, {'name': 'active'}],
             'records': [
                 [{'longValue': 1}, {'stringValue': 'Alice'}, {'booleanValue': True}],
-                [{'longValue': 2}, {'stringValue': 'Bob'}, {'booleanValue': False}]
-            ]
+                [{'longValue': 2}, {'stringValue': 'Bob'}, {'booleanValue': False}],
+            ],
         }
         result = parse_execute_response(response)
         assert len(result) == 2
@@ -107,7 +100,7 @@ class TestParseExecuteResponse:
         """Test parsing response with null values."""
         response = {
             'columnMetadata': [{'name': 'id'}, {'name': 'name'}],
-            'records': [[{'longValue': 1}, {'isNull': True}]]
+            'records': [[{'longValue': 1}, {'isNull': True}]],
         }
         result = parse_execute_response(response)
         assert len(result) == 1
@@ -122,16 +115,18 @@ class TestParseExecuteResponse:
                 {'name': 'float_col'},
                 {'name': 'bool_col'},
                 {'name': 'blob_col'},
-                {'name': 'array_col'}
+                {'name': 'array_col'},
             ],
-            'records': [[
-                {'stringValue': 'text'},
-                {'longValue': 100},
-                {'doubleValue': 99.99},
-                {'booleanValue': True},
-                {'blobValue': b'data'},
-                {'arrayValue': [1, 2, 3]}
-            ]]
+            'records': [
+                [
+                    {'stringValue': 'text'},
+                    {'longValue': 100},
+                    {'doubleValue': 99.99},
+                    {'booleanValue': True},
+                    {'blobValue': b'data'},
+                    {'arrayValue': [1, 2, 3]},
+                ]
+            ],
         }
         result = parse_execute_response(response)
         assert len(result) == 1
@@ -141,7 +136,7 @@ class TestParseExecuteResponse:
             'float_col': 99.99,
             'bool_col': True,
             'blob_col': b'data',
-            'array_col': [1, 2, 3]
+            'array_col': [1, 2, 3],
         }
 
     def test_parse_missing_column_metadata(self):

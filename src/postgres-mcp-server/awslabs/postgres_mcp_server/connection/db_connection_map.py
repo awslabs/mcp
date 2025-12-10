@@ -24,14 +24,18 @@ from typing import List
 
 class DatabaseType(str, Enum):
     """Database type enumeration."""
-    APG = "APG",
-    RPG = "RPG"
+
+    APG = ('APG',)
+    RPG = 'RPG'
+
 
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
-    RDS_API = "rdsapi"
-    PG_WIRE_PROTOCOL = "pgwire"
-    PG_WIRE_IAM_PROTOCOL = "pgwire_iam"
+
+    RDS_API = 'rdsapi'
+    PG_WIRE_PROTOCOL = 'pgwire'
+    PG_WIRE_IAM_PROTOCOL = 'pgwire_iam'
+
 
 class DBConnectionMap:
     """Manages Postgres DB connection map."""
@@ -47,14 +51,14 @@ class DBConnectionMap:
         cluster_identifier: str,
         db_endpoint: str,
         database: str,
-        port: int = 5432
+        port: int = 5432,
     ) -> AbstractDBConnection | None:
         """Get a database connection from the map."""
         if not method:
-            raise ValueError("method cannot be None")
+            raise ValueError('method cannot be None')
 
         if not database:
-            raise ValueError("database cannot be None or empty")
+            raise ValueError('database cannot be None or empty')
 
         with self._lock:
             return self.map.get((method, cluster_identifier, db_endpoint, database, port))
@@ -66,14 +70,14 @@ class DBConnectionMap:
         db_endpoint: str,
         database: str,
         conn: AbstractDBConnection,
-        port: int = 5432
+        port: int = 5432,
     ) -> None:
         """Set a database connection in the map."""
         if not database:
-            raise ValueError("database cannot be None or empty")
+            raise ValueError('database cannot be None or empty')
 
         if not conn:
-            raise ValueError("conn cannot be None")
+            raise ValueError('conn cannot be None')
 
         with self._lock:
             self.map[(method, cluster_identifier, db_endpoint, database, port)] = conn
@@ -84,17 +88,19 @@ class DBConnectionMap:
         cluster_identifier: str,
         db_endpoint: str,
         database: str,
-        port: int = 5432
+        port: int = 5432,
     ) -> None:
         """Remove a database connection from the map."""
         if not database:
-            raise ValueError("database cannot be None or empty")
+            raise ValueError('database cannot be None or empty')
 
         with self._lock:
             try:
                 self.map.pop((method, cluster_identifier, db_endpoint, database, port))
             except KeyError:
-                logger.info(f"Try to remove a non-existing connection. {method} {cluster_identifier} {db_endpoint} {database} {port}")
+                logger.info(
+                    f'Try to remove a non-existing connection. {method} {cluster_identifier} {db_endpoint} {database} {port}'
+                )
 
     def get_keys_json(self) -> str:
         """Get all connection keys as JSON string."""
@@ -102,11 +108,11 @@ class DBConnectionMap:
         with self._lock:
             for key in self.map.keys():
                 entry = {
-                    "connection_method" : key[0],
-                    "cluster_identifier": key[1],
-                    "db_endpoint": key[2],
-                    "database": key[3],
-                    "port": key[4]
+                    'connection_method': key[0],
+                    'cluster_identifier': key[1],
+                    'db_endpoint': key[2],
+                    'database': key[3],
+                    'port': key[4],
                 }
                 entries.append(entry)
         return json.dumps(entries, indent=2)
@@ -118,5 +124,5 @@ class DBConnectionMap:
                 try:
                     conn.close()
                 except Exception as e:
-                    logger.warning(f"Failed to close connection {key}: {e}")
+                    logger.warning(f'Failed to close connection {key}: {e}')
             self.map.clear()

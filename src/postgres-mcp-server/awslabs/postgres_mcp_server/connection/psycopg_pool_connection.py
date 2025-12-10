@@ -49,7 +49,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         database: str,
         readonly: bool,
         secret_arn: str,
-        db_user:str,
+        db_user: str,
         region: str,
         is_iam_auth: bool = False,
         pool_expiry_min: int = 30,
@@ -90,14 +90,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.created_time = datetime.now()
 
         if is_iam_auth:
-            #if db_user is set, then it is IAM auth scenario and iam_auth_token must be set
+            # if db_user is set, then it is IAM auth scenario and iam_auth_token must be set
             if not db_user:
                 raise ValueError('db_user must be set when is_iam_auth is True')
 
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
             logger.info(f'Use IAM auth for user: {db_user}')
-
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
@@ -109,20 +108,24 @@ class PsycopgPoolConnection(AbstractDBConnection):
             if self.pool is not None:
                 return
 
-            logger.info(f'initialize_pool:\n'
-                    f'endpoint:{self.host}\n'
-                    f'port:{self.port}\n'
-                    f'region:{self.region}\n'
-                    f'db:{self.database}\n'
-                    f'user:{self.user}\n'
-                    f'is_iam_auth:{self.is_iam_auth}\n')
+            logger.info(
+                f'initialize_pool:\n'
+                f'endpoint:{self.host}\n'
+                f'port:{self.port}\n'
+                f'region:{self.region}\n'
+                f'db:{self.database}\n'
+                f'user:{self.user}\n'
+                f'is_iam_auth:{self.is_iam_auth}\n'
+            )
 
             if self.is_iam_auth:
                 logger.info(f'Retrieving IAM auth token for {self.user}')
                 password = self.get_iam_auth_token()
             else:
                 logger.info(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
-                self.user, password = self._get_credentials_from_secret(self.secret_arn, self.region, self.is_test)
+                self.user, password = self._get_credentials_from_secret(
+                    self.secret_arn, self.region, self.is_test
+                )
 
             self.created_time = datetime.now()
             self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}'
@@ -133,7 +136,6 @@ class PsycopgPoolConnection(AbstractDBConnection):
             # wait up to 30 seconds to fill the pool with connections
             await self.pool.open(True, 30)
             logger.info('Connection pool initialized successfully')
-
 
     async def _get_connection(self):
         """Get a database connection from the pool."""
@@ -147,12 +149,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
     async def check_expiry(self):
         """Check and handle pool expiry."""
         async with self.rw_lock.reader_lock:
-            if self.pool and datetime.now() - self.created_time < timedelta(minutes=self.pool_expiry_min):
+            if self.pool and datetime.now() - self.created_time < timedelta(
+                minutes=self.pool_expiry_min
+            ):
                 return
 
         await self.close()
         await self.initialize_pool()
-
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
@@ -162,12 +165,11 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        logger.info("SET TRANSACTION READ ONLY")
+                        logger.info('SET TRANSACTION READ ONLY')
                         await conn.execute('SET TRANSACTION READ ONLY')
 
                     # Create a cursor for better control
                     async with conn.cursor() as cursor:
-
                         # Execute the query
                         if parameters:
                             params = self._convert_parameters(parameters)
@@ -324,9 +326,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
     def get_iam_auth_token(self) -> str:
         """Generate an IAM authentication token for RDS database access."""
-        rds_client = boto3.client('rds', region_name=self.region, config=Config(user_agent_extra=__user_agent__))
+        rds_client = boto3.client(
+            'rds', region_name=self.region, config=Config(user_agent_extra=__user_agent__)
+        )
         return rds_client.generate_db_auth_token(
-            DBHostname=self.host,
-            Port=self.port,
-            DBUsername=self.user,
-            Region=self.region)
+            DBHostname=self.host, Port=self.port, DBUsername=self.user, Region=self.region
+        )

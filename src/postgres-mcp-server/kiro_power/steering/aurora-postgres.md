@@ -3,9 +3,9 @@ inclusion: always
 ---
 <!------------------------------------------------------------------------------------
    Add rules to this file or a short description that will apply across all your workspaces.
-   
+
    Learn about inclusion modes: https://kiro.dev/docs/steering/#inclusion-modes
--------------------------------------------------------------------------------------> 
+------------------------------------------------------------------------------------->
 
 # Aurora PostgreSQL Development Guide
 
@@ -192,7 +192,7 @@ ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active';
 ALTER TABLE users ALTER COLUMN status SET DEFAULT 'inactive';
 
 -- Add check constraint (NOT VALID first, then validate)
-ALTER TABLE users 
+ALTER TABLE users
 ADD CONSTRAINT check_age CHECK (age >= 18) NOT VALID;
 
 -- Validate separately (can be done during low traffic)
@@ -209,7 +209,7 @@ CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
 DROP INDEX CONCURRENTLY idx_users_old;
 
 -- Monitor progress
-SELECT 
+SELECT
   phase,
   round(100.0 * blocks_done / nullif(blocks_total, 0), 1) AS "% complete",
   active_workers
@@ -242,8 +242,8 @@ COMMIT;
 **Adding Foreign Key:**
 ```sql
 -- NOT VALID then validate
-ALTER TABLE orders 
-ADD CONSTRAINT fk_customer 
+ALTER TABLE orders
+ADD CONSTRAINT fk_customer
 FOREIGN KEY (customer_id) REFERENCES customers(id) NOT VALID;
 
 ALTER TABLE orders VALIDATE CONSTRAINT fk_customer;
@@ -582,11 +582,11 @@ CREATE TABLE users (
 );
 
 -- Composite index for common pattern
-CREATE INDEX idx_users_status_created ON users(status, created_at DESC) 
+CREATE INDEX idx_users_status_created ON users(status, created_at DESC)
 WHERE deleted_at IS NULL;
 
 -- Partial index
-CREATE INDEX idx_users_active ON users(email) 
+CREATE INDEX idx_users_active ON users(email)
 WHERE status = 'active' AND deleted_at IS NULL;
 ```
 
@@ -595,12 +595,12 @@ WHERE status = 'active' AND deleted_at IS NULL;
 -- Before: SELECT * FROM orders WHERE customer_id = 123 ORDER BY created_at DESC;
 
 -- Add index
-CREATE INDEX CONCURRENTLY idx_orders_customer_created 
+CREATE INDEX CONCURRENTLY idx_orders_customer_created
 ON orders(customer_id, created_at DESC);
 
 -- Optimize query
-SELECT id, order_number, total_amount, created_at 
-FROM orders WHERE customer_id = 123 
+SELECT id, order_number, total_amount, created_at
+FROM orders WHERE customer_id = 123
 ORDER BY created_at DESC LIMIT 50;
 ```
 
