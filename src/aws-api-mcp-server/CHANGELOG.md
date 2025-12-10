@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
+### Added
+
+- Auth support (#1902)
+
+### Fixed
 
 - Updated default AWS API connect and read timeout (#1876)
 - Upgrade AWS CLI to v1.43.10 (#1891)
