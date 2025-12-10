@@ -8,7 +8,7 @@ from fastmcp import FastMCP
 
 # Initialize MCP server
 mcp = FastMCP(
-    "AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, Well-Architected Assessment"
+    "AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, WAFR, Well-Architected Assessment, AWS Best Practices Validation, Architecture Audit"
 )
 
 # Load best practices data
@@ -47,10 +47,17 @@ def search_best_practices(
 ) -> list[dict[str, Any]]:
     """Search AWS Well-Architected Framework best practices and recommendations.
     
-    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF, 
+    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF, WAFR, 
     architecture review, best practices, design principles, pillar, security pillar, 
     reliability pillar, performance efficiency, cost optimization, operational excellence, 
-    sustainability pillar, architecture assessment, framework review, well architected review.
+    sustainability pillar, architecture assessment, framework review, well architected review,
+    aws best practices, validate architecture, audit architecture, review architecture,
+    wa review, wa assessment, wa best practices, well-architected assessment, 
+    well-architected audit, well-architected validation, architecture validation,
+    aws architecture review, aws security best practices, aws reliability best practices,
+    aws performance best practices, aws cost optimization best practices, 
+    aws operational excellence best practices, aws sustainability best practices,
+    well architected tool, well-architected tool, framework assessment, pillar assessment
     
     Args:
         pillar: Filter by pillar (OPERATIONAL_EXCELLENCE, SECURITY, RELIABILITY, 
@@ -90,7 +97,10 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
     """Get detailed AWS Well-Architected Framework best practice by ID.
     
     KEYWORDS: well-architected, well architected, best practice, design principle, 
-    framework guidance, architecture pattern, AWS Well-Architected Framework.
+    framework guidance, architecture pattern, AWS Well-Architected Framework, WAF, WAFR,
+    wa best practice, well-architected best practice, aws best practice, 
+    architecture best practice, validate best practice, audit best practice,
+    review best practice, well architected guidance, framework recommendation
     
     Args:
         id: Best practice ID (e.g., "SEC01-BP01")
@@ -106,7 +116,13 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
 
 @mcp.tool()
 def list_pillars() -> dict[str, int]:
-    """List all available pillars with their best practice counts.
+    """List all AWS Well-Architected Framework pillars with best practice counts.
+    
+    KEYWORDS: well-architected pillars, well architected pillars, WAF pillars, WAFR pillars,
+    aws pillars, framework pillars, architecture pillars, wa pillars,
+    security pillar, reliability pillar, performance efficiency pillar,
+    cost optimization pillar, operational excellence pillar, sustainability pillar,
+    well-architected framework pillars, pillar overview, pillar summary
     
     Returns:
         Dictionary mapping pillar names to practice counts
@@ -120,7 +136,12 @@ def list_pillars() -> dict[str, int]:
 
 @mcp.tool()
 def get_related_practices(id: str) -> list[dict[str, Any]]:
-    """Get all best practices related to a specific practice.
+    """Get all AWS Well-Architected best practices related to a specific practice.
+    
+    KEYWORDS: related best practices, well-architected related practices, 
+    connected best practices, linked best practices, associated best practices,
+    wa related practices, framework related practices, related wa practices,
+    well architected related practices, best practice relationships
     
     Args:
         id: Best practice ID
@@ -157,9 +178,14 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
 def well_architected_framework_review() -> dict[str, Any]:
     """Complete AWS Well-Architected Framework review and assessment.
     
-    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF review, 
+    KEYWORDS: well-architected, well architected, AWS Well-Architected Framework, WAF review, WAFR,
     architecture review, framework review, well architected review, architecture assessment, 
-    design principles, pillar review, best practices review, framework assessment.
+    design principles, pillar review, best practices review, framework assessment,
+    wa review, wa assessment, wa audit, well-architected assessment, well-architected audit,
+    well-architected validation, architecture validation, aws architecture review,
+    validate architecture, audit architecture, review my architecture, assess architecture,
+    well architected tool review, framework evaluation, pillar assessment, 
+    aws best practices review, architecture best practices, well-architected checklist
     
     Returns:
         Comprehensive Well-Architected Framework overview with all pillars and key practices
