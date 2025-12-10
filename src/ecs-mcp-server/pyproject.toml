@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "fastmcp>=2.11.1",
+    "fastmcp>=2.13.0",
     "boto3>=1.41.1",
     "pydantic>=2.0.0",
     "docker>=6.1.0",
