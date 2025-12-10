@@ -6,7 +6,7 @@ import unittest.mock
 def test_search_best_practices_wrapper_return():
     """Force execution of search_best_practices wrapper return statement."""
     # Mock the internal function to control its return value
-    with unittest.mock.patch('well_architected_bp_mcp_server.server._search_best_practices') as mock_func:
+    with unittest.mock.patch('well_architected_bp_mcp_server.server.search_best_practices_impl') as mock_func:
         mock_func.return_value = [{"id": "test", "title": "test"}]
 
         # Import after patching to ensure the wrapper uses our mock
@@ -19,7 +19,7 @@ def test_search_best_practices_wrapper_return():
 
 def test_get_best_practice_wrapper_return():
     """Force execution of get_best_practice wrapper return statement."""
-    with unittest.mock.patch('well_architected_bp_mcp_server.server._get_best_practice') as mock_func:
+    with unittest.mock.patch('well_architected_bp_mcp_server.server.get_best_practice_impl') as mock_func:
         mock_func.return_value = {"id": "test"}
 
         from well_architected_bp_mcp_server.server import get_best_practice
@@ -30,7 +30,7 @@ def test_get_best_practice_wrapper_return():
 
 def test_list_pillars_wrapper_return():
     """Force execution of list_pillars wrapper return statement."""
-    with unittest.mock.patch('well_architected_bp_mcp_server.server._list_pillars') as mock_func:
+    with unittest.mock.patch('well_architected_bp_mcp_server.server.list_pillars_impl') as mock_func:
         mock_func.return_value = {"SECURITY": 10}
 
         from well_architected_bp_mcp_server.server import list_pillars
@@ -41,7 +41,7 @@ def test_list_pillars_wrapper_return():
 
 def test_get_related_practices_wrapper_return():
     """Force execution of get_related_practices wrapper return statement."""
-    with unittest.mock.patch('well_architected_bp_mcp_server.server._get_related_practices') as mock_func:
+    with unittest.mock.patch('well_architected_bp_mcp_server.server.get_related_practices_impl') as mock_func:
         mock_func.return_value = []
 
         from well_architected_bp_mcp_server.server import get_related_practices
@@ -52,7 +52,7 @@ def test_get_related_practices_wrapper_return():
 
 def test_framework_review_wrapper_return():
     """Force execution of well_architected_framework_review wrapper return statement."""
-    with unittest.mock.patch('well_architected_bp_mcp_server.server._well_architected_framework_review') as mock_func:
+    with unittest.mock.patch('well_architected_bp_mcp_server.server.well_architected_framework_review_impl') as mock_func:
         mock_func.return_value = {"framework": "test"}
 
         from well_architected_bp_mcp_server.server import well_architected_framework_review

@@ -145,11 +145,11 @@ def test_wrapper_functions_with_mock_execution():
 
     # Test each wrapper function by mocking its internal function
     test_cases = [
-        ('_search_best_practices', [], 'search_best_practices'),
-        ('_get_best_practice', {'id': 'test'}, 'get_best_practice'),
-        ('_list_pillars', {'SECURITY': 10}, 'list_pillars'),
-        ('_get_related_practices', [], 'get_related_practices'),
-        ('_well_architected_framework_review', {'framework': 'test'}, 'well_architected_framework_review')
+        ('search_best_practices_impl', [], 'search_best_practices'),
+        ('get_best_practice_impl', {'id': 'test'}, 'get_best_practice'),
+        ('list_pillars_impl', {'SECURITY': 10}, 'list_pillars'),
+        ('get_related_practices_impl', [], 'get_related_practices'),
+        ('well_architected_framework_review_impl', {'framework': 'test'}, 'well_architected_framework_review')
     ]
 
     for internal_func, mock_return, wrapper_name in test_cases:

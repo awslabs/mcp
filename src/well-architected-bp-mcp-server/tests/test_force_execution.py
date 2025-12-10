@@ -6,16 +6,16 @@ def test_force_execute_wrapper_returns():
     # Execute code that will trigger the return statements
     exec_code = '''
 from well_architected_bp_mcp_server.server import (
-    _search_best_practices, _get_best_practice, _list_pillars,
-    _get_related_practices, _well_architected_framework_review
+    search_best_practices_impl, get_best_practice_impl, list_pillars_impl,
+    get_related_practices_impl, well_architected_framework_review_impl
 )
 
 # Call internal functions to ensure wrappers work
-result1 = _search_best_practices()
-result2 = _get_best_practice("SEC01-BP01")
-result3 = _list_pillars()
-result4 = _get_related_practices("SEC01-BP01")
-result5 = _well_architected_framework_review()
+result1 = search_best_practices_impl()
+result2 = get_best_practice_impl("SEC01-BP01")
+result3 = list_pillars_impl()
+result4 = get_related_practices_impl("SEC01-BP01")
+result5 = well_architected_framework_review_impl()
 
 # Now import wrappers to trigger their return statements
 from well_architected_bp_mcp_server.server import (
