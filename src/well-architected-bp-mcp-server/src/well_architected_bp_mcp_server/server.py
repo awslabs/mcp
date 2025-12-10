@@ -140,6 +140,19 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
     
     if not bp:
         return []
+    
+    related_ids = bp.get("relatedIds", [])
+    results = []
+    
+    # Find related BPs directly from data
+    for rid in related_ids:
+        for practices in BEST_PRACTICES.values():
+            for practice in practices:
+                if practice.get("id") == rid:
+                    results.append(practice)
+                    break
+    
+    return results
 @mcp.tool()
 def well_architected_framework_review() -> dict[str, Any]:
     """Complete AWS Well-Architected Framework review and assessment.
@@ -200,21 +213,6 @@ def well_architected_framework_review() -> dict[str, Any]:
     ]
     
     return review
-
-    
-    related_ids = bp.get("relatedIds", [])
-    results = []
-    
-    # Find related BPs directly from data
-    for rid in related_ids:
-        for practices in BEST_PRACTICES.values():
-            for practice in practices:
-                if practice.get("id") == rid:
-                    results.append(practice)
-                    break
-    
-    return results
-
 def main():
     """Run the MCP server."""
     mcp.run()
