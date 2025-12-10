@@ -434,7 +434,7 @@ async def test_apply_yaml():
 
         # Verify the result
         assert not result.isError
-        assert len(result.content) == 1
+        assert len(result.content) == 2
         assert result.content[0].type == 'text'
         assert 'Successfully applied all resources' in result.content[0].text
 

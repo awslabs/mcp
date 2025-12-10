@@ -19,11 +19,12 @@ import json
 import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
-from awslabs.eks_mcp_server.models import CloudWatchLogsResponse, CloudWatchMetricsResponse
+from awslabs.eks_mcp_server.models import CloudWatchLogsData, CloudWatchMetricsData
+from mcp.types import CallToolResult
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Optional, Union
+from typing import Optional
 
 
 class CloudWatchHandler:
@@ -49,8 +50,8 @@ class CloudWatchHandler:
 
     def resolve_time_range(
         self,
-        start_time: Optional[Union[str, datetime.datetime]] = None,
-        end_time: Optional[Union[str, datetime.datetime]] = None,
+        start_time: Optional[str | datetime.datetime] = None,
+        end_time: Optional[str | datetime.datetime] = None,
         minutes: int = 15,
     ) -> tuple:
         """Resolve start and end times for CloudWatch queries.
@@ -131,7 +132,7 @@ class CloudWatchHandler:
             None,
             description='Custom fields to include in the query results (defaults to "@timestamp, @message"). Use CloudWatch Logs Insights field syntax. IMPORTANT: Only specify if you need fields beyond the default timestamp and message.',
         ),
-    ) -> CloudWatchLogsResponse:
+    ) -> CallToolResult:
         """Get logs from CloudWatch for a specific resource.
 
         This tool retrieves logs from CloudWatch for Kubernetes resources in an EKS cluster,
@@ -181,17 +182,9 @@ class CloudWatchHandler:
                     'Access to CloudWatch logs requires --allow-sensitive-data-access flag'
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return CloudWatchLogsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    resource_type=resource_type,
-                    resource_name=resource_name,
-                    cluster_name=cluster_name,
-                    log_type=log_type,
-                    log_group='',
-                    start_time='',
-                    end_time='',
-                    log_entries=[],
                 )
 
             start_dt, end_dt = self.resolve_time_range(start_time, end_time, minutes)
@@ -268,15 +261,8 @@ class CloudWatchHandler:
                 f'Retrieved {len(log_entries)} log entries for {resource_str}cluster {cluster_name}',
             )
 
-            # Return the results
-            return CloudWatchLogsResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved {len(log_entries)} log entries for {resource_str}cluster {cluster_name}',
-                    )
-                ],
+            # Create structured data model
+            data = CloudWatchLogsData(
                 resource_type=resource_type,
                 resource_name=resource_name,
                 cluster_name=cluster_name,
@@ -286,23 +272,30 @@ class CloudWatchHandler:
                 end_time=end_dt.isoformat(),
                 log_entries=log_entries,
             )
+            
+            # Return CallToolResult with structured content
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully retrieved {len(log_entries)} log entries for {resource_str}cluster {cluster_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
+            )
 
         except Exception as e:
             resource_name_str = f' {resource_name}' if resource_name is not None else ''
             error_message = f'Failed to get logs for {resource_type}{resource_name_str}: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CloudWatchLogsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                resource_type=resource_type,
-                resource_name=resource_name,
-                cluster_name=cluster_name,
-                log_type=log_type,
-                log_group='',
-                start_time='',
-                end_time='',
-                log_entries=[],
             )
 
     async def get_cloudwatch_metrics(
@@ -360,7 +353,7 @@ class CloudWatchHandler:
             - Minimum: Lowest value during the period
             - SampleCount: Number of samples during the period""",
         ),
-    ) -> CloudWatchMetricsResponse:
+    ) -> CallToolResult:
         """Get metrics from CloudWatch for a specific resource.
 
         This tool retrieves metrics from CloudWatch for Kubernetes resources in an EKS cluster,
@@ -419,15 +412,9 @@ class CloudWatchHandler:
             if 'ClusterName' in dimensions and dimensions['ClusterName'] != cluster_name:
                 error_message = f"Provided cluster_name '{cluster_name}' does not match ClusterName dimension '{dimensions['ClusterName']}'"
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return CloudWatchMetricsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    metric_name=metric_name,
-                    namespace=namespace,
-                    cluster_name=cluster_name,
-                    start_time='',
-                    end_time='',
-                    data_points=[],
                 )
 
             log_with_request_id(
@@ -493,15 +480,8 @@ class CloudWatchHandler:
                 f'Retrieved {len(data_points)} metric data points for {metric_name}',
             )
 
-            # Return the results
-            return CloudWatchMetricsResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved {len(data_points)} metric data points for {metric_name} in cluster {cluster_name}',
-                    )
-                ],
+            # Create structured data model
+            data = CloudWatchMetricsData(
                 metric_name=metric_name,
                 namespace=namespace,
                 cluster_name=cluster_name,
@@ -509,20 +489,29 @@ class CloudWatchHandler:
                 end_time=end_dt.isoformat(),
                 data_points=data_points,
             )
+            
+            # Return CallToolResult with structured content
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully retrieved {len(data_points)} metric data points for {metric_name} in cluster {cluster_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
+            )
 
         except Exception as e:
             error_message = f'Failed to get metrics: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CloudWatchMetricsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                metric_name=metric_name,
-                namespace=namespace,
-                cluster_name=cluster_name,
-                start_time='',
-                end_time='',
-                data_points=[],
             )
 
     def _poll_query_results(
