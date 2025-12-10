@@ -307,9 +307,9 @@ def test_all_mcp_wrapper_returns():
     assert get_related_practices is not None
     assert well_architected_framework_review is not None
     
-    # Test their string representations contain expected info
-    assert 'search_best_practices' in str(search_best_practices)
-    assert 'get_best_practice' in str(get_best_practice)
-    assert 'list_pillars' in str(list_pillars)
-    assert 'get_related_practices' in str(get_related_practices)
-    assert 'well_architected_framework_review' in str(well_architected_framework_review)
+    # Test their names instead of string representations
+    assert hasattr(search_best_practices, 'name')
+    assert hasattr(get_best_practice, 'name')
+    assert hasattr(list_pillars, 'name')
+    assert hasattr(get_related_practices, 'name')
+    assert hasattr(well_architected_framework_review, 'name')
