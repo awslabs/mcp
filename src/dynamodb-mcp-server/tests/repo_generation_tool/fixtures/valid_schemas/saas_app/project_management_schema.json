@@ -1,0 +1,480 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "OrganizationTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Organization": {
+          "entity_type": "ORGANIZATION",
+          "pk_template": "ORG#{org_id}",
+          "sk_template": "DETAILS",
+          "fields": [
+            { "name": "org_id", "type": "string", "required": true },
+            { "name": "name", "type": "string", "required": true },
+            { "name": "domain", "type": "string", "required": true },
+            { "name": "plan_type", "type": "string", "required": true },
+            { "name": "max_users", "type": "integer", "required": true },
+            { "name": "max_projects", "type": "integer", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "billing_email", "type": "string", "required": true },
+            { "name": "settings", "type": "object", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_organization",
+              "description": "Get organization details by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "org_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 2,
+              "name": "create_organization",
+              "description": "Create new organization",
+              "operation": "PutItem",
+              "parameters": [{ "name": "organization", "type": "entity", "entity_type": "Organization" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 3,
+              "name": "update_organization_plan",
+              "description": "Update organization subscription plan",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "org_id", "type": "string" },
+                { "name": "plan_type", "type": "string" },
+                { "name": "max_users", "type": "integer" },
+                { "name": "max_projects", "type": "integer" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "OrganizationMember": {
+          "entity_type": "MEMBER",
+          "pk_template": "ORG#{org_id}",
+          "sk_template": "MEMBER#{user_id}",
+          "fields": [
+            { "name": "org_id", "type": "string", "required": true },
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": true },
+            { "name": "first_name", "type": "string", "required": true },
+            { "name": "last_name", "type": "string", "required": true },
+            { "name": "role", "type": "string", "required": true },
+            { "name": "permissions", "type": "array", "item_type": "string", "required": true },
+            { "name": "joined_at", "type": "string", "required": true },
+            { "name": "last_active", "type": "string", "required": false },
+            { "name": "status", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 4,
+              "name": "get_organization_members",
+              "description": "Get all members of an organization",
+              "operation": "Query",
+              "parameters": [{ "name": "org_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 5,
+              "name": "add_organization_member",
+              "description": "Add member to organization",
+              "operation": "PutItem",
+              "parameters": [{ "name": "member", "type": "entity", "entity_type": "OrganizationMember" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 6,
+              "name": "update_member_role",
+              "description": "Update member role and permissions",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "org_id", "type": "string" },
+                { "name": "user_id", "type": "string" },
+                { "name": "role", "type": "string" },
+                { "name": "permissions", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "OrganizationInvite": {
+          "entity_type": "INVITE",
+          "pk_template": "ORG#{org_id}",
+          "sk_template": "INVITE#{invite_id}",
+          "fields": [
+            { "name": "org_id", "type": "string", "required": true },
+            { "name": "invite_id", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": true },
+            { "name": "role", "type": "string", "required": true },
+            { "name": "invited_by", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "expires_at", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "accepted_at", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 7,
+              "name": "get_organization_invites",
+              "description": "Get pending invites for organization",
+              "operation": "Query",
+              "parameters": [{ "name": "org_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 8,
+              "name": "create_organization_invite",
+              "description": "Create organization invite with member reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "invite", "type": "entity", "entity_type": "OrganizationInvite" },
+                { "name": "inviter", "type": "entity", "entity_type": "OrganizationMember" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "ProjectTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Project": {
+          "entity_type": "PROJECT",
+          "pk_template": "PROJECT#{project_id}",
+          "sk_template": "DETAILS",
+          "fields": [
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "org_id", "type": "string", "required": true },
+            { "name": "name", "type": "string", "required": true },
+            { "name": "description", "type": "string", "required": false },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "priority", "type": "string", "required": true },
+            { "name": "owner_id", "type": "string", "required": true },
+            { "name": "team_members", "type": "array", "item_type": "string", "required": true },
+            { "name": "start_date", "type": "string", "required": false },
+            { "name": "due_date", "type": "string", "required": false },
+            { "name": "budget", "type": "decimal", "required": false },
+            { "name": "currency", "type": "string", "required": false },
+            { "name": "tags", "type": "array", "item_type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 9,
+              "name": "get_project",
+              "description": "Get project details by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "project_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 10,
+              "name": "create_project",
+              "description": "Create new project with organization reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "project", "type": "entity", "entity_type": "Project" },
+                { "name": "organization", "type": "entity", "entity_type": "Organization" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 11,
+              "name": "update_project_status",
+              "description": "Update project status and progress",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "project_id", "type": "string" },
+                { "name": "status", "type": "string" },
+                { "name": "updated_at", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "ProjectMilestone": {
+          "entity_type": "MILESTONE",
+          "pk_template": "PROJECT#{project_id}",
+          "sk_template": "MILESTONE#{milestone_id}",
+          "fields": [
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "milestone_id", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "description", "type": "string", "required": false },
+            { "name": "due_date", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "completion_percentage", "type": "integer", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "completed_at", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 12,
+              "name": "get_project_milestones",
+              "description": "Get all milestones for a project",
+              "operation": "Query",
+              "parameters": [{ "name": "project_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 13,
+              "name": "create_project_milestone",
+              "description": "Create milestone for project",
+              "operation": "PutItem",
+              "parameters": [{ "name": "milestone", "type": "entity", "entity_type": "ProjectMilestone" }],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "OrganizationProject": {
+          "entity_type": "ORG_PROJECT",
+          "pk_template": "ORG#{org_id}",
+          "sk_template": "PROJECT#{created_at}#{project_id}",
+          "fields": [
+            { "name": "org_id", "type": "string", "required": true },
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "project_name", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "priority", "type": "string", "required": true },
+            { "name": "owner_id", "type": "string", "required": true },
+            { "name": "team_size", "type": "integer", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "due_date", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 14,
+              "name": "get_organization_projects",
+              "description": "Get all projects for an organization (sorted by creation date)",
+              "operation": "Query",
+              "parameters": [{ "name": "org_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 15,
+              "name": "add_project_to_organization",
+              "description": "Add project to organization index with cross-table references",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "org_project", "type": "entity", "entity_type": "OrganizationProject" },
+                { "name": "organization", "type": "entity", "entity_type": "Organization" },
+                { "name": "project", "type": "entity", "entity_type": "Project" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "TaskTable",
+        "partition_key": "pk",
+        "sort_key": "sk"
+      },
+      "entities": {
+        "Task": {
+          "entity_type": "TASK",
+          "pk_template": "TASK#{task_id}",
+          "sk_template": "DETAILS",
+          "fields": [
+            { "name": "task_id", "type": "string", "required": true },
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "description", "type": "string", "required": false },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "priority", "type": "string", "required": true },
+            { "name": "assignee_id", "type": "string", "required": false },
+            { "name": "reporter_id", "type": "string", "required": true },
+            { "name": "estimated_hours", "type": "decimal", "required": false },
+            { "name": "actual_hours", "type": "decimal", "required": false },
+            { "name": "due_date", "type": "string", "required": false },
+            { "name": "labels", "type": "array", "item_type": "string", "required": false },
+            { "name": "dependencies", "type": "array", "item_type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": true },
+            { "name": "completed_at", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 16,
+              "name": "get_task",
+              "description": "Get task details by ID",
+              "operation": "GetItem",
+              "parameters": [{ "name": "task_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 17,
+              "name": "create_task",
+              "description": "Create new task with project reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "task", "type": "entity", "entity_type": "Task" },
+                { "name": "project", "type": "entity", "entity_type": "Project" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 18,
+              "name": "update_task_status",
+              "description": "Update task status and completion",
+              "operation": "UpdateItem",
+              "parameters": [
+                { "name": "task_id", "type": "string" },
+                { "name": "status", "type": "string" },
+                { "name": "actual_hours", "type": "string" },
+                { "name": "completed_at", "type": "string" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "ProjectTask": {
+          "entity_type": "PROJECT_TASK",
+          "pk_template": "PROJECT#{project_id}",
+          "sk_template": "TASK#{status}#{priority}#{task_id}",
+          "fields": [
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "task_id", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "priority", "type": "string", "required": true },
+            { "name": "assignee_id", "type": "string", "required": false },
+            { "name": "due_date", "type": "string", "required": false },
+            { "name": "estimated_hours", "type": "decimal", "required": false },
+            { "name": "created_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 19,
+              "name": "get_project_tasks",
+              "description": "Get all tasks for a project (sorted by status and priority)",
+              "operation": "Query",
+              "parameters": [{ "name": "project_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 20,
+              "name": "get_project_tasks_by_status",
+              "description": "Get tasks for a project filtered by status",
+              "operation": "Query",
+              "parameters": [
+                { "name": "project_id", "type": "string" },
+                { "name": "status", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 21,
+              "name": "add_task_to_project",
+              "description": "Add task to project index",
+              "operation": "PutItem",
+              "parameters": [{ "name": "project_task", "type": "entity", "entity_type": "ProjectTask" }],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "UserTask": {
+          "entity_type": "USER_TASK",
+          "pk_template": "USER#{user_id}",
+          "sk_template": "TASK#{status}#{due_date}#{task_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "task_id", "type": "string", "required": true },
+            { "name": "project_id", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "priority", "type": "string", "required": true },
+            { "name": "due_date", "type": "string", "required": false },
+            { "name": "estimated_hours", "type": "decimal", "required": false },
+            { "name": "assigned_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 22,
+              "name": "get_user_tasks",
+              "description": "Get all tasks assigned to a user (sorted by status and due date)",
+              "operation": "Query",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 23,
+              "name": "get_user_active_tasks",
+              "description": "Get active tasks for a user",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "status", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 24,
+              "name": "assign_task_to_user",
+              "description": "Assign task to user with cross-table references",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "user_task", "type": "entity", "entity_type": "UserTask" },
+                { "name": "task", "type": "entity", "entity_type": "Task" },
+                { "name": "member", "type": "entity", "entity_type": "OrganizationMember" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        },
+        "TaskComment": {
+          "entity_type": "COMMENT",
+          "pk_template": "TASK#{task_id}",
+          "sk_template": "COMMENT#{created_at}#{comment_id}",
+          "fields": [
+            { "name": "task_id", "type": "string", "required": true },
+            { "name": "comment_id", "type": "string", "required": true },
+            { "name": "author_id", "type": "string", "required": true },
+            { "name": "content", "type": "string", "required": true },
+            { "name": "comment_type", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "updated_at", "type": "string", "required": false },
+            { "name": "mentions", "type": "array", "item_type": "string", "required": false },
+            { "name": "attachments", "type": "array", "item_type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 25,
+              "name": "get_task_comments",
+              "description": "Get all comments for a task (sorted by creation time)",
+              "operation": "Query",
+              "parameters": [{ "name": "task_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 26,
+              "name": "add_task_comment",
+              "description": "Add comment to task with author reference",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "comment", "type": "entity", "entity_type": "TaskComment" },
+                { "name": "author", "type": "entity", "entity_type": "OrganizationMember" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

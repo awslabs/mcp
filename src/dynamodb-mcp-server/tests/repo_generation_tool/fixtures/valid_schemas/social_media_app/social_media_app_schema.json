@@ -1,0 +1,265 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "SocialMedia",
+        "partition_key": "user_id",
+        "sort_key": "sort_key"
+      },
+      "entities": {
+        "UserProfile": {
+          "entity_type": "PROFILE",
+          "pk_template": "{user_id}",
+          "sk_template": "PROFILE",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": true },
+            { "name": "timestamp", "type": "integer", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_user_profile",
+              "description": "User login/authentication - get user profile by user_id",
+              "operation": "GetItem",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 6,
+              "name": "get_user_profile_and_posts",
+              "description": "View user profile and posts",
+              "operation": "Query",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "mixed_data"
+            }
+          ]
+        },
+        "Post": {
+          "entity_type": "POST",
+          "pk_template": "{user_id}",
+          "sk_template": "POST#{post_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "post_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "content", "type": "string", "required": true },
+            {
+              "name": "media_urls",
+              "type": "array",
+              "item_type": "string",
+              "required": false
+            },
+            { "name": "timestamp", "type": "integer", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 2,
+              "name": "create_post",
+              "description": "Create new post",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "post", "type": "entity", "entity_type": "Post" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 3,
+              "name": "delete_post",
+              "description": "Delete post",
+              "operation": "DeleteItem",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "post_id", "type": "string" }
+              ],
+              "return_type": "success_flag"
+            },
+            {
+              "pattern_id": 4,
+              "name": "get_user_posts",
+              "description": "Get personalized feed - posts from followed users",
+              "operation": "Query",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 15,
+              "name": "get_user_posts_by_prefix",
+              "description": "Get user posts by post_id prefix (Main Table Range Query)",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "post_id_prefix", "type": "string" }
+              ],
+              "return_type": "entity_list",
+              "range_condition": "begins_with"
+            }
+          ]
+        },
+        "Comment": {
+          "entity_type": "COMMENT",
+          "pk_template": "{user_id}",
+          "sk_template": "COMMENT#{post_id}#{comment_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "post_id", "type": "string", "required": true },
+            { "name": "comment_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "content", "type": "string", "required": true },
+            { "name": "timestamp", "type": "integer", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 5,
+              "name": "get_post_comments",
+              "description": "Get comments for a specific post",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "post_id", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 9,
+              "name": "add_comment",
+              "description": "Add comment to post",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "comment",
+                  "type": "entity",
+                  "entity_type": "Comment"
+                }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 16,
+              "name": "get_comments_for_post_range",
+              "description": "Get comments for a post within comment_id range (Main Table Range Query)",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "start_comment_prefix", "type": "string" },
+                { "name": "end_comment_prefix", "type": "string" }
+              ],
+              "return_type": "entity_list",
+              "range_condition": "between"
+            }
+          ]
+        },
+        "Like": {
+          "entity_type": "LIKE",
+          "pk_template": "{user_id}",
+          "sk_template": "LIKE#{post_id}#{liker_user_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "post_id", "type": "string", "required": true },
+            { "name": "liker_user_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "timestamp", "type": "integer", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 7,
+              "name": "like_post",
+              "description": "Like a post",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "like", "type": "entity", "entity_type": "Like" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 8,
+              "name": "unlike_post",
+              "description": "Unlike a post",
+              "operation": "DeleteItem",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "post_id", "type": "string" },
+                { "name": "liker_user_id", "type": "string" }
+              ],
+              "return_type": "success_flag"
+            },
+            {
+              "pattern_id": 12,
+              "name": "get_post_likes",
+              "description": "Get list of users who liked a specific post",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "post_id", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 17,
+              "name": "get_likes_after_prefix",
+              "description": "Get likes for a post after a specific prefix (Main Table Range Query)",
+              "operation": "Query",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "like_prefix", "type": "string" }
+              ],
+              "return_type": "entity_list",
+              "range_condition": ">"
+            }
+          ]
+        },
+        "Follow": {
+          "entity_type": "FOLLOW",
+          "pk_template": "{user_id}",
+          "sk_template": "FOLLOW#{follower_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "follower_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "timestamp", "type": "integer", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 10,
+              "name": "follow_user",
+              "description": "Follow a user",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "follow", "type": "entity", "entity_type": "Follow" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 11,
+              "name": "unfollow_user",
+              "description": "Unfollow a user",
+              "operation": "DeleteItem",
+              "parameters": [
+                { "name": "user_id", "type": "string" },
+                { "name": "follower_id", "type": "string" }
+              ],
+              "return_type": "success_flag"
+            },
+            {
+              "pattern_id": 13,
+              "name": "get_user_followers",
+              "description": "Get user's followers list",
+              "operation": "Scan",
+              "parameters": [{ "name": "target_user_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 14,
+              "name": "get_user_following",
+              "description": "Get user's following list",
+              "operation": "Query",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "entity_list"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

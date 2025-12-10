@@ -1,0 +1,256 @@
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "Deals",
+        "partition_key": "deal_id"
+      },
+      "gsi_list": [
+        {
+          "name": "DealsByBrand",
+          "partition_key": "brand_id",
+          "sort_key": "created_at"
+        },
+        {
+          "name": "DealsByCategory",
+          "partition_key": "category_id",
+          "sort_key": "created_at"
+        }
+      ],
+      "entities": {
+        "Deal": {
+          "entity_type": "DEAL",
+          "pk_template": "{deal_id}",
+          "fields": [
+            { "name": "deal_id", "type": "string", "required": true },
+            { "name": "title", "type": "string", "required": true },
+            { "name": "description", "type": "string", "required": true },
+            { "name": "price", "type": "decimal", "required": true },
+            { "name": "brand_id", "type": "string", "required": true },
+            { "name": "brand_name", "type": "string", "required": true },
+            { "name": "category_id", "type": "string", "required": true },
+            { "name": "category_name", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "DealsByBrand",
+              "pk_template": "{brand_id}",
+              "sk_template": "{created_at}"
+            },
+            {
+              "name": "DealsByCategory",
+              "pk_template": "{category_id}",
+              "sk_template": "{created_at}"
+            }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_deal_by_id",
+              "description": "Get deal details by deal_id",
+              "operation": "GetItem",
+              "parameters": [{ "name": "deal_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 2,
+              "name": "create_deal",
+              "description": "Create a new deal",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "deal", "type": "entity", "entity_type": "Deal" }
+              ],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 3,
+              "name": "get_deals_by_brand",
+              "description": "Get all deals for a brand sorted by creation date",
+              "operation": "Query",
+              "index_name": "DealsByBrand",
+              "parameters": [{ "name": "brand_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 4,
+              "name": "get_deals_by_category",
+              "description": "Get all deals for a category sorted by creation date",
+              "operation": "Query",
+              "index_name": "DealsByCategory",
+              "parameters": [{ "name": "category_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 5,
+              "name": "get_recent_deals_by_brand",
+              "description": "Get recent deals for a brand after a specific date",
+              "operation": "Query",
+              "index_name": "DealsByBrand",
+              "range_condition": ">=",
+              "parameters": [
+                { "name": "brand_id", "type": "string" },
+                { "name": "since_date", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "Users",
+        "partition_key": "user_id"
+      },
+      "entities": {
+        "User": {
+          "entity_type": "USER",
+          "pk_template": "{user_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "email", "type": "string", "required": true },
+            { "name": "hashed_password", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "last_login", "type": "string", "required": false }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 6,
+              "name": "get_user_by_id",
+              "description": "Get user by user_id",
+              "operation": "GetItem",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 7,
+              "name": "create_user",
+              "description": "Create a new user account",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "user", "type": "entity", "entity_type": "User" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "Brands",
+        "partition_key": "brand_id"
+      },
+      "entities": {
+        "Brand": {
+          "entity_type": "BRAND",
+          "pk_template": "{brand_id}",
+          "fields": [
+            { "name": "brand_id", "type": "string", "required": true },
+            { "name": "brand_name", "type": "string", "required": true },
+            { "name": "description", "type": "string", "required": false },
+            { "name": "logo_url", "type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 8,
+              "name": "get_brand_by_id",
+              "description": "Get brand details by brand_id",
+              "operation": "GetItem",
+              "parameters": [{ "name": "brand_id", "type": "string" }],
+              "return_type": "single_entity"
+            },
+            {
+              "pattern_id": 9,
+              "name": "create_brand",
+              "description": "Create a new brand",
+              "operation": "PutItem",
+              "parameters": [
+                { "name": "brand", "type": "entity", "entity_type": "Brand" }
+              ],
+              "return_type": "single_entity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "UserWatches",
+        "partition_key": "user_id",
+        "sort_key": "watch_key"
+      },
+      "gsi_list": [
+        {
+          "name": "WatchesByBrand",
+          "partition_key": "brand_id",
+          "sort_key": "user_id"
+        },
+        {
+          "name": "WatchesByCategory",
+          "partition_key": "category_id"
+        }
+      ],
+      "entities": {
+        "UserWatch": {
+          "entity_type": "WATCH",
+          "pk_template": "{user_id}",
+          "sk_template": "{watch_key}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "watch_key", "type": "string", "required": true },
+            { "name": "watch_type", "type": "string", "required": true },
+            { "name": "target_id", "type": "string", "required": true },
+            { "name": "target_name", "type": "string", "required": true },
+            { "name": "brand_id", "type": "string", "required": false },
+            { "name": "category_id", "type": "string", "required": false },
+            { "name": "created_at", "type": "string", "required": true }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "WatchesByBrand",
+              "pk_template": "{brand_id}",
+              "sk_template": "{user_id}"
+            },
+            {
+              "name": "WatchesByCategory",
+              "pk_template": "{category_id}"
+            }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 10,
+              "name": "get_user_watches",
+              "description": "Get all watches for a user",
+              "operation": "Query",
+              "parameters": [{ "name": "user_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 11,
+              "name": "get_brand_watchers",
+              "description": "Get all users watching a specific brand",
+              "operation": "Query",
+              "index_name": "WatchesByBrand",
+              "parameters": [{ "name": "brand_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 12,
+              "name": "get_category_watchers",
+              "description": "Get all users watching a specific category (partition key only)",
+              "operation": "Query",
+              "index_name": "WatchesByCategory",
+              "parameters": [{ "name": "category_id", "type": "string" }],
+              "return_type": "entity_list"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
