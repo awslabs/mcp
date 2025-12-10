@@ -16,11 +16,11 @@
 
 import asyncio
 import boto3
+from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from botocore.config import Config
 from loguru import logger
 from typing import Any, Dict, List, Optional
-from awslabs.postgres_mcp_server import __user_agent__
 
 class RDSDataAPIConnection(AbstractDBConnection):
     """Class that wraps DB connection client by RDS API."""
