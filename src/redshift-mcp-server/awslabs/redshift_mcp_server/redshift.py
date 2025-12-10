@@ -773,6 +773,465 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
         raise
 
 
+def _format_plan_nodes(nodes: list[dict]) -> list[str]:
+    """Reconstruct formatted EXPLAIN output from parsed nodes.
+
+    Rebuilds indented text with metadata lines from structured nodes,
+    recreating the hierarchical structure and metadata that the Data API strips.
+
+    Args:
+        nodes: List of parsed plan node dictionaries
+
+    Returns:
+        List of formatted text lines with proper indentation
+    """
+    formatted_lines = []
+
+    for node in nodes:
+        level = node.get('level', 0)
+
+        # Calculate indentation: 1 space for level 0, then 3 + (level-1)*6 for others
+        if level == 0:
+            indent = ' '
+        else:
+            indent = ' ' * (3 + (level - 1) * 6)
+
+        # Format the main operation line
+        prefix = node.get('prefix', '')
+        operation = node.get('operation', '')
+        relation = node.get('relation_name', '')
+        dist_type = node.get('distribution_type', '')
+
+        # Build operation text
+        op_text = f'{prefix} ' if prefix else ''
+        op_text += operation
+        if relation:
+            op_text += f' on {relation}'
+        if dist_type:
+            op_text += f' {dist_type}'
+
+        # Add cost info
+        cost_start = node.get('cost_startup')
+        cost_total = node.get('cost_total')
+        rows = node.get('rows')
+        width = node.get('width')
+
+        if cost_start is not None:
+            op_text += f'  (cost={cost_start:.2f}..{cost_total:.2f} rows={rows} width={width})'
+
+        # Add arrow for non-root nodes
+        if level > 0:
+            formatted_lines.append(f'{indent}->  {op_text}')
+        else:
+            formatted_lines.append(f'{indent}{op_text}')
+
+        # Add metadata lines (with proper indentation)
+        metadata_indent = ' ' * (9 + (level - 1) * 6) if level > 0 else ' ' * 9
+
+        # Merge Key
+        if node.get('join_condition') and 'Merge' in operation:
+            formatted_lines.append(f'{metadata_indent}Merge Key: {node["join_condition"]}')
+
+        # Hash Cond
+        elif node.get('join_condition') and 'Hash' in operation:
+            formatted_lines.append(f'{metadata_indent}Hash Cond: {node["join_condition"]}')
+
+        # Sort Key
+        if node.get('sort_key'):
+            formatted_lines.append(f'{metadata_indent}Sort Key: {node["sort_key"]}')
+
+        # Filter
+        if node.get('filter_condition'):
+            formatted_lines.append(f'{metadata_indent}Filter: {node["filter_condition"]}')
+
+        # Generic metadata
+        if node.get('metadata'):
+            for meta_line in node['metadata']:
+                formatted_lines.append(f'{metadata_indent}{meta_line}')
+
+    return formatted_lines
+
+
+def _parse_explain_output(explain_lines: list[str]) -> list[dict]:
+    """Parse EXPLAIN output into structured plan nodes.
+
+    Parses the hierarchical text output from EXPLAIN into structured nodes
+    with parent-child relationships, costs, and metadata extracted.
+
+    Args:
+        explain_lines: List of text lines from EXPLAIN output
+
+    Returns:
+        List of dictionaries representing plan nodes
+    """
+    import re
+
+    nodes = []
+    node_id_counter = 1
+    parent_stack = []  # Stack of (level, node_id) tuples
+    last_operation_node = None  # Track last operation node for attaching metadata
+
+    for line in explain_lines:
+        if not line or not line.strip():
+            continue
+
+        # Calculate indentation level accounting for arrow prefix
+        original_line = line
+        stripped = line.lstrip()
+        indent_spaces = len(line) - len(stripped)
+
+        # Check if line starts with arrow after initial whitespace
+        has_arrow = stripped.startswith('->')
+        if has_arrow:
+            # Remove arrow and following spaces to get the actual operation text
+            stripped = stripped[2:].lstrip()  # Remove '->' and spaces after it
+            # Arrow lines follow pattern: level = 1 + (indent_spaces - 2) // 6
+            # This handles both simple (2,8,14...) and complex (3,9,15...) patterns
+            level = 1 + max(0, indent_spaces - 2) // 6
+        else:
+            # For non-arrow lines (metadata or root operations)
+            if indent_spaces <= 1:
+                level = 0  # Root level operations like " XN Limit" or "XN Limit"
+            else:
+                # Metadata lines follow the same 6-space increment pattern as their operations
+                level = 1 + max(0, indent_spaces - 2) // 6
+
+        # Check if this is a metadata line (no cost information, just details)
+        # These lines provide additional info about the previous operation
+        has_cost = 'cost=' in stripped
+
+        if not has_cost and last_operation_node:
+            # This is a metadata line - attach to last operation node
+            # Examples: "Merge Key: saletime", "Send to leader", "Sort Key: saletime", "Filter: ..."
+            if 'Merge Key:' in stripped or 'merge key:' in stripped.lower():
+                merge_key_match = re.search(r'Merge Key:\s*(.+)', stripped, re.IGNORECASE)
+                if merge_key_match:
+                    last_operation_node['join_condition'] = merge_key_match.group(1).strip()
+            elif 'Sort Key:' in stripped or 'sort key:' in stripped.lower():
+                sort_key_match = re.search(r'Sort Key:\s*(.+)', stripped, re.IGNORECASE)
+                if sort_key_match:
+                    last_operation_node['sort_key'] = sort_key_match.group(1).strip()
+            elif 'Filter:' in stripped or 'filter:' in stripped.lower():
+                filter_match = re.search(r'Filter:\s*(.+)', stripped, re.IGNORECASE)
+                if filter_match:
+                    last_operation_node['filter_condition'] = filter_match.group(1).strip()
+            elif 'Hash Cond:' in stripped or 'hash cond:' in stripped.lower():
+                hash_cond_match = re.search(r'Hash Cond:\s*(.+)', stripped, re.IGNORECASE)
+                if hash_cond_match:
+                    last_operation_node['join_condition'] = hash_cond_match.group(1).strip()
+            elif 'Join Filter:' in stripped or 'join filter:' in stripped.lower():
+                join_filter_match = re.search(r'Join Filter:\s*(.+)', stripped, re.IGNORECASE)
+                if join_filter_match:
+                    if 'join_condition' not in last_operation_node:
+                        last_operation_node['join_condition'] = ''
+                    last_operation_node['join_condition'] += (
+                        ' [Join Filter: ' + join_filter_match.group(1).strip() + ']'
+                    )
+            # For lines like "Send to leader", store in a generic metadata field
+            else:
+                if 'metadata' not in last_operation_node:
+                    last_operation_node['metadata'] = []
+                last_operation_node['metadata'].append(stripped)
+
+            # Don't create a new node for metadata lines
+            continue
+
+        # This is an operation line with cost information - create a new node
+        node_data = {'details': original_line.strip(), 'level': level}
+
+        # Extract prefix (XN, etc.)
+        prefix_match = re.match(r'^(XN|LF)\s+', stripped)
+        if prefix_match:
+            node_data['prefix'] = prefix_match.group(1)
+            stripped = stripped[len(prefix_match.group(0)) :]
+
+        # Extract distribution type (DS_*)
+        dist_match = re.search(r'(DS_[A-Z_]+)', stripped)
+        if dist_match:
+            node_data['distribution_type'] = dist_match.group(1)
+
+        # Extract operation name (before 'on' or cost parentheses)
+        operation_match = re.match(r'^([A-Za-z\s]+?)(?:\s+on\s+|\s+\(|$)', stripped)
+        if operation_match:
+            operation = operation_match.group(1).strip()
+            # Clean up distribution type from operation if present
+            operation = re.sub(r'\s+DS_[A-Z_]+', '', operation)
+            node_data['operation'] = operation
+        else:
+            # Fallback: handle complex operation names (e.g., "Hash Join DS_DIST_ALL_INNER  (cost...")
+            # Remove distribution type first, then extract operation
+            stripped_no_dist = re.sub(r'\s+DS_[A-Z_]+', '', stripped)
+            # Now try to match operation (words before parentheses)
+            fallback_match = re.match(r'^([A-Za-z\s]+?)\s*\(', stripped_no_dist)
+            if fallback_match:
+                node_data['operation'] = fallback_match.group(1).strip()
+            else:
+                # Last resort: use first two words or first word
+                words = stripped.split()
+                if len(words) >= 2 and not words[1].startswith('('):
+                    node_data['operation'] = f'{words[0]} {words[1]}'
+                elif words:
+                    node_data['operation'] = words[0]
+                else:
+                    node_data['operation'] = 'Unknown'
+                logger.warning(f'Could not parse operation from line: {original_line}')
+
+        # Extract relation name (table/view name after 'on')
+        relation_match = re.search(r'\son\s+([a-zA-Z_][a-zA-Z0-9_\.]*)', stripped)
+        if relation_match:
+            node_data['relation_name'] = relation_match.group(1)
+
+        # Extract cost (cost=X..Y)
+        cost_match = re.search(r'cost=([0-9.]+)\.\.([0-9.]+)', stripped)
+        if cost_match:
+            node_data['cost_startup'] = float(cost_match.group(1))
+            node_data['cost_total'] = float(cost_match.group(2))
+
+        # Extract rows
+        rows_match = re.search(r'rows=([0-9]+)', stripped)
+        if rows_match:
+            node_data['rows'] = int(rows_match.group(1))
+
+        # Extract width
+        width_match = re.search(r'width=([0-9]+)', stripped)
+        if width_match:
+            node_data['width'] = int(width_match.group(1))
+
+        # Extract join condition (Hash Cond, Merge Cond, etc.)
+        join_cond_match = re.search(r'(?:Hash|Merge|Join) Cond:\s+(.+?)(?:\s*$)', stripped)
+        if join_cond_match:
+            node_data['join_condition'] = join_cond_match.group(1).strip()
+
+        # Extract filter condition
+        filter_match = re.search(r'Filter:\s+(.+?)(?:\s*$)', stripped)
+        if filter_match:
+            node_data['filter_condition'] = filter_match.group(1).strip()
+
+        # Extract sort key info
+        sort_match = re.search(r'Sort Key:\s+(.+?)(?:\s*$)', stripped)
+        if sort_match:
+            node_data['sort_key'] = sort_match.group(1).strip()
+
+        # Determine parent node based on indentation
+        # Pop stack until we find a parent at a lower level
+        while parent_stack and parent_stack[-1][0] >= level:
+            parent_stack.pop()
+
+        if parent_stack:
+            node_data['parent_node_id'] = parent_stack[-1][1]
+        else:
+            node_data['parent_node_id'] = None
+
+        # Assign node ID
+        node_data['node_id'] = node_id_counter
+        nodes.append(node_data)
+
+        # Update last_operation_node for metadata attachment
+        last_operation_node = node_data
+
+        # Push current node onto stack
+        parent_stack.append((level, node_id_counter))
+        node_id_counter += 1
+
+    return nodes
+
+
+async def _fetch_table_designs(
+    cluster_identifier: str, database_name: str, table_refs: list[tuple[str, str]]
+) -> dict:
+    """Fetch table design information from pg_table_def.
+
+    Args:
+        cluster_identifier: The cluster identifier to query.
+        database_name: The database to execute the query against.
+        table_refs: List of (schema_name, table_name) tuples.
+
+    Returns:
+        Dictionary mapping "schema.table" to TableDesign information.
+    """
+    if not table_refs:
+        return {}
+
+    table_designs = {}
+
+    # Query pg_table_def for each table
+    for schema_name, table_name in table_refs:
+        try:
+            query = """
+                SELECT
+                    schemaname,
+                    tablename,
+                    "column",
+                    type,
+                    encoding,
+                    distkey,
+                    sortkey,
+                    "notnull",
+                    diststyle
+                FROM pg_table_def
+                WHERE schemaname = :schema_name
+                  AND tablename = :table_name
+                ORDER BY sortkey DESC NULLS LAST, "column"
+            """
+
+            results_response, _ = await _execute_protected_statement(
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                sql=query,
+                parameters=[
+                    {'name': 'schema_name', 'value': schema_name},
+                    {'name': 'table_name', 'value': table_name},
+                ],
+            )
+
+            records = results_response.get('Records', [])
+            if not records:
+                logger.warning(
+                    f'No design information found for {schema_name}.{table_name} in pg_table_def'
+                )
+                continue
+
+            # Extract diststyle from first row (same for all columns)
+            diststyle = records[0][8].get('stringValue', 'EVEN')
+
+            # Build column list
+            columns = []
+            for record in records:
+                column_info = {
+                    'column_name': record[2].get('stringValue'),
+                    'data_type': record[3].get('stringValue'),
+                    'encoding': record[4].get('stringValue'),
+                    'distkey': record[5].get('booleanValue', False),
+                    'sortkey': record[6].get('longValue', 0),
+                    'notnull': record[7].get('booleanValue', False),
+                }
+                columns.append(column_info)
+
+            # Create table design entry
+            table_key = f'{schema_name}.{table_name}'
+            table_designs[table_key] = {
+                'schema_name': schema_name,
+                'table_name': table_name,
+                'diststyle': diststyle,
+                'columns': columns,
+            }
+
+            logger.debug(
+                f'Fetched design for {table_key}: {diststyle} with {len(columns)} columns'
+            )
+
+        except Exception as e:
+            logger.warning(f'Error fetching design for {schema_name}.{table_name}: {str(e)}')
+            continue
+
+    return table_designs
+
+
+async def get_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> dict:
+    """Get the execution plan for a SQL query using EXPLAIN.
+
+    Args:
+        cluster_identifier: The cluster identifier to query.
+        database_name: The database to execute the query against.
+        sql: The SQL statement to explain.
+
+    Returns:
+        Dictionary with execution plan details including structured nodes.
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+        logger.debug(f'SQL to explain: {sql}')
+
+        # Check if SQL already starts with EXPLAIN
+        sql_trimmed = sql.strip().upper()
+        if sql_trimmed.startswith('EXPLAIN'):
+            raise Exception(
+                'SQL already contains EXPLAIN. Please provide the query without EXPLAIN.'
+            )
+
+        # Build EXPLAIN query (no longer using VERBOSE)
+        explain_sql = f'EXPLAIN {sql}'
+
+        # Record start time
+        import time
+
+        start_time = time.time()
+
+        # Execute the EXPLAIN query
+        results_response, query_id = await _execute_protected_statement(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=explain_sql
+        )
+
+        # Calculate execution time
+        end_time = time.time()
+        execution_time_ms = int((end_time - start_time) * 1000)
+
+        # Extract plan lines from results
+        plan_lines = []
+        records = results_response.get('Records', [])
+
+        for record in records:
+            # EXPLAIN returns a single column with the plan text
+            if record and len(record) > 0:
+                line = record[0].get('stringValue', '')
+                if line:
+                    plan_lines.append(line)
+
+        # Parse the plan lines into structured nodes
+        parsed_nodes = _parse_explain_output(plan_lines)
+
+        # Format the structured nodes back into indented text with metadata
+        formatted_text = _format_plan_nodes(parsed_nodes)
+
+        # Extract unique table references from parsed nodes
+        table_refs = set()
+        for node in parsed_nodes:
+            relation_name = node.get('relation_name')
+            if relation_name:
+                # Handle schema.table or just table
+                if '.' in relation_name:
+                    parts = relation_name.split('.', 1)
+                    schema_name, table_name = parts[0], parts[1]
+                else:
+                    # Assume public schema if not specified
+                    schema_name, table_name = 'public', relation_name
+                table_refs.add((schema_name, table_name))
+
+        # Fetch table design information for all referenced tables
+        table_designs = {}
+        if table_refs:
+            logger.debug(f'Fetching design information for {len(table_refs)} tables')
+            table_designs = await _fetch_table_designs(
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                table_refs=list(table_refs),
+            )
+            logger.debug(f'Retrieved design information for {len(table_designs)} tables')
+
+        execution_plan = {
+            'query_id': query_id,
+            'explained_query': sql,
+            'execution_time_ms': execution_time_ms,
+            'raw_plan_text': plan_lines,
+            'formatted_plan_text': formatted_text,
+            'query_plan': parsed_nodes,
+            'plan_format': 'structured',
+            'table_designs': table_designs,
+        }
+
+        logger.info(
+            f'Execution plan generated successfully: {query_id}, '
+            f'{len(parsed_nodes)} nodes, {len(table_designs)} table designs in {execution_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error getting execution plan for cluster {cluster_identifier}: {str(e)}')
+        raise
+
+
 # Global client manager instance
 client_manager = RedshiftClientManager(
     config=Config(
