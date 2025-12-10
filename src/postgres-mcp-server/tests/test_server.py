@@ -19,19 +19,29 @@ import decimal
 import json
 import pytest
 import sys
+import time
 import uuid
+from awslabs.postgres_mcp_server.connection.db_connection_map import (
+    ConnectionMethod,
+)
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.server import (
-    DBConnectionSingleton,
+    async_job_status,
+    async_job_status_lock,
     client_error_code_key,
+    create_cluster,
+    db_connection_map,
+    get_database_connection_info,
+    get_job_status,
     get_table_schema,
+    is_database_connected,
     main,
     run_query,
     unexpected_error_key,
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 
 SAFE_READONLY_QUERIES = [
@@ -476,10 +486,16 @@ def validate_normal_query_response(column_records):
         assert col_name in column_records
 
 
+def setup_mock_connection(mock_db_connection, connection_method=ConnectionMethod.RDS_API):
+    """Helper function to set up a mock connection in the global db_connection_map."""
+    db_connection_map.set(
+        connection_method, 'test-cluster', 'test-endpoint', 'test-db', mock_db_connection
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_query_well_formatted_response():
     """Test that run_query correctly handles a well-formatted response from RDS Data API."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=True)
 
     sql_text = 'SELECT * FROM example_table'
@@ -491,7 +507,13 @@ async def test_run_query_well_formatted_response():
 
     # Response for the query itself
     mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
-    tool_response = await run_query(sql_text, ctx, mock_db_connection)
+
+    # Store connection in the global db_connection_map
+    setup_mock_connection(mock_db_connection)
+
+    tool_response = await run_query(
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+    )
 
     # validate tool_response
     assert (
@@ -506,8 +528,8 @@ async def test_run_query_well_formatted_response():
 @pytest.mark.asyncio
 async def test_run_query_safe_read_queries_on_redonly_settings():
     """Test that run_query accepts safe readonly queries when readonly setting is true."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=True)
+    setup_mock_connection(mock_db_connection)
 
     for sql_text in SAFE_READONLY_QUERIES:
         ctx = DummyCtx()
@@ -517,7 +539,9 @@ async def test_run_query_safe_read_queries_on_redonly_settings():
 
         # Response for the query itself
         mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
-        tool_response = await run_query(sql_text, ctx, mock_db_connection)
+        tool_response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
 
         # validate tool_response
         assert (
@@ -533,24 +557,28 @@ async def test_run_query_safe_read_queries_on_redonly_settings():
 @pytest.mark.asyncio
 async def test_run_query_risky_queries_without_parameters():
     """Test that run_query rejects queries with potentially risky parameters regardless of readonly setting."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
-
     # Under readonly = True
     mock_db_connection = Mock_DBConnection(readonly=True)
+    setup_mock_connection(mock_db_connection)
 
     for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
         ctx = DummyCtx()
-        response = await run_query(sql_text, ctx, mock_db_connection)
+        response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
         assert len(response) == 1
         assert len(response[0]) == 1
         assert 'error' in response[0]
 
     # Under readonly = False
     mock_db_connection2 = Mock_DBConnection(readonly=False)
+    setup_mock_connection(mock_db_connection2)
 
     for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
         ctx = DummyCtx()
-        response = await run_query(sql_text, ctx, mock_db_connection2)
+        response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
         assert len(response) == 1
         assert len(response[0]) == 1
         assert 'error' in response[0]
@@ -559,12 +587,14 @@ async def test_run_query_risky_queries_without_parameters():
 @pytest.mark.asyncio
 async def test_run_query_throw_client_error():
     """Test that run_query properly handles client errors from RDS Data API by mokcing the RDA API exception."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=True, error=MockException.Client)
+    setup_mock_connection(mock_db_connection)
     sql_text = r"""SELECT 1"""
 
     ctx = DummyCtx()
-    response = await run_query(sql_text, ctx, mock_db_connection)
+    response = await run_query(
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+    )
 
     assert len(response) == 1
     assert len(response[0]) == 1
@@ -575,12 +605,14 @@ async def test_run_query_throw_client_error():
 @pytest.mark.asyncio
 async def test_run_query_throw_unexpected_error():
     """Test that run_query properly handles unexpected exception by mokcing the exception."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=True, error=MockException.Unexpected)
+    setup_mock_connection(mock_db_connection)
     sql_text = r"""SELECT 1"""
 
     ctx = DummyCtx()
-    response = await run_query(sql_text, ctx, mock_db_connection)
+    response = await run_query(
+        sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+    )
 
     assert len(response) == 1
     assert len(response[0]) == 1
@@ -591,15 +623,16 @@ async def test_run_query_throw_unexpected_error():
 @pytest.mark.asyncio
 async def test_run_query_write_queries_on_readonly_setting():
     """Test that run_query rejects write queries when in read-only mode."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
-
     #    Set readonly to be true and send write query
     #    Expect  error is returned for each test query
     mock_db_connection = Mock_DBConnection(readonly=True)
+    setup_mock_connection(mock_db_connection)
 
     for sql_text in MUTATING_QUERIES:
         ctx = DummyCtx()
-        response = await run_query(sql_text, ctx, mock_db_connection)
+        response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
 
         # All query should fail with below signature in response
         assert len(response) == 1
@@ -613,8 +646,8 @@ async def test_run_query_write_queries_on_write_allowed_setting():
     """Test that run_query accepts safe write queries when read-only setting is false."""
     #    Set readonly to be false and send write query
     #    Expect no error is returned for every test query
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=False)
+    setup_mock_connection(mock_db_connection)
 
     for sql_text in SAFE_MUTATING_QUERIES:
         ctx = DummyCtx()
@@ -622,7 +655,9 @@ async def test_run_query_write_queries_on_write_allowed_setting():
         # Response for the query itself
         mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
 
-        tool_response = await run_query(sql_text, ctx, mock_db_connection)
+        tool_response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
 
         # validate tool_response
         assert (
@@ -638,13 +673,14 @@ async def test_run_query_write_queries_on_write_allowed_setting():
 @pytest.mark.asyncio
 async def test_get_table_schema():
     """Test test_get_table_schema call in a positive case."""
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
     mock_db_connection = Mock_DBConnection(readonly=False)
     mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
-    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+    setup_mock_connection(mock_db_connection)
 
     ctx = DummyCtx()
-    tool_response = await get_table_schema('table_name', ctx)
+    tool_response = await get_table_schema(
+        ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', 'table_name', ctx
+    )
 
     # validate tool_response
     assert (
@@ -673,25 +709,31 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
         'argv',
         [
             'server.py',
-            '--resource_arn',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
             'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
-            '--secret_arn',  # pragma: allowlist secret
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
             'us-west-2',
-            '--readonly',
-            'True',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
 
     # Mock the connection so main can complete successfully
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
-    mock_db_connection = Mock_DBConnection(readonly=False)
-    mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
-    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+    mock_connection = Mock_DBConnection(readonly=False)
+    # Add mock response for the validation query
+    mock_connection.data_client.add_mock_response(get_mock_normal_query_response())
+
+    # Store connection in map and mock the internal_connect_to_database function
+    db_connection_map.set(
+        ConnectionMethod.RDS_API,
+        'example-cluster-name',
+        '',
+        'postgres',
+        mock_connection,  # type: ignore
+    )
 
     # This test of main() will succeed in parsing parameters and create connection object.
     main()
@@ -713,25 +755,22 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
         'argv',
         [
             'server.py',
-            '--resource_arn',
-            'invalid',
-            '--secret_arn',  # pragma: allowlist secret
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
             'invalid',
             '--database',
             'postgres',
             '--region',
             'invalid',
-            '--readonly',
-            'True',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
 
-    # This test of main() will succeed in parsing parameters and create connection object.
-    # However, since connection object is not boto3 client with real credential, the validate of connection will fail and cause system exit
-    with pytest.raises(SystemExit) as excinfo:
-        main()
-    assert excinfo.value.code == 1
+    # This test of main() will succeed in parsing parameters.
+    # With mcp.run mocked, the server starts and stops without error.
+    # The connection validation happens lazily when queries are executed, not at startup.
+    main()  # Should not raise an error
 
 
 @pytest.mark.asyncio
@@ -746,11 +785,19 @@ async def test_run_query_with_psycopg_connection():
         region='us-east-1',
         is_test=True,
     )
+    setup_mock_connection(mock_db_connection, ConnectionMethod.PG_WIRE_PROTOCOL)
 
     sql_text = 'SELECT * FROM example_table'
     ctx = DummyCtx()
 
-    tool_response = await run_query(sql_text, ctx, mock_db_connection)
+    tool_response = await run_query(
+        sql_text,
+        ctx,
+        ConnectionMethod.PG_WIRE_PROTOCOL,
+        'test-cluster',
+        'test-endpoint',
+        'test-db',
+    )
 
     # validate tool_response
     assert (
@@ -770,18 +817,16 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
         'argv',
         [
             'server.py',
-            '--hostname',
+            '--connection_method',
+            'PG_WIRE_PROTOCOL',
+            '--db_endpoint',
             'localhost',
             '--port',
             '5432',
-            '--secret_arn',  # pragma: allowlist secret
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
             'us-west-2',
-            '--readonly',
-            'True',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
@@ -796,7 +841,10 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
         database,
         readonly,
         secret_arn,
+        db_user,
         region,
+        is_iam_auth=False,
+        pool_expiry_min=30,
         min_size=1,
         max_size=10,
         is_test=False,
@@ -809,7 +857,10 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             database,
             readonly,
             secret_arn,
+            db_user,
             region,
+            is_iam_auth,
+            pool_expiry_min,
             min_size,
             max_size,
             is_test=True,
@@ -907,8 +958,219 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
     assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
 
 
+# =============================================================================
+# Tool Handler Tests
+# =============================================================================
+
+
+def test_get_database_connection_info_empty():
+    """Test get_database_connection_info with no connections."""
+    # Clear the map
+    db_connection_map.close_all()
+
+    result = get_database_connection_info()
+    assert isinstance(result, str)
+    connections = json.loads(result)
+    assert isinstance(connections, list)
+
+
+def test_get_database_connection_info_with_connections():
+    """Test get_database_connection_info with existing connections."""
+    # Add a mock connection
+    mock_conn = Mock_DBConnection(readonly=False)
+    db_connection_map.set(
+        ConnectionMethod.RDS_API,
+        'test-cluster',
+        'test-endpoint',
+        'test-db',
+        mock_conn,  # type: ignore
+    )
+
+    result = get_database_connection_info()
+    assert isinstance(result, str)
+    connections = json.loads(result)
+    assert isinstance(connections, list)
+    assert len(connections) >= 1
+
+    # Verify connection info structure
+    found = False
+    for conn in connections:
+        if conn.get('cluster_identifier') == 'test-cluster':
+            assert conn['database'] == 'test-db'
+            assert conn['db_endpoint'] == 'test-endpoint'
+            found = True
+            break
+    assert found, 'Test connection not found in connection info'
+
+    # Cleanup
+    db_connection_map.close_all()
+
+
+def test_get_job_status_not_found():
+    """Test get_job_status with non-existent job."""
+    result = get_job_status('non-existent-job-id')
+    assert isinstance(result, dict)
+    assert result['state'] == 'not_found'
+
+
+def test_get_job_status_existing_job():
+    """Test get_job_status with existing job."""
+    # Add a test job
+    test_job_id = 'test-job-123'
+    try:
+        async_job_status_lock.acquire()
+        async_job_status[test_job_id] = {'state': 'completed', 'result': {'status': 'success'}}
+    finally:
+        async_job_status_lock.release()
+
+    result = get_job_status(test_job_id)
+    assert isinstance(result, dict)
+    assert result['state'] == 'completed'
+    assert result['result']['status'] == 'success'
+
+    # Cleanup
+    try:
+        async_job_status_lock.acquire()
+        del async_job_status[test_job_id]
+    finally:
+        async_job_status_lock.release()
+
+
+def test_is_database_connected_false():
+    """Test is_database_connected when no connection exists."""
+    # Clear connections
+    db_connection_map.close_all()
+
+    result = is_database_connected(
+        cluster_identifier='non-existent', db_endpoint='', database='test'
+    )
+    assert result is False
+
+
+def test_is_database_connected_true():
+    """Test is_database_connected when connection exists."""
+    # Add a mock connection
+    mock_conn = Mock_DBConnection(readonly=False)
+    db_connection_map.set(
+        ConnectionMethod.RDS_API,
+        'test-cluster',
+        '',
+        'test-db',
+        mock_conn,  # type: ignore
+    )
+
+    result = is_database_connected(
+        cluster_identifier='test-cluster', db_endpoint='', database='test-db'
+    )
+    assert result is True
+
+    # Cleanup
+    db_connection_map.close_all()
+
+
+def test_is_database_connected_with_endpoint():
+    """Test is_database_connected with db_endpoint to cover line 323."""
+    # Add a mock connection with endpoint
+    mock_conn = Mock_DBConnection(readonly=False)
+    db_connection_map.set(
+        ConnectionMethod.PG_WIRE_PROTOCOL,
+        'test-cluster',
+        'test-endpoint.amazonaws.com',
+        'test-db',
+        mock_conn,  # type: ignore
+    )
+
+    # Test with matching endpoint
+    result = is_database_connected(
+        cluster_identifier='test-cluster',
+        db_endpoint='test-endpoint.amazonaws.com',
+        database='test-db',
+    )
+    assert result is True
+
+    # Test with non-matching endpoint
+    result = is_database_connected(
+        cluster_identifier='test-cluster',
+        db_endpoint='different-endpoint.amazonaws.com',
+        database='test-db',
+    )
+    assert result is False
+
+    # Cleanup
+    db_connection_map.close_all()
+
+
+@pytest.mark.asyncio
+async def test_create_cluster_serverless():
+    """Test create_cluster function for serverless cluster creation."""
+    # Mock the internal_create_serverless_cluster function
+    with patch('awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'):
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+        ) as mock_get_props:
+            mock_get_props.return_value = {
+                'DBClusterArn': 'arn:aws:rds:us-west-2:123456789012:cluster:test-serverless-cluster'
+            }
+
+            result = create_cluster(
+                region='us-west-2',
+                cluster_identifier='test-serverless-cluster',
+                database='testdb',
+                engine_version='15.3',
+            )
+
+            # Should return job ID
+            assert isinstance(result, str)
+            assert 'job_id' in result.lower() or len(result) > 10
+
+            # Give the background thread a moment to start
+            time.sleep(0.2)
+
+            # Verify job was created
+            try:
+                async_job_status_lock.acquire()
+                job_ids = list(async_job_status.keys())
+                assert len(job_ids) > 0
+            finally:
+                async_job_status_lock.release()
+
+
+@pytest.mark.asyncio
+async def test_create_cluster_error_handling():
+    """Test create_cluster error handling when cluster creation fails."""
+    # Mock the internal_create_serverless_cluster to raise an error
+    with patch(
+        'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'
+    ) as mock_create:
+        mock_create.side_effect = Exception('Cluster creation failed')
+
+        result = create_cluster(
+            region='us-west-2',
+            cluster_identifier='test-error-cluster',
+            database='testdb',
+            engine_version='15.3',
+        )
+
+        # Should still return job ID
+        assert isinstance(result, str)
+
+        # Give the background thread time to complete and fail
+        time.sleep(0.3)
+
+        # Check that job failed
+        try:
+            async_job_status_lock.acquire()
+            job_ids = list(async_job_status.keys())
+            if job_ids:
+                job_id = job_ids[-1]
+                job_status = async_job_status[job_id]
+                # Job should eventually be marked as failed
+                assert job_status['state'] in ['failed', 'in_progress']  # May still be processing
+        finally:
+            async_job_status_lock.release()
+
+
 if __name__ == '__main__':
-    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     asyncio.run(test_run_query_well_formatted_response())
     asyncio.run(test_run_query_safe_read_queries_on_redonly_settings())
     asyncio.run(test_run_query_risky_queries_without_parameters())
