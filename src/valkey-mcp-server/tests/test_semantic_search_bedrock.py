@@ -23,7 +23,17 @@ class TestSemanticSearchBedrock:
         """Clean up before and after test."""
         
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
-        
+
+        # Check Valkey availability and search module
+        try:
+            conn = r
+            # Test basic connection
+            conn.ping()
+            # Test search module availability
+            conn.execute_command("FT._LIST")
+        except Exception as e:
+            pytest.skip(f"Valkey is not available or search module is missing: {e}")
+
         try:
             r.execute_command('FT.DROPINDEX', 'semantic_collection_bedrock_test', 'DD')
         except:

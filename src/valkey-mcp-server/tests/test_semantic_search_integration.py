@@ -46,6 +46,16 @@ class TestSemanticSearchIntegration:
         # Reset connection instance to force new connection with new config
         ValkeyConnectionManager.reset()
 
+        # Check Valkey availability and search module
+        try:
+            conn = ValkeyConnectionManager.get_connection()
+            # Test basic connection
+            conn.ping()
+            # Test search module availability
+            conn.execute_command("FT._LIST")
+        except Exception as e:
+            pytest.skip(f"Valkey is not available or search module is missing: {e}")
+
         yield
 
         # Restore original configuration
