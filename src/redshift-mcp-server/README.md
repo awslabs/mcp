@@ -119,6 +119,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 2. **List Databases**: Explore databases in a specific cluster
 3. **Browse Database Structures**: Navigate through schemas, tables, columns
 4. **Query Data**: Execute SQL queries safely with a natural language prompt
+5. **Analyze Performance**: Get execution plans to optimize query performance
 
 ### Simple Examples
 
@@ -126,6 +127,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - "List databases in cluster 'my-redshift-cluster'"
 - "What tables are in the 'public' schema of database 'analytics'?"
 - "Execute: SELECT COUNT(*) FROM users WHERE created_date > '2024-01-01'"
+- "Explain the execution plan for my query to identify performance issues"
 
 ### Advanced Examples
 
@@ -275,6 +277,86 @@ ORDER BY saletime DESC, salesid DESC
 LIMIT 10;
 ```
 
+#### Query Performance Analysis
+
+```log
+> Explain the execution plan for: SELECT * FROM tickit.sales WHERE saletime > '2008-12-01' ORDER BY pricepaid DESC LIMIT 100
+
+I'll analyze the execution plan for your query to help identify potential performance optimizations.
+
+...execution plan analysis...
+
+Query Execution Plan Analysis
+==============================
+
+Query Overview:
+SELECT * FROM tickit.sales
+WHERE saletime > '2008-12-01'
+ORDER BY pricepaid DESC
+LIMIT 100
+
+Execution Plan Summary
+----------------------
+
+Key Operations:
+1. Seq Scan on tickit.sales (Cost: 0.00..2156.95, Rows: 7,059)
+   - Filter: saletime > '2008-12-01'
+   - Distribution: DS_DIST_NONE (no data movement needed)
+
+2. Sort operation (Cost: 2156.95..2174.60, Rows: 7,059)
+   - Sort Key: pricepaid DESC
+   - Estimated memory: 1MB
+
+3. Limit (Cost: 2156.95..2158.20, Rows: 100)
+   - Returns top 100 rows
+
+Table Design:
+- Distribution Style: KEY (on buyerid)
+- Sort Key: saletime
+- Compression: Enabled
+- Row Count: ~172,456 rows
+- Rows Modified Since Analyze: 8,950
+
+Performance Recommendations
+---------------------------
+
+1. Statistics Update Needed: Table has 8,950 rows modified since last ANALYZE. Run ANALYZE tickit.sales; for more accurate query planning.
+
+2. Sort Key Alignment: Query sorts by pricepaid DESC but table is sorted by saletime. Consider:
+   - Adding pricepaid as a compound sort key if this query pattern is common
+   - Current sort key helps with the WHERE filter but not the ORDER BY
+
+3. Query Optimization: The sequential scan is appropriate given the date filter. The query will scan ~7,059 rows (4% of table) which is efficient.
+
+Estimated Performance:
+- Planning Time: 15ms
+- Estimated Execution: Fast (small result set, efficient filter)
+- Data Movement: None (DS_DIST_NONE)
+
+> Show me how to update the table statistics
+
+To update the table statistics for better query planning, run:
+
+ANALYZE tickit.sales;
+
+This command will:
+- Update column statistics for the sales table
+- Improve query optimizer's cost estimates
+- Help Redshift choose better execution plans
+
+For the entire schema:
+
+ANALYZE tickit;
+
+For all tables in the database:
+
+ANALYZE;
+
+Best practices:
+- Run ANALYZE after significant data changes (>10% of rows)
+- Schedule regular ANALYZE operations for frequently updated tables
+- Monitor stats_rows_modified_since_analyze to identify tables needing ANALYZE
+```
 ## Tools
 
 ### list_clusters
@@ -349,8 +431,19 @@ list_tables(cluster_identifier: str, table_database_name: str, table_schema_name
 **Returns**: List of table information including:
 
 - Table name and type (TABLE/VIEW/EXTERNAL TABLE)
-- Access permissions
-- Remarks and metadata
+- Access permissions and remarks
+- Redshift-specific metadata (from pg_catalog tables, may be None on serverless):
+  - Distribution style (KEY, EVEN, ALL, AUTO)
+  - Estimated row count
+- Table activity statistics (from pg_stat_user_tables):
+  - Sequential scan counts and tuples read
+  - DML activity (rows inserted, updated, deleted)
+  - Live and dead row counts
+  - Analyze timestamps and counts
+  - Rows modified since last analyze
+- External table properties (for Spectrum tables):
+  - S3 location
+  - JSON parameters (partition columns, etc.)
 
 ### list_columns
 
@@ -379,6 +472,11 @@ list_columns(
 - Numeric precision and scale
 - Character length limits
 - Ordinal position and remarks
+- Redshift-specific properties (encoding, distkey, sortkey position)
+- External table column properties (external type, partition key)
+
+Note: Column planner statistics (n_distinct, null_frac, avg_width, correlation from pg_stats)
+are only populated when columns are returned as part of `describe_execution_plan` table designs.
 
 ### execute_query
 
@@ -400,6 +498,28 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Result rows with proper type conversion
 - Row count and execution time
 - Query ID for reference
+
+### describe_execution_plan
+
+Generates the query execution plan for a SQL statement without executing the query.
+
+```python
+describe_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> ExecutionPlan
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database where the query would run against
+- `sql`: SQL statement to explain (do not include EXPLAIN keyword)
+
+**Returns**: Execution plan including:
+
+- Structured plan nodes with costs, rows, and distribution info
+- Table design information (DISTKEY, SORTKEY, encoding) for referenced tables
+- Column planner statistics (n_distinct, null_frac, correlation) for referenced columns
+- Human-readable plan text (summarized for large plans)
+- Rule-based performance optimization suggestions derived from plan analysis, table design, and column statistics
 
 ## Permissions
 
