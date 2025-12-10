@@ -21,7 +21,6 @@ from botocore.config import Config
 from loguru import logger
 from typing import Any, Dict, List, Optional
 from awslabs.postgres_mcp_server import __user_agent__
-from botocore.config import Config
 
 class RDSDataAPIConnection(AbstractDBConnection):
     """Class that wraps DB connection client by RDS API."""
