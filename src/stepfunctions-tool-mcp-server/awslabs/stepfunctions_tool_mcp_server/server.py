@@ -336,10 +336,23 @@ def register_state_machines():
     """Register Step Functions state machines as individual tools."""
     try:
         logger.info('Registering Step Functions state machines as individual tools...')
-        state_machines = sfn_client.list_state_machines()
-
-        # Get all state machines
-        all_state_machines = state_machines['stateMachines']
+        
+        # Get all state machines with pagination support
+        all_state_machines = []
+        next_token = None
+        
+        while True:
+            if next_token:
+                response = sfn_client.list_state_machines(nextToken=next_token)
+            else:
+                response = sfn_client.list_state_machines()
+            
+            all_state_machines.extend(response['stateMachines'])
+            next_token = response.get('nextToken')
+            
+            if not next_token:
+                break
+        
         logger.info(f'Total Step Functions state machines found: {len(all_state_machines)}')
 
         # First filter by state machine name if prefix or list is set
