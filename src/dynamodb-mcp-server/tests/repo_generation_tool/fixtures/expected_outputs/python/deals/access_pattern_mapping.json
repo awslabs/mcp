@@ -1,0 +1,222 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "description": "Get deal details by deal_id",
+      "entity": "Deal",
+      "index_name": null,
+      "method_name": "get_deal",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "deal_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "Deal | None"
+    },
+    "10": {
+      "description": "Get all watches for a user",
+      "entity": "UserWatch",
+      "index_name": null,
+      "method_name": "get_user_watches",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "11": {
+      "description": "Get all users watching a specific brand",
+      "entity": "UserWatch",
+      "index_name": "WatchesByBrand",
+      "method_name": "get_brand_watchers",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "12": {
+      "description": "Get all users watching a specific category (partition key only)",
+      "entity": "UserWatch",
+      "index_name": "WatchesByCategory",
+      "method_name": "get_category_watchers",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "2": {
+      "description": "Create a new deal",
+      "entity": "Deal",
+      "index_name": null,
+      "method_name": "create_deal",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Deal",
+          "name": "deal",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "Deal | None"
+    },
+    "3": {
+      "description": "Get all deals for a brand sorted by creation date",
+      "entity": "Deal",
+      "index_name": "DealsByBrand",
+      "method_name": "get_deals_by_brand",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "4": {
+      "description": "Get all deals for a category sorted by creation date",
+      "entity": "Deal",
+      "index_name": "DealsByCategory",
+      "method_name": "get_deals_by_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "5": {
+      "description": "Get recent deals for a brand after a specific date",
+      "entity": "Deal",
+      "index_name": "DealsByBrand",
+      "method_name": "get_recent_deals_by_brand",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        },
+        {
+          "name": "since_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": ">=",
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "6": {
+      "description": "Get user by user_id",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "get_user",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "7": {
+      "description": "Create a new user account",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "create_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "8": {
+      "description": "Get brand details by brand_id",
+      "entity": "Brand",
+      "index_name": null,
+      "method_name": "get_brand",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "BrandRepository",
+      "return_type": "Brand | None"
+    },
+    "9": {
+      "description": "Create a new brand",
+      "entity": "Brand",
+      "index_name": null,
+      "method_name": "create_brand",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Brand",
+          "name": "brand",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "BrandRepository",
+      "return_type": "Brand | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 12
+  }
+}

@@ -1,0 +1,190 @@
+{%- set range_operator_descriptions = {
+    '>=': 'is greater than or equal to',
+    '<=': 'is less than or equal to',
+    '>': 'is greater than',
+    '<': 'is less than'
+} -%}
+class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
+    """Repository for {{ entity_name }} entity operations"""
+
+    def __init__(self, table_name: str = "{{ table_config.table_name }}"):
+        super().__init__({{ entity_name }}, table_name, "{{ table_config.partition_key }}", {% if table_config.sort_key %}"{{ table_config.sort_key }}"{% else %}None{% endif %})
+
+    # Basic CRUD Operations (Generated)
+    def create_{{ entity_name_snake }}(self, {{ entity_name_snake }}: {{ entity_name }}) -> {{ entity_name }}:
+        """Create a new {{ entity_name_snake }}"""
+        return self.create({{ entity_name_snake }})
+
+    def get_{{ entity_name_snake }}(self, {{ (entity_config.pk_params + entity_config.sk_params) | join(': str, ') }}{% if (entity_config.pk_params + entity_config.sk_params) | length > 0 %}: str{% endif %}) -> {{ map_return_type('single_entity', entity_name) }}:
+        """Get a {{ entity_name_snake }} by key"""
+        pk = {{ entity_name }}.build_pk_for_lookup({% if entity_config.pk_params | length > 0 %}{{ entity_config.pk_params | join(', ') }}{% endif %})
+        {% if entity_config.sk_template -%}
+        sk = {{ entity_name }}.build_sk_for_lookup({% if entity_config.sk_params | length > 0 %}{{ entity_config.sk_params | join(', ') }}{% endif %})
+        return self.get(pk, sk)
+        {%- else -%}
+        return self.get(pk, None)
+        {%- endif %}
+
+    def update_{{ entity_name_snake }}(self, {{ entity_name_snake }}: {{ entity_name }}) -> {{ entity_name }}:
+        """Update an existing {{ entity_name_snake }}"""
+        return self.update({{ entity_name_snake }})
+
+    def delete_{{ entity_name_snake }}(self, {{ (entity_config.pk_params + entity_config.sk_params) | join(': str, ') }}{% if (entity_config.pk_params + entity_config.sk_params) | length > 0 %}: str{% endif %}) -> bool:
+        """Delete a {{ entity_name_snake }}"""
+        pk = {{ entity_name }}.build_pk_for_lookup({% if entity_config.pk_params | length > 0 %}{{ entity_config.pk_params | join(', ') }}{% endif %})
+        {% if entity_config.sk_template -%}
+        sk = {{ entity_name }}.build_sk_for_lookup({% if entity_config.sk_params | length > 0 %}{{ entity_config.sk_params | join(', ') }}{% endif %})
+        return self.delete(pk, sk)
+        {%- else -%}
+        return self.delete(pk, None)
+        {%- endif %}
+
+    # Access Patterns (Generated stubs for manual implementation)
+{%- for pattern in filtered_access_patterns %}
+
+    def {{ pattern.name }}(self, {{ format_parameters(pattern.parameters) }}{% if pattern.operation == 'UpdateItem' %}, update_value{% endif %}{% if pattern.operation == 'Scan' and pattern.parameters | length == 0 %}filter_value: str = None{% endif %}{% if pattern.operation in ['Query', 'Scan'] and pattern.return_type == 'entity_list' %}, limit: int = 100, exclusive_start_key: dict | None = None, skip_invalid_items: bool = True{% endif %}) -> {% if pattern.operation in ['Query', 'Scan'] and pattern.return_type == 'entity_list' %}tuple[list[{{ entity_name }}], dict | None]{% else %}{{ map_return_type(pattern.return_type, entity_name) }}{% endif %}:
+{%- if pattern.operation in ['Query', 'Scan'] and pattern.return_type == 'entity_list' %}
+        """{{ pattern.description }}
+
+        Args:
+{%- for param in pattern.parameters %}
+            {{ param.name }}: {{ param.get('description', param.name.replace('_', ' ').capitalize()) }}
+{%- endfor %}
+{%- if pattern.operation == 'Scan' and pattern.parameters | length == 0 %}
+            filter_value: Optional filter value for scan operation
+{%- endif %}
+            limit: Maximum items per page (default: 100)
+            exclusive_start_key: Continuation token from previous page
+            skip_invalid_items: If True, skip items that fail deserialization and continue. If False, raise exception on validation errors.
+
+        Returns:
+            tuple: (items, last_evaluated_key)
+        """
+{%- else %}
+        """{{ pattern.description }}"""
+{%- endif %}
+        # TODO: Implement Access Pattern #{{ pattern.pattern_id }}
+        # Operation: {{ pattern.operation }} | Index: {% if pattern.get('index_name') %}{{ pattern.index_name }} (GSI){% else %}Main Table{% endif %}{% if pattern.get('range_condition') %} | Range Condition: {{ pattern.range_condition }}{% endif %}
+{%- if pattern.get('range_condition') %}
+        # Note: '{{ pattern.range_condition }}' requires {% if pattern.range_condition == 'between' %}2 parameters (min, max){% else %}1 parameter{% endif %} for the range condition
+{%- endif %}
+        #
+{%- if pattern.get('index_name') %}
+{%- if pattern.operation == 'Query' %}
+        # gsi_pk = {{ entity_name }}.build_gsi_pk_for_lookup_{{ pattern.index_name | lower }}({{ pattern.parameters[0].name }})
+        # query_params = {
+        #     'IndexName': '{{ pattern.index_name }}',
+{%- if table_data and table_data.get('gsi_list') %}
+{%- set matching_gsi = table_data.gsi_list | selectattr('name', 'equalto', pattern.index_name) | first %}
+{%- if matching_gsi %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk){% if matching_gsi.sort_key and pattern.get('range_condition') %} & Key('{{ matching_gsi.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}){% endif %},
+{%- else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+{%- else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+        #     'Limit': limit
+        # }
+        # if exclusive_start_key:
+        #     query_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.query(**query_params)
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- elif pattern.operation == 'UpdateItem' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup(pk_params)
+        # sk = {{ entity_name }}.build_sk_for_lookup(sk_params)
+        # response = self.table.update_item(
+        #     Key={'{{ table_config.partition_key }}': pk, '{{ table_config.sort_key }}': sk},
+        #     UpdateExpression='SET #attr = :val',
+        #     ExpressionAttributeNames={'#attr': 'attribute_name'},
+        #     ExpressionAttributeValues={':val': update_value},
+        #     ReturnValues='ALL_NEW'
+        # )
+        # return self.model_class(**response['Attributes'])
+{%- elif pattern.operation == 'DeleteItem' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup(pk_params)
+        # sk = {{ entity_name }}.build_sk_for_lookup(sk_params)
+        # response = self.table.delete_item(
+        #     Key={'{{ table_config.partition_key }}': pk, '{{ table_config.sort_key }}': sk}
+        # )
+{%- else %}
+        # Note: {{ pattern.operation }} operation on GSI not directly supported
+        # Consider using main table operations or Query with projection
+{%- endif %}
+{%- else %}
+        # Main Table {{ pattern.operation }} Example:
+{%- if pattern.operation == 'GetItem' %}
+        # response = self.table.get_item(
+        {% if table_config.sort_key -%}
+        #     Key={'{{ table_config.partition_key }}': pk_value, '{{ table_config.sort_key }}': sk_value}
+        {%- else -%}
+        #     Key={'{{ table_config.partition_key }}': pk_value}
+        {%- endif %}
+        # )
+{%- elif pattern.operation == 'Query' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ pattern.parameters[0].name }})
+        # query_params = {
+        {% if entity_config.sk_template and pattern.get('range_condition') -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk) & Key('{{ table_config.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}),
+        {%- elif entity_config.sk_template -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk) & Key('{{ table_config.sort_key }}').eq(sk),
+        {%- else -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk),
+        {%- endif %}
+        #     'Limit': limit
+        # }
+        # if exclusive_start_key:
+        #     query_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.query(**query_params)
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- elif pattern.operation == 'UpdateItem' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup(pk_params)
+        # sk = {{ entity_name }}.build_sk_for_lookup(sk_params)
+        # response = self.table.update_item(
+        #     Key={'{{ table_config.partition_key }}': pk, '{{ table_config.sort_key }}': sk},
+        #     UpdateExpression='SET #attr = :val',
+        #     ExpressionAttributeNames={'#attr': 'attribute_name'},
+        #     ExpressionAttributeValues={':val': update_value},
+        #     ReturnValues='ALL_NEW'
+        # )
+        # return self.model_class(**response['Attributes'])
+{%- elif pattern.operation == 'DeleteItem' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup(pk_params)
+        # sk = {{ entity_name }}.build_sk_for_lookup(sk_params)
+        # response = self.table.delete_item(
+        #     Key={'{{ table_config.partition_key }}': pk, '{{ table_config.sort_key }}': sk}
+        # )
+{%- elif pattern.operation == 'PutItem' %}
+{%- if 'create_update' in pattern.name or 'create/update' in pattern.name or 'upsert' in pattern.name %}
+        # Check if entity exists first for create/update operation
+        # pk = {{ entity_name_snake }}.pk()
+        # sk = {{ entity_name_snake }}.sk()
+        # existing_entity = self.get(pk, sk)
+        # if existing_entity:
+        #     return self.update({{ entity_name_snake }})
+        # else:
+        #     return self.create({{ entity_name_snake }})
+{%- else %}
+        # item_dict = {{ entity_name_snake }}.to_dict()
+        # response = self.table.put_item(Item=item_dict)
+{%- endif %}
+{%- elif pattern.operation == 'Scan' %}
+        # scan_params = {'Limit': limit}
+{%- if pattern.parameters | length > 0 %}
+        # scan_params['FilterExpression'] = Attr('{{ pattern.parameters[0].name }}').eq({{ pattern.parameters[0].name }})
+{%- else %}
+        # if filter_value:
+        #     scan_params['FilterExpression'] = Attr('status').eq(filter_value)
+{%- endif %}
+        # if exclusive_start_key:
+        #     scan_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.scan(**scan_params)
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- else %}
+        # response = self.table.{{ pattern.operation.lower() }}(
+        #     # Add appropriate parameters for {{ pattern.operation }}
+        # )
+{%- endif %}
+{%- endif %}
+        pass
+{%- endfor %}

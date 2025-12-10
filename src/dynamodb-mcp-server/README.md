@@ -4,23 +4,41 @@ The official developer experience MCP Server for Amazon DynamoDB. This server pr
 
 ## Available Tools
 
-The DynamoDB MCP server provides four tools for data modeling and validation:
+The DynamoDB MCP server provides seven tools for data modeling, validation, and code generation:
+
+### Data Modeling & Analysis
 
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt with enterprise-level design patterns, cost optimization strategies, and multi-table design philosophy. Guides through requirements gathering, access pattern analysis, and schema design.
 
   **Example invocation:** "Design a data model for my e-commerce application using the DynamoDB data modeling MCP server"
 
-- `dynamodb_data_model_validation` - Validates your DynamoDB data model by loading dynamodb_data_model.json, setting up DynamoDB Local, creating tables with test data, and executing all defined access patterns. Saves detailed validation results to dynamodb_model_validation.json.
-
-  **Example invocation:** "Validate my DynamoDB data model"
-
 - `source_db_analyzer` - Analyzes existing MySQL/Aurora databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Requires AWS RDS Data API and credentials in Secrets Manager.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
+### Validation & Testing
+
+- `dynamodb_data_model_validation` - Validates your DynamoDB data model by loading dynamodb_data_model.json, setting up DynamoDB Local, creating tables with test data, and executing all defined access patterns. Saves detailed validation results to dynamodb_model_validation.json.
+
+  **Example invocation:** "Validate my DynamoDB data model"
+
 - `execute_dynamodb_command` - Executes AWS CLI DynamoDB commands against DynamoDB Local or AWS DynamoDB. Supports all DynamoDB API operations and automatically configures credentials for local testing.
 
   **Example invocation:** "Create the tables from the data model that was just created in my account in region us-east-1"
+
+### Schema Conversion & Code Generation
+
+- `dynamodb_data_model_schema_converter` - Converts your data model (dynamodb_data_model.md) into a structured schema.json file for code generation. Automatically validates the schema using dynamodb_data_model_schema_validator with up to 8 iterations to ensure correctness. Creates an isolated timestamped folder with the validated schema.
+
+  **Example invocation:** "Convert my data model to schema.json for code generation"
+
+- `dynamodb_data_model_schema_validator` - Validates schema.json files for code generation compatibility. Checks field types, operations, GSI mappings, pattern IDs, and provides detailed error messages with fix suggestions. Ensures your schema is ready for the generate_data_access_layer tool.
+
+  **Example invocation:** "Validate my schema.json file at /path/to/schema.json"
+
+- `generate_data_access_layer` - Generates type-safe Python code from schema.json including entity classes with field validation, repository classes with CRUD operations, fully implemented access patterns, and optional usage examples. The generated code uses Pydantic for validation and boto3 for DynamoDB operations.
+
+  **Example invocation:** "Generate Python code from my schema.json"
 
 ## Prerequisites
 
@@ -220,3 +238,162 @@ The tool generates Markdown files with:
 - Schema structure (tables, columns, indexes, foreign keys)
 - Access patterns from Performance Schema (query patterns, RPS, frequencies)
 - Timestamped analysis for tracking changes over time
+
+## Schema Conversion and Code Generation
+
+After designing your DynamoDB data model (and optionally validating it), you can convert it to a structured schema and generate reference code.
+
+### Converting Data Model to Schema
+
+The `dynamodb_data_model_schema_converter` tool converts your human-readable data model (dynamodb_data_model.md) into a structured JSON schema that can be used for code generation.
+
+**How It Works:**
+
+1. **Parse Data Model**: Reads your dynamodb_data_model.md file and extracts table definitions, GSIs, and access patterns
+2. **Generate Schema**: Creates a structured schema.json with all required fields for code generation
+3. **Automatic Validation**: Validates the schema using dynamodb_data_model_schema_validator
+4. **Iterative Refinement**: If validation fails, the tool provides detailed error messages and suggestions for fixes
+5. **Isolated Output**: Creates a timestamped folder with the validated schema.json
+
+**Schema Structure:**
+
+The generated schema.json includes:
+- `table_config`: Table name, partition key, sort key, and GSI definitions
+- `entities`: Entity definitions with fields, types, and access patterns
+- Field types: string, integer, decimal, boolean, array, object, uuid
+- Access patterns: Query/Scan operations with templates and return types
+
+### Validating Schema Files
+
+The `dynamodb_data_model_schema_validator` tool validates your schema.json file to ensure it's properly formatted for code generation.
+
+**Validation Checks:**
+
+- Required sections (table_config, entities) exist
+- All required fields are present
+- Field types are valid (string, integer, decimal, boolean, array, object, uuid)
+- Enum values are correct (operation types, return types)
+- Pattern IDs are unique across all entities
+- GSI names match between gsi_list and gsi_mappings
+- Fields referenced in templates exist in entity fields
+- Range conditions are valid with correct parameter counts
+- Access patterns have valid operations and return types
+
+**Security:**
+
+Schema files must be within the current working directory or subdirectories. Path traversal attempts are blocked for security.
+
+**Example Usage:**
+
+```bash
+# Validate a schema file
+dynamodb_data_model_schema_validator("/path/to/schema.json")
+```
+
+**Example Output:**
+
+Success:
+```
+✅ Schema validation passed!
+```
+
+Error with suggestions:
+```
+❌ Schema validation failed:
+  • entities.User.fields[0].type: Invalid type value 'strng'
+    💡 Did you mean 'string'? Valid options: string, integer, decimal, boolean, array, object, uuid
+```
+
+### Generating Data Access Layer
+
+The `generate_data_access_layer` tool generates type-safe Python code from your validated schema.json file.
+
+**Generated Code:**
+
+- **Entity Classes**: Pydantic models with field validation and type safety
+- **Repository Classes**: CRUD operations (create, read, update, delete) for each entity
+- **Access Patterns**: Fully implemented query and scan operations from your schema
+- **Base Repository**: Shared functionality for all repositories
+- **Usage Examples**: Sample code demonstrating how to use the generated classes (optional)
+- **Configuration**: ruff.toml for code quality and formatting
+
+**Prerequisites for Code Generation:**
+
+The generated Python code requires these runtime dependencies:
+- `pydantic>=2.0` - For entity validation and type safety
+- `boto3>=1.38` - For DynamoDB operations
+
+Install them in your project:
+```bash
+uv add pydantic boto3
+# or
+pip install pydantic boto3
+```
+
+**Optional Development Dependencies:**
+
+For linting and formatting the generated code:
+- `ruff>=0.9.7` - Python linter and formatter (recommended)
+
+Install ruff:
+```bash
+uv tool install ruff
+# or
+pip install ruff
+```
+
+Use ruff on generated code:
+```bash
+# Check for issues
+ruff check generated_dal/
+
+# Auto-fix issues
+ruff check --fix generated_dal/
+
+# Format code
+ruff format generated_dal/
+```
+
+**Example Usage:**
+
+```bash
+# Generate code from schema.json
+generate_data_access_layer(
+    schema_path="/path/to/schema.json",
+    language="python",  # Currently only Python supported
+    generate_sample_usage=True  # Generate usage examples
+)
+```
+
+**Generated File Structure:**
+
+```
+generated_dal/
+├── entities.py              # Pydantic entity models
+├── repositories.py          # Repository classes with CRUD operations
+├── base_repository.py       # Base repository functionality
+├── access_pattern_mapping.json  # Pattern ID to method mapping
+├── usage_examples.py        # Sample usage code (if enabled)
+└── ruff.toml               # Linting configuration
+```
+
+**Using Generated Code:**
+
+```python
+from generated_dal.repositories import UserRepository
+from generated_dal.entities import User
+
+# Initialize repository
+repo = UserRepository(table_name="MyTable")
+
+# Create a new user
+user = User(user_id="123", email="user@example.com", name="John Doe")
+repo.create(user)
+
+# Query by access pattern
+users = repo.get_user_by_email(email="user@example.com")
+
+# Update user
+user.name = "Jane Doe"
+repo.update(user)
+```

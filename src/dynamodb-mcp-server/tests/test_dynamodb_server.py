@@ -3,16 +3,22 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.dynamodb_mcp_server.database_analyzers import DatabaseAnalyzer, MySQLAnalyzer
+from awslabs.dynamodb_mcp_server.model_validation_utils import DynamoDBClientConfig
 from awslabs.dynamodb_mcp_server.server import (
     _execute_access_patterns,
+    _load_next_steps_prompt,
     app,
     create_server,
+    dynamodb_data_model_schema_converter,
+    dynamodb_data_model_schema_validator,
     dynamodb_data_model_validation,
     dynamodb_data_modeling,
     execute_dynamodb_command,
+    generate_data_access_layer,
     source_db_analyzer,
 )
-from unittest.mock import mock_open, patch
+from pathlib import Path
+from unittest.mock import Mock, mock_open, patch
 
 
 @pytest_asyncio.fixture
@@ -373,14 +379,8 @@ async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
                 command='aws dynamodb list-tables', endpoint_url='http://localhost:8000'
             )
 
-            assert (
-                os.environ['AWS_ACCESS_KEY_ID']
-                == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
-            )
-            assert (
-                os.environ['AWS_SECRET_ACCESS_KEY']
-                == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
-            )
+            assert os.environ['AWS_ACCESS_KEY_ID'] == DynamoDBClientConfig.DUMMY_ACCESS_KEY
+            assert os.environ['AWS_SECRET_ACCESS_KEY'] == DynamoDBClientConfig.DUMMY_SECRET_KEY
             assert 'AWS_DEFAULT_REGION' in os.environ
     finally:
         # Restore original environment
@@ -741,3 +741,399 @@ async def test_dynamodb_data_model_validation_file_permissions():
             result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
             assert 'Permission denied' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_converter():
+    """Test the dynamodb_data_model_schema_converter tool directly."""
+    result = await dynamodb_data_model_schema_converter()
+
+    assert isinstance(result, str), 'Expected string response'
+    assert len(result) > 1000, 'Expected substantial content (>1000 characters)'
+
+    expected_sections = [
+        'DynamoDB Schema Generator Expert System Prompt',
+        'Schema Structure',
+        'Type System Overview',
+        'Field Type Mappings',
+        'Operation Mappings',
+        'Return Type Mappings',
+        'Template Syntax Rules',
+        'Conversion Guidelines',
+        'Validation and Iteration',
+    ]
+
+    for section in expected_sections:
+        assert section in result, f"Expected section '{section}' not found in content"
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_converter_mcp_integration():
+    """Test the dynamodb_data_model_schema_converter tool through MCP client."""
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'dynamodb_data_model_schema_converter' in tool_names, (
+        'dynamodb_data_model_schema_converter tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    converter_tool = next(
+        (tool for tool in tools if tool.name == 'dynamodb_data_model_schema_converter'), None
+    )
+    assert converter_tool is not None, 'dynamodb_data_model_schema_converter tool not found'
+
+    assert converter_tool.description is not None
+    assert 'schema' in converter_tool.description.lower()
+    assert 'convert' in converter_tool.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_converter_content_quality():
+    """Test that schema converter prompt contains critical information."""
+    result = await dynamodb_data_model_schema_converter()
+
+    # Check for critical type mappings
+    assert 'string' in result
+    assert 'integer' in result
+    assert 'decimal' in result
+    assert 'boolean' in result
+    assert 'array' in result
+    assert 'object' in result
+    assert 'uuid' in result
+
+    # Check for operation types
+    assert 'GetItem' in result
+    assert 'PutItem' in result
+    assert 'Query' in result
+    assert 'UpdateItem' in result
+
+    # Check for return types
+    assert 'single_entity' in result
+    assert 'entity_list' in result
+    assert 'success_flag' in result
+
+    # Check for validation tool reference
+    assert 'dynamodb_data_model_schema_validator' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_valid_schema():
+    """Test schema validator with a valid schema."""
+    # Use a known valid schema from test fixtures
+    schema_path = str(
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'valid_schemas'
+        / 'user_analytics'
+        / 'user_analytics_schema.json'
+    )
+
+    result = await dynamodb_data_model_schema_validator(schema_path)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert '✅ Schema validation passed!' in result
+    assert '🎉 Validation completed successfully!' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_invalid_schema():
+    """Test schema validator with an invalid schema."""
+    # Use a known invalid schema from test fixtures
+    schema_path = str(
+        Path(__file__).parent
+        / 'repo_generation_tool'
+        / 'fixtures'
+        / 'invalid_schemas'
+        / 'comprehensive_invalid_schema.json'
+    )
+
+    result = await dynamodb_data_model_schema_validator(schema_path)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert '❌ Schema validation failed:' in result
+    # Check for specific validation error format
+    assert '•' in result  # Bullet points for errors
+    assert '💡' in result  # Suggestions
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_file_not_found(tmp_path, monkeypatch):
+    """Test schema validator with non-existent file."""
+    # Change to tmp_path to ensure we're testing within allowed directory
+    monkeypatch.chdir(tmp_path)
+
+    schema_path = 'nonexistent_schema.json'  # Relative path within CWD
+
+    result = await dynamodb_data_model_schema_validator(schema_path)
+
+    assert isinstance(result, str), 'Expected string response'
+    assert 'Error: Schema file not found' in result
+    assert 'nonexistent_schema.json' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_mcp_integration():
+    """Test the dynamodb_data_model_schema_validator tool through MCP client."""
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'dynamodb_data_model_schema_validator' in tool_names, (
+        'dynamodb_data_model_schema_validator tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    validator_tool = next(
+        (tool for tool in tools if tool.name == 'dynamodb_data_model_schema_validator'), None
+    )
+    assert validator_tool is not None, 'dynamodb_data_model_schema_validator tool not found'
+
+    assert validator_tool.description is not None
+    assert 'schema' in validator_tool.description.lower()
+    assert 'validat' in validator_tool.description.lower()
+
+    # Check that it has the required parameter
+    assert validator_tool.inputSchema is not None
+    assert 'properties' in validator_tool.inputSchema
+    assert 'schema_path' in validator_tool.inputSchema['properties']
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_schema_validator_multiple_valid_schemas():
+    """Test schema validator with multiple different valid schemas."""
+    valid_schema_dirs = [
+        'user_analytics',
+        'ecommerce_app',
+        'saas_app',
+    ]
+
+    fixtures_base = Path(__file__).parent / 'repo_generation_tool' / 'fixtures' / 'valid_schemas'
+
+    for schema_dir in valid_schema_dirs:
+        # Find the schema file in the directory
+        schema_dir_path = fixtures_base / schema_dir
+        if not schema_dir_path.exists():
+            continue
+
+        # Look for any .json file in the directory
+        schema_files = list(schema_dir_path.glob('*.json'))
+        if not schema_files:
+            continue
+
+        schema_path = str(schema_files[0])
+        result = await dynamodb_data_model_schema_validator(schema_path)
+
+        assert '✅ Schema validation passed!' in result, (
+            f'Expected validation to pass for {schema_dir}'
+        )
+        assert '🎉 Validation completed successfully!' in result
+
+
+@pytest.mark.asyncio
+async def test_schema_validator_allows_any_directory(tmp_path):
+    """Test that schema validator allows files in any directory (user's working directory)."""
+    # Create a valid schema file in any directory (simulating user working in /tmp/t1, etc.)
+    user_dir = tmp_path / 'user_workspace' / 'dynamodb_schema_123'
+    user_dir.mkdir(parents=True, exist_ok=True)
+    schema_file = user_dir / 'schema.json'
+
+    # Write a valid minimal schema
+    schema_file.write_text("""{
+        "tables": [{
+            "table_config": {
+                "table_name": "TestTable",
+                "partition_key": "pk",
+                "sort_key": "sk"
+            },
+            "entities": {
+                "TestEntity": {
+                    "entity_type": "TestTable",
+                    "pk_template": "TEST#{{id}}",
+                    "sk_template": "META",
+                    "fields": [
+                        {"name": "id", "type": "string", "required": true}
+                    ],
+                    "access_patterns": []
+                }
+            }
+        }]
+    }""")
+
+    result = await dynamodb_data_model_schema_validator(str(schema_file))
+
+    # Should succeed - we allow any directory where the schema file exists
+    assert '✅' in result or 'validation passed' in result.lower()
+
+    result = await dynamodb_data_model_schema_validator(str(schema_file))
+
+    # Should not have security error
+    assert 'Security Error' not in result
+    # Should have validation result
+    assert '✅' in result or '❌' in result
+
+
+@pytest.mark.asyncio
+async def test_generate_python_data_access_layer_success():
+    """Test generate_data_access_layer uses default output_dir (generated_dal)."""
+    guide_content = '# Python DynamoDB Data Access Layer Implementation Expert System Prompt'
+
+    mock_result = Mock()
+    mock_result.success = True
+
+    def mock_generate(*args, **kwargs):
+        # Verify that output_dir is set to the default path (generated_dal in schema's parent dir)
+        assert 'output_dir' in kwargs
+        expected_default = str(Path('/path/to').resolve() / 'generated_dal')
+        assert kwargs['output_dir'] == expected_default
+        return mock_result
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.Path.read_text', return_value=guide_content),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(schema_path='/path/to/schema.json')
+
+        assert 'Code generation completed successfully in:' in result
+        assert guide_content in result
+
+
+@pytest.mark.asyncio
+async def test_generate_python_data_access_layer_with_language():
+    """Test generate_data_access_layer with language parameter."""
+    guide_content = '# Python DynamoDB Data Access Layer Implementation Expert System Prompt'
+
+    mock_result = Mock()
+    mock_result.success = True
+
+    def mock_generate(*args, **kwargs):
+        # Verify language parameter is passed correctly
+        assert 'language' in kwargs
+        assert kwargs['language'] == 'python'
+        return mock_result
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.Path.read_text', return_value=guide_content),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(
+            schema_path='/path/to/schema.json', language='python'
+        )
+
+        assert 'Code generation completed successfully in:' in result
+        assert guide_content in result
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_generation_failure():
+    """Test generate_data_access_layer when generation fails."""
+    # Mock failed generation
+    mock_result = Mock()
+    mock_result.success = False
+    mock_result.format_for_mcp.return_value = 'Generation failed: Invalid schema'
+
+    def mock_generate(*args, **kwargs):
+        return mock_result
+
+    with (
+        patch('pathlib.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(schema_path='/path/to/invalid_schema.json')
+
+        assert result == 'Generation failed: Invalid schema'
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_file_not_found():
+    """Test generate_data_access_layer when schema file doesn't exist."""
+    with patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=False):
+        result = await generate_data_access_layer(schema_path='/path/to/nonexistent_schema.json')
+
+        # Now returns the full instructional message from MD file
+        assert 'Error: Schema file not found at /path/to/nonexistent_schema.json' in result
+        assert 'The data model must be converted to schema.json before generating code' in result
+        assert 'Starting conversion...' in result
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_exception_handling():
+    """Test generate_data_access_layer exception handling."""
+
+    def mock_generate(*args, **kwargs):
+        raise Exception('Test exception')
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(schema_path='/path/to/schema.json')
+
+        assert 'Analysis failed: Test exception' == result
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_mcp_integration():
+    """Test the generate_data_access_layer tool through MCP client."""
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'generate_data_access_layer' in tool_names, (
+        'generate_data_access_layer tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    dal_tool = next((tool for tool in tools if tool.name == 'generate_data_access_layer'), None)
+    assert dal_tool is not None, 'generate_data_access_layer tool not found'
+
+    assert dal_tool.description is not None
+    assert 'Generate DynamoDB entities and repositories' in dal_tool.description
+    assert 'schema' in dal_tool.description.lower()
+
+    # Check required parameters
+    assert dal_tool.inputSchema is not None
+    assert 'properties' in dal_tool.inputSchema
+    assert 'schema_path' in dal_tool.inputSchema['properties']
+    assert 'language' in dal_tool.inputSchema['properties']
+    assert 'generate_sample_usage' in dal_tool.inputSchema['properties']
+
+
+@pytest.mark.asyncio
+async def test_generate_data_access_layer_value_error():
+    """Test generate_data_access_layer ValueError handling."""
+
+    def mock_generate(*args, **kwargs):
+        raise ValueError('Path validation failed')
+
+    with (
+        patch('awslabs.dynamodb_mcp_server.server.Path.exists', return_value=True),
+        patch('awslabs.dynamodb_mcp_server.server.generate', mock_generate),
+    ):
+        result = await generate_data_access_layer(schema_path='/path/to/schema.json')
+
+        assert 'Security Error: Path validation failed' == result
+
+
+# Tests for _load_next_steps_prompt helper function
+def test_load_next_steps_prompt_without_variables():
+    """Test _load_next_steps_prompt loads MD file correctly."""
+    result = _load_next_steps_prompt('dynamodb_data_modeling_complete.md')
+
+    assert isinstance(result, str)
+    assert len(result) > 0
+    assert '## Next Steps' in result
+    assert 'Data modeling complete!' in result
+
+
+def test_load_next_steps_prompt_with_variables():
+    """Test _load_next_steps_prompt with variable substitution."""
+    result = _load_next_steps_prompt(
+        'generate_data_access_layer_schema_not_found.md', schema_path='/test/path/schema.json'
+    )
+
+    assert isinstance(result, str)
+    assert '/test/path/schema.json' in result
+    assert '{schema_path}' not in result  # Variable should be substituted
+    assert 'Error: Schema file not found' in result

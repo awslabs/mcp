@@ -23,10 +23,12 @@ from awslabs.dynamodb_mcp_server.database_analyzers import (
     DatabaseAnalyzerRegistry,
 )
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
+    DynamoDBClientConfig,
     create_validation_resources,
     get_validation_result_transform_prompt,
     setup_dynamodb_local,
 )
+from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pathlib import Path
@@ -36,6 +38,9 @@ from typing import Any, Dict, List, Optional
 
 DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
 DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
+GENERATED_DATA_ACCESS_LAYER_DIR = 'generated_dal'
+
+
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
@@ -68,6 +73,24 @@ Use the `dynamodb_data_model_validation` tool to validate your DynamoDB data mod
 - Tests all defined access patterns by executing their AWS CLI implementations
 - Saves detailed validation results to dynamodb_model_validation.json with pattern responses
 - Transforms results to markdown format for comprehensive review
+
+Use the `dynamodb_data_model_schema_converter` tool to convert data models to schema.json:
+- Converts dynamodb_data_model.md to structured JSON schema for code generation
+- Automatically validates schema using dynamodb_data_model_schema_validator (up to 8 iterations)
+- Creates isolated timestamped folder with validated schema.json
+- Returns specialized conversion prompt
+
+Use the `dynamodb_data_model_schema_validator` tool to validate schema.json files:
+- Validates schema.json structure for code generation compatibility
+- Checks field types, operations, GSI mappings, and pattern IDs
+- Provides detailed error messages with fix suggestions
+- Returns validation status and errors
+
+Use the `generate_data_access_layer` tool to generate code from schema.json:
+- Generates type-safe entity classes and repository classes with CRUD operations
+- Implements all access patterns from schema
+- Creates usage examples and test cases
+- Returns implementation guidance for Python (TypeScript, Java support planned)
 """
 
 
@@ -103,7 +126,110 @@ async def dynamodb_data_modeling() -> str:
     """
     prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
     architect_prompt = prompt_file.read_text(encoding='utf-8')
-    return architect_prompt
+
+    # Add next steps guidance
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_modeling_complete.md')
+
+    return architect_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_converter() -> str:
+    """Retrieves the DynamoDB Data Model Schema Converter Expert prompt.
+
+    This tool returns a specialized prompt for converting DynamoDB data models (dynamodb_data_model.md)
+    into schema.json - a structured JSON representation used for generating type-safe entities and repositories.
+
+    The prompt guides through:
+    - Reading and parsing dynamodb_data_model.md files
+    - Converting table designs, GSIs, and access patterns into structured JSON format
+    - Validating generated schemas using the dynamodb_data_model_schema_validator tool
+    - Iteratively fixing validation errors (up to 8 iterations)
+    - Creating isolated output folders with the validated schema.json
+
+    Returns: Complete schema converter expert prompt as text (no parameters required)
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_schema_generator.md'
+    schema_generator_prompt = prompt_file.read_text(encoding='utf-8')
+
+    # Add next steps guidance
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_schema_converter_complete.md')
+
+    return schema_generator_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_validator(
+    schema_path: str = Field(description='Absolute path to the schema.json file to validate'),
+) -> str:
+    """Validates a schema.json file - the structured JSON representation of your DynamoDB data model.
+
+    This tool validates that your schema.json file is properly formatted and contains all required fields
+    for use with the repository generation tool and other automation tools. It provides detailed error
+    messages with suggestions for fixing any issues found.
+
+    The validation checks:
+    - Required sections (table_config, entities) exist
+    - All required fields are present
+    - Field types are valid (string, integer, decimal, boolean, array, object, uuid)
+    - Enum values are correct (operation types, return types, etc.)
+    - Pattern IDs are unique across all entities
+    - GSI names match between gsi_list and gsi_mappings
+    - Fields referenced in templates exist in entity fields
+    - Range conditions are valid and have correct parameter counts
+    - Access patterns have valid operations and return types
+
+    Security:
+    - Schema files must be within the current working directory or subdirectories
+    - Path traversal attempts (e.g., ../../../../etc/passwd) are blocked
+
+    Args:
+        schema_path: Absolute path to the schema.json file to validate
+
+    Returns:
+        Validation result with either success message or detailed error messages with suggestions
+
+    Example Usage:
+        dynamodb_data_model_schema_validator("/path/to/schema.json")
+
+    Example Success Output:
+        "✅ Schema validation passed!"
+
+    Example Error Output:
+        "❌ Schema validation failed:
+          • entities.User.fields[0].type: Invalid type value 'strng'
+            💡 Did you mean 'string'? Valid options: string, integer, decimal, boolean, array, object, uuid"
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+
+        # Allow access to the schema file's parent directory (where user is working)
+        schema_parent_dir = schema_file.parent
+
+        if not schema_file.exists():
+            return f'Error: Schema file not found at {schema_path}'
+
+        # Call the generate function with path validation
+        # Pass the schema's parent directory to allow user to work in their own directory
+        result = generate(
+            schema_path=str(schema_file), validate_only=True, allowed_base_dirs=[schema_parent_dir]
+        )
+
+        # Return formatted output for MCP
+        return result.format_for_mcp()
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except FileNotFoundError as e:
+        logger.error(f'Schema file not found: {str(e)}')
+        return f'Error: Schema file not found at {schema_path}'
+    except Exception as e:
+        logger.error(f'Schema validation failed with exception: {str(e)}')
+        return f'Error during schema validation: {str(e)}'
 
 
 @app.tool()
@@ -306,11 +432,15 @@ async def execute_dynamodb_command(
 
     # Configure environment with fake AWS credentials if endpoint_url is present
     if endpoint_url:
-        os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+        os.environ['AWS_ACCESS_KEY_ID'] = (
+            DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        )  # pragma: allowlist secret
         os.environ['AWS_SECRET_ACCESS_KEY'] = (
-            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+            DynamoDBClientConfig.DUMMY_SECRET_KEY
+        )  # pragma: allowlist secret
+        os.environ['AWS_DEFAULT_REGION'] = os.environ.get(
+            'AWS_REGION', DynamoDBClientConfig.DEFAULT_REGION
         )
-        os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
         command += f' --endpoint-url {endpoint_url}'
 
     try:
@@ -400,7 +530,12 @@ async def dynamodb_data_model_validation(
         )
 
         # Step 6: Transform validation results to markdown
-        return get_validation_result_transform_prompt()
+        validation_prompt = get_validation_result_transform_prompt()
+
+        # Add next steps guidance
+        next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_validation_complete.md')
+
+        return validation_prompt + next_steps_prompt
 
     except FileNotFoundError as e:
         logger.error(f'File not found: {e}')
@@ -408,6 +543,103 @@ async def dynamodb_data_model_validation(
     except Exception as e:
         logger.error(f'Data model validation failed: {e}')
         return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
+
+
+@app.tool()
+@handle_exceptions
+async def generate_data_access_layer(
+    schema_path: str = Field(..., description='Path to the schema JSON file'),
+    language: str = Field('python', description='Target programming language (python)'),
+    generate_sample_usage: bool = Field(
+        True, description='Generate usage examples and test cases'
+    ),
+) -> str:
+    """Generate DynamoDB entities and repositories from a schema file.
+
+    This tool generates type-safe data access layer code including:
+    - Entity classes with field validation
+    - Repository classes with CRUD operations
+    - Fully implemented access patterns
+    - Usage examples (optional)
+
+    Args:
+        schema_path: Path to the schema JSON file
+        language: Target programming language for generated code
+        generate_sample_usage: Generate usage examples and test cases
+
+    Returns:
+        Success message with output location and implementation guidance
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+
+        # Allow access to the schema file's parent directory (where user is working)
+        schema_parent_dir = schema_file.parent
+
+        # Check if schema file exists
+        if not Path(schema_path).exists():
+            return _load_next_steps_prompt(
+                'generate_data_access_layer_schema_not_found.md', schema_path=schema_path
+            )
+
+        # Set default output directory in same directory as schema.json
+        output_dir = str(schema_parent_dir / GENERATED_DATA_ACCESS_LAYER_DIR)
+
+        # Generate the data access layer code with stubs
+        result = generate(
+            schema_path=schema_path,
+            output_dir=output_dir,
+            language=language,
+            generate_sample_usage=generate_sample_usage,
+            no_lint=True,
+            allowed_base_dirs=[schema_parent_dir],
+        )
+
+        if not result.success:
+            return result.format_for_mcp()
+
+        # Load implementation prompt and instruct LLM to execute it
+        prompt_file = Path(__file__).parent / 'prompts' / 'dal_implementation' / f'{language}.md'
+        implementation_prompt = prompt_file.read_text(encoding='utf-8')
+
+        # Replace placeholders with actual example credentials for DynamoDB Local
+        implementation_prompt = implementation_prompt.replace(
+            '{{AWS_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        ).replace('{{AWS_SECRET_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_SECRET_KEY)
+
+        return f"""✅ Code generation completed successfully in: {output_dir}
+
+🤖 **EXECUTE THE FOLLOWING IMPLEMENTATION INSTRUCTIONS IMMEDIATELY:**
+{implementation_prompt}
+**START IMPLEMENTATION NOW** - Follow the above instructions step by step to implement all repository methods and complete the data access layer."""
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except Exception as e:
+        logger.error(f'Analysis failed with exception: {str(e)}')
+        return f'Analysis failed: {str(e)}'
+
+
+def _load_next_steps_prompt(filename: str, **kwargs) -> str:
+    """Load next steps guidance from markdown file with optional variable substitution.
+
+    Args:
+        filename: Name of the markdown file in prompts/next_steps/ directory
+        **kwargs: Variables to substitute in the template (e.g., schema_path="...")
+
+    Returns:
+        Content of the next steps markdown file with variables substituted
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'next_steps' / filename
+    content = prompt_file.read_text(encoding='utf-8')
+
+    # Substitute variables if provided
+    if kwargs:
+        content = content.format(**kwargs)
+
+    return content
 
 
 def main():
