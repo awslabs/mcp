@@ -25,6 +25,10 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
+    AUTH_AUDIENCE,
+    AUTH_ISSUER,
+    AUTH_JWKS_URI,
+    AUTH_TYPE,
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
     ENDPOINT_SUGGEST_AWS_COMMANDS,
@@ -50,6 +54,7 @@ from .core.security.policy import PolicyDecision
 from .middleware.http_header_validation_middleware import HTTPHeaderValidationMiddleware
 from botocore.exceptions import NoCredentialsError
 from fastmcp import Context, FastMCP
+from fastmcp.server.auth import JWTVerifier
 from loguru import logger
 from mcp.types import ToolAnnotations
 from pathlib import Path
@@ -65,9 +70,40 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
+
+def setup_server_config():
+    """Configure authentication and middleware for FastMCP server."""
+    auth_provider = None
+    middleware = []
+
+    print(
+        f'Relevant env variables are: AUTH_TYPE={AUTH_TYPE}, AUTH_ISSUER={AUTH_ISSUER}, AUTH_JWKS_URI={AUTH_JWKS_URI}, TRANSPORT={TRANSPORT}'
+    )
+
+    if TRANSPORT != 'streamable-http':
+        return auth_provider, middleware
+
+    middleware.append(HTTPHeaderValidationMiddleware())
+
+    if AUTH_TYPE == 'no-auth':
+        return auth_provider, middleware
+
+    if not AUTH_ISSUER or not AUTH_JWKS_URI:
+        raise ValueError('AUTH_ENABLED requires AUTH_ISSUER and AUTH_JWKS_URI to be set')
+
+    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI, audience=AUTH_AUDIENCE)
+
+    return auth_provider, middleware
+
+
+# Configure server
+auth_provider, middleware = setup_server_config()
+
+print(f'Auth provider: {auth_provider}')
 server = FastMCP(
     name='AWS-API-MCP',
-    middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
+    auth=auth_provider,
+    middleware=middleware,
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 

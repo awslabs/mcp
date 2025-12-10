@@ -18,7 +18,6 @@ import os
 import tempfile
 from enum import Enum
 from fastmcp.server.dependencies import get_context
-from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
@@ -96,14 +95,6 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     if transport not in ['stdio', 'streamable-http']:
         raise ValueError(f'Invalid transport: {transport}')
 
-    # Enforce explicit auth configuration for streamable-http transport
-    if transport == 'streamable-http':
-        auth_type = os.getenv('AUTH_TYPE')
-        if auth_type != 'no-auth':
-            error_message = "Invalid configuration: 'streamable-http' transport requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'."
-            logger.error(error_message)
-            raise ValueError(error_message)
-
     return cast(Literal['stdio', 'streamable-http'], transport)
 
 
@@ -152,3 +143,9 @@ ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
 )
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 60
+
+# Authentication Configuration
+AUTH_TYPE = os.getenv('AUTH_TYPE', 'no-auth')
+AUTH_ISSUER = os.getenv('AUTH_ISSUER')
+AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')
+AUTH_AUDIENCE = os.getenv('AUTH_AUDIENCE')
