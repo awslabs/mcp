@@ -434,8 +434,12 @@ async def search_relevant_content(
             max_results=max_results_int,
             next_token=str(next_token) if next_token else None,
         )
-        # Convert the response to our Pydantic model
-        return SearchRelevantContentResponse(**response)
+        # Convert the response to our Pydantic model, extracting only relevant fields
+        filtered_response = {
+            'nextToken': response.get('nextToken'),
+            'relevantContent': response.get('relevantContent'),
+        }
+        return SearchRelevantContentResponse(**filtered_response)
     except Exception as e:
         logger.error(f'Error searching Q Business content: {str(e)}')
         if not aws_access_key_id or not aws_secret_access_key or not aws_session_token:
