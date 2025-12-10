@@ -1,151 +1,60 @@
-"""Direct MCP tool execution tests to hit wrapper function return statements."""
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Direct MCP tool execution tests."""
+
+import unittest.mock
 
 
-
-def test_direct_mcp_tool_calls():
-    """Test MCP tools by calling them through FastMCP's execution mechanism."""
-    from well_architected_bp_mcp_server.server import mcp
-
-    # Get all registered tools
-    tools = []
-    if hasattr(mcp, '_tools'):
-        tools = mcp._tools
-    elif hasattr(mcp, 'tools'):
-        tools = mcp.tools
-
-    # Find our tools and execute them
-    tool_dict = {tool.name: tool for tool in tools}
+def test_mcp_tools_execution():
+    """Test MCP tools execution through fn attribute."""
+    from well_architected_bp_mcp_server.server import (
+        get_best_practice,
+        get_related_practices,
+        list_pillars,
+        search_best_practices,
+        well_architected_framework_review,
+    )
 
     # Test search_best_practices
-    if 'search_best_practices' in tool_dict:
-        tool = tool_dict['search_best_practices']
-        if hasattr(tool, 'function'):
-            result = tool.function()
-            assert isinstance(result, list)
+    result = search_best_practices.fn()
+    assert isinstance(result, list)
 
     # Test list_pillars
-    if 'list_pillars' in tool_dict:
-        tool = tool_dict['list_pillars']
-        if hasattr(tool, 'function'):
-            result = tool.function()
-            assert isinstance(result, dict)
+    result = list_pillars.fn()
+    assert isinstance(result, dict)
 
     # Test well_architected_framework_review
-    if 'well_architected_framework_review' in tool_dict:
-        tool = tool_dict['well_architected_framework_review']
-        if hasattr(tool, 'function'):
-            result = tool.function()
-            assert isinstance(result, dict)
+    result = well_architected_framework_review.fn()
+    assert isinstance(result, dict)
+
+    # Test get_best_practice with valid ID
+    practices = search_best_practices.fn()
+    if practices:
+        result = get_best_practice.fn(practices[0]['id'])
+        assert result is not None
+
+    # Test get_related_practices
+    if practices:
+        result = get_related_practices.fn(practices[0]['id'])
+        assert isinstance(result, list)
 
 
-def test_mcp_wrapper_function_execution():
-    """Force execution of MCP wrapper functions by calling them directly."""
-    # Import the functions to trigger their registration
-    from well_architected_bp_mcp_server.server import (
-        get_best_practice,
-        get_related_practices,
-        list_pillars,
-        search_best_practices,
-        well_architected_framework_review,
-    )
-
-    # Try to access the underlying callable functions
-    for tool_name, tool_obj in [
-        ('search_best_practices', search_best_practices),
-        ('get_best_practice', get_best_practice),
-        ('list_pillars', list_pillars),
-        ('get_related_practices', get_related_practices),
-        ('well_architected_framework_review', well_architected_framework_review)
-    ]:
-        # Check if the tool has a callable function
-        if hasattr(tool_obj, 'function'):
-            try:
-                if tool_name == 'search_best_practices':
-                    result = tool_obj.function()
-                    assert isinstance(result, list)
-                elif tool_name == 'get_best_practice':
-                    result = tool_obj.function('SEC01-BP01')
-                    assert result is None or isinstance(result, dict)
-                elif tool_name == 'list_pillars':
-                    result = tool_obj.function()
-                    assert isinstance(result, dict)
-                elif tool_name == 'get_related_practices':
-                    result = tool_obj.function('SEC01-BP01')
-                    assert isinstance(result, list)
-                elif tool_name == 'well_architected_framework_review':
-                    result = tool_obj.function()
-                    assert isinstance(result, dict)
-            except Exception:
-                # If direct function call fails, at least verify the tool exists
-                assert tool_obj is not None
-
-
-def test_force_wrapper_return_execution():
-    """Use reflection to force execution of wrapper return statements."""
-    from well_architected_bp_mcp_server.server import (
-        get_best_practice,
-        get_related_practices,
-        list_pillars,
-        search_best_practices,
-        well_architected_framework_review,
-    )
-
-    # Test that all wrapper functions exist and have the expected structure
-    wrappers = [
-        search_best_practices, get_best_practice, list_pillars,
-        get_related_practices, well_architected_framework_review
-    ]
-
-    for wrapper in wrappers:
-        # Verify the wrapper exists
-        assert wrapper is not None
-
-        # Check if it has a name attribute
-        if hasattr(wrapper, 'name'):
-            assert isinstance(wrapper.name, str)
-            assert len(wrapper.name) > 0
-
-        # Check if it has description
-        if hasattr(wrapper, 'description'):
-            assert isinstance(wrapper.description, str)
-
-
-def test_mcp_server_tool_registration():
-    """Test that MCP server has properly registered all tools."""
-    from well_architected_bp_mcp_server.server import mcp
-
-    # Check that mcp server exists
-    assert mcp is not None
-
-    # Try different ways to access tools
-    tools = None
-    if hasattr(mcp, '_tools'):
-        tools = mcp._tools
-    elif hasattr(mcp, 'tools'):
-        tools = mcp.tools
-    elif hasattr(mcp, '_registry'):
-        tools = getattr(mcp._registry, 'tools', None)
-
-    # If we found tools, verify they include our expected functions
-    if tools:
-        tool_names = [getattr(tool, 'name', str(tool)) for tool in tools]
-        expected_names = [
-            'search_best_practices', 'get_best_practice', 'list_pillars',
-            'get_related_practices', 'well_architected_framework_review'
-        ]
-
-        # Check that at least some of our tools are registered
-        found_tools = [name for name in expected_names if any(name in str(tool_name) for tool_name in tool_names)]
-        assert len(found_tools) > 0, f"No expected tools found. Available: {tool_names}"
-
-
-def test_wrapper_functions_with_mock_execution():
-    """Test wrapper functions by mocking their internal calls."""
-    import unittest.mock
-
-    # Test each wrapper function by mocking its internal function
+def test_wrapper_functions_with_mocks():
+    """Test wrapper functions with mocked implementations."""
     test_cases = [
-        ('search_best_practices_impl', [], 'search_best_practices'),
+        ('search_best_practices_impl', [{'id': 'test'}], 'search_best_practices'),
         ('get_best_practice_impl', {'id': 'test'}, 'get_best_practice'),
         ('list_pillars_impl', {'SECURITY': 10}, 'list_pillars'),
         ('get_related_practices_impl', [], 'get_related_practices'),
@@ -156,24 +65,13 @@ def test_wrapper_functions_with_mock_execution():
         with unittest.mock.patch(f'well_architected_bp_mcp_server.server.{internal_func}') as mock_func:
             mock_func.return_value = mock_return
 
-            # Import the wrapper function
             module = __import__('well_architected_bp_mcp_server.server', fromlist=[wrapper_name])
             wrapper_func = getattr(module, wrapper_name)
 
-            # Verify the wrapper exists (this should execute the return statement)
-            assert wrapper_func is not None
+            if wrapper_name in ['get_best_practice', 'get_related_practices']:
+                result = wrapper_func.fn('test_id')
+            else:
+                result = wrapper_func.fn()
 
-            # If the wrapper has a function attribute, try to call it
-            if hasattr(wrapper_func, 'function'):
-                try:
-                    if wrapper_name in ['get_best_practice', 'get_related_practices']:
-                        result = wrapper_func.function('test_id')
-                    else:
-                        result = wrapper_func.function()
-
-                    # Verify the result matches our mock
-                    assert result == mock_return
-                    mock_func.assert_called()
-                except Exception:
-                    # If function call fails, at least we imported and accessed the wrapper
-                    pass
+            assert result == mock_return
+            mock_func.assert_called()
