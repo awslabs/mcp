@@ -19,6 +19,6 @@ from importlib.metadata import version
 try:
     __version__ = version('awslabs.postgres-mcp-server')
 except Exception:
-    __version__ = '0.0.0+dev'
+    __version__ = '1.0.11'
 
 __user_agent__ = f'awslabs/mcp/postgres_mcp_server/{__version__}'
