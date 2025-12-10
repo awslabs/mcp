@@ -57,42 +57,42 @@ def test_main_function_exists():
 
 def test_search_best_practices():
     """Test search_best_practices function."""
-    from well_architected_bp_mcp_server.server import _search_best_practices
+    from well_architected_bp_mcp_server.server import search_best_practices_impl
     
     # Test basic search
-    results = _search_best_practices()
+    results = search_best_practices_impl()
     assert isinstance(results, list)
     
     # Test pillar filter
-    security_results = _search_best_practices(pillar="SECURITY")
+    security_results = search_best_practices_impl(pillar="SECURITY")
     assert isinstance(security_results, list)
     
     # Test keyword search
-    keyword_results = _search_best_practices(keyword="access")
+    keyword_results = search_best_practices_impl(keyword="access")
     assert isinstance(keyword_results, list)
 
 
 def test_get_best_practice():
     """Test get_best_practice function."""
-    from well_architected_bp_mcp_server.server import _get_best_practice, _search_best_practices
+    from well_architected_bp_mcp_server.server import get_best_practice_impl, search_best_practices_impl
     
     # Get a practice ID from search results
-    results = _search_best_practices()
+    results = search_best_practices_impl()
     if results:
         practice_id = results[0]["id"]
-        practice = _get_best_practice(practice_id)
+        practice = get_best_practice_impl(practice_id)
         assert practice is not None
         assert practice["id"] == practice_id
     
     # Test non-existent ID
-    assert _get_best_practice("INVALID-ID") is None
+    assert get_best_practice_impl("INVALID-ID") is None
 
 
 def test_list_pillars():
     """Test list_pillars function."""
-    from well_architected_bp_mcp_server.server import _list_pillars
+    from well_architected_bp_mcp_server.server import list_pillars_impl
     
-    pillars = _list_pillars()
+    pillars = list_pillars_impl()
     assert isinstance(pillars, dict)
     assert len(pillars) > 0
     
@@ -104,25 +104,25 @@ def test_list_pillars():
 
 def test_get_related_practices():
     """Test get_related_practices function."""
-    from well_architected_bp_mcp_server.server import _get_related_practices, _search_best_practices
+    from well_architected_bp_mcp_server.server import get_related_practices_impl, search_best_practices_impl
     
     # Test with existing practice
-    results = _search_best_practices()
+    results = search_best_practices_impl()
     if results:
         practice_id = results[0]["id"]
-        related = _get_related_practices(practice_id)
+        related = get_related_practices_impl(practice_id)
         assert isinstance(related, list)
     
     # Test with non-existent ID
-    related = _get_related_practices("INVALID-ID")
+    related = get_related_practices_impl("INVALID-ID")
     assert related == []
 
 
 def test_well_architected_framework_review():
     """Test well_architected_framework_review function."""
-    from well_architected_bp_mcp_server.server import _well_architected_framework_review
+    from well_architected_bp_mcp_server.server import well_architected_framework_review_impl
     
-    review = _well_architected_framework_review()
+    review = well_architected_framework_review_impl()
     assert isinstance(review, dict)
     assert "framework" in review
     assert "pillars" in review
@@ -144,31 +144,31 @@ def test_load_data_function():
 
 def test_search_filters():
     """Test search with various filter combinations."""
-    from well_architected_bp_mcp_server.server import _search_best_practices
+    from well_architected_bp_mcp_server.server import search_best_practices_impl
     
     # Test risk filter
-    high_risk = _search_best_practices(risk="HIGH")
+    high_risk = search_best_practices_impl(risk="HIGH")
     assert isinstance(high_risk, list)
     
     # Test lens filter
-    framework_lens = _search_best_practices(lens="FRAMEWORK")
+    framework_lens = search_best_practices_impl(lens="FRAMEWORK")
     assert isinstance(framework_lens, list)
     
     # Test area filter
-    area_results = _search_best_practices(area="identity")
+    area_results = search_best_practices_impl(area="identity")
     assert isinstance(area_results, list)
     
     # Test multiple filters
-    combined = _search_best_practices(pillar="SECURITY", risk="HIGH")
+    combined = search_best_practices_impl(pillar="SECURITY", risk="HIGH")
     assert isinstance(combined, list)
 
 
 def test_get_related_practices_with_relations():
     """Test get_related_practices with actual related practices."""
-    from well_architected_bp_mcp_server.server import _get_related_practices, _search_best_practices
+    from well_architected_bp_mcp_server.server import get_related_practices_impl, search_best_practices_impl
     
     # Find a practice that might have related practices
-    all_practices = _search_best_practices()
+    all_practices = search_best_practices_impl()
     practice_with_relations = None
     
     for practice in all_practices:
@@ -177,7 +177,7 @@ def test_get_related_practices_with_relations():
             break
     
     if practice_with_relations:
-        related = _get_related_practices(practice_with_relations["id"])
+        related = get_related_practices_impl(practice_with_relations["id"])
         assert isinstance(related, list)
 
 
@@ -260,26 +260,26 @@ def test_mcp_tool_wrappers():
 def test_wrapper_function_calls():
     """Test that wrapper functions properly call internal functions."""
     from well_architected_bp_mcp_server.server import (
-        _search_best_practices, _get_best_practice, _list_pillars,
-        _get_related_practices, _well_architected_framework_review
+        search_best_practices_impl, get_best_practice_impl, list_pillars_impl,
+        get_related_practices_impl, well_architected_framework_review_impl
     )
     
-    # Test internal functions work (these cover the return statements)
-    results = _search_best_practices()
+    # Test implementation functions work
+    results = search_best_practices_impl()
     assert isinstance(results, list)
     
-    pillars = _list_pillars()
+    pillars = list_pillars_impl()
     assert isinstance(pillars, dict)
     
-    review = _well_architected_framework_review()
+    review = well_architected_framework_review_impl()
     assert isinstance(review, dict)
     
     # Test get functions
     if results:
-        practice = _get_best_practice(results[0]["id"])
+        practice = get_best_practice_impl(results[0]["id"])
         assert practice is not None
         
-        related = _get_related_practices(results[0]["id"])
+        related = get_related_practices_impl(results[0]["id"])
         assert isinstance(related, list)
 
 

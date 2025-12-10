@@ -37,14 +37,14 @@ def load_data():
 
 load_data()
 
-def _search_best_practices(
+def search_best_practices_impl(
     pillar: str | None = None,
     risk: str | None = None,
     lens: str | None = None,
     keyword: str | None = None,
     area: str | None = None
 ) -> list[dict[str, Any]]:
-    """Internal search function."""
+    """Search AWS Well-Architected Framework best practices and recommendations."""
     results = []
     
     for practices in BEST_PRACTICES.values():
@@ -67,16 +67,16 @@ def _search_best_practices(
     
     return results
 
-def _get_best_practice(id: str) -> dict[str, Any] | None:
-    """Internal get best practice function."""
+def get_best_practice_impl(id: str) -> dict[str, Any] | None:
+    """Get detailed AWS Well-Architected Framework best practice by ID."""
     for practices in BEST_PRACTICES.values():
         for bp in practices:
             if bp.get("id") == id:
                 return bp
     return None
 
-def _list_pillars() -> dict[str, int]:
-    """Internal list pillars function."""
+def list_pillars_impl() -> dict[str, int]:
+    """List all AWS Well-Architected Framework pillars with best practice counts."""
     pillar_counts = {}
     for practices in BEST_PRACTICES.values():
         for bp in practices:
@@ -84,8 +84,8 @@ def _list_pillars() -> dict[str, int]:
             pillar_counts[pillar] = pillar_counts.get(pillar, 0) + 1
     return pillar_counts
 
-def _get_related_practices(id: str) -> list[dict[str, Any]]:
-    """Internal get related practices function."""
+def get_related_practices_impl(id: str) -> list[dict[str, Any]]:
+    """Get all AWS Well-Architected best practices related to a specific practice."""
     # Find the BP directly from data
     bp = None
     for practices in BEST_PRACTICES.values():
@@ -112,8 +112,8 @@ def _get_related_practices(id: str) -> list[dict[str, Any]]:
     
     return results
 
-def _well_architected_framework_review() -> dict[str, Any]:
-    """Internal framework review function."""
+def well_architected_framework_review_impl() -> dict[str, Any]:
+    """Complete AWS Well-Architected Framework review and assessment."""
     review = {
         "framework": "AWS Well-Architected Framework",
         "pillars": {},
@@ -164,6 +164,7 @@ def _well_architected_framework_review() -> dict[str, Any]:
     
     return review
 
+# MCP Tool Wrappers - These are thin wrappers around the implementation functions
 @mcp.tool()
 def search_best_practices(
     pillar: str | None = None,
@@ -197,7 +198,7 @@ def search_best_practices(
     Returns:
         List of matching best practices
     """
-    return _search_best_practices(pillar, risk, lens, keyword, area)
+    return search_best_practices_impl(pillar, risk, lens, keyword, area)
 
 @mcp.tool()
 def get_best_practice(id: str) -> dict[str, Any] | None:
@@ -215,7 +216,7 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
     Returns:
         Best practice details or None if not found
     """
-    return _get_best_practice(id)
+    return get_best_practice_impl(id)
 
 @mcp.tool()
 def list_pillars() -> dict[str, int]:
@@ -230,7 +231,7 @@ def list_pillars() -> dict[str, int]:
     Returns:
         Dictionary mapping pillar names to practice counts
     """
-    return _list_pillars()
+    return list_pillars_impl()
 
 @mcp.tool()
 def get_related_practices(id: str) -> list[dict[str, Any]]:
@@ -247,7 +248,7 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
     Returns:
         List of related best practices
     """
-    return _get_related_practices(id)
+    return get_related_practices_impl(id)
 
 @mcp.tool()
 def well_architected_framework_review() -> dict[str, Any]:
@@ -265,7 +266,7 @@ def well_architected_framework_review() -> dict[str, Any]:
     Returns:
         Comprehensive Well-Architected Framework overview with all pillars and key practices
     """
-    return _well_architected_framework_review()
+    return well_architected_framework_review_impl()
 
 def main():
     """Run the MCP server."""
