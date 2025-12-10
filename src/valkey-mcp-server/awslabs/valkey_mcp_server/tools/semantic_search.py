@@ -19,9 +19,11 @@ vector embeddings without needing to understand low-level implementation details
 """
 import logging
 
+from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.embeddings import create_embeddings_provider
+from awslabs.valkey_mcp_server.tools.index import create_vector_index
 from awslabs.valkey_mcp_server.tools.vss import vector_search
 from typing import Any, Dict, List, Optional, Union
 from valkey import Valkey
@@ -129,15 +131,11 @@ async def add_documents(
 
                 # Create index now that we know the dimensions
                 if not index_exists:
-                    r.execute_command(
-                        'FT.CREATE', index_name,
-                        'ON', 'HASH',
-                        'PREFIX', '1', f'{_get_document_key(collection, "")}',
-                        'SCHEMA',
-                        'embedding', 'VECTOR', 'FLAT', '6',
-                        'TYPE', 'FLOAT32',
-                        'DIM', str(actual_dimensions),
-                        'DISTANCE_METRIC', 'L2'
+                    await create_vector_index(
+                        index_name,
+                        actual_dimensions,
+                        prefix=[ _get_document_key(collection, "") ],
+                        structure_type=VALKEY_CFG['vec_index_type']
                     )
                     index_exists = True
 

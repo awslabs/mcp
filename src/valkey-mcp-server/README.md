@@ -196,19 +196,20 @@ To run in readonly mode with Docker:
 ### Valkey Connection
 The Valkey server can be configured using the following environment variables:
 
-| Name | Description | Default Value |
-|------|-------------|---------------|
-| `VALKEY_HOST` | ElastiCache Primary Endpoint or MemoryDB Cluster Endpoint or Valkey IP or hostname | `"127.0.0.1"` |
-| `VALKEY_PORT` | Valkey port | `6379` |
-| `VALKEY_USERNAME` | Default database username | `None` |
-| `VALKEY_PWD` | Default database password | `""` |
-| `VALKEY_USE_SSL` | Enables or disables SSL/TLS | `False` |
-| `VALKEY_CA_PATH` | CA certificate for verifying server | `None` |
-| `VALKEY_SSL_KEYFILE` | Client's private key file | `None` |
-| `VALKEY_SSL_CERTFILE` | Client's certificate file | `None` |
-| `VALKEY_CERT_REQS` | Server certificate verification | `"required"` |
-| `VALKEY_CA_CERTS` | Path to trusted CA certificates | `None` |
-| `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode | `False` |
+| Name | Description                                                                                                                    | Default Value |
+|------|--------------------------------------------------------------------------------------------------------------------------------|---------------|
+| `VALKEY_HOST` | ElastiCache Primary Endpoint or MemoryDB Cluster Endpoint or Valkey IP or hostname                                             | `"127.0.0.1"` |
+| `VALKEY_PORT` | Valkey port                                                                                                                    | `6379`        |
+| `VALKEY_USERNAME` | Default database username                                                                                                      | `None`        |
+| `VALKEY_PWD` | Default database password                                                                                                      | `""`          |
+| `VALKEY_USE_SSL` | Enables or disables SSL/TLS                                                                                                    | `False`       |
+| `VALKEY_CA_PATH` | CA certificate for verifying server                                                                                            | `None`        |
+| `VALKEY_SSL_KEYFILE` | Client's private key file                                                                                                      | `None`        |
+| `VALKEY_SSL_CERTFILE` | Client's certificate file                                                                                                      | `None`        |
+| `VALKEY_CERT_REQS` | Server certificate verification                                                                                                | `"required"`  |
+| `VALKEY_CA_CERTS` | Path to trusted CA certificates                                                                                                | `None`        |
+| `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode                                                                                                     | `False`       |
+| `VALKEY_VECTOR_INDEX_TYPE` | Default vector index structure type to use when vector indices are created in calls to add documents (either `FLAT` or `HNSW`) | `FLAT`        |
 
 ### Embeddings Provider
 Semantic search requires integration with an embeddings provider.

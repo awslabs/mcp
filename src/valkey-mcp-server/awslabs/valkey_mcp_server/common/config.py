@@ -16,7 +16,6 @@ import os
 import urllib.parse
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
@@ -33,6 +32,7 @@ VALKEY_CFG = {
     'ssl_cert_reqs': os.getenv('VALKEY_SSL_CERT_REQS', 'required'),
     'ssl_ca_certs': os.getenv('VALKEY_SSL_CA_CERTS', None),
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
+    'vec_index_type': os.getenv('VALKEY_VECTOR_INDEX_TYPE', 'FLAT'),
 }
 
 EMBEDDING_CFG = {
