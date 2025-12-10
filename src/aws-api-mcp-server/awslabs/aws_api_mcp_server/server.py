@@ -25,7 +25,6 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
-    AUTH_AUDIENCE,
     AUTH_ISSUER,
     AUTH_JWKS_URI,
     AUTH_TYPE,
@@ -87,7 +86,7 @@ def setup_server_config():
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
         raise ValueError('AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set')
 
-    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI, audience=AUTH_AUDIENCE)
+    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
 
     return auth_provider, middleware
 
