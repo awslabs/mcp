@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "awslabs.ecs-mcp-server"
-version = "0.1.18"
+version = "0.1.19"
 description = "AWS ECS MCP Server for automating containerization and deployment of web applications to AWS ECS"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "fastmcp>=2.11.1",
+    "fastmcp>=2.13.0",
     "boto3>=1.41.1",
     "pydantic>=2.0.0",
     "docker>=6.1.0",
@@ -41,6 +41,8 @@ dev = [
     "pyright>=1.1.401",
     "ruff>=0.11.11",
 ]
+
+hosted = ["mcp-proxy-for-aws>=1.1.1"]
 
 [project.urls]
 Homepage = "https://github.com/awslabs/mcp"
