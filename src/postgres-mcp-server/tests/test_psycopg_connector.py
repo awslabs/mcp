@@ -18,6 +18,7 @@ import pytest
 import threading
 import time
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -39,6 +40,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             is_test=True,
         )
@@ -56,38 +59,6 @@ class TestPsycopgConnector:
         # Now verify pool.open was called with correct timeout
         mock_pool.open.assert_called_once()
         args, kwargs = mock_pool.open.call_args
-        assert kwargs['timeout'] == 15.0  # Verify our modified timeout
-
-    @pytest.mark.asyncio
-    @patch('psycopg_pool.AsyncConnectionPool')
-    async def test_psycopg_connection_readonly_timeout(self, mock_connection_pool):
-        """Test that _set_all_connections_readonly uses the correct timeout."""
-        # Setup mock
-        mock_pool = AsyncMock()
-        mock_conn = AsyncMock()
-        mock_pool.connection.return_value.__aenter__.return_value = mock_conn
-        mock_connection_pool.return_value = mock_pool
-
-        # Create connection with readonly=True
-        conn = PsycopgPoolConnection(
-            host='localhost',
-            port=5432,
-            database='test_db',
-            readonly=True,
-            secret_arn='test_secret_arn',  # pragma: allowlist secret
-            region='us-east-1',
-            is_test=True,
-        )
-
-        # Manually set the pool attribute since is_test=True skips pool initialization
-        conn.pool = mock_pool
-
-        # Now we can call _set_all_connections_readonly manually
-        await conn._set_all_connections_readonly()
-
-        # Verify connection.pool.connection was called with timeout=15.0
-        mock_pool.connection.assert_called_once()
-        args, kwargs = mock_pool.connection.call_args
         assert kwargs['timeout'] == 15.0  # Verify our modified timeout
 
     @pytest.mark.asyncio
@@ -130,6 +101,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             is_test=True,
         )
@@ -161,6 +134,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             min_size=5,
             is_test=True,
@@ -189,6 +164,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             max_size=10,
             is_test=True,
@@ -241,6 +218,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             min_size=1,
             max_size=10,
@@ -307,6 +286,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             min_size=1,
             max_size=5,
@@ -373,6 +354,8 @@ class TestPsycopgConnector:
             database='test_db',
             readonly=True,
             secret_arn='test_secret_arn',  # pragma: allowlist secret
+            db_user='test_user',
+            is_iam_auth=False,
             region='us-east-1',
             min_size=1,
             max_size=3,
@@ -400,3 +383,637 @@ class TestPsycopgConnector:
         # Verify that some connection attempts timed out
         assert stats['timeouts'] > 0
         assert stats['attempts'] == num_threads
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_with_iam_auth(self):
+        """Test pool initialization with IAM authentication."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='',
+                db_user='iam_user',
+                is_iam_auth=True,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            # Verify pool_expiry_min was set to 14 for IAM auth
+            assert conn.pool_expiry_min == 14
+            assert conn.user == 'iam_user'
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_without_iam_auth(self):
+        """Test pool initialization without IAM authentication."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            # Verify pool_expiry_min uses default value
+            assert conn.pool_expiry_min == 30
+
+    def test_iam_auth_requires_db_user(self):
+        """Test that IAM auth requires db_user to be set."""
+        with pytest.raises(ValueError, match='db_user must be set when is_iam_auth is True'):
+            PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='',
+                db_user='',
+                is_iam_auth=True,
+                region='us-east-1',
+                is_test=True,
+            )
+
+    @pytest.mark.asyncio
+    async def test_convert_parameters(self):
+        """Test parameter conversion from structured format to psycopg format."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        parameters = [
+            {'name': 'str_param', 'value': {'stringValue': 'test'}},
+            {'name': 'int_param', 'value': {'longValue': 42}},
+            {'name': 'float_param', 'value': {'doubleValue': 3.14}},
+            {'name': 'bool_param', 'value': {'booleanValue': True}},
+            {'name': 'blob_param', 'value': {'blobValue': b'binary_data'}},
+            {'name': 'null_param', 'value': {'isNull': True}},
+        ]
+
+        result = conn._convert_parameters(parameters)
+
+        assert result['str_param'] == 'test'
+        assert result['int_param'] == 42
+        assert result['float_param'] == 3.14
+        assert result['bool_param'] is True
+        assert result['blob_param'] == b'binary_data'
+        assert result['null_param'] is None
+
+    @pytest.mark.asyncio
+    async def test_get_credentials_from_secret_test_mode(self):
+        """Test getting credentials in test mode."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        user, password = conn._get_credentials_from_secret(
+            'test_secret', 'us-east-1', is_test=True
+        )
+
+        assert user == 'test_user'
+        assert password == 'test_password'
+
+    @pytest.mark.asyncio
+    async def test_close_pool(self):
+        """Test closing the connection pool."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='test_user',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            conn.pool = mock_pool
+
+            await conn.close()
+
+            mock_pool.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_close_pool_when_none(self):
+        """Test closing when pool is None."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        # Should not raise an error
+        await conn.close()
+
+    def test_get_credentials_from_secret_with_username_key(self):
+        """Test getting credentials with 'username' key."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {
+                'SecretString': '{"username": "db_user", "password": "db_pass"}'
+            }
+
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
+
+            assert user == 'db_user'
+            assert password == 'db_pass'
+
+    def test_get_credentials_from_secret_with_user_key(self):
+        """Test getting credentials with 'user' key."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {
+                'SecretString': '{"user": "db_user", "password": "db_pass"}'
+            }
+
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
+
+            assert user == 'db_user'
+            assert password == 'db_pass'
+
+    def test_get_credentials_from_secret_with_Username_key(self):
+        """Test getting credentials with 'Username' key (capitalized)."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {
+                'SecretString': '{"Username": "db_user", "Password": "db_pass"}'
+            }
+
+            user, password = conn._get_credentials_from_secret(
+                'arn:secret', 'us-east-1', is_test=False
+            )
+
+            assert user == 'db_user'
+            assert password == 'db_pass'
+
+    def test_get_credentials_from_secret_missing_username(self):
+        """Test error when username is missing from secret."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': '{"password": "db_pass"}'}
+
+            with pytest.raises(ValueError, match='Secret does not contain username'):
+                conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+
+    def test_get_credentials_from_secret_missing_password(self):
+        """Test error when password is missing from secret."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': '{"username": "db_user"}'}
+
+            with pytest.raises(ValueError, match='Secret does not contain password'):
+                conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+
+    def test_get_credentials_from_secret_no_secret_string(self):
+        """Test error when secret doesn't contain SecretString."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {}
+
+            with pytest.raises(ValueError, match='Secret does not contain a SecretString'):
+                conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+
+    def test_get_credentials_from_secret_client_error(self):
+        """Test error handling when Secrets Manager client fails."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.side_effect = Exception('AWS Error')
+
+            with pytest.raises(
+                ValueError, match='Failed to retrieve credentials from Secrets Manager'
+            ):
+                conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+
+    def test_get_iam_auth_token(self):
+        """Test getting IAM auth token."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch('boto3.client') as mock_boto_client:
+            mock_rds_client = MagicMock()
+            mock_boto_client.return_value = mock_rds_client
+            mock_rds_client.generate_db_auth_token.return_value = 'test_token_123'
+
+            token = conn.get_iam_auth_token()
+
+            assert token == 'test_token_123'
+            mock_rds_client.generate_db_auth_token.assert_called_once_with(
+                DBHostname='localhost', Port=5432, DBUsername='iam_user', Region='us-east-1'
+            )
+
+    @pytest.mark.asyncio
+    async def test_check_connection_health_success(self):
+        """Test connection health check when healthy."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch.object(conn, 'execute_query', new_callable=AsyncMock) as mock_execute:
+            mock_execute.return_value = {
+                'columnMetadata': [{'name': 'result'}],
+                'records': [[{'longValue': 1}]],
+            }
+
+            is_healthy = await conn.check_connection_health()
+
+            assert is_healthy is True
+            mock_execute.assert_called_once_with('SELECT 1')
+
+    @pytest.mark.asyncio
+    async def test_check_connection_health_failure(self):
+        """Test connection health check when unhealthy."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch.object(conn, 'execute_query', new_callable=AsyncMock) as mock_execute:
+            mock_execute.side_effect = Exception('Connection failed')
+
+            is_healthy = await conn.check_connection_health()
+
+            assert is_healthy is False
+
+    @pytest.mark.asyncio
+    async def test_check_connection_health_empty_records(self):
+        """Test connection health check with empty records."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        with patch.object(conn, 'execute_query', new_callable=AsyncMock) as mock_execute:
+            mock_execute.return_value = {'columnMetadata': [{'name': 'result'}], 'records': []}
+
+            is_healthy = await conn.check_connection_health()
+
+            assert is_healthy is False
+
+    @pytest.mark.asyncio
+    async def test_get_pool_stats_no_pool(self):
+        """Test get_pool_stats when pool is None."""
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='test_user',
+            is_iam_auth=False,
+            region='us-east-1',
+            min_size=2,
+            max_size=10,
+            is_test=True,
+        )
+
+        stats = await conn.get_pool_stats()
+
+        assert stats['size'] == 0
+        assert stats['min_size'] == 2
+        assert stats['max_size'] == 10
+        assert stats['idle'] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_pool_stats_with_pool(self):
+        """Test get_pool_stats when pool exists."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool.size = 5
+            mock_pool.min_size = 2
+            mock_pool.max_size = 10
+            mock_pool.idle = 3
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='test_user',
+                is_iam_auth=False,
+                region='us-east-1',
+                min_size=2,
+                max_size=10,
+                is_test=True,
+            )
+
+            conn.pool = mock_pool
+
+            stats = await conn.get_pool_stats()
+
+            assert stats['size'] == 5
+            assert stats['min_size'] == 2
+            assert stats['max_size'] == 10
+            assert stats['idle'] == 3
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_with_secrets_manager(self):
+        """Test initializing pool with Secrets Manager credentials."""
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+        ):
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            await conn.initialize_pool()
+
+            mock_get_creds.assert_called_once_with('arn:secret', 'us-east-1', True)
+            mock_pool_class.assert_called_once()
+            mock_pool.open.assert_called_once_with(True, 30)
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_with_iam_auth_token(self):
+        """Test initializing pool with IAM auth token."""
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, 'get_iam_auth_token') as mock_get_token,
+        ):
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+            mock_get_token.return_value = 'iam_token_123'
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='',
+                db_user='iam_user',
+                is_iam_auth=True,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            await conn.initialize_pool()
+
+            mock_get_token.assert_called_once()
+            mock_pool_class.assert_called_once()
+            assert 'password=iam_token_123' in conn.conninfo
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_already_initialized(self):
+        """Test that initialize_pool doesn't reinitialize if pool exists."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='test_user',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            conn.pool = mock_pool
+
+            await conn.initialize_pool()
+
+            # Should not create a new pool
+            mock_pool_class.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_check_expiry_not_expired(self):
+        """Test check_expiry when pool is not expired."""
+        with patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class:
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='test_user',
+                is_iam_auth=False,
+                region='us-east-1',
+                pool_expiry_min=30,
+                is_test=True,
+            )
+
+            conn.pool = mock_pool
+
+            # Should not close pool
+            await conn.check_expiry()
+
+            mock_pool.close.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_check_expiry_expired(self):
+        """Test check_expiry when pool is expired."""
+        with (
+            patch('psycopg_pool.AsyncConnectionPool') as mock_pool_class,
+            patch.object(PsycopgPoolConnection, 'initialize_pool') as mock_init,
+        ):
+            mock_pool = AsyncMock()
+            mock_pool_class.return_value = mock_pool
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='test_secret',
+                db_user='test_user',
+                is_iam_auth=False,
+                region='us-east-1',
+                pool_expiry_min=1,
+                is_test=True,
+            )
+
+            conn.pool = mock_pool
+            # Set created_time to past
+            conn.created_time = datetime.now() - timedelta(minutes=2)
+
+            await conn.check_expiry()
+
+            # Should close and reinitialize
+            mock_pool.close.assert_called_once()
+            mock_init.assert_called_once()

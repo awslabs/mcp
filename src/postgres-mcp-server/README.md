@@ -12,11 +12,9 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Aurora Postgres Cluster with Postgres username and password stored in AWS Secrets Manager
-4. Enable RDS Data API for your Aurora Postgres Cluster, see [instructions here](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html)
-5. This MCP server can only be run locally on the same host as your LLM client.
-6. Docker runtime
-7. Set up AWS credentials with access to AWS services
+3. This MCP server can only be run locally on the same host as your LLM client.
+4. Docker runtime
+5. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
 
@@ -28,8 +26,6 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-### Option 1: Using RDS Data API Connection (for Aurora Postgres)
-
 ```json
 {
   "mcpServers": {
@@ -37,11 +33,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "command": "uvx",
       "args": [
         "awslabs.postgres-mcp-server@latest",
-        "--resource_arn", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
+        "--allow_write_query"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
@@ -54,35 +46,6 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
-
-### Option 2: Using Direct PostgreSQL(psycopg) Connection (for Aurora Postgres and RDS Postgres)
-
-```json
-{
-  "mcpServers": {
-    "awslabs.postgres-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.postgres-mcp-server@latest",
-        "--hostname", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
-      ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
-Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
 
 ### Windows Installation
 
@@ -136,56 +99,61 @@ For Windows users, the MCP server configuration format is slightly different:
         "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
         "-e", "AWS_REGION=[your data]",
         "awslabs/postgres-mcp-server:latest",
-        "--resource_arn", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
+        "--allow_write_query"
       ]
     }
   }
 }
 ```
 
-#### Option 2: Using Direct PostgreSQL (psycopg) Connection (for Aurora Postgres and RDS Postgres)
+NOTE: the MCP config example include --allow_write_query illustrate how to enable write queries. If you want to disable write queries, remove --allow_write_query option.
 
-```
-{
-  "mcpServers": {
-    "awslabs.postgres-mcp-server": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e", "AWS_ACCESS_KEY_ID=[your data]",
-        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
-        "-e", "AWS_REGION=[your data]",
-        "awslabs/postgres-mcp-server:latest",
-        "--hostname", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
-      ]
-    }
-  }
-}
-```
+## Support for Database Cluster Creation
 
-Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
+You can use the following LLM prompt to create a new Aurora PostgreSQL cluster:
 
-NOTE: By default, only read-only queries are allowed and it is controlled by --readonly parameter above. Set it to False if you also want to allow writable DML or DDL.
+> Create an Aurora PostgreSQL cluster named 'mycluster' in us-west-2 region
+
+---
 
 ## Connection Methods
 
-This MCP server supports two connection methods:
+The MCP server supports connecting to multiple database endpoints using different connection methods via LLM prompts.
 
-1. **RDS Data API Connection** (using `--resource_arn`): Uses the AWS RDS Data API to connect to Aurora PostgreSQL. This method requires that your Aurora cluster has the Data API enabled.
+### Database Types
+- **APG**: Amazon Aurora PostgreSQL
+- **RPG**: Amazon RDS for PostgreSQL
 
-2. **Direct PostgreSQL Connection** (using `--hostname`): Uses psycopg to connect directly to any PostgreSQL database, including Aurora PostgreSQL, RDS PostgreSQL, or self-hosted PostgreSQL instances. This method provides better performance for frequent queries but requires direct network access to the database.
+### Example Prompts
 
-Choose the connection method that best fits your environment and requirements.
+**Connect using RDS Data API:**
+> Connect to database named postgres in Aurora PostgreSQL cluster 'my-cluster' with database_type as APG, using rdsapi as connection method in us-west-2 region
+
+**Connect using pgwire (Aurora PostgreSQL):**
+> Connect to database named postgres with database endpoint as my-apg17-instance-1.ctgfg6yyo9df.us-west-2.rds.amazonaws.com with database_type as APG, using pgwire as connection method in us-west-2 region
+
+**Connect using pgwire (RDS PostgreSQL):**
+> Connect to database named postgres with database endpoint as test-apg17-instance-1.ctgfg6yyo9df.us-west-2.rds.amazonaws.com with database_type as RPG, using pgwire as connection method in us-west-2 region
+
+---
+
+### Supported Connection Methods
+
+| Method | Description | Supported Database Types |
+|--------|-------------|--------------------------|
+| `pgwire` | Connect to PostgreSQL instance directly using the PostgreSQL wire protocol. Requires proper VPC security group configuration for direct database connectivity. | APG, RPG |
+| `pgwire_iam` | Same as `pgwire`, but uses IAM authentication. Requires IAM authentication to be enabled on the Aurora PostgreSQL cluster. | APG only |
+| `rdsapi` | Connect to Aurora PostgreSQL using the RDS Data API. Requires the RDS Data API to be enabled on the cluster. | APG only |
+
+### Prerequisites by Connection Method
+
+#### pgwire / pgwire_iam
+- VPC security group must allow inbound connections from your MCP server to the database
+- For `pgwire_iam`: IAM authentication must be enabled on the Aurora PostgreSQL cluster
+
+#### rdsapi
+- RDS Data API must be enabled on the Aurora PostgreSQL cluster
+- Appropriate IAM permissions for Data API access
 
 ### AWS Authentication
 

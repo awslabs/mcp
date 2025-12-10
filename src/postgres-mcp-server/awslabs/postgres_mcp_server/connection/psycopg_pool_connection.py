@@ -21,7 +21,11 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 
 import boto3
 import json
+from aiorwlock import RWLock
+from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from botocore.config import Config
+from datetime import datetime, timedelta
 from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
@@ -45,7 +49,10 @@ class PsycopgPoolConnection(AbstractDBConnection):
         database: str,
         readonly: bool,
         secret_arn: str,
+        db_user: str,
         region: str,
+        is_iam_auth: bool = False,
+        pool_expiry_min: int = 30,
         min_size: int = 1,
         max_size: int = 10,
         is_test: bool = False,
@@ -58,7 +65,10 @@ class PsycopgPoolConnection(AbstractDBConnection):
             database: Database name
             readonly: Whether connections should be read-only
             secret_arn: ARN of the secret containing credentials
+            db_user: Database username
             region: AWS region for Secrets Manager
+            is_iam_auth: Whether to use IAM authentication
+            pool_expiry_min: Pool expiry time in minutes
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
@@ -69,58 +79,83 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.database = database
         self.min_size = min_size
         self.max_size = max_size
+        self.region = region
+        self.is_iam_auth = is_iam_auth
+        self.user = db_user
+        self.pool_expiry_min = pool_expiry_min
+        self.secret_arn = secret_arn
+        self.is_test = is_test
         self.pool: Optional['AsyncConnectionPool[Any]'] = None
+        self.rw_lock = RWLock()
+        self.created_time = datetime.now()
 
-        # Get credentials from Secrets Manager
-        logger.info(f'Retrieving credentials from Secrets Manager: {secret_arn}')
-        self.user, self.password = self._get_credentials_from_secret(secret_arn, region, is_test)
-        logger.info(f'Successfully retrieved credentials for user: {self.user}')
+        if is_iam_auth:
+            # if db_user is set, then it is IAM auth scenario and iam_auth_token must be set
+            if not db_user:
+                raise ValueError('db_user must be set when is_iam_auth is True')
 
-        # Store connection info
-        if not is_test:
-            self.conninfo = f'host={host} port={port} dbname={database} user={self.user} password={self.password}'
-            logger.info('Connection parameters stored')
+            # set pool expiry before IAM auth token expiry of 15 minutes
+            self.pool_expiry_min = 14
+            logger.info(f'Use IAM auth for user: {db_user}')
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
-        if self.pool is None:
-            logger.info(
-                f'Initializing connection pool with min_size={self.min_size}, max_size={self.max_size}'
-            )
-            self.pool = AsyncConnectionPool(
-                self.conninfo, min_size=self.min_size, max_size=self.max_size, open=True
-            )
-            logger.info('Connection pool initialized successfully')
+        async with self.rw_lock.reader_lock:
+            if self.pool is not None:
+                return
 
-            # Set read-only mode if needed
-            if self.readonly_query:
-                await self._set_all_connections_readonly()
+        async with self.rw_lock.writer_lock:
+            if self.pool is not None:
+                return
+
+            logger.info(
+                f'initialize_pool:\n'
+                f'endpoint:{self.host}\n'
+                f'port:{self.port}\n'
+                f'region:{self.region}\n'
+                f'db:{self.database}\n'
+                f'user:{self.user}\n'
+                f'is_iam_auth:{self.is_iam_auth}\n'
+            )
+
+            if self.is_iam_auth:
+                logger.info(f'Retrieving IAM auth token for {self.user}')
+                password = self.get_iam_auth_token()
+            else:
+                logger.info(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
+                self.user, password = self._get_credentials_from_secret(
+                    self.secret_arn, self.region, self.is_test
+                )
+
+            self.created_time = datetime.now()
+            self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}'
+            self.pool = AsyncConnectionPool(
+                self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
+            )
+
+            # wait up to 30 seconds to fill the pool with connections
+            await self.pool.open(True, 30)
+            logger.info('Connection pool initialized successfully')
 
     async def _get_connection(self):
         """Get a database connection from the pool."""
-        if self.pool is None:
-            await self.initialize_pool()
+        await self.check_expiry()
 
-        if self.pool is None:
-            raise ValueError('Failed to initialize connection pool')
+        async with self.rw_lock.reader_lock:
+            if self.pool is None:
+                raise ValueError('Failed to initialize connection pool')
+            return self.pool.connection(timeout=15.0)
 
-        return self.pool.connection(timeout=15.0)
+    async def check_expiry(self):
+        """Check and handle pool expiry."""
+        async with self.rw_lock.reader_lock:
+            if self.pool and datetime.now() - self.created_time < timedelta(
+                minutes=self.pool_expiry_min
+            ):
+                return
 
-    async def _set_all_connections_readonly(self):
-        """Set all connections in the pool to read-only mode."""
-        if self.pool is None:
-            logger.warning('Connection pool is not initialized, cannot set read-only mode')
-            return
-
-        try:
-            async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute(
-                    'ALTER ROLE CURRENT_USER SET default_transaction_read_only = on'
-                )  # type: ignore
-                logger.info('Successfully set connection to read-only mode')
-        except Exception as e:
-            logger.warning(f'Failed to set connections to read-only mode: {str(e)}')
-            logger.warning('Continuing without setting read-only mode')
+        await self.close()
+        await self.initialize_pool()
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
@@ -130,7 +165,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        await conn.execute('SET TRANSACTION READ ONLY')  # type: ignore
+                        logger.info('SET TRANSACTION READ ONLY')
+                        await conn.execute('SET TRANSACTION READ ONLY')
 
                     # Create a cursor for better control
                     async with conn.cursor() as cursor:
@@ -161,12 +197,12 @@ class PsycopgPoolConnection(AbstractDBConnection):
                                         record.append({'isNull': True})
                                     elif isinstance(value, str):
                                         record.append({'stringValue': value})
+                                    elif isinstance(value, bool):
+                                        record.append({'booleanValue': value})
                                     elif isinstance(value, int):
                                         record.append({'longValue': value})
                                     elif isinstance(value, float):
                                         record.append({'doubleValue': value})
-                                    elif isinstance(value, bool):
-                                        record.append({'booleanValue': value})
                                     elif isinstance(value, bytes):
                                         record.append({'blobValue': value})
                                     else:
@@ -258,11 +294,12 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
     async def close(self) -> None:
         """Close all connections in the pool."""
-        if self.pool is not None:
-            logger.info('Closing connection pool')
-            await self.pool.close()
-            self.pool = None
-            logger.info('Connection pool closed successfully')
+        async with self.rw_lock.writer_lock:
+            if self.pool is not None:
+                logger.info('Closing connection pool')
+                await self.pool.close()
+                self.pool = None
+                logger.info('Connection pool closed successfully')
 
     async def check_connection_health(self) -> bool:
         """Check if the connection is healthy."""
@@ -273,15 +310,25 @@ class PsycopgPoolConnection(AbstractDBConnection):
             logger.error(f'Connection health check failed: {str(e)}')
             return False
 
-    def get_pool_stats(self) -> Dict[str, int]:
+    async def get_pool_stats(self) -> Dict[str, int]:
         """Get current connection pool statistics."""
-        if not hasattr(self, 'pool') or self.pool is None:
-            return {'size': 0, 'min_size': self.min_size, 'max_size': self.max_size, 'idle': 0}
+        async with self.rw_lock.reader_lock:
+            if not hasattr(self, 'pool') or self.pool is None:
+                return {'size': 0, 'min_size': self.min_size, 'max_size': self.max_size, 'idle': 0}
 
-        # Access pool attributes safely
-        size = getattr(self.pool, 'size', 0)
-        min_size = getattr(self.pool, 'min_size', self.min_size)
-        max_size = getattr(self.pool, 'max_size', self.max_size)
-        idle = getattr(self.pool, 'idle', 0)
+            # Access pool attributes safely
+            size = getattr(self.pool, 'size', 0)
+            min_size = getattr(self.pool, 'min_size', self.min_size)
+            max_size = getattr(self.pool, 'max_size', self.max_size)
+            idle = getattr(self.pool, 'idle', 0)
 
-        return {'size': size, 'min_size': min_size, 'max_size': max_size, 'idle': idle}
+            return {'size': size, 'min_size': min_size, 'max_size': max_size, 'idle': idle}
+
+    def get_iam_auth_token(self) -> str:
+        """Generate an IAM authentication token for RDS database access."""
+        rds_client = boto3.client(
+            'rds', region_name=self.region, config=Config(user_agent_extra=__user_agent__)
+        )
+        return rds_client.generate_db_auth_token(
+            DBHostname=self.host, Port=self.port, DBUsername=self.user, Region=self.region
+        )
