@@ -13,16 +13,4 @@
 # limitations under the License.
 
 # This file is part of the awslabs namespace.
-<<<<<<< HEAD
 # It is intentionally minimal to support PEP 420 namespace packages.
-from importlib.metadata import version
-
-try:
-    __version__ = version('awslabs.postgres-mcp-server')
-except Exception:
-    __version__ = '0.0.0+dev'
-
-__user_agent__ = f'awslabs/mcp/postgres_mcp_server/{__version__}'
-=======
-# It is intentionally minimal to support PEP 420 namespace packages.
->>>>>>> bf0d39eb (fix __init__.py)
