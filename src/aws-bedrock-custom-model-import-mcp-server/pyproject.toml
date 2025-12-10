@@ -8,7 +8,7 @@ dependencies = [
     "boto3>=1.28.0",
     "pydantic>=2.0.0",
     "loguru>=0.7.0",
-    "fastmcp>=2.10.2",
+    "fastmcp>=2.13.0",
     "thefuzz>=0.19.0",
     "python-Levenshtein>=0.21.0",
 ]
