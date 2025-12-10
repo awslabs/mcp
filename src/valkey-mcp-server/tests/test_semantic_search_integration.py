@@ -418,3 +418,66 @@ class TestSemanticSearchIntegration:
         print("="*70)
 
         print()
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_invalid_filter_expressions(self):
+        """Test semantic search with invalid filter expressions."""
+        collection = "test_filter_validation"
+
+        print("\n" + "="*70)
+        print("TESTING SEMANTIC SEARCH INVALID FILTER EXPRESSIONS")
+        print("="*70)
+
+        # Add test documents first
+        documents = [
+            {
+                "id": "filter_test_1",
+                "title": "Test Document",
+                "content": "Test content for filter validation",
+                "category": "test"
+            }
+        ]
+
+        print("1. Adding test documents...")
+        add_result = await add_documents(collection=collection, documents=documents)
+        if add_result['status'] != 'success':
+            print(f"   Error adding documents: {add_result.get('reason', 'Unknown error')}")
+            return
+
+        print(f"   ✓ Added {add_result['added']} documents")
+
+        # Test invalid filter expressions
+        invalid_filters = [
+            "@invalid_field:value",  # Non-existent field
+            "@category:",  # Empty value
+            "@category:value AND",  # Incomplete expression
+            "invalid syntax",  # Invalid syntax
+            "@category:value OR @",  # Incomplete OR
+        ]
+
+        print("\n2. Testing invalid filter expressions...")
+        for i, invalid_filter in enumerate(invalid_filters, 1):
+            print(f"   Testing filter {i}: '{invalid_filter}'")
+            
+            result = await semantic_search(
+                collection=collection,
+                query="test query",
+                filter_expression=invalid_filter
+            )
+            
+            # Should either return error status or empty results
+            if result['status'] == 'error':
+                error_reason = result.get('reason', '')
+                if "Invalid filter expression" in error_reason:
+                    print(f"     ✓ Correctly returned error with proper message: {error_reason}")
+                else:
+                    print(f"     ! Error returned but missing expected text: {error_reason}")
+                    assert "Invalid filter expression" in error_reason, f"Expected 'Invalid filter expression' in error reason: {error_reason}"
+            elif result['status'] == 'success' and len(result['results']) == 0:
+                print(f"     ✓ Correctly returned no results for invalid filter")
+            else:
+                print(f"     ! Unexpected result: {result}")
+
+        print("\n" + "="*70)
+        print("✓ INVALID FILTER EXPRESSION TESTS COMPLETED")
+        print("="*70)
