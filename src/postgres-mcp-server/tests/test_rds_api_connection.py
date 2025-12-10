@@ -15,7 +15,7 @@
 
 import pytest
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 
 class TestRDSDataAPIConnection:
@@ -298,5 +298,5 @@ class TestRDSDataAPIConnection:
         )
 
         # Verify boto3.client was called
-        mock_boto_client.assert_called_once_with('rds-data', region_name='us-east-1')
+        mock_boto_client.assert_called_once_with('rds-data', region_name='us-east-1', config=ANY)
         assert conn.data_client == mock_rds_data_client

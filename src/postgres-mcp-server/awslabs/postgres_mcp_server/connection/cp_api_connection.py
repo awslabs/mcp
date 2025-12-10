@@ -16,13 +16,15 @@ import boto3
 import json
 import time
 import traceback
+from awslabs import __user_agent__
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
 from typing import Any, Dict, Optional
-from awslabs import __user_agent__
-from botocore.config import Config
+
 
 def internal_create_rds_client(region:str):
+    """Create an RDS client with custom user agent configuration."""
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
 
 def internal_get_instance_properties(target_endpoint:str, region:str)-> Dict[str, Any]:

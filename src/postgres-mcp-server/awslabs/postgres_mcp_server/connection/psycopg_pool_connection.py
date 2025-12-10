@@ -22,15 +22,13 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 import boto3
 import json
 from aiorwlock import RWLock
+from awslabs import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
-from aiorwlock import RWLock
-from awslabs import __user_agent__
-from botocore.config import Config
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
@@ -325,6 +323,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             return {'size': size, 'min_size': min_size, 'max_size': max_size, 'idle': idle}
 
     def get_iam_auth_token(self) -> str:
+        """Generate an IAM authentication token for RDS database access."""
         rds_client = boto3.client('rds', region_name=self.region, config=Config(user_agent_extra=__user_agent__))
         return rds_client.generate_db_auth_token(
             DBHostname=self.host,
