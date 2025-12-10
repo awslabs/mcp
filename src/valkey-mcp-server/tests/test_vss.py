@@ -29,13 +29,21 @@ class TestSearch:
         """Create a mock Valkey connection."""
         with patch('awslabs.valkey_mcp_server.tools.vss.ValkeyConnectionManager') as mock_manager:
             mock_conn = Mock()
-            mock_manager.get_connection.return_value = mock_conn
-            yield mock_conn
+            mock_conn_raw = Mock()
+            
+            def get_connection_side_effect(decode_responses=True):
+                if decode_responses:
+                    return mock_conn
+                else:
+                    return mock_conn_raw
+            
+            mock_manager.get_connection.side_effect = get_connection_side_effect
+            yield mock_conn, mock_conn_raw
 
     @pytest.mark.asyncio
     async def test_vector_search_successful(self, mock_connection):
         """Test successful vector search."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -60,37 +68,38 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Setup mock connection to return document fields
-        mock_conn.hgetall.side_effect = [doc1_fields, doc2_fields]
+        mock_conn_raw.hgetall.side_effect = [doc1_fields, doc2_fields]
 
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify results
-        assert isinstance(result, list)
-        assert len(result) == 2
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 2
 
         # Verify first document
-        assert result[0]['id'] == 'doc1'
-        assert result[0]['title'] == 'First Document'
-        assert result[0]['content'] == 'This is the first document content'
-        assert result[0]['author'] == 'Alice'
+        assert result['results'][0]['id'] == 'doc1'
+        assert result['results'][0]['title'] == 'First Document'
+        assert result['results'][0]['content'] == 'This is the first document content'
+        assert result['results'][0]['author'] == 'Alice'
 
         # Verify second document
-        assert result[1]['id'] == 'doc2'
-        assert result[1]['title'] == 'Second Document'
-        assert result[1]['content'] == 'This is the second document content'
-        assert result[1]['author'] == 'Bob'
+        assert result['results'][1]['id'] == 'doc2'
+        assert result['results'][1]['title'] == 'Second Document'
+        assert result['results'][1]['content'] == 'This is the second document content'
+        assert result['results'][1]['author'] == 'Bob'
 
         # Verify correct method calls
-        mock_conn.ft.assert_called_once_with(index)
+        mock_conn_raw.ft.assert_called_once_with(index)
 
     @pytest.mark.asyncio
     async def test_vector_search_with_filter_expression(self, mock_connection):
         """Test vector search with filter expression."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -111,24 +120,25 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Setup mock connection to return document fields
-        mock_conn.hgetall.return_value = doc_fields
+        mock_conn_raw.hgetall.return_value = doc_fields
 
         # Execute search with filter
         result = await vector_search(index, field, vector, filter_expression=filter_expression, count=count)
 
         # Verify results
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]['category'] == 'electronics'
-        assert result[0]['title'] == 'Laptop'
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 1
+        assert result['results'][0]['category'] == 'electronics'
+        assert result['results'][0]['title'] == 'Laptop'
 
     @pytest.mark.asyncio
     async def test_vector_search_with_no_content(self, mock_connection):
         """Test vector search with no_content parameter."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -143,14 +153,15 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Execute search with no_content=True
         result = await vector_search(index, field, vector, no_content=True, count=count)
 
         # Verify empty list returned
-        assert isinstance(result, list)
-        assert len(result) == 0
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0
 
         # Verify search was called
         mock_ft.search.assert_called_once()
@@ -158,7 +169,7 @@ class TestSearch:
     @pytest.mark.asyncio
     async def test_vector_search_no_results(self, mock_connection):
         """Test vector search with no results."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -172,20 +183,21 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Execute search
         result = await vector_search(index, field, vector)
 
         # Verify empty list returned
-        assert isinstance(result, list)
-        assert len(result) == 0
-        mock_conn.ft.assert_called_once_with(index)
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0
+        mock_conn_raw.ft.assert_called_once_with(index)
 
     @pytest.mark.asyncio
     async def test_vector_search_default_count(self, mock_connection):
         """Test vector search with default count parameter."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'vec'
@@ -199,14 +211,15 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Execute search without specifying count
         result = await vector_search(index, field, vector)
 
         # Verify empty list returned
-        assert isinstance(result, list)
-        assert len(result) == 0
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0
 
         # Verify search was called
         mock_ft.search.assert_called_once()
@@ -214,7 +227,7 @@ class TestSearch:
     @pytest.mark.asyncio
     async def test_vector_search_error_handling(self, mock_connection):
         """Test error handling in vector search."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -224,18 +237,19 @@ class TestSearch:
         # Setup mock to raise ValkeyError
         mock_ft = Mock()
         mock_ft.search.side_effect = ValkeyError('Index not found')
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Execute search
         result = await vector_search(index, field, vector, 0, count)
 
-        # Verify string message returned on error
-        assert isinstance(result, str)
+        # Verify error response returned
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
 
     @pytest.mark.asyncio
     async def test_vector_search_connection_error(self, mock_connection):
         """Test error when accessing search index."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'invalid_index'
         field = 'vec'
@@ -248,13 +262,14 @@ class TestSearch:
         # Execute search
         result = await vector_search(index, field, vector, 0, count)
 
-        # Verify string message returned on error
-        assert isinstance(result, str)
+        # Verify error response returned
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
 
     @pytest.mark.asyncio
     async def test_vector_search_large_vector(self, mock_connection):
         """Test vector search with a large vector."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'high_dim_vector'
@@ -276,10 +291,10 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Setup mock connection to return document fields
-        mock_conn.hgetall.return_value = doc_fields
+        mock_conn_raw.hgetall.return_value = doc_fields
 
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
@@ -288,16 +303,17 @@ class TestSearch:
         mock_ft.search.assert_called_once()
 
         # Verify result is correct
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]['id'] == 'doc1'
-        assert result[0]['title'] == 'High Dimensional Document'
-        assert result[0]['description'] == 'Document with 100-dimensional embedding'
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 1
+        assert result['results'][0]['id'] == 'doc1'
+        assert result['results'][0]['title'] == 'High Dimensional Document'
+        assert result['results'][0]['description'] == 'Document with 100-dimensional embedding'
 
     @pytest.mark.asyncio
     async def test_vector_search_missing_document(self, mock_connection):
         """Test vector search when document doesn't exist or has no document_json field."""
-        mock_conn = mock_connection
+        mock_conn, mock_conn_raw = mock_connection
 
         index = 'test_index'
         field = 'embedding'
@@ -315,14 +331,15 @@ class TestSearch:
         # Setup mock search interface
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
-        mock_conn.ft.return_value = mock_ft
+        mock_conn_raw.ft.return_value = mock_ft
 
         # Setup mock fetch to return dict without document_json field
-        mock_conn.hgetall.return_value = {b'other_field': b'value'}
+        mock_conn_raw.hgetall.return_value = {b'other_field': b'value'}
 
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify empty list since document doesn't have document_json field
-        assert isinstance(result, list)
-        assert len(result) == 0
+        assert isinstance(result, dict)
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0

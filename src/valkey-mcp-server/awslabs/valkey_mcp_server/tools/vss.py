@@ -60,7 +60,7 @@ async def vector_search(index: str,
     """
     try:
         # Use connection with decode_responses=True for fetching document fields
-        r = ValkeyConnectionManager.get_connection(decode_responses=True)
+        r = ValkeyConnectionManager.get_connection(decode_responses=False)
 
         # Access the search index
         ft = r.ft(index)
@@ -87,16 +87,13 @@ async def vector_search(index: str,
                 "results": []
             }
 
-        # Use decode_responses=False to handle binary embeddings properly
-        r_raw = ValkeyConnectionManager.get_connection(decode_responses=False)
-
         documents_list = []
         for doc in result.docs:
             # Get the document ID
             doc_id = doc.id
 
             # Fetch the document hash
-            doc_fields = r_raw.hgetall(doc_id.encode() if isinstance(doc_id, str) else doc_id)
+            doc_fields = r.hgetall(doc_id.encode() if isinstance(doc_id, str) else doc_id)
 
             if doc_fields and b'document_json' in doc_fields:
                 try:
