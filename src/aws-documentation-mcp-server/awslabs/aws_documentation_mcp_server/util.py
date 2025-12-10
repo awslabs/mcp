@@ -16,6 +16,7 @@
 import markdownify
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
+from urllib.parse import quote_plus
 
 
 def extract_content_from_html(html: str) -> str:
@@ -255,3 +256,23 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
             )
 
     return results
+
+
+def add_search_intent_to_search_request(search_url: str, search_intent: str) -> str:
+    """Adds the search_intent query parameter to the search_url if search_intent is a string.
+
+    :param search_url: URL to be used for search_documentation tool call
+    :type search_url: str
+    :param search_intent: Intent derived and provided by LLM to MCP Server for user's search intent
+    :type search_intent: str
+    :return: search_url with search_intent query parameter added
+    :rtype: str
+    """
+    if search_intent and search_intent != '':
+        # Remove all whitespaces, including tabs and returns
+        search_intent = ' '.join(f'{search_intent}'.split())
+        if search_intent:
+            encoded_search_intent = quote_plus(search_intent)
+            search_url = f'{search_url}&search_intent={encoded_search_intent}'
+
+    return search_url
