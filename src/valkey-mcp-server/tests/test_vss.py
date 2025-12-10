@@ -15,7 +15,6 @@
 """Tests for the Search functionality in the valkey MCP server."""
 
 import pytest
-import struct
 from awslabs.valkey_mcp_server.tools.vss import vector_search
 from unittest.mock import Mock, patch
 from valkey.exceptions import ValkeyError
@@ -240,7 +239,7 @@ class TestSearch:
         mock_conn_raw.ft.return_value = mock_ft
 
         # Execute search
-        result = await vector_search(index, field, vector, 0, count)
+        result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify error response returned
         assert isinstance(result, dict)
@@ -260,7 +259,7 @@ class TestSearch:
         mock_conn.ft.side_effect = ValkeyError('Connection error')
 
         # Execute search
-        result = await vector_search(index, field, vector, 0, count)
+        result = await vector_search(index, field, vector, offset=0, count=count)
 
         # Verify error response returned
         assert isinstance(result, dict)
