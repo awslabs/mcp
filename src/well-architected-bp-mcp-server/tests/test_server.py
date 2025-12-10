@@ -6,20 +6,20 @@ from pathlib import Path
 
 def test_data_files_exist():
     """Test that data files exist and are valid JSON."""
-    data_dir = Path(__file__).parent.parent / "src" / "well_architected_bp_mcp_server" / "data"
+    data_dir = Path(__file__).parent.parent / 'src' / 'well_architected_bp_mcp_server' / 'data'
 
     # Check if data directory exists
-    assert data_dir.exists(), f"Data directory not found: {data_dir}"
+    assert data_dir.exists(), f'Data directory not found: {data_dir}'
 
     # Check for JSON files
-    json_files = list(data_dir.glob("*.json"))
-    assert len(json_files) > 0, "No JSON data files found"
+    json_files = list(data_dir.glob('*.json'))
+    assert len(json_files) > 0, 'No JSON data files found'
 
     # Validate JSON files can be loaded
     for json_file in json_files:
         with open(json_file) as f:
             data = json.load(f)
-            assert isinstance(data, (list, dict)), f"Invalid JSON structure in {json_file}"
+            assert isinstance(data, (list, dict)), f'Invalid JSON structure in {json_file}'
 
 
 def test_best_practices_data_structure():
@@ -37,13 +37,14 @@ def test_best_practices_data_structure():
         # Check first practice has required fields
         if practices:
             practice = practices[0]
-            assert "id" in practice
-            assert "title" in practice
+            assert 'id' in practice
+            assert 'title' in practice
 
 
 def test_server_imports():
     """Test that server module imports correctly."""
     from well_architected_bp_mcp_server import server
+
     assert hasattr(server, 'mcp')
     assert hasattr(server, 'BEST_PRACTICES')
 
@@ -51,6 +52,7 @@ def test_server_imports():
 def test_main_function_exists():
     """Test that main function exists."""
     from well_architected_bp_mcp_server.server import main
+
     assert callable(main)
 
 
@@ -63,11 +65,11 @@ def test_search_best_practices():
     assert isinstance(results, list)
 
     # Test pillar filter
-    security_results = search_best_practices_impl(pillar="SECURITY")
+    security_results = search_best_practices_impl(pillar='SECURITY')
     assert isinstance(security_results, list)
 
     # Test keyword search
-    keyword_results = search_best_practices_impl(keyword="access")
+    keyword_results = search_best_practices_impl(keyword='access')
     assert isinstance(keyword_results, list)
 
 
@@ -81,13 +83,13 @@ def test_get_best_practice():
     # Get a practice ID from search results
     results = search_best_practices_impl()
     if results:
-        practice_id = results[0]["id"]
+        practice_id = results[0]['id']
         practice = get_best_practice_impl(practice_id)
         assert practice is not None
-        assert practice["id"] == practice_id
+        assert practice['id'] == practice_id
 
     # Test non-existent ID
-    assert get_best_practice_impl("INVALID-ID") is None
+    assert get_best_practice_impl('INVALID-ID') is None
 
 
 def test_list_pillars():
@@ -114,12 +116,12 @@ def test_get_related_practices():
     # Test with existing practice
     results = search_best_practices_impl()
     if results:
-        practice_id = results[0]["id"]
+        practice_id = results[0]['id']
         related = get_related_practices_impl(practice_id)
         assert isinstance(related, list)
 
     # Test with non-existent ID
-    related = get_related_practices_impl("INVALID-ID")
+    related = get_related_practices_impl('INVALID-ID')
     assert related == []
 
 
@@ -129,12 +131,12 @@ def test_well_architected_framework_review():
 
     review = well_architected_framework_review_impl()
     assert isinstance(review, dict)
-    assert "framework" in review
-    assert "pillars" in review
-    assert "total_practices" in review
-    assert review["framework"] == "AWS Well-Architected Framework"
-    assert isinstance(review["total_practices"], int)
-    assert review["total_practices"] > 0
+    assert 'framework' in review
+    assert 'pillars' in review
+    assert 'total_practices' in review
+    assert review['framework'] == 'AWS Well-Architected Framework'
+    assert isinstance(review['total_practices'], int)
+    assert review['total_practices'] > 0
 
 
 def test_load_data_function():
@@ -152,19 +154,19 @@ def test_search_filters():
     from well_architected_bp_mcp_server.server import search_best_practices_impl
 
     # Test risk filter
-    high_risk = search_best_practices_impl(risk="HIGH")
+    high_risk = search_best_practices_impl(risk='HIGH')
     assert isinstance(high_risk, list)
 
     # Test lens filter
-    framework_lens = search_best_practices_impl(lens="FRAMEWORK")
+    framework_lens = search_best_practices_impl(lens='FRAMEWORK')
     assert isinstance(framework_lens, list)
 
     # Test area filter
-    area_results = search_best_practices_impl(area="identity")
+    area_results = search_best_practices_impl(area='identity')
     assert isinstance(area_results, list)
 
     # Test multiple filters
-    combined = search_best_practices_impl(pillar="SECURITY", risk="HIGH")
+    combined = search_best_practices_impl(pillar='SECURITY', risk='HIGH')
     assert isinstance(combined, list)
 
 
@@ -180,12 +182,12 @@ def test_get_related_practices_with_relations():
     practice_with_relations = None
 
     for practice in all_practices:
-        if practice.get("relatedIds"):
+        if practice.get('relatedIds'):
             practice_with_relations = practice
             break
 
     if practice_with_relations:
-        related = get_related_practices_impl(practice_with_relations["id"])
+        related = get_related_practices_impl(practice_with_relations['id'])
         assert isinstance(related, list)
 
 
@@ -195,7 +197,7 @@ def test_mcp_object_exists():
 
     # Check that mcp object exists
     assert mcp is not None
-    assert str(mcp).startswith("FastMCP")
+    assert str(mcp).startswith('FastMCP')
 
 
 def test_main_function_callable():
@@ -236,6 +238,7 @@ def test_main_module_execution():
         with unittest.mock.patch('well_architected_bp_mcp_server.server.mcp.run') as mock_run:
             # Test main function directly instead of using exec
             from well_architected_bp_mcp_server.server import main
+
             main()
             mock_run.assert_called_once()
 
@@ -289,10 +292,10 @@ def test_wrapper_function_calls():
 
     # Test get functions
     if results:
-        practice = get_best_practice_impl(results[0]["id"])
+        practice = get_best_practice_impl(results[0]['id'])
         assert practice is not None
 
-        related = get_related_practices_impl(results[0]["id"])
+        related = get_related_practices_impl(results[0]['id'])
         assert isinstance(related, list)
 
 

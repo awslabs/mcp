@@ -58,11 +58,17 @@ def test_wrapper_functions_with_mocks():
         ('get_best_practice_impl', {'id': 'test'}, 'get_best_practice'),
         ('list_pillars_impl', {'SECURITY': 10}, 'list_pillars'),
         ('get_related_practices_impl', [], 'get_related_practices'),
-        ('well_architected_framework_review_impl', {'framework': 'test'}, 'well_architected_framework_review')
+        (
+            'well_architected_framework_review_impl',
+            {'framework': 'test'},
+            'well_architected_framework_review',
+        ),
     ]
 
     for internal_func, mock_return, wrapper_name in test_cases:
-        with unittest.mock.patch(f'well_architected_bp_mcp_server.server.{internal_func}') as mock_func:
+        with unittest.mock.patch(
+            f'well_architected_bp_mcp_server.server.{internal_func}'
+        ) as mock_func:
             mock_func.return_value = mock_return
 
             module = __import__('well_architected_bp_mcp_server.server', fromlist=[wrapper_name])

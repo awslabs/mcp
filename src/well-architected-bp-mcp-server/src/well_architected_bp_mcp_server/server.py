@@ -22,41 +22,50 @@ from typing import Any
 
 # Initialize MCP server
 mcp = FastMCP(
-    "AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, WAFR, Well-Architected Assessment, AWS Best Practices Validation, Architecture Audit"
+    'AWS Well-Architected Framework Best Practices - Architecture Review, Design Principles, WAF, WAFR, Well-Architected Assessment, AWS Best Practices Validation, Architecture Audit'
 )
 
 # Load best practices data
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent / 'data'
 BEST_PRACTICES: dict[str, list[dict[str, Any]]] = {}
+
 
 def load_data():
     """Load all best practices from JSON files."""
     global BEST_PRACTICES
 
     # Load framework pillars
-    for pillar_file in ["operational_excellence", "security", "reliability",
-                        "performance_efficiency", "cost_optimization", "sustainability"]:
-        file_path = DATA_DIR / f"{pillar_file}.json"
+    for pillar_file in [
+        'operational_excellence',
+        'security',
+        'reliability',
+        'performance_efficiency',
+        'cost_optimization',
+        'sustainability',
+    ]:
+        file_path = DATA_DIR / f'{pillar_file}.json'
         if file_path.exists():
             with open(file_path) as f:
                 BEST_PRACTICES[pillar_file] = json.load(f)
 
     # Load lens data
-    lens_dir = DATA_DIR / "lens" / "generative-ai"
+    lens_dir = DATA_DIR / 'lens' / 'generative-ai'
     if lens_dir.exists():
-        for lens_file in lens_dir.glob("*.json"):
-            key = f"genai_{lens_file.stem}"
+        for lens_file in lens_dir.glob('*.json'):
+            key = f'genai_{lens_file.stem}'
             with open(lens_file) as f:
                 BEST_PRACTICES[key] = json.load(f)
 
+
 load_data()
+
 
 def search_best_practices_impl(
     pillar: str | None = None,
     risk: str | None = None,
     lens: str | None = None,
     keyword: str | None = None,
-    area: str | None = None
+    area: str | None = None,
 ) -> list[dict[str, Any]]:
     """Search AWS Well-Architected Framework best practices and recommendations."""
     results = []
@@ -64,39 +73,45 @@ def search_best_practices_impl(
     for practices in BEST_PRACTICES.values():
         for bp in practices:
             # Apply filters
-            if pillar and bp.get("pillar") != pillar:
+            if pillar and bp.get('pillar') != pillar:
                 continue
-            if risk and bp.get("risk") != risk:
+            if risk and bp.get('risk') != risk:
                 continue
-            if lens and bp.get("lens", "FRAMEWORK") != lens:
+            if lens and bp.get('lens', 'FRAMEWORK') != lens:
                 continue
-            if area and area.lower() not in " ".join(bp.get("area", [])).lower():
+            if area and area.lower() not in ' '.join(bp.get('area', [])).lower():
                 continue
             if keyword:
                 kw = keyword.lower()
-                if kw not in bp.get("title", "").lower() and kw not in bp.get("description", "").lower():
+                if (
+                    kw not in bp.get('title', '').lower()
+                    and kw not in bp.get('description', '').lower()
+                ):
                     continue
 
             results.append(bp)
 
     return results
 
+
 def get_best_practice_impl(id: str) -> dict[str, Any] | None:
     """Get detailed AWS Well-Architected Framework best practice by ID."""
     for practices in BEST_PRACTICES.values():
         for bp in practices:
-            if bp.get("id") == id:
+            if bp.get('id') == id:
                 return bp
     return None
+
 
 def list_pillars_impl() -> dict[str, int]:
     """List all AWS Well-Architected Framework pillars with best practice counts."""
     pillar_counts = {}
     for practices in BEST_PRACTICES.values():
         for bp in practices:
-            pillar = bp.get("pillar", "UNKNOWN")
+            pillar = bp.get('pillar', 'UNKNOWN')
             pillar_counts[pillar] = pillar_counts.get(pillar, 0) + 1
     return pillar_counts
+
 
 def get_related_practices_impl(id: str) -> list[dict[str, Any]]:
     """Get all AWS Well-Architected best practices related to a specific practice."""
@@ -104,7 +119,7 @@ def get_related_practices_impl(id: str) -> list[dict[str, Any]]:
     bp = None
     for practices in BEST_PRACTICES.values():
         for practice in practices:
-            if practice.get("id") == id:
+            if practice.get('id') == id:
                 bp = practice
                 break
         if bp:
@@ -113,70 +128,72 @@ def get_related_practices_impl(id: str) -> list[dict[str, Any]]:
     if not bp:
         return []
 
-    related_ids = bp.get("relatedIds", [])
+    related_ids = bp.get('relatedIds', [])
     results = []
 
     # Find related BPs directly from data
     for rid in related_ids:
         for practices in BEST_PRACTICES.values():
             for practice in practices:
-                if practice.get("id") == rid:
+                if practice.get('id') == rid:
                     results.append(practice)
                     break
 
     return results
 
+
 def well_architected_framework_review_impl() -> dict[str, Any]:
     """Complete AWS Well-Architected Framework review and assessment."""
     review = {
-        "framework": "AWS Well-Architected Framework",
-        "pillars": {},
-        "total_practices": 0,
-        "key_areas": [],
-        "assessment_guidance": []
+        'framework': 'AWS Well-Architected Framework',
+        'pillars': {},
+        'total_practices': 0,
+        'key_areas': [],
+        'assessment_guidance': [],
     }
 
     # Aggregate data by pillar
     pillar_mapping = {
-        "operational_excellence": "Operational Excellence",
-        "security": "Security",
-        "reliability": "Reliability",
-        "performance_efficiency": "Performance Efficiency",
-        "cost_optimization": "Cost Optimization",
-        "sustainability": "Sustainability"
+        'operational_excellence': 'Operational Excellence',
+        'security': 'Security',
+        'reliability': 'Reliability',
+        'performance_efficiency': 'Performance Efficiency',
+        'cost_optimization': 'Cost Optimization',
+        'sustainability': 'Sustainability',
     }
 
     for key, practices in BEST_PRACTICES.items():
         if key in pillar_mapping:
             pillar_name = pillar_mapping[key]
-            review["pillars"][pillar_name] = {
-                "practice_count": len(practices),
-                "high_risk_practices": [p for p in practices if p.get("risk") == "HIGH"],
-                "key_practices": practices[:5]  # Top 5 practices
+            review['pillars'][pillar_name] = {
+                'practice_count': len(practices),
+                'high_risk_practices': [p for p in practices if p.get('risk') == 'HIGH'],
+                'key_practices': practices[:5],  # Top 5 practices
             }
-            review["total_practices"] += len(practices)
+            review['total_practices'] += len(practices)
 
-    review["key_areas"] = [
-        "Identity and Access Management",
-        "Data Protection",
-        "Infrastructure Protection",
-        "Incident Response",
-        "Application Security",
-        "Monitoring and Logging",
-        "Cost Management",
-        "Performance Optimization"
+    review['key_areas'] = [
+        'Identity and Access Management',
+        'Data Protection',
+        'Infrastructure Protection',
+        'Incident Response',
+        'Application Security',
+        'Monitoring and Logging',
+        'Cost Management',
+        'Performance Optimization',
     ]
 
-    review["assessment_guidance"] = [
-        "Start with Security pillar for foundational protection",
-        "Review Operational Excellence for monitoring and automation",
-        "Assess Reliability for fault tolerance and recovery",
-        "Evaluate Performance Efficiency for optimal resource usage",
-        "Analyze Cost Optimization for financial efficiency",
-        "Consider Sustainability for environmental impact"
+    review['assessment_guidance'] = [
+        'Start with Security pillar for foundational protection',
+        'Review Operational Excellence for monitoring and automation',
+        'Assess Reliability for fault tolerance and recovery',
+        'Evaluate Performance Efficiency for optimal resource usage',
+        'Analyze Cost Optimization for financial efficiency',
+        'Consider Sustainability for environmental impact',
     ]
 
     return review
+
 
 # MCP Tool Wrappers - These are thin wrappers around the implementation functions
 @mcp.tool()
@@ -185,7 +202,7 @@ def search_best_practices(
     risk: str | None = None,
     lens: str | None = None,
     keyword: str | None = None,
-    area: str | None = None
+    area: str | None = None,
 ) -> list[dict[str, Any]]:
     """Search AWS Well-Architected Framework best practices and recommendations.
 
@@ -214,6 +231,7 @@ def search_best_practices(
     """
     return search_best_practices_impl(pillar, risk, lens, keyword, area)
 
+
 @mcp.tool()
 def get_best_practice(id: str) -> dict[str, Any] | None:
     """Get detailed AWS Well-Architected Framework best practice by ID.
@@ -232,6 +250,7 @@ def get_best_practice(id: str) -> dict[str, Any] | None:
     """
     return get_best_practice_impl(id)
 
+
 @mcp.tool()
 def list_pillars() -> dict[str, int]:
     """List all AWS Well-Architected Framework pillars with best practice counts.
@@ -246,6 +265,7 @@ def list_pillars() -> dict[str, int]:
         Dictionary mapping pillar names to practice counts
     """
     return list_pillars_impl()
+
 
 @mcp.tool()
 def get_related_practices(id: str) -> list[dict[str, Any]]:
@@ -263,6 +283,7 @@ def get_related_practices(id: str) -> list[dict[str, Any]]:
         List of related best practices
     """
     return get_related_practices_impl(id)
+
 
 @mcp.tool()
 def well_architected_framework_review() -> dict[str, Any]:
@@ -282,9 +303,11 @@ def well_architected_framework_review() -> dict[str, Any]:
     """
     return well_architected_framework_review_impl()
 
+
 def main():
     """Run the MCP server."""
     mcp.run()
+
 
 if __name__ == '__main__':
     main()

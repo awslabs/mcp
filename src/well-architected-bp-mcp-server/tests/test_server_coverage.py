@@ -20,7 +20,9 @@ def test_search_with_all_filters():
     from well_architected_bp_mcp_server.server import search_best_practices_impl
 
     # Test all filter combinations to hit more code paths
-    result = search_best_practices_impl(pillar='SECURITY', risk='HIGH', lens='FRAMEWORK', keyword='access', area='identity')
+    result = search_best_practices_impl(
+        pillar='SECURITY', risk='HIGH', lens='FRAMEWORK', keyword='access', area='identity'
+    )
     assert isinstance(result, list)
 
     result = search_best_practices_impl(pillar='RELIABILITY', risk='MEDIUM')
@@ -63,7 +65,7 @@ def test_framework_review_structure():
     from well_architected_bp_mcp_server.server import well_architected_framework_review_impl
 
     result = well_architected_framework_review_impl()
-    
+
     # Test all expected keys exist
     assert 'framework' in result
     assert 'pillars' in result

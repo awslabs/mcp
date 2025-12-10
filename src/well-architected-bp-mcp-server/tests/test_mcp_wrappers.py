@@ -28,19 +28,19 @@ def test_search_best_practices_wrapper():
     result = search_best_practices.fn()
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(pillar="SECURITY")
+    result = search_best_practices.fn(pillar='SECURITY')
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(risk="HIGH")
+    result = search_best_practices.fn(risk='HIGH')
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(lens="FRAMEWORK")
+    result = search_best_practices.fn(lens='FRAMEWORK')
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(keyword="identity")
+    result = search_best_practices.fn(keyword='identity')
     assert isinstance(result, list)
 
-    result = search_best_practices.fn(area="access")
+    result = search_best_practices.fn(area='access')
     assert isinstance(result, list)
 
 
@@ -49,12 +49,12 @@ def test_get_best_practice_wrapper():
     # Get a valid ID first
     practices = search_best_practices.fn()
     if practices:
-        practice_id = practices[0]["id"]
+        practice_id = practices[0]['id']
         result = get_best_practice.fn(practice_id)
         assert result is not None
 
     # Test with invalid ID
-    result = get_best_practice.fn("INVALID-ID")
+    result = get_best_practice.fn('INVALID-ID')
     assert result is None
 
 
@@ -70,13 +70,13 @@ def test_get_related_practices_wrapper():
     # Find a practice with relations
     practices = search_best_practices.fn()
     for practice in practices:
-        if practice.get("relatedIds"):
-            result = get_related_practices.fn(practice["id"])
+        if practice.get('relatedIds'):
+            result = get_related_practices.fn(practice['id'])
             assert isinstance(result, list)
             break
 
     # Test with invalid ID
-    result = get_related_practices.fn("INVALID-ID")
+    result = get_related_practices.fn('INVALID-ID')
     assert isinstance(result, list)
     assert len(result) == 0
 
@@ -85,6 +85,6 @@ def test_well_architected_framework_review_wrapper():
     """Test well_architected_framework_review MCP wrapper function."""
     result = well_architected_framework_review.fn()
     assert isinstance(result, dict)
-    assert "framework" in result
-    assert "pillars" in result
-    assert "total_practices" in result
+    assert 'framework' in result
+    assert 'pillars' in result
+    assert 'total_practices' in result

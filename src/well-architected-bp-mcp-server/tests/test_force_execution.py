@@ -44,7 +44,13 @@ def test_force_execute_wrapper_returns():
     )
 
     # Access wrapper attributes
-    for wrapper in [search_best_practices, get_best_practice, list_pillars, get_related_practices, well_architected_framework_review]:
+    for wrapper in [
+        search_best_practices,
+        get_best_practice,
+        list_pillars,
+        get_related_practices,
+        well_architected_framework_review,
+    ]:
         assert wrapper is not None
         if hasattr(wrapper, 'name'):
             assert wrapper.name
@@ -53,7 +59,7 @@ def test_force_execute_wrapper_returns():
 def test_module_reload():
     """Test module reload to force re-execution."""
     import well_architected_bp_mcp_server.server as server_module
-    
+
     assert hasattr(server_module, 'mcp')
     importlib.reload(server_module)
     assert hasattr(server_module, 'mcp')
