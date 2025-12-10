@@ -3,7 +3,6 @@
 
 def test_force_execute_wrapper_returns():
     """Force execution of all MCP wrapper return statements."""
-    
     # Execute code that will trigger the return statements
     exec_code = '''
 from well_architected_bp_mcp_server.server import (
@@ -13,7 +12,7 @@ from well_architected_bp_mcp_server.server import (
 
 # Call internal functions to ensure wrappers work
 result1 = _search_best_practices()
-result2 = _get_best_practice("SEC01-BP01") 
+result2 = _get_best_practice("SEC01-BP01")
 result3 = _list_pillars()
 result4 = _get_related_practices("SEC01-BP01")
 result5 = _well_architected_framework_review()
@@ -31,10 +30,10 @@ _ = list_pillars.name if hasattr(list_pillars, 'name') else str(list_pillars)
 _ = get_related_practices.name if hasattr(get_related_practices, 'name') else str(get_related_practices)
 _ = well_architected_framework_review.name if hasattr(well_architected_framework_review, 'name') else str(well_architected_framework_review)
 '''
-    
+
     # Execute the code
     exec(exec_code)
-    
+
     # Verify execution completed
     assert True
 
@@ -42,10 +41,13 @@ _ = well_architected_framework_review.name if hasattr(well_architected_framework
 def test_manual_wrapper_calls():
     """Manually call wrapper functions to hit return statements."""
     from well_architected_bp_mcp_server.server import (
-        search_best_practices, get_best_practice, list_pillars,
-        get_related_practices, well_architected_framework_review
+        get_best_practice,
+        get_related_practices,
+        list_pillars,
+        search_best_practices,
+        well_architected_framework_review,
     )
-    
+
     # Try to call the wrapper functions directly if possible
     wrappers = [
         (search_best_practices, 'search_best_practices'),
@@ -54,7 +56,7 @@ def test_manual_wrapper_calls():
         (get_related_practices, 'get_related_practices'),
         (well_architected_framework_review, 'well_architected_framework_review')
     ]
-    
+
     for wrapper, name in wrappers:
         # Try multiple ways to access the wrapper
         try:
@@ -63,27 +65,27 @@ def test_manual_wrapper_calls():
                 if name in ['get_best_practice', 'get_related_practices']:
                     try:
                         wrapper('test_id')
-                    except:
+                    except Exception:
                         pass
                 else:
                     try:
                         wrapper()
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
-        
+
         # Method 2: Access attributes
         try:
             _ = wrapper.__dict__
-        except:
+        except Exception:
             pass
-        
+
         try:
             _ = wrapper.__class__
-        except:
+        except Exception:
             pass
-        
+
         # Method 3: Check for function attribute
         if hasattr(wrapper, 'function'):
             try:
@@ -91,67 +93,66 @@ def test_manual_wrapper_calls():
                     wrapper.function('test_id')
                 else:
                     wrapper.function()
-            except:
+            except Exception:
                 pass
 
 
 def test_import_and_access_all_wrappers():
     """Import and access all wrapper functions to trigger return statements."""
-    
     # Import each wrapper individually to trigger its creation
     from well_architected_bp_mcp_server.server import search_best_practices
     assert search_best_practices is not None
-    
-    from well_architected_bp_mcp_server.server import get_best_practice  
+
+    from well_architected_bp_mcp_server.server import get_best_practice
     assert get_best_practice is not None
-    
+
     from well_architected_bp_mcp_server.server import list_pillars
     assert list_pillars is not None
-    
+
     from well_architected_bp_mcp_server.server import get_related_practices
     assert get_related_practices is not None
-    
+
     from well_architected_bp_mcp_server.server import well_architected_framework_review
     assert well_architected_framework_review is not None
-    
+
     # Access various attributes to force execution
-    for wrapper in [search_best_practices, get_best_practice, list_pillars, 
+    for wrapper in [search_best_practices, get_best_practice, list_pillars,
                    get_related_practices, well_architected_framework_review]:
-        
+
         # Try to access different attributes
         attrs_to_check = ['name', 'description', '__class__', '__dict__', 'function']
         for attr in attrs_to_check:
             try:
                 _ = getattr(wrapper, attr, None)
-            except:
+            except Exception:
                 pass
 
 
 def test_reload_module_to_force_execution():
     """Reload the module to force re-execution of wrapper definitions."""
     import importlib
-    
+
     # Import the module
     import well_architected_bp_mcp_server.server as server_module
-    
+
     # Check that key attributes exist before reload
     assert hasattr(server_module, 'mcp')
     assert hasattr(server_module, 'BEST_PRACTICES')
-    
+
     # Reload it to force re-execution of all code including wrappers
     importlib.reload(server_module)
-    
+
     # Verify key attributes still exist after reload
     assert hasattr(server_module, 'mcp')
     assert hasattr(server_module, 'BEST_PRACTICES')
-    
+
     # Access the reloaded wrappers
     assert hasattr(server_module, 'search_best_practices')
     assert hasattr(server_module, 'get_best_practice')
     assert hasattr(server_module, 'list_pillars')
     assert hasattr(server_module, 'get_related_practices')
     assert hasattr(server_module, 'well_architected_framework_review')
-    
+
     # Try to access their attributes
     wrappers = [
         server_module.search_best_practices,
@@ -160,13 +161,13 @@ def test_reload_module_to_force_execution():
         server_module.get_related_practices,
         server_module.well_architected_framework_review
     ]
-    
+
     for wrapper in wrappers:
         try:
             _ = wrapper.name
-        except:
+        except Exception:
             pass
         try:
-            _ = wrapper.description  
-        except:
+            _ = wrapper.description
+        except Exception:
             pass

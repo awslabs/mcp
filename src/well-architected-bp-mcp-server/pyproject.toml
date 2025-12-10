@@ -61,3 +61,8 @@ include = [
     "/README.md",
     "/MANIFEST.in",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.8",
+]
