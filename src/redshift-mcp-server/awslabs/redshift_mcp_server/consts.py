@@ -64,7 +64,7 @@ REDSHIFT_BEST_PRACTICES = """
 
 # SQL queries
 
-SVV_REDSHIFT_DATABASES_QUERY = """
+SVV_REDSHIFT_DATABASES_SQL = """
 SELECT
     database_name,
     database_owner,
@@ -76,7 +76,7 @@ FROM pg_catalog.svv_redshift_databases
 ORDER BY database_name;
 """
 
-SVV_ALL_SCHEMAS_QUERY = """
+SVV_ALL_SCHEMAS_SQL = """
 SELECT
     database_name,
     schema_name,
@@ -90,20 +90,79 @@ WHERE database_name = :database_name
 ORDER BY schema_name;
 """
 
-SVV_ALL_TABLES_QUERY = """
+SVV_ALL_TABLES_SQL = """
 SELECT
     database_name,
     schema_name,
     table_name,
     table_acl,
     table_type,
-    remarks
-FROM pg_catalog.svv_all_tables
+    remarks,
+    NULL AS external_location,
+    NULL AS external_parameters
+FROM pg_catalog.svv_redshift_tables
 WHERE database_name = :database_name AND schema_name = :schema_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name AS database_name,
+    schemaname AS schema_name,
+    tablename AS table_name,
+    NULL AS table_acl,
+    'EXTERNAL TABLE' AS table_type,
+    NULL AS remarks,
+    location AS external_location,
+    parameters AS external_parameters
+FROM pg_catalog.svv_external_tables
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name
+
 ORDER BY table_name;
 """
 
-SVV_ALL_COLUMNS_QUERY = """
+PG_TABLES_SQL = """
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS table_name,
+    CASE
+        WHEN c.reldiststyle = 0 THEN 'EVEN'
+        WHEN c.reldiststyle = 1 THEN 'KEY'
+        WHEN c.reldiststyle = 8 THEN 'ALL'
+        WHEN c.reldiststyle = 10 THEN 'AUTO(ALL)'
+        WHEN c.reldiststyle = 11 THEN 'AUTO(EVEN)'
+        WHEN c.reldiststyle = 12 THEN 'AUTO(KEY)'
+        ELSE 'UNKNOWN'
+    END AS diststyle,
+    COALESCE(
+        (SELECT attname
+         FROM pg_catalog.pg_attribute
+         WHERE attrelid = c.oid AND attnum = ANY(c.relsortkey)
+         ORDER BY array_position(c.relsortkey, attnum)
+         LIMIT 1),
+        NULL
+    ) AS sortkey1,
+    CASE WHEN c.relhassubclass THEN 'Y' ELSE 'N' END AS encoded,
+    s.n_live_tup AS tbl_rows,
+    (c.relpages * 8192 / 1024 / 1024)::bigint AS size,
+    CASE
+        WHEN c.relpages > 0 THEN (s.n_live_tup::float / c.relpages * 100)::numeric(5,2)
+        ELSE 0
+    END AS pct_used,
+    CASE
+        WHEN s.last_analyze IS NULL THEN 100
+        WHEN s.n_mod_since_analyze = 0 THEN 0
+        ELSE LEAST(100, (s.n_mod_since_analyze::float / NULLIF(s.n_live_tup, 0) * 100)::numeric(5,2))
+    END AS stats_off,
+    1.0 AS skew_rows
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT JOIN pg_catalog.pg_stat_user_tables s ON c.oid = s.relid
+WHERE n.nspname = :schema_name
+  AND c.relkind = 'r'
+ORDER BY c.relname;
+"""
+
+SVV_ALL_COLUMNS_SQL = """
 SELECT
     database_name,
     schema_name,
@@ -113,12 +172,41 @@ SELECT
     column_default,
     is_nullable,
     data_type,
-    character_maximum_length,
-    numeric_precision,
-    numeric_scale,
-    remarks
-FROM pg_catalog.svv_all_columns
+    NULL AS character_maximum_length,
+    NULL AS numeric_precision,
+    NULL AS numeric_scale,
+    remarks,
+    encoding AS redshift_encoding,
+    distkey AS redshift_distkey,
+    sortkey AS redshift_sortkey,
+    NULL AS external_type,
+    NULL AS external_part_key
+FROM pg_catalog.svv_redshift_columns
 WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name AS database_name,
+    schemaname AS schema_name,
+    tablename AS table_name,
+    columnname AS column_name,
+    columnnum AS ordinal_position,
+    NULL AS column_default,
+    is_nullable,
+    external_type AS data_type,
+    NULL AS character_maximum_length,
+    NULL AS numeric_precision,
+    NULL AS numeric_scale,
+    NULL AS remarks,
+    NULL AS redshift_encoding,
+    NULL AS redshift_distkey,
+    NULL AS redshift_sortkey,
+    external_type AS external_type,
+    part_key AS external_part_key
+FROM pg_catalog.svv_external_columns
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name AND tablename = :table_name
+
 ORDER BY ordinal_position;
 """
 

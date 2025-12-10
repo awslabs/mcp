@@ -25,14 +25,15 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
     CLIENT_USER_AGENT_NAME,
+    PG_TABLES_SQL,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SESSION_KEEPALIVE,
     SUSPICIOUS_QUERY_REGEXP,
-    SVV_ALL_COLUMNS_QUERY,
-    SVV_ALL_SCHEMAS_QUERY,
-    SVV_ALL_TABLES_QUERY,
-    SVV_REDSHIFT_DATABASES_QUERY,
+    SVV_ALL_COLUMNS_SQL,
+    SVV_ALL_SCHEMAS_SQL,
+    SVV_ALL_TABLES_SQL,
+    SVV_REDSHIFT_DATABASES_SQL,
 )
 from botocore.config import Config
 from loguru import logger
@@ -497,7 +498,7 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
-            sql=SVV_REDSHIFT_DATABASES_QUERY,
+            sql=SVV_REDSHIFT_DATABASES_SQL,
         )
 
         databases = []
@@ -542,7 +543,7 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
-            sql=SVV_ALL_SCHEMAS_QUERY,
+            sql=SVV_ALL_SCHEMAS_SQL,
             parameters=[{'name': 'database_name', 'value': schema_database_name}],
         )
 
@@ -592,11 +593,11 @@ async def discover_tables(
             f'Discovering tables in schema {table_schema_name} in database {table_database_name} in cluster {cluster_identifier}'
         )
 
-        # Execute the query using the common function
+        # Execute the main tables query
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
-            sql=SVV_ALL_TABLES_QUERY,
+            sql=SVV_ALL_TABLES_SQL,
             parameters=[
                 {'name': 'database_name', 'value': table_database_name},
                 {'name': 'schema_name', 'value': table_schema_name},
@@ -607,7 +608,6 @@ async def discover_tables(
         records = results_response.get('Records', [])
 
         for record in records:
-            # Extract values from the record
             table_info = {
                 'database_name': record[0].get('stringValue'),
                 'schema_name': record[1].get('stringValue'),
@@ -615,8 +615,61 @@ async def discover_tables(
                 'table_acl': record[3].get('stringValue'),
                 'table_type': record[4].get('stringValue'),
                 'remarks': record[5].get('stringValue'),
+                'external_location': record[6].get('stringValue'),
+                'external_parameters': record[7].get('stringValue'),
+                # Initialize Redshift-specific fields as None
+                'redshift_diststyle': None,
+                'redshift_sortkey1': None,
+                'redshift_encoded': None,
+                'redshift_tbl_rows': None,
+                'redshift_size': None,
+                'redshift_pct_used': None,
+                'redshift_stats_off': None,
+                'redshift_skew_rows': None,
             }
             tables.append(table_info)
+
+        # Try to fetch table info separately (may fail on serverless)
+        try:
+            table_info_response, _ = await _execute_protected_statement(
+                cluster_identifier=cluster_identifier,
+                database_name=table_database_name,
+                sql=PG_TABLES_SQL,
+                parameters=[
+                    {'name': 'schema_name', 'value': table_schema_name},
+                ],
+            )
+
+            # Create a lookup dictionary for table info
+            # PG_TABLES_SQL returns: schema_name(0), table_name(1), diststyle(2), sortkey1(3),
+            # encoded(4), tbl_rows(5), size(6), pct_used(7), stats_off(8), skew_rows(9)
+            table_info_map: dict[str, dict[str, str | int | float | None]] = {}
+            for record in table_info_response.get('Records', []):
+                table_name = record[1].get('stringValue')  # table_name at index 1
+                table_info_map[table_name] = {
+                    'redshift_diststyle': record[2].get('stringValue'),
+                    'redshift_sortkey1': record[3].get('stringValue'),
+                    'redshift_encoded': record[4].get('stringValue'),
+                    'redshift_tbl_rows': record[5].get('longValue'),
+                    'redshift_size': record[6].get('longValue'),
+                    'redshift_pct_used': record[7].get('doubleValue'),
+                    'redshift_stats_off': record[8].get('doubleValue'),
+                    'redshift_skew_rows': record[9].get('doubleValue'),
+                }
+
+            # Merge table info into tables
+            for table in tables:
+                table_name = table['table_name']
+                if table_name in table_info_map:
+                    table.update(table_info_map[table_name])
+
+            logger.debug(f'Successfully enriched {len(table_info_map)} tables with pg_tables data')
+
+        except Exception as table_info_error:
+            logger.warning(
+                f'Could not fetch pg_tables (may not be supported on serverless): {table_info_error}'
+            )
+            # Continue without table info - tables already have None values
 
         logger.info(
             f'Found {len(tables)} tables in schema {table_schema_name} in database {table_database_name} in cluster {cluster_identifier}'
@@ -652,11 +705,10 @@ async def discover_columns(
             f'Discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} in cluster {cluster_identifier}'
         )
 
-        # Execute the query using the common function
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
-            sql=SVV_ALL_COLUMNS_QUERY,
+            sql=SVV_ALL_COLUMNS_SQL,
             parameters=[
                 {'name': 'database_name', 'value': column_database_name},
                 {'name': 'schema_name', 'value': column_schema_name},
@@ -668,7 +720,6 @@ async def discover_columns(
         records = results_response.get('Records', [])
 
         for record in records:
-            # Extract values from the record
             column_info = {
                 'database_name': record[0].get('stringValue'),
                 'schema_name': record[1].get('stringValue'),
@@ -682,6 +733,11 @@ async def discover_columns(
                 'numeric_precision': record[9].get('longValue'),
                 'numeric_scale': record[10].get('longValue'),
                 'remarks': record[11].get('stringValue'),
+                'redshift_encoding': record[12].get('stringValue'),
+                'redshift_distkey': record[13].get('booleanValue'),
+                'redshift_sortkey': record[14].get('longValue'),
+                'external_type': record[15].get('stringValue'),
+                'external_part_key': record[16].get('longValue'),
             }
             columns.append(column_info)
 
@@ -770,6 +826,419 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
 
     except Exception as e:
         logger.error(f'Error executing query on cluster {cluster_identifier}: {str(e)}')
+        raise
+
+
+def _parse_explain_verbose(explain_lines: list[str]) -> tuple[list[dict], str]:
+    """Parse EXPLAIN VERBOSE output tree structure into structured plan nodes.
+
+    Parses the verbose tree format with :node_id, :parent_id, :startup_cost, etc.
+    Also extracts the human-readable plan text at the end.
+
+    Args:
+        explain_lines: List of text lines from EXPLAIN VERBOSE output
+
+    Returns:
+        Tuple of (list of node dictionaries, human-readable plan text)
+    """
+    import re
+
+    nodes = {}
+    current_node: dict[str, str | int | float | None] | None = None
+    human_readable_lines = []
+    in_human_readable = False
+
+    # Operation type mapping from verbose format
+    operation_map = {
+        'LIMIT': 'Limit',
+        'MERGE': 'Merge',
+        'NETWORK': 'Network',
+        'SORT': 'Sort',
+        'AGG': 'Aggregate',
+        'HASHJOIN': 'Hash Join',
+        'MERGEJOIN': 'Merge Join',
+        'NESTLOOP': 'Nested Loop',
+        'SEQSCAN': 'Seq Scan',
+        'HASH': 'Hash',
+        'SUBQUERYSCAN': 'Subquery Scan',
+        'APPEND': 'Append',
+        'RESULT': 'Result',
+        'UNIQUE': 'Unique',
+        'SETOP': 'SetOp',
+        'WINDOW': 'Window',
+        'MATERIALIZE': 'Materialize',
+        'CTESCAN': 'CTE Scan',
+        'FUNCTIONSCAN': 'Function Scan',
+        'GROUP': 'Group',
+        'INDEXSCAN': 'Index Scan',
+        'METADATAHASH': 'Metadata Hash',
+        'METADATALOOP': 'Metadata Loop',
+        'PADBTBLUDFSOURCESCAN': 'Table Function Data Source',
+        'PADBTBLUDFXFORMSCAN': 'Table Function Data Transform',
+        'PARTITIONLOOP': 'Partition Loop',
+        'TIDSCAN': 'Tid Scan',
+        'UNNEST': 'Unnest',
+    }
+
+    for line in explain_lines:
+        # Detect empty line separator between verbose tree and human-readable plan
+        if not line.strip():
+            if not in_human_readable and nodes:
+                in_human_readable = True
+            continue
+
+        if in_human_readable:
+            human_readable_lines.append(line)
+            continue
+
+        stripped = line.strip()
+
+        # Parse verbose tree structure
+        op_match = re.match(r'\{\s*(\w+)\s*$', stripped)
+        if op_match:
+            op_type = op_match.group(1)
+            current_node = {
+                'operation': operation_map.get(op_type, op_type.title()),
+            }
+            continue
+
+        if current_node is None:
+            continue
+
+        # Parse node properties
+        if stripped.startswith(':node_id'):
+            match = re.search(r':node_id\s+(\d+)', stripped)
+            if match:
+                current_node['node_id'] = int(match.group(1))
+
+        elif stripped.startswith(':parent_id'):
+            match = re.search(r':parent_id\s+(\d+)', stripped)
+            if match:
+                parent_id = int(match.group(1))
+                current_node['parent_node_id'] = parent_id if parent_id > 0 else None
+
+        elif stripped.startswith(':startup_cost'):
+            match = re.search(r':startup_cost\s+([\d.]+)', stripped)
+            if match:
+                current_node['cost_startup'] = float(match.group(1))
+
+        elif stripped.startswith(':total_cost'):
+            match = re.search(r':total_cost\s+([\d.]+)', stripped)
+            if match:
+                current_node['cost_total'] = float(match.group(1))
+
+        elif stripped.startswith(':plan_rows'):
+            match = re.search(r':plan_rows\s+(\d+)', stripped)
+            if match:
+                current_node['rows'] = int(match.group(1))
+
+        elif stripped.startswith(':plan_width'):
+            match = re.search(r':plan_width\s+(\d+)', stripped)
+            if match:
+                current_node['width'] = int(match.group(1))
+
+        elif stripped.startswith(':dist_info.dist_strategy'):
+            match = re.search(r':dist_info\.dist_strategy\s+(\S+)', stripped)
+            if match:
+                dist_strategy = match.group(1)
+                if dist_strategy not in ('DS_DIST_ERR', '<>'):
+                    current_node['distribution_type'] = dist_strategy
+
+        elif stripped.startswith(':scanrelid'):
+            match = re.search(r':scanrelid\s+(\d+)', stripped)
+            if match:
+                current_node['scan_relid'] = int(match.group(1))
+
+        elif stripped.startswith(':jointype'):
+            match = re.search(r':jointype\s+(\d+)', stripped)
+            if match:
+                join_types = {0: 'Inner', 1: 'Left', 2: 'Full', 3: 'Right', 4: 'Semi', 5: 'Anti'}
+                current_node['join_type'] = join_types.get(int(match.group(1)), 'Unknown')
+
+        elif stripped.startswith(':aggstrategy'):
+            match = re.search(r':aggstrategy\s+(\d+)', stripped)
+            if match:
+                agg_strategies = {0: 'Plain', 1: 'Sorted', 2: 'Hashed'}
+                current_node['agg_strategy'] = agg_strategies.get(int(match.group(1)), 'Unknown')
+
+        elif stripped.startswith(':dataMovement'):
+            match = re.search(r':dataMovement\s+(.+)', stripped)
+            if match:
+                current_node['data_movement'] = match.group(1).strip()
+
+        elif stripped.startswith(':table'):
+            match = re.search(r':table\s+"?([^"\s]+)"?', stripped)
+            if match:
+                current_node['relation_name'] = match.group(1).strip()
+
+        if 'node_id' in current_node and current_node['node_id'] not in nodes:
+            nodes[current_node['node_id']] = current_node
+
+    result_nodes = []
+    for node_id in sorted(nodes.keys()):
+        node = nodes[node_id]
+        # Calculate level based on parent chain
+        level = 0
+        parent_id = node.get('parent_node_id')
+        visited = set()
+        while parent_id is not None and parent_id in nodes and parent_id not in visited:
+            visited.add(parent_id)
+            level += 1
+            parent_id = nodes[parent_id].get('parent_node_id')
+        node['level'] = level
+        result_nodes.append(node)
+
+    human_readable_plan = '\n'.join(human_readable_lines)
+    return result_nodes, human_readable_plan
+
+
+def _generate_performance_suggestions(
+    parsed_nodes: list[dict], table_designs: list[dict]
+) -> list[str]:
+    """Generate performance optimization suggestions based on execution plan analysis.
+
+    Args:
+        parsed_nodes: List of parsed execution plan nodes.
+        table_designs: List of table design information dictionaries.
+
+    Returns:
+        List of performance suggestion strings.
+    """
+    suggestions = []
+
+    # Analyze distribution strategies in plan nodes
+    for node in parsed_nodes:
+        dist_type = node.get('distribution_type')
+        operation = node.get('operation', '')
+
+        # Check for data redistribution (expensive operations)
+        if dist_type == 'DS_BCAST_INNER':
+            suggestions.append(
+                f'Data broadcast detected in {operation}. Consider using a common DISTKEY '
+                'on join columns to co-locate data and avoid broadcasting.'
+            )
+        elif dist_type == 'DS_DIST_INNER':
+            suggestions.append(
+                f'Data redistribution detected in {operation}. Review DISTKEY choices '
+                'to ensure joined tables are distributed on the join column.'
+            )
+        elif dist_type == 'DS_DIST_ALL_INNER':
+            suggestions.append(
+                f'Full table redistribution in {operation}. Consider DISTSTYLE ALL '
+                'for small dimension tables or align DISTKEYs for large tables.'
+            )
+
+        # Check for nested loops (often indicates missing join condition or small table)
+        if 'Nested Loop' in operation:
+            suggestions.append(
+                'Nested Loop join detected. Verify join conditions are correct. '
+                'For large tables, Hash Join or Merge Join are typically more efficient.'
+            )
+
+    # Analyze table designs
+    for table in table_designs:
+        schema_name = table.get('schema_name', '')
+        table_name = table.get('table_name', '')
+        redshift_diststyle = table.get('redshift_diststyle', '')
+        columns = table.get('columns', [])
+
+        full_name = f'{schema_name}.{table_name}' if schema_name else table_name
+
+        # Check for EVEN distribution on large tables (may cause redistribution)
+        if redshift_diststyle == 'EVEN':
+            suggestions.append(
+                f'Table {full_name} uses EVEN distribution. If this table is frequently '
+                'joined, consider using DISTKEY on the join column to improve performance.'
+            )
+
+        # Check for missing sort keys
+        has_sortkey = any(col.get('redshift_sortkey', 0) > 0 for col in columns)
+        if not has_sortkey and columns:
+            suggestions.append(
+                f'Table {full_name} has no SORTKEY defined. Adding a SORTKEY on '
+                'frequently filtered or joined columns can improve query performance.'
+            )
+
+        # Check for RAW encoding (no compression)
+        raw_columns = [
+            col['column_name'] for col in columns if col.get('redshift_encoding') == 'none'
+        ]
+        if raw_columns and len(raw_columns) <= 3:
+            suggestions.append(
+                f'Columns {", ".join(raw_columns)} in {full_name} have no compression. '
+                'Consider using ENCODE AUTO or specific encodings to reduce storage and improve I/O.'
+            )
+        elif raw_columns:
+            suggestions.append(
+                f'{len(raw_columns)} columns in {full_name} have no compression. '
+                'Consider using ENCODE AUTO to improve storage efficiency.'
+            )
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_suggestions = []
+    for s in suggestions:
+        if s not in seen:
+            seen.add(s)
+            unique_suggestions.append(s)
+
+    return unique_suggestions
+
+
+async def describe_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> dict:
+    """Get the execution plan for a SQL query using EXPLAIN VERBOSE.
+
+    Args:
+        cluster_identifier: The cluster identifier to query.
+        database_name: The database to execute the query against.
+        sql: The SQL statement to explain.
+
+    Returns:
+        Dictionary with execution plan details including structured nodes.
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+        logger.debug(f'SQL to explain: {sql}')
+
+        # Check if SQL already starts with EXPLAIN
+        sql_trimmed = sql.strip().upper()
+        if sql_trimmed.startswith('EXPLAIN'):
+            raise Exception(
+                'SQL already contains EXPLAIN. Please provide the query without EXPLAIN.'
+            )
+
+        explain_sql = f'EXPLAIN VERBOSE {sql}'
+
+        start_time = time.time()
+
+        results_response, query_id = await _execute_protected_statement(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=explain_sql
+        )
+
+        end_time = time.time()
+        planning_time_ms = int((end_time - start_time) * 1000)
+
+        plan_lines = []
+        records = results_response.get('Records', [])
+
+        for record in records:
+            if record and len(record) > 0:
+                line = record[0].get('stringValue', '')
+                plan_lines.append(line)
+
+        parsed_nodes, human_readable_plan = _parse_explain_verbose(plan_lines)
+
+        # Extract unique table references from parsed nodes (verbose tree)
+        table_refs = set()
+
+        # Method 1: Extract from parsed nodes (verbose tree has :table attribute)
+        for node in parsed_nodes:
+            relation_name = node.get('relation_name')
+            if relation_name:
+                # Verbose output only includes table name, not schema
+                # Check if it's schema.table format
+                if '.' in relation_name:
+                    parts = relation_name.split('.', 1)
+                    schema_name, table_name = parts[0], parts[1]
+                else:
+                    # Default to public schema if not specified
+                    schema_name, table_name = 'public', relation_name
+                table_refs.add((schema_name, table_name))
+
+        # Method 2: Fallback - extract from human-readable plan for schema.table references
+        # This catches cases where schema is explicitly mentioned
+        import re
+
+        for match in re.finditer(
+            r'\bon\s+([a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*)', human_readable_plan
+        ):
+            relation_name = match.group(1)
+            parts = relation_name.split('.', 1)
+            schema_name, table_name = parts[0], parts[1]
+            table_refs.add((schema_name, table_name))
+
+        table_designs = []
+        for schema_name, table_name in table_refs:
+            try:
+                tables = await discover_tables(
+                    cluster_identifier=cluster_identifier,
+                    table_database_name=database_name,
+                    table_schema_name=schema_name,
+                )
+
+                # Find the specific table
+                table_info = next((t for t in tables if t['table_name'] == table_name), None)
+                if not table_info:
+                    logger.warning(
+                        f'Table {schema_name}.{table_name} not found in discover_tables'
+                    )
+                    continue
+
+                # Get column info including design properties
+                columns = await discover_columns(
+                    cluster_identifier=cluster_identifier,
+                    column_database_name=database_name,
+                    column_schema_name=schema_name,
+                    column_table_name=table_name,
+                )
+
+                table_design = {
+                    'database_name': database_name,
+                    'schema_name': schema_name,
+                    'table_name': table_name,
+                    'redshift_diststyle': table_info.get('redshift_diststyle'),
+                    'redshift_sortkey1': table_info.get('redshift_sortkey1'),
+                    'external_location': table_info.get('external_location'),
+                    'external_parameters': table_info.get('external_parameters'),
+                    'columns': columns,
+                }
+                table_designs.append(table_design)
+
+                logger.debug(
+                    f'Fetched design for {schema_name}.{table_name}: '
+                    f'{table_info.get("redshift_diststyle")} with {len(columns)} columns'
+                )
+
+            except Exception as e:
+                logger.warning(f'Error fetching design for {schema_name}.{table_name}: {str(e)}')
+                continue
+
+        suggestions = _generate_performance_suggestions(parsed_nodes, table_designs)
+
+        plan_lines_list = [line for line in human_readable_plan.split('\n') if line.strip()]
+        plan_line_count = len(plan_lines_list)
+
+        # If plan is small, include it directly; otherwise, add a prompt
+        if plan_line_count < 30:
+            final_human_readable_plan = human_readable_plan
+        else:
+            final_human_readable_plan = (
+                f'[Plan has {plan_line_count} lines - too large to display inline]\n\n'
+                f'The execution plan is large. Would you like to see the full human-readable plan?\n'
+                f'If yes, I can show you the complete {plan_line_count}-line execution plan.'
+            )
+
+        execution_plan = {
+            'query_id': query_id,
+            'explained_query': sql,
+            'planning_time_ms': planning_time_ms,
+            'plan_nodes': parsed_nodes,
+            'table_designs': table_designs,
+            'human_readable_plan': final_human_readable_plan,
+            'suggestions': suggestions,
+        }
+
+        logger.info(
+            f'Execution plan generated successfully: {query_id}, '
+            f'{len(parsed_nodes)} nodes, {len(table_designs)} table designs, '
+            f'{len(suggestions)} suggestions in {planning_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error getting execution plan for cluster {cluster_identifier}: {str(e)}')
         raise
 
 
