@@ -198,6 +198,7 @@ async def semantic_search(
         offset: Record offset determining the window slice of results to render (default: 0)
         limit: Maximum number of results to return (default: 10)
         include_content: Whether to include full document content (default: True)
+        filter_expression: Optional filter expression to apply to the search results
 
     Returns:
         An object indicating the results of the operation, with a "status" field set toe either "success" or "error",
