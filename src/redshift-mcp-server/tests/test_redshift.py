@@ -21,6 +21,7 @@ from awslabs.redshift_mcp_server.redshift import (
     RedshiftSessionManager,
     _execute_protected_statement,
     _execute_statement,
+    describe_execution_plan,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -1069,21 +1070,44 @@ class TestDiscoverFunctions:
         mock_execute_protected = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
         )
-        mock_execute_protected.return_value = (
-            {
-                'Records': [
-                    [
-                        {'stringValue': 'dev'},
-                        {'stringValue': 'public'},
-                        {'stringValue': 'users'},
-                        {'stringValue': 'user=admin'},
-                        {'stringValue': 'TABLE'},
-                        {'stringValue': 'User data table'},
+        # First call: TABLES_SQL, Second call: TABLES_EXTRA_SQL
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [
+                            {'stringValue': 'dev'},
+                            {'stringValue': 'public'},
+                            {'stringValue': 'users'},
+                            {'stringValue': 'user=admin'},
+                            {'stringValue': 'TABLE'},
+                            {'stringValue': 'User data table'},
+                            {'stringValue': None},
+                            {'stringValue': None},
+                        ]
                     ]
-                ]
-            },
-            'query-789',
-        )
+                },
+                'query-789',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'stringValue': 'public'},
+                            {'stringValue': 'users'},
+                            {'stringValue': 'KEY'},
+                            {'longValue': 1000},
+                            {'longValue': 50},
+                            {'longValue': 5000},
+                            {'longValue': 100},
+                            {'longValue': 20},
+                            {'longValue': 5},
+                        ]
+                    ]
+                },
+                'query-extra',
+            ),
+        ]
 
         result = await discover_tables('test-cluster', 'dev', 'public')
 
@@ -1092,15 +1116,19 @@ class TestDiscoverFunctions:
         assert result[0]['schema_name'] == 'public'
         assert result[0]['table_name'] == 'users'
         assert result[0]['table_type'] == 'TABLE'
+        # Verify extra stats were merged
+        assert result[0]['redshift_diststyle'] == 'KEY'
+        assert result[0]['redshift_estimated_row_count'] == 1000
+        assert result[0]['stats_sequential_scans'] == 50
+        assert result[0]['stats_rows_inserted'] == 100
 
-        # Verify parameters were passed correctly
-        mock_execute_protected.assert_called_once()
-        call_args = mock_execute_protected.call_args
+        # Verify parameters were passed correctly for first call
+        first_call_args = mock_execute_protected.call_args_list[0]
         expected_params = [
             {'name': 'database_name', 'value': 'dev'},
             {'name': 'schema_name', 'value': 'public'},
         ]
-        assert call_args[1]['parameters'] == expected_params
+        assert first_call_args[1]['parameters'] == expected_params
 
     @pytest.mark.asyncio
     async def test_discover_tables_error(self, mocker):
@@ -1112,6 +1140,42 @@ class TestDiscoverFunctions:
 
         with pytest.raises(Exception, match='Table discovery failed'):
             await discover_tables('test-cluster', 'dev', 'public')
+
+    @pytest.mark.asyncio
+    async def test_discover_tables_extra_stats_failure(self, mocker):
+        """Test that TABLES_EXTRA_SQL failure is handled gracefully."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        # First call (TABLES_SQL) succeeds, second call (TABLES_EXTRA_SQL) fails
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [
+                            {'stringValue': 'dev'},
+                            {'stringValue': 'public'},
+                            {'stringValue': 'users'},
+                            {'stringValue': None},
+                            {'stringValue': 'TABLE'},
+                            {'stringValue': None},
+                            {'stringValue': None},
+                            {'stringValue': None},
+                        ]
+                    ]
+                },
+                'query-tables',
+            ),
+            Exception('pg_class_info not accessible'),
+        ]
+
+        result = await discover_tables('test-cluster', 'dev', 'public')
+
+        # Table should be returned but with null stats
+        assert len(result) == 1
+        assert result[0]['table_name'] == 'users'
+        assert result[0]['redshift_diststyle'] is None
+        assert result[0]['stats_sequential_scans'] is None
 
     @pytest.mark.asyncio
     async def test_discover_columns(self, mocker):
@@ -1136,6 +1200,11 @@ class TestDiscoverFunctions:
                         {'longValue': 32},
                         {'longValue': 0},
                         {'stringValue': 'Primary key'},
+                        {'stringValue': 'lzo'},
+                        {'booleanValue': True},
+                        {'longValue': 1},
+                        {'stringValue': None},
+                        {'longValue': None},
                     ]
                 ]
             },
@@ -1151,6 +1220,10 @@ class TestDiscoverFunctions:
         assert result[0]['column_name'] == 'id'
         assert result[0]['ordinal_position'] == 1
         assert result[0]['data_type'] == 'integer'
+        assert result[0]['redshift_encoding'] == 'lzo'
+        assert result[0]['redshift_is_distkey'] is True
+        assert result[0]['redshift_sortkey_position'] == 1
+        assert result[0]['external_partition_key'] is None
 
         # Verify parameters were passed correctly
         mock_execute_protected.assert_called_once()
@@ -1237,3 +1310,2283 @@ class TestExecuteQuery:
 
         with pytest.raises(Exception, match='Query execution failed'):
             await execute_query('test-cluster', 'dev', 'SELECT * FROM nonexistent')
+
+
+class TestDescribeExecutionPlan:
+    """Tests for describe_execution_plan function."""
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_success(self, mocker):
+        """Test successful execution plan generation with verbose tree format."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        # Simulate EXPLAIN VERBOSE output with tree structure and human-readable plan
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': '   { LIMIT'}],
+                    [{'stringValue': '   :startup_cost 0.00'}],
+                    [{'stringValue': '   :total_cost 0.07'}],
+                    [{'stringValue': '   :plan_rows 5'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   :plan_width 27'}],
+                    [{'stringValue': '   :dist_info.dist_strategy DS_DIST_ERR'}],
+                    [{'stringValue': '     { SEQSCAN'}],
+                    [{'stringValue': '     :startup_cost 0.00'}],
+                    [{'stringValue': '     :total_cost 1.00'}],
+                    [{'stringValue': '     :plan_rows 100'}],
+                    [{'stringValue': '     :node_id 2'}],
+                    [{'stringValue': '     :parent_id 1'}],
+                    [{'stringValue': '     :plan_width 27'}],
+                    [{'stringValue': '     :dist_info.dist_strategy DS_DIST_NONE'}],
+                    [{'stringValue': ''}],  # Empty line separator
+                    [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                    [
+                        {
+                            'stringValue': '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)'
+                        }
+                    ],
+                ]
+            },
+            'explain-123',
+        )
+
+        # Mock discover_tables to return empty
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = []
+
+        # Mock discover_columns to return empty
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]
+
+        result = await describe_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM users LIMIT 5'
+        )
+
+        assert result['explained_query'] == 'SELECT * FROM users LIMIT 5'
+        assert result['query_id'] == 'explain-123'
+        assert 49 <= result['planning_time_ms'] <= 51
+
+        assert isinstance(result['plan_nodes'], list)
+        assert len(result['plan_nodes']) == 2
+
+        node1 = result['plan_nodes'][0]
+        assert node1['node_id'] == 1
+        assert node1['operation'] == 'Limit'
+        assert node1['cost_startup'] == 0.00
+        assert node1['cost_total'] == 0.07
+        assert node1['rows'] == 5
+
+        node2 = result['plan_nodes'][1]
+        assert node2['node_id'] == 2
+        assert node2['parent_node_id'] == 1
+        assert node2['operation'] == 'Seq Scan'
+        assert node2['distribution_type'] == 'DS_DIST_NONE'
+
+        assert isinstance(result['table_designs'], list)
+
+        assert 'human_readable_plan' in result
+        assert 'XN Limit' in result['human_readable_plan']
+        assert 'XN Seq Scan on users' in result['human_readable_plan']
+
+        assert 'rule_based_suggestions' in result
+        assert isinstance(result['rule_based_suggestions'], list)
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_already_has_explain(self, mocker):
+        """Test error when SQL already contains EXPLAIN."""
+        with pytest.raises(
+            Exception,
+            match='SQL already contains EXPLAIN. Please provide the query without EXPLAIN.',
+        ):
+            await describe_execution_plan('test-cluster', 'dev', 'EXPLAIN SELECT * FROM users')
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_error_handling(self, mocker):
+        """Test error handling in describe_execution_plan."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.side_effect = Exception('EXPLAIN query failed')
+
+        with pytest.raises(Exception, match='EXPLAIN query failed'):
+            await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM invalid_table')
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_with_table_designs(self, mocker):
+        """Test that table designs are fetched via OID resolution."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # First call: EXPLAIN VERBOSE with :resorigtbl
+        explain_response = (
+            {
+                'Records': [
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :startup_cost 0.00'}],
+                    [{'stringValue': '   :total_cost 10.00'}],
+                    [{'stringValue': '   :plan_rows 100'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   :plan_width 8'}],
+                    [{'stringValue': '   :dist_info.dist_strategy DS_DIST_NONE'}],
+                    [{'stringValue': '   :resorigtbl 12345'}],
+                    [{'stringValue': ''}],
+                    [
+                        {
+                            'stringValue': 'XN Seq Scan on public.users  (cost=0.00..10.00 rows=100 width=8)'
+                        }
+                    ],
+                ]
+            },
+            'explain-123',
+        )
+
+        # Second call: TABLES_EXTRA_BY_OID_SQL response
+        design_response = (
+            {
+                'Records': [
+                    [
+                        {'longValue': 12345},
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'KEY'},
+                        {'longValue': 50000},
+                        {'longValue': 120},
+                        {'longValue': 6000000},
+                        {'longValue': 5000},
+                        {'longValue': 200},
+                        {'longValue': 50},
+                    ]
+                ]
+            },
+            'design-query',
+        )
+
+        # Third call: COLUMN_STATS_SQL batch response (schema_name, table_name, column_name, ...)
+        col_stats_response = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'id'},
+                        {'doubleValue': -1.0},
+                        {'doubleValue': 0.0},
+                        {'longValue': 4},
+                        {'doubleValue': 0.99},
+                        {'stringValue': '{1,2,3}'},
+                        {'stringValue': '{0.5,0.3,0.2}'},
+                    ],
+                ]
+            },
+            'stats-query',
+        )
+
+        mock_execute_protected.side_effect = [
+            explain_response,
+            design_response,
+            col_stats_response,
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = [
+            {
+                'column_name': 'id',
+                'redshift_encoding': 'lzo',
+                'redshift_is_distkey': True,
+                'redshift_sortkey_position': 1,
+            }
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM public.users')
+
+        assert len(result['table_designs']) == 1
+        td = result['table_designs'][0]
+        assert td['database_name'] == 'dev'
+        assert td['schema_name'] == 'public'
+        assert td['table_name'] == 'users'
+        assert td['redshift_diststyle'] == 'KEY'
+        assert td['redshift_estimated_row_count'] == 50000
+        assert td['stats_sequential_scans'] == 120
+
+        # Verify relation_name set from OID resolution
+        assert result['plan_nodes'][0]['relation_name'] == 'public.users'
+
+        # Verify column stats enrichment
+        id_col = td['columns'][0]
+        assert id_col['column_name'] == 'id'
+        assert id_col['redshift_is_distkey'] is True
+        assert id_col['stats_n_distinct'] == -1.0
+        assert id_col['stats_correlation'] == 0.99
+
+        assert isinstance(result['rule_based_suggestions'], list)
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_schema_qualified_table(self, mocker):
+        """Test table design fetching via OID resolution with schema-qualified table."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        explain_response = (
+            {
+                'Records': [
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   :resorigtbl 54321'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Seq Scan on sales'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        design_response = (
+            {
+                'Records': [
+                    [
+                        {'longValue': 54321},
+                        {'stringValue': 'tickit'},
+                        {'stringValue': 'sales'},
+                        {'stringValue': 'KEY'},
+                        {'longValue': 172456},
+                        {'longValue': 500},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'stringValue': None},
+                        {'stringValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                        {'longValue': None},
+                    ]
+                ]
+            },
+            'design-query',
+        )
+
+        col_stats_response = ({'Records': []}, 'stats-query')
+
+        mock_execute_protected.side_effect = [
+            explain_response,
+            design_response,
+            col_stats_response,
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = [
+            {'column_name': 'salesid', 'redshift_encoding': 'lzo', 'redshift_sortkey_position': 1},
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM tickit.sales')
+
+        assert len(result['table_designs']) == 1
+        td = result['table_designs'][0]
+        assert td['schema_name'] == 'tickit'
+        assert td['table_name'] == 'sales'
+        assert td['redshift_diststyle'] == 'KEY'
+        assert td['redshift_estimated_row_count'] == 172456
+        assert result['plan_nodes'][0]['relation_name'] == 'tickit.sales'
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_sql_hint_resolves_schema(self, mocker):
+        """Test that unqualified table names in plan are resolved using SQL schema hints.
+
+        Redshift's human-readable plan often omits the schema prefix (e.g., "Seq Scan on sales"
+        instead of "Seq Scan on tickit.sales"). The SQL hint resolution extracts schema-qualified
+        references from the original SQL to resolve these.
+        """
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Human-readable plan has unqualified table names (real Redshift behavior)
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': '   { HASHJOIN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 2'}],
+                    [{'stringValue': '   :parent_id 1'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 3'}],
+                    [{'stringValue': '   :parent_id 1'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Hash Join DS_DIST_NONE'}],
+                    [{'stringValue': '  ->  XN Seq Scan on sales s'}],
+                    [{'stringValue': '  ->  XN Hash'}],
+                    [{'stringValue': '        ->  XN Seq Scan on event e'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'tickit',
+                'table_name': 'sales',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 172456,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'tickit',
+                'table_name': 'event',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 8798,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            },
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        # SQL has schema-qualified names, but plan output won't
+        result = await describe_execution_plan(
+            'test-cluster',
+            'dev',
+            'SELECT s.salesid FROM tickit.sales s JOIN tickit.event e ON s.eventid = e.eventid',
+        )
+
+        # Both tables should be resolved to tickit schema via SQL hints (fallback path)
+        assert len(result['table_designs']) == 2
+        table_names = {td['table_name'] for td in result['table_designs']}
+        assert table_names == {'sales', 'event'}
+
+        # Verify discover_tables was called with tickit schema (not public)
+        for call in mock_discover_tables.call_args_list:
+            assert call[1]['table_schema_name'] == 'tickit'
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_table_not_found(self, mocker):
+        """Test table_designs when table is not found in discover_tables."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Seq Scan on nonexistent'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        # Return tables that don't include the referenced one
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'other_table',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 100,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM nonexistent')
+
+        # Table not found — table_designs should be empty
+        assert len(result['table_designs']) == 0
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_multiple_tables(self, mocker):
+        """Test table_designs with multiple tables referenced in the plan."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': '   { HASHJOIN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 2'}],
+                    [{'stringValue': '   :parent_id 1'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 3'}],
+                    [{'stringValue': '   :parent_id 1'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Hash Join'}],
+                    [{'stringValue': '  ->  XN Seq Scan on orders'}],
+                    [{'stringValue': '  ->  XN Seq Scan on customers'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'orders',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'customers',
+                'redshift_diststyle': 'ALL',
+                'redshift_estimated_row_count': 5000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            },
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan(
+            'test-cluster',
+            'dev',
+            'SELECT * FROM orders JOIN customers ON orders.cid = customers.id',
+        )
+
+        # Both tables should be in table_designs
+        assert len(result['table_designs']) == 2
+        table_names = {td['table_name'] for td in result['table_designs']}
+        assert table_names == {'orders', 'customers'}
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_external_table(self, mocker):
+        """Test table_designs fallback for external tables (no OID in pg_class_info)."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Real external table EXPLAIN VERBOSE output: OID 1999999994 is a synthetic
+        # sentinel that won't resolve in pg_class_info. The human-readable plan uses
+        # "S3 Seq Scan" and "Seq Scan PartitionInfo of" patterns instead of "Seq Scan on".
+        explain_response = (
+            {
+                'Records': [
+                    [{'stringValue': '   { LIMIT'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   :startup_cost 0.00'}],
+                    [{'stringValue': '   :total_cost 0.20'}],
+                    [{'stringValue': '   :plan_rows 10'}],
+                    [{'stringValue': '     :resorigtbl 1999999994'}],
+                    [{'stringValue': '   { PARTITIONLOOP'}],
+                    [{'stringValue': '   :node_id 2'}],
+                    [{'stringValue': '   :parent_id 1'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 3'}],
+                    [{'stringValue': '   :parent_id 2'}],
+                    [{'stringValue': '     :resorigtbl 0'}],
+                    [{'stringValue': '   { SUBQUERYSCAN'}],
+                    [{'stringValue': '   :node_id 4'}],
+                    [{'stringValue': '   :parent_id 2'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 5'}],
+                    [{'stringValue': '   :parent_id 4'}],
+                    [{'stringValue': '     :resorigtbl 0'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': ' XN Limit  (cost=0.00..0.20 rows=10 width=17794)'}],
+                    [
+                        {
+                            'stringValue': '   ->  XN Partition Loop  (cost=0.00..200200000010.00 rows=10000000000000 width=17794)'
+                        }
+                    ],
+                    [
+                        {
+                            'stringValue': '         ->  XN Seq Scan PartitionInfo of extdata.ext_events  (cost=0.00..10.00 rows=1000 width=410)'
+                        }
+                    ],
+                    [
+                        {
+                            'stringValue': '         ->  XN S3 Query Scan ext_events  (cost=0.00..200000000.00 rows=10000000000 width=17384)'
+                        }
+                    ],
+                    [
+                        {
+                            'stringValue': '               ->  S3 Seq Scan extdata.ext_events location:"s3://my-bucket/events/" format:PARQUET  (cost=0.00..100000000.00 rows=10000000000 width=17384)'
+                        }
+                    ],
+                ]
+            },
+            'explain-123',
+        )
+
+        # OID 1999999994 query returns empty (synthetic OID not in pg_class_info)
+        oid_response = ({'Records': []}, 'oid-query-123')
+
+        mock_execute_protected.side_effect = [explain_response, oid_response]
+
+        # Fallback path uses discover_tables
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'extdata',
+                'table_name': 'ext_events',
+                'redshift_diststyle': None,
+                'redshift_estimated_row_count': None,
+                'external_location': 's3://my-bucket/events/',
+                'external_parameters': '{"partition_columns": ["year", "month"]}',
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = [
+            {'column_name': 'event_id', 'redshift_encoding': None, 'redshift_sortkey_position': 0},
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM extdata.ext_events LIMIT 10'
+        )
+
+        # Fallback path should find the table via human-readable plan with correct schema
+        assert len(result['table_designs']) == 1
+        td = result['table_designs'][0]
+        assert td['table_name'] == 'ext_events'
+        assert td['schema_name'] == 'extdata'
+        assert td.get('external_location') == 's3://my-bucket/events/'
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_with_all_node_types(self, mocker):
+        """Test execution plan parsing with all node types."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    # node types
+                    [{'stringValue': '   { LIMIT'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { MERGE'}],
+                    [{'stringValue': '   :node_id 2'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { NETWORK'}],
+                    [{'stringValue': '   :node_id 3'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SORT'}],
+                    [{'stringValue': '   :node_id 4'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { AGG'}],
+                    [{'stringValue': '   :node_id 5'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { HASHJOIN'}],
+                    [{'stringValue': '   :node_id 6'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { MERGEJOIN'}],
+                    [{'stringValue': '   :node_id 7'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { NESTLOOP'}],
+                    [{'stringValue': '   :node_id 8'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 9'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { HASH'}],
+                    [{'stringValue': '   :node_id 10'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SUBQUERYSCAN'}],
+                    [{'stringValue': '   :node_id 11'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { APPEND'}],
+                    [{'stringValue': '   :node_id 12'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { RESULT'}],
+                    [{'stringValue': '   :node_id 13'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { UNIQUE'}],
+                    [{'stringValue': '   :node_id 14'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { SETOP'}],
+                    [{'stringValue': '   :node_id 15'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { WINDOW'}],
+                    [{'stringValue': '   :node_id 16'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { MATERIALIZE'}],
+                    [{'stringValue': '   :node_id 17'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { CTESCAN'}],
+                    [{'stringValue': '   :node_id 18'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { FUNCTIONSCAN'}],
+                    [{'stringValue': '   :node_id 19'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { GROUP'}],
+                    [{'stringValue': '   :node_id 20'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { INDEXSCAN'}],
+                    [{'stringValue': '   :node_id 21'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { METADATAHASH'}],
+                    [{'stringValue': '   :node_id 22'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { METADATALOOP'}],
+                    [{'stringValue': '   :node_id 23'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { PADBTBLUDFSOURCESCAN'}],
+                    [{'stringValue': '   :node_id 24'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { PADBTBLUDFXFORMSCAN'}],
+                    [{'stringValue': '   :node_id 25'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { PARTITIONLOOP'}],
+                    [{'stringValue': '   :node_id 26'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { TIDSCAN'}],
+                    [{'stringValue': '   :node_id 27'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   { UNNEST'}],
+                    [{'stringValue': '   :node_id 28'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                ]
+            },
+            'explain-all-nodes',
+        )
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = []
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]
+
+        result = await describe_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM complex_query'
+        )
+
+        assert len(result['plan_nodes']) == 28
+
+        # Verify node types
+        assert result['plan_nodes'][0]['operation'] == 'Limit'
+        assert result['plan_nodes'][1]['operation'] == 'Merge'
+        assert result['plan_nodes'][2]['operation'] == 'Network'
+        assert result['plan_nodes'][3]['operation'] == 'Sort'
+        assert result['plan_nodes'][4]['operation'] == 'Aggregate'
+        assert result['plan_nodes'][5]['operation'] == 'Hash Join'
+        assert result['plan_nodes'][6]['operation'] == 'Merge Join'
+        assert result['plan_nodes'][7]['operation'] == 'Nested Loop'
+        assert result['plan_nodes'][8]['operation'] == 'Seq Scan'
+        assert result['plan_nodes'][9]['operation'] == 'Hash'
+        assert result['plan_nodes'][10]['operation'] == 'Subquery Scan'
+        assert result['plan_nodes'][11]['operation'] == 'Append'
+        assert result['plan_nodes'][12]['operation'] == 'Result'
+        assert result['plan_nodes'][13]['operation'] == 'Unique'
+        assert result['plan_nodes'][14]['operation'] == 'SetOp'
+        assert result['plan_nodes'][15]['operation'] == 'Window'
+        assert result['plan_nodes'][16]['operation'] == 'Materialize'
+        assert result['plan_nodes'][17]['operation'] == 'CTE Scan'
+        assert result['plan_nodes'][18]['operation'] == 'Function Scan'
+        assert result['plan_nodes'][19]['operation'] == 'Group'
+        assert result['plan_nodes'][20]['operation'] == 'Index Scan'
+        assert result['plan_nodes'][21]['operation'] == 'Metadata Hash'
+        assert result['plan_nodes'][22]['operation'] == 'Metadata Loop'
+        assert result['plan_nodes'][23]['operation'] == 'Table Function Data Source'
+        assert result['plan_nodes'][24]['operation'] == 'Table Function Data Transform'
+        assert result['plan_nodes'][25]['operation'] == 'Partition Loop'
+        assert result['plan_nodes'][26]['operation'] == 'Tid Scan'
+        assert result['plan_nodes'][27]['operation'] == 'Unnest'
+
+        for i, node in enumerate(result['plan_nodes']):
+            assert node['node_id'] == i + 1
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_with_column_stats(self, mocker):
+        """Test that column stats from pg_stats are fetched and merged into columns."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # First call: EXPLAIN VERBOSE with a table reference
+        explain_response = (
+            {
+                'Records': [
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Seq Scan on users  (cost=0.00..10.00 rows=100 width=8)'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        # Third call: COLUMN_STATS_SQL batch response (schema_name, table_name, column_name, ...)
+        column_stats_response = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'id'},
+                        {'doubleValue': -1.0},
+                        {'doubleValue': 0.0},
+                        {'longValue': 4},
+                        {'doubleValue': 0.98},
+                        {'stringValue': '{1,2,3,4,5}'},
+                        {'stringValue': '{0.3,0.25,0.2,0.15,0.1}'},
+                    ],
+                    [
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'name'},
+                        {'doubleValue': -0.5},
+                        {'doubleValue': 0.1},
+                        {'longValue': 12},
+                        {'doubleValue': 0.05},
+                        {'stringValue': '{Alice,Bob,Charlie}'},
+                        {'stringValue': '{0.4,0.35,0.25}'},
+                    ],
+                ]
+            },
+            'stats-123',
+        )
+
+        # side_effect: EXPLAIN, then batch column stats
+        mock_execute_protected.side_effect = [explain_response, column_stats_response]
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 10000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = [
+            {
+                'column_name': 'id',
+                'redshift_encoding': 'lzo',
+                'redshift_is_distkey': True,
+                'redshift_sortkey_position': 1,
+            },
+            {
+                'column_name': 'name',
+                'redshift_encoding': 'lzo',
+                'redshift_is_distkey': False,
+                'redshift_sortkey_position': 0,
+            },
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        assert len(result['table_designs']) == 1
+        columns = result['table_designs'][0]['columns']
+        assert len(columns) == 2
+
+        # Verify pg_stats were merged into column dicts
+        id_col = next(c for c in columns if c['column_name'] == 'id')
+        assert id_col['stats_n_distinct'] == -1.0
+        assert id_col['stats_null_frac'] == 0.0
+        assert id_col['stats_avg_width'] == 4
+        assert id_col['stats_correlation'] == 0.98
+        assert id_col['stats_most_common_vals'] == '{1,2,3,4,5}'
+        assert id_col['stats_most_common_freqs'] == '{0.3,0.25,0.2,0.15,0.1}'
+
+        name_col = next(c for c in columns if c['column_name'] == 'name')
+        assert name_col['stats_n_distinct'] == -0.5
+        assert name_col['stats_null_frac'] == 0.1
+        assert name_col['stats_avg_width'] == 12
+        assert name_col['stats_correlation'] == 0.05
+        assert name_col['stats_most_common_vals'] == '{Alice,Bob,Charlie}'
+        assert name_col['stats_most_common_freqs'] == '{0.4,0.35,0.25}'
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_column_stats_failure(self, mocker):
+        """Test that column stats failure is handled gracefully."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        explain_response = (
+            {
+                'Records': [
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Seq Scan on users'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        # Column stats call fails
+        mock_execute_protected.side_effect = [
+            explain_response,
+            Exception('pg_stats access denied'),
+        ]
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = [
+            {
+                'column_name': 'id',
+                'redshift_encoding': 'lzo',
+                'redshift_sortkey_position': 1,
+            },
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        # Should still succeed — columns just won't have stats
+        assert len(result['table_designs']) == 1
+        columns = result['table_designs'][0]['columns']
+        assert len(columns) == 1
+        assert 'stats_n_distinct' not in columns[0]
+
+    @pytest.mark.asyncio
+    async def test_describe_execution_plan_empty_and_partial_records(self, mocker):
+        """Test handling of empty records in EXPLAIN output and partial OID records."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # EXPLAIN output with an empty record and a normal record
+        explain_response = (
+            {
+                'Records': [
+                    [],  # empty record — should be skipped
+                    [{'stringValue': '   { SEQSCAN'}],
+                    [{'stringValue': '   :node_id 1'}],
+                    [{'stringValue': '   :parent_id 0'}],
+                    [{'stringValue': '   :resorigtbl 12345'}],
+                    [{'stringValue': ''}],
+                    [{'stringValue': 'XN Seq Scan on users'}],
+                ]
+            },
+            'explain-123',
+        )
+
+        # OID resolution returns a record with missing schema (partial data)
+        design_response = (
+            {
+                'Records': [
+                    [
+                        {'longValue': 12345},
+                        {'stringValue': None},  # missing schema
+                        {'stringValue': 'users'},
+                        {'stringValue': 'KEY'},
+                        {'longValue': 1000},
+                        {'longValue': 0},
+                        {'longValue': 0},
+                        {'longValue': 0},
+                        {'longValue': 0},
+                        {'longValue': 0},
+                    ],
+                ]
+            },
+            'design-query',
+        )
+
+        # Batch column stats — empty since no valid table_refs
+        stats_response = ({'Records': []}, 'stats-query')
+
+        mock_execute_protected.side_effect = [explain_response, design_response, stats_response]
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = []
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        # Plan should parse successfully despite empty record
+        assert len(result['plan_nodes']) == 1
+        # OID record had missing schema, but fallback found table from human-readable plan
+        assert len(result['table_designs']) == 1
+        assert result['table_designs'][0]['table_name'] == 'users'
+        # No design metadata since OID resolution failed
+        assert result['table_designs'][0].get('redshift_diststyle') is None
+
+
+class TestGeneratePerformanceSuggestions:
+    """Tests for _generate_performance_suggestions function."""
+
+    def test_suggestions_for_data_broadcast(self):
+        """Test suggestions are generated for DS_BCAST_INNER distribution."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Hash Join',
+                'distribution_type': 'DS_BCAST_INNER',
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'broadcast' in suggestions[0].lower()
+        assert 'DISTKEY' in suggestions[0]
+
+    def test_suggestions_for_data_redistribution(self):
+        """Test suggestions are generated for DS_DIST_INNER distribution."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Merge Join',
+                'distribution_type': 'DS_DIST_INNER',
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'redistribution' in suggestions[0].lower()
+
+    def test_suggestions_for_nested_loop(self):
+        """Test suggestions are generated for Nested Loop joins."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Nested Loop',
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'Nested Loop' in suggestions[0]
+
+    def test_suggestions_for_even_distribution(self):
+        """Test suggestions are generated for EVEN distribution tables."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'orders',
+                'redshift_diststyle': 'EVEN',
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert len(suggestions) >= 1
+        assert any('EVEN distribution' in s for s in suggestions)
+
+    def test_suggestions_for_missing_sortkey(self):
+        """Test suggestions are generated for tables without SORTKEY."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                    },
+                    {
+                        'column_name': 'name',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert len(suggestions) >= 1
+        assert any('SORTKEY' in s for s in suggestions)
+
+    def test_suggestions_for_no_compression(self):
+        """Test suggestions are generated for columns without compression."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'users',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'none',
+                        'redshift_sortkey_position': 1,
+                    },
+                    {
+                        'column_name': 'name',
+                        'redshift_encoding': 'none',
+                        'redshift_sortkey_position': 0,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert len(suggestions) >= 1
+        assert any('compression' in s.lower() for s in suggestions)
+
+    def test_no_duplicate_suggestions(self):
+        """Test that duplicate suggestions are removed."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Hash Join',
+                'distribution_type': 'DS_BCAST_INNER',
+            },
+            {
+                'node_id': 2,
+                'operation': 'Hash Join',
+                'distribution_type': 'DS_BCAST_INNER',
+            },
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'broadcast' in suggestions[0].lower()
+
+    def test_empty_inputs(self):
+        """Test that empty inputs return empty suggestions."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        suggestions = _generate_performance_suggestions([], [])
+        assert suggestions == []
+
+    def test_optimal_plan_no_suggestions(self):
+        """Test that optimal plans generate no suggestions."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Seq Scan',
+                'distribution_type': 'DS_DIST_NONE',
+            }
+        ]
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'users',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, table_designs)
+
+        assert suggestions == []
+
+    def test_suggestions_for_dist_all_inner(self):
+        """Test suggestions for DS_DIST_ALL_INNER distribution."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Hash Join',
+                'distribution_type': 'DS_DIST_ALL_INNER',
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'Full table redistribution detected' in suggestions[0]
+        assert 'DISTSTYLE ALL' in suggestions[0]
+        assert '< 1-2M rows' in suggestions[0]
+
+    def test_suggestions_for_small_table_diststyle_all(self):
+        """Test DISTSTYLE ALL suggestion for small dimension tables."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        tables = [
+            {
+                'schema_name': 'public',
+                'table_name': 'dim_date',
+                'redshift_diststyle': 'EVEN',
+                'redshift_estimated_row_count': 365,
+                'columns': [],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], tables)
+
+        assert len(suggestions) == 1
+        assert 'dim_date' in suggestions[0]
+        assert '365 rows' in suggestions[0]
+        assert 'DISTSTYLE ALL' in suggestions[0]
+        assert 'dimension table' in suggestions[0]
+
+    def test_suggestions_for_dist_inner(self):
+        """Test suggestions for DS_DIST_INNER distribution."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        nodes = [
+            {
+                'node_id': 1,
+                'operation': 'Merge Join',
+                'distribution_type': 'DS_DIST_INNER',
+            }
+        ]
+        suggestions = _generate_performance_suggestions(nodes, [])
+
+        assert len(suggestions) == 1
+        assert 'Data redistribution' in suggestions[0]
+        assert 'DISTKEY' in suggestions[0]
+
+    def test_suggestions_for_many_uncompressed_columns(self):
+        """Test suggestions when many columns have no compression."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        columns = [{'column_name': f'col{i}', 'redshift_encoding': 'none'} for i in range(10)]
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'large_table',
+                'redshift_diststyle': 'KEY',
+                'columns': columns,
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert len(suggestions) >= 1
+        assert any('columns' in s and 'compression' in s.lower() for s in suggestions)
+
+    def test_suggestions_for_high_sequential_scans_no_sortkey(self):
+        """Test suggestions when sequential scans are high and no sort key is defined."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'stats_sequential_scans': 5000,
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                    },
+                    {
+                        'column_name': 'ts',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert any('5,000 sequential scans' in s and 'SORTKEY' in s for s in suggestions)
+
+    def test_suggestions_for_low_correlation(self):
+        """Test suggestions when a non-sortkey column has low correlation."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'orders',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'order_date',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                        'stats_correlation': 0.05,
+                    },
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                        'stats_correlation': 0.99,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        # Should suggest SORTKEY for order_date (low correlation, not a sortkey)
+        assert any(
+            'order_date' in s and 'correlation' in s and 'SORTKEY' in s for s in suggestions
+        )
+        # Should NOT suggest for id (already a sortkey)
+        assert not any('column id' in s.lower() for s in suggestions)
+
+    def test_no_correlation_suggestion_when_already_sortkey(self):
+        """Test no correlation suggestion for columns that are already sort keys."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'event_time',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                        'stats_correlation': 0.01,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        # No correlation suggestion since column is already a sortkey
+        assert not any('correlation' in s for s in suggestions)
+
+    def test_no_correlation_suggestion_when_high_correlation(self):
+        """Test no correlation suggestion when correlation is high."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 0,
+                        'stats_correlation': 0.95,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert not any('correlation' in s for s in suggestions)
+
+    def test_suggestions_for_low_cardinality_distkey(self):
+        """Test suggestion when DISTKEY column has very low cardinality."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'orders',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000000,
+                'columns': [
+                    {
+                        'column_name': 'status',
+                        'redshift_encoding': 'lzo',
+                        'redshift_is_distkey': True,
+                        'redshift_sortkey_position': 0,
+                        'stats_n_distinct': 5,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert any('DISTKEY column status' in s and 'low cardinality' in s for s in suggestions)
+
+    def test_no_distkey_suggestion_when_high_cardinality(self):
+        """Test no low-cardinality suggestion when DISTKEY has many distinct values."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'orders',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000000,
+                'columns': [
+                    {
+                        'column_name': 'order_id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_is_distkey': True,
+                        'redshift_sortkey_position': 0,
+                        'stats_n_distinct': -1.0,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert not any('low cardinality' in s for s in suggestions)
+
+    def test_suggestions_for_high_null_sortkey(self):
+        """Test suggestion when SORTKEY column is mostly NULL."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'deleted_at',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                        'stats_null_frac': 0.95,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert any('SORTKEY column deleted_at' in s and '95% NULL' in s for s in suggestions)
+
+    def test_no_null_suggestion_when_low_null_frac(self):
+        """Test no NULL suggestion when SORTKEY column has low null fraction."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'events',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'event_time',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                        'stats_null_frac': 0.01,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert not any('NULL' in s and 'SORTKEY' in s for s in suggestions)
+
+    def test_suggestions_for_wide_uncompressed_columns(self):
+        """Test suggestion for wide columns with no compression."""
+        from awslabs.redshift_mcp_server.redshift import _generate_performance_suggestions
+
+        table_designs = [
+            {
+                'schema_name': 'public',
+                'table_name': 'logs',
+                'redshift_diststyle': 'KEY',
+                'columns': [
+                    {
+                        'column_name': 'message',
+                        'redshift_encoding': 'none',
+                        'redshift_sortkey_position': 0,
+                        'stats_avg_width': 256,
+                    },
+                    {
+                        'column_name': 'id',
+                        'redshift_encoding': 'lzo',
+                        'redshift_sortkey_position': 1,
+                        'stats_avg_width': 4,
+                    },
+                ],
+            }
+        ]
+        suggestions = _generate_performance_suggestions([], table_designs)
+
+        assert any(
+            'Wide columns' in s and 'message' in s and '>50 bytes' in s for s in suggestions
+        )
+
+
+class TestExecuteQueryDataTypes:
+    """Tests for execute_query data type handling."""
+
+    @pytest.mark.asyncio
+    async def test_execute_query_with_boolean_values(self, mocker):
+        """Test execute_query with boolean data types."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'is_active'}],
+                'Records': [[{'booleanValue': True}], [{'booleanValue': False}]],
+            },
+            'query-123',
+        )
+
+        result = await execute_query('test-cluster', 'dev', 'SELECT is_active FROM users')
+
+        assert result['columns'] == ['is_active']
+        assert result['rows'] == [[True], [False]]
+        assert result['row_count'] == 2
+
+    @pytest.mark.asyncio
+    async def test_execute_query_with_unknown_field_type(self, mocker):
+        """Test execute_query with unknown field types (fallback to str)."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'data'}],
+                'Records': [[{'unknownType': 'some_value'}]],
+            },
+            'query-123',
+        )
+
+        result = await execute_query('test-cluster', 'dev', 'SELECT data FROM test')
+
+        assert result['columns'] == ['data']
+        assert len(result['rows']) == 1
+        assert isinstance(result['rows'][0][0], str)
+
+
+class TestDescribeExecutionPlanVerbose:
+    """Tests for EXPLAIN VERBOSE parsing to improve coverage."""
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_with_node_properties(self, mocker):
+        """Test parsing EXPLAIN VERBOSE with various node properties."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # EXPLAIN VERBOSE format with node properties
+        verbose_output = """{AGG
+:node_id 1
+:parent_id 0
+:startup_cost 0.00
+:total_cost 100.50
+:plan_rows 10
+:plan_width 8
+}
+{SEQSCAN
+:node_id 2
+:parent_id 1
+:startup_cost 0.00
+:total_cost 50.25
+:plan_rows 100
+:plan_width 8
+:scanrelid 1
+}
+
+XN HashAggregate  (cost=0.00..100.50 rows=10 width=8)
+  ->  XN Seq Scan on users  (cost=0.00..50.25 rows=100 width=8)"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT COUNT(*) FROM users')
+
+        # Verify nodes were parsed
+        assert 'plan_nodes' in result
+        nodes = result['plan_nodes']
+        assert len(nodes) == 2
+
+        # Find node with node_id 1
+        node1 = next((n for n in nodes if n['node_id'] == 1), None)
+        assert node1 is not None
+        # parent_id 0 is converted to None (root node)
+        assert node1['parent_node_id'] is None
+        assert node1['cost_startup'] == 0.00
+        assert node1['cost_total'] == 100.50
+        assert node1['rows'] == 10
+        assert node1['width'] == 8
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_with_join_and_agg_properties(self, mocker):
+        """Test parsing join and aggregation properties."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # EXPLAIN VERBOSE with jointype and aggstrategy
+        verbose_output = """{HASHJOIN
+:node_id 1
+:parent_id 0
+:jointype 0
+:dist_info.dist_strategy DS_BCAST_INNER
+}
+{AGG
+:node_id 2
+:parent_id 1
+:aggstrategy 2
+:dataMovement Broadcast
+}
+
+XN Hash Join  (cost=0.00..100.00 rows=50 width=16)
+  ->  XN HashAggregate  (cost=0.00..50.00 rows=10 width=8)"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM t1 JOIN t2')
+
+        # Verify join and agg properties were parsed
+        assert 'plan_nodes' in result
+        nodes = result['plan_nodes']
+        assert len(nodes) == 2
+
+        # Check jointype was parsed
+        join_node = next((n for n in nodes if n['node_id'] == 1), None)
+        assert join_node is not None
+        assert 'join_type' in join_node
+        assert join_node['join_type'] == 'Inner'
+
+        # Check aggstrategy was parsed
+        agg_node = next((n for n in nodes if n['node_id'] == 2), None)
+        assert agg_node is not None
+        assert 'agg_strategy' in agg_node
+        assert agg_node['agg_strategy'] == 'Hashed'
+
+        # Check dataMovement was parsed
+        assert 'data_movement' in agg_node
+        assert agg_node['data_movement'] == 'Broadcast'
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_with_table_reference(self, mocker):
+        """Test parsing resorigtbl for table OID resolution."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # EXPLAIN VERBOSE with :resorigtbl (real Redshift format)
+        verbose_output = """{SEQSCAN
+:node_id 1
+:parent_id 0
+:scanrelid 1
+:resorigtbl 12345
+}
+
+XN Seq Scan on myschema.mytable  (cost=0.00..100.00 rows=1000 width=50)"""
+
+        # First call: EXPLAIN, second call: OID resolution query
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                    'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+                },
+                'explain-123',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'longValue': 12345},
+                            {'stringValue': 'myschema'},
+                            {'stringValue': 'mytable'},
+                        ]
+                    ]
+                },
+                'oid-query',
+            ),
+        ]
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'myschema',
+                'table_name': 'mytable',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM myschema.mytable'
+        )
+
+        nodes = result['plan_nodes']
+        assert len(nodes) == 1
+        assert nodes[0]['relation_name'] == 'myschema.mytable'
+        assert nodes[0].get('source_table_oid') == 12345
+        assert len(result['table_designs']) == 1
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_unqualified_table(self, mocker):
+        """Test OID resolution for table reference."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        verbose_output = """{SEQSCAN
+:node_id 1
+:parent_id 0
+:resorigtbl 99999
+}
+
+XN Seq Scan on users  (cost=0.00..100.00 rows=1000 width=50)"""
+
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                    'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+                },
+                'explain-123',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'longValue': 99999},
+                            {'stringValue': 'public'},
+                            {'stringValue': 'users'},
+                        ]
+                    ]
+                },
+                'oid-query',
+            ),
+        ]
+
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'redshift_diststyle': 'KEY',
+                'redshift_estimated_row_count': 1000,
+                'external_location': None,
+                'external_parameters': None,
+                'stats_sequential_scans': None,
+            }
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        nodes = result['plan_nodes']
+        assert len(nodes) == 1
+        assert nodes[0]['relation_name'] == 'public.users'
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_table_fetch_error(self, mocker):
+        """Test error handling when TABLES_EXTRA_BY_OID_SQL fails."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        verbose_output = """{SEQSCAN
+:node_id 1
+:parent_id 0
+:resorigtbl 55555
+}
+
+XN Seq Scan on users  (cost=0.00..100.00 rows=1000 width=50)"""
+
+        mock_execute_protected.side_effect = [
+            # Call 1: EXPLAIN VERBOSE
+            (
+                {
+                    'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                    'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+                },
+                'explain-123',
+            ),
+            # Call 2: TABLES_EXTRA_BY_OID_SQL fails
+            Exception('Permission denied'),
+        ]
+
+        # Fallback calls discover_tables which also fails since mock is exhausted
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.redshift.discover_tables')
+        mock_discover_tables.side_effect = Exception('Fallback also failed')
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        # Should handle error gracefully
+        assert 'plan_nodes' in result
+        assert 'table_designs' in result
+        # Table designs will be empty due to errors in both primary and fallback paths
+        assert len(result['table_designs']) == 0
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_large_plan(self, mocker):
+        """Test large plan truncation message."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Create verbose output with >30 lines in human-readable section
+        verbose_nodes = '\n'.join(
+            [f'{{SEQSCAN\n:node_id {i}\n:parent_id 0\n}}' for i in range(1, 4)]
+        )
+        human_readable = '\n'.join(
+            [
+                f'  ->  XN Seq Scan on table{i}  (cost=0.00..100.00 rows=1000 width=50)'
+                for i in range(35)
+            ]
+        )
+        verbose_output = f'{verbose_nodes}\n\n{human_readable}'
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM large_query')
+
+        # Verify summary for large plans (first 10 + last 10 lines with omission note)
+        assert 'human_readable_plan' in result
+        plan = result['human_readable_plan']
+        # Should contain first lines (table0)
+        assert 'table0' in plan
+        # Should contain last lines (table34)
+        assert 'table34' in plan
+        # Should contain omission note
+        assert 'lines omitted' in plan
+        assert f'first 10 and last 10 of {35} lines' in plan
+        assert 'Run EXPLAIN directly' in plan
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_all_property_types(self, mocker):
+        """Test parsing all property types."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Comprehensive verbose output with all property types
+        verbose_output = """{HASHJOIN
+:node_id 1
+:parent_id 0
+:startup_cost 123.45
+:total_cost 678.90
+:plan_rows 5000
+:plan_width 128
+:dist_info.dist_strategy DS_BCAST_INNER
+:jointype 1
+:dataMovement Broadcast to all slices
+}
+{AGG
+:node_id 2
+:parent_id 1
+:startup_cost 50.00
+:total_cost 100.00
+:plan_rows 1
+:plan_width 8
+:aggstrategy 2
+}
+{SEQSCAN
+:node_id 3
+:parent_id 2
+:startup_cost 0.00
+:total_cost 50.00
+:plan_rows 1000
+:plan_width 64
+:scanrelid 1
+:resorigtbl 77777
+}
+
+XN Hash Join  (cost=123.45..678.90 rows=5000 width=128)
+  ->  XN Aggregate  (cost=50.00..100.00 rows=1 width=8)
+    ->  XN Seq Scan on public.orders  (cost=0.00..50.00 rows=1000 width=64)"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM orders')
+
+        # Verify all properties were parsed
+        nodes = result['plan_nodes']
+        assert len(nodes) == 3
+
+        # Check Hash Join node
+        join_node = next(n for n in nodes if n['node_id'] == 1)
+        assert join_node['cost_startup'] == 123.45
+        assert join_node['cost_total'] == 678.90
+        assert join_node['rows'] == 5000
+        assert join_node['width'] == 128
+        assert join_node['distribution_type'] == 'DS_BCAST_INNER'
+        assert join_node['join_type'] == 'Left'
+        assert join_node['data_movement'] == 'Broadcast to all slices'
+
+        # Check Aggregate node
+        agg_node = next(n for n in nodes if n['node_id'] == 2)
+        assert agg_node['agg_strategy'] == 'Hashed'
+
+        # Check Seq Scan node
+        scan_node = next(n for n in nodes if n['node_id'] == 3)
+        assert scan_node['scan_relid'] == 1
+        assert scan_node['source_table_oid'] == 77777
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_dist_strategy_filtering(self, mocker):
+        """Test distribution strategy filtering for DS_DIST_ERR."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Test with DS_DIST_ERR and <> which should be filtered out
+        verbose_output = """{SEQSCAN
+:node_id 1
+:parent_id 0
+:dist_info.dist_strategy DS_DIST_ERR
+}
+{SEQSCAN
+:node_id 2
+:parent_id 0
+:dist_info.dist_strategy <>
+}
+{SEQSCAN
+:node_id 3
+:parent_id 0
+:dist_info.dist_strategy DS_DIST_NONE
+}
+
+XN Seq Scan on table1
+XN Seq Scan on table2
+XN Seq Scan on table3"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM test')
+
+        # Verify DS_DIST_ERR and <> are filtered out
+        nodes = result['plan_nodes']
+        node1 = next(n for n in nodes if n['node_id'] == 1)
+        node2 = next(n for n in nodes if n['node_id'] == 2)
+        node3 = next(n for n in nodes if n['node_id'] == 3)
+
+        assert 'distribution_type' not in node1
+        assert 'distribution_type' not in node2
+        assert node3['distribution_type'] == 'DS_DIST_NONE'
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_parent_id_zero(self, mocker):
+        """Test parent_id handling when it's 0."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Test with parent_id 0 (root node)
+        verbose_output = """{SEQSCAN
+:node_id 1
+:parent_id 0
+}
+
+XN Seq Scan on table1"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM test')
+
+        nodes = result['plan_nodes']
+        assert len(nodes) == 1
+        assert nodes[0]['parent_node_id'] is None
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_properties_before_node(self, mocker):
+        """Test handling properties before any node is defined."""
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Test with properties appearing before any node definition
+        verbose_output = """:startup_cost 100.00
+:total_cost 200.00
+{SEQSCAN
+:node_id 1
+:parent_id 0
+}
+
+XN Seq Scan on table1"""
+
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [{'name': 'QUERY PLAN'}],
+                'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+            },
+            'explain-123',
+        )
+
+        result = await describe_execution_plan('test-cluster', 'dev', 'SELECT * FROM test')
+
+        # Verify properties before node are ignored
+        nodes = result['plan_nodes']
+        assert len(nodes) == 1
+        # The orphaned properties should not be in the node
+        assert 'cost_startup' not in nodes[0] or nodes[0].get('cost_startup') != 100.00
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_cte_inlined(self, mocker):
+        """Test that CTEs inlined by Redshift optimizer resolve to real table OIDs.
+
+        Redshift inlines simple CTEs, so the plan contains Seq Scan nodes with
+        :resorigtbl pointing to the real tables, not CTE Scan nodes.
+        """
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Real Redshift output for a CTE query — CTE is inlined, plan shows real tables
+        verbose_output = """{LIMIT
+:node_id 1
+:parent_id 0
+:resorigtbl 3082398
+}
+{HASHJOIN
+:node_id 2
+:parent_id 1
+:resorigtbl 3082398
+}
+{SEQSCAN
+:node_id 3
+:parent_id 2
+:resorigtbl 3082398
+}
+{SEQSCAN
+:node_id 5
+:parent_id 2
+:resorigtbl 3082395
+}
+
+XN Limit  (cost=122.47..123.12 rows=10 width=21)
+  ->  XN Hash Join DS_DIST_NONE  (cost=122.47..6739.79 rows=101250 width=21)
+        ->  XN Seq Scan on sales s  (cost=0.00..1724.56 rows=172456 width=8)
+        ->  XN Hash  (cost=109.98..109.98 rows=4998 width=21)
+              ->  XN Seq Scan on event  (cost=0.00..109.98 rows=4998 width=21)"""
+
+        # Call 1: EXPLAIN, Call 2: OID resolution, Call 3: batch column stats
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+                },
+                'explain-123',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'longValue': 3082398},
+                            {'stringValue': 'tickit'},
+                            {'stringValue': 'sales'},
+                            {'stringValue': 'KEY'},
+                            {'longValue': 172456},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                        ],
+                        [
+                            {'longValue': 3082395},
+                            {'stringValue': 'tickit'},
+                            {'stringValue': 'event'},
+                            {'stringValue': 'KEY'},
+                            {'longValue': 8798},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                        ],
+                    ]
+                },
+                'oid-query',
+            ),
+            ({'Records': []}, 'stats-query'),
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan(
+            'test-cluster',
+            'dev',
+            'WITH top AS (SELECT eventid FROM tickit.event WHERE catid = 9) '
+            'SELECT s.salesid FROM tickit.sales s JOIN top ON s.eventid = top.eventid',
+        )
+
+        # CTE is inlined — both real tables should be resolved via OID
+        assert len(result['table_designs']) == 2
+        table_names = {td['table_name'] for td in result['table_designs']}
+        assert table_names == {'sales', 'event'}
+
+    @pytest.mark.asyncio
+    async def test_explain_verbose_subquery_inlined(self, mocker):
+        """Test that subqueries inlined by Redshift optimizer resolve to real table OIDs.
+
+        Redshift inlines simple subqueries, so the plan contains Seq Scan nodes with
+        :resorigtbl pointing to the real tables, not Subquery Scan nodes.
+        """
+        from awslabs.redshift_mcp_server.redshift import describe_execution_plan
+
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Same plan structure as CTE — Redshift produces identical plans
+        verbose_output = """{LIMIT
+:node_id 1
+:parent_id 0
+:resorigtbl 3082398
+}
+{HASHJOIN
+:node_id 2
+:parent_id 1
+}
+{SEQSCAN
+:node_id 3
+:parent_id 2
+:resorigtbl 3082398
+}
+{SEQSCAN
+:node_id 5
+:parent_id 2
+:resorigtbl 3082395
+}
+
+XN Limit  (cost=122.47..123.12 rows=10 width=21)
+  ->  XN Hash Join DS_DIST_NONE  (cost=122.47..6739.79 rows=101250 width=21)
+        ->  XN Seq Scan on sales s  (cost=0.00..1724.56 rows=172456 width=8)
+        ->  XN Hash  (cost=109.98..109.98 rows=4998 width=21)
+              ->  XN Seq Scan on event  (cost=0.00..109.98 rows=4998 width=21)"""
+
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [[{'stringValue': line}] for line in verbose_output.split('\n')],
+                },
+                'explain-123',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'longValue': 3082398},
+                            {'stringValue': 'tickit'},
+                            {'stringValue': 'sales'},
+                            {'stringValue': 'KEY'},
+                            {'longValue': 172456},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                        ],
+                        [
+                            {'longValue': 3082395},
+                            {'stringValue': 'tickit'},
+                            {'stringValue': 'event'},
+                            {'stringValue': 'KEY'},
+                            {'longValue': 8798},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                            {'longValue': 0},
+                        ],
+                    ]
+                },
+                'oid-query',
+            ),
+            ({'Records': []}, 'stats-query'),
+        ]
+
+        mock_discover_columns = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_columns'
+        )
+        mock_discover_columns.return_value = []
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await describe_execution_plan(
+            'test-cluster',
+            'dev',
+            'SELECT s.salesid FROM tickit.sales s '
+            'JOIN (SELECT eventid FROM tickit.event WHERE catid = 9) sub '
+            'ON s.eventid = sub.eventid LIMIT 10',
+        )
+
+        # Subquery is inlined — both real tables should be resolved via OID
+        assert len(result['table_designs']) == 2
+        table_names = {td['table_name'] for td in result['table_designs']}
+        assert table_names == {'sales', 'event'}

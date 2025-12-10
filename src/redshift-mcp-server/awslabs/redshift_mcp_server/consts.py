@@ -64,7 +64,7 @@ REDSHIFT_BEST_PRACTICES = """
 
 # SQL queries
 
-SVV_REDSHIFT_DATABASES_QUERY = """
+DATABASES_SQL = """
 SELECT
     database_name,
     database_owner,
@@ -76,7 +76,7 @@ FROM pg_catalog.svv_redshift_databases
 ORDER BY database_name;
 """
 
-SVV_ALL_SCHEMAS_QUERY = """
+SCHEMAS_SQL = """
 SELECT
     database_name,
     schema_name,
@@ -90,20 +90,68 @@ WHERE database_name = :database_name
 ORDER BY schema_name;
 """
 
-SVV_ALL_TABLES_QUERY = """
+TABLES_SQL = """
 SELECT
     database_name,
     schema_name,
     table_name,
     table_acl,
     table_type,
-    remarks
-FROM pg_catalog.svv_all_tables
+    remarks,
+    NULL AS external_location,
+    NULL AS external_parameters
+FROM pg_catalog.svv_redshift_tables
 WHERE database_name = :database_name AND schema_name = :schema_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name AS database_name,
+    schemaname AS schema_name,
+    tablename AS table_name,
+    NULL AS table_acl,
+    'EXTERNAL TABLE' AS table_type,
+    NULL AS remarks,
+    location AS external_location,
+    parameters AS external_parameters
+FROM pg_catalog.svv_external_tables
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name
+
 ORDER BY table_name;
 """
 
-SVV_ALL_COLUMNS_QUERY = """
+# Any user can query pg_stat_user_tables — no privilege filtering.
+# Redshift's pg_stat_user_tables only has: seq_scan, seq_tup_read, n_tup_ins, n_tup_upd, n_tup_del.
+# PostgreSQL-only columns (n_live_tup, n_dead_tup, last_analyze, etc.) do NOT exist in Redshift.
+TABLES_EXTRA_SQL = """
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS table_name,
+    CASE
+        WHEN ci.releffectivediststyle = 0 THEN 'EVEN'
+        WHEN ci.releffectivediststyle = 1 THEN 'KEY'
+        WHEN ci.releffectivediststyle = 8 THEN 'ALL'
+        WHEN ci.releffectivediststyle = 10 THEN 'AUTO(ALL)'
+        WHEN ci.releffectivediststyle = 11 THEN 'AUTO(EVEN)'
+        WHEN ci.releffectivediststyle = 12 THEN 'AUTO(KEY)'
+        ELSE 'UNKNOWN'
+    END AS diststyle,
+    c.reltuples::bigint AS estimated_row_count,
+    s.seq_scan AS sequential_scans,
+    s.seq_tup_read AS sequential_tuples_read,
+    s.n_tup_ins AS rows_inserted,
+    s.n_tup_upd AS rows_updated,
+    s.n_tup_del AS rows_deleted
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+JOIN pg_catalog.pg_class_info ci ON c.oid = ci.reloid
+LEFT JOIN pg_catalog.pg_stat_user_tables s ON c.oid = s.relid
+WHERE n.nspname = :schema_name
+  AND c.relkind = 'r'
+ORDER BY c.relname;
+"""
+
+COLUMNS_SQL = """
 SELECT
     database_name,
     schema_name,
@@ -113,13 +161,96 @@ SELECT
     column_default,
     is_nullable,
     data_type,
-    character_maximum_length,
-    numeric_precision,
-    numeric_scale,
-    remarks
-FROM pg_catalog.svv_all_columns
+    NULL AS character_maximum_length,
+    NULL AS numeric_precision,
+    NULL AS numeric_scale,
+    remarks,
+    encoding AS redshift_encoding,
+    distkey AS redshift_is_distkey,
+    sortkey AS redshift_sortkey_position,
+    NULL AS external_type,
+    NULL AS external_partition_key
+FROM pg_catalog.svv_redshift_columns
 WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name AS database_name,
+    schemaname AS schema_name,
+    tablename AS table_name,
+    columnname AS column_name,
+    columnnum AS ordinal_position,
+    NULL AS column_default,
+    is_nullable,
+    external_type AS data_type,
+    NULL AS character_maximum_length,
+    NULL AS numeric_precision,
+    NULL AS numeric_scale,
+    NULL AS remarks,
+    NULL AS redshift_encoding,
+    NULL AS redshift_is_distkey,
+    NULL AS redshift_sortkey_position,
+    external_type AS external_type,
+    part_key AS external_partition_key
+FROM pg_catalog.svv_external_columns
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name AND tablename = :table_name
+
 ORDER BY ordinal_position;
+"""
+
+# pg_stats requires SELECT privilege or ownership on the table to see its statistics.
+# Non-superuser users will only get stats for tables they have SELECT on.
+# Fetches column planner statistics for multiple tables in a single query.
+# Uses (schemaname, tablename) IN (...) to batch all tables at once.
+COLUMN_STATS_SQL = """
+SELECT
+    schemaname AS schema_name,
+    tablename AS table_name,
+    attname AS column_name,
+    n_distinct,
+    null_frac,
+    avg_width,
+    correlation,
+    array_to_string(most_common_vals, ',') AS most_common_vals,
+    array_to_string(most_common_freqs, ',') AS most_common_freqs
+FROM pg_catalog.pg_stats
+WHERE (schemaname, tablename) IN ({schema_table_pairs})
+ORDER BY schemaname, tablename, attname;
+"""
+
+# Resolves table OIDs from EXPLAIN VERBOSE :resorigtbl to schema.table names,
+# and fetches table design metadata (diststyle, row count) and activity stats
+# in a single query. Uses OID IN (...) filter instead of schema_name parameter
+# to avoid multiple calls per schema.
+# Any user can query pg_stat_user_tables — no privilege filtering.
+# Redshift's pg_stat_user_tables only has: seq_scan, seq_tup_read, n_tup_ins, n_tup_upd, n_tup_del.
+TABLES_EXTRA_BY_OID_SQL = """
+SELECT
+    c.oid AS table_oid,
+    n.nspname AS schema_name,
+    c.relname AS table_name,
+    CASE
+        WHEN ci.releffectivediststyle = 0 THEN 'EVEN'
+        WHEN ci.releffectivediststyle = 1 THEN 'KEY'
+        WHEN ci.releffectivediststyle = 8 THEN 'ALL'
+        WHEN ci.releffectivediststyle = 10 THEN 'AUTO(ALL)'
+        WHEN ci.releffectivediststyle = 11 THEN 'AUTO(EVEN)'
+        WHEN ci.releffectivediststyle = 12 THEN 'AUTO(KEY)'
+        ELSE 'UNKNOWN'
+    END AS diststyle,
+    c.reltuples::bigint AS estimated_row_count,
+    s.seq_scan AS sequential_scans,
+    s.seq_tup_read AS sequential_tuples_read,
+    s.n_tup_ins AS rows_inserted,
+    s.n_tup_upd AS rows_updated,
+    s.n_tup_del AS rows_deleted
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+JOIN pg_catalog.pg_class_info ci ON c.oid = ci.reloid
+LEFT JOIN pg_catalog.pg_stat_user_tables s ON c.oid = s.relid
+WHERE c.oid IN ({oid_list})
+ORDER BY n.nspname, c.relname;
 """
 
 # SQL guardrails
