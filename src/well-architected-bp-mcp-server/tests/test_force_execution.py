@@ -130,13 +130,20 @@ def test_import_and_access_all_wrappers():
 def test_reload_module_to_force_execution():
     """Reload the module to force re-execution of wrapper definitions."""
     import importlib
-    import sys
     
     # Import the module
     import well_architected_bp_mcp_server.server as server_module
     
+    # Check that key attributes exist before reload
+    assert hasattr(server_module, 'mcp')
+    assert hasattr(server_module, 'BEST_PRACTICES')
+    
     # Reload it to force re-execution of all code including wrappers
     importlib.reload(server_module)
+    
+    # Verify key attributes still exist after reload
+    assert hasattr(server_module, 'mcp')
+    assert hasattr(server_module, 'BEST_PRACTICES')
     
     # Access the reloaded wrappers
     assert hasattr(server_module, 'search_best_practices')
