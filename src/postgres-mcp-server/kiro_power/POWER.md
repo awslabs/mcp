@@ -1,8 +1,8 @@
 ---
 name: "aurora-postgres"
-displayName: "Aurora Postgres Power"
-description: "Comprehensive guide for using Aurora PostgreSQL to develop database application."
-keywords: ["aurora", "postgresql", "database", "aws", "rds"]
+displayName: "Build applications with Aurora PostgreSQL"
+description: "Build applications backed by Aurora PostgreSQL by leveraging this power. It bundles direct database connectivity through the Aurora PostgreSQL MCP server for data plane operations (queries, table creation, schema management), and control plane operations (cluster creation), The steering file helps with Aurora PostgreSQL specific best practices. When developers work on database tasks, the power dynamically loads relevant guidance - whether creating new Aurora clusters, designing schemas, or optimizing queries - so Kiro agent receives only the context needed for the specific task at hand."
+keywords: ["aurora", "postgresql", "aurora-postgresql", "amazon", "serverless", "rds-postgresql", "postgres", "AWSforData", "Analytics", "database", "aws", "rds"]
 author: "kennthhz"
 ---
 
@@ -10,9 +10,12 @@ author: "kennthhz"
 
 ## Overview
 
-This power provides comprehensive guidance for developing database applications with AWS Aurora PostgreSQL using the MCP server. It combines best practices for database design, query optimization, schema management, and operational excellence with direct MCP integration for cluster management and query execution.
+Build database-backed applications with Aurora PostgreSQL through seamless MCP server integration. This power provides:
 
-Whether you're building a new application, optimizing existing queries, or managing production databases, this power helps you leverage Aurora PostgreSQL effectively with both provisioned instances and Aurora Serverless v2.
+- Data Plane Operations: Execute queries, create tables, and manage schemas through direct database connectivity
+- Control Plane Operations: Create and manage Aurora clusters programmatically
+- Context-Aware Guidance: The steering file dynamically loads Aurora PostgreSQL best practices relevant to your current task—whether designing schemas, optimizing queries, or provisioning clusters—ensuring Kiro receives only the context it needs
+This power combines comprehensive guidance for database design, query optimization, schema management, and operational excellence with direct MCP integration for both provisioned instances and Aurora Serverless v2
 
 ## Available Steering Files
 
@@ -31,6 +34,8 @@ This power uses the **awslabs.postgres-mcp-server** MCP server to provide direct
 
 The MCP server provides tools for:
 - **Cluster Management**: Create clusters, monitor job status
+   -- database cluster creation take about 5 to 10 minutes after create_cluster tool call
+   -- get_job_status tool should be run every minute or so. Running it every few seconds is excessive and may feel like a stuck loop.
 - **Database Connections**: Connect to databases, manage multiple connections
 - **Query Execution**: Run SQL queries with safety guardrails
 - **Schema Exploration**: Get table schemas and metadata
@@ -40,10 +45,10 @@ The MCP server provides tools for:
 **Connecting to a Database:**
 ```
 Call mcp_postgres_connect_to_database with:
-- database_type: "APG" (Aurora Postgres)
+- database_type: "APG" (Aurora Postgres) or "RPG" (RDS Postgres)
 - connection_method: "rdsapi", "pgwire", or "pgwire_iam"
 - cluster_identifier: your cluster name
-- db_endpoint: cluster endpoint URL
+- db_endpoint: database instance endpoint, not needed when connection_method is rdsapi
 - database: database name
 - port: 5432
 - region: AWS region
@@ -58,6 +63,7 @@ Call mcp_postgres_get_database_connection_info to see all active connections
 
 **Running Queries:**
 ```
+Call mcp_postgres_run_query using results from mcp_postgres_connect_to_database call
 Call mcp_postgres_run_query with:
 - connection_method: same as connection
 - cluster_identifier: your cluster
@@ -68,10 +74,11 @@ Call mcp_postgres_run_query with:
 ```
 
 **Safety Guidelines:**
-- Read-only by default - writes require "RUN IT" confirmation
+- Read-only by default - writes requires adding "--allow_write_query" to mcp.json and "RUN IT"
 - Always use LIMIT on browsing queries
 - Run EXPLAIN plans before heavy queries
 - Bound queries with WHERE predicates
+-
 
 ## Common Workflows
 
