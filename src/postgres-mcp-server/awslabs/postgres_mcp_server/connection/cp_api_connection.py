@@ -21,6 +21,8 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
 from typing import Any, Dict, Optional
+from awslabs.postgres_mcp_server import __user_agent__
+from botocore.config import Config
 
 
 def internal_create_rds_client(region: str):
