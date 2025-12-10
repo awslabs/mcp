@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import (
+    ExecutionPlan,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -25,6 +26,7 @@ from awslabs.redshift_mcp_server.models import (
 )
 from awslabs.redshift_mcp_server.server import (
     execute_query_tool,
+    get_execution_plan_tool,
     list_clusters_tool,
     list_columns_tool,
     list_databases_tool,
@@ -527,4 +529,99 @@ class TestExecuteQueryTool:
 
         mock_ctx.error.assert_called_once_with(
             'Failed to execute query on cluster test-cluster in database test-db: Query error'
+        )
+
+
+class TestGetExecutionPlanTool:
+    """Tests for the get_execution_plan MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_tool_success(self, mocker):
+        """Test successful execution plan generation."""
+        mock_get_execution_plan = mocker.patch(
+            'awslabs.redshift_mcp_server.server.get_execution_plan'
+        )
+        mock_get_execution_plan.return_value = {
+            'query_plan': [
+                'XN Limit  (cost=0.00..0.07 rows=5 width=27)',
+                '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)',
+            ],
+            'plan_format': 'text',
+            'explained_query': 'SELECT * FROM users LIMIT 5',
+            'query_id': 'explain-123',
+            'execution_time_ms': 50,
+        }
+
+        result = await get_execution_plan_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT * FROM users LIMIT 5',
+            verbose=False,
+        )
+
+        # Verify return type and structure
+        assert isinstance(result, ExecutionPlan)
+
+        # Verify execution plan properties
+        assert len(result.query_plan) == 2
+        assert result.query_plan[0].startswith('XN Limit')
+        assert result.plan_format == 'text'
+        assert result.explained_query == 'SELECT * FROM users LIMIT 5'
+        assert result.query_id == 'explain-123'
+        assert result.execution_time_ms == 50
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_tool_verbose(self, mocker):
+        """Test execution plan with verbose output."""
+        mock_get_execution_plan = mocker.patch(
+            'awslabs.redshift_mcp_server.server.get_execution_plan'
+        )
+        mock_get_execution_plan.return_value = {
+            'query_plan': [
+                'QUERY PLAN',
+                'XN Limit  (cost=0.00..0.07 rows=5 width=27)',
+                '  Output: id, name, email',
+                '  ->  XN Seq Scan on public.users  (cost=0.00..1.00 rows=100 width=27)',
+                '        Output: id, name, email',
+                '        Filter: (active = true)',
+            ],
+            'plan_format': 'text',
+            'explained_query': 'SELECT * FROM users WHERE active = true LIMIT 5',
+            'query_id': 'explain-verbose-456',
+            'execution_time_ms': 75,
+        }
+
+        result = await get_execution_plan_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT * FROM users WHERE active = true LIMIT 5',
+            verbose=True,
+        )
+
+        # Verify verbose output contains more details
+        assert isinstance(result, ExecutionPlan)
+        assert len(result.query_plan) == 6
+        assert any('Output:' in line for line in result.query_plan)
+        assert any('Filter:' in line for line in result.query_plan)
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_tool_error(self, mocker):
+        """Test get_execution_plan_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
+
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.get_execution_plan',
+            side_effect=Exception('Invalid SQL syntax'),
+        )
+
+        with pytest.raises(Exception, match='Invalid SQL syntax'):
+            await get_execution_plan_tool(mock_ctx, 'test-cluster', 'test-db', 'INVALID SQL')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to get execution plan on cluster test-cluster in database test-db: Invalid SQL syntax'
         )

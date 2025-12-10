@@ -27,6 +27,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    get_execution_plan,
 )
 from botocore.config import Config
 
@@ -1206,3 +1207,141 @@ class TestExecuteQuery:
 
         with pytest.raises(Exception, match='Query execution failed'):
             await execute_query('test-cluster', 'dev', 'SELECT * FROM nonexistent')
+
+
+class TestGetExecutionPlan:
+    """Tests for get_execution_plan function."""
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_success(self, mocker):
+        """Test successful execution plan generation."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                    [
+                        {
+                            'stringValue': '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)'
+                        }
+                    ],
+                ]
+            },
+            'explain-123',
+        )
+
+        # Mock time for execution time calculation
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]  # start_time, end_time
+
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM users LIMIT 5')
+
+        assert result['query_plan'] == [
+            'XN Limit  (cost=0.00..0.07 rows=5 width=27)',
+            '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)',
+        ]
+        assert result['plan_format'] == 'text'
+        assert result['explained_query'] == 'SELECT * FROM users LIMIT 5'
+        assert result['query_id'] == 'explain-123'
+        # Check execution time is close to expected (allow for floating point precision)
+        assert 49 <= result['execution_time_ms'] <= 51
+
+        # Verify EXPLAIN was added to the query
+        mock_execute_protected.assert_called_once()
+        call_args = mock_execute_protected.call_args
+        assert call_args[1]['sql'] == 'EXPLAIN SELECT * FROM users LIMIT 5'
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_verbose(self, mocker):
+        """Test execution plan with verbose flag."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': 'QUERY PLAN'}],
+                    [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                    [{'stringValue': '  Output: id, name, email'}],
+                    [
+                        {
+                            'stringValue': '  ->  XN Seq Scan on public.users  (cost=0.00..1.00 rows=100 width=27)'
+                        }
+                    ],
+                    [{'stringValue': '        Output: id, name, email'}],
+                ]
+            },
+            'explain-verbose-456',
+        )
+
+        # Mock time
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.075]
+
+        result = await get_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM users LIMIT 5', verbose=True
+        )
+
+        assert len(result['query_plan']) == 5
+        assert any('Output:' in line for line in result['query_plan'])
+        assert result['query_id'] == 'explain-verbose-456'
+        assert result['execution_time_ms'] == 75
+
+        # Verify EXPLAIN VERBOSE was used
+        mock_execute_protected.assert_called_once()
+        call_args = mock_execute_protected.call_args
+        assert call_args[1]['sql'] == 'EXPLAIN VERBOSE SELECT * FROM users LIMIT 5'
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_already_has_explain(self, mocker):
+        """Test error when SQL already contains EXPLAIN."""
+        # Should raise error without calling _execute_protected_statement
+        with pytest.raises(
+            Exception,
+            match='SQL already contains EXPLAIN. Please provide the query without EXPLAIN.',
+        ):
+            await get_execution_plan('test-cluster', 'dev', 'EXPLAIN SELECT * FROM users')
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_empty_records(self, mocker):
+        """Test handling of empty records in response."""
+        # Mock _execute_protected_statement with empty records
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [],  # Empty record
+                    [{'stringValue': ''}],  # Empty string value
+                    [{'stringValue': 'Valid line'}],
+                ]
+            },
+            'explain-789',
+        )
+
+        # Mock time
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT 1')
+
+        # Should only include the valid line
+        assert result['query_plan'] == ['Valid line']
+        assert result['query_id'] == 'explain-789'
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_error_handling(self, mocker):
+        """Test error handling in get_execution_plan."""
+        # Mock _execute_protected_statement to raise exception
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.side_effect = Exception('EXPLAIN query failed')
+
+        with pytest.raises(Exception, match='EXPLAIN query failed'):
+            await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM invalid_table')

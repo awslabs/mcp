@@ -773,6 +773,81 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
         raise
 
 
+async def get_execution_plan(
+    cluster_identifier: str, database_name: str, sql: str, verbose: bool = False
+) -> dict:
+    """Get the execution plan for a SQL query using EXPLAIN.
+
+    Args:
+        cluster_identifier: The cluster identifier to query.
+        database_name: The database to execute the query against.
+        sql: The SQL statement to explain.
+        verbose: Whether to use EXPLAIN VERBOSE for detailed output.
+
+    Returns:
+        Dictionary with execution plan details.
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+        logger.debug(f'SQL to explain: {sql}')
+
+        # Check if SQL already starts with EXPLAIN
+        sql_trimmed = sql.strip().upper()
+        if sql_trimmed.startswith('EXPLAIN'):
+            raise Exception(
+                'SQL already contains EXPLAIN. Please provide the query without EXPLAIN.'
+            )
+
+        # Build EXPLAIN query
+        explain_prefix = 'EXPLAIN VERBOSE' if verbose else 'EXPLAIN'
+        explain_sql = f'{explain_prefix} {sql}'
+
+        # Record start time
+        import time
+
+        start_time = time.time()
+
+        # Execute the EXPLAIN query
+        results_response, query_id = await _execute_protected_statement(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=explain_sql
+        )
+
+        # Calculate execution time
+        end_time = time.time()
+        execution_time_ms = int((end_time - start_time) * 1000)
+
+        # Extract plan lines from results
+        plan_lines = []
+        records = results_response.get('Records', [])
+
+        for record in records:
+            # EXPLAIN returns a single column with the plan text
+            if record and len(record) > 0:
+                line = record[0].get('stringValue', '')
+                if line:
+                    plan_lines.append(line)
+
+        execution_plan = {
+            'query_plan': plan_lines,
+            'plan_format': 'text',
+            'explained_query': sql,
+            'query_id': query_id,
+            'execution_time_ms': execution_time_ms,
+        }
+
+        logger.info(
+            f'Execution plan generated successfully: {query_id}, '
+            f'{len(plan_lines)} lines in {execution_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error getting execution plan for cluster {cluster_identifier}: {str(e)}')
+        raise
+
+
 # Global client manager instance
 client_manager = RedshiftClientManager(
     config=Config(

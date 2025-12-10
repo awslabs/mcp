@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server.consts import (
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
+    ExecutionPlan,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -36,6 +37,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    get_execution_plan,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -619,6 +621,103 @@ async def execute_query_tool(
         logger.error(f'Error in execute_query_tool: {str(e)}')
         await ctx.error(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
+        )
+        raise
+
+
+@mcp.tool(name='get_execution_plan')
+async def get_execution_plan_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to explain the query on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        ...,
+        description='The database name to explain the query against. Must be a valid database name from the list_databases tool.',
+    ),
+    sql: str = Field(
+        ...,
+        description='The SQL statement to generate an execution plan for. Should be a single SQL statement without the EXPLAIN prefix.',
+    ),
+    verbose: bool = Field(
+        False,
+        description='Whether to use EXPLAIN VERBOSE for more detailed execution plan output.',
+    ),
+) -> ExecutionPlan:
+    """Get the execution plan for a SQL query without executing it.
+
+    This tool uses Redshift's EXPLAIN command to explain how a query would be executed,
+    providing insights into query performance without actually running the query.
+    This is essential for query optimization and understanding query execution strategies.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The user must have appropriate permissions to execute queries in the specified database.
+
+    ## Parameters
+
+    - cluster_identifier: The unique identifier of the Redshift cluster to query.
+                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
+    - database_name: The database name to explain the query against.
+                    IMPORTANT: Use a valid database name from the list_databases tool.
+    - sql: The SQL statement to generate an execution plan for. Should be a single SQL statement without the EXPLAIN prefix.
+    - verbose: Whether to use EXPLAIN VERBOSE for more detailed output (default: False).
+
+    ## Response Structure
+
+    Returns an ExecutionPlan object with the following structure:
+
+    - query_plan: List of strings representing the execution plan lines.
+    - plan_format: Format of the plan (currently 'text', future support for 'json').
+    - explained_query: The original SQL query that the execution plan was generated for.
+    - query_id: Unique identifier for the explain execution.
+    - execution_time_ms: Time taken to generate the plan in milliseconds.
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Ensure the cluster status is 'available' before getting execution plan for queries.
+    4. Use this tool before executing expensive queries to understand their performance impact.
+    5. Enable verbose mode for more detailed execution plan information.
+
+    ## Interpretation Best Practices
+
+    1. Look for sequential scans on large tables which might benefit from distkey and sortkey.
+    2. Check for nested loops on large datasets which might cause performance issues.
+    3. Review the cost estimates to identify expensive operations.
+    4. Use the verbose output to see detailed statistics and cost breakdowns.
+    5. Compare plans before and after query optimization to measure improvements.
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+
+        plan_result_data = await get_execution_plan(
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            verbose=verbose,
+        )
+
+        # Convert to ExecutionPlan model
+        execution_plan = ExecutionPlan(**plan_result_data)
+
+        logger.info(
+            f'Successfully generated execution plan on cluster {cluster_identifier}: '
+            f'{len(execution_plan.query_plan)} lines in {execution_plan.execution_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error in get_execution_plan_tool: {str(e)}')
+        await ctx.error(
+            f'Failed to get execution plan on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
         raise
 
