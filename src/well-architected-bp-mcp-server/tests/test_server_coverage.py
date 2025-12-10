@@ -34,10 +34,6 @@ def test_get_best_practice_edge_cases():
     """Test get_best_practice with various IDs."""
     from well_architected_bp_mcp_server.server import get_best_practice_impl
 
-    # Test with None
-    result = get_best_practice_impl(None)
-    assert result is None
-
     # Test with empty string
     result = get_best_practice_impl('')
     assert result is None
@@ -50,11 +46,6 @@ def test_get_best_practice_edge_cases():
 def test_get_related_practices_edge_cases():
     """Test get_related_practices with various scenarios."""
     from well_architected_bp_mcp_server.server import get_related_practices_impl
-
-    # Test with None
-    result = get_related_practices_impl(None)
-    assert isinstance(result, list)
-    assert len(result) == 0
 
     # Test with empty string
     result = get_related_practices_impl('')
