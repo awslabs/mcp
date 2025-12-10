@@ -16,7 +16,6 @@
 
 import asyncio
 import boto3
-from awslabs import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from botocore.config import Config
 from loguru import logger

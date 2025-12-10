@@ -16,7 +16,6 @@ import boto3
 import json
 import time
 import traceback
-from awslabs import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
