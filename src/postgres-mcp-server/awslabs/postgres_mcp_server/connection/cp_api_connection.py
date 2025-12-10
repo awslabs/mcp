@@ -301,8 +301,8 @@ def setup_aurora_iam_policy_for_current_user(
         raise ValueError("cluster_region must be a non-empty string")
 
     # Initialize clients
-    sts = boto3.client('sts')
-    iam = boto3.client('iam')
+    sts = boto3.client('sts', config=Config(user_agent_extra=__user_agent__))
+    iam = boto3.client('iam', config=Config(user_agent_extra=__user_agent__))
 
     # 1. Get current IAM identity
     try:
