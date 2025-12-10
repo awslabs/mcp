@@ -29,6 +29,7 @@ from .core.common.config import (
     ENABLE_AGENT_SCRIPTS,
     ENDPOINT_SUGGEST_AWS_COMMANDS,
     FASTMCP_LOG_LEVEL,
+    FILE_ACCESS_MODE,
     HOST,
     PORT,
     READ_ONLY_KEY,
@@ -37,6 +38,7 @@ from .core.common.config import (
     STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
+    FileAccessMode,
 )
 from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
@@ -70,6 +72,12 @@ server = FastMCP(
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
+
+_FILE_ACCESS_MSGS = {
+    FileAccessMode.UNRESTRICTED: f'File access is unrestricted so commands can reference files anywhere; use forward slashes (/) or relative paths from the working directory ({WORKING_DIRECTORY}).',
+    FileAccessMode.NO_ACCESS: 'File access is disabled and commands with any local file reference will be rejected. S3 URIs (s3://...) and stdout redirect (-) remain allowed.',
+    FileAccessMode.WORKDIR: f'Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) or relative paths.',
+}
 
 
 @server.tool(
@@ -175,8 +183,7 @@ async def suggest_aws_commands(
     - For cross-region or account-wide operations, explicitly include --region parameter
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
-    - The current working directory is {WORKING_DIRECTORY}
-    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
+    - {_FILE_ACCESS_MSGS[FILE_ACCESS_MODE]}
 
     Best practices for command generation:
     - Always use the most specific service and operation names
@@ -190,7 +197,6 @@ async def suggest_aws_commands(
     - DO NOT use shell redirection operators (>, >>, <)
     - DO NOT use command substitution ($())
     - DO NOT use shell variables or environment variables
-    - DO NOT use relative paths for reading or writing files, use absolute paths instead
 
     Common pitfalls to avoid:
     1. Missing required parameters - always include all required parameters
