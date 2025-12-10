@@ -239,7 +239,7 @@ def test_data_dir_path():
     from pathlib import Path
     
     assert isinstance(DATA_DIR, Path)
-    assert DATA_DIR.name == "data"
+    assert DATA_DIR.name == 'data'
 
 
 def test_mcp_tool_wrappers():
