@@ -58,7 +58,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-bedrock-agentcore-mcp-server"
-version = "0.0.6"
+version = "0.0.7"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
