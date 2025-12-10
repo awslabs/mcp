@@ -267,6 +267,26 @@ class TestSearch:
         assert result['status'] == 'error'
 
     @pytest.mark.asyncio
+    async def test_vector_search_missing_search_module(self, mock_connection):
+        """Test error when Valkey search module is not available."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2, 0.3]
+
+        # Setup mock to raise error indicating search module is missing
+        mock_conn_raw.ft.side_effect = ValkeyError('unknown command `FT.SEARCH`')
+
+        # Execute search
+        result = await vector_search(index, field, vector)
+
+        # Verify error response returned
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
+        assert 'valkey' in result['type']
+
+    @pytest.mark.asyncio
     async def test_vector_search_large_vector(self, mock_connection):
         """Test vector search with a large vector."""
         mock_conn, mock_conn_raw = mock_connection
