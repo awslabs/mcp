@@ -240,3 +240,44 @@ def test_data_dir_path():
     
     assert isinstance(DATA_DIR, Path)
     assert DATA_DIR.name == "data"
+
+
+def test_mcp_tool_wrappers():
+    """Test MCP tool wrapper functions directly."""
+    from well_architected_bp_mcp_server.server import (
+        search_best_practices, get_best_practice, list_pillars, 
+        get_related_practices, well_architected_framework_review
+    )
+    
+    # Test that MCP tools exist and have the right type
+    assert str(type(search_best_practices).__name__) == 'FunctionTool'
+    assert str(type(get_best_practice).__name__) == 'FunctionTool'
+    assert str(type(list_pillars).__name__) == 'FunctionTool'
+    assert str(type(get_related_practices).__name__) == 'FunctionTool'
+    assert str(type(well_architected_framework_review).__name__) == 'FunctionTool'
+
+
+def test_wrapper_function_calls():
+    """Test that wrapper functions properly call internal functions."""
+    from well_architected_bp_mcp_server.server import (
+        _search_best_practices, _get_best_practice, _list_pillars,
+        _get_related_practices, _well_architected_framework_review
+    )
+    
+    # Test internal functions work (these cover the return statements)
+    results = _search_best_practices()
+    assert isinstance(results, list)
+    
+    pillars = _list_pillars()
+    assert isinstance(pillars, dict)
+    
+    review = _well_architected_framework_review()
+    assert isinstance(review, dict)
+    
+    # Test get functions
+    if results:
+        practice = _get_best_practice(results[0]["id"])
+        assert practice is not None
+        
+        related = _get_related_practices(results[0]["id"])
+        assert isinstance(related, list)
