@@ -4,7 +4,7 @@
 
 ### Architecture Review
 ```
-Using the Well-Architected BP server, what are the high-risk security best practices 
+Using the Well-Architected BP server, what are the high-risk security best practices
 I should review for a new web application?
 ```
 
