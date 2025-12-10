@@ -64,5 +64,10 @@ include = [
 
 [dependency-groups]
 dev = [
+    "bandit>=1.9.2",
     "ruff>=0.14.8",
 ]
+
+[tool.bandit]
+exclude_dirs = [".venv", "venv", ".tox", "build", "dist"]
+skips = ["B101"]  # Skip assert_used warnings in tests
