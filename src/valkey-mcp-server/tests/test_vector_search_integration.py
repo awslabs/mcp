@@ -24,8 +24,13 @@ class TestVectorSearchIntegration:
         except Exception as e:
             print(f"No existing index to drop: {e}")
         
-        # Create Bedrock embeddings provider
-        self.provider = BedrockEmbeddings(region_name="us-east-1", model_id="amazon.titan-embed-text-v1")
+        # Create Bedrock embeddings provider - skip if no credentials
+        try:
+            self.provider = BedrockEmbeddings(region_name="us-east-1", model_id="amazon.titan-embed-text-v1")
+        except ValueError as e:
+            if "AWS credentials not found" in str(e):
+                pytest.skip("AWS credentials not configured - skipping Bedrock integration test")
+            raise
         
         # Create a vector index with 1536 dimensions (Titan embedding size)
         try:
