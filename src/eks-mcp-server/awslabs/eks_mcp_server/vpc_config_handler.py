@@ -14,11 +14,12 @@
 
 """VPC Configuration handler for the EKS MCP Server."""
 
+import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
-from awslabs.eks_mcp_server.models import EksVpcConfigResponse
+from awslabs.eks_mcp_server.models import EksVpcConfigData
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Optional
 
@@ -45,7 +46,7 @@ class VpcConfigHandler:
         self.allow_sensitive_data_access = allow_sensitive_data_access
 
         # Register tools
-        self.mcp.tool(name='get_eks_vpc_config')(self.get_eks_vpc_config)
+        self.mcp.tool(name='get_eks_vpc_config', structured_output=False)(self.get_eks_vpc_config)
 
         # Initialize AWS clients
         self.ec2_client = AwsHelper.create_boto3_client('ec2')
@@ -63,7 +64,7 @@ class VpcConfigHandler:
             None,
             description='ID of the specific VPC to query (optional, will use cluster VPC if not specified)',
         ),
-    ) -> EksVpcConfigResponse:
+    ) -> CallToolResult:
         """Get VPC configuration for an EKS cluster.
 
         This tool retrieves comprehensive VPC configuration details for any EKS cluster,
@@ -328,7 +329,7 @@ class VpcConfigHandler:
 
     async def _get_eks_vpc_config_impl(
         self, ctx: Context, cluster_name: str, vpc_id: Optional[str] = None
-    ) -> EksVpcConfigResponse:
+    ) -> CallToolResult:
         """Internal implementation of get_eks_vpc_config."""
         try:
             # Always get the cluster response for remote CIDR information
@@ -345,17 +346,9 @@ class VpcConfigHandler:
             except Exception as eks_error:
                 error_message = f'Error getting cluster information: {str(eks_error)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return EksVpcConfigResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    vpc_id='',
-                    cidr_block='',
-                    additional_cidr_blocks=[],  # Add missing parameter
-                    routes=[],
-                    remote_node_cidr_blocks=[],
-                    remote_pod_cidr_blocks=[],
-                    subnets=[],
-                    cluster_name=cluster_name,
                 )
 
             try:
@@ -380,9 +373,7 @@ class VpcConfigHandler:
                 )
                 log_with_request_id(ctx, LogLevel.INFO, success_message)
 
-                return EksVpcConfigResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text=success_message)],
+                data = EksVpcConfigData(
                     vpc_id=vpc_id,
                     cidr_block=cidr_block,
                     additional_cidr_blocks=additional_cidr_blocks,
@@ -392,34 +383,26 @@ class VpcConfigHandler:
                     subnets=subnets,
                     cluster_name=cluster_name,
                 )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
+                )
             except Exception as e:
                 error_message = f'Error retrieving VPC configuration: {str(e)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return EksVpcConfigResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    vpc_id='',
-                    cidr_block='',
-                    additional_cidr_blocks=[],  # Add missing parameter
-                    routes=[],
-                    remote_node_cidr_blocks=[],
-                    remote_pod_cidr_blocks=[],
-                    subnets=[],
-                    cluster_name=cluster_name,
                 )
 
         except Exception as e:
             error_message = f'Error retrieving VPC configuration: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksVpcConfigResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                vpc_id='',
-                cidr_block='',
-                additional_cidr_blocks=[],  # Add missing parameter
-                routes=[],
-                remote_node_cidr_blocks=[],
-                remote_pod_cidr_blocks=[],
-                subnets=[],
-                cluster_name=cluster_name,
             )

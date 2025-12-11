@@ -14,6 +14,7 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the EKS Stack Handler."""
 
+import json
 import pytest
 import yaml
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
@@ -24,12 +25,6 @@ from awslabs.eks_mcp_server.consts import (
     CFN_STACK_TAG_VALUE,
 )
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
-from awslabs.eks_mcp_server.models import (
-    DeleteStackResponse,
-    DeployStackResponse,
-    DescribeStackResponse,
-    GenerateTemplateResponse,
-)
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, mock_open, patch
@@ -126,12 +121,15 @@ class TestEksStackHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.stack_name == 'eks-test-cluster-stack'
-                assert result.stack_arn == 'test-stack-id'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.content) == 1
+                assert len(result.content) == 2
                 assert result.content[0].type == 'text'
                 assert 'CloudFormation stack creation initiated' in result.content[0].text
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['stack_name'] == 'eks-test-cluster-stack'
+                assert data['stack_arn'] == 'test-stack-id'
+                assert data['cluster_name'] == 'test-cluster'
 
     def test_ensure_stack_ownership_owned_stack(self):
         """Test that _ensure_stack_ownership correctly identifies a stack owned by our tool."""
@@ -316,12 +314,50 @@ class TestEksStackHandler:
 
                 # Verify the result
                 assert not result.isError
-                assert result.stack_name == 'eks-test-cluster-stack'
-                assert result.stack_arn == 'test-stack-id'
-                assert result.cluster_name == 'test-cluster'
-                assert len(result.content) == 1
+                assert len(result.content) == 2
                 assert result.content[0].type == 'text'
                 assert 'CloudFormation stack update initiated' in result.content[0].text
+
+                # Parse JSON data from content
+                data = json.loads(result.content[1].text)
+                assert data['stack_name'] == 'eks-test-cluster-stack'
+                assert data['stack_arn'] == 'test-stack-id'
+                assert data['cluster_name'] == 'test-cluster'
+
+    @pytest.mark.asyncio
+    async def test_deploy_stack_ownership_check_fails(self):
+        """Test that _deploy_stack returns error when ownership check fails for existing stack."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Mock the _ensure_stack_ownership method to return failure
+        with patch.object(
+            handler,
+            '_ensure_stack_ownership',
+            return_value=(False, {'StackId': 'test-stack-id'}, 'Stack not created by this tool'),
+        ):
+            # Mock the open function to avoid file not found error
+            mock_template_content = 'test template content'
+            with patch('builtins.open', mock_open(read_data=mock_template_content)):
+                # Call the _deploy_stack method
+                result = await handler._deploy_stack(
+                    ctx=mock_ctx,
+                    template_file='/path/to/template.yaml',
+                    stack_name='eks-test-cluster-stack',
+                    cluster_name='test-cluster',
+                )
+
+                # Verify the result
+                assert result.isError
+                assert len(result.content) == 1
+                assert result.content[0].type == 'text'
+                assert 'Stack not created by this tool' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_describe_stack_success(self):
@@ -385,18 +421,21 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_id == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
-            assert result.creation_time == '2023-01-01T00:00:00Z'
-            assert result.stack_status == 'CREATE_COMPLETE'
-            assert result.outputs == {
+            assert len(result.content) == 2
+            assert result.content[0].type == 'text'
+            assert 'Successfully described CloudFormation stack' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['stack_name'] == 'eks-test-cluster-stack'
+            assert data['stack_id'] == 'test-stack-id'
+            assert data['cluster_name'] == 'test-cluster'
+            assert data['creation_time'] == '2023-01-01T00:00:00Z'
+            assert data['stack_status'] == 'CREATE_COMPLETE'
+            assert data['outputs'] == {
                 'ClusterEndpoint': 'https://test-endpoint.eks.amazonaws.com',
                 'ClusterArn': 'arn:aws:eks:us-west-2:123456789012:cluster/test-cluster',
             }
-            assert len(result.content) == 1
-            assert result.content[0].type == 'text'
-            assert 'Successfully described CloudFormation stack' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_stack_success(self):
@@ -438,12 +477,15 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_id == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
-            assert len(result.content) == 1
+            assert len(result.content) == 2
             assert result.content[0].type == 'text'
             assert 'Initiated deletion of CloudFormation stack' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['stack_name'] == 'eks-test-cluster-stack'
+            assert data['stack_id'] == 'test-stack-id'
+            assert data['cluster_name'] == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_delete_stack_not_owned(self):
@@ -483,9 +525,6 @@ class TestEksStackHandler:
 
             # Verify the result
             assert result.isError
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_id == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
             assert len(result.content) == 1
             assert result.content[0].type == 'text'
             assert 'not created by' in result.content[0].text
@@ -539,10 +578,13 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            assert result.template_path == '/path/to/output/template.yaml'
-            assert len(result.content) == 1
+            assert len(result.content) == 2
             assert result.content[0].type == 'text'
             assert 'template generated' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['template_path'] == '/path/to/output/template.yaml'
 
             # Verify that the Metadata section was removed from the EksCluster resource
             # because it only contained checkov metadata which was removed
@@ -602,7 +644,10 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            assert result.template_path == '/path/to/output/template.yaml'
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['template_path'] == '/path/to/output/template.yaml'
 
             # Verify that only the checkov metadata was removed
             assert 'Resources' in mock_yaml_content
@@ -627,11 +672,9 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _generate_template method
-        mock_result = GenerateTemplateResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Generated CloudFormation template')],
-            template_path='/path/to/output/template.yaml',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='Generated CloudFormation template')]
         with patch.object(handler, '_generate_template', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with generate operation
             result = await handler.manage_eks_stacks(
@@ -651,12 +694,6 @@ class TestEksStackHandler:
             # Verify the result is the same as the mock result
             assert result is mock_result
             assert not result.isError
-            # Check specific attributes for GenerateTemplateResponse
-            assert isinstance(result, GenerateTemplateResponse)
-            assert result.template_path == '/path/to/output/template.yaml'
-            assert len(result.content) == 1
-            assert result.content[0].type == 'text'
-            assert 'Generated CloudFormation template' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_deploy(self):
@@ -671,13 +708,11 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _deploy_stack method
-        mock_result = DeployStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='CloudFormation stack creation initiated')],
-            stack_name='eks-test-cluster-stack',
-            stack_arn='test-stack-id',
-            cluster_name='test-cluster',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [
+            TextContent(type='text', text='CloudFormation stack creation initiated')
+        ]
         with patch.object(handler, '_deploy_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with deploy operation
             result = await handler.manage_eks_stacks(
@@ -697,12 +732,6 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            # Check specific attributes for DeployStackResponse
-            assert isinstance(result, DeployStackResponse)
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_arn == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
-            assert len(result.content) == 1
             assert result.content[0].type == 'text'
             assert 'CloudFormation stack creation initiated' in result.content[0].text
 
@@ -719,16 +748,11 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _describe_stack method
-        mock_result = DescribeStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Successfully described CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-            creation_time='2023-01-01T00:00:00Z',
-            stack_status='CREATE_COMPLETE',
-            outputs={},
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [
+            TextContent(type='text', text='Successfully described CloudFormation stack')
+        ]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with describe operation
             result = await handler.manage_eks_stacks(
@@ -744,16 +768,6 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            # Check specific attributes for DescribeStackResponse
-            assert isinstance(result, DescribeStackResponse)
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_id == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
-            assert result.creation_time == '2023-01-01T00:00:00Z'
-            assert result.stack_status == 'CREATE_COMPLETE'
-            assert len(result.content) == 1
-            assert result.content[0].type == 'text'
-            assert 'Successfully described CloudFormation stack' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_delete(self):
@@ -768,13 +782,11 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _delete_stack method
-        mock_result = DeleteStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Initiated deletion of CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [
+            TextContent(type='text', text='Initiated deletion of CloudFormation stack')
+        ]
         with patch.object(handler, '_delete_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with delete operation
             result = await handler.manage_eks_stacks(
@@ -790,14 +802,6 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            # Check specific attributes for DeleteStackResponse
-            assert isinstance(result, DeleteStackResponse)
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_id == 'test-stack-id'
-            assert result.cluster_name == 'test-cluster'
-            assert len(result.content) == 1
-            assert result.content[0].type == 'text'
-            assert 'Initiated deletion of CloudFormation stack' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_invalid_operation(self):
@@ -805,8 +809,9 @@ class TestEksStackHandler:
         # Create a mock MCP server
         mock_mcp = MagicMock()
 
-        # Initialize the EKS handler with the mock MCP server
-        handler = EksStackHandler(mock_mcp)
+        # Initialize the EKS handler with the mock MCP server and allow_write=True
+        # to bypass write access checks and test the invalid operation error
+        handler = EksStackHandler(mock_mcp, allow_write=True)
 
         # Create a mock context
         mock_ctx = MagicMock(spec=Context)
@@ -814,7 +819,7 @@ class TestEksStackHandler:
         # Call the manage_eks_stacks method with an invalid operation
         result = await handler.manage_eks_stacks(
             ctx=mock_ctx,
-            operation='invalid',
+            operation='invalid_operation',
             cluster_name='test-cluster',
         )
 
@@ -822,7 +827,8 @@ class TestEksStackHandler:
         assert result.isError
         assert len(result.content) == 1
         assert result.content[0].type == 'text'
-        assert 'not allowed without write access' in result.content[0].text
+        assert 'Invalid operation: invalid_operation' in result.content[0].text
+        assert 'Must be one of: generate, deploy, describe, delete' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_write_access_disabled(self):
@@ -878,16 +884,11 @@ class TestEksStackHandler:
         assert 'not allowed without write access' in result.content[0].text
 
         # Test describe operation (should be allowed even when write access is disabled)
-        mock_result = DescribeStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Successfully described CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-            creation_time='2023-01-01T00:00:00Z',
-            stack_status='CREATE_COMPLETE',
-            outputs={},
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [
+            TextContent(type='text', text='Successfully described CloudFormation stack')
+        ]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             result = await handler.manage_eks_stacks(
                 ctx=mock_ctx,
@@ -1066,7 +1067,6 @@ class TestEksStackHandler:
                     assert 'Failed to generate template' in result.content[0].text
                     # The actual error message might vary, so just check for the general error
                     # instead of the specific message
-            assert result.template_path == ''
 
         # Test case 2: Error creating the output directory
         with patch('os.makedirs', side_effect=PermissionError('Permission denied')):
@@ -1084,7 +1084,6 @@ class TestEksStackHandler:
                 assert result.content[0].type == 'text'
                 assert 'Failed to generate template' in result.content[0].text
                 assert 'Permission denied' in result.content[0].text
-                assert result.template_path == ''
 
         # Test case 3: Error parsing the YAML template
         with patch('builtins.open', mock_open(read_data='invalid: yaml: content')):
@@ -1105,7 +1104,6 @@ class TestEksStackHandler:
                             assert result.content[0].type == 'text'
                             assert 'Failed to generate template' in result.content[0].text
                             assert 'Invalid YAML' in result.content[0].text
-                            assert result.template_path == ''
 
     @pytest.mark.asyncio
     async def test_deploy_stack_error(self):
@@ -1135,9 +1133,6 @@ class TestEksStackHandler:
             assert result.content[0].type == 'text'
             assert 'Failed to deploy stack' in result.content[0].text
             assert 'Template file not found' in result.content[0].text
-            assert result.stack_name == 'eks-test-cluster-stack'
-            assert result.stack_arn == ''
-            assert result.cluster_name == 'test-cluster'
 
         # Test case 2: Error creating the CloudFormation stack
         mock_cfn_client = MagicMock()
@@ -1164,9 +1159,6 @@ class TestEksStackHandler:
                     assert result.content[0].type == 'text'
                     assert 'Failed to deploy stack' in result.content[0].text
                     assert 'Failed to create stack' in result.content[0].text
-                    assert result.stack_name == 'eks-test-cluster-stack'
-                    assert result.stack_arn == ''
-                    assert result.cluster_name == 'test-cluster'
 
         # Test case 3: Error updating the CloudFormation stack
         mock_cfn_client = MagicMock()
@@ -1200,9 +1192,6 @@ class TestEksStackHandler:
                     assert result.content[0].type == 'text'
                     assert 'Failed to deploy stack' in result.content[0].text
                     assert 'Failed to update stack' in result.content[0].text
-                    assert result.stack_name == 'eks-test-cluster-stack'
-                    assert result.stack_arn == ''
-                    assert result.cluster_name == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_delete_stack_error(self):
@@ -1246,9 +1235,6 @@ class TestEksStackHandler:
                 assert len(result.content) == 1
                 assert result.content[0].type == 'text'
                 assert 'Failed to delete stack' in result.content[0].text
-                assert result.stack_name == 'eks-test-cluster-stack'
-                # The stack_id might not be set in the error case, so don't assert its value
-                assert result.cluster_name == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_general_exception(self):

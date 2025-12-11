@@ -14,6 +14,7 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the K8sHandler class."""
 
+import json
 import os
 import pytest
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
@@ -390,6 +391,32 @@ metadata:
                     assert 'Failed to apply YAML from file' in result.content[0].text
                     assert 'Failed to create resource' in result.content[0].text
 
+    @pytest.mark.asyncio
+    async def test_apply_yaml_outer_exception(self, mock_context, mock_mcp, mock_client_cache):
+        """Test apply_yaml method with outer exception (Error applying YAML from file)."""
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp)
+
+        # Mock get_client to raise an exception
+        with patch.object(handler, 'get_client', side_effect=Exception('Connection error')):
+            # Apply YAML from file
+            result = await handler.apply_yaml(
+                mock_context,
+                yaml_path='/path/to/manifest.yaml',
+                cluster_name='test-cluster',
+                namespace='default',
+                force=True,
+            )
+
+            # Verify the result
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Error applying YAML from file' in result.content[0].text
+            assert 'Connection error' in result.content[0].text
+
     # Note: TTL cache expiration tests have been moved to test_k8s_client_cache.py
 
     @pytest.mark.asyncio
@@ -437,13 +464,16 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.kind == 'Pod'
-            assert result.name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.api_version == 'v1'
-            assert result.operation == 'create'
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully created Pod test-namespace/test-pod' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Pod'
+            assert data['name'] == 'test-pod'
+            assert data['namespace'] == 'test-namespace'
+            assert data['api_version'] == 'v1'
+            assert data['operation'] == 'create'
 
     @pytest.mark.asyncio
     async def test_read_k8s_resource(self, mock_context, mock_mcp, mock_client_cache):
@@ -477,14 +507,17 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.kind == 'Pod'
-            assert result.name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.api_version == 'v1'
-            assert result.operation == 'read'
-            assert result.resource is not None
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Pod'
+            assert data['name'] == 'test-pod'
+            assert data['namespace'] == 'test-namespace'
+            assert data['api_version'] == 'v1'
+            assert data['operation'] == 'read'
+            assert data['resource'] is not None
 
     @pytest.mark.asyncio
     async def test_manage_k8s_resource_invalid_operation(
@@ -510,11 +543,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.kind == 'Pod'
-        assert result.name == 'test-pod'
-        assert result.namespace == 'test-namespace'
-        assert result.api_version == 'v1'
-        assert result.operation == 'invalid'
         assert isinstance(result.content[0], TextContent)
         assert 'Invalid operation: invalid' in result.content[0].text
 
@@ -550,11 +578,6 @@ metadata:
 
             # Verify the result
             assert result.isError
-            assert result.kind == 'Pod'
-            assert result.name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.api_version == 'v1'
-            assert result.operation == 'read'
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to read Pod test-namespace/test-pod: Resource not found'
@@ -585,11 +608,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.kind == 'Secret'
-        assert result.name == 'test-secret'
-        assert result.namespace == 'test-namespace'
-        assert result.api_version == 'v1'
-        assert result.operation == 'read'
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
@@ -610,11 +628,6 @@ metadata:
 
         # Verify the result
         assert not result.isError
-        assert result.kind == 'Secret'
-        assert result.name == 'test-secret'
-        assert result.namespace == 'test-namespace'
-        assert result.api_version == 'v1'
-        assert result.operation == 'create'
         assert isinstance(result.content[0], TextContent)
 
     @pytest.mark.asyncio
@@ -642,11 +655,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.kind == 'Pod'
-        assert result.name == 'test-pod'
-        assert result.namespace == 'test-namespace'
-        assert result.api_version == 'v1'
-        assert result.operation == 'create'
         assert isinstance(result.content[0], TextContent)
         assert 'Operation create is not allowed without write access' in result.content[0].text
 
@@ -664,7 +672,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.operation == 'replace'
         assert isinstance(result.content[0], TextContent)
         assert 'Operation replace is not allowed without write access' in result.content[0].text
 
@@ -682,7 +689,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.operation == 'patch'
         assert isinstance(result.content[0], TextContent)
         assert 'Operation patch is not allowed without write access' in result.content[0].text
 
@@ -699,7 +705,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.operation == 'delete'
         assert isinstance(result.content[0], TextContent)
         assert 'Operation delete is not allowed without write access' in result.content[0].text
 
@@ -732,13 +737,16 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.kind == 'Pod'
-            assert result.name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.api_version == 'v1'
-            assert result.operation == 'read'
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Pod'
+            assert data['name'] == 'test-pod'
+            assert data['namespace'] == 'test-namespace'
+            assert data['api_version'] == 'v1'
+            assert data['operation'] == 'read'
 
     @pytest.mark.asyncio
     async def test_list_k8s_resources_success(self, mock_context, mock_mcp, mock_client_cache):
@@ -807,21 +815,24 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.kind == 'Pod'
-            assert result.api_version == 'v1'
-            assert result.namespace == 'test-namespace'
-            assert result.count == 2
-            assert len(result.items) == 2
-            assert result.items[0].name == 'test-pod-1'
-            assert result.items[0].namespace == 'test-namespace'
-            # Don't check creation_timestamp as it might be None in the actual implementation
-            assert result.items[0].labels == {'app': 'test'}
-            assert result.items[0].annotations == {'description': 'Test pod 1'}
-            assert result.items[1].name == 'test-pod-2'
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully listed 2 Pod resources in test-namespace/' in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Pod'
+            assert data['api_version'] == 'v1'
+            assert data['namespace'] == 'test-namespace'
+            assert data['count'] == 2
+            assert len(data['items']) == 2
+            assert data['items'][0]['name'] == 'test-pod-1'
+            assert data['items'][0]['namespace'] == 'test-namespace'
+            # Don't check creation_timestamp as it might be None in the actual implementation
+            assert data['items'][0]['labels'] == {'app': 'test'}
+            assert data['items'][0]['annotations'] == {'description': 'Test pod 1'}
+            assert data['items'][1]['name'] == 'test-pod-2'
 
     @pytest.mark.asyncio
     async def test_list_k8s_resources_empty(self, mock_context, mock_mcp, mock_client_cache):
@@ -851,13 +862,16 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.kind == 'Pod'
-            assert result.count == 0
-            assert len(result.items) == 0
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully listed 0 Pod resources in test-namespace/' in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['kind'] == 'Pod'
+            assert data['count'] == 0
+            assert len(data['items']) == 0
 
     @pytest.mark.asyncio
     async def test_list_k8s_resources_error(self, mock_context, mock_mcp, mock_client_cache):
@@ -883,9 +897,6 @@ metadata:
 
             # Verify the result
             assert result.isError
-            assert result.kind == 'Pod'
-            assert result.count == 0
-            assert len(result.items) == 0
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to list Pod resources: Failed to list resources' in result.content[0].text
@@ -917,7 +928,6 @@ metadata:
             'Operation generate_app_manifest is not allowed without write access'
             in result.content[0].text
         )
-        assert result.output_file_path == ''
 
     @pytest.mark.asyncio
     async def test_generate_app_manifest_relative_path(
@@ -1004,10 +1014,12 @@ metadata:
                                 in result.content[0].text
                             )
 
+                            # Parse JSON data from content
+                            data = json.loads(result.content[1].text)
                             # Verify that the output path is absolute
-                            assert os.path.isabs(result.output_file_path)
+                            assert os.path.isabs(data['output_file_path'])
                             assert (
-                                result.output_file_path
+                                data['output_file_path']
                                 == '/absolute/path/test-output/test-app-manifest.yaml'
                             )
 
@@ -1037,7 +1049,6 @@ metadata:
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to generate YAML' in result.content[0].text
                 assert 'File error' in result.content[0].text
-                assert result.output_file_path == ''
 
     def test_load_yaml_template(self, mock_mcp, mock_client_cache):
         """Test _load_yaml_template method."""
@@ -1113,14 +1124,17 @@ metadata:
                                 '/path/to/output/test-app-manifest.yaml', 'w'
                             )
 
-                            # Verify the output file path is absolute
-                            assert os.path.isabs(result.output_file_path)
-                            assert (
-                                result.output_file_path == '/path/to/output/test-app-manifest.yaml'
-                            )
-
                             # Verify the result is successful
                             assert not result.isError
+
+                            # Parse JSON data from content
+                            data = json.loads(result.content[1].text)
+                            # Verify the output file path is absolute
+                            assert os.path.isabs(data['output_file_path'])
+                            assert (
+                                data['output_file_path']
+                                == '/path/to/output/test-app-manifest.yaml'
+                            )
 
     @pytest.mark.asyncio
     async def test_generate_app_manifest_multiple_templates(
@@ -1170,15 +1184,17 @@ metadata:
                                 '/absolute/path/output/test-app-manifest.yaml', 'w'
                             )
 
-                            # Verify the output file path is absolute
-                            assert os.path.isabs(result.output_file_path)
-                            assert (
-                                result.output_file_path
-                                == '/absolute/path/output/test-app-manifest.yaml'
-                            )
-
                             # Verify the result is successful
                             assert not result.isError
+
+                            # Parse JSON data from content
+                            data = json.loads(result.content[1].text)
+                            # Verify the output file path is absolute
+                            assert os.path.isabs(data['output_file_path'])
+                            assert (
+                                data['output_file_path']
+                                == '/absolute/path/output/test-app-manifest.yaml'
+                            )
 
     def test_init_with_get_pod_logs(self, mock_mcp, mock_client_cache):
         """Test initialization of K8sHandler with get_pod_logs tool."""
@@ -1272,15 +1288,18 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.pod_name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.container_name == 'test-container'
-            assert result.log_lines == ['log line 1', 'log line 2', '']
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod (container: test-container)'
                 in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['pod_name'] == 'test-pod'
+            assert data['namespace'] == 'test-namespace'
+            assert data['container_name'] == 'test-container'
+            assert data['log_lines'] == ['log line 1', 'log line 2', '']
 
     @pytest.mark.asyncio
     async def test_get_pod_logs_minimal(self, mock_context, mock_mcp, mock_client_cache):
@@ -1325,15 +1344,18 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.pod_name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.container_name is None
-            assert result.log_lines == ['log line 1', 'log line 2', '']
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod'
                 in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['pod_name'] == 'test-pod'
+            assert data['namespace'] == 'test-namespace'
+            assert data['container_name'] is None
+            assert data['log_lines'] == ['log line 1', 'log line 2', '']
 
     @pytest.mark.asyncio
     async def test_get_pod_logs_sensitive_data_access_disabled(
@@ -1357,10 +1379,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.pod_name == 'test-pod'
-        assert result.namespace == 'test-namespace'
-        assert result.container_name == 'test-container'
-        assert result.log_lines == []
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to pod logs requires --allow-sensitive-data-access flag'
@@ -1406,10 +1424,6 @@ metadata:
 
             # Verify the result
             assert result.isError
-            assert result.pod_name == 'test-pod'
-            assert result.namespace == 'test-namespace'
-            assert result.container_name == 'test-container'
-            assert result.log_lines == []
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to get logs from pod test-namespace/test-pod (container: test-container): Pod not found'
@@ -1470,30 +1484,32 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.involved_object_kind == 'Pod'
-            assert result.involved_object_name == 'test-pod'
-            assert result.involved_object_namespace == 'test-namespace'
-            assert result.count == 2
-            assert len(result.events) == 2
-
-            # Check first event
-            assert result.events[0].first_timestamp == '2023-01-01T00:00:00Z'
-            assert result.events[0].last_timestamp == '2023-01-01T00:05:00Z'
-            assert result.events[0].count == 5
-            assert result.events[0].message == 'Container created'
-            assert result.events[0].reason == 'Created'
-            assert result.events[0].reporting_component == 'kubelet'
-            assert result.events[0].type == 'Normal'
-
-            # Check second event
-            assert result.events[1].message == 'Container started'
-
             # Check content
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 2 events for Pod test-namespace/test-pod'
                 in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['involved_object_kind'] == 'Pod'
+            assert data['involved_object_name'] == 'test-pod'
+            assert data['involved_object_namespace'] == 'test-namespace'
+            assert data['count'] == 2
+            assert len(data['events']) == 2
+
+            # Check first event
+            assert data['events'][0]['first_timestamp'] == '2023-01-01T00:00:00Z'
+            assert data['events'][0]['last_timestamp'] == '2023-01-01T00:05:00Z'
+            assert data['events'][0]['count'] == 5
+            assert data['events'][0]['message'] == 'Container created'
+            assert data['events'][0]['reason'] == 'Created'
+            assert data['events'][0]['reporting_component'] == 'kubelet'
+            assert data['events'][0]['type'] == 'Normal'
+
+            # Check second event
+            assert data['events'][1]['message'] == 'Container started'
 
     @pytest.mark.asyncio
     async def test_get_k8s_events_empty(self, mock_context, mock_mcp, mock_client_cache):
@@ -1526,16 +1542,19 @@ metadata:
 
             # Verify the result
             assert not result.isError
-            assert result.involved_object_kind == 'Pod'
-            assert result.involved_object_name == 'test-pod'
-            assert result.involved_object_namespace == 'test-namespace'
-            assert result.count == 0
-            assert len(result.events) == 0
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 0 events for Pod test-namespace/test-pod'
                 in result.content[0].text
             )
+
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['involved_object_kind'] == 'Pod'
+            assert data['involved_object_name'] == 'test-pod'
+            assert data['involved_object_namespace'] == 'test-namespace'
+            assert data['count'] == 0
+            assert len(data['events']) == 0
 
     @pytest.mark.asyncio
     async def test_get_k8s_events_sensitive_data_access_disabled(
@@ -1559,11 +1578,6 @@ metadata:
 
         # Verify the result
         assert result.isError
-        assert result.involved_object_kind == 'Pod'
-        assert result.involved_object_name == 'test-pod'
-        assert result.involved_object_namespace == 'test-namespace'
-        assert result.count == 0
-        assert len(result.events) == 0
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to Kubernetes events requires --allow-sensitive-data-access flag'
@@ -1601,11 +1615,6 @@ metadata:
 
             # Verify the result
             assert result.isError
-            assert result.involved_object_kind == 'Pod'
-            assert result.involved_object_name == 'test-pod'
-            assert result.involved_object_namespace == 'test-namespace'
-            assert result.count == 0
-            assert len(result.events) == 0
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to get events for Pod test-namespace/test-pod: Failed to get events'
