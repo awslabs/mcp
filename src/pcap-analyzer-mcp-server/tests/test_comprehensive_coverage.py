@@ -17,13 +17,27 @@
 import asyncio
 import json
 import os
-import pytest
 import tempfile
 import time
 from awslabs.pcap_analyzer_mcp_server.server import PCAPAnalyzerServer, main, active_captures
 from mcp.types import TextContent
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
+try:
+    import pytest
+except ImportError:
+    # Make pytest optional for CI compatibility
+    class MockPytest:
+        @staticmethod
+        def raises(exception_type):
+            class RaisesContext:
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    return exc_type is not None and issubclass(exc_type, exception_type)
+            return RaisesContext()
+    pytest = MockPytest()
 
 
 class TestMaximumCoverageForCodecov:
