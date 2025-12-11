@@ -1,9 +1,9 @@
 ---
-name: "aurora-postgres"
+name: "amazon-aurora-postgresql"
 displayName: "Build applications with Aurora PostgreSQL"
 description: "Build applications backed by Aurora PostgreSQL by leveraging this power. It bundles direct database connectivity through the Aurora PostgreSQL MCP server for data plane operations (queries, table creation, schema management), and control plane operations (cluster creation), The steering file helps with Aurora PostgreSQL specific best practices. When developers work on database tasks, the power dynamically loads relevant guidance - whether creating new Aurora clusters, designing schemas, or optimizing queries - so Kiro agent receives only the context needed for the specific task at hand."
 keywords: ["aurora", "postgresql", "aurora-postgresql", "amazon", "serverless", "rds-postgresql", "postgres", "AWSforData", "Analytics", "database", "aws", "rds"]
-author: "kennthhz"
+author: "AWS"
 ---
 
 # Aurora Postgres Power
