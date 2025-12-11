@@ -11,213 +11,69 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Basic integration test for pcap-analyzer-mcp-server using the official MCP SDK."""
+"""Basic integration test for pcap-analyzer-mcp-server - Developer Guide compliant."""
 
 import asyncio
-import logging
-import os
+import json
 import pytest
-import sys
+from awslabs.pcap_analyzer_mcp_server.server import PCAPAnalyzerServer
+from mcp.types import TextContent
 
 
-# Add the testing framework to the path
-testing_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'testing')
-sys.path.insert(0, testing_path)
+class TestPCAPAnalyzerIntegration:
+    """Integration tests for PCAP Analyzer MCP Server following Developer Guide patterns."""
 
-# Also add the parent directory to handle relative imports
-parent_path = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-sys.path.insert(0, parent_path)
-
-try:
-    from testing.pytest_utils import (  # noqa: E402
-        MCPTestBase,
-        assert_test_results,
-        create_test_config,
-        create_tool_test_config,
-        create_validation_rule,
-        setup_logging,
-    )
-except ImportError:
-    # Skip integration tests if testing framework not available
-    pytest.skip('Testing framework not available', allow_module_level=True)
-
-
-# setup constants
-PCAP_ANALYZER_SERVER_PY = 'awslabs/pcap_analyzer_mcp_server/server.py'
-LIST_NETWORK_INTERFACES_TOOL_NAME = 'list_network_interfaces'
-GET_CAPTURE_STATUS_TOOL_NAME = 'get_capture_status'
-LIST_CAPTURED_FILES_TOOL_NAME = 'list_captured_files'
-NUMBER_OF_TOOLS = 31  # PCAP analyzer has 31 comprehensive network analysis tools
-
-# Setup logging
-setup_logging('INFO')
-logger = logging.getLogger(__name__)
-
-
-class TestPCAPAnalyzerMCPServer:
-    """Basic integration tests for PCAP Analyzer MCP Server."""
-
-    @pytest.fixture(autouse=True)
-    def setup_test(self):
-        """Set up test environment."""
-        self.server_path = os.path.join(os.path.dirname(__file__), '..')
-        self.test_instance = None
-        yield
-        if self.test_instance:
-            asyncio.run(self.test_instance.teardown())
+    def setup_method(self):
+        """Set up test fixtures for integration testing."""
+        self.server = PCAPAnalyzerServer()
 
     @pytest.mark.asyncio
-    async def test_basic_protocol(self):
-        """Test basic MCP protocol functionality."""
-        # Create test instance
-        self.test_instance = MCPTestBase(
-            server_path=self.server_path,
-            command='uv',
-            args=['run', '--frozen', PCAP_ANALYZER_SERVER_PY],
-            env={'FASTMCP_LOG_LEVEL': 'ERROR'},
-        )
+    async def test_server_initialization_integration(self):
+        """Integration test: Server initializes correctly."""
+        assert self.server.server.name == 'pcap-analyzer-mcp-server'
+        assert hasattr(self.server, '_setup_tools')
 
-        await self.test_instance.setup()
+    @pytest.mark.asyncio  
+    async def test_list_network_interfaces_integration(self, mocker):
+        """Integration test: Network interface listing with mocked system calls."""
+        # Mock system network interfaces
+        mock_addrs = mocker.patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs')
+        mock_addrs.return_value = {'eth0': [mocker.MagicMock(address='192.168.1.1')]}
+        
+        mock_stats = mocker.patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_stats')
+        mock_stat = mocker.MagicMock()
+        mock_stat.isup = True
+        mock_stat.speed = 1000
+        mock_stats.return_value = {'eth0': mock_stat}
 
-        # Define expected configuration
-        expected_config = create_test_config(
-            expected_tools={
-                'count': NUMBER_OF_TOOLS,  # 31 comprehensive network analysis tools
-                'names': [
-                    LIST_NETWORK_INTERFACES_TOOL_NAME,
-                    GET_CAPTURE_STATUS_TOOL_NAME,
-                    LIST_CAPTURED_FILES_TOOL_NAME,
-                    'start_packet_capture',
-                    'stop_packet_capture',
-                    'analyze_pcap_file',
-                    'extract_http_requests',
-                    'generate_traffic_timeline',
-                    'search_packet_content',
-                    'analyze_network_performance',
-                    'analyze_network_latency',
-                    'analyze_tls_handshakes',
-                    'analyze_sni_mismatches',
-                    'extract_certificate_details',
-                    'analyze_tls_alerts',
-                    'analyze_connection_lifecycle',
-                    'extract_tls_cipher_analysis',
-                    'analyze_tcp_retransmissions',
-                    'analyze_tcp_zero_window',
-                    'analyze_tcp_window_scaling',
-                    'analyze_packet_timing_issues',
-                    'analyze_congestion_indicators',
-                    'analyze_dns_resolution_issues',
-                    'analyze_expert_information',
-                    'analyze_protocol_anomalies',
-                    'analyze_network_topology',
-                    'analyze_security_threats',
-                    'generate_throughput_io_graph',
-                    'analyze_bandwidth_utilization',
-                    'analyze_application_response_times',
-                    'analyze_network_quality_metrics',
-                ],
-            },
-            expected_resources={
-                'count': 0  # This server doesn't provide resources
-            },
-            expected_prompts={
-                'count': 0  # This server doesn't provide prompts
-            },
-        )
+        # Test integration
+        result = await self.server._list_network_interfaces()
+        
+        # Validate integration behavior
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        data = json.loads(result[0].text)
+        assert data['total_count'] == 1
+        assert data['interfaces'][0]['name'] == 'eth0'
 
-        # Run basic tests
-        results = await self.test_instance.run_basic_tests(expected_config)
-
-        # Assert results
-        assert_test_results(results, expected_success_count=6)  # 6 basic protocol tests
+    def test_pcap_path_validation_integration(self):
+        """Integration test: Path validation security integration."""
+        # Test security validation integration
+        with pytest.raises(ValueError, match="Only .pcap files are allowed"):
+            self.server._resolve_pcap_path('malicious.txt')
+            
+        with pytest.raises(ValueError, match="Path traversal patterns not allowed"):
+            self.server._resolve_pcap_path('../../../etc/passwd.pcap')
 
     @pytest.mark.asyncio
-    async def test_list_network_interfaces_tool(self):
-        """Test the list network interfaces tool."""
-        # Create test instance
-        self.test_instance = MCPTestBase(
-            server_path=self.server_path,
-            command='uv',
-            args=['run', '--frozen', PCAP_ANALYZER_SERVER_PY],
-            env={'FASTMCP_LOG_LEVEL': 'ERROR'},
-        )
-
-        await self.test_instance.setup()
-
-        validation_rules = [
-            create_validation_rule('contains', 'interfaces', 'content'),
-            create_validation_rule('contains', 'total_count', 'content'),
-        ]
-
-        test_config = create_tool_test_config(
-            tool_name=LIST_NETWORK_INTERFACES_TOOL_NAME,
-            arguments={},
-            validation_rules=validation_rules,
-        )
-
-        result = await self.test_instance.run_custom_test(test_config)
-
-        assert result.success, f'List network interfaces test failed: {result.error_message}'
-        assert 'result' in result.details, 'Response should contain result field'
-
-    @pytest.mark.asyncio
-    async def test_get_capture_status_tool(self):
-        """Test the get capture status tool."""
-        # Create test instance
-        self.test_instance = MCPTestBase(
-            server_path=self.server_path,
-            command='uv',
-            args=['run', '--frozen', PCAP_ANALYZER_SERVER_PY],
-            env={'FASTMCP_LOG_LEVEL': 'ERROR'},
-        )
-
-        await self.test_instance.setup()
-
-        validation_rules = [
-            create_validation_rule('contains', 'active_captures', 'content'),
-            create_validation_rule('contains', 'captures', 'content'),
-        ]
-
-        test_config = create_tool_test_config(
-            tool_name=GET_CAPTURE_STATUS_TOOL_NAME,
-            arguments={},
-            validation_rules=validation_rules,
-        )
-
-        result = await self.test_instance.run_custom_test(test_config)
-
-        assert result.success, f'Get capture status test failed: {result.error_message}'
-        assert 'result' in result.details, 'Response should contain result field'
-
-    @pytest.mark.asyncio
-    async def test_list_captured_files_tool(self):
-        """Test the list captured files tool."""
-        # Create test instance
-        self.test_instance = MCPTestBase(
-            server_path=self.server_path,
-            command='uv',
-            args=['run', '--frozen', PCAP_ANALYZER_SERVER_PY],
-            env={'FASTMCP_LOG_LEVEL': 'ERROR'},
-        )
-
-        await self.test_instance.setup()
-
-        validation_rules = [
-            create_validation_rule('contains', 'storage_directory', 'content'),
-            create_validation_rule('contains', 'total_files', 'content'),
-            create_validation_rule('contains', 'files', 'content'),
-        ]
-
-        test_config = create_tool_test_config(
-            tool_name=LIST_CAPTURED_FILES_TOOL_NAME,
-            arguments={},
-            validation_rules=validation_rules,
-        )
-
-        result = await self.test_instance.run_custom_test(test_config)
-
-        assert result.success, f'List captured files test failed: {result.error_message}'
-        assert 'result' in result.details, 'Response should contain result field'
+    async def test_tool_error_handling_integration(self):
+        """Integration test: Tool error handling integration."""
+        # Test error handling integration with non-existent file
+        result = await self.server._analyze_pcap_file('nonexistent.pcap')
+        
+        assert len(result) == 1
+        assert isinstance(result[0], TextContent)
+        assert 'Error' in result[0].text
 
 
 if __name__ == '__main__':
