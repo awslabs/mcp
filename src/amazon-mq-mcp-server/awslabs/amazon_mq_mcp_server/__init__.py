@@ -15,4 +15,4 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
-__version__ = '2.0.10'
+__version__ = '2.0.11'

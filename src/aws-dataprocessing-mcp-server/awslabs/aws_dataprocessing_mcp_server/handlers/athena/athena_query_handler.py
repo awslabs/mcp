@@ -34,9 +34,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.mutable_sql_detector import (
-    detect_mutating_keywords,
-)
+from awslabs.aws_dataprocessing_mcp_server.utils.sql_analyzer import SqlAnalyzer
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
@@ -220,9 +218,12 @@ class AthenaQueryHandler:
                         'query_string is required for start-query-execution operation'
                     )
 
-                matched = detect_mutating_keywords(query_string)
-                if not self.allow_write and matched:
-                    error_message = f'Mutating operations: {matched} are not allowed when write access is disabled'
+                # Check for write operations when write access is disabled
+                if not self.allow_write and SqlAnalyzer.contains_write_operations(query_string):
+                    error_message = (
+                        f'Operation {operation} contains write operations and is not allowed without write access. '
+                        f'Detected query type: {SqlAnalyzer.get_query_type(query_string)}'
+                    )
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
                     return StartQueryExecutionResponse(
@@ -265,7 +266,7 @@ class AthenaQueryHandler:
                     operation='start-query-execution',
                 )
 
-            if operation == 'batch-get-query-execution':
+            elif operation == 'batch-get-query-execution':
                 if query_execution_ids is None:
                     raise ValueError(
                         'query_execution_ids is required for batch-get-query-execution operation'

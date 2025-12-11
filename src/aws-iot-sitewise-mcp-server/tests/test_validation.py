@@ -60,33 +60,59 @@ class TestValidation:
 
     def test_validate_asset_id_valid(self):
         """Test valid asset ID validation."""
-        # Should not raise any exception
-        validate_asset_id('test-asset-123')
-        validate_asset_id('asset_456')
+        # Should not raise any exception - using proper UUID format
+        validate_asset_id('12345678-1234-1234-1234-123456789012')
+        validate_asset_id('abcdef12-3456-7890-abcd-ef1234567890')
+
+        # Should also accept external ID format
+        validate_asset_id('externalId:my-external-id')
+        validate_asset_id('externalId:asset_123')
+        validate_asset_id('externalId:CementPlant_ConveyorBelt')
 
     def test_validate_asset_id_invalid(self):
         """Test invalid asset ID validation."""
-        with pytest.raises(ValidationError, match='Asset ID cannot be empty'):
+        with pytest.raises(ValidationError, match='assetId cannot be empty'):
             validate_asset_id('')
 
-        with pytest.raises(ValidationError, match='Asset ID cannot exceed 36 characters'):
+        with pytest.raises(ValidationError, match='Invalid assetId format'):
             validate_asset_id('a' * 37)
 
-        with pytest.raises(ValidationError, match='Asset ID contains invalid characters'):
+        with pytest.raises(ValidationError, match='Invalid assetId format'):
             validate_asset_id('invalid@asset!')
+
+        with pytest.raises(ValidationError, match='assetId must be between 13 and 139 characters'):
+            validate_asset_id('short')  # Too short (5 characters)
+
+        with pytest.raises(ValidationError, match='Invalid assetId format'):
+            validate_asset_id('test-asset-123')  # Wrong format (14 characters but invalid pattern)
 
     def test_validate_asset_model_id_valid(self):
         """Test valid asset model ID validation."""
-        validate_asset_model_id('test-model-123')
-        validate_asset_model_id('model_456')
+        validate_asset_model_id('12345678-1234-1234-1234-123456789012')
+        validate_asset_model_id('abcdef12-3456-7890-abcd-ef1234567890')
+
+        # Should also accept external ID format
+        validate_asset_model_id('externalId:my-external-model-id')
+        validate_asset_model_id('externalId:model_123')
+        validate_asset_model_id('externalId:CementPlant_Model')
 
     def test_validate_asset_model_id_invalid(self):
         """Test invalid asset model ID validation."""
-        with pytest.raises(ValidationError, match='Asset model ID cannot be empty'):
+        with pytest.raises(ValidationError, match='assetModelId cannot be empty'):
             validate_asset_model_id('')
 
-        with pytest.raises(ValidationError, match='Asset model ID cannot exceed 36 characters'):
+        with pytest.raises(ValidationError, match='Invalid assetModelId format'):
             validate_asset_model_id('a' * 37)
+
+        with pytest.raises(
+            ValidationError, match='assetModelId must be between 13 and 139 characters'
+        ):
+            validate_asset_model_id('short')  # Too short (5 characters)
+
+        with pytest.raises(ValidationError, match='Invalid assetModelId format'):
+            validate_asset_model_id(
+                'test-model-123'
+            )  # Wrong format (15 characters but invalid pattern)
 
     def test_validate_asset_name_valid(self):
         """Test valid asset name validation."""

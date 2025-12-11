@@ -20,7 +20,7 @@ The set of tools provided by the Serverless MCP server can be broken down into f
     - Test Lambda functions locally and remotely
 2. Web Application Deployment & Management
     - Deploy full-stack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter
-    - Update frontend assets and optionally invaliate CloudFront caches
+    - Update frontend assets and optionally invalidate CloudFront caches
     - Create custom domain names, including certificate and DNS setup
 3. Observability
     - Retrieve and logs and metrics of serverless resources
@@ -44,7 +44,7 @@ The set of tools provided by the Serverless MCP server can be broken down into f
 |:------:|:-------:|
 | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aws-serverless-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLXNlcnZlcmxlc3MtbWNwLXNlcnZlckBsYXRlc3QgLS1hbGxvdy13cml0ZSAtLWFsbG93LXNlbnNpdGl2ZS1kYXRhLWFjY2VzcyIsImVudiI6eyJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUiLCJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Serverless%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-serverless-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-You can download the AWS Serverless MCP Server from GitHub. To get started using your favorite code assistant with MCP support, like Q Developer, Cursor or Cline.
+You can download the AWS Serverless MCP Server from GitHub. To get started using your favorite code assistant with MCP support, like Amazon Q Developer, Cursor, Cline, or Kiro.
 
 Add the following code to your MCP client configuration. The Serverless MCP server uses the default AWS profile by default. Specify a value in AWS_PROFILE if you want to use a different profile. Similarly, adjust the AWS Region and log level values as needed.
 ```json
@@ -77,7 +77,7 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
         "args": ["awslabs.aws-serverless-mcp-server@latest"],
         "env": {
           "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
-          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
+          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key", // pragma: allowlist secret
           "AWS_SESSION_TOKEN": "your-session-token",
           "AWS_REGION": "us-east-1"
         },
@@ -127,6 +127,11 @@ Mutating operations:
 - deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions
 - configure_domain: Create custom domain using Route53 and ACM certificate and associates it with the project's CloudFront distribution
 - update_frontend: Uploads frontend assets to S3 bucket
+- esm_guidance: Generates SAM templates for Event Source Mapping setup (requires user confirmation before deployment)
+- esm_optimize: Generates SAM templates for ESM configuration optimization (requires user confirmation before deployment)
+- esm_kafka_troubleshoot: Generates resolution templates for Kafka ESM issues (requires user confirmation before deployment)
+
+**Important**: ESM tools generate SAM templates but require explicit user confirmation before any deployment. They integrate with sam_deploy for actual infrastructure changes.
 
 
 ### `--allow-sensitive-data-access`
@@ -483,6 +488,43 @@ Retrieve the schema definition for the specified schema version.
 - `schema_name` (required): Name of schema to retrieve (e.g., "aws.s3@ObjectCreated" for S3 events)
 - `schema_version`: Version number of schema (latest by default)
 
+### ESM Tools
+
+The ESM tools are designed to minimize trust permission prompts by using a small set of primary tools that internally call specialized functions. The tools can be classified into three main categories:
+
+##### esm_guidance
+Comprehensive guidance for Event Source Mapping setup, networking, and troubleshooting. This is the primary tool that internally uses specialized policy and security group generators.
+
+**Parameters:**
+- `event_source`: Event source type ("dynamodb", "kinesis", "kafka", "sqs", "unspecified") - default: "unspecified"
+- `guidance_type`: Type of guidance ("setup", "networking", "troubleshooting") - default: "setup"
+- `networking_question`: Specific networking question - default: "general"
+
+##### esm_kafka_troubleshoot
+Unified troubleshooting tool that diagnoses and resolves Kafka ESM issues including connectivity, authentication, and performance problems.
+
+**Parameters:**
+- `kafka_type`: Type of Kafka cluster ("msk", "self-managed", "auto-detect") - default: "auto-detect"
+- `issue_type`: Troubleshooting mode - "diagnosis" for identifying issues, or specific issue type for resolution steps ("pre-broker-timeout", "post-broker-timeout", "authentication-failed", "network-connectivity", "lambda-unreachable", "on-failure-destination-unreachable", "sts-unreachable", "others") - default: "diagnosis"
+
+#### Configuration and Optimization Tools
+
+##### esm_optimize
+Comprehensive ESM optimization tool that combines multiple functions:
+- `esm_get_config_tradeoff`: Analyzes ESM configurations and recommends performance improvements
+- `esm_validate_configs`: Validates ESM parameters against AWS service limits and best practices
+- `esm_generate_update_template`: Creates complete SAM templates with optimized ESM configurations
+
+**Parameters:**
+- `action`: Optimization action ("analyze", "validate", "generate_template") - default: "analyze"
+- `optimization_targets`: Optimization goals for analysis (failure_rate, latency, throughput, cost) - required for "analyze" action
+- `event_source`: Event source type for validation ("kinesis", "dynamodb", "kafka", "sqs") - required for "validate" action
+- `configs`: ESM configuration to validate - required for "validate" action
+- `esm_uuid`: ESM UUID for template generation - required for "generate_template" action
+- `optimized_configs`: Optimized configuration for template generation - required for "generate_template" action
+- `region`: AWS region - default: "us-east-1"
+- `project_name`: Project name for template generation - default: "esm-optimization"
+
 ## Example usage
 
 ### Creating a Lambda Function with SAM
@@ -523,11 +565,104 @@ This prompt would trigger the AI assistant to:
 3. Generate type-safe handler code based on schema structure
 4. Implement validation for required fields
 
+### 🏗️ Initial ESM Setup
+
+Example user prompt:
+
+```
+I have a VPC named <your-vpc-name> in <your-aws-region>. Refer to ESM guidance for Kafka and use aws-serverless-mcp-server. Create a script to build a new cluster in the VPC's private subnet by a SAM template. Then, create a lambda function to consumer the stream from the cluster. Prefix created resources with <your prefix>.
+```
+
+This prompt triggers LLM to initial ESM setup:
+1. Use `esm_guidance` to get step-by-step deployment instructions
+2. Generate required IAM policies and security group configurations
+3. Deploy infrastructure using generated SAM templates
+4. Validate configuration with `esm_validate_configs`
+
+### 🔍 Troubleshooting ESM Issues
+
+Example user prompt:
+
+```
+I have a cluster called <your-cluster-name> and a consumer lambda function named <your-lambda-function-name> in <your-aws-region>. Look for ESM diagnosis tool to investigate on why I cannot get my ESM trigger working and create a SAM template to update the configurations.
+```
+
+This prompt triggers LLM to troubleshoot ESM issues:
+1. Use `esm_kafka_diagnosis` to identify timeout scenarios
+2. Get targeted resolution steps with `esm_kafka_resolution`
+3. Apply fixes to network, security, or authentication configurations
+
+### Optimizing ESM Configurations:
+
+Example user prompt:
+
+```
+I have an ESM with UUID <your-esm-uuid> in <your-aws-region>. My target throughput is around 10 MB/s to 100 MB/s, create a script to update the ESM configuration using a SAM template such that the cost from the event pollers is optimized.
+```
+
+This prompt triggers LLM to optimize ESM:
+1. Analyze current configuration trade-offs with `esm_get_config_tradeoff`
+2. Identify optimization opportunities based on your goals
+3. Validate proposed changes before deployment by `esm_validate_configs`
+
+### Additional ESM Optimization Examples
+
+#### SQS Optimization
+
+**Example user prompt:**
+```
+I have an SQS FIFO queue processing financial transactions that must maintain strict ordering. I'm currently processing about 1,000 messages per minute, but I need to scale to 5,000 messages per minute while preserving message order. My current configuration uses BatchSize=1 and no concurrency limits. What's the optimal ESM configuration for FIFO queues?
+```
+
+This triggers ESM optimization for FIFO queues:
+1. Use `esm_optimize` with `event_source="sqs"` and `optimization_targets=["throughput"]`
+2. Tool provides FIFO-specific guidance on BatchSize and MaximumConcurrency
+3. Generates optimized configuration maintaining message ordering guarantees
+
+#### Kinesis Stream Scaling
+
+**Example user prompt:**
+```
+I have a Kinesis stream that started with 5 shards but has been scaled to 50 shards due to increased traffic. My ESM configuration hasn't been updated since the initial setup: ParallelizationFactor=2, BatchSize=500. I'm now processing 500 MB/s of data, but some shards seem to be processing faster than others, creating uneven load. How should I reconfigure my ESM for the current shard count?
+```
+
+This triggers shard-aware optimization:
+1. Use `esm_optimize` with `event_source="kinesis"` and `optimization_targets=["throughput", "latency"]`
+2. Tool analyzes shard count vs ParallelizationFactor ratio
+3. Provides recommendations for balanced shard processing
+
+#### DynamoDB Stream Resilience
+
+**Example user prompt:**
+```
+My DynamoDB stream processes user profile updates, but occasionally encounters poison records that cause the entire batch to fail. Current configuration: ParallelizationFactor=3, BatchSize=20, no special error handling. When a bad record appears, it blocks processing for that shard until I manually intervene. How can I make my stream processing more resilient to bad records?
+```
+
+This triggers resilience optimization:
+1. Use `esm_optimize` with `event_source="dynamodb"` and `optimization_targets=["failure_rate"]`
+2. Tool recommends error handling configurations
+3. Provides guidance on BisectBatchOnFunctionError and retry policies
+
+#### Low-Volume SQS Cost Optimization
+
+**Example user prompt:**
+```
+I have an SQS queue that processes about 100 messages per day, but each message is critical and needs to be processed within 30 seconds. My current setup uses BatchSize=1 and MaximumConcurrency=50, which seems like overkill. How can I optimize for cost while maintaining low latency?
+```
+
+This triggers cost optimization for low-volume scenarios:
+1. Use `esm_optimize` with `optimization_targets=["cost", "latency"]`
+2. Tool analyzes message volume vs concurrency settings
+3. Provides cost-effective configuration for low-throughput, low-latency requirements
+
 ## Security features
 1. **AWS Authentication**: Uses AWS credentials from the environment for secure authentication
 2. **TLS Verification**: Enforces TLS verification for all AWS API calls
 3. **Resource Tagging**: Tags all created resources for traceability
 4. **Least Privilege**: Uses IAM roles with appropriate permissions for CloudFormation templates
+5. **Data Protection**: Automatically scrubs sensitive data (AWS credentials, IP addresses, personal information) from logs and responses
+6. **User Confirmation**: ESM tools require explicit user approval before any deployment or infrastructure changes
+7. **Permission Controls**: Write operations blocked by default unless `--allow-write` flag is enabled
 
 ## Security considerations
 
@@ -552,6 +687,18 @@ To follow security best practices:
 
 - Do not include secrets or credentials in CloudFormation templates
 - Do not pass sensitive information directly in the prompt to the model
+
+### Data protection features
+The server includes comprehensive data protection mechanisms:
+
+* **Automatic Data Scrubbing**: Sensitive data is automatically detected and redacted from logs and responses, including:
+  - AWS credentials (access keys, secret keys, session tokens)
+  - Network information (IP addresses, VPC IDs, subnet IDs)
+  - Personal information (email addresses, phone numbers)
+  - Connection strings and authentication details
+* **Input Sanitization**: User configurations are scrubbed before logging to prevent sensitive data exposure
+* **Output Protection**: All tool responses are scrubbed before being sent to AI models
+* **AWS-Specific Protection**: Specialized handling for AWS resource identifiers and configurations
 
 ## Links
 

@@ -17,11 +17,13 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+    AnomalyDetectionAlarmThreshold,
     Dimension,
     GetMetricDataResponse,
+    StaticAlarmThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from datetime import datetime
+from datetime import datetime, timezone
 from moto import mock_aws
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -114,8 +116,9 @@ class TestGetMetricData:
                 == 'CPUUtilization'
             )
             assert call_args['MetricDataQueries'][0]['MetricStat']['Stat'] == 'Average'
-            assert call_args['StartTime'] == start_time
-            assert call_args['EndTime'] == end_time
+
+            assert call_args['StartTime'] == start_time.replace(tzinfo=timezone.utc)
+            assert call_args['EndTime'] == end_time.replace(tzinfo=timezone.utc)
             assert isinstance(result, GetMetricDataResponse)
             assert len(result.metricDataResults) == 1
             assert result.metricDataResults[0].label == 'CPUUtilization'
@@ -502,6 +505,109 @@ class TestGetMetricData:
             ctx.error.assert_called_once()
             assert 'Test exception' in ctx.error.call_args[0][0]
 
+    @pytest.mark.parametrize(
+        'start_time,end_time,test_description',
+        [
+            # Timezone-aware start, no end (defaults to now)
+            (
+                '2023-01-01T00:00:00+00:00',
+                None,
+                'timezone-aware start_time with None end_time (defaults to now)',
+            ),
+            # Both timezone-aware
+            (
+                '2023-01-01T00:00:00+00:00',
+                '2023-01-01T01:00:00+00:00',
+                'both timezone-aware (ISO strings)',
+            ),
+            # Both naive datetime objects
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                datetime(2023, 1, 1, 1, 0, 0),
+                'both naive datetime objects',
+            ),
+            # Timezone-aware datetime objects
+            (
+                datetime(2023, 1, 1, 0, 0, 0, tzinfo=__import__('datetime').timezone.utc),
+                datetime(2023, 1, 1, 1, 0, 0, tzinfo=__import__('datetime').timezone.utc),
+                'both timezone-aware datetime objects',
+            ),
+            # Mixed: naive start, timezone-aware end (ISO string)
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                '2023-01-01T01:00:00+00:00',
+                'naive datetime start with timezone-aware ISO string end',
+            ),
+            # Mixed: timezone-aware start (ISO string), naive end
+            (
+                '2023-01-01T00:00:00+00:00',
+                datetime(2023, 1, 1, 1, 0, 0),
+                'timezone-aware ISO string start with naive datetime end',
+            ),
+            # Naive start, no end
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                None,
+                'naive datetime start with None end_time',
+            ),
+            # Different timezone offsets
+            (
+                '2023-01-01T00:00:00-05:00',
+                '2023-01-01T06:00:00+00:00',
+                'different timezone offsets (EST and UTC)',
+            ),
+            # ISO string with Z notation
+            (
+                '2023-01-01T00:00:00Z',
+                '2023-01-01T01:00:00Z',
+                'ISO strings with Z notation',
+            ),
+        ],
+    )
+    async def test_get_metric_data_with_various_datetime_formats(
+        self, ctx, cloudwatch_metrics_tools, start_time, end_time, test_description
+    ):
+        """Parametrized test for various datetime format combinations.
+
+        Tests all combinations of:
+        - Timezone-aware vs naive datetimes
+        - ISO strings vs datetime objects
+        - With and without end_time (None defaults to now)
+        - Different timezone offsets
+
+        This ensures the fix for timezone handling works correctly in all scenarios.
+        """
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'm1',
+                    'Label': 'CPUUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)],
+                    'Values': [10.5],
+                }
+            ],
+        }
+
+        with patch.object(
+            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        ):
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                namespace='AWS/EC2',
+                metric_name='CPUUtilization',
+                start_time=start_time,
+                end_time=end_time,
+                dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                statistic='AVG',
+                target_datapoints=60,
+            )
+
+            # Should not raise an error and should return valid response
+            assert isinstance(result, GetMetricDataResponse), f'Failed for: {test_description}'
+            assert len(result.metricDataResults) == 1, f'Failed for: {test_description}'
+
     async def test_get_metric_metadata_found(self, ctx, cloudwatch_metrics_tools):
         """Test getting metric metadata for existing metric."""
         result = await cloudwatch_metrics_tools.get_metric_metadata(
@@ -537,14 +643,15 @@ class TestGetMetricData:
             dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
         )
 
-        # Should return a list
-        assert isinstance(result, list)
+        # Should return an AlarmRecommendationResult
+        assert hasattr(result, 'recommendations')
+        assert hasattr(result, 'message')
 
         # If recommendations are found, verify structure
-        if result:
+        if result.recommendations:
             from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import AlarmRecommendation
 
-            for alarm in result:
+            for alarm in result.recommendations:
                 assert isinstance(alarm, AlarmRecommendation)
                 assert hasattr(alarm, 'alarmDescription')
                 assert hasattr(alarm, 'threshold')
@@ -556,8 +663,10 @@ class TestGetMetricData:
             ctx, namespace='NonExistent/Namespace', metric_name='NonExistentMetric', dimensions=[]
         )
 
-        # Should return empty list for non-existent metrics
-        assert result == []
+        # Should return empty recommendations with message for non-existent metrics
+        assert len(result.recommendations) == 0
+        assert result.message is not None
+        assert 'No alarm recommendations available' in result.message
 
     async def test_get_recommended_metric_alarms_dimension_matching(
         self, ctx, cloudwatch_metrics_tools
@@ -576,14 +685,15 @@ class TestGetMetricData:
             ],
         )
 
-        # Verify it returns a list
-        assert isinstance(result, list)
+        # Verify it returns an AlarmRecommendationResult
+        assert hasattr(result, 'recommendations')
+        assert hasattr(result, 'message')
 
         # Verify the expected ElastiCache CPUUtilization alarm recommendation is present
-        if result:
+        if result.recommendations:
             # Find the matching alarm recommendation
             cpu_alarm = None
-            for alarm in result:
+            for alarm in result.recommendations:
                 if (
                     alarm.alarmDescription.startswith(
                         'This alarm helps to monitor the CPU utilization'
@@ -609,3 +719,99 @@ class TestGetMetricData:
 
             # Verify alarm intent
             assert 'detect high CPU utilization of ElastiCache hosts' in cpu_alarm.intent
+
+    async def test_get_recommended_metric_alarms_anomaly_detection_based_on_seasonality(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that anomaly detection is selected when seasonality is detected."""
+        with patch.object(cloudwatch_metrics_tools, '_lookup_metadata') as mock_lookup:
+            mock_lookup.return_value = None  # No metadata found, force anomaly detection path
+
+            with patch.object(cloudwatch_metrics_tools, 'analyze_metric') as mock_analyze:
+                mock_analyze.return_value = {
+                    'seasonality_seconds': 86400,  # ONE_DAY in seconds
+                    'trend': {'trend_direction': 'stable'},
+                    'statistics': {'mean': 50.0, 'std_deviation': 10.0},
+                    'data_quality': {'quality_score': 0.9},
+                }
+
+                result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                )
+
+                assert len(result.recommendations) == 1
+                assert 'Anomaly detection' in result.recommendations[0].alarmDescription
+                assert isinstance(
+                    result.recommendations[0].threshold, AnomalyDetectionAlarmThreshold
+                )
+
+    async def test_get_recommended_metric_alarms_metadata_takes_precedence(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that metadata recommendations take precedence over generated ones."""
+        with patch.object(cloudwatch_metrics_tools, '_lookup_metadata') as mock_lookup:
+            mock_lookup.return_value = {
+                'alarmRecommendations': [
+                    {
+                        'alarmName': 'CPUUtilizationHigh',
+                        'alarmDescription': 'CPU utilization is high',
+                        'metricName': 'CPUUtilization',
+                        'namespace': 'AWS/EC2',
+                        'statistic': 'Average',
+                        'threshold': {'type': 'static', 'value': 80.0},
+                        'comparisonOperator': 'GreaterThanThreshold',
+                        'evaluationPeriods': 2,
+                        'period': 300,
+                        'treatMissingData': 'breaching',
+                        'dimensions': [{'name': 'InstanceId', 'value': 'i-1234567890abcdef0'}],
+                    }
+                ]
+            }
+
+            with patch.object(cloudwatch_metrics_tools, 'analyze_metric') as mock_analyze:
+                mock_analyze.return_value = {
+                    'seasonality_seconds': 86400,  # ONE_DAY in seconds - would normally trigger anomaly detection
+                    'trend': {'trend_direction': 'stable'},
+                    'statistics': {'mean': 50.0, 'std_deviation': 10.0},
+                    'data_quality': {'quality_score': 0.9},
+                }
+
+                result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                )
+
+                assert len(result.recommendations) == 1
+                assert result.recommendations[0].alarmDescription == 'CPU utilization is high'
+                assert isinstance(
+                    result.recommendations[0].threshold, StaticAlarmThreshold
+                )  # Metadata overrides seasonality-based generation
+
+            # Verify alarm dimensions
+            dim_names = [dim.name for dim in result.recommendations[0].dimensions]
+            assert 'InstanceId' in dim_names
+            assert len(result.recommendations[0].dimensions) == 1
+
+    async def test_get_recommended_metric_alarms_runtime_error(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test RuntimeError handling in get_recommended_metric_alarms."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension
+
+        with patch.object(
+            cloudwatch_metrics_tools,
+            'analyze_metric',
+            side_effect=RuntimeError('Test runtime error'),
+        ):
+            with pytest.raises(RuntimeError, match='Test runtime error'):
+                await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='NonExistent/Namespace',
+                    metric_name='NonExistentMetric',
+                    dimensions=[Dimension(name='TestDim', value='test-value')],
+                )
