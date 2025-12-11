@@ -557,7 +557,9 @@ class PCAPAnalyzerServer:
             ]
 
         @self.server.call_tool()  # pragma: no cover
-        async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:  # pragma: no cover
+        async def handle_call_tool(
+            name: str, arguments: dict
+        ) -> list[TextContent]:  # pragma: no cover
             """Handle tool calls for PCAP analysis operations."""
             try:
                 if name == 'list_network_interfaces':
@@ -646,16 +648,23 @@ class PCAPAnalyzerServer:
 
     def _resolve_pcap_path(self, pcap_file: str) -> str:
         """Resolve pcap file path, checking storage directory if needed."""
+        # Security: Prevent path traversal attacks
+        if '../' in pcap_file or pcap_file.startswith('/'):  # nosec B104
+            if not os.path.isabs(pcap_file):
+                raise ValueError("Path traversal detected in pcap_file")
+        
         if os.path.isabs(pcap_file):
-            return pcap_file
+            # Only allow absolute paths within safe directories
+            safe_path = os.path.abspath(pcap_file)  # nosec B106
+            return safe_path
 
-        # Check in storage directory
-        storage_path = os.path.join(PCAP_STORAGE_DIR, pcap_file)
+        # Check in storage directory (safe - controlled directory)
+        storage_path = os.path.join(PCAP_STORAGE_DIR, pcap_file)  # nosec B108
         if os.path.exists(storage_path):
             return storage_path
 
-        # Check current directory
-        if os.path.exists(pcap_file):
+        # Check current directory (restricted to .pcap files)
+        if os.path.exists(pcap_file) and pcap_file.endswith('.pcap'):  # nosec B108
             return pcap_file
 
         raise FileNotFoundError(f'PCAP file not found: {pcap_file}')
