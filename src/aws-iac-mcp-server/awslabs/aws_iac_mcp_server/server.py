@@ -15,21 +15,25 @@
 from __future__ import annotations
 
 import json
+from ..aws_iac_mcp_server.client.aws_knowledge_client import KNOWLEDGE_MCP_ENDPOINT
+from .client.mcp_proxy import create_proxied_tool
+from .proxy.response_transformers import transform_read_result
 from .sanitizer import sanitize_tool_response
 from .tools.cloudformation_compliance_checker import check_compliance, initialize_guard_rules
 from .tools.cloudformation_deployment_troubleshooter import DeploymentTroubleshooter
 from .tools.cloudformation_pre_deploy_validation import cloudformation_pre_deploy_validation
 from .tools.cloudformation_validator import validate_template
 from .tools.iac_tools import (
+    READ_TOOL_NEXT_STEPS_GUIDANCE,
     SupportedLanguages,
     cdk_best_practices_tool,
-    read_iac_documentation_page_tool,
     search_cdk_documentation_tool,
     search_cdk_samples_and_constructs_tool,
     search_cloudformation_documentation_tool,
 )
 from dataclasses import asdict
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.proxy import ProxyClient
 from typing import Optional
 
 
@@ -58,6 +62,62 @@ mcp = FastMCP(
 
 # Initialize guard rules on server startup
 initialize_guard_rules()
+
+
+async def _initialize_knowledge_mcp_proxy():
+    aws_knowledge_mcp_proxy = FastMCP.as_proxy(
+        ProxyClient(KNOWLEDGE_MCP_ENDPOINT, name='aws-knowledge-mcp-proxy')
+    )
+
+    # Create a proxied version of the remote read_documentation tool
+    proxied_read_tool = await create_proxied_tool(
+        proxy_server=aws_knowledge_mcp_proxy,
+        remote_tool_name='aws___read_documentation',
+        local_tool_name='read_iac_documentation_page',
+        local_description="""Fetch and convert any Infrastructure as Code (CDK or CloudFormation) documentation page to markdown format.
+
+## Usage
+
+This tool retrieves the complete content of a specific CDK or CloudFormation documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
+
+## When to Use
+
+After using a search tool, use this tool to fetch the complete content of any relevant page in the search results.
+
+## Supported Document Types
+
+- API reference pages
+- Guide and tutorial pages
+
+## Pagination
+
+For long documents, use the starting_index parameter to read content in chunks. Always use the same URL for all pagination calls to maintain consistency.
+
+## Result Interpretation
+
+Returns JSON with:
+- knowledge_response: Details of the response
+  - results: Array with single result containing:
+    - rank: Always 1 for document reads
+    - title: Document title or filename
+    - url: Source URL of the document
+    - context: Full or paginated document content
+- next_step_guidance: If present, suggested next actions to take for answering user query
+
+For pagination, use starting_index from previous response to continue reading.
+
+Args:
+    url: URL from search results to read the full page content
+    starting_index: Starting character index for pagination (default: 0)
+
+Returns:
+    List of search results with URLs, titles, and context snippets
+""",
+        response_transformer=transform_read_result(READ_TOOL_NEXT_STEPS_GUIDANCE),
+    )
+
+    # Register the proxied tool with FastMCP
+    mcp.add_tool(proxied_read_tool)
 
 
 @mcp.tool()
@@ -334,58 +394,6 @@ async def search_cdk_documentation(query: str) -> str:
 
 
 @mcp.tool()
-async def read_iac_documentation_page(
-    url: str,
-    starting_index: int = 0,
-) -> str:
-    """Fetch and convert any Infrastructure as Code (CDK or CloudFormation) documentation page to markdown format.
-
-    ## Usage
-
-    This tool retrieves the complete content of a specific CDK or CloudFormation documentation page. Use it when you need detailed information from a particular document rather than the limited context from the search results.
-
-    ## When to Use
-
-    After using a search tool, use this tool to fetch the complete content of any relevant page in the search results.
-
-    ## Supported Document Types
-
-    - API reference pages
-    - Guide and tutorial pages
-
-    ## Pagination
-
-    For long documents, use the starting_index parameter to read content in chunks. Always use the same URL for all pagination calls to maintain consistency.
-
-    ## Result Interpretation
-
-    Returns JSON with:
-    - knowledge_response: Details of the response
-      - results: Array with single result containing:
-        - rank: Always 1 for document reads
-        - title: Document title or filename
-        - url: Source URL of the document
-        - context: Full or paginated document content
-    - next_step_guidance: If present, suggested next actions to take for answering user query
-
-    For pagination, use starting_index from previous response to continue reading.
-
-    Args:
-        url: URL from search results to read the full page content
-        starting_index: Starting character index for pagination (default: 0)
-
-    Returns:
-        List of search results with URLs, titles, and context snippets
-    """
-    result = await read_iac_documentation_page_tool(url, starting_index)
-
-    # Convert dataclass to dict for JSON serialization
-    response_dict = asdict(result)
-
-    return sanitize_tool_response(json.dumps(response_dict))
-
-
-@mcp.tool()
 async def search_cloudformation_documentation(query: str) -> str:
     """Searches AWS CloudFormation documentation knowledge bases and returns relevant excerpts.
 
@@ -555,6 +563,12 @@ async def cdk_best_practices() -> str:
 
 def main():
     """Run the MCP server."""
+    import asyncio
+
+    # Initialize the proxy before starting the server
+    asyncio.run(_initialize_knowledge_mcp_proxy())
+
+    # Run the server
     mcp.run()
 
 
