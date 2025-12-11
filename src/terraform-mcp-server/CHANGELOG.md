@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Added security tool ignores for bandit and semgrep findings with detailed safety justifications
+
 ### Added
 
 - Initial project setup

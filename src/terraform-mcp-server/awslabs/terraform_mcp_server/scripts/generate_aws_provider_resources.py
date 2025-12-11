@@ -390,6 +390,7 @@ async def fetch_aws_provider_page() -> ProviderResult:
                     delete=False,
                 ) as temp_file:
                     temp_file.write(content)
+                    temp_file.flush()
                     debug_file_path = temp_file.name
                 logger.debug(f'Saved rendered HTML content to {debug_file_path}')
 

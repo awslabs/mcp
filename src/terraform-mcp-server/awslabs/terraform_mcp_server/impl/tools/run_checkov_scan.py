@@ -92,7 +92,7 @@ def _ensure_checkov_installed() -> bool:
     """
     try:
         # Check if Checkov is already installed
-        subprocess.run(
+        subprocess.run(  # noqa: B603 - Safe: hardcoded command with no user input
             ['checkov', '--version'],
             capture_output=True,
             text=True,
@@ -104,7 +104,7 @@ def _ensure_checkov_installed() -> bool:
         logger.warning('Checkov not found, attempting to install')
         try:
             # Install Checkov using pip
-            subprocess.run(
+            subprocess.run(  # noqa: B603 - Safe: hardcoded pip install command with no user input
                 ['pip', 'install', 'checkov'],
                 capture_output=True,
                 text=True,
@@ -293,7 +293,10 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
     # Execute command
     try:
         logger.info(f'Executing command: {" ".join(cmd)}')
-        process = subprocess.run(
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+        # Safe: All user inputs are validated above - framework/output_format use allowlists,
+        # check_ids/skip_check_ids are validated for dangerous patterns, working_dir is path-normalized
+        process = subprocess.run(  # noqa: B603 - Safe: validated inputs, allowlisted commands, no shell injection
             cmd,
             capture_output=True,
             text=True,
