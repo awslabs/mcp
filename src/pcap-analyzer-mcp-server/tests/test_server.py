@@ -256,6 +256,102 @@ class TestNetworkAnalysisTools:
             assert len(result) == 1
             assert isinstance(result[0], TextContent)
 
+    @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
+    @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
+    async def test_comprehensive_tool_variations(self, mock_tshark, mock_resolve):
+        """Test comprehensive tool variations and parameters to cover more lines."""
+        mock_resolve.return_value = 'test.pcap'
+        mock_tshark.return_value = 'mocked comprehensive output'
+        
+        # Test parameter variations for better coverage
+        comprehensive_variations = [
+            # Analyze PCAP file with all analysis types
+            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'summary'}),
+            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'protocols'}), 
+            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'conversations'}),
+            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'custom', 'display_filter': 'tcp.port == 80'}),
+            # HTTP requests with different limits
+            ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 10}),
+            ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 50}),
+            ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 200}),
+            # Traffic timeline with different intervals  
+            ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 1}),
+            ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 30}),
+            ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 300}),
+            # Search with case sensitivity variations
+            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'GET', 'case_sensitive': True}),
+            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'post', 'case_sensitive': False}),
+            # Expert information with severity filters
+            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Chat'}),
+            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Note'}), 
+            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Warn'}),
+            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Error'}),
+            # Application response times with different protocols
+            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'http'}),
+            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'https'}),
+            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'dns'}),
+            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'custom'}),
+            # Throughput with different time intervals
+            ('_generate_throughput_io_graph', {'pcap_file': 'test.pcap', 'time_interval': 5}),
+            ('_generate_throughput_io_graph', {'pcap_file': 'test.pcap', 'time_interval': 60}),
+            # Bandwidth utilization with different windows
+            ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 10}),
+            ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 60}),
+        ]
+        
+        # Execute comprehensive variations to cover more code paths
+        for tool_name, args in comprehensive_variations:
+            method = getattr(self.server, tool_name)
+            result = await method(**args)
+            assert len(result) == 1
+            assert isinstance(result[0], TextContent)
+            assert result[0].text.strip()  # Verify non-empty response
+
+    @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
+    @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
+    async def test_error_handling_in_network_tools(self, mock_tshark, mock_resolve):
+        """Test error handling in network analysis tools to cover exception paths."""
+        # Test with different exception types to cover error handling lines
+        mock_resolve.side_effect = FileNotFoundError('File not found')
+        
+        # Test error paths for each tool category to cover exception handling
+        error_test_tools = [
+            ('_extract_http_requests', {'pcap_file': 'missing.pcap'}),
+            ('_generate_traffic_timeline', {'pcap_file': 'missing.pcap'}),
+            ('_search_packet_content', {'pcap_file': 'missing.pcap', 'search_pattern': 'test'}),
+            ('_analyze_pcap_file', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_network_performance', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_network_latency', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_tls_handshakes', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_sni_mismatches', {'pcap_file': 'missing.pcap'}),
+            ('_extract_certificate_details', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_tls_alerts', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_connection_lifecycle', {'pcap_file': 'missing.pcap'}),
+            ('_extract_tls_cipher_analysis', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_tcp_retransmissions', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_tcp_zero_window', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_tcp_window_scaling', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_packet_timing_issues', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_congestion_indicators', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_dns_resolution_issues', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_expert_information', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_protocol_anomalies', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_network_topology', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_security_threats', {'pcap_file': 'missing.pcap'}),
+            ('_generate_throughput_io_graph', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_bandwidth_utilization', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
+            ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
+        ]
+        
+        # Test error handling in each tool to cover exception blocks
+        for tool_name, args in error_test_tools:
+            method = getattr(self.server, tool_name)
+            result = await method(**args)
+            assert len(result) == 1
+            assert isinstance(result[0], TextContent)
+            assert 'Error' in result[0].text
+
 
 class TestComprehensiveCoverage:
     """Additional tests targeting specific code paths for 89.92% coverage."""
