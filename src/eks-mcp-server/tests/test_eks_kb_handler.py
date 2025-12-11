@@ -44,7 +44,8 @@ class TestEKSKnowledgeBaseHandler:
             mock_post.return_value = mock_resp
 
             result = await handler.search_eks_troubleshoot_guide('test query')
-            assert result == expected_response
+            assert not result.isError
+            assert result.content[0].text == expected_response
             mock_post.assert_called_once()
 
             # Verify that AWSSigV4 was initialized with the correct parameters
@@ -61,4 +62,5 @@ class TestEKSKnowledgeBaseHandler:
         with patch('awslabs.eks_mcp_server.eks_kb_handler.requests.post') as mock_post:
             mock_post.side_effect = Exception('network error')
             result = await handler.search_eks_troubleshoot_guide('test query')
-            assert 'Error: network error' in result
+            assert result.isError
+            assert 'Error: network error' in result.content[0].text

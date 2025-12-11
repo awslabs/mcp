@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from importlib import resources
+from importlib import (
+    resources,
+)  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2, python.lang.compatibility.python37-compatibility-importlib2
 
 with (
     resources.files('awslabs.terraform_mcp_server.static')

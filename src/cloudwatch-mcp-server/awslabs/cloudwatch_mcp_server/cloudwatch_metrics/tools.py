@@ -162,7 +162,10 @@ class CloudWatchMetricsTools:
         ctx: Context,
         namespace: str,
         metric_name: str,
-        start_time: Union[str, datetime],
+        start_time: Annotated[
+            Union[str, datetime],
+            Field(description='The start time for the metric data query (ISO format or datetime)'),
+        ],
         dimensions: List[Dimension] = [],
         end_time: Annotated[
             Union[str, datetime] | None,
@@ -390,9 +393,16 @@ class CloudWatchMetricsTools:
             start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
 
         if end_time is None:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
         elif isinstance(end_time, str):
             end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+
+        # Ensure both datetimes have timezone info for correct datetime arithmetic afterwards.
+        # This avoids issues when datetime is passed as naive values (without timezone)
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
 
         # Calculate period based on time window and target datapoints
         time_window_seconds = int((end_time - start_time).total_seconds())

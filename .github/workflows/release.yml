@@ -85,7 +85,7 @@ jobs:
     needs: [validate-repository,look-for-changes]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Draft release with validation
         id: draft-release
         env:
@@ -141,7 +141,7 @@ jobs:
     needs: [validate-repository]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           fetch-depth: 0
@@ -303,10 +303,10 @@ jobs:
       # Clear up space for specific large projects
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["core-mcp-server"]'), matrix.changed-directory)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@bb62109f04532df81644eb76173ad4f987ab6033
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@20e7472ba2174045f54ffd7ea8a0f5d91aae57db
       #TODO: remove local action checkout when working...
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           sparse-checkout: |
@@ -350,7 +350,7 @@ jobs:
 
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
-        uses: astral-sh/setup-uv@5a7eac68fb9809dea845d802897dc5c723910fa3 # v7.1.3
+        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
@@ -417,7 +417,7 @@ jobs:
     needs: [validate-repository, draft_release_when_tagged, publish-pypi, publish-npmjs]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Publish release
         id: create-release
         env:

@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "markdownify>=0.13.1",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "protego>=0.3.1",
     "pydantic>=2.0.0",
     "readabilipy>=0.2.0",
