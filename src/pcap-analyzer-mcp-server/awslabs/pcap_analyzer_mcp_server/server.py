@@ -83,7 +83,7 @@ class PCAPAnalyzerServer:
                         'properties': {
                             'interface': {
                                 'type': 'string',
-                                'description': "Network interface to capture on (e.g., 'en0', 'eth0')",
+                                'description': "Network interface to capture on (e.g., 'en0')",
                             },
                             'duration': {
                                 'type': 'integer',
@@ -254,7 +254,7 @@ class PCAPAnalyzerServer:
                 # TLS/SSL Security Analysis (6 tools)
                 Tool(
                     name='analyze_tls_handshakes',
-                    description='Analyze TLS handshakes including SNI, certificate details, and handshake success/failure',
+                    description='Analyze TLS handshakes including SNI, certificate details',
                     inputSchema={
                         'type': 'object',
                         'properties': {
@@ -310,7 +310,7 @@ class PCAPAnalyzerServer:
                 ),
                 Tool(
                     name='analyze_connection_lifecycle',
-                    description='Analyze complete connection lifecycle from SYN to FIN/RST including TLS handshake',
+                    description='Analyze complete connection lifecycle from SYN to FIN/RST',
                     inputSchema={
                         'type': 'object',
                         'properties': {
