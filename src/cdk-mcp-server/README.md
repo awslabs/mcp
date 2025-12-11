@@ -1,5 +1,7 @@
 # AWS CDK MCP Server
 
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will be removed in a future release. Please use the [AWS IaC MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server) instead, which provides all CDK functionality along with additional Infrastructure as Code capabilities.
+
 MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security compliance with CDK Nag.
 
 ## Features
