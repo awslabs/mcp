@@ -15,7 +15,6 @@
 """Data models for the EKS MCP Server."""
 
 from enum import Enum
-from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Union
 

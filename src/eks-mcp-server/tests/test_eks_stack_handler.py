@@ -25,9 +25,6 @@ from awslabs.eks_mcp_server.consts import (
     CFN_STACK_TAG_VALUE,
 )
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
-from awslabs.eks_mcp_server.models import (
-    ManageEksStacksData,
-)
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, mock_open, patch
@@ -713,7 +710,9 @@ class TestEksStackHandler:
         # Mock the _deploy_stack method
         mock_result = MagicMock()
         mock_result.isError = False
-        mock_result.content = [TextContent(type='text', text='CloudFormation stack creation initiated')]
+        mock_result.content = [
+            TextContent(type='text', text='CloudFormation stack creation initiated')
+        ]
         with patch.object(handler, '_deploy_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with deploy operation
             result = await handler.manage_eks_stacks(
@@ -751,7 +750,9 @@ class TestEksStackHandler:
         # Mock the _describe_stack method
         mock_result = MagicMock()
         mock_result.isError = False
-        mock_result.content = [TextContent(type='text', text='Successfully described CloudFormation stack')]
+        mock_result.content = [
+            TextContent(type='text', text='Successfully described CloudFormation stack')
+        ]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with describe operation
             result = await handler.manage_eks_stacks(
@@ -783,7 +784,9 @@ class TestEksStackHandler:
         # Mock the _delete_stack method
         mock_result = MagicMock()
         mock_result.isError = False
-        mock_result.content = [TextContent(type='text', text='Initiated deletion of CloudFormation stack')]
+        mock_result.content = [
+            TextContent(type='text', text='Initiated deletion of CloudFormation stack')
+        ]
         with patch.object(handler, '_delete_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with delete operation
             result = await handler.manage_eks_stacks(
@@ -883,7 +886,9 @@ class TestEksStackHandler:
         # Test describe operation (should be allowed even when write access is disabled)
         mock_result = MagicMock()
         mock_result.isError = False
-        mock_result.content = [TextContent(type='text', text='Successfully described CloudFormation stack')]
+        mock_result.content = [
+            TextContent(type='text', text='Successfully described CloudFormation stack')
+        ]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             result = await handler.manage_eks_stacks(
                 ctx=mock_ctx,
