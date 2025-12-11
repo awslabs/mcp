@@ -9,9 +9,9 @@ from awslabs.aws_api_mcp_server.core.aws.service import (
     validate,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
+from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
 from awslabs.aws_api_mcp_server.core.common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     CommandMetadata,
     Context,
@@ -105,7 +105,7 @@ def test_interpret_returns_missing_context_failures():
         (
             'aws cloud9 list-environments',
             CLOUD9_LIST_ENVIRONMENTS,
-            ('ListEnvironments', {}, 'us-east-1', 10, 'https://cloud9.us-east-1.amazonaws.com'),
+            ('ListEnvironments', {}, 'us-east-1', 60, 'https://cloud9.us-east-1.amazonaws.com'),
             'cloud9',
             'AWS Cloud9',
             'ListEnvironments',
@@ -119,7 +119,7 @@ def test_interpret_returns_missing_context_failures():
                     'Filters': [{'Name': 'instance-state-name', 'Values': ['running']}],
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://ec2.us-east-1.amazonaws.com',
             ),
             'ec2',
@@ -133,7 +133,7 @@ def test_interpret_returns_missing_context_failures():
                 'DescribeInstances',
                 {},
                 'us-east-1',
-                10,
+                60,
                 'https://ec2.us-east-1.amazonaws.com',
             ),
             'ec2',
@@ -152,7 +152,7 @@ def test_interpret_returns_missing_context_failures():
                     ]
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://cloud9.us-east-1.amazonaws.com',
             ),
             'cloud9',
@@ -162,7 +162,7 @@ def test_interpret_returns_missing_context_failures():
         (
             'aws sts get-caller-identity',
             GET_CALLER_IDENTITY_PAYLOAD,
-            ('GetCallerIdentity', {}, 'us-east-1', 10, 'https://sts.us-east-1.amazonaws.com'),
+            ('GetCallerIdentity', {}, 'us-east-1', 60, 'https://sts.us-east-1.amazonaws.com'),
             'sts',
             'AWS Security Token Service',
             'GetCallerIdentity',
@@ -183,7 +183,7 @@ def test_interpret_returns_missing_context_failures():
                     ],
                 },
                 'us-east-1',
-                10,
+                60,
                 'https://ssm.us-east-1.amazonaws.com',
             ),
             'ssm',
@@ -479,25 +479,23 @@ def test_execute_awscli_customization_success(mock_get_driver):
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 def test_execute_awscli_customization_error(mock_get_driver):
-    """Test execute_awscli_customization returns AwsApiMcpServerErrorResponse on exception."""
+    """Test execute_awscli_customization raises AwsApiMcpError on exception."""
     mock_driver = Mock()
     mock_driver.main.side_effect = Exception('Invalid command')
     mock_get_driver.return_value = mock_driver
 
-    result = execute_awscli_customization(
-        'aws invalid command',
-        IRCommand(
-            command_metadata=CommandMetadata('invalid', None, 'command'),
-            region='us-east-1',
-            parameters={},
-            is_awscli_customization=True,
-        ),
-    )
+    with pytest.raises(AwsApiMcpError) as exc_info:
+        execute_awscli_customization(
+            'aws invalid command',
+            IRCommand(
+                command_metadata=CommandMetadata('invalid', None, 'command'),
+                region='us-east-1',
+                parameters={},
+                is_awscli_customization=True,
+            ),
+        )
 
-    assert isinstance(result, AwsApiMcpServerErrorResponse)
-    assert result.error is True
-    assert result.detail == "Error while executing 'aws invalid command': Invalid command"
-
+    assert "Error while executing 'aws invalid command': Invalid command" in str(exc_info.value)
     mock_driver.main.assert_called_once_with(['invalid', 'command'])
 
 
@@ -616,7 +614,7 @@ def test_interpret_command_with_credentials_parameter():
             'aws s3api list-buckets',
             max_results=None,
             credentials=test_credentials,
-            region_override=None,
+            default_region_override=None,
         )
 
 
@@ -628,7 +626,10 @@ def test_interpret_command_without_credentials_parameter():
         interpret_command('aws s3api list-buckets')
 
         mock_interpret.assert_called_once_with(
-            'aws s3api list-buckets', max_results=None, credentials=None, region_override=None
+            'aws s3api list-buckets',
+            max_results=None,
+            credentials=None,
+            default_region_override=None,
         )
 
 
@@ -638,7 +639,9 @@ def test_interpret_command_with_region_parameter(mock_interpret):
     mock_interpret.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
     mock_credentials = Credentials(access_key_id='a', secret_access_key='b', session_token='c')
 
-    interpret_command('aws s3api list-buckets', region='eu-west-1', credentials=mock_credentials)
+    interpret_command(
+        'aws s3api list-buckets', default_region_override='eu-west-1', credentials=mock_credentials
+    )
 
     mock_interpret.assert_called_once_with(
         ANY,
@@ -681,13 +684,13 @@ def test_execute_awscli_customization_uses_explicit_region_overrides_ir(mock_get
 
         with patch('sys.stdout'), patch('sys.stderr'):
             execute_awscli_customization(
-                'aws s3 ls', ir_command, credentials=None, region='eu-west-2'
+                'aws s3 ls', ir_command, credentials=None, default_region_override='eu-west-2'
             )
 
     # Verify region precedence used in timer
     assert mock_timer.call_args[0][0] == 's3'
     assert mock_timer.call_args[0][1] == 'list_objects_v2'
-    assert mock_timer.call_args[0][2] == 'eu-west-2'
+    assert mock_timer.call_args[0][2] == 'us-east-1'
 
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
