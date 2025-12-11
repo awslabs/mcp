@@ -215,21 +215,45 @@ The Valkey server can be configured using the following environment variables:
 Semantic search requires integration with an embeddings provider.
 The following environment variables are used to configure this:
 
+#### Common Embedding Configuration
+The first step is to configure the embeddings provider, which is used to generate embeddings for semantic search.
+This defaults to using the Bedrock embeddings provider, but can be configured to use any of the following:
+
 | Name | Description                                                                    | Default Value                  |
 |------|--------------------------------------------------------------------------------|--------------------------------|
-| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama', 'Bedrock', or 'OpenAI')                         | `"ollama"`                     |
-| `OLLAMA_HOST` | If Ollama is used, this is the URL pointing to the Ollama endpoint             | `"http://localhost:11434"`     |
-| `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
+| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama', 'Bedrock', or 'OpenAI')                         | `"bedrock"`                    |
+
+#### Bedrock
+The following environment variables are used to configure the Bedrock embeddings provider, including a number
+of optional configuration options.  Credentials for the Bedrock service must be provided using the `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` environment variables or via `AWS_PROFILE`.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
 | `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
 | `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.titan-embed-text-v1"` |
-| `BEDROCK_NORMALIZE` | If Bedrock is used, whether to normalize embeddings | `true` |
-| `BEDROCK_DIMENSIONS` | If Bedrock is used, number of dimensions for embeddings | `None` |
-| `BEDROCK_INPUT_TYPE` | If Bedrock is used, input type for embeddings (e.g., "searchDocument", "searchQuery") | `None` |
-| `BEDROCK_MAX_ATTEMPTS` | If Bedrock is used, maximum retry attempts for failed requests | `3` |
-| `BEDROCK_MAX_POOL_CONNECTIONS` | If Bedrock is used, maximum number of connections in the connection pool | `50` |
-| `BEDROCK_RETRY_MODE` | If Bedrock is used, retry mode for failed requests (e.g., "adaptive", "standard", "legacy") | `"adaptive"` |
-| `OPENAI_API_KEY` | If OpenAI is used, this is the API key for authentication | `None` |
-| `OPENAI_MODEL` | If OpenAI is used, this is the model to use to generate embeddings | `"text-embedding-3-small"` |
+| `BEDROCK_NORMALIZE` | If Bedrock is used, whether to normalize embeddings | `true`                         |
+| `BEDROCK_DIMENSIONS` | If Bedrock is used, number of dimensions for embeddings | `None`                         |
+| `BEDROCK_INPUT_TYPE` | If Bedrock is used, input type for embeddings (e.g., "searchDocument", "searchQuery") | `None`                         |
+| `BEDROCK_MAX_ATTEMPTS` | If Bedrock is used, maximum retry attempts for failed requests | `3`                            |
+| `BEDROCK_MAX_POOL_CONNECTIONS` | If Bedrock is used, maximum number of connections in the connection pool | `50`                           |
+| `BEDROCK_RETRY_MODE` | If Bedrock is used, retry mode for failed requests (e.g., "adaptive", "standard", "legacy") | `"adaptive"`                   |
+
+#### OpenAI
+The following environment variables are used to configure the OpenAI embeddings provider.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `OPENAI_API_KEY` | If OpenAI is used, this is the API key for authentication | `None`                         |
+| `OPENAI_MODEL` | If OpenAI is used, this is the model to use to generate embeddings | `"text-embedding-3-small"`     |
+
+#### Ollama
+The following environment variables are used to configure the Ollama embeddings provider.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `OLLAMA_HOST` | If Ollama is used, this is the URL pointing to the Ollama endpoint             | `"http://localhost:11434"`     |
+| `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
 
 
 ## Example Usage

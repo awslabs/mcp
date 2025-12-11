@@ -45,7 +45,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     Raises:
         ValueError: If provider type is unknown or required credentials are missing
     """
-    provider_type = EMBEDDING_CFG.get('provider', 'ollama').lower()
+    provider_type = EMBEDDING_CFG.get('provider', 'bedrock').lower()
 
     if provider_type == 'ollama':
         return OllamaEmbeddings(
