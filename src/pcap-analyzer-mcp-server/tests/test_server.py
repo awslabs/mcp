@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Comprehensive CI-compatible tests for PCAP Analyzer MCP Server - ALL 83 TESTS IN SINGLE FILE."""
+"""Comprehensive tests for PCAP Analyzer MCP Server - following awslabs/MCP repo standards."""
 
 import asyncio
 import json
@@ -22,21 +22,7 @@ from awslabs.pcap_analyzer_mcp_server.server import PCAPAnalyzerServer, main, ac
 from mcp.types import TextContent
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-
-try:
-    import pytest
-except ImportError:
-    # Make pytest optional for CI compatibility
-    class MockPytest:
-        @staticmethod
-        def raises(exception_type):
-            class RaisesContext:
-                def __enter__(self):
-                    return self
-                def __exit__(self, exc_type, exc_val, exc_tb):
-                    return exc_type is not None and issubclass(exc_type, exception_type)
-            return RaisesContext()
-    pytest = MockPytest()
+import pytest
 
 
 class TestPCAPAnalyzerServerCore:
@@ -122,18 +108,19 @@ class TestNetworkInterfaceManagement:
         """Set up test fixtures."""
         self.server = PCAPAnalyzerServer()
 
-    @patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs')
-    @patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_stats')
-    async def test_list_network_interfaces(self, mock_stats, mock_addrs):
-        """Test listing network interfaces."""
-        # Mock network data
+    @pytest.mark.asyncio
+    async def test_list_network_interfaces(self, mocker):
+        """Test listing network interfaces - awslabs/MCP repo standard."""
+        # Mock network data using mocker fixture
         mock_addr = MagicMock()
         mock_addr.address = '192.168.1.1'
+        mock_addrs = mocker.patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs')
         mock_addrs.return_value = {'eth0': [mock_addr]}
 
         mock_stat = MagicMock()
         mock_stat.isup = True
         mock_stat.speed = 1000
+        mock_stats = mocker.patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_stats')
         mock_stats.return_value = {'eth0': mock_stat}
 
         result = await self.server._list_network_interfaces()
