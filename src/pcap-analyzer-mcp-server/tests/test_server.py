@@ -269,7 +269,7 @@ class TestComprehensiveCoverage:
     async def test_all_tools_with_error_scenarios(self, mock_tshark, mock_resolve):
         """Test all 31 tools with error handling for comprehensive coverage."""
         mock_resolve.side_effect = FileNotFoundError('File not found')
-        
+
         all_tools = [
             ('_list_network_interfaces', {}),
             ('_extract_http_requests', {'pcap_file': 'missing.pcap'}),
@@ -299,7 +299,7 @@ class TestComprehensiveCoverage:
             ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
         ]
-        
+
         for tool_name, args in all_tools:
             if hasattr(self.server, tool_name):
                 method = getattr(self.server, tool_name)
@@ -314,7 +314,7 @@ class TestComprehensiveCoverage:
             'test1': {'interface': 'eth0', 'start_time': '2024-01-01T00:00:00', 'duration': 60, 'output_file': 'test1.pcap', 'filter': None},
             'test2': {'interface': 'eth1', 'start_time': '2024-01-01T00:01:00', 'duration': 120, 'output_file': 'test2.pcap', 'filter': 'tcp'}
         }
-        
+
         with patch('awslabs.pcap_analyzer_mcp_server.server.active_captures', test_captures):
             result = await self.server._get_capture_status()
             assert len(result) == 1
@@ -339,9 +339,9 @@ class TestComprehensiveCoverage:
             mock_file.stat.return_value.st_size = 1024 * i
             mock_file.stat.return_value.st_mtime = 1640995200 + i * 3600
             mock_files.append(mock_file)
-        
+
         mock_glob.return_value = mock_files
-        
+
         result = await self.server._list_captured_files()
         assert len(result) == 1
         data = json.loads(result[0].text)
@@ -351,7 +351,7 @@ class TestComprehensiveCoverage:
     async def test_subprocess_exception_handling(self, mock_subprocess):
         """Test subprocess exception handling."""
         mock_subprocess.side_effect = OSError('Cannot create process')
-        
+
         result = await self.server._start_packet_capture('eth0')
         assert len(result) == 1
         assert 'Error starting capture' in result[0].text
@@ -523,12 +523,12 @@ class TestModuleCoverage:
         import awslabs
         assert hasattr(awslabs, '__version__')
         assert awslabs.__version__ == '1.0.0'
-        
-        # Cover awslabs/pcap_analyzer_mcp_server/__init__.py  
+
+        # Cover awslabs/pcap_analyzer_mcp_server/__init__.py
         import awslabs.pcap_analyzer_mcp_server
         assert hasattr(awslabs.pcap_analyzer_mcp_server, '__version__')
         assert awslabs.pcap_analyzer_mcp_server.__version__ == '1.0.0'
-        
+
         # Cover tests/__init__.py (minimal but needs coverage)
         import tests
         # tests/__init__.py just has comments, but import covers it
@@ -547,7 +547,7 @@ class TestMaximumCoverageConsolidated:
         """Test ALL 31 tools comprehensively to maximize diff coverage."""
         mock_resolve.return_value = '/tmp/test.pcap'
         mock_tshark.return_value = 'tool output data'
-        
+
         # All 31 tools with comprehensive parameter testing
         all_tools_comprehensive = [
             ('_list_network_interfaces', {}),
@@ -593,7 +593,7 @@ class TestMaximumCoverageConsolidated:
             ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'custom'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'test.pcap'}),
         ]
-        
+
         # Execute each tool variation to maximize code path coverage
         for tool_name, args in all_tools_comprehensive:
             if hasattr(self.server, tool_name):
@@ -610,7 +610,7 @@ class TestMaximumCoverageConsolidated:
         """Test error handling in all tools for maximum coverage."""
         # Test with FileNotFoundError to trigger error paths in all tools
         mock_resolve.side_effect = FileNotFoundError('Test file not found')
-        
+
         error_test_tools = [
             ('_extract_http_requests', {'pcap_file': 'missing.pcap'}),
             ('_generate_traffic_timeline', {'pcap_file': 'missing.pcap'}),
@@ -639,7 +639,7 @@ class TestMaximumCoverageConsolidated:
             ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
         ]
-        
+
         # Test each tool's error handling to cover exception paths
         for tool_name, args in error_test_tools:
             method = getattr(self.server, tool_name)
