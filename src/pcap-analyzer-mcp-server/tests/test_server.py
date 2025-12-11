@@ -139,6 +139,7 @@ class TestPacketCaptureManagement:
         """Set up test fixtures."""
         self.server = PCAPAnalyzerServer()
 
+    @pytest.mark.asyncio
     @patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec')
     async def test_start_packet_capture(self, mock_subprocess):
         """Test starting packet capture."""
@@ -155,6 +156,7 @@ class TestPacketCaptureManagement:
                 assert data['status'] == 'started'
                 assert data['interface'] == 'eth0'
 
+    @pytest.mark.asyncio
     async def test_stop_packet_capture_not_found(self):
         """Test stopping non-existent capture."""
         result = await self.server._stop_packet_capture('nonexistent_id')
@@ -163,6 +165,7 @@ class TestPacketCaptureManagement:
         assert isinstance(result[0], TextContent)
         assert 'not found' in result[0].text
 
+    @pytest.mark.asyncio
     async def test_get_capture_status_empty(self):
         """Test getting capture status when empty."""
         result = await self.server._get_capture_status()
@@ -172,6 +175,7 @@ class TestPacketCaptureManagement:
         assert isinstance(data['active_captures'], int)
         assert isinstance(data['captures'], list)
 
+    @pytest.mark.asyncio
     async def test_list_captured_files_empty(self):
         """Test listing files from empty directory."""
         with tempfile.TemporaryDirectory() as tmp_dir:
