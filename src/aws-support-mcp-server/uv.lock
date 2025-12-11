@@ -49,7 +49,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-support-mcp-server"
-version = "0.1.11"
+version = "0.1.12"
 source = { virtual = "." }
 dependencies = [
     { name = "boto3" },
