@@ -39,7 +39,7 @@ try:
     )
 except ImportError:
     # Skip integration tests if testing framework not available
-    pytest.skip("Testing framework not available", allow_module_level=True)
+    pytest.skip('Testing framework not available', allow_module_level=True)
 
 
 # setup constants

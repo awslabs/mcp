@@ -631,9 +631,23 @@ class PCAPAnalyzerServer:
                 return [TextContent(type='text', text=f'Error: {str(e)}')]
 
     async def _run_tshark_command(self, args: List[str]) -> str:
-        """Run tshark command and return output."""
+        """Run tshark command with input validation and security checks."""
         try:
-            cmd = [WIRESHARK_PATH] + args
+            # Security: Validate wireshark path is safe
+            if not WIRESHARK_PATH or not isinstance(WIRESHARK_PATH, str):
+                raise ValueError("Invalid WIRESHARK_PATH configuration")
+            
+            # Security: Sanitize command arguments
+            safe_args = []
+            for arg in args:
+                if not isinstance(arg, str):
+                    raise ValueError(f"Invalid argument type: {type(arg)}")
+                # Remove potentially dangerous characters
+                if any(char in arg for char in [';', '&', '|', '`', '$']):
+                    raise ValueError(f"Potentially unsafe argument: {arg}")
+                safe_args.append(arg)
+            
+            cmd = [WIRESHARK_PATH] + safe_args
             result = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
