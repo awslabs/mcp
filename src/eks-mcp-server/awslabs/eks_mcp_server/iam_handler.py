@@ -120,7 +120,7 @@ class IAMHandler:
                 managed_policies=managed_policies,
                 inline_policies=inline_policies,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -153,7 +153,8 @@ class IAMHandler:
         role_name: str = Field(
             ..., description='Name of the IAM role to add the policy to. The role must exist.'
         ),
-        permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(            ...,
+        permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
+            ...,
             description="""Permissions to include in the policy as IAM policy statements in JSON format.
             Can be either a single statement object or an array of statement objects.""",
         ),
@@ -343,7 +344,7 @@ class IAMHandler:
             role_name=role_name,
             permissions_added=permissions,
         )
-        
+
         return CallToolResult(
             isError=False,
             content=[

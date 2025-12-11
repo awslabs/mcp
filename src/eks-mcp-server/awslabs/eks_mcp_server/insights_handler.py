@@ -217,7 +217,7 @@ class InsightsHandler:
                     next_token=None,  # No pagination for detail view
                     detail_mode=True,
                 )
-                
+
                 return CallToolResult(
                     isError=False,
                     content=[
@@ -321,7 +321,7 @@ class InsightsHandler:
                 next_token=response.get('nextToken'),
                 detail_mode=False,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[

@@ -130,7 +130,7 @@ class TestEksStackHandler:
                 assert len(result.content) == 2
                 assert result.content[0].type == 'text'
                 assert 'CloudFormation stack creation initiated' in result.content[0].text
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['stack_name'] == 'eks-test-cluster-stack'
@@ -323,12 +323,47 @@ class TestEksStackHandler:
                 assert len(result.content) == 2
                 assert result.content[0].type == 'text'
                 assert 'CloudFormation stack update initiated' in result.content[0].text
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['stack_name'] == 'eks-test-cluster-stack'
                 assert data['stack_arn'] == 'test-stack-id'
                 assert data['cluster_name'] == 'test-cluster'
+
+    @pytest.mark.asyncio
+    async def test_deploy_stack_ownership_check_fails(self):
+        """Test that _deploy_stack returns error when ownership check fails for existing stack."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Mock the _ensure_stack_ownership method to return failure
+        with patch.object(
+            handler,
+            '_ensure_stack_ownership',
+            return_value=(False, {'StackId': 'test-stack-id'}, 'Stack not created by this tool'),
+        ):
+            # Mock the open function to avoid file not found error
+            mock_template_content = 'test template content'
+            with patch('builtins.open', mock_open(read_data=mock_template_content)):
+                # Call the _deploy_stack method
+                result = await handler._deploy_stack(
+                    ctx=mock_ctx,
+                    template_file='/path/to/template.yaml',
+                    stack_name='eks-test-cluster-stack',
+                    cluster_name='test-cluster',
+                )
+
+                # Verify the result
+                assert result.isError
+                assert len(result.content) == 1
+                assert result.content[0].type == 'text'
+                assert 'Stack not created by this tool' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_describe_stack_success(self):
@@ -395,7 +430,7 @@ class TestEksStackHandler:
             assert len(result.content) == 2
             assert result.content[0].type == 'text'
             assert 'Successfully described CloudFormation stack' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['stack_name'] == 'eks-test-cluster-stack'
@@ -451,7 +486,7 @@ class TestEksStackHandler:
             assert len(result.content) == 2
             assert result.content[0].type == 'text'
             assert 'Initiated deletion of CloudFormation stack' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['stack_name'] == 'eks-test-cluster-stack'
@@ -552,7 +587,7 @@ class TestEksStackHandler:
             assert len(result.content) == 2
             assert result.content[0].type == 'text'
             assert 'template generated' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['template_path'] == '/path/to/output/template.yaml'
@@ -615,7 +650,7 @@ class TestEksStackHandler:
 
             # Verify the result
             assert not result.isError
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['template_path'] == '/path/to/output/template.yaml'
@@ -791,8 +826,9 @@ class TestEksStackHandler:
         # Create a mock MCP server
         mock_mcp = MagicMock()
 
-        # Initialize the EKS handler with the mock MCP server
-        handler = EksStackHandler(mock_mcp)
+        # Initialize the EKS handler with the mock MCP server and allow_write=True
+        # to bypass write access checks and test the invalid operation error
+        handler = EksStackHandler(mock_mcp, allow_write=True)
 
         # Create a mock context
         mock_ctx = MagicMock(spec=Context)
@@ -800,7 +836,7 @@ class TestEksStackHandler:
         # Call the manage_eks_stacks method with an invalid operation
         result = await handler.manage_eks_stacks(
             ctx=mock_ctx,
-            operation='invalid',
+            operation='invalid_operation',
             cluster_name='test-cluster',
         )
 
@@ -808,7 +844,8 @@ class TestEksStackHandler:
         assert result.isError
         assert len(result.content) == 1
         assert result.content[0].type == 'text'
-        assert 'not allowed without write access' in result.content[0].text
+        assert 'Invalid operation: invalid_operation' in result.content[0].text
+        assert 'Must be one of: generate, deploy, describe, delete' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_write_access_disabled(self):

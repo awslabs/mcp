@@ -178,7 +178,7 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['vpc_id'] == 'vpc-explicit'
@@ -373,7 +373,7 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['vpc_id'] == 'vpc-remote'
@@ -469,7 +469,7 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['vpc_id'] == 'vpc-nopod'
@@ -584,7 +584,7 @@ class TestVpcConfigHandler:
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
         assert 'Retrieved VPC configuration' in result.content[0].text
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['vpc_id'] == 'vpc-12345'
@@ -1057,3 +1057,64 @@ class TestVpcConfigHandler:
         # Verify the result (should be empty lists)
         assert len(remote_node_cidr_blocks) == 0
         assert len(remote_pod_cidr_blocks) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_eks_vpc_config_outer_exception(self, mock_context, mock_mcp):
+        """Test get_eks_vpc_config with outer exception (Error retrieving VPC configuration)."""
+        # Create mock AWS clients
+        mock_eks_client = MagicMock()
+        mock_ec2_client = MagicMock()
+
+        # Set up EKS client to raise an exception during describe_cluster
+        mock_eks_client.describe_cluster.side_effect = Exception('Unexpected error')
+
+        # Initialize the handler with our mock clients
+        handler = VpcConfigHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        handler.eks_client = mock_eks_client
+
+        # Call the public method (not the implementation method)
+        result = await handler.get_eks_vpc_config(mock_context, cluster_name='test-cluster')
+
+        # Verify EKS client was called
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+
+        # Verify error response - the error is caught at the inner level first
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        # The error message will be "Error getting cluster information" from the inner try-catch
+        assert 'Error getting cluster information' in result.content[0].text
+        assert 'Unexpected error' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_eks_vpc_config_impl_inner_exception(self, mock_context, mock_mcp):
+        """Test _get_eks_vpc_config_impl with inner exception during VPC details retrieval."""
+        # Create mock AWS clients
+        mock_eks_client = MagicMock()
+        mock_ec2_client = MagicMock()
+
+        # Set up EKS mock response with valid VPC ID
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {'resourcesVpcConfig': {'vpcId': 'vpc-12345'}}
+        }
+
+        # Set up EC2 client to raise an exception during describe_vpcs
+        mock_ec2_client.describe_vpcs.side_effect = Exception('VPC retrieval failed')
+
+        # Initialize the handler with our mock clients
+        handler = VpcConfigHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        handler.eks_client = mock_eks_client
+
+        # Call the implementation method directly
+        result = await handler._get_eks_vpc_config_impl(mock_context, cluster_name='test-cluster')
+
+        # Verify calls
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+        mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
+
+        # Verify error response
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Error retrieving VPC configuration' in result.content[0].text
+        assert 'VPC retrieval failed' in result.content[0].text

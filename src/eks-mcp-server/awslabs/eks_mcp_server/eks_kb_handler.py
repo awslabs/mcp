@@ -84,7 +84,7 @@ class EKSKnowledgeBaseHandler:
                 auth=AWSSigV4(AWS_SERVICE, region=AWS_REGION),
             )
             response.raise_for_status()
-            
+
             return CallToolResult(
                 isError=False,
                 content=[

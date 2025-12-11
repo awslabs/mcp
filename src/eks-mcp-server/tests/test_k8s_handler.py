@@ -391,6 +391,32 @@ metadata:
                     assert 'Failed to apply YAML from file' in result.content[0].text
                     assert 'Failed to create resource' in result.content[0].text
 
+    @pytest.mark.asyncio
+    async def test_apply_yaml_outer_exception(self, mock_context, mock_mcp, mock_client_cache):
+        """Test apply_yaml method with outer exception (Error applying YAML from file)."""
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp)
+
+        # Mock get_client to raise an exception
+        with patch.object(handler, 'get_client', side_effect=Exception('Connection error')):
+            # Apply YAML from file
+            result = await handler.apply_yaml(
+                mock_context,
+                yaml_path='/path/to/manifest.yaml',
+                cluster_name='test-cluster',
+                namespace='default',
+                force=True,
+            )
+
+            # Verify the result
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Error applying YAML from file' in result.content[0].text
+            assert 'Connection error' in result.content[0].text
+
     # Note: TTL cache expiration tests have been moved to test_k8s_client_cache.py
 
     @pytest.mark.asyncio
@@ -440,7 +466,7 @@ metadata:
             assert not result.isError
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully created Pod test-namespace/test-pod' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['kind'] == 'Pod'
@@ -483,7 +509,7 @@ metadata:
             assert not result.isError
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['kind'] == 'Pod'
@@ -713,7 +739,7 @@ metadata:
             assert not result.isError
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['kind'] == 'Pod'
@@ -793,7 +819,7 @@ metadata:
             assert (
                 'Successfully listed 2 Pod resources in test-namespace/' in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['kind'] == 'Pod'
@@ -840,7 +866,7 @@ metadata:
             assert (
                 'Successfully listed 0 Pod resources in test-namespace/' in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['kind'] == 'Pod'
@@ -1100,13 +1126,14 @@ metadata:
 
                             # Verify the result is successful
                             assert not result.isError
-                            
+
                             # Parse JSON data from content
                             data = json.loads(result.content[1].text)
                             # Verify the output file path is absolute
                             assert os.path.isabs(data['output_file_path'])
                             assert (
-                                data['output_file_path'] == '/path/to/output/test-app-manifest.yaml'
+                                data['output_file_path']
+                                == '/path/to/output/test-app-manifest.yaml'
                             )
 
     @pytest.mark.asyncio
@@ -1159,7 +1186,7 @@ metadata:
 
                             # Verify the result is successful
                             assert not result.isError
-                            
+
                             # Parse JSON data from content
                             data = json.loads(result.content[1].text)
                             # Verify the output file path is absolute
@@ -1266,7 +1293,7 @@ metadata:
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod (container: test-container)'
                 in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['pod_name'] == 'test-pod'
@@ -1322,7 +1349,7 @@ metadata:
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod'
                 in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['pod_name'] == 'test-pod'
@@ -1463,7 +1490,7 @@ metadata:
                 'Successfully retrieved 2 events for Pod test-namespace/test-pod'
                 in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['involved_object_kind'] == 'Pod'
@@ -1520,7 +1547,7 @@ metadata:
                 'Successfully retrieved 0 events for Pod test-namespace/test-pod'
                 in result.content[0].text
             )
-            
+
             # Parse JSON data from content
             data = json.loads(result.content[1].text)
             assert data['involved_object_kind'] == 'Pod'

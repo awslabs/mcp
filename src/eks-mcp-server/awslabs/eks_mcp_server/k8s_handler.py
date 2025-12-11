@@ -26,8 +26,8 @@ from awslabs.eks_mcp_server.models import (
     EventItem,
     EventsData,
     GenerateAppManifestData,
-    KubernetesResourceListData,
     KubernetesResourceData,
+    KubernetesResourceListData,
     Operation,
     PodLogsData,
     ResourceSummary,
@@ -200,7 +200,7 @@ class K8sHandler:
                     resources_created=created_count,
                     resources_updated=updated_count,
                 )
-                
+
                 return CallToolResult(
                     isError=False,
                     content=[
@@ -450,7 +450,7 @@ class K8sHandler:
                 operation=operation,
                 resource=resource_data,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -592,7 +592,7 @@ class K8sHandler:
                 count=len(summaries),
                 items=summaries,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -752,7 +752,7 @@ class K8sHandler:
             data = GenerateAppManifestData(
                 output_file_path=output_file_path,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -942,7 +942,7 @@ class K8sHandler:
                 container_name=container_name,
                 log_lines=log_lines,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -1078,7 +1078,7 @@ class K8sHandler:
                 count=len(events),
                 events=event_items,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -1159,7 +1159,7 @@ class K8sHandler:
                 api_versions=api_versions,
                 count=len(api_versions),
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[

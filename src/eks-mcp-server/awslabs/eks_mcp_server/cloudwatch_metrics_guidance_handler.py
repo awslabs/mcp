@@ -130,7 +130,7 @@ class CloudWatchMetricsHandler:
             resource_type=resource_type_lower,
             metrics=metrics,
         )
-        
+
         return CallToolResult(
             isError=False,
             content=[

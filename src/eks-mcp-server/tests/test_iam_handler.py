@@ -157,7 +157,7 @@ async def test_get_policies_for_role(mock_create_client):
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    
+
     # Parse JSON data from content
     data = json.loads(result.content[1].text)
     assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
@@ -265,7 +265,7 @@ async def test_add_inline_policy_new_policy(mock_create_client):
         'Successfully created new inline policy test-inline-policy in role test-role'
         in result.content[0].text
     )
-    
+
     # Parse JSON data from content
     data = json.loads(result.content[1].text)
     assert data['policy_name'] == 'test-inline-policy'
@@ -327,7 +327,7 @@ async def test_add_inline_policy_multiple_statements(mock_create_client):
         'Successfully created new inline policy test-inline-policy in role test-role'
         in result.content[0].text
     )
-    
+
     # Parse JSON data from content
     data = json.loads(result.content[1].text)
     assert data['policy_name'] == 'test-inline-policy'
@@ -423,7 +423,7 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    
+
     # Parse JSON data from content
     data = json.loads(result.content[1].text)
     assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
@@ -526,7 +526,7 @@ async def test_get_managed_policies_error(mock_create_client):
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    
+
     # Parse JSON data from content
     data = json.loads(result.content[1].text)
     assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
@@ -534,7 +534,9 @@ async def test_get_managed_policies_error(mock_create_client):
     assert len(data['managed_policies']) == 1
     assert data['managed_policies'][0]['policy_type'] == 'Managed'
     assert data['managed_policies'][0]['description'] == 'Policy for EKS clusters'
-    assert data['managed_policies'][0]['policy_document'] is None  # Should be None due to the error
+    assert (
+        data['managed_policies'][0]['policy_document'] is None
+    )  # Should be None due to the error
     assert data['inline_policies'] == []
 
 

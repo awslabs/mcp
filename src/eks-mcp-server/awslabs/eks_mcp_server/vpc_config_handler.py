@@ -383,7 +383,7 @@ class VpcConfigHandler:
                     subnets=subnets,
                     cluster_name=cluster_name,
                 )
-                
+
                 return CallToolResult(
                     isError=False,
                     content=[

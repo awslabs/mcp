@@ -34,9 +34,8 @@ from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     ManageEksStacksData,
 )
-from mcp.types import CallToolResult
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional, Tuple
 
@@ -312,7 +311,7 @@ class EksStackHandler:
                 template_path=template_path,
                 cluster_name=cluster_name,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -412,7 +411,7 @@ class EksStackHandler:
                 stack_id=response['StackId'],
                 cluster_name=cluster_name,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -500,7 +499,7 @@ class EksStackHandler:
                 stack_status=stack_status,
                 outputs=outputs,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[
@@ -580,7 +579,7 @@ class EksStackHandler:
                 stack_id=stack_id,
                 cluster_name=cluster_name,
             )
-            
+
             return CallToolResult(
                 isError=False,
                 content=[

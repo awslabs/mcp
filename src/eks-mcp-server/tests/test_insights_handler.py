@@ -132,7 +132,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['cluster_name'] == 'test-cluster'
@@ -184,7 +184,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['cluster_name'] == 'test-cluster'
@@ -243,7 +243,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['cluster_name'] == 'test-cluster'
@@ -287,7 +287,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['cluster_name'] == 'test-cluster'
@@ -344,7 +344,7 @@ class TestInsightsHandler:
 
         # Verify appropriate empty response (not an error)
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert data['cluster_name'] == 'test-cluster'
@@ -418,7 +418,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert len(data['insights']) == 2
@@ -442,7 +442,7 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        
+
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
         assert len(data['insights']) == 1

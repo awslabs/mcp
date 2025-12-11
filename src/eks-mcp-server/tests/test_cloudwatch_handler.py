@@ -210,7 +210,7 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['resource_type'] == 'pod'
@@ -276,12 +276,14 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert len(data['log_entries']) == 1
                 assert data['log_entries'][0]['timestamp'] == '2025-01-01 12:00:00.000'
-                assert data['log_entries'][0]['message'] == 'ERROR: Test log message 1 for test-pod'
+                assert (
+                    data['log_entries'][0]['message'] == 'ERROR: Test log message 1 for test-pod'
+                )
                 assert data['log_entries'][0]['level'] == 'ERROR'
 
     @pytest.mark.asyncio
@@ -323,7 +325,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['log_type'] == 'control-plane'
@@ -377,7 +379,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['resource_type'] == 'cluster'
@@ -425,7 +427,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['log_type'] == '/custom/log/group'
@@ -481,7 +483,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['resource_type'] == 'pod'
@@ -639,7 +641,7 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['metric_name'] == 'cpu_usage_total'
@@ -718,7 +720,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['metric_name'] == 'memory_utilization'
@@ -810,7 +812,7 @@ class TestCloudWatchHandler:
                 assert not result.isError
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved 0 metric data points' in result.content[0].text
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['metric_name'] == 'cpu_usage_total'
@@ -906,7 +908,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert data['metric_name'] == 'network_rx_bytes'
@@ -956,7 +958,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert len(data['log_entries']) == 1
@@ -1009,7 +1011,7 @@ class TestCloudWatchHandler:
 
                 # Verify the result
                 assert not result.isError
-                
+
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
                 assert len(data['log_entries']) == 1

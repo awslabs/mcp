@@ -20,9 +20,8 @@ import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import CloudWatchLogsData, CloudWatchMetricsData
-from mcp.types import CallToolResult
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Optional, Union
 
@@ -272,7 +271,7 @@ class CloudWatchHandler:
                 end_time=end_dt.isoformat(),
                 log_entries=log_entries,
             )
-            
+
             # Return CallToolResult with structured content
             return CallToolResult(
                 isError=False,
@@ -489,7 +488,7 @@ class CloudWatchHandler:
                 end_time=end_dt.isoformat(),
                 data_points=data_points,
             )
-            
+
             # Return CallToolResult with structured content
             return CallToolResult(
                 isError=False,
