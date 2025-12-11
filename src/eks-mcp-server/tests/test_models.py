@@ -48,7 +48,7 @@ class TestApplyYamlData:
 
     def test_apply_yaml_data_with_defaults(self):
         """Test that ApplyYamlData can be created with default values."""
-        data = ApplyYamlData()
+        data = ApplyYamlData(force_applied=False, resources_created=0, resources_updated=0)
         assert data.force_applied is False
         assert data.resources_created == 0
         assert data.resources_updated == 0

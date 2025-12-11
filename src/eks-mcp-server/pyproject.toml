@@ -104,6 +104,7 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+reportAttributeAccessIssue = false
 
 [tool.commitizen]
 name = "cz_conventional_commits"

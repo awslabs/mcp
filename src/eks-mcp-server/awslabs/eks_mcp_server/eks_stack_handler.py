@@ -310,6 +310,11 @@ class EksStackHandler:
                 operation=GENERATE_OPERATION,
                 template_path=template_path,
                 cluster_name=cluster_name,
+                stack_name='',
+                stack_id='',
+                stack_arn='',
+                creation_time='',
+                stack_status='',
             )
 
             return CallToolResult(
@@ -410,6 +415,9 @@ class EksStackHandler:
                 stack_arn=response['StackId'],
                 stack_id=response['StackId'],
                 cluster_name=cluster_name,
+                template_path='',
+                creation_time='',
+                stack_status='',
             )
 
             return CallToolResult(
@@ -498,6 +506,8 @@ class EksStackHandler:
                 creation_time=creation_time,
                 stack_status=stack_status,
                 outputs=outputs,
+                template_path='',
+                stack_arn='',
             )
 
             return CallToolResult(
@@ -578,6 +588,10 @@ class EksStackHandler:
                 stack_name=stack_name,
                 stack_id=stack_id,
                 cluster_name=cluster_name,
+                template_path='',
+                stack_arn='',
+                creation_time='',
+                stack_status='',
             )
 
             return CallToolResult(
