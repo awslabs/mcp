@@ -3,6 +3,7 @@
 import json
 import os
 import pytest
+import subprocess
 from awslabs.terraform_mcp_server.impl.tools.run_checkov_scan import (
     _clean_output_text,
     _parse_checkov_json_output,
@@ -342,3 +343,78 @@ async def test_run_checkov_scan_exception_handling(temp_terraform_dir):
             assert result.status == 'error'
             assert result.error_message == 'Command execution failed'
             assert result.working_directory == temp_terraform_dir
+
+
+@pytest.mark.asyncio
+async def test_run_checkov_scan_checkov_not_found_install_success(temp_terraform_dir):
+    """Test running Checkov scan when checkov is not found but install succeeds."""
+    # Create the request with all required parameters
+    request = CheckovScanRequest(
+        working_directory=temp_terraform_dir,
+        framework='terraform',
+        output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
+    )
+
+    # Create a mock subprocess.run result for the actual scan
+    mock_scan_result = MagicMock()
+    mock_scan_result.returncode = 0
+    mock_scan_result.stdout = json.dumps(
+        {'results': {'failed_checks': []}, 'summary': {'passed': 1, 'failed': 0, 'skipped': 0}}
+    )
+    mock_scan_result.stderr = ''
+
+    # Create a mock subprocess.run result for pip install
+    mock_install_result = MagicMock()
+    mock_install_result.returncode = 0
+
+    # Mock subprocess.run with side_effect to handle multiple calls
+    with patch('subprocess.run') as mock_run:
+        # First call (checkov --version) raises FileNotFoundError
+        # Second call (pip install) succeeds
+        # Third call (actual scan) succeeds
+        mock_run.side_effect = [
+            FileNotFoundError(),
+            mock_install_result,  # pip install success
+            mock_scan_result,  # checkov scan
+        ]
+
+        # Call the function
+        result = await run_checkov_scan_impl(request)
+
+        # Check the result
+        assert result.status == 'success'
+        assert result.summary['passed'] == 1
+        assert mock_run.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_run_checkov_scan_checkov_not_found_install_fails(temp_terraform_dir):
+    """Test running Checkov scan when checkov is not found and install fails."""
+    # Create the request with all required parameters
+    request = CheckovScanRequest(
+        working_directory=temp_terraform_dir,
+        framework='terraform',
+        output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
+    )
+
+    # Mock subprocess.run with side_effect to handle multiple calls
+    with patch('subprocess.run') as mock_run:
+        # First call (checkov --version) raises FileNotFoundError
+        # Second call (pip install) raises CalledProcessError
+        mock_run.side_effect = [
+            FileNotFoundError(),
+            subprocess.CalledProcessError(1, 'pip install checkov'),
+        ]
+
+        # Call the function
+        result = await run_checkov_scan_impl(request)
+
+        # Check the result
+        assert result.status == 'error'
+        assert result.error_message is not None
+        assert 'Failed to install Checkov' in result.error_message
+        assert mock_run.call_count == 2
