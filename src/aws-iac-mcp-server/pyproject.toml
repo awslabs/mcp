@@ -5,7 +5,7 @@ description = "An Infrastructure as Code MCP server that provides CloudFormation
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "cfn-lint>=0.83.0",
     "boto3>=1.40.76",

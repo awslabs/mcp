@@ -5,7 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for terraform"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "requests>=2.31.0",
     "beautifulsoup4>=4.12.0",
