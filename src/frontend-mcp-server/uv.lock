@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-frontend-mcp-server"
-version = "1.0.6"
+version = "1.0.7"
 source = { editable = "." }
 dependencies = [
     { name = "loguru" },

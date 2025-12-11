@@ -193,7 +193,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-terraform-mcp-server"
-version = "1.0.9"
+version = "1.0.10"
 source = { editable = "." }
 dependencies = [
     { name = "asteval" },
@@ -2220,7 +2220,7 @@ name = "pyston-autoload"
 version = "2.3.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyston" },
+    { name = "pyston", marker = "python_full_version < '3.14' or platform_python_implementation == 'PyPy'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/46/e1/c7c423410da814acb78d15fd37a6c1de4b8dcfc8fa5c8c048cd1ba697f41/pyston_autoload-2.3.5-cp310-cp310-macosx_10_16_x86_64.whl", hash = "sha256:50c5d2e2855a542f9e427601ed1cc94aa1ff82937c001e5765f4db67af8a309a", size = 1550, upload-time = "2022-09-26T19:24:57.821Z" },

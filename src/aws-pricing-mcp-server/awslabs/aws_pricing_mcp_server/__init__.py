@@ -13,4 +13,4 @@
 # limitations under the License.
 """awslabs.aws-pricing-mcp-server"""
 
-__version__ = '1.0.19'
+__version__ = '1.0.20'
