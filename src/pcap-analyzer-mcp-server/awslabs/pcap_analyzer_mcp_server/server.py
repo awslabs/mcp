@@ -636,7 +636,7 @@ class PCAPAnalyzerServer:
             # Security: Validate wireshark path is safe
             if not WIRESHARK_PATH or not isinstance(WIRESHARK_PATH, str):
                 raise ValueError("Invalid WIRESHARK_PATH configuration")
-            
+
             # Security: Sanitize command arguments
             safe_args = []
             for arg in args:
@@ -646,7 +646,7 @@ class PCAPAnalyzerServer:
                 if any(char in arg for char in [';', '&', '|', '`', '$']):
                     raise ValueError(f"Potentially unsafe argument: {arg}")
                 safe_args.append(arg)
-            
+
             cmd = [WIRESHARK_PATH] + safe_args
             result = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -665,11 +665,11 @@ class PCAPAnalyzerServer:
         # Security: Validate file extension first
         if not pcap_file.endswith('.pcap'):
             raise ValueError("Only .pcap files are allowed")
-        
-        # Security: Prevent path traversal attacks  
+
+        # Security: Prevent path traversal attacks
         if '../' in pcap_file or '/..' in pcap_file:
             raise ValueError("Path traversal patterns not allowed")
-            
+
         # Security: Only allow safe characters in filename
         import string
         allowed_chars = string.ascii_letters + string.digits + '.-_/'
@@ -682,7 +682,7 @@ class PCAPAnalyzerServer:
             storage_path = os.path.join(PCAP_STORAGE_DIR, pcap_file)
             if os.path.exists(storage_path):
                 return storage_path
-            
+
             # Check current directory (only for .pcap files)
             if os.path.exists(pcap_file):
                 return os.path.realpath(pcap_file)
