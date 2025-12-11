@@ -41,9 +41,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class CrawlerHandler:
@@ -114,17 +114,7 @@ class CrawlerHandler:
                 description='Tags to filter crawlers by for list-crawlers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateCrawlerResponse,
-        DeleteCrawlerResponse,
-        GetCrawlerResponse,
-        GetCrawlersResponse,
-        StartCrawlerResponse,
-        StopCrawlerResponse,
-        BatchGetCrawlersResponse,
-        ListCrawlersResponse,
-        UpdateCrawlerResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue crawlers to discover and catalog data sources.
 
         This tool provides comprehensive operations for AWS Glue crawlers, which automatically discover and catalog
@@ -571,13 +561,7 @@ class CrawlerHandler:
                 description='Pagination token for get-classifiers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateClassifierResponse,
-        DeleteClassifierResponse,
-        GetClassifierResponse,
-        GetClassifiersResponse,
-        UpdateClassifierResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue classifiers to determine data formats and schemas.
 
         This tool provides operations for AWS Glue classifiers, which help determine the schema of your data.
@@ -871,12 +855,7 @@ class CrawlerHandler:
                 description='Cron expression for the crawler schedule (required for update-crawler-schedule operation).',
             ),
         ] = None,
-    ) -> Union[
-        GetCrawlerMetricsResponse,
-        StartCrawlerScheduleResponse,
-        StopCrawlerScheduleResponse,
-        UpdateCrawlerScheduleResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue crawler schedules and monitor performance metrics.
 
         This tool provides operations for controlling crawler schedules and retrieving performance metrics.

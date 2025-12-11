@@ -33,9 +33,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2InstanceHandler:
@@ -138,15 +138,7 @@ class EMREc2InstanceHandler:
                 description='Pagination token for list operations.',
             ),
         ] = None,
-    ) -> Union[
-        AddInstanceFleetResponse,
-        AddInstanceGroupsResponse,
-        ModifyInstanceFleetResponse,
-        ModifyInstanceGroupsResponse,
-        ListInstanceFleetsResponse,
-        ListInstancesResponse,
-        ListSupportedInstanceTypesResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 instances with both read and write operations.
 
         This tool provides comprehensive operations for managing Amazon EMR EC2 instances,

@@ -32,9 +32,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class GlueInteractiveSessionsHandler:
@@ -168,13 +168,7 @@ class GlueInteractiveSessionsHandler:
                 description='Pagination token for list-sessions operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateSessionResponse,
-        DeleteSessionResponse,
-        GetSessionResponse,
-        ListSessionsResponse,
-        StopSessionResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Interactive Sessions for running Spark and Ray workloads.
 
         This tool provides operations for creating and managing Glue Interactive Sessions, which
@@ -558,12 +552,7 @@ class GlueInteractiveSessionsHandler:
                 description='Pagination token for list-statements operation.',
             ),
         ] = None,
-    ) -> Union[
-        RunStatementResponse,
-        CancelStatementResponse,
-        GetStatementResponse,
-        ListStatementsResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue Interactive Session Statements for executing code and retrieving results.
 
         This tool provides operations for executing code, canceling running statements, and retrieving

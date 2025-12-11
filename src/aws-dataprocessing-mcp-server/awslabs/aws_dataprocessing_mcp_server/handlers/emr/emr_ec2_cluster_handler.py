@@ -36,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, Content, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2ClusterHandler:
@@ -325,18 +325,7 @@ class EMREc2ClusterHandler:
                 description='JSON format security configuration (required for create-security-configuration).',
             ),
         ] = None,
-    ) -> Union[
-        CreateClusterResponse,
-        DescribeClusterResponse,
-        ModifyClusterResponse,
-        ModifyClusterAttributesResponse,
-        TerminateClustersResponse,
-        ListClustersResponse,
-        CreateSecurityConfigurationResponse,
-        DeleteSecurityConfigurationResponse,
-        DescribeSecurityConfigurationResponse,
-        ListSecurityConfigurationsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 clusters with comprehensive control over cluster lifecycle.
 
         This tool provides operations for managing Amazon EMR clusters running on EC2 instances,

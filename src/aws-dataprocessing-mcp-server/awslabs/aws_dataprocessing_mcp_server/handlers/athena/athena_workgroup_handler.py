@@ -25,9 +25,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class AthenaWorkGroupHandler:
@@ -106,13 +106,7 @@ class AthenaWorkGroupHandler:
                 description='Pagination token for list-work-groups operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateWorkGroupResponse,
-        DeleteWorkGroupResponse,
-        GetWorkGroupResponse,
-        ListWorkGroupsResponse,
-        UpdateWorkGroupResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena workgroups with both read and write operations.
 
         This tool provides operations for managing Athena workgroups, including creating,

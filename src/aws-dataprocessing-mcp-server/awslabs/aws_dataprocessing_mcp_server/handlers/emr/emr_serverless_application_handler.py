@@ -32,9 +32,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, Content, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMRServerlessApplicationHandler:
@@ -224,15 +224,7 @@ class EMRServerlessApplicationHandler:
                 description='An optional filter for application states (optional for list-applications).',
             ),
         ] = None,
-    ) -> Union[
-        CreateApplicationResponse,
-        GetApplicationResponse,
-        UpdateApplicationResponse,
-        DeleteApplicationResponse,
-        ListApplicationsResponse,
-        StartApplicationResponse,
-        StopApplicationResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR Serverless applications with comprehensive control over application lifecycle.
 
         This tool provides operations for managing Amazon EMR Serverless applications,

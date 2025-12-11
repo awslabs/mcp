@@ -34,9 +34,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class GlueWorkflowAndTriggerHandler:
@@ -92,13 +92,7 @@ class GlueWorkflowAndTriggerHandler:
                 description='Pagination token for list-workflows operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateWorkflowResponse,
-        DeleteWorkflowResponse,
-        GetWorkflowResponse,
-        ListWorkflowsResponse,
-        StartWorkflowRunResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue workflows to orchestrate complex ETL activities.
 
         This tool allows you to create, delete, retrieve, list, and start AWS Glue workflows.
@@ -440,14 +434,7 @@ class GlueWorkflowAndTriggerHandler:
                 description='Pagination token for get-triggers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateTriggerResponse,
-        DeleteTriggerResponse,
-        GetTriggerResponse,
-        GetTriggersResponse,
-        StartTriggerResponse,
-        StopTriggerResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue triggers to automate workflow and job execution.
 
         This tool allows you to create, delete, retrieve, list, start, and stop AWS Glue triggers.

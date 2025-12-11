@@ -30,9 +30,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, Content, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMRServerlessJobRunHandler:
@@ -196,13 +196,7 @@ class EMRServerlessJobRunHandler:
                 description='Attempt number for dashboard (optional for get-dashboard-for-job-run).',
             ),
         ] = None,
-    ) -> Union[
-        StartJobRunResponse,
-        GetJobRunResponse,
-        CancelJobRunResponse,
-        ListJobRunsResponse,
-        GetDashboardForJobRunResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR Serverless job runs for executing data processing workloads.
 
         This tool provides operations for managing Amazon EMR Serverless job runs,

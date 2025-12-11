@@ -31,9 +31,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class AthenaDataCatalogHandler:
@@ -121,13 +121,7 @@ class AthenaDataCatalogHandler:
                 description='For delete-data-catalog operation, whether to delete only the Athena Data Catalog (true) or also its resources (false). Only applicable for FEDERATED catalogs.',
             ),
         ] = None,
-    ) -> Union[
-        CreateDataCatalogResponse,
-        DeleteDataCatalogResponse,
-        GetDataCatalogResponse,
-        ListDataCatalogsResponse,
-        UpdateDataCatalogResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena data catalogs with both read and write operations.
 
         This tool provides operations for managing Athena data catalogs, including creating,
@@ -480,12 +474,7 @@ class AthenaDataCatalogHandler:
                 description='The name of the workgroup (required if making an IAM Identity Center request).',
             ),
         ] = None,
-    ) -> Union[
-        GetDatabaseResponse,
-        GetTableMetadataResponse,
-        ListDatabasesResponse,
-        ListTableMetadataResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena databases and tables with read operations.
 
         This tool provides operations for retrieving information about databases and tables

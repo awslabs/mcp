@@ -35,9 +35,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class GlueCommonsHandler:
@@ -99,12 +99,7 @@ class GlueCommonsHandler:
                 description='Tags to apply to the usage profile (for create-profile operation).',
             ),
         ] = None,
-    ) -> Union[
-        CreateUsageProfileResponse,
-        DeleteUsageProfileResponse,
-        GetUsageProfileResponse,
-        UpdateUsageProfileResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Usage Profiles for resource allocation and cost management.
 
         This tool allows you to create, retrieve, update, and delete AWS Glue Usage Profiles, which define
@@ -389,11 +384,7 @@ class GlueCommonsHandler:
                 description='Encryption configuration for create-security-configuration operation, containing settings for S3, CloudWatch, and job bookmarks encryption.',
             ),
         ] = None,
-    ) -> Union[
-        CreateSecurityConfigurationResponse,
-        DeleteSecurityConfigurationResponse,
-        GetSecurityConfigurationResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Security Configurations for data encryption.
 
         This tool allows you to create, retrieve, and delete AWS Glue Security Configurations, which define
@@ -609,10 +600,7 @@ class GlueCommonsHandler:
                 description='Connection password encryption configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
             ),
         ] = None,
-    ) -> Union[
-        GetDataCatalogEncryptionSettingsResponse,
-        PutDataCatalogEncryptionSettingsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog Encryption Settings for data protection.
 
         This tool allows you to retrieve and update AWS Glue Data Catalog Encryption Settings, which control
@@ -779,11 +767,7 @@ class GlueCommonsHandler:
                 description='ARN of the Glue resource for the resource policy (optional).',
             ),
         ] = None,
-    ) -> Union[
-        GetResourcePolicyResponse,
-        PutResourcePolicyResponse,
-        DeleteResourcePolicyResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue Resource Policies for access control.
 
         This tool allows you to retrieve, create, update, and delete AWS Glue Resource Policies, which

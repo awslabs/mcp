@@ -36,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class GlueEtlJobsHandler:
@@ -159,20 +159,7 @@ class GlueEtlJobsHandler:
                 description='Whether to include predecessor runs in get-job-run operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateJobResponse,
-        DeleteJobResponse,
-        GetJobResponse,
-        GetJobsResponse,
-        StartJobRunResponse,
-        StopJobRunResponse,
-        UpdateJobResponse,
-        GetJobRunResponse,
-        GetJobRunsResponse,
-        BatchStopJobRunResponse,
-        GetJobBookmarkResponse,
-        ResetJobBookmarkResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue ETL jobs and job runs with both read and write operations.
 
         This tool provides comprehensive operations for managing AWS Glue ETL jobs and job runs,

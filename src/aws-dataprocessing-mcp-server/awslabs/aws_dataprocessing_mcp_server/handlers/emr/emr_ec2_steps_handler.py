@@ -33,9 +33,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2StepsHandler:
@@ -108,12 +108,7 @@ class EMREc2StepsHandler:
                 description='Option for canceling steps. Valid values: SEND_INTERRUPT, TERMINATE_PROCESS. Default is SEND_INTERRUPT.',
             ),
         ] = None,
-    ) -> Union[
-        AddStepsResponse,
-        CancelStepsResponse,
-        DescribeStepResponse,
-        ListStepsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 steps for processing data on EMR clusters.
 
         This tool provides comprehensive operations for managing EMR steps, which are units of work

@@ -36,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.sql_analyzer import SqlAnalyzer
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class AthenaQueryHandler:
@@ -142,15 +142,7 @@ class AthenaQueryHandler:
                 description='Type of query results to return: DATA_ROWS (default) or DATA_MANIFEST (optional for get-query-results).',
             ),
         ] = None,
-    ) -> Union[
-        BatchGetQueryExecutionResponse,
-        GetQueryExecutionResponse,
-        GetQueryResultsResponse,
-        GetQueryRuntimeStatisticsResponse,
-        ListQueryExecutionsResponse,
-        StartQueryExecutionResponse,
-        StopQueryExecutionResponse,
-    ]:
+    ) -> CallToolResult:
         """Execute and manage AWS Athena SQL queries.
 
         This tool provides comprehensive operations for AWS Athena query management, including
@@ -513,14 +505,7 @@ class AthenaQueryHandler:
                 description='Pagination token for list-named-queries operation.',
             ),
         ] = None,
-    ) -> Union[
-        BatchGetNamedQueryResponse,
-        CreateNamedQueryResponse,
-        DeleteNamedQueryResponse,
-        GetNamedQueryResponse,
-        ListNamedQueriesResponse,
-        UpdateNamedQueryResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage saved SQL queries in AWS Athena.
 
         This tool provides operations for creating, retrieving, updating, and deleting named queries
