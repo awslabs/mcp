@@ -265,11 +265,14 @@ async def semantic_search(
             results = []
             for doc in results_list:
                 if isinstance(doc, dict):
-                    results.append({
-                        "id": doc.get("id"),
-                        "title": doc.get("title", ""),
-                        "name": doc.get("name", "")
-                    })
+                    result = {}
+                    if 'id' in doc:
+                        result['id'] = doc['id']
+                    if 'title' in doc:
+                        result['title'] = doc['title']
+                    if 'name' in doc:
+                        result['name'] = doc['name']
+                    results.append(result)
                 else:
                     # Handle unexpected format
                     return {

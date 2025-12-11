@@ -117,3 +117,33 @@ class TestSemanticSearchUnit:
         assert embedding1 == embedding2
         assert len(embedding1) == 128
         assert all(-1.0 <= val <= 1.0 for val in embedding1)
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_include_content_false(self, mock_connection, dummy_embeddings):
+        """Test semantic search with include_content=False."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.vector_search') as mock_vector_search:
+                mock_vector_search.return_value = {
+                    'status': 'success',
+                    'results': [
+                        {'id': 'doc1', 'my-shoe': 'is missing'}  # No content field
+                    ]
+                }
+                
+                # Execute semantic search with include_content=False
+                result = await semantic_search(
+                    collection="test_collection",
+                    query="test query",
+                    include_content=False
+                )
+                
+                # Verify results
+                assert result['status'] == 'success'
+                assert len(result['results']) == 1
+                assert result['results'][0]['id'] == 'doc1'
+                assert 'my-shoe' not in result['results'][0]
+                
+                # Verify vector_search was called with no_content=True
+                mock_vector_search.assert_called_once()
+                call_args = mock_vector_search.call_args
+                assert call_args[1]['no_content'] == True
