@@ -474,7 +474,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_extract_http_requests_individual(self, mock_tshark, mock_resolve):
         """Individual test for extract_http_requests."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'GET /api HTTP/1.1'
         result = asyncio.run(self.server._extract_http_requests('test.pcap', limit=100))
         assert len(result) == 1
@@ -484,7 +484,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_generate_traffic_timeline_individual(self, mock_tshark, mock_resolve):
         """Individual test for generate_traffic_timeline."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'timeline data'
         result = asyncio.run(self.server._generate_traffic_timeline('test.pcap', time_interval=60))
         assert len(result) == 1
@@ -494,7 +494,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_search_packet_content_individual(self, mock_tshark, mock_resolve):
         """Individual test for search_packet_content."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'packet data'
         result = asyncio.run(
             self.server._search_packet_content('test.pcap', 'HTTP', case_sensitive=True)
@@ -506,7 +506,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_analyze_network_performance_individual(self, mock_tshark, mock_resolve):
         """Individual test for analyze_network_performance."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'performance data'
         result = asyncio.run(self.server._analyze_network_performance('test.pcap'))
         assert len(result) == 1
@@ -516,7 +516,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_analyze_network_latency_individual(self, mock_tshark, mock_resolve):
         """Individual test for analyze_network_latency."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'latency data'
         result = asyncio.run(self.server._analyze_network_latency('test.pcap'))
         assert len(result) == 1
@@ -526,7 +526,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_analyze_tls_handshakes_individual(self, mock_tshark, mock_resolve):
         """Individual test for analyze_tls_handshakes."""
-        mock_resolve.return_value = '/tmp/test.pcap'
+        mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'tls handshake data'
         result = asyncio.run(self.server._analyze_tls_handshakes('test.pcap'))
         assert len(result) == 1
