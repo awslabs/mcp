@@ -534,8 +534,8 @@ class TestModuleCoverage:
         # tests/__init__.py just has comments, but import covers it
 
 
-class TestMaximumCoverageConsolidated:
-    """Consolidated comprehensive tests targeting 89.92% codecov/patch in one file."""
+class TestNetworkAnalysisToolsExpanded:
+    """Expanded network analysis tools tests for CI compatibility."""
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -543,11 +543,12 @@ class TestMaximumCoverageConsolidated:
 
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
-    async def test_all_31_tools_complete_coverage(self, mock_tshark, mock_resolve):
-        """Test ALL 31 tools comprehensively to maximize diff coverage."""
+    def test_all_31_tools_complete_coverage_sync(self, mock_tshark, mock_resolve):
+        """Test ALL 31 tools synchronously for CI compatibility."""
+        import asyncio
         mock_resolve.return_value = '/tmp/test.pcap'
         mock_tshark.return_value = 'tool output data'
-
+        
         # All 31 tools with comprehensive parameter testing
         all_tools_comprehensive = [
             ('_list_network_interfaces', {}),
@@ -593,12 +594,12 @@ class TestMaximumCoverageConsolidated:
             ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'custom'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'test.pcap'}),
         ]
-
+        
         # Execute each tool variation to maximize code path coverage
         for tool_name, args in all_tools_comprehensive:
             if hasattr(self.server, tool_name):
                 method = getattr(self.server, tool_name)
-                result = await method(**args)
+                result = asyncio.run(method(**args))
                 assert len(result) == 1
                 assert isinstance(result[0], TextContent)
                 # Verify response has content
@@ -606,11 +607,12 @@ class TestMaximumCoverageConsolidated:
 
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
-    async def test_all_error_handling_comprehensive(self, mock_tshark, mock_resolve):
-        """Test error handling in all tools for maximum coverage."""
+    def test_all_error_handling_comprehensive_sync(self, mock_tshark, mock_resolve):
+        """Test error handling in all tools for maximum coverage - sync version."""
+        import asyncio
         # Test with FileNotFoundError to trigger error paths in all tools
         mock_resolve.side_effect = FileNotFoundError('Test file not found')
-
+        
         error_test_tools = [
             ('_extract_http_requests', {'pcap_file': 'missing.pcap'}),
             ('_generate_traffic_timeline', {'pcap_file': 'missing.pcap'}),
@@ -639,11 +641,11 @@ class TestMaximumCoverageConsolidated:
             ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
         ]
-
+        
         # Test each tool's error handling to cover exception paths
         for tool_name, args in error_test_tools:
             method = getattr(self.server, tool_name)
-            result = await method(**args)
+            result = asyncio.run(method(**args))
             assert len(result) == 1
             assert isinstance(result[0], TextContent)
             assert 'Error' in result[0].text
