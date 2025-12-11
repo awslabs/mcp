@@ -10,8 +10,16 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
-from awslabs.aws_api_mcp_server.server import call_aws, call_aws_helper, main, suggest_aws_commands, setup_server_config
-from awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware import HTTPHeaderValidationMiddleware
+from awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware import (
+    HTTPHeaderValidationMiddleware,
+)
+from awslabs.aws_api_mcp_server.server import (
+    call_aws,
+    call_aws_helper,
+    main,
+    setup_server_config,
+    suggest_aws_commands,
+)
 from botocore.exceptions import NoCredentialsError
 from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.elicitation import AcceptedElicitation
@@ -1121,7 +1129,9 @@ def test_setup_server_config_streamable_http_non_oauth():
 @patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', 'https://example.com/jwks')
 def test_setup_server_config_oauth_missing_issuer():
     """Test setup_server_config raises ValueError when AUTH_ISSUER is missing for oauth."""
-    with pytest.raises(ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'):
+    with pytest.raises(
+        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+    ):
         setup_server_config()
 
 
@@ -1131,7 +1141,9 @@ def test_setup_server_config_oauth_missing_issuer():
 @patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', None)
 def test_setup_server_config_oauth_missing_jwks_uri():
     """Test setup_server_config raises ValueError when AUTH_JWKS_URI is missing for oauth."""
-    with pytest.raises(ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'):
+    with pytest.raises(
+        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+    ):
         setup_server_config()
 
 
@@ -1141,7 +1153,9 @@ def test_setup_server_config_oauth_missing_jwks_uri():
 @patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', None)
 def test_setup_server_config_oauth_missing_both():
     """Test setup_server_config raises ValueError when both AUTH_ISSUER and AUTH_JWKS_URI are missing for oauth."""
-    with pytest.raises(ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'):
+    with pytest.raises(
+        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+    ):
         setup_server_config()
 
 
