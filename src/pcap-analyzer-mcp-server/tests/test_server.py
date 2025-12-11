@@ -17,12 +17,12 @@
 import asyncio
 import json
 import os
+import pytest
 import tempfile
-from awslabs.pcap_analyzer_mcp_server.server import PCAPAnalyzerServer, main, active_captures
+from awslabs.pcap_analyzer_mcp_server.server import PCAPAnalyzerServer, active_captures, main
 from mcp.types import TextContent
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
 
 
 class TestPCAPAnalyzerServerCore:
@@ -199,7 +199,6 @@ class TestNetworkAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
     def test_mega_comprehensive_coverage_sync(self, mock_resolve, mock_tshark):
         """MEGA-TEST: All 47+ tool tests in single method CI cannot miss."""
-        
         # Setup bulletproof mocking
         mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'mocked comprehensive output'
@@ -220,13 +219,26 @@ class TestNetworkAnalysisTools:
             ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 30}),
             ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 300}),
             ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'test'}),
-            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'GET', 'case_sensitive': True}),
-            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'post', 'case_sensitive': False}),
+            (
+                '_search_packet_content',
+                {'pcap_file': 'test.pcap', 'search_pattern': 'GET', 'case_sensitive': True},
+            ),
+            (
+                '_search_packet_content',
+                {'pcap_file': 'test.pcap', 'search_pattern': 'post', 'case_sensitive': False},
+            ),
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap'}),
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'summary'}),
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'protocols'}),
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'conversations'}),
-            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'custom', 'display_filter': 'tcp.port == 80'}),
+            (
+                '_analyze_pcap_file',
+                {
+                    'pcap_file': 'test.pcap',
+                    'analysis_type': 'custom',
+                    'display_filter': 'tcp.port == 80',
+                },
+            ),
             # Network Performance Analysis
             ('_analyze_network_performance', {'pcap_file': 'test.pcap'}),
             ('_analyze_network_latency', {'pcap_file': 'test.pcap'}),
@@ -249,7 +261,10 @@ class TestNetworkAnalysisTools:
             ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Chat'}),
             ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Note'}),
             ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Warn'}),
-            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Error'}),
+            (
+                '_analyze_expert_information',
+                {'pcap_file': 'test.pcap', 'severity_filter': 'Error'},
+            ),
             ('_analyze_protocol_anomalies', {'pcap_file': 'test.pcap'}),
             ('_analyze_network_topology', {'pcap_file': 'test.pcap'}),
             ('_analyze_security_threats', {'pcap_file': 'test.pcap'}),
@@ -261,10 +276,19 @@ class TestNetworkAnalysisTools:
             ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 10}),
             ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 60}),
             ('_analyze_application_response_times', {'pcap_file': 'test.pcap'}),
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'http'}),
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'https'}),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'http'},
+            ),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'https'},
+            ),
             ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'dns'}),
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'custom'}),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'custom'},
+            ),
             ('_analyze_network_quality_metrics', {'pcap_file': 'test.pcap'}),
         ]
 
@@ -276,7 +300,7 @@ class TestNetworkAnalysisTools:
                 assert len(result) == 1
                 assert isinstance(result[0], TextContent)
                 assert result[0].text.strip()  # Verify non-empty response
-                
+
         # ERROR HANDLING MEGA-TEST - Cover all exception paths
         mock_resolve.side_effect = FileNotFoundError('Test file not found')
         error_tools = [
@@ -307,7 +331,7 @@ class TestNetworkAnalysisTools:
             ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
         ]
-        
+
         # Reset mock for error testing
         mock_resolve.side_effect = FileNotFoundError('File not found')
         for tool_name, args in error_tools:
@@ -323,35 +347,60 @@ class TestNetworkAnalysisTools:
         """Test comprehensive tool variations - sync version for CI compatibility."""
         mock_resolve.return_value = 'test.pcap'
         mock_tshark.return_value = 'mocked comprehensive output'
-        
-        # Test parameter variations for better coverage  
+
+        # Test parameter variations for better coverage
         comprehensive_variations = [
             # Analyze PCAP file with all analysis types
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'summary'}),
-            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'protocols'}), 
+            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'protocols'}),
             ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'conversations'}),
-            ('_analyze_pcap_file', {'pcap_file': 'test.pcap', 'analysis_type': 'custom', 'display_filter': 'tcp.port == 80'}),
+            (
+                '_analyze_pcap_file',
+                {
+                    'pcap_file': 'test.pcap',
+                    'analysis_type': 'custom',
+                    'display_filter': 'tcp.port == 80',
+                },
+            ),
             # HTTP requests with different limits
             ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 10}),
             ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 50}),
             ('_extract_http_requests', {'pcap_file': 'test.pcap', 'limit': 200}),
-            # Traffic timeline with different intervals  
+            # Traffic timeline with different intervals
             ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 1}),
             ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 30}),
             ('_generate_traffic_timeline', {'pcap_file': 'test.pcap', 'time_interval': 300}),
             # Search with case sensitivity variations
-            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'GET', 'case_sensitive': True}),
-            ('_search_packet_content', {'pcap_file': 'test.pcap', 'search_pattern': 'post', 'case_sensitive': False}),
+            (
+                '_search_packet_content',
+                {'pcap_file': 'test.pcap', 'search_pattern': 'GET', 'case_sensitive': True},
+            ),
+            (
+                '_search_packet_content',
+                {'pcap_file': 'test.pcap', 'search_pattern': 'post', 'case_sensitive': False},
+            ),
             # Expert information with severity filters
             ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Chat'}),
-            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Note'}), 
+            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Note'}),
             ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Warn'}),
-            ('_analyze_expert_information', {'pcap_file': 'test.pcap', 'severity_filter': 'Error'}),
+            (
+                '_analyze_expert_information',
+                {'pcap_file': 'test.pcap', 'severity_filter': 'Error'},
+            ),
             # Application response times with different protocols
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'http'}),
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'https'}),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'http'},
+            ),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'https'},
+            ),
             ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'dns'}),
-            ('_analyze_application_response_times', {'pcap_file': 'test.pcap', 'protocol': 'custom'}),
+            (
+                '_analyze_application_response_times',
+                {'pcap_file': 'test.pcap', 'protocol': 'custom'},
+            ),
             # Throughput with different time intervals
             ('_generate_throughput_io_graph', {'pcap_file': 'test.pcap', 'time_interval': 5}),
             ('_generate_throughput_io_graph', {'pcap_file': 'test.pcap', 'time_interval': 60}),
@@ -359,7 +408,7 @@ class TestNetworkAnalysisTools:
             ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 10}),
             ('_analyze_bandwidth_utilization', {'pcap_file': 'test.pcap', 'time_window': 60}),
         ]
-        
+
         # Execute comprehensive variations to cover more code paths
         for tool_name, args in comprehensive_variations:
             method = getattr(self.server, tool_name)
@@ -374,7 +423,7 @@ class TestNetworkAnalysisTools:
         """Test error handling in network analysis tools - sync version for CI compatibility."""
         # Test with different exception types to cover error handling lines
         mock_resolve.side_effect = FileNotFoundError('File not found')
-        
+
         # Test error paths for each tool category to cover exception handling
         error_test_tools = [
             ('_extract_http_requests', {'pcap_file': 'missing.pcap'}),
@@ -404,7 +453,7 @@ class TestNetworkAnalysisTools:
             ('_analyze_application_response_times', {'pcap_file': 'missing.pcap'}),
             ('_analyze_network_quality_metrics', {'pcap_file': 'missing.pcap'}),
         ]
-        
+
         # Test error handling in each tool to cover exception blocks
         for tool_name, args in error_test_tools:
             method = getattr(self.server, tool_name)
@@ -447,7 +496,9 @@ class TestIndividualAnalysisTools:
         """Individual test for search_packet_content."""
         mock_resolve.return_value = '/tmp/test.pcap'
         mock_tshark.return_value = 'packet data'
-        result = asyncio.run(self.server._search_packet_content('test.pcap', 'HTTP', case_sensitive=True))
+        result = asyncio.run(
+            self.server._search_packet_content('test.pcap', 'HTTP', case_sensitive=True)
+        )
         assert len(result) == 1
         assert isinstance(result[0], TextContent)
 
@@ -474,7 +525,7 @@ class TestIndividualAnalysisTools:
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
     def test_analyze_tls_handshakes_individual(self, mock_tshark, mock_resolve):
-        """Individual test for analyze_tls_handshakes.""" 
+        """Individual test for analyze_tls_handshakes."""
         mock_resolve.return_value = '/tmp/test.pcap'
         mock_tshark.return_value = 'tls handshake data'
         result = asyncio.run(self.server._analyze_tls_handshakes('test.pcap'))
@@ -485,11 +536,13 @@ class TestIndividualAnalysisTools:
     def test_module_imports_1(self):
         """Test module imports 1."""
         import awslabs
+
         assert hasattr(awslabs, '__version__')
 
     def test_module_imports_2(self):
         """Test module imports 2."""
         import awslabs.pcap_analyzer_mcp_server
+
         assert hasattr(awslabs.pcap_analyzer_mcp_server, '__version__')
 
     def test_server_components_1(self):
@@ -507,6 +560,7 @@ class TestIndividualAnalysisTools:
     def test_global_variables_2(self):
         """Test global variables 2."""
         from awslabs.pcap_analyzer_mcp_server.server import logger
+
         assert logger is not None
 
     def test_path_operations_1(self):
@@ -526,57 +580,148 @@ class TestIndividualAnalysisTools:
 
     def test_async_operations(self):
         """Test async operations."""
+
         async def dummy():
             return True
+
         result = asyncio.run(dummy())
         assert result is True
 
     # Continue with more individual tests to reach exactly 83 tests
-    def test_coverage_1(self): assert True
-    def test_coverage_2(self): assert True
-    def test_coverage_3(self): assert True
-    def test_coverage_4(self): assert True
-    def test_coverage_5(self): assert True
-    def test_coverage_6(self): assert True
-    def test_coverage_7(self): assert True
-    def test_coverage_8(self): assert True
-    def test_coverage_9(self): assert True
-    def test_coverage_10(self): assert True
-    def test_coverage_11(self): assert True
-    def test_coverage_12(self): assert True
-    def test_coverage_13(self): assert True
-    def test_coverage_14(self): assert True
-    def test_coverage_15(self): assert True
-    def test_coverage_16(self): assert True
-    def test_coverage_17(self): assert True
-    def test_coverage_18(self): assert True
-    def test_coverage_19(self): assert True
-    def test_coverage_20(self): assert True
-    def test_coverage_21(self): assert True
-    def test_coverage_22(self): assert True
-    def test_coverage_23(self): assert True
-    def test_coverage_24(self): assert True
-    def test_coverage_25(self): assert True
-    def test_coverage_26(self): assert True
-    def test_coverage_27(self): assert True
-    def test_coverage_28(self): assert True
-    def test_coverage_29(self): assert True
-    def test_coverage_30(self): assert True
-    def test_coverage_31(self): assert True
-    def test_coverage_32(self): assert True
-    def test_coverage_33(self): assert True
-    def test_coverage_34(self): assert True
-    def test_coverage_35(self): assert True
-    def test_coverage_36(self): assert True
-    def test_coverage_37(self): assert True
-    def test_coverage_38(self): assert True
-    def test_coverage_39(self): assert True
-    def test_coverage_40(self): assert True
-    def test_coverage_41(self): assert True
-    def test_coverage_42(self): assert True
-    def test_coverage_43(self): assert True
-    def test_coverage_44(self): assert True
-    def test_coverage_45(self): assert True
+    def test_coverage_1(self):
+        assert True
+
+    def test_coverage_2(self):
+        assert True
+
+    def test_coverage_3(self):
+        assert True
+
+    def test_coverage_4(self):
+        assert True
+
+    def test_coverage_5(self):
+        assert True
+
+    def test_coverage_6(self):
+        assert True
+
+    def test_coverage_7(self):
+        assert True
+
+    def test_coverage_8(self):
+        assert True
+
+    def test_coverage_9(self):
+        assert True
+
+    def test_coverage_10(self):
+        assert True
+
+    def test_coverage_11(self):
+        assert True
+
+    def test_coverage_12(self):
+        assert True
+
+    def test_coverage_13(self):
+        assert True
+
+    def test_coverage_14(self):
+        assert True
+
+    def test_coverage_15(self):
+        assert True
+
+    def test_coverage_16(self):
+        assert True
+
+    def test_coverage_17(self):
+        assert True
+
+    def test_coverage_18(self):
+        assert True
+
+    def test_coverage_19(self):
+        assert True
+
+    def test_coverage_20(self):
+        assert True
+
+    def test_coverage_21(self):
+        assert True
+
+    def test_coverage_22(self):
+        assert True
+
+    def test_coverage_23(self):
+        assert True
+
+    def test_coverage_24(self):
+        assert True
+
+    def test_coverage_25(self):
+        assert True
+
+    def test_coverage_26(self):
+        assert True
+
+    def test_coverage_27(self):
+        assert True
+
+    def test_coverage_28(self):
+        assert True
+
+    def test_coverage_29(self):
+        assert True
+
+    def test_coverage_30(self):
+        assert True
+
+    def test_coverage_31(self):
+        assert True
+
+    def test_coverage_32(self):
+        assert True
+
+    def test_coverage_33(self):
+        assert True
+
+    def test_coverage_34(self):
+        assert True
+
+    def test_coverage_35(self):
+        assert True
+
+    def test_coverage_36(self):
+        assert True
+
+    def test_coverage_37(self):
+        assert True
+
+    def test_coverage_38(self):
+        assert True
+
+    def test_coverage_39(self):
+        assert True
+
+    def test_coverage_40(self):
+        assert True
+
+    def test_coverage_41(self):
+        assert True
+
+    def test_coverage_42(self):
+        assert True
+
+    def test_coverage_43(self):
+        assert True
+
+    def test_coverage_44(self):
+        assert True
+
+    def test_coverage_45(self):
+        assert True
 
 
 class TestMainFunction:
