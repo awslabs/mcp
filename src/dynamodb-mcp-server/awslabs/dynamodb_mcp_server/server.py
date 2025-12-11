@@ -130,11 +130,11 @@ async def source_db_analyzer(
         default='self_service',
         description="Execution mode: 'self_service' (user runs queries) or 'managed' (AWS RDS Data API connection).",
     ),
-    query_output_file: Optional[str] = Field(
+    queries_file_path: Optional[str] = Field(
         default=None,
         description='For self_service mode: Path where SQL queries will be written (e.g., ./query.sql)',
     ),
-    result_input_file: Optional[str] = Field(
+    query_result_file_path: Optional[str] = Field(
         default=None,
         description='For self_service mode: Path to file containing query results from user execution',
     ),
@@ -158,7 +158,7 @@ async def source_db_analyzer(
         default=None, description='AWS region (overrides AWS_REGION env var)'
     ),
     output_dir: str = Field(
-        description='Absolute directory path where the timestamped output analysis folder will be created. ALWAYS ask the user for this value or use their current working directory.'
+        description='Absolute directory path where the timestamped output analysis folder will be created. If unknown, prompt the user to provide a path or confirm using their current working directory.'
     ),
 ) -> str:
     """Analyzes source database to extract schema and access patterns for DynamoDB modeling.
@@ -182,21 +182,21 @@ async def source_db_analyzer(
     max_results = max_query_results or 500
 
     # Self-service mode - Step 1: Generate queries
-    if execution_mode == 'self_service' and query_output_file and not result_input_file:
+    if execution_mode == 'self_service' and queries_file_path and not query_result_file_path:
         try:
             return analyzer_utils.generate_query_file(
-                plugin, database_name, max_results, query_output_file, output_dir, source_db_type
+                plugin, database_name, max_results, queries_file_path, output_dir, source_db_type
             )
         except Exception as e:
             logger.error(f'Failed to write queries: {str(e)}')
             return f'Failed to write queries: {str(e)}'
 
     # Self-service mode - Step 2: Parse results and generate analysis
-    if execution_mode == 'self_service' and result_input_file:
+    if execution_mode == 'self_service' and query_result_file_path:
         try:
             return analyzer_utils.parse_results_and_generate_analysis(
                 plugin,
-                result_input_file,
+                query_result_file_path,
                 output_dir,
                 database_name,
                 pattern_analysis_days,
@@ -247,7 +247,7 @@ async def source_db_analyzer(
             return f'Analysis failed: {str(e)}'
 
     # Invalid mode combination
-    return 'Invalid parameter combination. For self-service mode, provide either query_output_file (to generate queries) or result_input_file (to parse results).'
+    return 'Invalid parameter combination. For self-service mode, provide either queries_file_path (to generate queries) or query_result_file_path (to parse results).'
 
 
 @app.tool()
