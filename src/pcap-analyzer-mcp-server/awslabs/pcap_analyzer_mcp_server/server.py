@@ -141,11 +141,11 @@ class PCAPAnalyzerServer:
                         'properties': {
                             'pcap_file': {
                                 'type': 'string',
-                                'description': 'Path to pcap file or filename in storage directory',
+                                'description': 'Path to pcap file or filename in storage',
                             },
                             'analysis_type': {
                                 'type': 'string',
-                                'description': 'Type of analysis (summary, protocols, conversations, security)',
+                                'description': 'Type of analysis (summary, protocols)',
                                 'default': 'summary',
                             },
                             'display_filter': {
@@ -381,7 +381,7 @@ class PCAPAnalyzerServer:
                 ),
                 Tool(
                     name='analyze_packet_timing_issues',
-                    description='Analyze packet timing issues including out-of-order and duplicate packets',
+                    description='Analyze packet timing issues and duplicate packets',
                     inputSchema={
                         'type': 'object',
                         'properties': {
@@ -542,7 +542,7 @@ class PCAPAnalyzerServer:
                 ),
                 Tool(
                     name='analyze_network_quality_metrics',
-                    description='Analyze network quality metrics including jitter, packet loss, and error rates',
+                    description='Analyze network quality metrics including jitter and packet loss',
                     inputSchema={
                         'type': 'object',
                         'properties': {
@@ -980,7 +980,7 @@ class PCAPAnalyzerServer:
 
     # TLS/SSL Analysis Methods
     async def _analyze_tls_handshakes(self, pcap_file: str) -> List[TextContent]:
-        """Analyze TLS handshakes including SNI, certificate details, and handshake success/failure."""
+        """Analyze TLS handshakes including SNI and certificate details."""
         try:
             pcap_path = self._resolve_pcap_path(pcap_file)
 
