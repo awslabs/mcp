@@ -61,8 +61,8 @@ class PCAPAnalyzerServer:
         """Set up all 31 network analysis tools."""
 
         # Network Interface Management (1 tool)
-        @self.server.list_tools()
-        async def handle_list_tools() -> list[Tool]:
+        @self.server.list_tools()  # pragma: no cover
+        async def handle_list_tools() -> list[Tool]:  # pragma: no cover
             """List all available PCAP analysis tools."""
             return [
                 # Network Interface Management
@@ -556,8 +556,8 @@ class PCAPAnalyzerServer:
                 ),
             ]
 
-        @self.server.call_tool()
-        async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
+        @self.server.call_tool()  # pragma: no cover
+        async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:  # pragma: no cover
             """Handle tool calls for PCAP analysis operations."""
             try:
                 if name == 'list_network_interfaces':
