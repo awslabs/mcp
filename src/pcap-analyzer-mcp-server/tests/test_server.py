@@ -342,17 +342,6 @@ class TestComprehensiveCoverage:
         assert len(result) == 1
         assert 'Error starting capture' in result[0].text
 
-            # Response should be either valid JSON or error message
-            if result[0].text.strip():  # Not empty
-                try:
-                    data = json.loads(result[0].text)
-                    assert isinstance(data, dict)
-                except json.JSONDecodeError:
-                    # If not JSON, should be error message
-                    assert (
-                        'error' in result[0].text.lower() or 'not found' in result[0].text.lower()
-                    )
-
 
 class TestAsyncOperations:
     """Test async operation handling."""
