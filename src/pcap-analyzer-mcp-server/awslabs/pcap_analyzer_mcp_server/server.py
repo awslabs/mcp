@@ -647,25 +647,35 @@ class PCAPAnalyzerServer:
             raise RuntimeError(f'Failed to execute tshark: {str(e)}')
 
     def _resolve_pcap_path(self, pcap_file: str) -> str:
-        """Resolve pcap file path, checking storage directory if needed."""
-        # Security: Prevent path traversal attacks
-        if '../' in pcap_file or pcap_file.startswith('/'):  # nosec B104
-            if not os.path.isabs(pcap_file):
-                raise ValueError("Path traversal detected in pcap_file")
+        """Resolve pcap file path with security validation."""
+        # Security: Validate file extension first
+        if not pcap_file.endswith('.pcap'):
+            raise ValueError("Only .pcap files are allowed")
         
-        if os.path.isabs(pcap_file):
-            # Only allow absolute paths within safe directories
-            safe_path = os.path.abspath(pcap_file)  # nosec B106
-            return safe_path
+        # Security: Prevent path traversal attacks  
+        if '../' in pcap_file or '/..' in pcap_file:
+            raise ValueError("Path traversal patterns not allowed")
+            
+        # Security: Only allow safe characters in filename
+        import string
+        allowed_chars = string.ascii_letters + string.digits + '.-_/'
+        if not all(c in allowed_chars for c in pcap_file):
+            raise ValueError("Invalid characters in file path")
 
-        # Check in storage directory (safe - controlled directory)
-        storage_path = os.path.join(PCAP_STORAGE_DIR, pcap_file)  # nosec B108
-        if os.path.exists(storage_path):
-            return storage_path
-
-        # Check current directory (restricted to .pcap files)
-        if os.path.exists(pcap_file) and pcap_file.endswith('.pcap'):  # nosec B108
-            return pcap_file
+        # Handle relative paths by checking storage directory first
+        if not os.path.isabs(pcap_file):
+            # Check in controlled storage directory
+            storage_path = os.path.join(PCAP_STORAGE_DIR, pcap_file)
+            if os.path.exists(storage_path):
+                return storage_path
+            
+            # Check current directory (only for .pcap files)
+            if os.path.exists(pcap_file):
+                return os.path.realpath(pcap_file)
+        else:
+            # For absolute paths, ensure they exist and are .pcap files
+            if os.path.exists(pcap_file):
+                return os.path.realpath(pcap_file)
 
         raise FileNotFoundError(f'PCAP file not found: {pcap_file}')
 
