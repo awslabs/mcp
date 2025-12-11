@@ -26,10 +26,7 @@ from awslabs.eks_mcp_server.consts import (
 )
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.models import (
-    DeleteStackResponse,
-    DeployStackResponse,
-    DescribeStackResponse,
-    GenerateTemplateResponse,
+    ManageEksStacksData,
 )
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
@@ -678,11 +675,9 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _generate_template method
-        mock_result = GenerateTemplateResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Generated CloudFormation template')],
-            template_path='/path/to/output/template.yaml',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='Generated CloudFormation template')]
         with patch.object(handler, '_generate_template', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with generate operation
             result = await handler.manage_eks_stacks(
@@ -716,13 +711,9 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _deploy_stack method
-        mock_result = DeployStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='CloudFormation stack creation initiated')],
-            stack_name='eks-test-cluster-stack',
-            stack_arn='test-stack-id',
-            cluster_name='test-cluster',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='CloudFormation stack creation initiated')]
         with patch.object(handler, '_deploy_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with deploy operation
             result = await handler.manage_eks_stacks(
@@ -758,16 +749,9 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _describe_stack method
-        mock_result = DescribeStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Successfully described CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-            creation_time='2023-01-01T00:00:00Z',
-            stack_status='CREATE_COMPLETE',
-            outputs={},
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='Successfully described CloudFormation stack')]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with describe operation
             result = await handler.manage_eks_stacks(
@@ -797,13 +781,9 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _delete_stack method
-        mock_result = DeleteStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Initiated deletion of CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='Initiated deletion of CloudFormation stack')]
         with patch.object(handler, '_delete_stack', return_value=mock_result) as mock_handler:
             # Call the manage_eks_stacks method with delete operation
             result = await handler.manage_eks_stacks(
@@ -901,16 +881,9 @@ class TestEksStackHandler:
         assert 'not allowed without write access' in result.content[0].text
 
         # Test describe operation (should be allowed even when write access is disabled)
-        mock_result = DescribeStackResponse(
-            isError=False,
-            content=[TextContent(type='text', text='Successfully described CloudFormation stack')],
-            stack_name='eks-test-cluster-stack',
-            stack_id='test-stack-id',
-            cluster_name='test-cluster',
-            creation_time='2023-01-01T00:00:00Z',
-            stack_status='CREATE_COMPLETE',
-            outputs={},
-        )
+        mock_result = MagicMock()
+        mock_result.isError = False
+        mock_result.content = [TextContent(type='text', text='Successfully described CloudFormation stack')]
         with patch.object(handler, '_describe_stack', return_value=mock_result) as mock_handler:
             result = await handler.manage_eks_stacks(
                 ctx=mock_ctx,

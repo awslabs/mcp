@@ -154,10 +154,10 @@ class EksStackHandler:
 
         ## Response Information
         The response type varies based on the operation:
-        - generate: Returns GenerateTemplateResponse with the template path
-        - deploy: Returns DeployStackResponse with stack name, ARN, and cluster name
-        - describe: Returns DescribeStackResponse with stack details, outputs, and status
-        - delete: Returns DeleteStackResponse with stack name, ID, and cluster name
+        - generate: Returns CallToolResult with the template path
+        - deploy: Returns CallToolResult with stack name, ARN, and cluster name
+        - describe: Returns CallToolResult with stack details, outputs, and status
+        - delete: Returns CallToolResult with stack name, ID, and cluster name
 
         ## Usage Tips
         - Use the describe operation first to check if a cluster already exists

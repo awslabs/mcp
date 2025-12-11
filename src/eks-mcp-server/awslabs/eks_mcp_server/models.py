@@ -233,56 +233,6 @@ class ManageEksStacksData(BaseModel):
     cluster_name: str = Field('', description='Name of the EKS cluster')
 
 
-# Keep old response types for backwards compatibility but mark as deprecated
-class GenerateTemplateResponse(CallToolResult):
-    """Response model for generate operation of manage_eks_stacks tool.
-
-    DEPRECATED: Use ManageEksStacksResponse instead.
-    """
-
-    template_path: str = Field(..., description='Path to the generated template')
-    content: list = Field(..., description='Content blocks for the response')
-
-
-class DeployStackResponse(CallToolResult):
-    """Response model for deploy operation of manage_eks_stacks tool.
-
-    DEPRECATED: Use ManageEksStacksResponse instead.
-    """
-
-    stack_name: str = Field(..., description='Name of the CloudFormation stack')
-    stack_arn: str = Field(..., description='ARN of the CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    content: list = Field(..., description='Content blocks for the response')
-
-
-class DescribeStackResponse(CallToolResult):
-    """Response model for describe operation of manage_eks_stacks tool.
-
-    DEPRECATED: Use ManageEksStacksResponse instead.
-    """
-
-    stack_name: str = Field(..., description='Name of the CloudFormation stack')
-    stack_id: str = Field(..., description='ID of the CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    creation_time: str = Field(..., description='Creation time of the stack')
-    stack_status: str = Field(..., description='Current status of the stack')
-    outputs: Dict[str, str] = Field(..., description='Stack outputs')
-    content: list = Field(..., description='Content blocks for the response')
-
-
-class DeleteStackResponse(CallToolResult):
-    """Response model for delete operation of manage_eks_stacks tool.
-
-    DEPRECATED: Use ManageEksStacksResponse instead.
-    """
-
-    stack_name: str = Field(..., description='Name of the deleted CloudFormation stack')
-    stack_id: str = Field(..., description='ID of the deleted CloudFormation stack')
-    cluster_name: str = Field(..., description='Name of the EKS cluster')
-    content: list = Field(..., description='Content blocks for the response')
-
-
 class PolicySummary(BaseModel):
     """Summary of an IAM policy."""
 
