@@ -24,7 +24,7 @@ from mcp.types import CallToolResult
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Optional
+from typing import Optional, Union
 
 
 class CloudWatchHandler:
@@ -50,8 +50,8 @@ class CloudWatchHandler:
 
     def resolve_time_range(
         self,
-        start_time: Optional[str | datetime.datetime] = None,
-        end_time: Optional[str | datetime.datetime] = None,
+        start_time: Optional[Union[str, datetime.datetime]] = None,
+        end_time: Optional[Union[str, datetime.datetime]] = None,
         minutes: int = 15,
     ) -> tuple:
         """Resolve start and end times for CloudWatch queries.

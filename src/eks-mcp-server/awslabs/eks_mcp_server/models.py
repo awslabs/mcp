@@ -17,7 +17,7 @@
 from enum import Enum
 from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 class EventItem(BaseModel):
@@ -306,7 +306,7 @@ class AddInlinePolicyData(BaseModel):
 
     policy_name: str = Field(..., description='Name of the inline policy to create')
     role_name: str = Field(..., description='Name of the role to add the policy to')
-    permissions_added: Dict[str, Any] | List[Dict[str, Any]] = Field(
+    permissions_added: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
         ..., description='Permissions to include in the policy (in JSON format)'
     )
 

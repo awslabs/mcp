@@ -25,7 +25,7 @@ from awslabs.eks_mcp_server.models import (
 from mcp.server.fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 
 class IAMHandler:
@@ -153,8 +153,7 @@ class IAMHandler:
         role_name: str = Field(
             ..., description='Name of the IAM role to add the policy to. The role must exist.'
         ),
-        permissions: Dict[str, Any] | List[Dict[str, Any]] = Field(
-            ...,
+        permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(            ...,
             description="""Permissions to include in the policy as IAM policy statements in JSON format.
             Can be either a single statement object or an array of statement objects.""",
         ),
