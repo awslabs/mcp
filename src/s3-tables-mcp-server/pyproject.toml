@@ -11,7 +11,7 @@ dependencies = [
     "loguru==0.7.3",
     "mcp[cli]==1.11.0",
     "pydantic==2.9.2",
-    "boto3==1.40.8",
+    "boto3[crt]==1.41.0",
     "pyiceberg==0.10.0",
     "pyarrow==22.0.0",
     "sqlparse==0.5.3",
