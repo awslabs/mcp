@@ -58,10 +58,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
-    - [Getting Started with Amazon Q Developer CLI](#getting-started-with-amazon-q-developer-cli)
-      - [`~/.aws/amazonq/mcp.json`](#awsamazonqmcpjson)
     - [Getting Started with Kiro](#getting-started-with-kiro)
-      - [`kiro_mcp_settings.json`](#kiro_mcp_settingsjson)
+      - [`~/.kiro/settings/mcp.json`](#kirosettingsmcpjson)
     - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
       - [`cline_mcp_settings.json`](#cline_mcp_settingsjson)
     - [Getting Started with Cursor](#getting-started-with-cursor)
@@ -87,7 +85,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 >
 > &mdash; [Model Context Protocol README](https://github.com/modelcontextprotocol#:~:text=The%20Model%20Context,context%20they%20need.)
 
-An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients include agentic AI coding assistants (like Q Developer, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
+An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients include agentic AI coding assistants (like Kiro, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
 
 AWS MCP Servers use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
 
@@ -291,7 +289,7 @@ Interact with AWS HealthAI services.
 
 #### 👨‍💻 Vibe Coding & Development
 
-*AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster*
+*AI coding assistants like Kiro, Cline, Cursor, and Claude Code helping you build faster*
 
 **Workshop**: Check out the [Vibe Coding with AWS MCP Servers](https://github.com/aws-solutions-library-samples/guidance-for-vibe-coding-with-aws-mcp-servers) workshop for hands-on guidance and examples.
 
@@ -471,14 +469,14 @@ For example, you can use the **AWS Documentation MCP Server** to help your AI as
 
 ## Installation and Setup
 
-Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
+Each server has specific installation instructions with one-click installs for Kiro, Cursor, and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 2. Install Python using `uv python install 3.10`
 3. Configure AWS credentials with access to required services
 4. Add the server to your MCP client configuration
 
-Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
+Example configuration for Kiro MCP settings (`~/.kiro/settings/mcp.json`):
 
 ### For macOS/Linux
 
@@ -598,84 +596,22 @@ Docker images for each MCP server are published to the [public AWS ECR registry]
   docker build -t awslabs/nova-canvas-mcp-server .
   ```
 
-### Getting Started with Amazon Q Developer CLI
-
-<details>
-<summary>Install in Amazon Q Developer CLI</summary>
-
-See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) for details.
-
-
-1. **Access MCP Settings**
-   - Open the Q Developer panel and open the **Chat** panel.
-   - Choose the tools icon to access to MCP configuration.
-
-2. **Add MCP Servers**
-   - Choose the plus (+) symbol.
-   - Select the scope: global or local.
-    If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
-   - Fill in values as applicable.
-
-3. **Manual Configuration**
-   - You can also manually edit the MCP configuration file located at `~/.aws/amazonq/mcp.json` globally or `.amazonq/mcp.json` locally.
-
-#### `~/.aws/amazonq/mcp.json`
-
-For macOS/Linux:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
-
-For Windows:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
-</details>
-
-
 ### Getting Started with Kiro
 
 <details>
 <summary>Install in Kiro</summary>
 
-See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/configuration/) for details.
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+In the Kiro IDE:
 
 1. Navigate `Kiro` > `MCP Servers`
 2. Add a new MCP server by clicking the `+ Add` button.
-3. Paste the configuration given below:
+3. Paste the configuration given below.
 
-#### `kiro_mcp_settings.json`
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+#### `~/.kiro/settings/mcp.json`
 
 For macOS/Linux:
 

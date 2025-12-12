@@ -28,7 +28,7 @@ As described [here](https://en.wikipedia.org/wiki/Vibe_coding), vibe coding is a
 Vibe coding involves several key components working together:
 
 - **Prompt**: The initial instructions and context provided to guide the coding process
-- **Client**: The interface through which users interact with the coding system. For instance, [Amazon Q Developer](https://aws.amazon.com/q/developer/) or [Cline](https://cline.bot/)
+- **Client**: The interface through which users interact with the coding system. For instance, [Kiro](https://kiro.dev/) or [Cline](https://cline.bot/)
 - **Additional context**: You can enhance the agent's capabilities by providing additional context, such as AWS MCP servers
 
 An important aspect is that while coding AI intends to help you be more productive, it is not aiming at replacing the developer. You own the architecture and the vision for the product. As the developer, you are expected to understand, review, and validate every technical decision made - the AI serves as a tool to enhance your capabilities, not substitute your critical thinking and expertise. The responsibility for code quality, architectural choices, and technical decisions remains firmly in human hands. Please refer to [this guide](https://d1.awsstatic.com/products/generative-ai/responsbile-ai/AWS-Responsible-Use-of-AI-Guide-Final.pdf) for responsible use of AI.
@@ -46,7 +46,7 @@ An important aspect is that while coding AI intends to help you be more producti
 * **Selection Criteria:** When selecting an AI development client, consider your organization's requirements, such as compliance, security policies, and approved vendor lists. Technical aspects like pricing and IDE integration are also important factors in your decision.
 * **Leverage Client Features:** Each client has unique characteristics to optimize your workflow. For instance, in Cline, start with Plan mode to discuss and refine implementation details until you have a clear understanding. Only move to Act mode once the plan is thoroughly reviewed - this way, the code generation will align with your agreed-upon approach. Stay informed about new features and updates in your chosen clients through regular review of documentation and release notes.
 * **Feature Compatibility:** Each client supports different MCP features (Tools, Resources, Prompts - see [MCP clients](https://modelcontextprotocol.io/clients)). For example, if you plan to use the CDK MCP server, ensure your chosen client supports both Tools and Resources features.
-* **Multi-Client Strategy:** You don't need to limit yourself to a single client. Different clients excel at different tasks - you might use Cline for backend/CDK development while using Q CLI for AWS troubleshooting of permissions, network reachability, and security group rules.
+* **Multi-Client Strategy:** You don't need to limit yourself to a single client. Different clients excel at different tasks - you might use Cline for backend/CDK development while using Kiro CLI for AWS troubleshooting of permissions, network reachability, and security group rules.
 * **MCP Server Selection:** Don't feel overwhelmed by the number of available MCP servers (40+ and growing). Focus only on those that match your specific needs and use cases. Review their documentation carefully and test them as part of your selection process.
 
 
