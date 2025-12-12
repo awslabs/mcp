@@ -125,24 +125,23 @@ def get_user_agent_extra() -> str:
 def get_server_auth():
     """Configure authentication and for FastMCP server."""
     auth_provider = None
-    middleware = []
 
     if TRANSPORT != 'streamable-http':
-        return auth_provider, middleware
+        return auth_provider
 
 
     if not AUTH_TYPE:
         raise ValueError('TRANSPORT="streamable-http" requires the following environment variables to be set: AUTH_TYPE')
 
     if AUTH_TYPE != 'oauth':
-        return auth_provider, middleware
+        return auth_provider
 
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
         raise ValueError('AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI')
 
     auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
 
-    return auth_provider, middleware
+    return auth_provider
 
 
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
