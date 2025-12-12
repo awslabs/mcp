@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add OAuth support (#1902)
+
+
+## [1.2.0] - 2025-12-08
+
 ### Changed
 
 - Updated default AWS API connect and read timeout (#1876)
