@@ -172,6 +172,21 @@ instance.userData.addCommands(
 - If no system update commands exist, add it at the very beginning of UserData
 - This should come before any application dependency installations or application setup commands
 
+**For Windows instances:**
+
+**CDK TypeScript example:**
+```typescript
+instance.userData.addCommands(
+  '# Download and install CloudWatch Agent',
+  'Invoke-WebRequest -Uri "https://amazoncloudwatch-agent.s3.amazonaws.com/windows/amd64/latest/amazon-cloudwatch-agent.msi" -OutFile "C:\\amazon-cloudwatch-agent.msi"',
+  'Start-Process msiexec.exe -Wait -ArgumentList "/i C:\\amazon-cloudwatch-agent.msi /quiet"',
+  'Remove-Item "C:\\amazon-cloudwatch-agent.msi"',
+  // ... rest of UserData follows
+);
+```
+
+**Placement:** Add these commands early in the UserData script, before any application setup commands.
+
 **For other Linux distributions:** CloudWatch Agent may not be available via the OS package manager. Refer to [AWS CloudWatch Agent installation docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/manual-installation.html) for distribution-specific instructions.
 
 ### Step 5: Modify UserData - Configure CloudWatch Agent
@@ -208,6 +223,32 @@ instance.userData.addCommands(
 );
 ```
 
+**For Windows instances:**
+
+**CDK TypeScript example:**
+```typescript
+instance.userData.addCommands(
+  '# Create CloudWatch Agent configuration for Application Signals',
+  '@"',
+  '{',
+  '  "traces": {',
+  '    "traces_collected": {',
+  '      "application_signals": {}',
+  '    }',
+  '  },',
+  '  "logs": {',
+  '    "metrics_collected": {',
+  '      "application_signals": {}',
+  '    }',
+  '  }',
+  '}',
+  '"@ | Out-File -FilePath "C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json" -Encoding ASCII',
+  '',
+  '# Start CloudWatch Agent with Application Signals configuration',
+  '& "C:\\Program Files\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent-ctl.ps1" -a fetch-config -m ec2 -s -c file:"C:\\ProgramData\\Amazon\\AmazonCloudWatchAgent\\amazon-cloudwatch-agent.json"',
+);
+```
+
 ### Step 6: Install ADOT .NET Auto-Instrumentation
 
 Choose based on deployment type and OS identified in "Before You Start".
@@ -239,6 +280,8 @@ RUN curl -L -O https://github.com/aws-observability/aws-otel-dotnet-instrumentat
 
 #### Option B: Non-Docker Deployment - Modify UserData
 
+**For Linux instances:**
+
 For non-Docker deployments, add to UserData AFTER CloudWatch Agent configuration:
 
 ```typescript
@@ -251,6 +294,21 @@ instance.userData.addCommands(
   'chmod +x ./aws-otel-dotnet-install.sh',
   'OTEL_DOTNET_AUTO_HOME="/opt/otel-dotnet-auto" ./aws-otel-dotnet-install.sh',
   'chmod -R 755 /opt/otel-dotnet-auto',
+);
+```
+
+**For Windows instances:**
+
+For non-Docker deployments, add to UserData AFTER CloudWatch Agent configuration:
+
+```typescript
+instance.userData.addCommands(
+  '# Download and install ADOT .NET auto-instrumentation',
+  '$module_url = "https://github.com/aws-observability/aws-otel-dotnet-instrumentation/releases/latest/download/AWS.Otel.DotNet.Auto.psm1"',
+  '$download_path = Join-Path $env:temp "AWS.Otel.DotNet.Auto.psm1"',
+  'Invoke-WebRequest -Uri $module_url -OutFile $download_path',
+  'Import-Module $download_path',
+  'Install-OpenTelemetryCore',
 );
 ```
 
@@ -308,6 +366,38 @@ instance.userData.addCommands(
   '# Start application (existing command remains unchanged)',
   '# Example: dotnet run --urls http://0.0.0.0:8080',
   '# The OTEL environment variables will automatically enable instrumentation',
+);
+```
+
+**For Windows instances:**
+
+```typescript
+instance.userData.addCommands(
+  '# Set OpenTelemetry environment variables at machine level',
+  '$env:INSTALL_DIR = "C:\\Program Files\\AWS Distro for OpenTelemetry AutoInstrumentation"',
+  '[Environment]::SetEnvironmentVariable("CORECLR_ENABLE_PROFILING", "1", "Machine")',
+  '[Environment]::SetEnvironmentVariable("CORECLR_PROFILER", "{918728DD-259F-4A6A-AC2B-B85E1B658318}", "Machine")',
+  '[Environment]::SetEnvironmentVariable("CORECLR_PROFILER_PATH_64", (Join-Path $env:INSTALL_DIR "win-x64/OpenTelemetry.AutoInstrumentation.Native.dll"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("CORECLR_PROFILER_PATH_32", (Join-Path $env:INSTALL_DIR "win-x86/OpenTelemetry.AutoInstrumentation.Native.dll"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("COR_ENABLE_PROFILING", "1", "Machine")',
+  '[Environment]::SetEnvironmentVariable("COR_PROFILER", "{918728DD-259F-4A6A-AC2B-B85E1B658318}", "Machine")',
+  '[Environment]::SetEnvironmentVariable("COR_PROFILER_PATH_64", (Join-Path $env:INSTALL_DIR "win-x64/OpenTelemetry.AutoInstrumentation.Native.dll"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("COR_PROFILER_PATH_32", (Join-Path $env:INSTALL_DIR "win-x86/OpenTelemetry.AutoInstrumentation.Native.dll"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("DOTNET_ADDITIONAL_DEPS", (Join-Path $env:INSTALL_DIR "AdditionalDeps"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("DOTNET_SHARED_STORE", (Join-Path $env:INSTALL_DIR "store"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("DOTNET_STARTUP_HOOKS", (Join-Path $env:INSTALL_DIR "net/OpenTelemetry.AutoInstrumentation.StartupHook.dll"), "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_DOTNET_AUTO_HOME", $env:INSTALL_DIR, "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_DOTNET_AUTO_PLUGINS", "AWS.Distro.OpenTelemetry.AutoInstrumentation.Plugin, AWS.Distro.OpenTelemetry.AutoInstrumentation", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_RESOURCE_ATTRIBUTES", "service.name={{SERVICE_NAME}}", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4316", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT", "http://127.0.0.1:4316/v1/metrics", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_METRICS_EXPORTER", "none", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_AWS_APPLICATION_SIGNALS_ENABLED", "true", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_TRACES_SAMPLER", "xray", "Machine")',
+  '[Environment]::SetEnvironmentVariable("OTEL_TRACES_SAMPLER_ARG", "http://127.0.0.1:2000", "Machine")',
+  '# The command below is optional. It registers Application signals in IIS after starting the IIS/W3SVC service and starting the WebAppPool if they exist',
+  'Register-OpenTelemetryForIIS',
 );
 ```
 
