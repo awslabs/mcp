@@ -177,6 +177,93 @@ async def add_documents(
 
 
 @mcp.tool()
+async def update_document(
+    collection: str,
+    document: Dict[str, Any],
+    text_fields: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """Update a single document in a collection by its ID.
+
+    This tool updates an existing document in a collection, regenerating its vector
+    embedding from the specified text fields. The document must have an 'id' field
+    that matches an existing document in the collection.
+
+    Args:
+        collection: Name of the collection
+        document: Document data with 'id' field matching existing document
+        text_fields: Fields to use for embedding generation (default: ["content"])
+
+    Returns:
+        Summary of the operation including success status and document info
+
+    Example:
+        result = await update_document(
+            collection="research_papers",
+            document={
+                "id": "paper_1",
+                "title": "AI in Healthcare - Updated",
+                "content": "Updated content about machine learning in medical diagnosis...",
+                "author": "Dr. Smith",
+                "year": 2024
+            },
+            text_fields=["title", "content"]
+        )
+    """
+    if text_fields is None:
+        text_fields = ["content"]
+
+    try:
+        if 'id' not in document:
+            return {
+                "status": "error",
+                "updated": 0,
+                "reason": "Document must have an 'id' field"
+            }
+
+        r = ValkeyConnectionManager.get_connection(decode_responses=True)
+        doc_id = document['id']
+        doc_key = _get_document_key(collection, doc_id)
+
+        # Check if document exists
+        if not r.exists(doc_key):
+            return {
+                "status": "error",
+                "updated": 0,
+                "reason": f"Document with id '{doc_id}' not found in collection '{collection}'"
+            }
+
+        # Generate new embedding from specified text fields
+        text_to_embed = " ".join(str(document.get(field, "")) for field in text_fields)
+        embedding = await _embeddings_provider.generate_embedding(text_to_embed)
+        embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+
+        # Update document with new embedding
+        doc_data = {
+            'embedding': embedding_bytes,
+            'document_json': json.dumps(document)
+        }
+
+        r.hset(doc_key, mapping=doc_data)
+
+        return {
+            "status": "success",
+            "updated": 1,
+            "collection": collection,
+            "document_id": doc_id,
+            "embedding_dimensions": len(embedding),
+            "embeddings_provider": _embeddings_provider.get_provider_name()
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "updated": 0,
+            "collection": collection,
+            "reason": str(e)
+        }
+
+
+@mcp.tool()
 async def semantic_search(
     collection: str,
     query: str,

@@ -16,16 +16,18 @@
 import os
 
 import pytest
+from unittest.mock import patch
 from awslabs.valkey_mcp_server.tools.semantic_search import (
     add_documents,
     semantic_search,
+    update_document,
     find_similar_documents,
     get_document,
     list_collections
 )
+from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
-from valkey.exceptions import ValkeyError
 
 
 @pytest.mark.integration
@@ -480,4 +482,88 @@ class TestSemanticSearchIntegration:
 
         print("\n" + "="*70)
         print("✓ INVALID FILTER EXPRESSION TESTS COMPLETED")
+        print("="*70)
+
+    @pytest.mark.asyncio
+    async def test_add_update_search_workflow(self):
+        """Test complete workflow: add document, update it, then search to verify changes."""
+        collection = "test_update_workflow"
+        
+        print("\n" + "="*70)
+        print("TESTING ADD -> UPDATE -> SEARCH WORKFLOW")
+        print("="*70)
+
+        # Patch embeddings provider to use hash embeddings
+        hash_embeddings = HashEmbeddings(dimensions=128)
+        
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', hash_embeddings):
+            # Step 1: Add initial document
+            print("1. Adding initial document...")
+            initial_doc = {
+                "id": "workflow_test_1",
+                "title": "Silly Dog",
+                "content": "My silly Husky / Malamute cross jumped out of the truck and fell down the embankment into the slough!",
+                "category": "animals"
+            }
+            
+            add_result = await add_documents(
+                collection=collection,
+                documents=[initial_doc],
+                text_fields=["title", "content"]
+            )
+            
+            assert add_result['status'] == 'success'
+            
+            print(f"   ✓ Added document: {initial_doc['title']}")
+            
+            # Step 2: Update the document
+            print("\n2. Updating document...")
+            updated_doc = {
+                "id": "workflow_test_1",
+                "title": "Chess Games",
+                "content": "In middle school, I watched my good friend play 8 games of chess inside a ring, giving himself a few seconds for each table",
+                "category": "animals"
+            }
+            
+            update_result = await update_document(
+                collection=collection,
+                document=updated_doc,
+                text_fields=["title", "content"]
+            )
+
+            assert update_result['status'] == 'success'
+
+            print(f"   ✓ Updated document: {updated_doc['title']}")
+            
+            # Step 3: Search for the document to verify changes
+            print("\n3. Searching for updated content...")
+            search_result = await semantic_search(
+                collection=collection,
+                query="8 games of chess",
+                limit=1
+            )
+
+            assert search_result['status'] == 'success'
+
+            # Verify the document was found and has updated content
+            results = search_result['results']
+            print(f"   ✓ Found {len(results)} results")
+
+            assert len(results) > 0
+
+            found_doc = results[0]
+            print(f"     - ID: {found_doc['id']}")
+            print(f"     - Title: {found_doc['title']}")
+            print(f"     - Content: {found_doc['content']}")
+
+            # Assertions
+            assert found_doc['id'] == 'workflow_test_1'
+            assert found_doc['title'] == 'Chess Games'
+            assert found_doc['content'] == 'In middle school, I watched my good friend play 8 games of chess inside a ring, giving himself a few seconds for each table'
+            assert 'good friend' in found_doc['content']
+            assert '8 games of chess' in found_doc['content']  # New content should be present
+            assert 'Malamute' not in found_doc['content']  # Original content should be gone
+
+        print("\n" + "="*70)
+        print("✓ ADD -> UPDATE -> SEARCH WORKFLOW TESTS PASSED")
         print("="*70)

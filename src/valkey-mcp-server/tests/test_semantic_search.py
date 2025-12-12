@@ -15,7 +15,7 @@
 """Unit tests for semantic search functionality using dummy embeddings provider."""
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search
+from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search, update_document
 from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
 
 
@@ -147,3 +147,66 @@ class TestSemanticSearchUnit:
                 mock_vector_search.assert_called_once()
                 call_args = mock_vector_search.call_args
                 assert call_args[1]['no_content'] == True
+
+    @pytest.mark.asyncio
+    async def test_update_document_successful(self, mock_connection, dummy_embeddings):
+        """Test successful document update."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            # Mock connection methods
+            mock_connection.exists.return_value = True  # Document exists
+            mock_connection.hset.return_value = None
+            
+            # Execute update_document
+            result = await update_document(
+                collection="test_collection",
+                document={
+                    "id": "doc1",
+                    "title": "Updated Document",
+                    "content": "Updated content"
+                },
+                text_fields=["title", "content"]
+            )
+            
+            # Verify results
+            assert result['status'] == 'success'
+            assert result['updated'] == 1
+            assert result['document_id'] == 'doc1'
+            assert result['collection'] == 'test_collection'
+            assert result['embedding_dimensions'] == 128
+            
+            # Verify document existence was checked
+            mock_connection.exists.assert_called_once_with('semantic_collection_test_collection:doc:doc1')
+            
+            # Verify document was updated
+            mock_connection.hset.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_document_not_found(self, mock_connection, dummy_embeddings):
+        """Test update_document when document doesn't exist."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            # Mock document doesn't exist
+            mock_connection.exists.return_value = False
+            
+            result = await update_document(
+                collection="test_collection",
+                document={"id": "nonexistent", "title": "Test"}
+            )
+            
+            # Verify error response
+            assert result['status'] == 'error'
+            assert 'not found' in result['reason']
+            assert result['updated'] == 0
+
+    @pytest.mark.asyncio
+    async def test_update_document_missing_id(self, mock_connection, dummy_embeddings):
+        """Test update_document with missing id field."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            result = await update_document(
+                collection="test_collection",
+                document={"title": "Test Document"}  # Missing 'id'
+            )
+            
+            # Verify error response
+            assert result['status'] == 'error'
+            assert 'id' in result['reason'].lower()
+            assert result['updated'] == 0
