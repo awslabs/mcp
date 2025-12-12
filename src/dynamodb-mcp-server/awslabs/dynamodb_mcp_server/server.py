@@ -124,7 +124,16 @@ async def source_db_analyzer(
         ge=1,
     ),
     aws_cluster_arn: Optional[str] = Field(
-        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
+        default=None,
+        description='AWS cluster ARN for RDS Data API connection (overrides MYSQL_CLUSTER_ARN env var)',
+    ),
+    hostname: Optional[str] = Field(
+        default=None,
+        description='Database hostname for direct connection (overrides MYSQL_HOSTNAME env var)',
+    ),
+    port: Optional[int] = Field(
+        default=None,
+        description='Database port for direct connection (overrides MYSQL_PORT env var, default: 3306)',
     ),
     aws_secret_arn: Optional[str] = Field(
         default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
@@ -150,18 +159,26 @@ async def source_db_analyzer(
     - Use these analysis files with the dynamodb_data_modeling tool to design your DynamoDB schema
 
     Connection Requirements (MySQL/Aurora):
-    - AWS RDS Data API enabled on your Aurora MySQL cluster
+    Two connection methods are supported:
+    1. RDS Data API (Aurora MySQL): Requires aws_cluster_arn
+    2. Direct Connection (Aurora/RDS/self-hosted MySQL): Requires hostname and port
+
+    Note: Do not provide both CLUSTER_ARN and HOSTNAME- the tool will automatically use the first available option
+
+    Both methods require:
     - Database credentials stored in AWS Secrets Manager
-    - Appropriate IAM permissions to access RDS Data API and Secrets Manager
+    - Appropriate IAM permissions to access Secrets Manager
     - For complete analysis: MySQL Performance Schema must be enabled (set performance_schema=ON)
     - Without Performance Schema: Schema-only analysis is performed (no query pattern data)
 
     Environment Variables (Optional):
     You can set these instead of passing parameters:
     - MYSQL_DATABASE: Database name to analyze
-    - MYSQL_CLUSTER_ARN: Aurora cluster ARN
+    - MYSQL_CLUSTER_ARN: Aurora cluster ARN (for RDS Data API)
+    - MYSQL_HOSTNAME: Database hostname (for direct connection)
+    - MYSQL_PORT: Database port (for direct connection, default: 3306)
     - MYSQL_SECRET_ARN: Secrets Manager secret ARN containing DB credentials
-    - AWS_REGION: AWS region where your database is located
+    - AWS_REGION: AWS region where your database instance and Secrets Manager are located
     - MYSQL_MAX_QUERY_RESULTS: Maximum rows per query (default: 500)
 
     Typical Usage:
@@ -185,6 +202,8 @@ async def source_db_analyzer(
         pattern_analysis_days=pattern_analysis_days,
         max_query_results=max_query_results,
         aws_cluster_arn=aws_cluster_arn,
+        hostname=hostname,
+        port=port,
         aws_secret_arn=aws_secret_arn,
         aws_region=aws_region,
         output_dir=output_dir,
@@ -195,10 +214,9 @@ async def source_db_analyzer(
         source_db_type, connection_params
     )
     if missing_params:
+        # Handle missing required parameters
         missing_descriptions = [param_descriptions[param] for param in missing_params]
-        return (
-            f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
-        )
+        return f'Missing required parameters: {", ".join(missing_descriptions)}'
 
     logger.info(
         f'Starting database analysis for {source_db_type} database: {connection_params.get("database")}'
