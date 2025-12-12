@@ -139,3 +139,17 @@ class QueryResult(BaseModel):
         None, description='Query execution time in milliseconds'
     )
     query_id: str = Field(..., description='Unique identifier for the query execution')
+
+
+class ExecutionPlan(BaseModel):
+    """Result of an EXPLAIN query execution."""
+
+    query_plan: list[str] = Field(..., description='The execution plan as text lines')
+    plan_format: str = Field('text', description='Format of the plan (text or json)')
+    explained_query: str = Field(
+        ..., description='The original query that the execution plan was generated for.'
+    )
+    query_id: str = Field(..., description='Unique identifier for the explain execution')
+    execution_time_ms: Optional[int] = Field(
+        None, description='Time taken to generate the plan in milliseconds'
+    )

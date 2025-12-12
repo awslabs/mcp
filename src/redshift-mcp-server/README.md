@@ -401,6 +401,36 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Row count and execution time
 - Query ID for reference
 
+### get_execution_plan
+
+Generates and retrieves the query execution plan for a SQL statement without executing the query. This tool uses EXPLAIN to show how Redshift would execute the query, helping with query optimization.
+
+```python
+get_execution_plan(cluster_identifier: str, database_name: str, sql: str, verbose: bool = False) -> ExecutionPlan
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database where the query would run against
+- `sql`: SQL statement to explain (do not include EXPLAIN keyword)
+- `verbose`: Optional boolean for verbose plan output with additional details (default: false)
+
+**Returns**: ExecutionPlan object including:
+
+- `query_plan`: List of execution plan text lines showing query operations and costs
+- `plan_format`: Format of the plan (always "text")
+- `explained_query`: The original SQL query that was explained
+- `query_id`: Unique identifier for the explain execution
+- `execution_time_ms`: Time taken to generate the plan in milliseconds
+
+**Important Notes**:
+
+- Do not include EXPLAIN in your SQL - it is automatically prepended
+- Use `verbose=True` for detailed output including column lists and filter conditions
+- This tool does not execute the actual query, making it safe for performance evaluation
+- Useful for understanding query execution paths and identifying optimization opportunities
+
 ## Permissions
 
 ### AWS IAM Permissions
