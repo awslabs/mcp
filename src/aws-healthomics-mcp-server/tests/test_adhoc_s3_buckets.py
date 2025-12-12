@@ -80,8 +80,9 @@ class TestAdhocS3Buckets:
     def test_genomics_file_search_request_with_non_string_adhoc_buckets(self):
         """Test GenomicsFileSearchRequest with non-string adhoc buckets."""
         with pytest.raises(ValidationError) as exc_info:
+            # Intentionally pass invalid type to test validation
             GenomicsFileSearchRequest(
-                adhoc_s3_buckets=['s3://valid-bucket/', 123, 's3://another-bucket/']
+                adhoc_s3_buckets=['s3://valid-bucket/', 123, 's3://another-bucket/']  # type: ignore
             )
 
         assert 'should be a valid string' in str(exc_info.value)
