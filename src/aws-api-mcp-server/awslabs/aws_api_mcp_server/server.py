@@ -84,7 +84,7 @@ def setup_server_config():
         return auth_provider, middleware
 
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
-        raise ValueError('AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set')
+        raise ValueError('AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI')
 
     auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
 
