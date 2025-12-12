@@ -263,8 +263,8 @@ class GenomicsFileSearchRequest(BaseModel):
         if len(v) == 0:
             return None  # Empty list is equivalent to None
 
-        if len(v) > 5:  # Reasonable limit to prevent abuse
-            raise ValueError('adhoc_s3_buckets cannot contain more than 5 bucket paths')
+        if len(v) > 50:  # Reasonable limit to prevent abuse
+            raise ValueError('adhoc_s3_buckets cannot contain more than 50 bucket paths')
 
         # Basic format validation for each bucket path
         from awslabs.aws_healthomics_mcp_server.utils.s3_utils import (
