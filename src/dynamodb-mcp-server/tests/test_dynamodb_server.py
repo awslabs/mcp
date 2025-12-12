@@ -2,7 +2,7 @@ import json
 import os
 import pytest
 import pytest_asyncio
-from awslabs.dynamodb_mcp_server.database_analyzers import DatabaseAnalyzer, MySQLAnalyzer
+from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.server import (
     _execute_access_patterns,
     app,
@@ -65,10 +65,11 @@ async def test_source_db_analyzer_missing_parameters(tmp_path):
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name=None,
+        execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
-        aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
+        aws_cluster_arn='test-cluster',
         aws_region='us-east-1',
         output_dir=str(tmp_path),
     )
@@ -82,6 +83,7 @@ async def test_source_db_analyzer_empty_parameters(tmp_path):
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test',
+        execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
         aws_cluster_arn='  ',  # Empty after strip
@@ -103,6 +105,7 @@ async def test_source_db_analyzer_env_fallback(monkeypatch, tmp_path):
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test',
+        execution_mode='managed',
         pattern_analysis_days=30,
         max_query_results=None,
         aws_cluster_arn=None,  # Will trigger env fallback
@@ -119,35 +122,40 @@ async def test_source_db_analyzer_env_fallback(monkeypatch, tmp_path):
 async def test_source_db_analyzer_unsupported_database(tmp_path):
     """Test source_db_analyzer with unsupported database type."""
     result = await source_db_analyzer(
-        source_db_type='postgresql',
-        database_name='test_db',
-        pattern_analysis_days=30,
-        output_dir=str(tmp_path),
-    )
-    assert 'Unsupported database type: postgresql' in result
-
-    result = await source_db_analyzer(
         source_db_type='oracle',
         database_name='test_db',
+        execution_mode='managed',
         pattern_analysis_days=30,
         output_dir=str(tmp_path),
     )
     assert 'Unsupported database type: oracle' in result
+
+    result = await source_db_analyzer(
+        source_db_type='mongodb',
+        database_name='test_db',
+        execution_mode='managed',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Unsupported database type: mongodb' in result
 
 
 @pytest.mark.asyncio
 async def test_source_db_analyzer_analysis_exception(tmp_path, monkeypatch):
     """Test source_db_analyzer when analysis raises exception."""
 
-    # Mock analyze to raise exception
-    async def mock_analyze_fail(connection_params):
+    # Mock execute_managed_mode to raise exception
+    async def mock_execute_managed_mode_fail(self, connection_params):
         raise Exception('Database connection failed')
 
-    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_fail)
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_fail)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -163,7 +171,7 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
     """Test source_db_analyzer with successful analysis."""
 
     # Mock successful analysis
-    async def mock_analyze_success(connection_params):
+    async def mock_execute_managed_mode_success(self, connection_params):
         return {
             'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
             'performance_enabled': True,
@@ -171,15 +179,18 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
             'errors': ['Query 1 failed'],
         }
 
-    def mock_save_files(*args):
+    def mock_save_files(*args, **kwargs):
         return ['/tmp/file1.json'], ['Error saving file2']
 
-    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_success)
-    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files)
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_success)
+    monkeypatch.setattr(analyzer_utils, 'save_analysis_files', mock_save_files)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -196,16 +207,17 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
 async def test_source_db_analyzer_exception_handling(tmp_path, monkeypatch):
     """Test exception handling in source_db_analyzer."""
 
-    def mock_analyze(*args, **kwargs):
+    async def mock_execute_managed_mode_exception(self, connection_params):
         raise Exception('Test exception')
 
-    monkeypatch.setattr(
-        'awslabs.dynamodb_mcp_server.database_analyzers.MySQLAnalyzer.analyze', mock_analyze
-    )
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_exception)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -220,22 +232,25 @@ async def test_source_db_analyzer_all_queries_failed(tmp_path, monkeypatch):
     """Test source_db_analyzer when all queries fail."""
 
     # Mock analysis that returns empty results with errors
-    async def mock_analyze_all_failed(connection_params):
+    async def mock_execute_managed_mode_all_failed(self, connection_params):
         return {
             'results': {},  # Empty results
             'performance_enabled': True,
             'errors': ['Query 1 failed', 'Query 2 failed', 'Query 3 failed'],
         }
 
-    def mock_save_files(*args):
+    def mock_save_files(*args, **kwargs):
         return [], []
 
-    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_all_failed)
-    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files)
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_all_failed)
+    monkeypatch.setattr(analyzer_utils, 'save_analysis_files', mock_save_files)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -255,22 +270,25 @@ async def test_source_db_analyzer_no_files_saved(tmp_path, monkeypatch):
     """Test source_db_analyzer when no files are saved."""
 
     # Mock successful analysis but no files saved
-    async def mock_analyze_success(connection_params):
+    async def mock_execute_managed_mode_success(self, connection_params):
         return {
             'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
             'performance_enabled': True,
             'errors': [],
         }
 
-    def mock_save_files_empty(*args):
+    def mock_save_files_empty(*args, **kwargs):
         return [], []  # No files saved, no errors
 
-    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_success)
-    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files_empty)
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_success)
+    monkeypatch.setattr(analyzer_utils, 'save_analysis_files', mock_save_files_empty)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -290,22 +308,25 @@ async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypat
     """Test source_db_analyzer with saved files but no errors."""
 
     # Mock successful analysis
-    async def mock_analyze_success(connection_params):
+    async def mock_execute_managed_mode_success(self, connection_params):
         return {
             'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
             'performance_enabled': True,
             'errors': [],
         }
 
-    def mock_save_files_success(*args):
+    def mock_save_files_success(*args, **kwargs):
         return ['/tmp/file1.json', '/tmp/file2.json'], []  # Files saved, no errors
 
-    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_success)
-    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files_success)
+    from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
+
+    monkeypatch.setattr(MySQLPlugin, 'execute_managed_mode', mock_execute_managed_mode_success)
+    monkeypatch.setattr(analyzer_utils, 'save_analysis_files', mock_save_files_success)
 
     result = await source_db_analyzer(
         source_db_type='mysql',
         database_name='test_db',
+        execution_mode='managed',
         aws_cluster_arn='test-cluster',
         aws_secret_arn='test-secret',
         aws_region='us-east-1',
@@ -319,6 +340,192 @@ async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypat
     assert '/tmp/file2.json' in result
     # Should not have "File Save Errors" section when no errors
     assert 'File Save Errors:' not in result
+
+
+@pytest.mark.asyncio
+async def test_self_service_query_generation(tmp_path, monkeypatch):
+    """Test self-service mode query generation for different databases."""
+    # Test MySQL
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path='queries.sql',
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'SQL queries have been written to:' in result
+    assert 'mysql -u user -p' in result
+    assert os.path.exists(os.path.join(tmp_path, 'queries.sql'))
+
+    # Test PostgreSQL
+    result = await source_db_analyzer(
+        source_db_type='postgresql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path='pg_queries.sql',
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'psql -d' in result
+
+    # Test SQL Server
+    result = await source_db_analyzer(
+        source_db_type='sqlserver',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path='sqlserver_queries.sql',
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'sqlcmd -d' in result
+
+    # Test missing database name
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name=None,
+        execution_mode='self_service',
+        queries_file_path='queries.sql',
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'database_name is required' in result
+
+    # Test exception handling
+    def mock_generate_query_file(*args, **kwargs):
+        raise RuntimeError('Test error')
+
+    from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
+
+    monkeypatch.setattr(analyzer_utils, 'generate_query_file', mock_generate_query_file)
+
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path='queries.sql',
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Failed to write queries: Test error' in result
+
+
+@pytest.mark.asyncio
+async def test_self_service_result_parsing(tmp_path, monkeypatch):
+    """Test self-service mode result parsing."""
+    # Test successful parsing
+    result_file = os.path.join(tmp_path, 'results.txt')
+    with open(result_file, 'w', encoding='utf-8') as f:
+        f.write("""| marker |
+| -- QUERY_NAME_START: comprehensive_table_analysis |
+| table_name | row_count |
+| users      |      1000 |
+| marker |
+| -- QUERY_NAME_END: comprehensive_table_analysis |
+""")
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path=None,
+        query_result_file_path=result_file,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Database Analysis Complete' in result
+    assert 'Self-Service Mode' in result
+
+    # Test result file not found
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path=None,
+        query_result_file_path=os.path.join(tmp_path, 'nonexistent_results.txt'),
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Result file not found' in result
+
+    # Test path traversal protection - absolute path outside base directory
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path=None,
+        query_result_file_path='/nonexistent/results.txt',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Path traversal detected' in result
+
+    # Test exception handling
+    result_file = os.path.join(tmp_path, 'results2.txt')
+    with open(result_file, 'w', encoding='utf-8') as f:
+        f.write('test data')
+
+    def mock_parse_results(*args, **kwargs):
+        raise RuntimeError('Parse error')
+
+    from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
+
+    monkeypatch.setattr(analyzer_utils, 'parse_results_and_generate_analysis', mock_parse_results)
+
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path=None,
+        query_result_file_path=result_file,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Analysis failed: Parse error' in result
+
+
+@pytest.mark.asyncio
+async def test_invalid_execution_modes(tmp_path):
+    """Test invalid execution modes and parameter combinations."""
+    # Test invalid execution mode
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='invalid_mode',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Invalid execution_mode: invalid_mode' in result
+
+    # Test self-service without query or result file
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='self_service',
+        queries_file_path=None,
+        query_result_file_path=None,
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    assert 'Invalid parameter combination' in result
+
+    # Test PostgreSQL managed mode not supported
+    result = await source_db_analyzer(
+        source_db_type='postgresql',
+        database_name='test_db',
+        execution_mode='managed',
+        aws_cluster_arn='test-cluster',
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+    result_str = result['error'] if isinstance(result, dict) else result
+    assert 'unsupported' in result_str.lower() or 'not supported' in result_str.lower()
 
 
 # Tests for execute_dynamodb_command
@@ -341,7 +548,6 @@ async def test_execute_dynamodb_command_valid_command():
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_invalid_command():
     """Test execute_dynamodb_command with invalid command."""
-    # The @handle_exceptions decorator catches the ValueError and returns it as a string
     result = await execute_dynamodb_command(command='aws s3 ls')
     assert "Command must start with 'aws dynamodb'" in str(result)
 
@@ -383,7 +589,6 @@ async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
             )
             assert 'AWS_DEFAULT_REGION' in os.environ
     finally:
-        # Restore original environment
         os.environ.clear()
         os.environ.update(original_env)
 
@@ -432,7 +637,6 @@ async def test_execute_access_patterns_success():
             assert result['validation_response'][0]['pattern_id'] == 'AP1'
             assert result['validation_response'][1]['pattern_id'] == 'AP2'
 
-            # Verify file was written - check that open was called with the right pattern
             mock_file.assert_called_once()
             args, kwargs = mock_file.call_args
             assert args[0].endswith('dynamodb_model_validation.json')
@@ -460,7 +664,6 @@ async def test_execute_access_patterns_exception_handling():
     ]
 
     with patch('awslabs.dynamodb_mcp_server.server.execute_dynamodb_command') as mock_execute:
-        # The exception happens during execute_dynamodb_command
         mock_execute.side_effect = Exception('Command failed')
 
         result = await _execute_access_patterns('/tmp', access_patterns)
@@ -482,7 +685,6 @@ async def test_dynamodb_data_model_validation_success():
         ],
     }
 
-    # Mock all the external dependencies that might cause issues
     with patch('os.path.exists') as mock_exists:
         with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
             with patch('awslabs.dynamodb_mcp_server.server.setup_dynamodb_local') as mock_setup:
@@ -500,11 +702,7 @@ async def test_dynamodb_data_model_validation_success():
 
                             result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
-                            # The function may not call all mocks due to AWS config issues
-                            # Just verify that we got a result and it's a string
                             assert isinstance(result, str)
-
-                            # Verify that the function at least attempted to process
                             assert 'Validation complete' in result
 
 
@@ -516,7 +714,6 @@ async def test_dynamodb_data_model_validation_file_not_found():
 
         result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
-        # The actual path will be different, so check for the key parts
         assert 'dynamodb_data_model.json not found' in result
 
 
@@ -535,7 +732,7 @@ async def test_dynamodb_data_model_validation_invalid_json():
 @pytest.mark.asyncio
 async def test_dynamodb_data_model_validation_missing_required_keys():
     """Test dynamodb_data_model_validation with missing required keys."""
-    incomplete_data_model = {'tables': []}  # Missing 'items' and 'access_patterns'
+    incomplete_data_model = {'tables': []}
 
     with patch('os.path.exists') as mock_exists:
         with patch('builtins.open', mock_open(read_data=json.dumps(incomplete_data_model))):
@@ -561,7 +758,6 @@ async def test_dynamodb_data_model_validation_setup_exception():
 
                 result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
-                # The function catches all exceptions, so check for failure message
                 assert 'DynamoDB Local setup failed' in result
 
 
@@ -616,7 +812,6 @@ async def test_dynamodb_data_model_validation_mcp_integration():
     assert 'validates and tests dynamodb data models' in validation_tool.description.lower()
 
 
-# Integration tests
 @pytest.mark.asyncio
 async def test_error_propagation_in_validation_chain():
     """Test error propagation through the validation chain."""
@@ -640,94 +835,23 @@ async def test_error_propagation_in_validation_chain():
 
                     result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
-                    # The function catches all exceptions, so check for failure message
                     assert 'Table creation failed' in result
 
 
-# Edge case tests
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_edge_cases():
     """Test execute_dynamodb_command edge cases."""
-    # Test with whitespace in command - should fail validation
     result = await execute_dynamodb_command(command='  aws s3 ls  ')
     assert "Command must start with 'aws dynamodb'" in str(result)
 
-    # Test with empty command
     result = await execute_dynamodb_command(command='')
     assert "Command must start with 'aws dynamodb'" in str(result)
 
-    # Test with command that starts correctly but has invalid syntax
     with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
         mock_call_aws.return_value = {'error': 'Invalid syntax'}
 
         result = await execute_dynamodb_command(command='aws dynamodb invalid-operation')
         assert result == {'error': 'Invalid syntax'}
-
-
-@pytest.mark.asyncio
-async def test_source_db_analyzer_build_connection_params_exception():
-    """Test source_db_analyzer when build_connection_params raises exception."""
-    with patch(
-        'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.build_connection_params'
-    ) as mock_build:
-        mock_build.side_effect = Exception('Connection params error')
-
-        result = await source_db_analyzer(
-            source_db_type='mysql', database_name='test_db', output_dir='/tmp'
-        )
-
-        # The @handle_exceptions decorator returns the exception as a dict
-        assert isinstance(result, dict)
-        assert result['error'] == 'Connection params error'
-
-
-@pytest.mark.asyncio
-async def test_source_db_analyzer_validate_connection_params_exception():
-    """Test source_db_analyzer when validate_connection_params raises exception."""
-    with patch(
-        'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.validate_connection_params'
-    ) as mock_validate:
-        mock_validate.side_effect = Exception('Validation error')
-
-        result = await source_db_analyzer(
-            source_db_type='mysql', database_name='test_db', output_dir='/tmp'
-        )
-
-        # The @handle_exceptions decorator returns the exception as a dict
-        assert isinstance(result, dict)
-        assert result['error'] == 'Validation error'
-
-
-@pytest.mark.asyncio
-async def test_source_db_analyzer_save_analysis_files_exception():
-    """Test source_db_analyzer when save_analysis_files raises exception."""
-
-    async def mock_analyze_success(connection_params):
-        return {
-            'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
-            'performance_enabled': True,
-            'errors': [],
-        }
-
-    with patch(
-        'awslabs.dynamodb_mcp_server.database_analyzers.MySQLAnalyzer.analyze',
-        mock_analyze_success,
-    ):
-        with patch(
-            'awslabs.dynamodb_mcp_server.database_analyzers.DatabaseAnalyzer.save_analysis_files'
-        ) as mock_save:
-            mock_save.side_effect = Exception('Save files error')
-
-            result = await source_db_analyzer(
-                source_db_type='mysql',
-                database_name='test_db',
-                aws_cluster_arn='test-cluster',
-                aws_secret_arn='test-secret',
-                aws_region='us-east-1',
-                output_dir='/tmp',
-            )
-
-            assert 'Analysis failed: Save files error' in result
 
 
 @pytest.mark.asyncio
@@ -741,3 +865,73 @@ async def test_dynamodb_data_model_validation_file_permissions():
             result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
             assert 'Permission denied' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_managed_mode_not_implemented(tmp_path):
+    """Test source_db_analyzer when managed mode raises NotImplementedError."""
+    with patch(
+        'awslabs.dynamodb_mcp_server.db_analyzer.analyzer_utils.execute_managed_analysis'
+    ) as mock_execute:
+        mock_execute.side_effect = NotImplementedError(
+            'Managed mode is not yet implemented for PostgreSQL'
+        )
+
+        result = await source_db_analyzer(
+            source_db_type='mysql',
+            database_name='test_db',
+            execution_mode='managed',
+            aws_cluster_arn='test-cluster',
+            aws_secret_arn='test-secret',
+            aws_region='us-east-1',
+            output_dir=str(tmp_path),
+        )
+
+        assert 'Managed mode is not yet implemented' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_invalid_execution_mode(tmp_path):
+    """Test source_db_analyzer with invalid execution mode."""
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        execution_mode='invalid_mode',
+        output_dir=str(tmp_path),
+    )
+
+    assert 'Invalid execution_mode' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_validation_guide_file_not_found():
+    """Test dynamodb_data_model_validation when json_generation_guide.md is missing."""
+    with patch('os.path.exists') as mock_exists:
+        with patch('pathlib.Path.read_text') as mock_read_text:
+            mock_exists.return_value = False  # data_model.json doesn't exist
+            mock_read_text.side_effect = FileNotFoundError('Guide file not found')
+
+            result = await dynamodb_data_model_validation(workspace_dir='/tmp')
+
+            assert 'dynamodb_data_model.json not found' in result
+            assert 'Please generate your data model' in result
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_model_validation_file_not_found_exception():
+    """Test dynamodb_data_model_validation when FileNotFoundError is raised during validation."""
+    mock_data_model = {'tables': [], 'items': [], 'access_patterns': []}
+
+    with patch('os.path.exists') as mock_exists:
+        with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
+            with patch('awslabs.dynamodb_mcp_server.server.setup_dynamodb_local') as mock_setup:
+                with patch(
+                    'awslabs.dynamodb_mcp_server.server.create_validation_resources'
+                ) as mock_create:
+                    mock_exists.return_value = True
+                    mock_setup.return_value = 'http://localhost:8000'
+                    mock_create.side_effect = FileNotFoundError('Required file missing')
+
+                    result = await dynamodb_data_model_validation(workspace_dir='/tmp')
+
+                    assert 'Required file not found' in result

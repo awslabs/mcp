@@ -74,7 +74,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.dynamodb-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -159,9 +159,32 @@ The tool automates the traditional manual validation process:
 
 ### Source Database Analysis
 
-The `source_db_analyzer` tool analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling. This is useful when migrating from relational databases.
+The DynamoDB MCP server includes source database integration for database analysis. The `source_db_analyzer` tool extracts schema and access patterns from your existing database to help design your DynamoDB model.
 
-#### Prerequisites for MySQL Integration
+**Supported Databases:**
+- MySQL / Aurora MySQL
+- PostgreSQL
+- SQL Server
+
+**Execution Modes:**
+- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MYSQL, PSQL, MSSQL)
+- **Managed Mode**: Direct connection via AWS RDS Data API (MySQL only)
+
+We recommend running this tool against a non-production database instance.
+
+### Self-Service Mode (MYSQL, PSQL, MSSQL)
+
+Self-service mode allows you to analyze any database without AWS connectivity:
+
+1. **Generate Queries**: Tool writes SQL queries (based on selected database) to a file
+2. **Run Queries**: You execute queries against your database
+3. **Provide Results**: Tool parses results and generates analysis
+
+### Managed Mode (MYSQL, PSQL, MSSQL)
+
+Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
+
+#### Prerequisites for MySQL Integration (Managed Mode)
 
 1. Aurora MySQL Cluster with credentials stored in AWS Secrets Manager
 2. Enable RDS Data API for your Aurora MySQL Cluster
@@ -212,7 +235,7 @@ Add these environment variables to enable MySQL integration:
 
 #### Using Source Database Analysis
 
-1. Run `source_db_analyzer` against your MySQL database
+1. Run `source_db_analyzer` against your Database (Self-service or Managed mode)
 2. Review the generated timestamped analysis folder (database_analysis_YYYYMMDD_HHMMSS)
 3. Read the manifest.md file first - it lists all analysis files and statistics
 4. Read all analysis files to understand schema structure and access patterns

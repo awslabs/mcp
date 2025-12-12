@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Source Database Analysis SQL Query Resources for DynamoDB Data Modeling."""
+"""MySQL database analyzer plugin."""
 
-from typing import Any, Dict
+from awslabs.dynamodb_mcp_server.common import validate_database_name
+from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
+from awslabs.mysql_mcp_server.server import DBConnection, DummyCtx
+from awslabs.mysql_mcp_server.server import run_query as mysql_query
+from loguru import logger
+from typing import Any, Dict, List
 
 
 # SQL Query Templates for MySQL
-mysql_analysis_queries = {
+_mysql_analysis_queries = {
     'performance_schema_check': {
         'name': 'Performance Schema Status Check',
         'description': 'Returns the status of the performance_schema system variable (ON/OFF)',
@@ -160,8 +165,8 @@ WHERE kcu.TABLE_SCHEMA = '{target_database}'
 ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME;""",
         'parameters': ['target_database'],
     },
-    'all_queries_stats': {
-        'name': 'All Queries and Stored Procedures Statistics',
+    'query_performance_stats': {
+        'name': 'Query Performance Statistics',
         'description': 'Unified view of all query execution including stored procedures with full metrics',
         'category': 'performance_schema',
         'sql': """SELECT
@@ -280,67 +285,136 @@ ORDER BY SUM_TIMER_WAIT DESC;""",
 }
 
 
-def get_query_resource(query_name: str, max_query_results: int, **params) -> Dict[str, Any]:
-    """Get a SQL query resource with parameters substituted."""
-    if query_name not in mysql_analysis_queries:
-        raise ValueError(f"Query '{query_name}' not found")
+class MySQLPlugin(DatabasePlugin):
+    """MySQL-specific database analyzer plugin."""
 
-    query_info = mysql_analysis_queries[query_name].copy()
+    def get_queries(self) -> Dict[str, Any]:
+        """Get all MySQL analysis queries."""
+        return _mysql_analysis_queries
 
-    # Substitute parameters in SQL
-    if params:
-        query_info['sql'] = query_info['sql'].format(**params)
+    def get_database_display_name(self) -> str:
+        """Get the display name of the database type."""
+        return 'MySQL'
 
-    # Apply LIMIT to all queries
-    sql = query_info['sql'].rstrip(';')
-    query_info['sql'] = f'{sql} LIMIT {max_query_results};'
+    # write_queries_to_file and apply_result_limit are inherited from DatabasePlugin base class
 
-    return query_info
+    # parse_results_from_file is inherited from DatabasePlugin base class
 
+    async def _execute_query_batch(
+        self,
+        query_names: List[str],
+        database: str,
+        max_results: int,
+        run_query,
+        all_results: Dict[str, Any],
+        all_errors: List[str],
+    ) -> None:
+        """Execute a batch of queries and collect results.
 
-def get_queries_by_category(category: str) -> list[str]:
-    """Get list of query names for a specific category.
+        Args:
+            query_names: List of query names to execute
+            database: Target database name
+            max_results: Maximum number of results per query
+            run_query: Async function to execute queries
+            all_results: Dictionary to store results (modified in place)
+            all_errors: List to store errors (modified in place)
+        """
+        for query_name in query_names:
+            try:
+                query_info = self.get_queries()[query_name]
+                sql = query_info['sql']
 
-    Args:
-        category: Query category ('information_schema', 'performance_schema', 'internal')
+                # Substitute parameters
+                if 'target_database' in query_info.get('parameters', []):
+                    sql = sql.format(target_database=database)
 
-    Returns:
-        List of query names in the specified category
-    """
-    return [
-        query_name
-        for query_name, query_info in mysql_analysis_queries.items()
-        if query_info.get('category') == category
-    ]
+                # Add LIMIT
+                sql = sql.rstrip(';')
+                sql = f'{sql} LIMIT {max_results};'
 
+                result = await run_query(sql)
 
-def get_schema_queries() -> list[str]:
-    """Get list of schema-related query names.
+                if result and isinstance(result, list) and len(result) > 0:
+                    if 'error' in result[0]:
+                        all_errors.append(f'{query_name}: {result[0]["error"]}')
+                    else:
+                        all_results[query_name] = {
+                            'description': query_info['description'],
+                            'data': result,
+                        }
+                else:
+                    all_results[query_name] = {
+                        'description': query_info['description'],
+                        'data': [],
+                    }
 
-    Returns:
-        List of query names that analyze database schema
-    """
-    return get_queries_by_category('information_schema')
+            except Exception as e:
+                all_errors.append(f'{query_name}: {str(e)}')
 
+    async def execute_managed_mode(self, connection_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute MySQL analysis in managed mode using RDS Data API."""
+        cluster_arn = connection_params['cluster_arn']
+        secret_arn = connection_params['secret_arn']
+        database = connection_params['database']
+        region = connection_params['region']
+        max_results = connection_params['max_results']
 
-def get_performance_queries() -> list[str]:
-    """Get list of performance-related query names.
+        # Validate database name
+        validate_database_name(database)
 
-    Returns:
-        List of query names that analyze database performance
-    """
-    return get_queries_by_category('performance_schema')
+        # Create connection
+        db_connection = DBConnection(cluster_arn, secret_arn, database, region, True)
 
+        async def run_query(sql_cmd):
+            """Execute query using MySQL MCP server."""
+            try:
+                return await mysql_query(sql_cmd, DummyCtx(), db_connection, None)
+            except Exception as e:
+                logger.error(f'MySQL query execution failed: {str(e)}')
+                return [{'error': f'MySQL query failed: {str(e)}'}]
 
-def get_query_descriptions() -> Dict[str, str]:
-    """Get mapping of query names to their descriptions.
+        # Execute queries
+        all_results = {}
+        all_errors = []
+        skipped_queries = []
 
-    Returns:
-        Dictionary mapping query names to human-readable descriptions
-    """
-    descriptions = {}
-    for query_name, query_info in mysql_analysis_queries.items():
-        # Skip internal queries (like performance_schema_check)
-        if query_info.get('category') != 'internal':
-            descriptions[query_name] = query_info.get('description', 'No description available')
-    return descriptions
+        # Check performance schema status
+        perf_check_query = self.get_queries()['performance_schema_check']
+        perf_result = await run_query(perf_check_query['sql'])
+
+        performance_enabled = False
+        if perf_result and len(perf_result) > 0:
+            performance_schema_value = str(perf_result[0].get('', '0'))
+            performance_enabled = performance_schema_value == '1'
+
+        # Execute schema queries
+        await self._execute_query_batch(
+            self.get_schema_queries(),
+            database,
+            max_results,
+            run_query,
+            all_results,
+            all_errors,
+        )
+
+        # Execute performance queries if enabled
+        if performance_enabled:
+            await self._execute_query_batch(
+                self.get_performance_queries(),
+                database,
+                max_results,
+                run_query,
+                all_results,
+                all_errors,
+            )
+        else:
+            skipped_queries.extend(self.get_performance_queries())
+            all_errors.append('Performance Schema disabled - skipping performance queries')
+
+        return {
+            'results': all_results,
+            'errors': all_errors,
+            'performance_enabled': performance_enabled,
+            'performance_feature': 'Performance Schema',
+            'skipped_queries': skipped_queries,
+        }
