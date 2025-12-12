@@ -2,6 +2,8 @@
 
 import pytest
 import struct
+
+from awslabs.valkey_mcp_server.tools.index import DistanceMetric
 from awslabs.valkey_mcp_server.tools.vss import vector_search
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
@@ -23,15 +25,7 @@ class TestVectorSearchIntegration:
             print("Dropped existing index")
         except Exception as e:
             print(f"No existing index to drop: {e}")
-        
-        # Create Bedrock embeddings provider - skip if no credentials
-        try:
-            self.provider = BedrockEmbeddings(region_name="us-east-1", model_id="amazon.titan-embed-text-v1")
-        except ValueError as e:
-            if "AWS credentials not found" in str(e):
-                pytest.skip("AWS credentials not configured - skipping Bedrock integration test")
-            raise
-        
+
         # Create a vector index with 1536 dimensions (Titan embedding size)
         try:
             r.execute_command(
@@ -54,9 +48,20 @@ class TestVectorSearchIntegration:
         except:
             pass
 
+    async def assert_bedrock_access(self):
+        # Create Bedrock embeddings provider - skip if no credentials
+        try:
+            self.provider = BedrockEmbeddings(region_name="us-east-1", model_id="amazon.titan-embed-text-v1")
+        except ValueError as e:
+            if "AWS credentials not found" in str(e):
+                pytest.skip("AWS credentials not configured - skipping Bedrock integration test")
+            raise
+
     async def test_vector_search_with_bedrock_embeddings(self):
         """Test vector_search with live Bedrock embeddings."""
-        
+
+        await self.assert_bedrock_access()
+
         # Generate embedding for the first text
         text1 = "The quick brown fox jumped over the lazy dogs"
         embedding1 = await self.provider.generate_embedding(text1)
@@ -108,3 +113,28 @@ class TestVectorSearchIntegration:
         assert result['results'][0]['id'] == 'doc1'
         assert result['results'][0]['text'] == text1
         assert result['results'][0]['category'] == 'animals'
+
+    async def test_vector_search_dimension_mismatch(self):
+        """Test vector search with dimension mismatch using hash embeddings."""
+        from awslabs.valkey_mcp_server.tools.index import create_vector_index
+        from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
+
+        index_name = "test_vector_idx"
+        field_name = "embedding"
+
+        # Create embeddings provider with different dimensions than test setup
+        embeddings_128 = HashEmbeddings(dimensions=128)
+        
+        # Try to search with 128-dimensional vector (should fail)
+        query_vector = await embeddings_128.generate_embedding("test query")
+        assert len(query_vector) == 128
+
+        result = await vector_search(
+            index=index_name,
+            field=field_name,
+            vector=query_vector
+        )
+
+        # Should return error due to dimension mismatch
+        assert result['status'] == 'error'
+        assert 'valkey' in result['type']

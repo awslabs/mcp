@@ -13,20 +13,21 @@
 # limitations under the License.
 
 """Index operations for Valkey MCP Server."""
+from langchain_core.runnables.configurable import StrEnum
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from typing import Optional
 
 
-class IndexType:
+class IndexType(StrEnum):
     HASH = 'HASH'
     JSON = 'JSON'
 
-class StructureType:
+class StructureType(StrEnum):
     FLAT = 'FLAT'
     HNSW = 'HNSW'
 
-class DistanceMetric:
+class DistanceMetric(StrEnum):
     L2 = 'L2'
     IP = 'IP'
     COSINE = 'COSINE'
