@@ -59,17 +59,24 @@ def extract_package_name(pyproject_path: Path) -> str:
 
 
 def extract_dependencies(pyproject_path: Path) -> List[str]:
-    """Extract dependency names from pyproject.toml file."""
+    """Extract dependency names from pyproject.toml file, including optional dependencies."""
     try:
         with open(pyproject_path, 'rb') as f:
             data = tomllib.load(f)
-        dependencies = data.get('project', {}).get('dependencies', [])
+
+        # Combine regular dependencies and optional dependencies
+        all_deps = data.get('project', {}).get('dependencies', [])
+        optional_deps = data.get('project', {}).get('optional-dependencies', {})
+        for group_deps in optional_deps.values():
+            all_deps.extend(group_deps)
+
         # Extract just the package names (remove version constraints)
         dep_names = []
-        for dep in dependencies:
+        for dep in all_deps:
             # Remove version constraints (>=, ==, etc.) and extract just the package name
             dep_name = re.split(r'[>=<!=]', dep)[0].strip()
             dep_names.append(dep_name)
+
         return dep_names
     except (FileNotFoundError, KeyError):
         # If we can't extract dependencies, return empty list
@@ -199,8 +206,9 @@ def find_package_references_in_readme(
             'env',
         ]:
             continue
-        # Skip dependencies from pyproject.toml
-        if ref in dependencies:
+        # Skip dependencies from pyproject.toml (strip version before comparing)
+        ref_package = ref.split('@')[0] if '@' in ref else ref
+        if ref_package in dependencies:
             continue
         # Skip AWS service references (e.g., aws.s3@ObjectCreated)
         if ref.startswith('aws.') and '@' in ref:
