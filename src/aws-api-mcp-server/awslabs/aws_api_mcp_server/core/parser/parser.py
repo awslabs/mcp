@@ -16,7 +16,6 @@ import argparse
 import botocore.serialize
 import ipaddress
 import jmespath
-import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -70,7 +69,6 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -791,16 +789,21 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 
     source_path, dest_path = paths
     _validate_s3_file_path(source_path, service, operation)
-    _validate_s3_file_path(dest_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
 
 
-def _validate_s3_file_path(file_path: str, service: str, operation: str):
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # Allow '-' (stdout) only for s3 cp destination
     if file_path == '-':
+        if operation == 'cp' and is_destination:
+            return
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason="streaming file ('-') is not allowed",
+            reason="streaming to stdout ('-') is only supported as destination in 'aws s3 cp'",
         )
 
     if not file_path.startswith('s3://'):
@@ -853,14 +856,6 @@ def _validate_outfile(
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
-    if not os.path.isabs(Path(file_path)):
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason='should be an absolute path',
-        )
-
     try:
         validate_file_path(file_path)
     except (FilePathValidationError, LocalFileAccessDisabledError) as e:
