@@ -792,14 +792,16 @@ class TestGenomicsSearchOrchestrator:
         orchestrator.config.enable_healthomics_search = False
 
         with patch.object(
-            orchestrator, '_search_s3_with_timeout', new_callable=AsyncMock
+            orchestrator, '_search_s3_with_timeout_for_buckets', new_callable=AsyncMock
         ) as mock_s3:
             mock_s3.return_value = sample_genomics_files
 
             result = await orchestrator._execute_parallel_searches(sample_search_request)
 
             assert result == sample_genomics_files
-            mock_s3.assert_called_once_with(sample_search_request)
+            mock_s3.assert_called_once_with(
+                sample_search_request, orchestrator.config.s3_bucket_paths
+            )
 
     @pytest.mark.asyncio
     async def test_execute_parallel_searches_all_systems(
@@ -821,7 +823,7 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_with_timeout', new_callable=AsyncMock
+                orchestrator, '_search_s3_with_timeout_for_buckets', new_callable=AsyncMock
             ) as mock_s3,
             patch.object(
                 orchestrator, '_search_healthomics_sequences_with_timeout', new_callable=AsyncMock
@@ -838,7 +840,9 @@ class TestGenomicsSearchOrchestrator:
 
             expected_files = sample_genomics_files + healthomics_files
             assert result == expected_files
-            mock_s3.assert_called_once_with(sample_search_request)
+            mock_s3.assert_called_once_with(
+                sample_search_request, orchestrator.config.s3_bucket_paths
+            )
             mock_seq.assert_called_once_with(sample_search_request)
             mock_ref.assert_called_once_with(sample_search_request)
 
@@ -849,7 +853,7 @@ class TestGenomicsSearchOrchestrator:
         """Test executing parallel searches with some systems failing."""
         with (
             patch.object(
-                orchestrator, '_search_s3_with_timeout', new_callable=AsyncMock
+                orchestrator, '_search_s3_with_timeout_for_buckets', new_callable=AsyncMock
             ) as mock_s3,
             patch.object(
                 orchestrator, '_search_healthomics_sequences_with_timeout', new_callable=AsyncMock
@@ -942,7 +946,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
@@ -1014,7 +1020,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
@@ -1077,7 +1085,7 @@ class TestGenomicsSearchOrchestrator:
         )
 
         with patch.object(
-            orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            orchestrator, '_search_s3_paginated_with_timeout_for_buckets', new_callable=AsyncMock
         ) as mock_s3:
             mock_s3.return_value = mock_s3_response
 
@@ -1093,7 +1101,9 @@ class TestGenomicsSearchOrchestrator:
             assert files[0].path == 's3://test-bucket/file1.fastq'
             assert next_token is None
             assert total_scanned == 1
-            mock_s3.assert_called_once_with(sample_search_request, storage_request)
+            mock_s3.assert_called_once_with(
+                sample_search_request, storage_request, orchestrator.config.s3_bucket_paths
+            )
 
     @pytest.mark.asyncio
     async def test_execute_parallel_paginated_searches_healthomics_only(
@@ -1197,7 +1207,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
@@ -1316,7 +1328,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
@@ -1387,7 +1401,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
@@ -1458,7 +1474,9 @@ class TestGenomicsSearchOrchestrator:
 
         with (
             patch.object(
-                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
             ) as mock_s3,
             patch.object(
                 orchestrator,
