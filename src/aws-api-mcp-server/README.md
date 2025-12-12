@@ -184,7 +184,7 @@ Once the server is running, connect to it using the following configuration (ens
 **IMPORTANT**: When using HTTP mode (`streamable-http`), please be aware of the following security considerations:
 
 - **Single Customer Server**: This HTTP mode is intended for **single customer use only**. It is **NOT designed for multi-tenant environments** or serving multiple users simultaneously
-- **Authentication**: The server defaults to OAuth authentication. Set `AUTH_TYPE=no-auth` to disable authentication if needed
+- **Authentication**: The server can be started with OAuth authentication, using `AUTH_TYPE=oauth`. Set `AUTH_TYPE=no-auth` to disable authentication if needed
 - **Network Security Controls**: Ensure proper network security controls are in place:
   - Bind to localhost (`127.0.0.1`) when possible
   - Configure firewall rules to restrict access
