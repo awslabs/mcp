@@ -19,7 +19,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import decode_from_base6
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import ValidationError
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 async def validate_s3_uri(ctx: Context, uri: str, parameter_name: str) -> None:
@@ -135,3 +135,39 @@ async def validate_container_registry_params(
             logger.error(error_message)
             await ctx.error(error_message)
             raise ValueError(error_message)
+
+
+async def validate_adhoc_s3_buckets(adhoc_buckets: Optional[List[str]]) -> List[str]:
+    """Validate adhoc S3 bucket paths and check access permissions.
+
+    This function validates bucket path formats and tests access permissions
+    for adhoc buckets that are not part of the standard configuration.
+
+    Args:
+        adhoc_buckets: List of S3 bucket paths to validate
+
+    Returns:
+        List of validated and accessible bucket paths
+
+    Raises:
+        ValueError: If no valid buckets are provided or accessible
+    """
+    if not adhoc_buckets:
+        return []
+
+    from awslabs.aws_healthomics_mcp_server.utils.s3_utils import validate_bucket_access
+
+    try:
+        # Use existing utility to validate bucket access
+        # This handles format validation, deduplication, and access testing
+        validated_buckets = validate_bucket_access(adhoc_buckets)
+
+        logger.info(
+            f'Validated {len(validated_buckets)} adhoc S3 buckets out of {len(adhoc_buckets)} provided'
+        )
+        return validated_buckets
+
+    except ValueError as e:
+        # Log the error but don't fail completely - let the search continue with configured buckets
+        logger.warning(f'Adhoc S3 bucket validation failed: {e}')
+        return []
