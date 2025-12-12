@@ -131,7 +131,7 @@ def get_server_auth():
 
 
     if not AUTH_TYPE:
-        raise ValueError('TRANSPORT="streamable-http" requires the following environment variables to be set: AUTH_TYPE')
+        raise ValueError('TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE')
 
     if AUTH_TYPE != 'oauth':
         return auth_provider
