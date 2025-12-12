@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "items": {
+    "additionalProperties": false,
+    "properties": {
+      "area": {
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "description": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "href": {
+        "format": "uri",
+        "type": "string"
+      },
+      "id": {
+        "pattern": "^[A-Z]{3,10}\\d{2}-BP\\d{2}$",
+        "type": "string"
+      },
+      "lens": {
+        "default": "FRAMEWORK",
+        "type": "string"
+      },
+      "outcome": {
+        "type": "string"
+      },
+      "pillar": {
+        "enum": [
+          "OPERATIONAL_EXCELLENCE",
+          "SECURITY",
+          "RELIABILITY",
+          "PERFORMANCE_EFFICIENCY",
+          "COST_OPTIMIZATION",
+          "SUSTAINABILITY"
+        ],
+        "type": "string"
+      },
+      "relatedIds": {
+        "items": {
+          "pattern": "^[A-Z]{3,10}\\d{1,3}(-BP\\d{2})?$",
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "risk": {
+        "enum": [
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title_full": {
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "title_full",
+      "title",
+      "href",
+      "description",
+      "outcome",
+      "pillar",
+      "area",
+      "relatedIds",
+      "risk"
+    ],
+    "type": "object"
+  },
+  "type": "array"
+}
