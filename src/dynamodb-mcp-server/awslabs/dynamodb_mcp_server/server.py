@@ -286,35 +286,43 @@ async def source_db_analyzer(
 
 
 @app.tool()
-@handle_exceptions
 async def execute_dynamodb_command(
     command: str = Field(description="AWS CLI DynamoDB command (must start with 'aws dynamodb')"),
     endpoint_url: Optional[str] = Field(default=None, description='DynamoDB endpoint URL'),
+    ctx: Optional[Context] = Field(default=None, description='MCP request context'),
 ):
     """Execute AWSCLI DynamoDB commands.
 
     Args:
         command: AWS CLI command string (e.g., "aws dynamodb query --table-name MyTable")
         endpoint_url: DynamoDB endpoint URL
+        ctx: Request context forwarded to AWS call handler
 
     Returns:
         AWS CLI command execution results or error response
     """
-    # Validate command starts with 'aws dynamodb'
-    if not command.strip().startswith('aws dynamodb'):
-        raise ValueError("Command must start with 'aws dynamodb'")
-
-    # Configure environment with fake AWS credentials if endpoint_url is present
-    if endpoint_url:
-        os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
-        os.environ['AWS_SECRET_ACCESS_KEY'] = (
-            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
-        )
-        os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
-        command += f' --endpoint-url {endpoint_url}'
-
     try:
-        return await call_aws(command, Context())
+        # Validate command starts with 'aws dynamodb'
+        if not command.strip().startswith('aws dynamodb'):
+            raise ValueError("Command must start with 'aws dynamodb'")
+
+        # Configure environment with fake AWS credentials if endpoint_url is present
+        if endpoint_url:
+            os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+            os.environ['AWS_SECRET_ACCESS_KEY'] = (
+                'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+            )
+            os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
+            command += f' --endpoint-url {endpoint_url}'
+
+        result = await call_aws(command, ctx)
+        if hasattr(result, 'error') and getattr(result, 'error'):
+            detail = getattr(result, 'detail', None) or getattr(result, 'response', None)
+            message = detail or 'AWS command failed'
+            raise RuntimeError(message)
+        if hasattr(result, 'model_dump'):
+            return result.model_dump()
+        return result if result is not None else {'message': 'No result returned from call_aws'}
     except Exception as e:
         return e
 
@@ -323,6 +331,7 @@ async def execute_dynamodb_command(
 @handle_exceptions
 async def dynamodb_data_model_validation(
     workspace_dir: str = Field(description='Absolute path of the workspace directory'),
+    ctx: Context = Field(description='MCP request context'),
 ) -> str:
     """Validates and tests DynamoDB data models against DynamoDB Local.
 
@@ -352,6 +361,7 @@ async def dynamodb_data_model_validation(
 
     Args:
         workspace_dir: Absolute path of the workspace directory
+        ctx: MCP request context
 
     Returns:
         JSON generation guide (if file missing) or validation results with transformation prompt (if file exists)
@@ -396,7 +406,7 @@ async def dynamodb_data_model_validation(
         # Step 5: Execute access patterns
         logger.info('Executing access patterns')
         await _execute_access_patterns(
-            workspace_dir, data_model.get('access_patterns', []), endpoint_url
+            workspace_dir, data_model.get('access_patterns', []), endpoint_url, ctx
         )
 
         # Step 6: Transform validation results to markdown
@@ -419,6 +429,7 @@ async def _execute_access_patterns(
     workspace_dir: str,
     access_patterns: List[Dict[str, Any]],
     endpoint_url: Optional[str] = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Execute all data model validation access patterns operations.
 
@@ -426,6 +437,7 @@ async def _execute_access_patterns(
         workspace_dir: Absolute path of the workspace directory
         access_patterns: List of access patterns to test
         endpoint_url: DynamoDB endpoint URL
+        ctx: Request context for downstream AWS calls
 
     Returns:
         Dictionary with all execution results
@@ -438,7 +450,9 @@ async def _execute_access_patterns(
                 continue
 
             command = pattern['implementation']
-            result = await execute_dynamodb_command(command, endpoint_url)
+            result = await execute_dynamodb_command(
+                command=command, endpoint_url=endpoint_url, ctx=ctx
+            )
             results.append(
                 {
                     'pattern_id': pattern.get('pattern'),
