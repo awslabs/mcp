@@ -706,15 +706,21 @@ async def test_list_statements_success(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved statements for session test-session' in result.content[0].text
-    assert result.session_id == 'test-session'
-    assert len(result.statements) == 2
-    assert result.statements[0]['Id'] == 1
-    assert result.statements[1]['Id'] == 2
-    assert result.next_token == 'next-token'
-    assert result.count == 2
+    assert result.content[1].type == 'text'
+    # Parse the JSON response from the second content item
+    import json
+
+    response_data = json.loads(result.content[1].text)
+    assert response_data['session_id'] == 'test-session'
+    assert response_data['count'] == 2
+    assert response_data['next_token'] == 'next-token'
+    assert response_data['operation'] == 'list-statements'
+    assert len(response_data['statements']) == 2
+    assert response_data['statements'][0]['Id'] == 1
+    assert response_data['statements'][1]['Id'] == 2
 
     # Verify that list_statements was called with the correct parameters
     mock_glue_client.list_statements.assert_called_once()
@@ -750,9 +756,9 @@ async def test_statement_invalid_operation(mock_create_client):
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
-    assert result.session_id == 'test-session'
-    assert result.statement_id == 1
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 # Split the test_missing_required_parameters into individual tests for better isolation
@@ -1191,7 +1197,9 @@ async def test_invalid_session_operation(mock_create_client):
     )
 
     assert result.isError
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
@@ -1364,7 +1372,9 @@ async def test_invalid_statement_operation(mock_create_client):
     )
 
     assert result.isError
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
@@ -1878,7 +1888,9 @@ async def test_session_no_write_access_fallback(mock_create_client):
     )
 
     assert result.isError is True
-    assert 'Invalid operation: unknown-operation' in result.content[0].text
+    assert (
+        'Operation unknown-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio

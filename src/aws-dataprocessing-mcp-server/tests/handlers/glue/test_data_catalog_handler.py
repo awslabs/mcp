@@ -165,93 +165,42 @@ class TestGlueDataCatalogHandler:
         self, handler, mock_ctx
     ):
         """Test that create database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation create-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'create'
+        # Call the method with a write operation
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='create-database', database_name='test-db'
+        )
 
-        # Patch the CreateDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.CreateDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='create-database', database_name='test-db'
-            )
-
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'create-database'
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_delete_no_write_access(
         self, handler, mock_ctx
     ):
         """Test that delete database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation delete-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'delete'
+        # Call the method with a write operation
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='delete-database', database_name='test-db'
+        )
 
-        # Patch the DeleteDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.DeleteDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='delete-database', database_name='test-db'
-            )
-
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'delete-database'
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_update_no_write_access(
         self, handler, mock_ctx
     ):
         """Test that update database operation is not allowed without write access."""
-        # Mock the response class
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[
-            0
-        ].text = 'Operation update-database is not allowed without write access'
-        mock_response.database_name = ''
-        mock_response.operation = 'update'
+        # Call the method with a write operation
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='update-database', database_name='test-db'
+        )
 
-        # Patch the UpdateDatabaseResponse class
-        with patch(
-            'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.UpdateDatabaseResponse',
-            return_value=mock_response,
-        ):
-            # Call the method with a write operation
-            result = await handler.manage_aws_glue_data_catalog_databases(
-                mock_ctx, operation='update-database', database_name='test-db'
-            )
-
-            # Verify the result
-            assert result.isError is True
-            assert 'not allowed without write access' in result.content[0].text
-            assert result.database_name == ''
-            assert result.operation == 'update-database'
+        # Verify the result
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_get_read_access(
@@ -332,6 +281,11 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == mock_response
+        assert result.content[1].type == 'text'
+        # Parse JSON from second content item
+        import json
+
+        json.loads(result.content[1].text)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_create_with_write_access(
@@ -486,8 +440,6 @@ class TestGlueDataCatalogHandler:
         # Verify that the result is an error response
         assert result.isError is True
         assert 'Invalid operation' in result.content[0].text
-        assert result.database_name == ''
-        assert result.operation == 'get-database'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_missing_database_name(
@@ -511,40 +463,17 @@ class TestGlueDataCatalogHandler:
         # Setup the mock to raise an exception
         mock_database_manager.get_database.side_effect = Exception('Test exception')
 
-        # Patch the handler's method to handle the exception properly
-        with patch.object(
-            handler,
-            'manage_aws_glue_data_catalog_databases',
-            side_effect=handler.manage_aws_glue_data_catalog_databases,
-        ):
-            # Create a mock response for the GetDatabaseResponse
-            mock_response = MagicMock()
-            mock_response.isError = True
-            mock_response.content = [MagicMock()]
-            mock_response.content[
-                0
-            ].text = 'Error in manage_aws_glue_data_catalog_databases: Test exception'
-            mock_response.database_name = 'test-db'
-            mock_response.operation = 'get'
+        # Call the method
+        result = await handler.manage_aws_glue_data_catalog_databases(
+            mock_ctx, operation='get-database', database_name='test-db'
+        )
 
-            # Patch the GetDatabaseResponse class
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models.GetDatabaseResponse',
-                return_value=mock_response,
-            ):
-                # Call the method
-                result = await handler.manage_aws_glue_data_catalog_databases(
-                    mock_ctx, operation='get-database', database_name='test-db'
-                )
-
-                # Verify that the result is an error response
-                assert result.isError is True
-                assert (
-                    'Error in manage_aws_glue_data_catalog_databases: Test exception'
-                    in result.content[0].text
-                )
-                assert result.database_name == 'test-db'
-                assert result.operation == 'get-database'
+        # Verify that the result is an error response
+        assert result.isError is True
+        assert (
+            'Error in manage_aws_glue_data_catalog_databases: Test exception'
+            in result.content[0].text
+        )
 
     # Tests for manage_aws_glue_data_catalog_tables method
 

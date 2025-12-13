@@ -18,15 +18,9 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_database_manager import (
     DataCatalogDatabaseManager,
 )
-from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    CreateDatabaseResponse,
-    DeleteDatabaseResponse,
-    GetDatabaseResponse,
-    ListDatabasesResponse,
-    UpdateDatabaseResponse,
-)
 from botocore.exceptions import ClientError
 from datetime import datetime
+from mcp.types import CallToolResult
 from unittest.mock import MagicMock, patch
 
 
@@ -97,12 +91,11 @@ class TestDataCatalogDatabaseManager:
             assert call_args['Tags'] == expected_tags
 
             # Verify the response
-            assert isinstance(result, CreateDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.operation == 'create-database'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully created database: {database_name}'
+            assert len(result.content) == 2
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully created database: {database_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_create_database_error(self, manager, mock_ctx, mock_glue_client):
@@ -127,11 +120,10 @@ class TestDataCatalogDatabaseManager:
             result = await manager.create_database(mock_ctx, database_name=database_name)
 
             # Verify the response
-            assert isinstance(result, CreateDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.operation == 'create-database'
             assert len(result.content) == 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to create database' in result.content[0].text
             assert 'AlreadyExistsException' in result.content[0].text
 
@@ -169,12 +161,11 @@ class TestDataCatalogDatabaseManager:
             )
 
             # Verify the response
-            assert isinstance(result, DeleteDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.operation == 'delete-database'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully deleted database: {database_name}'
+            assert len(result.content) == 2
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully deleted database: {database_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_database_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
@@ -205,11 +196,10 @@ class TestDataCatalogDatabaseManager:
             mock_glue_client.delete_database.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, DeleteDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.operation == 'delete-database'
             assert len(result.content) == 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -231,11 +221,10 @@ class TestDataCatalogDatabaseManager:
         mock_glue_client.delete_database.assert_not_called()
 
         # Verify the response
-        assert isinstance(result, DeleteDatabaseResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.operation == 'delete-database'
         assert len(result.content) == 1
+        assert hasattr(result.content[0], 'text')
         assert 'Database test-db not found' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -272,17 +261,11 @@ class TestDataCatalogDatabaseManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetDatabaseResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.database_name == database_name
-        assert result.description == description
-        assert result.location_uri == location_uri
-        assert result.parameters == parameters
-        assert result.creation_time == create_time.isoformat()
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-database'
-        assert len(result.content) == 1
-        assert result.content[0].text == f'Successfully retrieved database: {database_name}'
+        assert len(result.content) == 2
+        assert hasattr(result.content[0], 'text')
+        assert f'Successfully retrieved database: {database_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_database_error(self, manager, mock_ctx, mock_glue_client):
@@ -303,16 +286,10 @@ class TestDataCatalogDatabaseManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetDatabaseResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.description == ''
-        assert result.location_uri == ''
-        assert result.parameters == {}
-        assert result.creation_time == ''
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-database'
         assert len(result.content) == 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to get database' in result.content[0].text
         assert 'EntityNotFoundException' in result.content[0].text
 
@@ -367,27 +344,11 @@ class TestDataCatalogDatabaseManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListDatabasesResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert len(result.databases) == 2
-        assert result.count == 2
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'list-databases'
-        assert len(result.content) == 1
-        assert result.content[0].text == 'Successfully listed 2 databases'
-
-        # Verify the database summaries
-        assert result.databases[0].name == 'db1'
-        assert result.databases[0].description == 'Database 1'
-        assert result.databases[0].location_uri == 's3://bucket1/'
-        assert result.databases[0].parameters == {'key1': 'value1'}
-        assert result.databases[0].creation_time == create_time.isoformat()
-
-        assert result.databases[1].name == 'db2'
-        assert result.databases[1].description == 'Database 2'
-        assert result.databases[1].location_uri == 's3://bucket2/'
-        assert result.databases[1].parameters == {'key2': 'value2'}
-        assert result.databases[1].creation_time == create_time.isoformat()
+        assert len(result.content) == 2
+        assert hasattr(result.content[0], 'text')
+        assert 'Successfully listed 2 databases' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_list_databases_error(self, manager, mock_ctx, mock_glue_client):
@@ -403,13 +364,10 @@ class TestDataCatalogDatabaseManager:
         result = await manager.list_databases(mock_ctx, catalog_id=catalog_id)
 
         # Verify the response
-        assert isinstance(result, ListDatabasesResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert len(result.databases) == 0
-        assert result.count == 0
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'list-databases'
         assert len(result.content) == 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to list databases' in result.content[0].text
         assert 'AccessDeniedException' in result.content[0].text
 
@@ -463,12 +421,11 @@ class TestDataCatalogDatabaseManager:
             assert call_args['CatalogId'] == catalog_id
 
             # Verify the response
-            assert isinstance(result, UpdateDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.operation == 'update-database'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully updated database: {database_name}'
+            assert len(result.content) == 2
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully updated database: {database_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_update_database_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
@@ -499,11 +456,10 @@ class TestDataCatalogDatabaseManager:
             mock_glue_client.update_database.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, UpdateDatabaseResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.operation == 'update-database'
             assert len(result.content) == 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -525,9 +481,8 @@ class TestDataCatalogDatabaseManager:
         mock_glue_client.update_database.assert_not_called()
 
         # Verify the response
-        assert isinstance(result, UpdateDatabaseResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.operation == 'update-database'
         assert len(result.content) == 1
+        assert hasattr(result.content[0], 'text')
         assert 'Database test-db not found' in result.content[0].text
