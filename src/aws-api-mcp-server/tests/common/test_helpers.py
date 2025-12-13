@@ -115,6 +115,13 @@ def test_json_serializer_datetime():
     assert result == '2025-12-13T14:30:45'
 
 
+def test_json_serializer_bytes():
+    """Test that json_serializer converts bytes to string representation."""
+    data = b'binary content'
+    result = json_serializer(data)
+    assert result == "b'binary content'"
+
+
 @pytest.mark.parametrize(
     'args,expected',
     [
