@@ -1,46 +1,60 @@
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler import (
     GlueCommonsHandler,
 )
 from botocore.exceptions import ClientError
 from datetime import datetime
+from mcp.server.fastmcp import Context
 from unittest.mock import Mock, patch
 
 
+def extract_response_data(response):
+    """Helper function to extract data from CallToolResult content."""
+    if response.isError:
+        return {}
+    # Find the JSON content in the response
+    for content_item in response.content:
+        if content_item.type == 'text':
+            try:
+                return json.loads(content_item.text)
+            except (json.JSONDecodeError, ValueError):
+                continue
+    return {}
+
+
 @pytest.fixture
-def mock_mcp():
-    """Create a mock MCP server instance for testing."""
+def mock_aws_helper():
+    """Create a mock AwsHelper instance for testing."""
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
+    ) as mock:
+        mock.create_boto3_client.return_value = Mock()
+        mock.get_aws_region.return_value = 'us-east-1'
+        mock.get_aws_account_id.return_value = '123456789012'
+        mock.prepare_resource_tags.return_value = {'mcp-managed': 'true'}
+        mock.is_resource_mcp_managed.return_value = True
+        yield mock
+
+
+@pytest.fixture
+def handler(mock_aws_helper):
+    """Create a GlueCommonsHandler instance with write access for testing."""
     mcp = Mock()
-    mcp.tool = Mock(return_value=lambda x: x)
-    return mcp
+    return GlueCommonsHandler(mcp, allow_write=True)
+
+
+@pytest.fixture
+def no_write_handler(mock_aws_helper):
+    """Create a GlueCommonsHandler instance without write access for testing."""
+    mcp = Mock()
+    return GlueCommonsHandler(mcp, allow_write=False)
 
 
 @pytest.fixture
 def mock_context():
-    """Create a mock context for testing."""
-    return Mock()
-
-
-@pytest.fixture
-def handler(mock_mcp):
-    """Create a GlueCommonsHandler instance with write access for testing."""
-    with patch(
-        'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
-    ) as mock_aws_helper:
-        mock_aws_helper.create_boto3_client.return_value = Mock()
-        handler = GlueCommonsHandler(mock_mcp, allow_write=True)
-        return handler
-
-
-@pytest.fixture
-def no_write_handler(mock_mcp):
-    """Create a GlueCommonsHandler instance without write access for testing."""
-    with patch(
-        'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
-    ) as mock_aws_helper:
-        mock_aws_helper.create_boto3_client.return_value = Mock()
-        handler = GlueCommonsHandler(mock_mcp, allow_write=False)
-        return handler
+    """Create a mock context instance for testing."""
+    return Mock(spec=Context)
 
 
 class TestGlueCommonsHandler:
@@ -61,8 +75,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.profile_name == 'test-profile'
-        assert result.operation == 'create'
+        response_data = extract_response_data(result)
+        assert response_data.get('profile_name') == 'test-profile'
+        assert response_data.get('operation') == 'create'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_create_no_write_access(
@@ -93,8 +108,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.config_name == 'test-config'
-        assert result.operation == 'create'
+        response_data = extract_response_data(result)
+        assert response_data.get('config_name') == 'test-config'
+        assert response_data.get('operation') == 'create'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_get_not_found(self, handler, mock_context):
@@ -122,7 +138,8 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.encryption_settings == {'test': 'settings'}
+        response_data = extract_response_data(result)
+        assert response_data.get('encryption_settings') == {'test': 'settings'}
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_put_success(self, handler, mock_context):
@@ -134,8 +151,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.policy_hash == 'test-hash'
-        assert result.operation == 'put'
+        response_data = extract_response_data(result)
+        assert response_data.get('policy_hash') == 'test-hash'
+        assert response_data.get('operation') == 'put'
 
     @pytest.mark.asyncio
     async def test_invalid_operations(self, handler, mock_context):
@@ -181,9 +199,10 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='test-profile'
             )
 
-            assert result.isError is False
-            assert result.profile_name == 'test-profile'
-            assert result.operation == 'delete'
+        assert result.isError is False
+        response_data = extract_response_data(result)
+        assert response_data.get('profile_name') == 'test-profile'
+        assert response_data.get('operation') == 'delete'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_delete_not_found(self, handler, mock_context):
@@ -234,8 +253,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.profile_name == 'test-profile'
-        assert result.operation == 'get'
+        response_data = extract_response_data(result)
+        assert response_data.get('profile_name') == 'test-profile'
+        assert response_data.get('operation') == 'get'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_update_success(self, handler, mock_context):
@@ -258,8 +278,9 @@ class TestGlueCommonsHandler:
             )
 
             assert result.isError is False
-            assert result.profile_name == 'test-profile'
-            assert result.operation == 'update'
+            response_data = extract_response_data(result)
+            assert response_data.get('profile_name') == 'test-profile'
+            assert response_data.get('operation') == 'update'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_create_missing_config(
@@ -325,8 +346,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.config_name == 'test-config'
-        assert result.operation == 'delete'
+        response_data = extract_response_data(result)
+        assert response_data.get('config_name') == 'test-config'
+        assert response_data.get('operation') == 'delete'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_delete_not_found(self, handler, mock_context):
@@ -359,8 +381,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.config_name == 'test-config'
-        assert result.operation == 'get'
+        response_data = extract_response_data(result)
+        assert response_data.get('config_name') == 'test-config'
+        assert response_data.get('operation') == 'get'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_create_missing_config(self, handler, mock_context):
@@ -424,7 +447,8 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.operation == 'put'
+        response_data = extract_response_data(result)
+        assert response_data.get('operation') == 'put'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_put_no_write_access(
@@ -505,8 +529,9 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.policy_hash == 'test-hash'
-        assert result.operation == 'get'
+        response_data = extract_response_data(result)
+        assert response_data.get('policy_hash') == 'test-hash'
+        assert response_data.get('operation') == 'get'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_delete_success(self, handler, mock_context):
@@ -518,7 +543,8 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.operation == 'delete'
+        response_data = extract_response_data(result)
+        assert response_data.get('operation') == 'delete'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_get_no_write_access(
@@ -595,7 +621,8 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.policy_hash == 'test-hash'
+        response_data = extract_response_data(result)
+        assert response_data.get('policy_hash') == 'test-hash'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_update_not_mcp_managed(
@@ -685,7 +712,8 @@ class TestGlueCommonsHandler:
         )
 
         assert result.isError is False
-        assert result.operation == 'put'
+        response_data = extract_response_data(result)
+        assert response_data.get('operation') == 'put'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_get_error(self, handler, mock_context):

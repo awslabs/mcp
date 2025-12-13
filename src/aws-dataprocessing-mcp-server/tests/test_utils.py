@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Test utilities for CallToolResult handling."""
 
 import json
@@ -27,6 +41,17 @@ class AttributeDict:
         """Get value with default."""
         return self._data.get(key, default)
 
+    def __eq__(self, other) -> bool:
+        """Compare with dictionaries or other AttributeDict objects."""
+        if isinstance(other, dict):
+            return self._data == other
+        elif isinstance(other, AttributeDict):
+            return self._data == other._data
+        return False
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f'AttributeDict({self._data})'
 
 def extract_result_data(result: CallToolResult) -> Dict[str, Any]:
     """Extract structured data from CallToolResult content.
@@ -52,7 +77,11 @@ def extract_result_data(result: CallToolResult) -> Dict[str, Any]:
         return {}
 
     # Second content item should contain JSON data
-    json_content = result.content[1].text
+    content_item = result.content[1]
+    if hasattr(content_item, 'text'):
+        json_content = content_item.text
+    else:
+        return {}
 
     try:
         return json.loads(json_content)
@@ -93,7 +122,10 @@ class CallToolResultWrapper:
 
         # Handle some common attribute patterns for backward compatibility
         if name == 'text' and len(self._result.content) > 0:
-            return self._result.content[0].text
+            content_item = self._result.content[0]
+            if hasattr(content_item, 'text'):
+                return content_item.text
+            return ''
 
         # Special handling for list-like results
         list_fields = [
@@ -197,7 +229,11 @@ class CallToolResultWrapper:
             if self._result.isError and name in name_fields:
                 # Check if we can extract the name from error message
                 if len(self._result.content) > 0:
-                    error_text = self._result.content[0].text
+                    content_item = self._result.content[0]
+                    if hasattr(content_item, 'text'):
+                        error_text = content_item.text
+                    else:
+                        return ''
                     # Extract name from common error patterns
                     import re
 

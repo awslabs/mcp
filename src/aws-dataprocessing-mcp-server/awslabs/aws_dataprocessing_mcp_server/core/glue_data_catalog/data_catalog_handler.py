@@ -1204,18 +1204,39 @@ class DataCatalogManager:
             )
 
             success_msg = f'Successfully retrieved catalog: {catalog_id}'
+
+            # Convert datetime objects to ISO strings
+            create_time_str = ''
+            if catalog.get('CreateTime'):
+                create_time_obj = catalog.get('CreateTime')
+                if hasattr(create_time_obj, 'isoformat'):
+                    create_time_str = create_time_obj.isoformat()
+                else:
+                    create_time_str = str(create_time_obj)
+
+            update_time_str = ''
+            if catalog.get('UpdateTime'):
+                update_time_obj = catalog.get('UpdateTime')
+                if hasattr(update_time_obj, 'isoformat'):
+                    update_time_str = update_time_obj.isoformat()
+                else:
+                    update_time_str = str(update_time_obj)
+
+            # Create a copy of catalog with datetime objects converted to strings
+            catalog_definition = catalog.copy()
+            if 'CreateTime' in catalog_definition:
+                catalog_definition['CreateTime'] = create_time_str
+            if 'UpdateTime' in catalog_definition:
+                catalog_definition['UpdateTime'] = update_time_str
+
             data = GetCatalogData(
                 catalog_id=catalog_id,
-                catalog_definition=catalog,
+                catalog_definition=catalog_definition,
                 name=catalog.get('Name', ''),
                 description=catalog.get('Description', ''),
                 parameters=catalog.get('Parameters', {}),
-                create_time=(
-                    catalog.get('CreateTime', '').isoformat() if catalog.get('CreateTime') else ''
-                ),
-                update_time=(
-                    catalog.get('UpdateTime', '').isoformat() if catalog.get('UpdateTime') else ''
-                ),
+                create_time=create_time_str,
+                update_time=update_time_str,
                 operation='get-catalog',
             )
 
