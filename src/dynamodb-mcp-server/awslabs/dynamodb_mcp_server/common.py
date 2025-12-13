@@ -25,8 +25,18 @@ def validate_database_name(database_name: str) -> None:
         database_name: The database name to validate
 
     Raises:
-        ValueError: If the database name contains invalid characters
+        ValueError: If the database name contains invalid characters or exceeds length limit
     """
+    # Max identifier length: SQL Server=128, MySQL=64, PostgreSQL=63
+    # Use 128 as upper bound; each database will enforce its own limit
+    MAX_DB_NAME_LENGTH = 128
+
+    if len(database_name) > MAX_DB_NAME_LENGTH:
+        raise ValueError(
+            f'Invalid database name: {database_name}. '
+            f'Database name must not exceed {MAX_DB_NAME_LENGTH} characters.'
+        )
+
     if not re.match(r'^[a-zA-Z0-9_.$-]+$', database_name):
         raise ValueError(
             f'Invalid database name: {database_name}. '

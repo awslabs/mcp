@@ -34,14 +34,14 @@ _postgresql_analysis_queries = {
         'description': 'Complete table statistics including structure, size, and I/O',
         'category': 'information_schema',
         'sql': """SELECT
-  pst.schemaname || '.' || pst.relname as table_name,
-  pst.schemaname as schema_name,
+  pst.relname as table_name,
   pst.n_live_tup as row_count,
   pg_total_relation_size(c.oid) as total_size_bytes,
   pg_relation_size(c.oid) as data_size_bytes,
   pg_total_relation_size(c.oid) - pg_relation_size(c.oid) as index_size_bytes,
   ROUND(pg_relation_size(c.oid)::numeric/1024/1024, 2) as data_size_mb,
-  ROUND((pg_total_relation_size(c.oid) - pg_relation_size(c.oid))::numeric/1024/1024, 2) as index_size_mb,
+  ROUND((pg_total_relation_size(c.oid) - pg_relation_size(c.oid))::numeric/1024/1024, 2)
+    as index_size_mb,
   ROUND(pg_total_relation_size(c.oid)::numeric/1024/1024, 2) as total_size_mb,
   pst.seq_scan as sequential_scans,
   pst.seq_tup_read as sequential_rows_read,
@@ -64,8 +64,7 @@ ORDER BY pst.n_live_tup DESC;""",
         'description': 'Complete index statistics including structure and usage',
         'category': 'information_schema',
         'sql': """SELECT
-  psi.schemaname || '.' || psi.relname as table_name,
-  psi.schemaname as schema_name,
+  psi.relname as table_name,
   psi.indexrelname as index_name,
   psi.idx_scan as index_scans,
   psi.idx_tup_read as tuples_read,
@@ -73,7 +72,7 @@ ORDER BY pst.n_live_tup DESC;""",
   pg_size_pretty(pg_relation_size(psi.indexrelid)) as index_size,
   pg_relation_size(psi.indexrelid) as index_size_bytes
 FROM pg_stat_user_indexes psi
-ORDER BY psi.schemaname, psi.relname, psi.indexrelname;""",
+ORDER BY psi.relname, psi.indexrelname;""",
         'parameters': [],
     },
     'column_analysis': {
@@ -81,7 +80,6 @@ ORDER BY psi.schemaname, psi.relname, psi.indexrelname;""",
         'description': 'Returns all column definitions including data types, nullability, and defaults',
         'category': 'information_schema',
         'sql': """SELECT
-  table_schema as schema_name,
   table_name,
   column_name,
   ordinal_position as position,
@@ -94,7 +92,7 @@ ORDER BY psi.schemaname, psi.relname, psi.indexrelname;""",
   udt_name as column_type
 FROM information_schema.columns
 WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-ORDER BY table_schema, table_name, ordinal_position;""",
+ORDER BY table_name, ordinal_position;""",
         'parameters': [],
     },
     'foreign_key_analysis': {
@@ -102,7 +100,6 @@ ORDER BY table_schema, table_name, ordinal_position;""",
         'description': 'Returns foreign key relationships with constraint names and table/column mappings',
         'category': 'information_schema',
         'sql': """SELECT
-  tc.table_schema as schema_name,
   tc.constraint_name,
   tc.table_name as child_table,
   kcu.column_name as child_column,
@@ -122,84 +119,39 @@ JOIN information_schema.referential_constraints rc
   AND rc.constraint_schema = tc.table_schema
 WHERE tc.constraint_type = 'FOREIGN KEY'
   AND tc.table_schema NOT IN ('pg_catalog', 'information_schema')
-ORDER BY tc.table_schema, tc.table_name, kcu.column_name;""",
+ORDER BY tc.table_name, kcu.column_name;""",
         'parameters': [],
     },
     'query_performance_stats': {
         'name': 'Query Performance Statistics',
-        'description': 'Top queries by execution count with performance metrics and calculated RPS. NOTE: calculated_rps is average since stats_reset, not peak load RPS. For DynamoDB planning, calculate: executions / your_test_duration_seconds',
+        'description': 'Query execution statistics with performance metrics from pg_stat_statements',
         'category': 'performance_schema',
         'sql': """SELECT
   LEFT(pss.query, 200) as query_pattern,
   pss.calls as executions,
+  ROUND((pss.total_exec_time / NULLIF(pss.calls, 0))::numeric, 2) as avg_latency_ms,
   ROUND(pss.total_exec_time::numeric, 2) as total_time_ms,
-  ROUND(pss.mean_exec_time::numeric, 2) as avg_latency_ms,
-  ROUND(pss.min_exec_time::numeric, 2) as min_latency_ms,
-  ROUND(pss.max_exec_time::numeric, 2) as max_latency_ms,
-  ROUND(pss.stddev_exec_time::numeric, 2) as stddev_latency_ms,
-  pss.rows as total_rows,
-  ROUND((pss.rows::numeric / NULLIF(pss.calls, 0)), 2) as avg_rows_per_call,
+  pss.rows as rows_affected,
+  ROUND((pss.rows::numeric / NULLIF(pss.calls, 0)), 2) as avg_rows_returned,
   pss.shared_blks_hit as cache_hits,
   pss.shared_blks_read as disk_reads,
-  ROUND((pss.shared_blks_hit::numeric / NULLIF(pss.shared_blks_hit + pss.shared_blks_read, 0) * 100), 2) as cache_hit_ratio_pct,
-  pss.shared_blks_written as blocks_written,
+  ROUND((pss.shared_blks_hit::numeric /
+    NULLIF(pss.shared_blks_hit + pss.shared_blks_read, 0) * 100), 2) as cache_hit_ratio_pct,
   pss.temp_blks_read as temp_blocks_read,
   pss.temp_blks_written as temp_blocks_written,
   ROUND(pss.blk_read_time::numeric, 2) as io_read_time_ms,
   ROUND(pss.blk_write_time::numeric, 2) as io_write_time_ms,
-  COALESCE(psd.stats_reset, pg_postmaster_start_time()) as stats_reset_time,
-  ROUND(EXTRACT(EPOCH FROM (now() - COALESCE(psd.stats_reset, pg_postmaster_start_time()))), 0) as seconds_since_reset,
-  ROUND((pss.calls::numeric / NULLIF(EXTRACT(EPOCH FROM (now() - COALESCE(psd.stats_reset, pg_postmaster_start_time()))), 0)), 6) as calculated_rps
+  COALESCE(psd.stats_reset, pg_postmaster_start_time()) as first_seen,
+  now() as last_seen,
+  ROUND((pss.calls::numeric / NULLIF(EXTRACT(EPOCH FROM
+    (now() - COALESCE(psd.stats_reset, pg_postmaster_start_time()))), 0)), 6) as estimated_rps
 FROM pg_stat_statements pss
 JOIN pg_stat_database psd ON pss.dbid = psd.datid
 WHERE pss.query NOT LIKE '%pg_stat_statements%'
   AND pss.query NOT LIKE '%pg_catalog%'
   AND pss.query NOT LIKE '%information_schema%'
   AND pss.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-ORDER BY pss.calls DESC;""",
-        'parameters': [],
-    },
-    'slow_queries': {
-        'name': 'Slowest Queries',
-        'description': 'Queries with highest average execution time',
-        'category': 'performance_schema',
-        'sql': """SELECT
-  LEFT(pss.query, 200) as query_pattern,
-  pss.calls as executions,
-  ROUND(pss.mean_exec_time::numeric, 2) as avg_latency_ms,
-  ROUND(pss.total_exec_time::numeric, 2) as total_time_ms,
-  ROUND(pss.max_exec_time::numeric, 2) as max_latency_ms,
-  ROUND(pss.stddev_exec_time::numeric, 2) as stddev_latency_ms,
-  pss.rows as total_rows,
-  ROUND((pss.rows::numeric / NULLIF(pss.calls, 0)), 2) as avg_rows_per_call
-FROM pg_stat_statements pss
-WHERE pss.query NOT LIKE '%pg_stat_statements%'
-  AND pss.query NOT LIKE '%pg_catalog%'
-  AND pss.query NOT LIKE '%information_schema%'
-  AND pss.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-  AND pss.calls > 10
-ORDER BY pss.mean_exec_time DESC;""",
-        'parameters': [],
-    },
-    'table_io_stats': {
-        'name': 'Table I/O Statistics',
-        'description': 'Detailed I/O statistics per table including cache hit ratios',
-        'category': 'performance_schema',
-        'sql': """SELECT
-  psio.schemaname || '.' || psio.relname as table_name,
-  psio.schemaname as schema_name,
-  psio.heap_blks_read as heap_blocks_read,
-  psio.heap_blks_hit as heap_blocks_hit,
-  ROUND((psio.heap_blks_hit::numeric / NULLIF(psio.heap_blks_hit + psio.heap_blks_read, 0) * 100), 2) as heap_cache_hit_ratio_pct,
-  psio.idx_blks_read as index_blocks_read,
-  psio.idx_blks_hit as index_blocks_hit,
-  ROUND((psio.idx_blks_hit::numeric / NULLIF(psio.idx_blks_hit + psio.idx_blks_read, 0) * 100), 2) as index_cache_hit_ratio_pct,
-  psio.toast_blks_read as toast_blocks_read,
-  psio.toast_blks_hit as toast_blocks_hit,
-  psio.tidx_blks_read as toast_index_blocks_read,
-  psio.tidx_blks_hit as toast_index_blocks_hit
-FROM pg_statio_user_tables psio
-ORDER BY (psio.heap_blks_read + psio.idx_blks_read) DESC;""",
+ORDER BY pss.total_exec_time DESC;""",
         'parameters': [],
     },
 }

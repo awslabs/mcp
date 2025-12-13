@@ -26,6 +26,7 @@ class TestValidateDatabaseName:
             'db$name',
             'database.name',
             'a1_b2-c3$d4.e5',
+            'a' * 128,  # Max length (128) should be valid
         ]
 
         # Act & Assert - Valid names should not raise
@@ -48,6 +49,7 @@ class TestValidateDatabaseName:
             'test"db"',  # Quotes
             "test'db'",  # Single quotes
             'test`db`',  # Backticks
+            'a' * 129,  # Exceeds max length (128)
         ]
 
         # Act & Assert - Invalid names should raise ValueError

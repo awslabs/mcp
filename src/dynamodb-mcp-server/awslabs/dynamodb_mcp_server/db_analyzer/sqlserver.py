@@ -15,8 +15,9 @@
 """SQL Server database analyzer plugin."""
 
 import re
-from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 from typing import Any, Dict
+
+from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
 
 
 _sqlserver_analysis_queries = {
@@ -107,9 +108,10 @@ ORDER BY child_table, child_column;""",
     },
     'query_performance_stats': {
         'name': 'Query Performance Statistics',
-        'description': 'Query execution statistics from plan cache (sys.dm_exec_query_stats)',
+        'description': 'Unified view of query execution including stored procedures with metrics',
         'category': 'performance_schema',
         'sql': """SELECT
+  'QUERY' as source_type,
   SUBSTRING(
     st.text,
     (qs.statement_start_offset/2) + 1,
@@ -118,6 +120,7 @@ ORDER BY child_table, child_column;""",
       ELSE qs.statement_end_offset
     END - qs.statement_start_offset)/2) + 1
   ) as query_pattern,
+  NULL as procedure_name,
   qs.execution_count as total_executions,
   ROUND(qs.total_elapsed_time / 1000.0 / qs.execution_count, 2) as avg_latency_ms,
   ROUND(qs.min_elapsed_time / 1000.0, 2) as min_latency_ms,
@@ -141,10 +144,43 @@ ORDER BY child_table, child_column;""",
 FROM sys.dm_exec_query_stats qs
 CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st
 WHERE st.dbid = DB_ID('{target_database}')
+  AND qs.execution_count > 0
   AND st.text NOT LIKE '%sys.%'
   AND st.text NOT LIKE '%INFORMATION_SCHEMA%'
   AND st.text NOT LIKE '%dm_exec%'
-ORDER BY qs.total_elapsed_time DESC;""",
+
+UNION ALL
+
+SELECT
+  'PROCEDURE' as source_type,
+  'PROCEDURE: ' + OBJECT_NAME(ps.object_id, ps.database_id) as query_pattern,
+  OBJECT_NAME(ps.object_id, ps.database_id) as procedure_name,
+  ps.execution_count as total_executions,
+  ROUND(ps.total_elapsed_time / 1000.0 / ps.execution_count, 2) as avg_latency_ms,
+  ROUND(ps.min_elapsed_time / 1000.0, 2) as min_latency_ms,
+  ROUND(ps.max_elapsed_time / 1000.0, 2) as max_latency_ms,
+  ROUND(ps.total_elapsed_time / 1000.0, 2) as total_time_ms,
+  NULL as avg_rows_returned,
+  ROUND(CAST(ps.total_logical_reads as FLOAT) / ps.execution_count, 2) as avg_logical_reads,
+  ROUND(CAST(ps.total_physical_reads as FLOAT) / ps.execution_count, 2) as avg_physical_reads,
+  ROUND(ps.total_worker_time / 1000.0 / ps.execution_count, 2) as avg_cpu_time_ms,
+  ps.cached_time as first_seen,
+  ps.last_execution_time as last_seen,
+  CASE
+    WHEN DATEDIFF(SECOND, ps.cached_time, ps.last_execution_time) > 0
+    THEN ROUND(
+      CAST(ps.execution_count as FLOAT) /
+      DATEDIFF(SECOND, ps.cached_time, ps.last_execution_time),
+      2
+    )
+    ELSE NULL
+  END as calculated_rps
+FROM sys.dm_exec_procedure_stats ps
+WHERE ps.database_id = DB_ID('{target_database}')
+  AND ps.execution_count > 0
+  AND ps.type IN ('P', 'PC')
+  AND OBJECT_NAME(ps.object_id, ps.database_id) IS NOT NULL
+ORDER BY total_time_ms DESC;""",
         'parameters': ['target_database'],
     },
 }
