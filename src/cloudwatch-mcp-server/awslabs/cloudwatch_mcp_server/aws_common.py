@@ -29,7 +29,7 @@ def get_aws_client(
     
     Args:
         service_name: AWS service name (e.g., 'logs', 'cloudwatch')
-        region_name: AWS region. Defaults to AWS_REGION env var or 'us-east-1'
+        region_name: AWS region. Defaults to AWS_REGION env var, then profile config, then boto3 defaults
         profile_name: AWS CLI profile name. Defaults to AWS_PROFILE env var
         
     Returns:
@@ -37,7 +37,7 @@ def get_aws_client(
     """
     # Set default region
     if region_name is None:
-        region_name = getenv('AWS_REGION', 'us-east-1')
+        region_name = getenv('AWS_REGION', None)
 
     # Set profile from parameter or environment
     if profile_name is None:

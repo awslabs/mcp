@@ -207,9 +207,9 @@ class CloudWatchMetricsTools:
             ),
         ] = None,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -599,9 +599,9 @@ class CloudWatchMetricsTools:
             ..., description="The name of the metric (e.g., 'CPUUtilization', 'Duration')"
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -622,7 +622,7 @@ class CloudWatchMetricsTools:
             ctx: The MCP context object for error handling and logging.
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
 
         Returns:
             Optional[MetricMetadata]: An object containing the metric's description,
@@ -684,9 +684,9 @@ class CloudWatchMetricsTools:
             description='List of dimensions that identify the metric, each with name and value',
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -723,7 +723,7 @@ class CloudWatchMetricsTools:
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
             statistic: The statistic to use for alarm recommendations. Must match the metric's data type:
                 - Aggregate count metrics (RequestCount, Errors, Faults, Throttles, CacheHits, Connections, EventsProcessed): Use 'Sum'
                 - Event occurrence metrics (Invocations, CacheMisses): Use 'SampleCount'
@@ -1053,9 +1053,9 @@ class CloudWatchMetricsTools:
             description='List of dimensions that identify the metric, each with name and value',
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -1094,7 +1094,7 @@ class CloudWatchMetricsTools:
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
             statistic: The statistic to use for metric analysis. For guidance on choosing the correct statistic, refer to the get_recommended_metric_alarms tool.
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
 
         Returns:
             Dict[str, Any]: Analysis results including:

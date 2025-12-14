@@ -58,9 +58,9 @@ class CloudWatchAlarmsTools:
             ),
         ] = 50,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -80,7 +80,7 @@ class CloudWatchAlarmsTools:
         Args:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -208,9 +208,9 @@ class CloudWatchAlarmsTools:
             ),
         ] = False,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -231,7 +231,7 @@ class CloudWatchAlarmsTools:
 
         Args:
             ctx: The MCP context object for error handling and logging.
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
             alarm_name: Name of the alarm to retrieve history for.
             start_time: Optional start time for the history query. Defaults to 24 hours ago.
             end_time: Optional end time for the history query. Defaults to current time.

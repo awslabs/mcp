@@ -240,9 +240,9 @@ class CloudWatchLogsTools:
             int | None, Field(description=('The maximum number of log groups to return.'))
         ] = None,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -358,9 +358,9 @@ class CloudWatchLogsTools:
             ),
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -537,9 +537,9 @@ class CloudWatchLogsTools:
             ),
         ] = 30,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -612,9 +612,9 @@ class CloudWatchLogsTools:
             description='The unique ID of the query to retrieve the results for. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
@@ -672,9 +672,9 @@ class CloudWatchLogsTools:
             description='The unique ID of the ongoing query to cancel. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
         ),
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+        ] = None,
         profile_name: Annotated[
             str | None,
             Field(
