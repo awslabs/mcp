@@ -13,4 +13,4 @@
 # limitations under the License.
 """awslabs.git-repo-research-mcp-server"""
 
-__version__ = '1.0.8'
+__version__ = '1.0.9'

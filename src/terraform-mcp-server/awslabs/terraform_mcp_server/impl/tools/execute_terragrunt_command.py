@@ -232,7 +232,10 @@ async def execute_terragrunt_command_impl(
 
     # Execute command
     try:
-        process = subprocess.run(
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+        # Safe: Command is validated against allowlist, variables are checked for dangerous patterns,
+        # working_directory is user-controlled but subprocess uses cwd parameter (not shell injection)
+        process = subprocess.run(  # noqa: B603 - Safe: allowlisted commands, validated variables, no shell injection
             base_cmd, cwd=request.working_directory, capture_output=True, text=True, env=env
         )
 
@@ -272,7 +275,7 @@ async def execute_terragrunt_command_impl(
         ) and process.returncode == 0:
             try:
                 logger.info('Getting Terragrunt outputs')
-                output_process = subprocess.run(
+                output_process = subprocess.run(  # noqa: B603 - Safe: hardcoded terragrunt output command with no user input
                     ['terragrunt', 'output', '-json'],
                     cwd=request.working_directory,
                     capture_output=True,

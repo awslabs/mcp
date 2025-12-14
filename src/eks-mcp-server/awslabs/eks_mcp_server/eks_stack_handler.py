@@ -14,6 +14,7 @@
 
 """EKS stack handler for the EKS MCP Server."""
 
+import json
 import os
 import yaml
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
@@ -31,15 +32,12 @@ from awslabs.eks_mcp_server.consts import (
 )
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
-    DeleteStackResponse,
-    DeployStackResponse,
-    DescribeStackResponse,
-    GenerateTemplateResponse,
+    ManageEksStacksData,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 
 class EksStackHandler:
@@ -128,9 +126,7 @@ class EksStackHandler:
             description="""Name of the EKS cluster (for generate, deploy, describe and delete operations).
             This name will be used to derive the CloudFormation stack name and will be embedded in the cluster resources.""",
         ),
-    ) -> Union[
-        GenerateTemplateResponse, DeployStackResponse, DescribeStackResponse, DeleteStackResponse
-    ]:
+    ) -> CallToolResult:
         """Manage EKS CloudFormation stacks with both read and write operations.
 
         This tool provides operations for managing EKS CloudFormation stacks, including creating templates,
@@ -158,10 +154,10 @@ class EksStackHandler:
 
         ## Response Information
         The response type varies based on the operation:
-        - generate: Returns GenerateTemplateResponse with the template path
-        - deploy: Returns DeployStackResponse with stack name, ARN, and cluster name
-        - describe: Returns DescribeStackResponse with stack details, outputs, and status
-        - delete: Returns DeleteStackResponse with stack name, ID, and cluster name
+        - generate: Returns CallToolResult with the template path
+        - deploy: Returns CallToolResult with stack name, ARN, and cluster name
+        - describe: Returns CallToolResult with stack details, outputs, and status
+        - delete: Returns CallToolResult with stack name, ID, and cluster name
 
         ## Usage Tips
         - Use the describe operation first to check if a cluster already exists
@@ -177,8 +173,7 @@ class EksStackHandler:
             cluster_name: Name of the EKS cluster (for all operations)
 
         Returns:
-            Union[GenerateTemplateResponse, DeployStackResponse, DescribeStackResponse, DeleteStackResponse]:
-            Response specific to the operation performed
+            ManageEksStacksResponse: Response with fields populated based on the operation performed
         """
         try:
             # Check if write access is disabled and trying to perform a mutating operation
@@ -188,40 +183,11 @@ class EksStackHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                # Return appropriate response type based on operation
-                if operation == GENERATE_OPERATION:
-                    return GenerateTemplateResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        template_path='',
-                    )
-                elif operation == DEPLOY_OPERATION:
-                    return DeployStackResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        stack_name='',
-                        stack_arn='',
-                        cluster_name=cluster_name or '',
-                    )
-                elif operation == DELETE_OPERATION:
-                    return DeleteStackResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        stack_name='',
-                        stack_id='',
-                        cluster_name=cluster_name or '',
-                    )
-                else:  # Default to describe operation
-                    return DescribeStackResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        stack_name='',
-                        stack_id='',
-                        cluster_name=cluster_name or '',
-                        creation_time='',
-                        stack_status='',
-                        outputs={},
-                    )
+                # Return error response
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == GENERATE_OPERATION:
                 if template_file is None:
@@ -270,16 +236,9 @@ class EksStackHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: generate, deploy, describe, delete'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                # Default to DescribeStackResponse for invalid operations
-                return DescribeStackResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    stack_name='',
-                    stack_id='',
-                    cluster_name=cluster_name or '',
-                    creation_time='',
-                    stack_status='',
-                    outputs={},
                 )
         except ValueError as e:
             # Re-raise ValueError for parameter validation errors
@@ -288,21 +247,14 @@ class EksStackHandler:
         except Exception as e:
             error_message = f'Error in manage_eks_stacks: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            # Default to DescribeStackResponse for general exceptions
-            return DescribeStackResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                stack_name='',
-                stack_id='',
-                cluster_name=cluster_name or '',
-                creation_time='',
-                stack_status='',
-                outputs={},
             )
 
     async def _generate_template(
         self, ctx: Context, template_path: str, cluster_name: str
-    ) -> GenerateTemplateResponse:
+    ) -> CallToolResult:
         """Generate a CloudFormation template at the specified path with the cluster name embedded.
 
         The template creates a complete EKS environment including:
@@ -354,29 +306,42 @@ class EksStackHandler:
                 f'Generated CloudFormation template at {template_path} with cluster name {cluster_name}',
             )
 
-            return GenerateTemplateResponse(
+            data = ManageEksStacksData(
+                operation=GENERATE_OPERATION,
+                template_path=template_path,
+                cluster_name=cluster_name,
+                stack_name='',
+                stack_id='',
+                stack_arn='',
+                creation_time='',
+                stack_status='',
+            )
+
+            return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
                         type='text',
                         text=f'CloudFormation template generated at {template_path} with cluster name {cluster_name}',
-                    )
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
                 ],
-                template_path=template_path,
             )
         except Exception as e:
             error_message = f'Failed to generate template: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GenerateTemplateResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                template_path='',
             )
 
     async def _deploy_stack(
         self, ctx: Context, template_file: str, stack_name: str, cluster_name: str
-    ) -> DeployStackResponse:
+    ) -> CallToolResult:
         """Deploy a CloudFormation stack from the specified template file."""
         try:
             # Create CloudFormation client
@@ -395,14 +360,11 @@ class EksStackHandler:
                 if stack:
                     stack_exists = True
                     if not success:
-                        return DeployStackResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[
                                 TextContent(type='text', text=error_message or 'Unknown error')
                             ],
-                            stack_name=stack_name,
-                            stack_arn='',
-                            cluster_name=cluster_name,
                         )
             except Exception:
                 # Stack doesn't exist, we'll create it
@@ -447,33 +409,42 @@ class EksStackHandler:
                 f'CloudFormation stack {operation_text} initiated. Stack ARN: {response["StackId"]}',
             )
 
-            return DeployStackResponse(
+            data = ManageEksStacksData(
+                operation=DEPLOY_OPERATION,
+                stack_name=stack_name,
+                stack_arn=response['StackId'],
+                stack_id=response['StackId'],
+                cluster_name=cluster_name,
+                template_path='',
+                creation_time='',
+                stack_status='',
+            )
+
+            return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
                         type='text',
                         text=f'CloudFormation stack {operation_text} initiated. Stack {operation_text} is in progress and typically takes 15-20 minutes to complete.',
-                    )
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
                 ],
-                stack_name=stack_name,
-                stack_arn=response['StackId'],
-                cluster_name=cluster_name,
             )
         except Exception as e:
             error_message = f'Failed to deploy stack: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeployStackResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                stack_name=stack_name,
-                stack_arn='',
-                cluster_name=cluster_name,
             )
 
     async def _describe_stack(
         self, ctx: Context, stack_name: str, cluster_name: str
-    ) -> DescribeStackResponse:
+    ) -> CallToolResult:
         """Describe a CloudFormation stack."""
         try:
             # Verify stack ownership
@@ -491,15 +462,9 @@ class EksStackHandler:
                     creation_time = stack['CreationTime'].isoformat()
                     stack_status = stack['StackStatus']
 
-                return DescribeStackResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                    stack_name=stack_name,
-                    stack_id=stack_id,
-                    cluster_name=cluster_name,
-                    creation_time=creation_time,
-                    stack_status=stack_status,
-                    outputs={},
                 )
 
             # Extract outputs
@@ -533,34 +498,38 @@ class EksStackHandler:
 
                 stack_status = stack.get('StackStatus', '')
 
-            return DescribeStackResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully described CloudFormation stack {stack_name} for EKS cluster {cluster_name}',
-                    )
-                ],
+            data = ManageEksStacksData(
+                operation=DESCRIBE_OPERATION,
                 stack_name=stack_name,
                 stack_id=stack_id,
                 cluster_name=cluster_name,
                 creation_time=creation_time,
                 stack_status=stack_status,
                 outputs=outputs,
+                template_path='',
+                stack_arn='',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully described CloudFormation stack {stack_name} for EKS cluster {cluster_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
             )
         except Exception as e:
             error_message = f'Failed to describe stack: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DescribeStackResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                stack_name=stack_name,
-                stack_id='',
-                cluster_name=cluster_name,
-                creation_time='',
-                stack_status='',
-                outputs={},
             )
 
     def _remove_checkov_metadata(self, resource: Dict[str, Any]) -> None:
@@ -581,7 +550,7 @@ class EksStackHandler:
 
     async def _delete_stack(
         self, ctx: Context, stack_name: str, cluster_name: str
-    ) -> DeleteStackResponse:
+    ) -> CallToolResult:
         """Delete a CloudFormation stack."""
         try:
             # Create CloudFormation client
@@ -595,12 +564,9 @@ class EksStackHandler:
                 if stack:
                     stack_id = stack['StackId']
 
-                return DeleteStackResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                    stack_name=stack_name,
-                    stack_id=stack_id,
-                    cluster_name=cluster_name,
                 )
 
             # Safely extract stack ID
@@ -617,26 +583,35 @@ class EksStackHandler:
                 f'Initiated deletion of CloudFormation stack {stack_name} for EKS cluster {cluster_name}',
             )
 
-            return DeleteStackResponse(
+            data = ManageEksStacksData(
+                operation=DELETE_OPERATION,
+                stack_name=stack_name,
+                stack_id=stack_id,
+                cluster_name=cluster_name,
+                template_path='',
+                stack_arn='',
+                creation_time='',
+                stack_status='',
+            )
+
+            return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
                         type='text',
                         text=f'Initiated deletion of CloudFormation stack {stack_name} for EKS cluster {cluster_name}. Deletion is in progress.',
-                    )
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
                 ],
-                stack_name=stack_name,
-                stack_id=stack_id,
-                cluster_name=cluster_name,
             )
         except Exception as e:
             error_message = f'Failed to delete stack: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeleteStackResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
-                stack_name=stack_name,
-                stack_id='',
-                cluster_name=cluster_name,
             )

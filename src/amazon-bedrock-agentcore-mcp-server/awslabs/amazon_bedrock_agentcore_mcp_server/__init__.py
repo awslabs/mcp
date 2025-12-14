@@ -14,4 +14,4 @@
 
 """awslabs.amazon-bedrock-agentcore-mcp-server"""
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
