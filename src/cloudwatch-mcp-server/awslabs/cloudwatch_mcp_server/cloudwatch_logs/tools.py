@@ -15,10 +15,8 @@
 """CloudWatch Logs tools for MCP server."""
 
 import asyncio
-import boto3
 import datetime
-import os
-from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
+from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
     LogAnomaly,
     LogAnomalyDetector,
@@ -34,7 +32,6 @@ from awslabs.cloudwatch_mcp_server.common import (
     filter_by_prefixes,
     remove_null_values,
 )
-from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -47,31 +44,7 @@ class CloudWatchLogsTools:
 
     def __init__(self):
         """Initialize the CloudWatch Logs tools."""
-        self._logs_client = None
-        self._logs_client_region = None
-
-    @property
-    def logs_client(self):
-        """Get the logs client for the default region (us-east-1)."""
-        if self._logs_client is None or self._logs_client_region != 'us-east-1':
-            self._logs_client = self._get_logs_client('us-east-1')
-            self._logs_client_region = 'us-east-1'
-        return self._logs_client
-
-    def _get_logs_client(self, region: str):
-        """Create a CloudWatch Logs client for the specified region."""
-        config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
-
-        try:
-            if aws_profile := os.environ.get('AWS_PROFILE'):
-                return boto3.Session(profile_name=aws_profile, region_name=region).client(
-                    'logs', config=config
-                )
-            else:
-                return boto3.Session(region_name=region).client('logs', config=config)
-        except Exception as e:
-            logger.error(f'Error creating cloudwatch logs client for region {region}: {str(e)}')
-            raise
+        pass
 
     def _validate_log_group_parameters(
         self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]
@@ -270,6 +243,12 @@ class CloudWatchLogsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+            ),
+        ] = None,
     ) -> LogsMetadata:
         """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
@@ -295,7 +274,7 @@ class CloudWatchLogsTools:
             Any saved queries that are applicable to the returned log groups are also included.
         """
         # Create logs client for the specified region
-        logs_client = self._get_logs_client(region)
+        logs_client = get_aws_client('logs', region, profile_name)
 
         def describe_log_groups() -> List[LogGroupMetadata]:
             paginator = logs_client.get_paginator('describe_log_groups')
@@ -382,6 +361,12 @@ class CloudWatchLogsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+            ),
+        ] = None,
     ) -> LogsAnalysisResult:
         """Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
 
@@ -426,7 +411,7 @@ class CloudWatchLogsTools:
             return log_group_arn in anomaly.logGroupArnList
 
         # Create logs client for the specified region
-        logs_client = self._get_logs_client(region)
+        logs_client = get_aws_client('logs', region, profile_name)
 
         async def get_applicable_anomalies() -> LogAnomalyResults:
             detectors: List[LogAnomalyDetector] = []
@@ -555,6 +540,12 @@ class CloudWatchLogsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+            ),
+        ] = None,
     ) -> Dict:
         """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
@@ -590,7 +581,7 @@ class CloudWatchLogsTools:
             )
 
             # Create logs client for the specified region
-            logs_client = self._get_logs_client(region)
+            logs_client = get_aws_client('logs', region, profile_name)
 
             # Start the query
             start_response = logs_client.start_query(**remove_null_values(kwargs))
@@ -624,6 +615,12 @@ class CloudWatchLogsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+            ),
+        ] = None,
     ) -> Dict:
         """Retrieves the results of a previously started CloudWatch Logs Insights query.
 
@@ -640,7 +637,7 @@ class CloudWatchLogsTools:
         """
         try:
             # Create logs client for the specified region
-            logs_client = self._get_logs_client(region)
+            logs_client = get_aws_client('logs', region, profile_name)
 
             response = logs_client.get_query_results(queryId=query_id)
 
@@ -678,6 +675,12 @@ class CloudWatchLogsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+            ),
+        ] = None,
     ) -> LogsQueryCancelResult:
         """Cancels an ongoing CloudWatch Logs Insights query. If the query has already ended, returns an error that the given query is not running.
 
@@ -690,7 +693,7 @@ class CloudWatchLogsTools:
         """
         try:
             # Create logs client for the specified region
-            logs_client = self._get_logs_client(region)
+            logs_client = get_aws_client('logs', region, profile_name)
 
             response = logs_client.stop_query(queryId=query_id)
             return LogsQueryCancelResult.model_validate(response)
