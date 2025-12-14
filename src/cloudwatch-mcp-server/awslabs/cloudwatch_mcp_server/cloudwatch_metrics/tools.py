@@ -690,7 +690,7 @@ class CloudWatchMetricsTools:
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
         statistic: Annotated[
@@ -1059,7 +1059,7 @@ class CloudWatchMetricsTools:
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
         statistic: Annotated[
