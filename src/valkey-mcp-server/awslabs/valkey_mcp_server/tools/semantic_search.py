@@ -119,44 +119,52 @@ async def add_documents(
 
         # Process and store each document
         added_count = 0
+        error_count = 0
         actual_dimensions = embedding_dimensions
 
         for doc in documents:
             if 'id' not in doc:
                 logging.warning(f"Document with keys {list(doc.keys())} is missing 'id', skipping")
+                error_count += 1
                 continue  # Skip documents without ID
 
             doc_id = doc['id']
             doc_key = _get_document_key(collection, doc_id)
 
-            # Generate embedding from specified text fields
-            text_to_embed = " ".join(str(doc.get(field, "")) for field in text_fields)
-            embedding = await _embeddings_provider.generate_embedding(text_to_embed)
+            try:
+                # Generate embedding from specified text fields
+                text_to_embed = " ".join(str(doc.get(field, "")) for field in text_fields)
+                embedding = await _embeddings_provider.generate_embedding(text_to_embed)
 
-            # Auto-detect dimensions from first embedding if not specified
-            if actual_dimensions is None:
-                actual_dimensions = len(embedding)
+                # Auto-detect dimensions from first embedding if not specified
+                if actual_dimensions is None:
+                    actual_dimensions = len(embedding)
 
-                # Create index now that we know the dimensions
-                if not index_exists:
-                    await create_vector_index(
-                        index_name,
-                        actual_dimensions,
-                        prefix=[ _get_document_key(collection, "") ],
-                        structure_type=VALKEY_CFG['vec_index_type']
-                    )
-                    index_exists = True
+                    # Create index now that we know the dimensions
+                    if not index_exists:
+                        await create_vector_index(
+                            index_name,
+                            actual_dimensions,
+                            prefix=[ _get_document_key(collection, "") ],
+                            structure_type=VALKEY_CFG['vec_index_type']
+                        )
+                        index_exists = True
 
-            embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+                embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
 
-            # Store document with embedding
-            doc_data = {
-                'embedding': embedding_bytes,
-                'document_json': json.dumps(doc)
-            }
+                # Store document with embedding
+                doc_data = {
+                    'embedding': embedding_bytes,
+                    'document_json': json.dumps(doc)
+                }
 
-            r.hset(doc_key, mapping=doc_data)
-            added_count += 1
+                r.hset(doc_key, mapping=doc_data)
+                added_count += 1
+                
+            except Exception as e:
+                logging.warning(f"Failed to process document {doc_id}: {str(e)}")
+                error_count += 1
+                continue
 
         # Valkey may need time to index, but it's never a good idea to sleep explicitly
         # So, for now, it's okay if the total documents is inaccurate
@@ -169,6 +177,7 @@ async def add_documents(
         return {
             "status": "success",
             "added": added_count,
+            "errors": error_count,
             "collection": collection,
             "total_documents": total_docs,
             "embedding_dimensions": actual_dimensions,
@@ -179,6 +188,7 @@ async def add_documents(
         return {
             "status": "error",
             "added": 0,
+            "errors": len(documents),
             "collection": collection,
             "reason": str(e)
         }

@@ -242,3 +242,48 @@ class TestSemanticSearchUnit:
                 assert result['status'] == 'error'
                 assert result['updated'] == 0
                 assert 'read-only mode' in result['reason']
+
+    @pytest.mark.asyncio
+    async def test_add_documents_error_counting(self, mock_connection, dummy_embeddings):
+        """Test add_documents error counting for invalid documents."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search._index_exists', return_value=True):
+                # Mock connection methods
+                mock_connection.hset.return_value = None
+                mock_connection.keys.return_value = ['key1', 'key2']  # Mock total docs count
+                
+                result = await add_documents(
+                    collection="test_collection",
+                    documents=[
+                        {"id": "doc1", "title": "Valid Document", "content": "Valid content"},
+                        {"title": "Invalid Document"},  # Missing 'id'
+                        {"id": "doc2", "title": "Another Valid Document", "content": "More content"}
+                    ]
+                )
+                
+                # Verify error counting
+                assert result['status'] == 'success'
+                assert result['added'] == 2  # Two valid documents
+                assert result['errors'] == 1  # One invalid document (missing id)
+
+    @pytest.mark.asyncio
+    async def test_add_documents_hset_error(self, mock_connection, dummy_embeddings):
+        """Test add_documents error counting when hset fails."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search._index_exists', return_value=True):
+                # Mock hset to raise an error
+                mock_connection.hset.side_effect = Exception("Database write error")
+                mock_connection.keys.return_value = []
+                
+                result = await add_documents(
+                    collection="test_collection",
+                    documents=[
+                        {"id": "doc1", "title": "Document 1", "content": "Content 1"},
+                        {"id": "doc2", "title": "Document 2", "content": "Content 2"}
+                    ]
+                )
+                
+                # Verify all documents failed due to hset error
+                assert result['status'] == 'success'
+                assert result['added'] == 0  # No documents added
+                assert result['errors'] == 2  # Both documents failed
