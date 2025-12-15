@@ -15,7 +15,7 @@
 """Unit tests for semantic search functionality using dummy embeddings provider."""
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search, update_document
+from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search, update_document, add_documents
 from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
 
 
@@ -210,3 +210,35 @@ class TestSemanticSearchUnit:
             assert result['status'] == 'error'
             assert 'id' in result['reason'].lower()
             assert result['updated'] == 0
+
+    @pytest.mark.asyncio
+    async def test_add_documents_readonly_mode(self, mock_connection, dummy_embeddings):
+        """Test add_documents in read-only mode."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.Context.readonly_mode', return_value=True):
+                
+                result = await add_documents(
+                    collection="test_collection",
+                    documents=[{"id": "doc1", "title": "Test Document", "content": "Test content"}]
+                )
+                
+                # Verify read-only error response
+                assert result['status'] == 'error'
+                assert result['added'] == 0
+                assert 'read-only mode' in result['reason']
+
+    @pytest.mark.asyncio
+    async def test_update_document_readonly_mode(self, mock_connection, dummy_embeddings):
+        """Test update_document in read-only mode."""
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', dummy_embeddings):
+            with patch('awslabs.valkey_mcp_server.tools.semantic_search.Context.readonly_mode', return_value=True):
+                
+                result = await update_document(
+                    collection="test_collection",
+                    document={"id": "doc1", "title": "Test Document", "content": "Test content"}
+                )
+                
+                # Verify read-only error response
+                assert result['status'] == 'error'
+                assert result['updated'] == 0
+                assert 'read-only mode' in result['reason']

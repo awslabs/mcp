@@ -22,6 +22,7 @@ import logging
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from awslabs.valkey_mcp_server.embeddings import create_embeddings_provider
 from awslabs.valkey_mcp_server.tools.index import create_vector_index
 from awslabs.valkey_mcp_server.tools.vss import vector_search
@@ -106,6 +107,13 @@ async def add_documents(
 
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
+        if Context.readonly_mode():
+            return {
+                "status": "error",
+                "added": 0,
+                "reason": "Valkey is in read-only mode"
+            }
+
         index_name = _get_collection_index_name(collection)
         index_exists = _index_exists(r, collection)
 
@@ -221,6 +229,13 @@ async def update_document(
             }
 
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
+        if Context.readonly_mode():
+            return {
+                "status": "error",
+                "updated": 0,
+                "reason": "Valkey is in read-only mode"
+            }
+        
         doc_id = document['id']
         doc_key = _get_document_key(collection, doc_id)
 
