@@ -59,6 +59,14 @@ async def vector_search(index: str,
         )
     """
     try:
+        # Validate filter_expression to prevent injection attacks
+        if filter_expression is not None and "=>" in filter_expression:
+            return {
+                "status": "error",
+                "type": "validation",
+                "reason": "Invalid filter expression: '=>' character sequence not allowed"
+            }
+
         # Use connection with decode_responses=True for fetching document fields
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
 

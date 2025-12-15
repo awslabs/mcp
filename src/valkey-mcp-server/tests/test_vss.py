@@ -286,6 +286,32 @@ class TestSearch:
         assert 'valkey' in result['type']
 
     @pytest.mark.asyncio
+    async def test_vector_search_injection_protection(self, mock_connection):
+        """Test that filter_expression with '=>' is rejected to prevent injection."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2, 0.3]
+
+        # Test filter expression with '=>' injection attempt
+        malicious_filter = "@category:test=>[MALICIOUS INJECTION]"
+
+        # Execute search
+        result = await vector_search(
+            index=index,
+            field=field,
+            vector=vector,
+            filter_expression=malicious_filter
+        )
+
+        # Verify injection is blocked
+        assert result['status'] == 'error'
+        assert result['type'] == 'validation'
+        assert '=>' in result['reason']
+        assert 'not allowed' in result['reason']
+
+    @pytest.mark.asyncio
     async def test_vector_search_large_vector(self, mock_connection):
         """Test vector search with a large vector."""
         mock_conn, mock_conn_raw = mock_connection
