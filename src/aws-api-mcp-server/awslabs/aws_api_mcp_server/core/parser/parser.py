@@ -797,9 +797,11 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 def _validate_s3_file_path(
     file_path: str, service: str, operation: str, is_destination: bool = False
 ):
+    # `-` as destination redirects to stdout
     if file_path == '-' and is_destination:
         return
 
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
     if file_path == '-':
         raise FileParameterError(
             service=service,

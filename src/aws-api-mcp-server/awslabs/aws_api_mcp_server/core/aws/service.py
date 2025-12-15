@@ -176,11 +176,9 @@ def execute_awscli_customization(
         stderr_output = stderr_capture.getvalue()
 
         if not stdout_output and stderr_output:
-            raise AwsApiMcpError(f"Error while executing '{cli_command}': {stderr_output}")
+            raise Exception(stderr_output)
 
         return AwsCliAliasResponse(response=stdout_output, error=stderr_output)
-    except AwsApiMcpError:
-        raise
     except Exception as e:
         raise AwsApiMcpError(f"Error while executing '{cli_command}': {e}")
 
