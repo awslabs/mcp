@@ -867,7 +867,7 @@ def test_genomics_file_search_request_adhoc_s3_buckets_validation():
 
     # Test non-list value (Pydantic type validation)
     with pytest.raises(ValidationError) as exc_info:
-        GenomicsFileSearchRequest(adhoc_s3_buckets='s3://test-bucket/')
+        GenomicsFileSearchRequest(adhoc_s3_buckets='s3://test-bucket/')  # type: ignore[arg-type]
     assert 'Input should be a valid list' in str(exc_info.value)
 
     # Test too many buckets (more than 50)
@@ -878,7 +878,7 @@ def test_genomics_file_search_request_adhoc_s3_buckets_validation():
 
     # Test non-string entries (Pydantic will catch this at type level)
     with pytest.raises(ValidationError) as exc_info:
-        GenomicsFileSearchRequest(adhoc_s3_buckets=['s3://valid-bucket/', 123])
+        GenomicsFileSearchRequest(adhoc_s3_buckets=['s3://valid-bucket/', 123])  # type: ignore[list-item]
     # Pydantic validates list item types, so this will be caught before our validator
     assert 'Input should be a valid string' in str(exc_info.value)
 
