@@ -2,10 +2,8 @@ import pytest
 from awslabs.aws_api_mcp_server.core.common.helpers import (
     get_requests_session,
     is_help_operation,
-    json_serializer,
     validate_aws_region,
 )
-from datetime import datetime
 from requests.adapters import HTTPAdapter
 from unittest.mock import MagicMock, patch
 
@@ -106,20 +104,6 @@ def test_get_requests_session():
     assert retry_config.backoff_factor == 1
     assert retry_config.status_forcelist == [429, 500, 502, 503, 504]
     assert retry_config.allowed_methods == {'HEAD', 'GET', 'OPTIONS', 'POST'}
-
-
-def test_json_serializer_datetime():
-    """Test that json_serializer converts datetime to ISO format string."""
-    dt = datetime(2025, 12, 13, 14, 30, 45)
-    result = json_serializer(dt)
-    assert result == '2025-12-13T14:30:45'
-
-
-def test_json_serializer_bytes():
-    """Test that json_serializer converts bytes to string representation."""
-    data = b'binary content'
-    result = json_serializer(data)
-    assert result == "b'binary content'"
 
 
 @pytest.mark.parametrize(
