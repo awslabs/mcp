@@ -2198,7 +2198,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_search_paginated_with_score_threshold_filtering(
         self, orchestrator, sample_search_request
     ):
-        """Test paginated search with score threshold filtering from continuation token (lines 281-286)."""
+        """Test paginated search with score threshold filtering from continuation token."""
         # Create a continuation token with score threshold
         global_token = GlobalContinuationToken()
         global_token.last_score_threshold = 0.5
@@ -2338,7 +2338,6 @@ class TestGenomicsSearchOrchestrator:
         self, orchestrator, sample_search_request
     ):
         """Test handling of continuation token parsing errors in paginated searches."""
-        # Test the specific lines 581-596 that handle token parsing errors
         global_token = GlobalContinuationToken()
 
         # Mock search engines to return results with continuation tokens
@@ -2387,8 +2386,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_execute_parallel_paginated_searches_with_attribute_errors(
         self, orchestrator, sample_search_request
     ):
-        """Test handling of AttributeError in paginated searches (lines 596)."""
-        # Test the specific AttributeError handling in the orchestrator
+        """Test handling of AttributeError in paginated searches."""
         global_token = GlobalContinuationToken()
 
         # Mock search engines to return unexpected result types that cause AttributeError
@@ -2416,7 +2414,7 @@ class TestGenomicsSearchOrchestrator:
 
     @pytest.mark.asyncio
     async def test_cache_cleanup_during_search(self, orchestrator, sample_search_request):
-        """Test cache cleanup during search execution (lines 475-478)."""
+        """Test cache cleanup during search execution."""
         # Mock the random function to always trigger cache cleanup
         with patch('secrets.randbelow', return_value=0):  # Always return 0 to trigger cleanup
             orchestrator.s3_engine.search_buckets = AsyncMock(return_value=[])
@@ -2432,7 +2430,7 @@ class TestGenomicsSearchOrchestrator:
 
     @pytest.mark.asyncio
     async def test_cache_cleanup_exception_handling(self, orchestrator, sample_search_request):
-        """Test cache cleanup exception handling (lines 475-478)."""
+        """Test cache cleanup exception handling."""
         # Mock the random function to always trigger cache cleanup
         with patch('secrets.randbelow', return_value=0):  # Always return 0 to trigger cleanup
             orchestrator.s3_engine.search_buckets = AsyncMock(return_value=[])
@@ -2655,3 +2653,392 @@ class TestGenomicsSearchOrchestrator:
         assert hasattr(result, 'enhanced_response')
         # Verify that coordination logic was executed
         assert 'results' in result.enhanced_response
+
+    def test_init_with_s3_engine_initialization_failure(self, mock_config):
+        """Test orchestrator initialization when S3 engine initialization fails."""
+        # Mock S3SearchEngine.from_environment to raise ValueError
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.s3_search_engine.S3SearchEngine.from_environment',
+            side_effect=ValueError('S3 initialization failed'),
+        ):
+            with patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ):
+                # Should create orchestrator with s3_engine=None
+                orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+                assert orchestrator.s3_engine is None
+                assert orchestrator.config == mock_config
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_adhoc_validation_error(
+        self, orchestrator, sample_search_request
+    ):
+        """Test _get_all_s3_bucket_paths with adhoc bucket validation error."""
+        # Add adhoc buckets to the request
+        sample_search_request.adhoc_s3_buckets = ['s3://invalid-bucket/', 's3://another-bucket/']
+
+        # Mock validate_adhoc_s3_buckets to raise an exception
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets',
+            side_effect=Exception('Validation service unavailable'),
+        ):
+            result = await orchestrator._get_all_s3_bucket_paths(sample_search_request)
+
+            # Should return only configured buckets, not adhoc ones due to validation error
+            assert result == orchestrator.config.s3_bucket_paths
+            assert len(result) == len(orchestrator.config.s3_bucket_paths)
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_no_validated_adhoc_buckets(
+        self, orchestrator, sample_search_request
+    ):
+        """Test _get_all_s3_bucket_paths when adhoc validation returns empty list."""
+        # Add adhoc buckets to the request
+        sample_search_request.adhoc_s3_buckets = ['s3://test-bucket/']
+
+        # Mock validate_adhoc_s3_buckets to return empty list (no valid buckets)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets',
+            return_value=[],
+        ):
+            result = await orchestrator._get_all_s3_bucket_paths(sample_search_request)
+
+            # Should return only configured buckets
+            assert result == orchestrator.config.s3_bucket_paths
+
+    @pytest.mark.asyncio
+    async def test_search_s3_with_timeout_for_buckets_no_engine(
+        self, mock_config, sample_search_request
+    ):
+        """Test S3 search when engine is None."""
+        # Create orchestrator with no S3 engine
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+            result = await orchestrator._search_s3_with_timeout_for_buckets(
+                sample_search_request, ['s3://test-bucket/']
+            )
+
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_for_buckets_no_engine(
+        self, mock_config, sample_search_request
+    ):
+        """Test S3 paginated search when engine is None."""
+        # Create orchestrator with no S3 engine
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+            storage_request = StoragePaginationRequest(max_results=10)
+            result = await orchestrator._search_s3_paginated_with_timeout_for_buckets(
+                sample_search_request, storage_request, ['s3://test-bucket/']
+            )
+
+            assert result.results == []
+            assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_no_engine(
+        self, mock_config, sample_search_request
+    ):
+        """Test S3 paginated search when engine is None."""
+        # Create orchestrator with no S3 engine
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+            storage_request = StoragePaginationRequest(max_results=10)
+            result = await orchestrator._search_s3_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert result.results == []
+            assert result.has_more_results is False
+
+    def test_cleanup_pagination_cache_by_size_with_expired_and_valid_mixed(self, orchestrator):
+        """Test size-based cleanup with mixed expired and valid entries."""
+        # Set small cache size for testing
+        orchestrator.config.max_pagination_cache_size = 4
+        orchestrator.config.cache_cleanup_keep_ratio = 0.5  # Keep 50% = 2 entries
+        orchestrator.config.pagination_cache_ttl_seconds = 10
+
+        # Create cache manually
+        orchestrator._pagination_cache = {}
+        current_time = time.time()
+
+        # Add expired entries
+        expired1 = PaginationCacheEntry(
+            search_key='expired1',
+            page_number=1,
+            score_threshold=0.8,
+            storage_tokens={},
+            metrics=None,
+        )
+        expired1.timestamp = current_time - 20  # Expired
+
+        expired2 = PaginationCacheEntry(
+            search_key='expired2',
+            page_number=2,
+            score_threshold=0.7,
+            storage_tokens={},
+            metrics=None,
+        )
+        expired2.timestamp = current_time - 15  # Expired
+
+        # Add valid entries
+        valid1 = PaginationCacheEntry(
+            search_key='valid1',
+            page_number=3,
+            score_threshold=0.6,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid1.timestamp = current_time - 5  # Valid (older)
+
+        valid2 = PaginationCacheEntry(
+            search_key='valid2',
+            page_number=4,
+            score_threshold=0.5,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid2.timestamp = current_time - 2  # Valid (newer)
+
+        valid3 = PaginationCacheEntry(
+            search_key='valid3',
+            page_number=5,
+            score_threshold=0.4,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid3.timestamp = current_time - 1  # Valid (newest)
+
+        orchestrator._pagination_cache['expired1'] = expired1
+        orchestrator._pagination_cache['expired2'] = expired2
+        orchestrator._pagination_cache['valid1'] = valid1
+        orchestrator._pagination_cache['valid2'] = valid2
+        orchestrator._pagination_cache['valid3'] = valid3
+
+        assert len(orchestrator._pagination_cache) == 5
+
+        # Trigger cleanup - should remove expired first, then oldest valid to reach target size of 2
+        orchestrator._cleanup_pagination_cache_by_size()
+
+        # Should keep 2 entries (50% of 4 = 2)
+        assert len(orchestrator._pagination_cache) == 2
+        # Should keep the newest valid entries
+        assert 'valid2' in orchestrator._pagination_cache
+        assert 'valid3' in orchestrator._pagination_cache
+        # Should remove expired and oldest valid
+        assert 'expired1' not in orchestrator._pagination_cache
+        assert 'expired2' not in orchestrator._pagination_cache
+        assert 'valid1' not in orchestrator._pagination_cache
+
+    def test_cleanup_pagination_cache_by_size_double_check_key_exists(self, orchestrator):
+        """Test size-based cleanup double-check for key existence."""
+        # Set small cache size for testing
+        orchestrator.config.max_pagination_cache_size = 2
+        orchestrator.config.cache_cleanup_keep_ratio = 0.5  # Keep 50% = 1 entry
+
+        # Create cache manually
+        orchestrator._pagination_cache = {}
+        current_time = time.time()
+
+        # Add valid entries
+        valid1 = PaginationCacheEntry(
+            search_key='valid1',
+            page_number=1,
+            score_threshold=0.6,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid1.timestamp = current_time - 5
+
+        valid2 = PaginationCacheEntry(
+            search_key='valid2',
+            page_number=2,
+            score_threshold=0.5,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid2.timestamp = current_time - 2
+
+        valid3 = PaginationCacheEntry(
+            search_key='valid3',
+            page_number=3,
+            score_threshold=0.4,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid3.timestamp = current_time - 1
+
+        orchestrator._pagination_cache['valid1'] = valid1
+        orchestrator._pagination_cache['valid2'] = valid2
+        orchestrator._pagination_cache['valid3'] = valid3
+
+        # Simulate concurrent modification by manually removing a key during cleanup
+        # This tests the double-check logic in the cleanup method
+        original_cleanup = orchestrator._cleanup_pagination_cache_by_size
+
+        def modified_cleanup():
+            # Remove one key before the cleanup logic runs to simulate concurrent access
+            if 'valid1' in orchestrator._pagination_cache:
+                del orchestrator._pagination_cache['valid1']
+            # Call the original cleanup method
+            original_cleanup()
+
+        # Replace the method temporarily
+        orchestrator._cleanup_pagination_cache_by_size = modified_cleanup
+
+        # This should trigger the double-check logic without raising KeyError
+        orchestrator._cleanup_pagination_cache_by_size()
+
+        # Should still work and keep the newest entry
+        assert len(orchestrator._pagination_cache) <= 1
+
+    @pytest.mark.asyncio
+    async def test_search_s3_with_timeout_for_buckets_timeout(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 search timeout for specific buckets."""
+        orchestrator.s3_engine.search_buckets = AsyncMock(side_effect=asyncio.TimeoutError())
+
+        result = await orchestrator._search_s3_with_timeout_for_buckets(
+            sample_search_request, ['s3://test-bucket/']
+        )
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_for_buckets_timeout(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search timeout for specific buckets."""
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            side_effect=asyncio.TimeoutError()
+        )
+
+        storage_request = StoragePaginationRequest(max_results=10)
+        result = await orchestrator._search_s3_paginated_with_timeout_for_buckets(
+            sample_search_request, storage_request, ['s3://test-bucket/']
+        )
+
+        assert result.results == []
+        assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_with_no_s3_engine_available(self, mock_config, sample_search_request):
+        """Test search when S3 engine is not available."""
+        # Disable S3 by setting no bucket paths and no engine
+        mock_config.s3_bucket_paths = []
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+            # Mock HealthOmics engines
+            orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(return_value=[])
+            orchestrator.healthomics_engine.search_reference_stores = AsyncMock(return_value=[])
+
+            result = await orchestrator._execute_parallel_searches(sample_search_request)
+
+            # Should only get HealthOmics results, no S3 results
+            assert isinstance(result, list)
+            # S3 search should not be attempted since no engine is available
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_successful_adhoc_validation(
+        self, orchestrator, sample_search_request
+    ):
+        """Test _get_all_s3_bucket_paths with successful adhoc bucket validation."""
+        # Add adhoc buckets to the request
+        sample_search_request.adhoc_s3_buckets = [
+            's3://valid-bucket/',
+            's3://another-valid-bucket/',
+        ]
+
+        # Mock validate_adhoc_s3_buckets to return validated buckets
+        validated_buckets = ['s3://valid-bucket/', 's3://another-valid-bucket/']
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets',
+            return_value=validated_buckets,
+        ):
+            result = await orchestrator._get_all_s3_bucket_paths(sample_search_request)
+
+            # Should return configured buckets plus validated adhoc buckets
+            expected = orchestrator.config.s3_bucket_paths + validated_buckets
+            assert result == expected
+            assert len(result) == len(orchestrator.config.s3_bucket_paths) + len(validated_buckets)
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_for_buckets_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search exception for specific buckets."""
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            side_effect=Exception('S3 paginated search failed')
+        )
+
+        storage_request = StoragePaginationRequest(max_results=10)
+        result = await orchestrator._search_s3_paginated_with_timeout_for_buckets(
+            sample_search_request, storage_request, ['s3://test-bucket/']
+        )
+
+        assert result.results == []
+        assert result.has_more_results is False
+
+    def test_init_with_provided_s3_engine(self, mock_config):
+        """Test orchestrator initialization with provided S3 engine."""
+        # Create a mock S3 engine
+        mock_s3_engine = MagicMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            # Should use the provided S3 engine instead of creating from environment
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=mock_s3_engine)
+
+            assert orchestrator.s3_engine is mock_s3_engine
+            assert orchestrator.config == mock_config
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_searches_with_s3_engine_none(
+        self, mock_config, sample_search_request
+    ):
+        """Test parallel searches when S3 engine is None."""
+        # Create orchestrator with S3 engine as None
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
+
+            # Mock HealthOmics engines
+            orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(return_value=[])
+            orchestrator.healthomics_engine.search_reference_stores = AsyncMock(return_value=[])
+
+            # Mock _get_all_s3_bucket_paths to return buckets (but S3 engine is None)
+            with patch.object(
+                orchestrator, '_get_all_s3_bucket_paths', return_value=['s3://test-bucket/']
+            ):
+                result = await orchestrator._execute_parallel_searches(sample_search_request)
+
+                # Should only get HealthOmics results since S3 engine is None
+                assert isinstance(result, list)
+                # Verify HealthOmics searches were called
+                orchestrator.healthomics_engine.search_sequence_stores.assert_called_once()
+                orchestrator.healthomics_engine.search_reference_stores.assert_called_once()
