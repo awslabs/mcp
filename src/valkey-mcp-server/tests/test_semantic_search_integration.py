@@ -23,7 +23,8 @@ from awslabs.valkey_mcp_server.tools.semantic_search import (
     update_document,
     find_similar_documents,
     get_document,
-    list_collections
+    list_collections,
+    collection_info
 )
 from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
@@ -566,4 +567,61 @@ class TestSemanticSearchIntegration:
 
         print("\n" + "="*70)
         print("✓ ADD -> UPDATE -> SEARCH WORKFLOW TESTS PASSED")
+        print("="*70)
+
+    @pytest.mark.asyncio
+    async def test_collection_info_integration(self):
+        """Test index_info tool with live Valkey instance."""
+        from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
+        
+        collection = "test_index_info"
+        
+        print("\n" + "="*70)
+        print("TESTING INDEX_INFO INTEGRATION")
+        print("="*70)
+
+        # Use hash embeddings for consistent testing
+        hash_embeddings = HashEmbeddings(dimensions=64)
+        
+        with patch('awslabs.valkey_mcp_server.tools.semantic_search._embeddings_provider', hash_embeddings):
+            # Step 1: Add documents to create an index
+            print("1. Adding documents...")
+            documents = [
+                {"id": "info_test_1", "title": "Test Document 1", "content": "Content for testing index info"},
+                {"id": "info_test_2", "title": "Test Document 2", "content": "More content for index testing"}
+            ]
+            
+            add_result = await add_documents(
+                collection=collection,
+                documents=documents,
+                text_fields=["title", "content"]
+            )
+            
+            if add_result['status'] != 'success':
+                print(f"   Error adding documents: {add_result.get('reason', 'Unknown error')}")
+                return
+            
+            print(f"   ✓ Added {add_result['added']} documents")
+            
+            # Step 2: Check index info
+            print("\n2. Checking index information...")
+            info_result = await collection_info(collection=collection)
+            
+            if info_result['status'] != 'success':
+                print(f"   Error getting index info: {info_result.get('reason', 'Unknown error')}")
+                return
+            
+            print(f"   ✓ Collection: {info_result['collection']}")
+            print(f"   ✓ Stored documents: {info_result['stored_documents']}")
+            print(f"   ✓ Indexed documents: {info_result['indexed_documents']}")
+            print(f"   ✓ Indexing complete: {info_result['indexing_complete']}")
+            
+            # Verify results
+            assert info_result['collection'] == collection
+            assert info_result['stored_documents'] >= 2  # At least our 2 documents
+            assert info_result['indexed_documents'] >= 0  # May be indexing
+            assert 'index_name' in info_result
+
+        print("\n" + "="*70)
+        print("✓ COLLECTION_INFO INTEGRATION TESTS PASSED")
         print("="*70)

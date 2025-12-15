@@ -15,7 +15,7 @@
 """Unit tests for semantic search functionality using dummy embeddings provider."""
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search, update_document, add_documents
+from awslabs.valkey_mcp_server.tools.semantic_search import semantic_search, update_document, add_documents, collection_info
 from awslabs.valkey_mcp_server.embeddings.providers import HashEmbeddings
 
 
@@ -287,3 +287,25 @@ class TestSemanticSearchUnit:
                 assert result['status'] == 'success'
                 assert result['added'] == 0  # No documents added
                 assert result['errors'] == 2  # Both documents failed
+
+    @pytest.mark.asyncio
+    async def test_collection_info_successful(self, mock_connection):
+        """Test collection_info tool with successful index query."""
+        # Mock stored documents count
+        mock_connection.keys.return_value = ['doc1', 'doc2', 'doc3']
+        
+        # Mock FT.INFO response
+        mock_connection.execute_command.return_value = [
+            b'index_name', b'semantic_collection_test',
+            b'num_docs', b'3',
+            b'max_doc_id', b'3'
+        ]
+        
+        result = await collection_info(collection="test_collection")
+        
+        # Verify results
+        assert result['status'] == 'success'
+        assert result['collection'] == 'test_collection'
+        assert result['stored_documents'] == 3
+        assert result['indexed_documents'] == 3
+        assert result['indexing_complete'] == True

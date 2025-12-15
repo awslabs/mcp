@@ -289,6 +289,69 @@ async def update_document(
 
 
 @mcp.tool()
+async def collection_info(collection: str) -> Dict[str, Any]:
+    """Get indexing information for a collection.
+
+    This tool provides information about the indexing status of documents
+    in a collection, helping users understand if their documents are
+    properly indexed and searchable.
+
+    Args:
+        collection: Name of the collection to check
+
+    Returns:
+        Information about stored vs indexed documents
+
+    Example:
+        result = await collection_info(collection="research_papers")
+    """
+    try:
+        r = ValkeyConnectionManager.get_connection(decode_responses=True)
+        index_name = _get_collection_index_name(collection)
+        
+        # Count stored documents
+        stored_docs = len(r.keys(f'{_get_document_key(collection, "")}*'))
+        
+        # Get index information
+        try:
+            index_info_result = r.execute_command('FT.INFO', index_name)
+            # Parse index info to get indexed document count
+            info_dict = {}
+            for i in range(0, len(index_info_result), 2):
+                key = index_info_result[i].decode() if isinstance(index_info_result[i], bytes) else index_info_result[i]
+                value = index_info_result[i+1]
+                if isinstance(value, bytes):
+                    value = value.decode()
+                info_dict[key] = value
+            
+            indexed_docs = int(info_dict.get('num_docs', 0))
+            
+            return {
+                "status": "success",
+                "collection": collection,
+                "stored_documents": stored_docs,
+                "indexed_documents": indexed_docs,
+                "indexing_complete": stored_docs == indexed_docs,
+                "index_name": index_name
+            }
+            
+        except ValkeyError:
+            return {
+                "status": "error",
+                "collection": collection,
+                "stored_documents": stored_docs,
+                "reason": f"Index '{index_name}' not found"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "collection": collection,
+            "reason": str(e)
+        }
+
+
+@mcp.tool()
 async def semantic_search(
     collection: str,
     query: str,
