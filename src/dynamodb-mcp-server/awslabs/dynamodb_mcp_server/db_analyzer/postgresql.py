@@ -147,10 +147,43 @@ ORDER BY tc.table_name, kcu.column_name;""",
     (now() - COALESCE(psd.stats_reset, pg_postmaster_start_time()))), 0)), 6) as estimated_rps
 FROM pg_stat_statements pss
 JOIN pg_stat_database psd ON pss.dbid = psd.datid
-WHERE pss.query NOT LIKE '%pg_stat_statements%'
+WHERE pss.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  -- Filter out PostgreSQL system catalogs and views (explicit list to avoid filtering user tables with pg_ prefix)
   AND pss.query NOT LIKE '%pg_catalog%'
+  AND pss.query NOT LIKE '%pg_stat_statements%'
+  AND pss.query NOT LIKE '%pg_stat_user_tables%'
+  AND pss.query NOT LIKE '%pg_stat_user_indexes%'
+  AND pss.query NOT LIKE '%pg_stat_user_functions%'
+  AND pss.query NOT LIKE '%pg_stat_database%'
+  AND pss.query NOT LIKE '%pg_stat_activity%'
+  AND pss.query NOT LIKE '%pg_class%'
+  AND pss.query NOT LIKE '%pg_namespace%'
+  AND pss.query NOT LIKE '%pg_attribute%'
+  AND pss.query NOT LIKE '%pg_index%'
+  AND pss.query NOT LIKE '%pg_constraint%'
+  AND pss.query NOT LIKE '%pg_type%'
+  AND pss.query NOT LIKE '%pg_extension%'
+  AND pss.query NOT LIKE '%pg_database%'
+  AND pss.query NOT LIKE '%pg_tables%'
+  AND pss.query NOT LIKE '%pg_indexes%'
+  AND pss.query NOT LIKE '%pg_views%'
+  AND pss.query NOT LIKE '%pg_locks%'
+  AND pss.query NOT LIKE '%pg_settings%'
+  -- Filter out PostgreSQL system functions
+  AND pss.query NOT LIKE '%pg_relation_size%'
+  AND pss.query NOT LIKE '%pg_total_relation_size%'
+  AND pss.query NOT LIKE '%pg_size_pretty%'
+  AND pss.query NOT LIKE '%pg_postmaster_start_time%'
+  AND pss.query NOT LIKE '%pg_sleep%'
+  -- Filter out information_schema
   AND pss.query NOT LIKE '%information_schema%'
-  AND pss.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+  -- Filter out session/transaction control
+  AND pss.query !~* '^(SET|SHOW|RESET|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|DEALLOCATE|DISCARD)\\s'
+  AND pss.query !~* '^(LISTEN|NOTIFY|UNLISTEN)\\s'
+  -- Filter out utility/maintenance commands
+  AND pss.query !~* '^(VACUUM|ANALYZE|REINDEX|CLUSTER|CHECKPOINT|EXPLAIN)\\s'
+  -- Filter out DDL (focus on DML for access patterns)
+  AND pss.query !~* '^(CREATE|ALTER|DROP|TRUNCATE|COMMENT|GRANT|REVOKE)\\s'
 ORDER BY pss.total_exec_time DESC;""",
         'parameters': [],
     },

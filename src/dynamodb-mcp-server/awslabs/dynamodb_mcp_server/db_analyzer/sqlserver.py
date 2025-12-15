@@ -15,9 +15,8 @@
 """SQL Server database analyzer plugin."""
 
 import re
-from typing import Any, Dict
-
 from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
+from typing import Any, Dict
 
 
 _sqlserver_analysis_queries = {
@@ -145,9 +144,38 @@ FROM sys.dm_exec_query_stats qs
 CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st
 WHERE st.dbid = DB_ID('{target_database}')
   AND qs.execution_count > 0
-  AND st.text NOT LIKE '%sys.%'
+  -- Filter out system catalog views (FROM sys.xxx pattern)
+  AND st.text NOT LIKE '%FROM sys.%' AND st.text NOT LIKE '%JOIN sys.%'
   AND st.text NOT LIKE '%INFORMATION_SCHEMA%'
-  AND st.text NOT LIKE '%dm_exec%'
+  -- Filter out DMVs (dm_exec_, dm_db_, dm_os_, dm_tran_ prefixes)
+  AND st.text NOT LIKE '%dm[_]exec[_]%' ESCAPE '['
+  AND st.text NOT LIKE '%dm[_]db[_]%' ESCAPE '['
+  AND st.text NOT LIKE '%dm[_]os[_]%' ESCAPE '['
+  AND st.text NOT LIKE '%dm[_]tran[_]%' ESCAPE '['
+  -- Filter out system metadata functions
+  AND st.text NOT LIKE '%OBJECT[_]NAME(%' ESCAPE '['
+  AND st.text NOT LIKE '%OBJECT[_]ID(%' ESCAPE '['
+  AND st.text NOT LIKE '%COL[_]NAME(%' ESCAPE '['
+  AND st.text NOT LIKE '%OBJECTPROPERTY(%'
+  AND st.text NOT LIKE '%DB[_]ID(%' ESCAPE '['
+  AND st.text NOT LIKE '%DB[_]NAME(%' ESCAPE '['
+  -- Filter out utility/maintenance commands
+  AND st.text NOT LIKE 'SET %' AND st.text NOT LIKE 'DBCC %'
+  AND st.text NOT LIKE 'BACKUP %' AND st.text NOT LIKE 'RESTORE %'
+  AND st.text NOT LIKE 'CHECKPOINT%' AND st.text NOT LIKE 'WAITFOR %'
+  AND st.text NOT LIKE 'USE %' AND st.text NOT LIKE 'PRINT %'
+  AND st.text NOT LIKE 'RAISERROR%' AND st.text NOT LIKE 'THROW%'
+  -- Filter out DDL (focus on DML for access patterns)
+  AND st.text NOT LIKE 'CREATE %' AND st.text NOT LIKE 'ALTER %'
+  AND st.text NOT LIKE 'DROP %' AND st.text NOT LIKE 'TRUNCATE %'
+  AND st.text NOT LIKE 'GRANT %' AND st.text NOT LIKE 'REVOKE %' AND st.text NOT LIKE 'DENY %'
+  -- Filter out transaction control
+  AND st.text NOT LIKE 'BEGIN TRAN%' AND st.text NOT LIKE 'COMMIT%'
+  AND st.text NOT LIKE 'ROLLBACK%' AND st.text NOT LIKE 'SAVE TRAN%'
+  -- Filter out system stored procedures (sp_xxx pattern)
+  AND st.text NOT LIKE '%sp[_]who%' ESCAPE '['
+  AND st.text NOT LIKE '%sp[_]help%' ESCAPE '['
+  AND st.text NOT LIKE '%sp[_]executesql%' ESCAPE '['
 
 UNION ALL
 
