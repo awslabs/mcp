@@ -27,7 +27,17 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
-### Prerequisites
+### Option 1 (Recommended): Hosted MCP Server
+
+Use the AWS-managed ECS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
+
+For complete setup instructions, configuration examples, and IAM permissions, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
+
+### Option 2: Local MCP Server (Legacy)
+
+> **Note**: This is the legacy local installation method that will no longer receive updates. We recommend using [Option 1 (Hosted MCP Server)](#option-1-recommended-hosted-mcp-server) instead.
+
+#### Prerequisites
 
 Before installing the ECS MCP Server, ensure you have the following prerequisites installed:
 
@@ -38,7 +48,7 @@ Before installing the ECS MCP Server, ensure you have the following prerequisite
 2. **UV**: Required for package management and running MCP servers
    - Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 
-### Installation Steps
+#### Installation Steps
 
 ```bash
 # Install using uv

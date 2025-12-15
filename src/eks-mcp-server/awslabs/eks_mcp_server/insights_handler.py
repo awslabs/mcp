@@ -14,16 +14,17 @@
 
 """Insights handler for the EKS MCP Server."""
 
+import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     EksInsightItem,
-    EksInsightsResponse,
+    EksInsightsData,
     EksInsightStatus,
 )
 from datetime import datetime
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Optional
 
@@ -72,7 +73,7 @@ class InsightsHandler:
             None,
             description='Token for pagination to get the next set of results',
         ),
-    ) -> EksInsightsResponse:
+    ) -> CallToolResult:
         """Get EKS Insights for cluster configuration and upgrade readiness.
 
         This tool retrieves Amazon EKS Insights that identify potential issues with
@@ -128,7 +129,7 @@ class InsightsHandler:
         insight_id: Optional[str] = None,
         category: Optional[str] = None,
         next_token: Optional[str] = None,
-    ) -> EksInsightsResponse:
+    ) -> CallToolResult:
         """Internal implementation of get_eks_insights."""
         try:
             # Always use the default EKS client
@@ -151,13 +152,9 @@ class InsightsHandler:
         except Exception as e:
             error_message = f'Error processing EKS insights request: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksInsightsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                cluster_name=cluster_name,
-                insights=[],
-                next_token=None,
-                detail_mode=(insight_id is not None),
             )
 
     async def _get_insight_detail(
@@ -167,7 +164,7 @@ class InsightsHandler:
         cluster_name: str,
         insight_id: str,
         next_token: Optional[str] = None,
-    ) -> EksInsightsResponse:
+    ) -> CallToolResult:
         """Get details for a specific EKS insight."""
         log_with_request_id(
             ctx,
@@ -214,36 +211,34 @@ class InsightsHandler:
                 )
 
                 success_message = f'Successfully retrieved details for insight {insight_id}'
-                return EksInsightsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text=success_message)],
+                data = EksInsightsData(
                     cluster_name=cluster_name,
                     insights=[insight_item],
                     next_token=None,  # No pagination for detail view
                     detail_mode=True,
                 )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
+                )
             else:
                 error_message = f'No insight details found for ID {insight_id}'
                 log_with_request_id(ctx, LogLevel.WARNING, error_message)
-                return EksInsightsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    cluster_name=cluster_name,
-                    insights=[],
-                    next_token=None,
-                    detail_mode=True,
                 )
 
         except Exception as e:
             error_message = f'Error retrieving insight details: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksInsightsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                cluster_name=cluster_name,
-                insights=[],
-                next_token=None,
-                detail_mode=True,
             )
 
     async def _list_insights(
@@ -253,7 +248,7 @@ class InsightsHandler:
         cluster_name: str,
         category: Optional[str] = None,
         next_token: Optional[str] = None,
-    ) -> EksInsightsResponse:
+    ) -> CallToolResult:
         """List EKS insights for a cluster with optional category filtering."""
         log_with_request_id(ctx, LogLevel.INFO, f'Listing insights for cluster {cluster_name}')
 
@@ -320,23 +315,25 @@ class InsightsHandler:
             success_message = (
                 f'Successfully retrieved {len(insight_items)} insights for cluster {cluster_name}'
             )
-            return EksInsightsResponse(
-                isError=False,
-                content=[TextContent(type='text', text=success_message)],
+            data = EksInsightsData(
                 cluster_name=cluster_name,
                 insights=insight_items,
                 next_token=response.get('nextToken'),
                 detail_mode=False,
             )
 
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
         except Exception as e:
             error_message = f'Error listing insights: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksInsightsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                cluster_name=cluster_name,
-                insights=[],
-                next_token=None,
-                detail_mode=False,
             )
