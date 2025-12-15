@@ -95,10 +95,3 @@ def get_requests_session() -> requests.Session:
     session.mount('http://', adapter)
 
     return session
-
-
-def json_serializer(obj):
-    """JSON serializer for objects not serializable by default."""
-    if hasattr(obj, 'isoformat'):
-        return obj.isoformat()
-    return str(obj)

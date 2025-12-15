@@ -21,7 +21,7 @@ from ..aws.services import (
 from ..common.command import IRCommand, OutputFile
 from ..common.config import CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS, get_user_agent_extra
 from ..common.file_system_controls import validate_file_path
-from ..common.helpers import json_serializer, operation_timer
+from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
 from typing import Any
@@ -106,6 +106,6 @@ def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) 
 
 def _apply_filter(response: dict[str, Any], client_side_filter: ParsedResult) -> dict[str, Any]:
     response_metadata = response.get('ResponseMetadata')
-    json_compatible_response = json.loads(json.dumps(response, default=json_serializer))
+    json_compatible_response = json.loads(json.dumps(response, cls=Boto3Encoder))
     filtered_result = client_side_filter.search(json_compatible_response)
     return {'Result': filtered_result, 'ResponseMetadata': response_metadata}
