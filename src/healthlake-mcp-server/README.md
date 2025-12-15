@@ -10,11 +10,16 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
   - [Option 1: uvx (Recommended)](#option-1-uvx-recommended)
   - [Option 2: uv install](#option-2-uv-install)
   - [Option 3: Docker](#option-3-docker)
+- [HTTP Server (Streamable HTTP Transport)](#http-server-streamable-http-transport)
+  - [Running the HTTP Server](#running-the-http-server)
+  - [HTTP Server Options](#http-server-options)
+  - [Kubernetes Deployment](#kubernetes-deployment)
 - [MCP Client Configuration](#mcp-client-configuration)
   - [Amazon Q Developer CLI](#amazon-q-developer-cli)
   - [Docker Configuration](#docker-configuration)
   - [Other MCP Clients](#other-mcp-clients)
 - [Read-Only Mode](#read-only-mode)
+- [Tool Filtering](#tool-filtering)
 - [Available Tools](#available-tools)
   - [Datastore Management](#datastore-management)
   - [FHIR Resource Operations (CRUD)](#fhir-resource-operations-crud)
@@ -46,10 +51,12 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
 
 - **11 FHIR Tools**: Complete CRUD operations (6 read-only, 5 write), advanced search, patient-everything, job management
 - **Read-Only Mode**: Security-focused mode that blocks all mutating operations while preserving read access
+- **Tool Filtering**: Limit exposed tools to specific operations via `--allowed-tools`
+- **HTTP Transport**: Streamable HTTP transport for Kubernetes/cloud deployment (in addition to stdio)
 - **MCP Resources**: Automatic datastore discovery - no manual datastore IDs needed
 - **Advanced Search**: Chained parameters, includes, revIncludes, modifiers, and date/number prefixes with pagination
 - **AWS Integration**: SigV4 authentication with automatic credential handling and region support
-- **Comprehensive Testing**: 235 tests with 96% coverage ensuring reliability
+- **Comprehensive Testing**: 235+ tests with 96% coverage ensuring reliability
 - **Task Automation**: Poethepoet integration for streamlined development workflow
 - **Error Handling**: Structured error responses with specific error types and helpful messages
 - **Docker Support**: Containerized deployment with flexible authentication options
@@ -99,6 +106,74 @@ docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile awslabs/healthlake-m
 
 # Read-only mode
 docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 awslabs/healthlake-mcp-server --readonly
+```
+
+[↑ Back to Table of Contents](#table-of-contents)
+
+## HTTP Server (Streamable HTTP Transport)
+
+The server supports [MCP Streamable HTTP transport](https://modelcontextprotocol.io/specification/draft/basic/transports#streamable-http) for deployment in Kubernetes, cloud environments, or any scenario where HTTP access is preferred over stdio.
+
+### Running the HTTP Server
+
+```bash
+# Basic usage (binds to 0.0.0.0:8080)
+python -m awslabs.healthlake_mcp_server.http_server
+
+# Or using the installed script
+awslabs.healthlake-mcp-server-http
+
+# Custom host and port
+python -m awslabs.healthlake_mcp_server.http_server --host 127.0.0.1 --port 3000
+```
+
+### HTTP Server Options
+
+| Option | Default | Environment Variable | Description |
+|--------|---------|---------------------|-------------|
+| `--host` | `0.0.0.0` | `MCP_HOST` | Host to bind to |
+| `--port` | `8080` | `MCP_PORT` | Port to bind to |
+| `--readonly` | `false` | - | Enable read-only mode |
+| `--stateless` | `false` | - | Disable session tracking between requests |
+| `--allowed-origins` | `` | `MCP_ALLOWED_ORIGINS` | Comma-separated list of allowed origins for CORS |
+| `--allowed-tools` | `` | `MCP_ALLOWED_TOOLS` | Comma-separated list of tools to expose |
+
+### HTTP Endpoints
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/mcp` | GET, POST, DELETE | MCP Streamable HTTP endpoint |
+| `/health` | GET | Kubernetes liveness probe |
+| `/ready` | GET | Kubernetes readiness probe |
+
+### MCP Client Configuration (HTTP)
+
+Connect to the HTTP server using the `/mcp` endpoint:
+
+```json
+{
+  "mcpServers": {
+    "healthlake": {
+      "url": "http://your-server:8080/mcp"
+    }
+  }
+}
+```
+### Security Considerations
+
+Per the [MCP specification](https://modelcontextprotocol.io/specification/draft/basic/transports#security-warning):
+
+1. **Origin Validation**: Use `--allowed-origins` to prevent DNS rebinding attacks
+2. **Local Binding**: When running locally, bind to `127.0.0.1` instead of `0.0.0.0`
+3. **Authentication**: Implement proper authentication at your ingress/load balancer
+
+```bash
+# Production example with security settings
+python -m awslabs.healthlake_mcp_server.http_server \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --allowed-origins "https://myapp.com,https://trusted.com" \
+  --allowed-tools "read_fhir_resource,search_fhir_resources"
 ```
 
 [↑ Back to Table of Contents](#table-of-contents)
@@ -254,6 +329,56 @@ python -m awslabs.healthlake_mcp_server.main --readonly
 | `delete_fhir_resource` | ❌ | Delete FHIR resources |
 | `start_fhir_import_job` | ❌ | Start FHIR data import jobs |
 | `start_fhir_export_job` | ❌ | Start FHIR data export jobs |
+
+[↑ Back to Table of Contents](#table-of-contents)
+
+## Tool Filtering
+
+For fine-grained control over which tools are exposed, use the `--allowed-tools` flag. This takes precedence over `--readonly` and allows you to specify exactly which tools should be available.
+
+### Usage
+
+```bash
+# Only expose read and search tools
+python -m awslabs.healthlake_mcp_server.http_server \
+  --allowed-tools "read_fhir_resource,search_fhir_resources"
+
+# Via environment variable
+MCP_ALLOWED_TOOLS="read_fhir_resource,search_fhir_resources" \
+  python -m awslabs.healthlake_mcp_server.http_server
+
+# Multiple tools
+--allowed-tools "list_datastores,read_fhir_resource,search_fhir_resources,patient_everything"
+```
+
+### Available Tool Names
+
+| Tool Name | Category | Description |
+|-----------|----------|-------------|
+| `list_datastores` | Datastore | List all HealthLake datastores |
+| `get_datastore_details` | Datastore | Get detailed datastore information |
+| `read_fhir_resource` | CRUD | Retrieve specific FHIR resources |
+| `search_fhir_resources` | Search | Advanced FHIR search operations |
+| `patient_everything` | Search | Comprehensive patient record retrieval |
+| `list_fhir_jobs` | Jobs | Monitor import/export job status |
+| `create_fhir_resource` | CRUD | Create new FHIR resources |
+| `update_fhir_resource` | CRUD | Update existing FHIR resources |
+| `delete_fhir_resource` | CRUD | Delete FHIR resources |
+| `start_fhir_import_job` | Jobs | Start FHIR data import jobs |
+| `start_fhir_export_job` | Jobs | Start FHIR data export jobs |
+
+### Common Configurations
+
+```bash
+# Read-only equivalent
+--allowed-tools "list_datastores,get_datastore_details,read_fhir_resource,search_fhir_resources,patient_everything,list_fhir_jobs"
+
+# Minimal read access
+--allowed-tools "read_fhir_resource,search_fhir_resources"
+
+# Datastore discovery + read
+--allowed-tools "list_datastores,read_fhir_resource"
+```
 
 [↑ Back to Table of Contents](#table-of-contents)
 
@@ -557,9 +682,10 @@ poe lint
 awslabs/healthlake_mcp_server/
 ├── server.py           # MCP server with tool handlers
 ├── fhir_operations.py  # AWS HealthLake client operations
-├── models.py          # Pydantic validation models
-├── main.py            # Entry point
-└── __init__.py        # Package initialization
+├── models.py           # Pydantic validation models
+├── main.py             # Entry point (stdio transport)
+├── http_server.py      # HTTP server entry point (Streamable HTTP transport)
+└── __init__.py         # Package initialization
 ```
 
 [↑ Back to Table of Contents](#table-of-contents)

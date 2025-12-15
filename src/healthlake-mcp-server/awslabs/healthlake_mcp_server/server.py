@@ -38,6 +38,21 @@ from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
 
 
+# All available tools
+ALL_TOOLS = {
+    'list_datastores',
+    'get_datastore_details',
+    'read_fhir_resource',
+    'search_fhir_resources',
+    'patient_everything',
+    'list_fhir_jobs',
+    'create_fhir_resource',
+    'update_fhir_resource',
+    'delete_fhir_resource',
+    'start_fhir_import_job',
+    'start_fhir_export_job',
+}
+
 # Tool categories for read-only mode
 READ_ONLY_TOOLS = {
     'list_datastores',
@@ -98,10 +113,24 @@ def create_success_response(data: Any) -> List[TextContent]:
 class ToolHandler:
     """Handles tool dispatch and execution."""
 
-    def __init__(self, healthlake_client: HealthLakeClient, read_only: bool = False):
-        """Initialize tool handler with HealthLake client and read-only mode support."""
+    def __init__(
+        self,
+        healthlake_client: HealthLakeClient,
+        read_only: bool = False,
+        allowed_tools: set[str] | None = None,
+    ):
+        """Initialize tool handler with HealthLake client and tool filtering.
+
+        Args:
+            healthlake_client: The HealthLake client for AWS operations
+            read_only: If True, only read-only tools are available
+            allowed_tools: Optional set of specific tool names to allow.
+                          If provided, only these tools will be available.
+                          Takes precedence over read_only.
+        """
         self.client = healthlake_client
         self.read_only = read_only
+        self.allowed_tools = allowed_tools
 
         # Define all possible handlers
         all_handlers = {
@@ -118,8 +147,10 @@ class ToolHandler:
             'list_fhir_jobs': self._handle_list_jobs,
         }
 
-        # Filter handlers based on read-only mode
-        if read_only:
+        # Filter handlers based on allowed_tools or read-only mode
+        if allowed_tools:
+            self.handlers = {k: v for k, v in all_handlers.items() if k in allowed_tools}
+        elif read_only:
             self.handlers = {k: v for k, v in all_handlers.items() if k in READ_ONLY_TOOLS}
         else:
             self.handlers = all_handlers
@@ -264,11 +295,24 @@ class ToolHandler:
         )
 
 
-def create_healthlake_server(read_only: bool = False) -> Server:
-    """Create and configure the HealthLake MCP server."""
+def create_healthlake_server(
+    read_only: bool = False,
+    allowed_tools: set[str] | None = None,
+) -> Server:
+    """Create and configure the HealthLake MCP server.
+
+    Args:
+        read_only: If True, only read-only tools are available
+        allowed_tools: Optional set of specific tool names to allow.
+                      If provided, only these tools will be available.
+                      Takes precedence over read_only.
+
+    Returns:
+        Configured MCP Server instance
+    """
     server = Server('healthlake-mcp-server')
     healthlake_client = HealthLakeClient()
-    tool_handler = ToolHandler(healthlake_client, read_only=read_only)
+    tool_handler = ToolHandler(healthlake_client, read_only=read_only, allowed_tools=allowed_tools)
 
     @server.list_tools()
     async def handle_list_tools() -> List[Tool]:
@@ -590,8 +634,10 @@ def create_healthlake_server(read_only: bool = False) -> Server:
             ),
         ]
 
-        # Filter tools based on read-only mode
-        if read_only:
+        # Filter tools based on allowed_tools or read-only mode
+        if allowed_tools:
+            return [tool for tool in all_tools if tool.name in allowed_tools]
+        elif read_only:
             return [tool for tool in all_tools if tool.name in READ_ONLY_TOOLS]
         else:
             return all_tools
