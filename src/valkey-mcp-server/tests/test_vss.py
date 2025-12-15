@@ -312,6 +312,29 @@ class TestSearch:
         assert 'not allowed' in result['reason']
 
     @pytest.mark.asyncio
+    async def test_vector_search_module_detection(self, mock_connection):
+        """Test that search module availability is detected."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2, 0.3]
+
+        # Mock the search module detection helper function to return False
+        with patch('awslabs.valkey_mcp_server.tools.vss._search_module_enabled', return_value=False):
+            # Execute search
+            result = await vector_search(
+                index=index,
+                field=field,
+                vector=vector
+            )
+
+            # Verify search module detection error
+            assert result['status'] == 'error'
+            assert result['type'] == 'valkey'
+            assert 'Search module not available' in result['reason']
+
+    @pytest.mark.asyncio
     async def test_vector_search_large_vector(self, mock_connection):
         """Test vector search with a large vector."""
         mock_conn, mock_conn_raw = mock_connection

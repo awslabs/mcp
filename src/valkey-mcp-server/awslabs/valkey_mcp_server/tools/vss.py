@@ -20,6 +20,16 @@ from valkey.commands.search.query import Query
 import struct
 import json
 import logging
+from valkey import Valkey
+from valkey.cluster import ValkeyCluster
+
+
+def _search_module_enabled(r: Union[Valkey, ValkeyCluster]) -> bool:
+    try:
+        r.execute_command("FT._LIST")
+        return True
+    except ValkeyError as e:
+        return False
 
 
 @mcp.tool()
@@ -69,6 +79,14 @@ async def vector_search(index: str,
 
         # Use connection with decode_responses=True for fetching document fields
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
+
+        # Check if search module is available
+        if not _search_module_enabled(r):
+            return {
+                "status": "error",
+                "type": "valkey",
+                "reason": "Search module not available"
+            }
 
         # Access the search index
         ft = r.ft(index)
