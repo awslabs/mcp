@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+from ..common.helpers import Boto3Encoder
 from .services import PaginationConfig
 from botocore.paginate import PageIterator, Paginator
 from botocore.utils import merge_dicts, set_value_from_jmespath
@@ -63,7 +65,8 @@ def _finalize_result(
     """Finalize the result by adding non-aggregate parts and processing metadata."""
     if client_side_filter is not None:
         # Apply client-side filter
-        result = {'Result': client_side_filter.search(result)}
+        json_compatible_result = json.loads(json.dumps(result, cls=Boto3Encoder))
+        result = {'Result': client_side_filter.search(json_compatible_result)}
 
     merge_dicts(result, page_iterator.non_aggregate_part)
 

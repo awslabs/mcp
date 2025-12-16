@@ -35,6 +35,7 @@ from tests.fixtures import (
     EC2_DESCRIBE_INSTANCES,
     GET_CALLER_IDENTITY_PAYLOAD,
     LAMBDA_INVOKE_PAYLOAD,
+    LIST_BUCKETS_SORTED_BY_CREATION_DATE,
     S3_GET_OBJECT_PAYLOAD,
     SSM_LIST_NODES_PAYLOAD,
     T2_EC2_DESCRIBE_INSTANCES_FILTERED,
@@ -189,6 +190,20 @@ def test_interpret_returns_missing_context_failures():
             'ssm',
             'Amazon Simple Systems Manager (SSM)',
             'ListNodes',
+        ),
+        (
+            'aws s3api list-buckets --query "sort_by(Buckets, &CreationDate)[-1].[Name,CreationDate]"',
+            LIST_BUCKETS_SORTED_BY_CREATION_DATE,
+            (
+                'ListBuckets',
+                {},
+                'us-east-1',
+                60,
+                'https://s3.us-east-1.amazonaws.com',
+            ),
+            's3',
+            'Amazon Simple Storage Service',
+            'ListBuckets',
         ),
     ],
 )
