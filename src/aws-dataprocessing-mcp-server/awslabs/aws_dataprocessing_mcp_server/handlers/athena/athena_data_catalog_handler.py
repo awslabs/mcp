@@ -185,34 +185,12 @@ class AthenaDataCatalogHandler:
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if operation == 'create-data-catalog':
-                    data = CreateDataCatalogData(name='', operation='create-data-catalog')
-                    return CallToolResult(
-                        isError=True,
-                        content=[
-                            TextContent(type='text', text=error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
-                    )
-                elif operation == 'delete-data-catalog':
-                    data = DeleteDataCatalogData(name='', operation='delete-data-catalog')
-                    return CallToolResult(
-                        isError=True,
-                        content=[
-                            TextContent(type='text', text=error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
-                    )
-                elif operation == 'update-data-catalog':
-                    data = UpdateDataCatalogData(name='', operation='update-data-catalog')
-                    return CallToolResult(
-                        isError=True,
-                        content=[
-                            TextContent(type='text', text=error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[
+                        TextContent(type='text', text=error_message),
+                    ],
+                )
 
             if operation == 'create-data-catalog':
                 if name is None or type is None:
@@ -263,13 +241,9 @@ class AthenaDataCatalogHandler:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     full_error_message = f'Cannot delete data catalog {name}: {error_message}'
-                    data = DeleteDataCatalogData(name=name, operation='delete-data-catalog')
                     return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(type='text', text=full_error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
+                        content=[TextContent(type='text', text=full_error_message)],
                     )
 
                 # Prepare parameters for deletion
@@ -285,10 +259,7 @@ class AthenaDataCatalogHandler:
                     error_message = 'Data Catalog delete operation failed'
                     return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(type='text', text=error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
+                        content=[TextContent(type='text', text=error_message)],
                     )
                 else:
                     success_message = f'Successfully deleted data catalog {name}'
@@ -366,13 +337,9 @@ class AthenaDataCatalogHandler:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     full_error_message = f'Cannot update data catalog {name}: {error_message}'
-                    data = UpdateDataCatalogData(name=name, operation='update-data-catalog')
                     return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(type='text', text=full_error_message),
-                            TextContent(type='text', text=json.dumps(data.model_dump())),
-                        ],
+                        content=[TextContent(type='text', text=full_error_message)],
                     )
 
                 # Prepare parameters for update
@@ -403,13 +370,9 @@ class AthenaDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                data = GetDataCatalogData(data_catalog={}, operation='get-data-catalog')
                 return CallToolResult(
                     isError=True,
-                    content=[
-                        TextContent(type='text', text=error_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
-                    ],
+                    content=[TextContent(type='text', text=error_message)],
                 )
 
         except ValueError as e:
@@ -418,12 +381,10 @@ class AthenaDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_data_catalogs: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            data = GetDataCatalogData(data_catalog={}, operation='get-data-catalog')
             return CallToolResult(
                 isError=True,
                 content=[
                     TextContent(type='text', text=error_message),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
                 ],
             )
 
@@ -656,13 +617,9 @@ class AthenaDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: get-database, get-table-metadata, list-databases, list-table-metadata'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                data = GetDatabaseData(database={}, operation='get-database')
                 return CallToolResult(
                     isError=True,
-                    content=[
-                        TextContent(type='text', text=error_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
-                    ],
+                    content=[TextContent(type='text', text=error_message)],
                 )
 
         except ValueError as e:
@@ -671,11 +628,7 @@ class AthenaDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_databases_and_tables: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            data = GetDatabaseData(database={}, operation='get-database')
             return CallToolResult(
                 isError=True,
-                content=[
-                    TextContent(type='text', text=error_message),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
-                ],
+                content=[TextContent(type='text', text=error_message)],
             )

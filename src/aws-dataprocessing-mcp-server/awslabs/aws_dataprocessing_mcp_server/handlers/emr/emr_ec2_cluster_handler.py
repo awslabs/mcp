@@ -802,7 +802,7 @@ class EMREc2ClusterHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-cluster, describe-cluster, modify-cluster, modify-cluster-attributes, terminate-clusters, list-clusters, create-security-configuration, delete-security-configuration, describe-security-configuration, list-security-configurations'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return self._create_error_response('describe-cluster', error_message)
+                return self._create_error_response('', error_message)
 
         except ValueError as e:
             error_message = str(e)

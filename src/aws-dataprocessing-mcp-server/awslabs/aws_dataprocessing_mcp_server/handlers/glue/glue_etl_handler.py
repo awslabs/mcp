@@ -339,7 +339,7 @@ class GlueEtlJobsHandler:
                 success_message = f'Successfully deleted MCP-managed Glue job {job_name}'
                 data = DeleteJobData(
                     job_name=job_name,
-                    operation='delete',
+                    operation='delete-job',
                 )
 
                 return CallToolResult(

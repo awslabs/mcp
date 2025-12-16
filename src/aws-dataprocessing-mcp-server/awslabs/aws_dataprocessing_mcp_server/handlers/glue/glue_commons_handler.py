@@ -189,7 +189,7 @@ class GlueCommonsHandler:
                 success_message = f'Successfully created usage profile {profile_name}'
                 data = CreateUsageProfileData(
                     profile_name=profile_name,
-                    operation='create',
+                    operation='create-usage-profile',
                 )
 
                 return CallToolResult(
@@ -236,7 +236,7 @@ class GlueCommonsHandler:
                 success_message = f'Successfully deleted usage profile {profile_name}'
                 data = DeleteUsageProfileData(
                     profile_name=profile_name,
-                    operation='delete',
+                    operation='delete-usage-profile',
                 )
 
                 return CallToolResult(
@@ -255,7 +255,7 @@ class GlueCommonsHandler:
                 data = GetUsageProfileData(
                     profile_name=response.get('Name', profile_name),
                     profile_details=response,
-                    operation='get',
+                    operation='get-usage-profile',
                 )
 
                 return CallToolResult(
@@ -311,7 +311,7 @@ class GlueCommonsHandler:
                 success_message = f'Successfully updated usage profile {profile_name}'
                 data = UpdateUsageProfileData(
                     profile_name=profile_name,
-                    operation='update',
+                    operation='update-usage-profile',
                 )
 
                 return CallToolResult(
@@ -439,7 +439,7 @@ class GlueCommonsHandler:
                         else ''
                     ),
                     encryption_configuration=encryption_configuration or {},
-                    operation='create',
+                    operation='create-security-configuration',
                 )
 
                 return CallToolResult(
@@ -476,7 +476,7 @@ class GlueCommonsHandler:
                 success_message = f'Successfully deleted security configuration {config_name}'
                 data = DeleteSecurityConfigurationData(
                     config_name=config_name,
-                    operation='delete',
+                    operation='delete-security-configuration',
                 )
 
                 return CallToolResult(
@@ -503,7 +503,7 @@ class GlueCommonsHandler:
                         else ''
                     ),
                     encryption_configuration=security_config.get('EncryptionConfiguration', {}),
-                    operation='get',
+                    operation='get-security-configuration',
                 )
 
                 return CallToolResult(
@@ -621,7 +621,7 @@ class GlueCommonsHandler:
                 success_message = 'Successfully retrieved Data Catalog encryption settings'
                 data = GetDataCatalogEncryptionSettingsData(
                     encryption_settings=response.get('DataCatalogEncryptionSettings', {}),
-                    operation='get',
+                    operation='get-datacatalog-encryption',
                 )
 
                 return CallToolResult(
@@ -657,7 +657,7 @@ class GlueCommonsHandler:
 
                 success_message = 'Successfully updated Data Catalog encryption settings'
                 data = PutDataCatalogEncryptionSettingsData(
-                    operation='put',
+                    operation='put-datacatalog-encryption',
                 )
 
                 return CallToolResult(
@@ -796,7 +796,7 @@ class GlueCommonsHandler:
                         if response.get('UpdateTime')
                         else None
                     ),
-                    operation='get',
+                    operation='get-resource-policy',
                 )
 
                 return CallToolResult(
@@ -828,7 +828,7 @@ class GlueCommonsHandler:
                 success_message = 'Successfully updated resource policy'
                 data = PutResourcePolicyData(
                     policy_hash=response.get('PolicyHash'),
-                    operation='put',
+                    operation='put-resource-policy',
                 )
 
                 return CallToolResult(
@@ -852,7 +852,7 @@ class GlueCommonsHandler:
 
                 success_message = 'Successfully deleted resource policy'
                 data = DeleteResourcePolicyData(
-                    operation='delete',
+                    operation='delete-resource-policy',
                 )
 
                 return CallToolResult(
