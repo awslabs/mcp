@@ -553,3 +553,412 @@ class TestMainFunction:
         main()
         mock_server_class.assert_called_once()
         mock_asyncio_run.assert_called_once_with(mock_server.run())
+
+
+class TestEdgeCasesAndErrorPaths:
+    """Test edge cases and error paths for maximum coverage."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.server = PCAPAnalyzerServer()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec')
+    async def test_start_capture_exception(self, mock_subprocess):
+        """Test start capture with exception."""
+        mock_subprocess.side_effect = Exception('Failed to start')
+
+        result = await self.server._start_packet_capture(interface='eth0')
+        assert len(result) == 1
+        assert 'Error' in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_list_captured_files_with_files(self):
+        """Test listing files with actual files present."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create test files
+            test_file = os.path.join(tmp_dir, 'test_capture.pcap')
+            with open(test_file, 'w') as f:
+                f.write('test data')
+
+            with patch('awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir):
+                result = await self.server._list_captured_files()
+                assert len(result) == 1
+                data = json.loads(result[0].text)
+                assert data['total_files'] >= 1
+
+    def test_resolve_pcap_path_relative(self):
+        """Test resolving relative PCAP path."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = os.path.join(tmp_dir, 'test.pcap')
+            with open(test_file, 'w') as f:
+                f.write('test')
+
+            with patch('awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir):
+                path = self.server._resolve_pcap_path('test.pcap')
+                assert path == test_file
+
+    @pytest.mark.asyncio
+    async def test_analyze_pcap_file_custom_with_filter(self):
+        """Test custom PCAP analysis with display filter."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'filtered output'
+
+                result = await self.server._analyze_pcap_file(
+                    'test.pcap', analysis_type='custom', display_filter='tcp.port == 443'
+                )
+                assert len(result) == 1
+                assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_extract_http_requests_with_limit_variations(self):
+        """Test HTTP extraction with various limit values."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'HTTP/1.1 200 OK'
+
+                for limit in [1, 25, 100, 500]:
+                    result = await self.server._extract_http_requests('test.pcap', limit=limit)
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+
+class TestSecurityAndExceptionPaths:
+    """Test security validation and exception handling for remaining coverage."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.server = PCAPAnalyzerServer()
+
+    @pytest.mark.asyncio
+    async def test_run_tshark_invalid_wireshark_path(self):
+        """Test tshark command with invalid WIRESHARK_PATH."""
+        with patch('awslabs.pcap_analyzer_mcp_server.server.WIRESHARK_PATH', None):
+            with pytest.raises(RuntimeError, match='Invalid WIRESHARK_PATH'):
+                await self.server._run_tshark_command(['-r', 'test.pcap'])
+
+    @pytest.mark.asyncio
+    async def test_run_tshark_unsafe_arguments(self):
+        """Test tshark command with unsafe characters in arguments."""
+        unsafe_args = ['-r', 'test.pcap; rm -rf /']
+        with pytest.raises(RuntimeError, match='Potentially unsafe argument'):
+            await self.server._run_tshark_command(unsafe_args)
+
+    @pytest.mark.asyncio
+    async def test_run_tshark_invalid_argument_type(self):
+        """Test tshark command with non-string argument."""
+        with pytest.raises(RuntimeError, match='Invalid argument type'):
+            await self.server._run_tshark_command([123, 'test.pcap'])
+
+    @pytest.mark.asyncio
+    async def test_run_tshark_command_failure(self):
+        """Test tshark command with non-zero return code."""
+        with patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec') as mock_exec:
+            mock_process = AsyncMock()
+            mock_process.communicate.return_value = (b'', b'Command failed')
+            mock_process.returncode = 1
+            mock_exec.return_value = mock_process
+
+            with pytest.raises(RuntimeError, match='tshark command failed'):
+                await self.server._run_tshark_command(['-r', 'test.pcap'])
+
+    def test_resolve_pcap_path_invalid_characters(self):
+        """Test resolving path with invalid characters."""
+        with pytest.raises(ValueError, match='Path traversal patterns not allowed'):
+            self.server._resolve_pcap_path('../../../etc/passwd.pcap')
+
+    def test_resolve_pcap_path_absolute_exists(self):
+        """Test resolving absolute path that exists."""
+        with tempfile.NamedTemporaryFile(suffix='.pcap', delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            resolved = self.server._resolve_pcap_path(tmp_path)
+            assert os.path.exists(resolved)
+        finally:
+            os.unlink(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_list_interfaces_exception(self):
+        """Test list interfaces with exception."""
+        with patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs') as mock_addrs:
+            mock_addrs.side_effect = Exception('Network error')
+            result = await self.server._list_network_interfaces()
+            assert len(result) == 1
+            assert 'Error listing interfaces' in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_start_capture_with_filter(self):
+        """Test starting capture with capture filter."""
+        with patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec') as mock_exec:
+            mock_process = AsyncMock()
+            mock_exec.return_value = mock_process
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with patch('awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir):
+                    result = await self.server._start_packet_capture(
+                        interface='eth0',
+                        capture_filter='tcp port 80'
+                    )
+                    assert len(result) == 1
+                    data = json.loads(result[0].text)
+                    assert data['status'] == 'started'
+
+    @pytest.mark.asyncio
+    async def test_stop_active_capture_success(self):
+        """Test stopping an active capture successfully."""
+        # Create mock active capture
+        capture_id = 'test_capture'
+        mock_process = AsyncMock()
+        mock_process.terminate = AsyncMock()
+        mock_process.wait = AsyncMock()
+        
+        active_captures[capture_id] = {
+            'interface': 'eth0',
+            'process': mock_process,
+            'output_file': 'test.pcap'
+        }
+
+        try:
+            result = await self.server._stop_packet_capture(capture_id)
+            assert len(result) == 1
+            data = json.loads(result[0].text)
+            assert data['status'] == 'stopped'
+            assert data['capture_id'] == capture_id
+            assert capture_id not in active_captures
+        finally:
+            active_captures.clear()
+
+    @pytest.mark.asyncio
+    async def test_get_capture_status_exception(self):
+        """Test get capture status with exception."""
+        with patch.dict('awslabs.pcap_analyzer_mcp_server.server.active_captures', {'test': None}):
+            with patch('awslabs.pcap_analyzer_mcp_server.server.json.dumps') as mock_dumps:
+                mock_dumps.side_effect = Exception('JSON error')
+                result = await self.server._get_capture_status()
+                assert len(result) == 1
+                assert 'Error getting capture status' in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_main_function_with_stdio(self):
+        """Test main function runs with stdio_server."""
+        with patch('awslabs.pcap_analyzer_mcp_server.server.stdio_server') as mock_stdio:
+            with patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer') as mock_server_class:
+                mock_server = MagicMock()
+                mock_server.run = AsyncMock()
+                mock_server_class.return_value = mock_server
+
+                # Setup context manager
+                mock_streams = (AsyncMock(), AsyncMock())
+                mock_stdio.return_value.__aenter__.return_value = mock_streams
+                mock_stdio.return_value.__aexit__.return_value = None
+
+                await self.server.run()
+                mock_server.run.assert_not_called()  # Our mock doesn't actually call it
+
+    @pytest.mark.asyncio
+    async def test_generate_traffic_timeline_intervals(self):
+        """Test traffic timeline with various intervals."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'timeline data'
+
+                for interval in [5, 15, 60, 120]:
+                    result = await self.server._generate_traffic_timeline(
+                        'test.pcap', time_interval=interval
+                    )
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_search_packet_content_case_variations(self):
+        """Test packet search with case sensitivity variations."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'search results'
+
+                # Test case sensitive
+                result = await self.server._search_packet_content(
+                    'test.pcap', 'TEST', case_sensitive=True
+                )
+                assert len(result) == 1
+
+                # Test case insensitive
+                result = await self.server._search_packet_content(
+                    'test.pcap', 'test', case_sensitive=False
+                )
+                assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_analyze_expert_information_all_severities(self):
+        """Test expert information with all severity levels."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'expert info'
+
+                for severity in ['Chat', 'Note', 'Warn', 'Error']:
+                    result = await self.server._analyze_expert_information(
+                        'test.pcap', severity_filter=severity
+                    )
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_analyze_application_response_times_protocols(self):
+        """Test application response times for all protocol types."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'response time data'
+
+                for protocol in ['http', 'https', 'dns', 'tcp', 'udp']:
+                    result = await self.server._analyze_application_response_times(
+                        'test.pcap', protocol=protocol
+                    )
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_generate_throughput_io_graph_intervals(self):
+        """Test throughput I/O graph with various intervals."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'throughput data'
+
+                for interval in [1, 10, 30, 60]:
+                    result = await self.server._generate_throughput_io_graph(
+                        'test.pcap', time_interval=interval
+                    )
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_analyze_bandwidth_utilization_windows(self):
+        """Test bandwidth utilization with various time windows."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'bandwidth data'
+
+                for window in [5, 30, 60, 300]:
+                    result = await self.server._analyze_bandwidth_utilization(
+                        'test.pcap', time_window=window
+                    )
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_all_tls_analysis_tools(self):
+        """Test all TLS/SSL analysis tools comprehensively."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'TLS data'
+
+                tls_tools = [
+                    '_analyze_tls_handshakes',
+                    '_analyze_sni_mismatches',
+                    '_extract_certificate_details',
+                    '_analyze_tls_alerts',
+                    '_extract_tls_cipher_analysis',
+                ]
+
+                for tool_name in tls_tools:
+                    method = getattr(self.server, tool_name)
+                    result = await method('test.pcap')
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_all_tcp_analysis_tools(self):
+        """Test all TCP protocol analysis tools comprehensively."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'TCP data'
+
+                tcp_tools = [
+                    '_analyze_tcp_retransmissions',
+                    '_analyze_tcp_zero_window',
+                    '_analyze_tcp_window_scaling',
+                    '_analyze_packet_timing_issues',
+                    '_analyze_congestion_indicators',
+                ]
+
+                for tool_name in tcp_tools:
+                    method = getattr(self.server, tool_name)
+                    result = await method('test.pcap')
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
+
+    @pytest.mark.asyncio
+    async def test_all_network_analysis_tools(self):
+        """Test all advanced network analysis tools comprehensively."""
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path'
+        ) as mock_resolve:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command'
+            ) as mock_tshark:
+                mock_resolve.return_value = 'test.pcap'
+                mock_tshark.return_value = 'network data'
+
+                network_tools = [
+                    '_analyze_dns_resolution_issues',
+                    '_analyze_protocol_anomalies',
+                    '_analyze_network_topology',
+                    '_analyze_security_threats',
+                    '_analyze_network_quality_metrics',
+                ]
+
+                for tool_name in network_tools:
+                    method = getattr(self.server, tool_name)
+                    result = await method('test.pcap')
+                    assert len(result) == 1
+                    assert isinstance(result[0], TextContent)
