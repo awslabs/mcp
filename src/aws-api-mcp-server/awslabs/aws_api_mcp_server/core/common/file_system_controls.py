@@ -141,7 +141,13 @@ def validate_file_path(file_path: str) -> str:
     if FILE_ACCESS_MODE == FileAccessMode.UNRESTRICTED:
         return file_path
 
-    # Convert to absolute path
+    # Reject unexpanded tilde paths (e.g., ~invalid_user/path)
+    if file_path.startswith('~') and not os.path.isabs(os.path.expanduser(file_path)):
+        raise FilePathValidationError(
+            file_path, 'contains unexpanded tilde (~) which is not allowed'
+        )
+
+    # Relative paths resolve against WORKING_DIRECTORY via os.chdir() in server initialization
     absolute_path = os.path.abspath(file_path)
     working_directory = os.path.abspath(WORKING_DIRECTORY)
 
