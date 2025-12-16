@@ -228,6 +228,222 @@ class TestGenomicsSearchOrchestrator:
         expected = ['healthomics_sequence_stores', 'healthomics_reference_stores']
         assert systems == expected
 
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_no_adhoc_buckets(self, orchestrator):
+        """Test getting S3 bucket paths with no adhoc buckets."""
+        request = GenomicsFileSearchRequest(
+            file_type='fastq', search_terms=['sample'], adhoc_s3_buckets=None
+        )
+
+        result = await orchestrator._get_all_s3_bucket_paths(request)
+
+        # Should return only configured bucket paths
+        assert result == orchestrator.config.s3_bucket_paths
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_adhoc_buckets_no_duplicates(self, orchestrator):
+        """Test getting S3 bucket paths with adhoc buckets that don't duplicate configured ones."""
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            adhoc_s3_buckets=['s3://adhoc-bucket/', 's3://another-adhoc-bucket/'],
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = ['s3://adhoc-bucket/', 's3://another-adhoc-bucket/']
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should return configured + adhoc buckets
+            expected = orchestrator.config.s3_bucket_paths + [
+                's3://adhoc-bucket/',
+                's3://another-adhoc-bucket/',
+            ]
+            assert result == expected
+            mock_validate.assert_called_once_with(
+                ['s3://adhoc-bucket/', 's3://another-adhoc-bucket/']
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_duplicate_buckets(self, orchestrator):
+        """Test deduplication when adhoc buckets duplicate configured buckets."""
+        # Set up orchestrator with configured buckets
+        orchestrator.config.s3_bucket_paths = ['s3://test-bucket/', 's3://config-bucket/']
+
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            adhoc_s3_buckets=[
+                's3://test-bucket/',
+                's3://new-adhoc-bucket/',
+            ],  # test-bucket is duplicate
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = ['s3://test-bucket/', 's3://new-adhoc-bucket/']
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should deduplicate - test-bucket should appear only once
+            expected = ['s3://test-bucket/', 's3://config-bucket/', 's3://new-adhoc-bucket/']
+            assert result == expected
+            assert len(result) == 3  # Ensure no duplicates
+            assert result.count('s3://test-bucket/') == 1  # Ensure test-bucket appears only once
+            mock_validate.assert_called_once_with(['s3://test-bucket/', 's3://new-adhoc-bucket/'])
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_with_multiple_duplicates(self, orchestrator):
+        """Test deduplication with multiple duplicate buckets in different positions."""
+        # Set up orchestrator with configured buckets
+        orchestrator.config.s3_bucket_paths = [
+            's3://bucket-a/',
+            's3://bucket-b/',
+            's3://bucket-c/',
+        ]
+
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            # Mix of duplicates and new buckets
+            adhoc_s3_buckets=[
+                's3://bucket-b/',
+                's3://new-bucket/',
+                's3://bucket-a/',
+                's3://another-new/',
+            ],
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = [
+                's3://bucket-b/',
+                's3://new-bucket/',
+                's3://bucket-a/',
+                's3://another-new/',
+            ]
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should preserve order and deduplicate
+            expected = [
+                's3://bucket-a/',
+                's3://bucket-b/',
+                's3://bucket-c/',
+                's3://new-bucket/',
+                's3://another-new/',
+            ]
+            assert result == expected
+            assert len(result) == 5  # Ensure no duplicates
+            # Verify each bucket appears only once
+            for bucket in expected:
+                assert result.count(bucket) == 1
+            mock_validate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_adhoc_validation_fails(self, orchestrator):
+        """Test behavior when adhoc bucket validation fails."""
+        request = GenomicsFileSearchRequest(
+            file_type='fastq', search_terms=['sample'], adhoc_s3_buckets=['s3://invalid-bucket/']
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = []  # Validation fails, returns empty list
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should return only configured buckets
+            assert result == orchestrator.config.s3_bucket_paths
+            mock_validate.assert_called_once_with(['s3://invalid-bucket/'])
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_adhoc_validation_exception(self, orchestrator):
+        """Test behavior when adhoc bucket validation raises an exception."""
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            adhoc_s3_buckets=['s3://problematic-bucket/'],
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.side_effect = Exception('Validation error')
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should return only configured buckets when exception occurs
+            assert result == orchestrator.config.s3_bucket_paths
+            mock_validate.assert_called_once_with(['s3://problematic-bucket/'])
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_preserves_order_with_deduplication(self, orchestrator):
+        """Test that deduplication preserves the order of first occurrence."""
+        # Set up orchestrator with configured buckets
+        orchestrator.config.s3_bucket_paths = ['s3://first/', 's3://second/', 's3://third/']
+
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            # Adhoc buckets with duplicates in different order
+            adhoc_s3_buckets=['s3://third/', 's3://fourth/', 's3://first/', 's3://fifth/'],
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = [
+                's3://third/',
+                's3://fourth/',
+                's3://first/',
+                's3://fifth/',
+            ]
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should preserve order of first occurrence (dict.fromkeys behavior)
+            expected = [
+                's3://first/',
+                's3://second/',
+                's3://third/',
+                's3://fourth/',
+                's3://fifth/',
+            ]
+            assert result == expected
+            # Verify deduplication worked
+            assert len(result) == len(set(result))
+            mock_validate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_all_s3_bucket_paths_empty_configured_buckets(self, orchestrator):
+        """Test behavior with empty configured buckets and adhoc buckets."""
+        # Set up orchestrator with no configured buckets
+        orchestrator.config.s3_bucket_paths = []
+
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            adhoc_s3_buckets=['s3://adhoc-only/', 's3://another-adhoc/'],
+        )
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = ['s3://adhoc-only/', 's3://another-adhoc/']
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+            # Should return only adhoc buckets
+            expected = ['s3://adhoc-only/', 's3://another-adhoc/']
+            assert result == expected
+            mock_validate.assert_called_once_with(['s3://adhoc-only/', 's3://another-adhoc/'])
+
     def test_extract_healthomics_associations_no_index(self, orchestrator, sample_genomics_files):
         """Test extracting HealthOmics associations when no index info is present."""
         result = orchestrator._extract_healthomics_associations(sample_genomics_files)

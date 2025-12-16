@@ -666,9 +666,9 @@ class GenomicsSearchOrchestrator:
                 validated_adhoc_buckets = await validate_adhoc_s3_buckets(request.adhoc_s3_buckets)
                 if validated_adhoc_buckets:
                     all_bucket_paths.extend(validated_adhoc_buckets)
-                    logger.info(
-                        f'Added {len(validated_adhoc_buckets)} validated adhoc S3 buckets to search'
-                    )
+                    # Deduplicate bucket paths to avoid searching the same bucket multiple times
+                    all_bucket_paths = list(dict.fromkeys(all_bucket_paths))
+                    f'Added {len(validated_adhoc_buckets)} validated adhoc S3 buckets to search'
                 else:
                     logger.warning(
                         'No adhoc S3 buckets were accessible, continuing with configured buckets only'
