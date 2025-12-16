@@ -656,15 +656,17 @@ class TestSecurityAndExceptionPaths:
             await self.server._run_tshark_command(unsafe_args)
 
     @pytest.mark.asyncio
-    async def test_run_tshark_invalid_argument_type(self):
+    async def test_run_tshark_command_invalid_argument_type(self):
         """Test tshark command with non-string argument."""
         with pytest.raises(RuntimeError, match='Invalid argument type'):
-            await self.server._run_tshark_command([123, 'test.pcap'])
+            await self.server._run_tshark_command([123, 'test.pcap'])  # type: ignore[list-item]
 
     @pytest.mark.asyncio
     async def test_run_tshark_command_failure(self):
         """Test tshark command with non-zero return code."""
-        with patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec') as mock_exec:
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec'
+        ) as mock_exec:
             mock_process = AsyncMock()
             mock_process.communicate.return_value = (b'', b'Command failed')
             mock_process.returncode = 1
@@ -700,15 +702,16 @@ class TestSecurityAndExceptionPaths:
     @pytest.mark.asyncio
     async def test_start_capture_with_filter(self):
         """Test starting capture with capture filter."""
-        with patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec') as mock_exec:
+        with patch(
+            'awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec'
+        ) as mock_exec:
             mock_process = AsyncMock()
             mock_exec.return_value = mock_process
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 with patch('awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir):
                     result = await self.server._start_packet_capture(
-                        interface='eth0',
-                        capture_filter='tcp port 80'
+                        interface='eth0', capture_filter='tcp port 80'
                     )
                     assert len(result) == 1
                     data = json.loads(result[0].text)
@@ -722,11 +725,11 @@ class TestSecurityAndExceptionPaths:
         mock_process = AsyncMock()
         mock_process.terminate = AsyncMock()
         mock_process.wait = AsyncMock()
-        
+
         active_captures[capture_id] = {
             'interface': 'eth0',
             'process': mock_process,
-            'output_file': 'test.pcap'
+            'output_file': 'test.pcap',
         }
 
         try:
@@ -753,7 +756,9 @@ class TestSecurityAndExceptionPaths:
     async def test_main_function_with_stdio(self):
         """Test main function runs with stdio_server."""
         with patch('awslabs.pcap_analyzer_mcp_server.server.stdio_server') as mock_stdio:
-            with patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer') as mock_server_class:
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer'
+            ) as mock_server_class:
                 mock_server = MagicMock()
                 mock_server.run = AsyncMock()
                 mock_server_class.return_value = mock_server
