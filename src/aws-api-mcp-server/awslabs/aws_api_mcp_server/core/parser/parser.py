@@ -440,7 +440,7 @@ def _handle_service_command(
 
     try:
         parameters = operation_command._build_call_parameters(
-            parsed_args.operation_args, operation_command.arg_table
+            parsed_args.operation_args, operation_command.arg_table, global_args
         )
     except ParamError as exc:
         raise ShortHandParserError(exc.cli_name, exc.message) from exc
