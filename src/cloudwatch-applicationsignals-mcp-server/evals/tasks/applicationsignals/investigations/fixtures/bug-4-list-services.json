@@ -1,0 +1,164 @@
+{
+  "EndTime": "2024-11-12 16:00:01-08:00",
+  "ResponseMetadata": {
+    "HTTPHeaders": {
+      "connection": "keep-alive",
+      "content-length": "2286",
+      "content-type": "application/json",
+      "date": "Wed, 12 Nov 2024 23:52:38 GMT",
+      "x-amzn-requestid": "ae984066-81fb-431c-a83d-0e118dea3ea4"
+    },
+    "HTTPStatusCode": 200,
+    "RequestId": "ae984066-81fb-431c-a83d-0e118dea3ea4",
+    "RetryAttempts": 0
+  },
+  "ServiceSummaries": [
+    {
+      "AttributeMaps": [
+        {
+          "PlatformType": "AWS::EC2"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "document-manager",
+        "Type": "Service"
+      },
+      "MetricReferences": [
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "document-manager"
+            }
+          ],
+          "MetricName": "Latency",
+          "MetricType": "LATENCY",
+          "Namespace": "ApplicationSignals"
+        },
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "document-manager"
+            }
+          ],
+          "MetricName": "Fault",
+          "MetricType": "FAULT",
+          "Namespace": "ApplicationSignals"
+        },
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "document-manager"
+            }
+          ],
+          "MetricName": "Error",
+          "MetricType": "ERROR",
+          "Namespace": "ApplicationSignals"
+        }
+      ],
+      "ServiceGroups": [
+        {
+          "GroupIdentifier": "group/source:inferred/groupType:Related/name:document-manager",
+          "GroupName": "Related",
+          "GroupSource": "Default",
+          "GroupValue": "document-manager"
+        },
+        {
+          "GroupIdentifier": "group/source:inferred/groupType:Environment/name:ec2:default",
+          "GroupName": "Environment",
+          "GroupSource": "Telemetry",
+          "GroupValue": "ec2:default"
+        }
+      ]
+    },
+    {
+      "AttributeMaps": [
+        {
+          "PlatformType": "AWS::EC2"
+        }
+      ],
+      "KeyAttributes": {
+        "Environment": "ec2:default",
+        "Name": "scanner_service",
+        "Type": "Service"
+      },
+      "MetricReferences": [
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "scanner_service"
+            }
+          ],
+          "MetricName": "Latency",
+          "MetricType": "LATENCY",
+          "Namespace": "ApplicationSignals"
+        },
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "scanner_service"
+            }
+          ],
+          "MetricName": "Fault",
+          "MetricType": "FAULT",
+          "Namespace": "ApplicationSignals"
+        },
+        {
+          "Dimensions": [
+            {
+              "Name": "Environment",
+              "Value": "ec2:default"
+            },
+            {
+              "Name": "Service",
+              "Value": "scanner_service"
+            }
+          ],
+          "MetricName": "Error",
+          "MetricType": "ERROR",
+          "Namespace": "ApplicationSignals"
+        }
+      ],
+      "ServiceGroups": [
+        {
+          "GroupIdentifier": "group/source:inferred/groupType:Related/name:Standalone ASG",
+          "GroupName": "Related",
+          "GroupSource": "Default",
+          "GroupValue": "Standalone ASG"
+        },
+        {
+          "GroupIdentifier": "group/source:inferred/groupType:Environment/name:ec2:default",
+          "GroupName": "Environment",
+          "GroupSource": "Telemetry",
+          "GroupValue": "ec2:default"
+        }
+      ]
+    }
+  ],
+  "StartTime": "2024-11-11 15:00:00-08:00"
+}

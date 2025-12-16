@@ -33,8 +33,17 @@ async def validate_s3_uri(ctx: Context, uri: str, parameter_name: str) -> None:
     Raises:
         ValueError: If the URI is not a valid S3 URI
     """
-    if not uri.startswith('s3://'):
-        error_message = f'{parameter_name} must be a valid S3 URI starting with s3://, got: {uri}'
+    from awslabs.aws_healthomics_mcp_server.utils.s3_utils import (
+        is_valid_bucket_name,
+        parse_s3_path,
+    )
+
+    try:
+        bucket_name, _ = parse_s3_path(uri)
+        if not is_valid_bucket_name(bucket_name):
+            raise ValueError(f'Invalid bucket name: {bucket_name}')
+    except ValueError as e:
+        error_message = f'{parameter_name} must be a valid S3 URI, got: {uri}. Error: {str(e)}'
         logger.error(error_message)
         await ctx.error(error_message)
         raise ValueError(error_message)

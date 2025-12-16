@@ -1724,7 +1724,7 @@ async def test_get_run_task_success():
         'logStream': 'log-stream-name',
         'imageDetails': {
             'imageUri': '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest',
-            'imageDigest': 'sha256:abcdef123456...',
+            'imageDigest': 'sha256:digestValue123',
         },
     }
 
@@ -1754,7 +1754,7 @@ async def test_get_run_task_success():
     assert result['logStream'] == 'log-stream-name'
     assert result['imageDetails'] == {
         'imageUri': '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest',
-        'imageDigest': 'sha256:abcdef123456...',
+        'imageDigest': 'sha256:digestValue123',
     }
 
 
@@ -1808,7 +1808,7 @@ async def test_get_run_task_with_image_details():
         'memory': 8192,
         'imageDetails': {
             'imageUri': 'public.ecr.aws/biocontainers/samtools:1.15.1--h1170115_0',
-            'imageDigest': 'sha256:1234567890abcdef...',
+            'imageDigest': 'sha256:digestValue456',
             'registryId': '123456789012',
             'repositoryName': 'biocontainers/samtools',
         },
@@ -1831,7 +1831,7 @@ async def test_get_run_task_with_image_details():
         result['imageDetails']['imageUri']
         == 'public.ecr.aws/biocontainers/samtools:1.15.1--h1170115_0'
     )
-    assert result['imageDetails']['imageDigest'] == 'sha256:1234567890abcdef...'
+    assert result['imageDetails']['imageDigest'] == 'sha256:digestValue456'
     assert result['imageDetails']['registryId'] == '123456789012'
     assert result['imageDetails']['repositoryName'] == 'biocontainers/samtools'
 

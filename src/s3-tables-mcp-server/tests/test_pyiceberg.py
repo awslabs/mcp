@@ -365,10 +365,15 @@ async def test_append_rows_success():
     mock_session = MagicMock()
     mock_table = MagicMock()
 
-    # Create a real PyArrow table that matches our test data
-    real_pyarrow_table = pa.table(
-        {'id': [1, 2, 3], 'name': ['Alice', 'Bob', 'Charlie'], 'age': [30, 25, 35]}
+    # Create a real PyArrow schema
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('name', pa.string()), pa.field('age', pa.int64())]
     )
+
+    # Mock the table schema
+    mock_iceberg_schema = MagicMock()
+    mock_iceberg_schema.as_arrow.return_value = arrow_schema
+    mock_table.schema.return_value = mock_iceberg_schema
 
     # Mock the catalog to return the table
     mock_catalog.load_table.return_value = mock_table
@@ -389,10 +394,6 @@ async def test_append_rows_success():
         ),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session', return_value=mock_session),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog'),
-        patch(
-            'awslabs.s3_tables_mcp_server.engines.pyiceberg.pj.read_json',
-            return_value=real_pyarrow_table,
-        ),
     ):
         # Create the engine
         engine = PyIcebergEngine(config)
@@ -404,8 +405,8 @@ async def test_append_rows_success():
         expected_full_table_name = f'{config.namespace}.{table_name}'
         mock_catalog.load_table.assert_called_once_with(expected_full_table_name)
 
-        # Verify the table append was called with the PyArrow table
-        mock_table.append.assert_called_once_with(real_pyarrow_table)
+        # Verify the table append was called
+        mock_table.append.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -479,6 +480,20 @@ async def test_append_rows_general_exception():
     mock_session = MagicMock()
     mock_table = MagicMock()
 
+    # Create a real PyArrow schema with mismatched types to trigger error
+    arrow_schema = pa.schema(
+        [
+            pa.field('id', pa.string()),  # Mismatched type - expecting string but getting int
+            pa.field('name', pa.string()),
+            pa.field('age', pa.string()),  # Mismatched type
+        ]
+    )
+
+    # Mock the table schema
+    mock_iceberg_schema = MagicMock()
+    mock_iceberg_schema.as_arrow.return_value = arrow_schema
+    mock_table.schema.return_value = mock_iceberg_schema
+
     # Mock the catalog to return the table
     mock_catalog.load_table.return_value = mock_table
 
@@ -490,10 +505,6 @@ async def test_append_rows_general_exception():
         ),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session', return_value=mock_session),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog'),
-        patch(
-            'awslabs.s3_tables_mcp_server.engines.pyiceberg.pj.read_json',
-            side_effect=pa.ArrowInvalid('Schema mismatch detected'),
-        ),
     ):
         # Create the engine
         engine = PyIcebergEngine(config)
@@ -506,9 +517,8 @@ async def test_append_rows_general_exception():
         with pytest.raises(Exception) as exc_info:
             engine.append_rows(table_name, rows)
 
-        # Verify the error message contains the wrapper text and schema mismatch information
+        # Verify the error message contains the wrapper text
         assert 'Error appending rows' in str(exc_info.value)
-        assert 'Schema mismatch detected' in str(exc_info.value)
 
         # Verify that the catalog operations were attempted before the exception
         expected_full_table_name = f'{config.namespace}.{table_name}'
@@ -536,10 +546,15 @@ async def test_append_rows_with_namespace_in_table_name():
     mock_session = MagicMock()
     mock_table = MagicMock()
 
-    # Create a real PyArrow table that matches our test data
-    real_pyarrow_table = pa.table(
-        {'id': [1, 2, 3], 'name': ['Alice', 'Bob', 'Charlie'], 'age': [30, 25, 35]}
+    # Create a real PyArrow schema
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('name', pa.string()), pa.field('age', pa.int64())]
     )
+
+    # Mock the table schema
+    mock_iceberg_schema = MagicMock()
+    mock_iceberg_schema.as_arrow.return_value = arrow_schema
+    mock_table.schema.return_value = mock_iceberg_schema
 
     # Mock the catalog to return the table
     mock_catalog.load_table.return_value = mock_table
@@ -560,10 +575,6 @@ async def test_append_rows_with_namespace_in_table_name():
         ),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session', return_value=mock_session),
         patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog'),
-        patch(
-            'awslabs.s3_tables_mcp_server.engines.pyiceberg.pj.read_json',
-            return_value=real_pyarrow_table,
-        ),
     ):
         # Create the engine
         engine = PyIcebergEngine(config)
@@ -575,5 +586,432 @@ async def test_append_rows_with_namespace_in_table_name():
         # This tests the else branch where full_table_name = table_name
         mock_catalog.load_table.assert_called_once_with(table_name)
 
-        # Verify the table append was called with the PyArrow table
-        mock_table.append.assert_called_once_with(real_pyarrow_table)
+        # Verify the table append was called
+        mock_table.append.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_date():
+    """Test convert_temporal_fields converts date strings correctly."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import date
+
+    arrow_schema = pa.schema([pa.field('id', pa.int64()), pa.field('birth_date', pa.date32())])
+
+    rows = [
+        {'id': 1, 'birth_date': '2025-03-14'},
+        {'id': 2, 'birth_date': '1990-01-01'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['id'] == 1
+    assert converted[0]['birth_date'] == date(2025, 3, 14)
+    assert converted[1]['id'] == 2
+    assert converted[1]['birth_date'] == date(1990, 1, 1)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_time():
+    """Test convert_temporal_fields converts time strings correctly."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import time
+
+    arrow_schema = pa.schema([pa.field('id', pa.int64()), pa.field('event_time', pa.time64('us'))])
+
+    rows = [
+        {'id': 1, 'event_time': '17:10:34.123456'},
+        {'id': 2, 'event_time': '09:23:47'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['id'] == 1
+    assert converted[0]['event_time'] == time(17, 10, 34, 123456)
+    assert converted[1]['id'] == 2
+    assert converted[1]['event_time'] == time(9, 23, 47)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamp_no_tz():
+    """Test convert_temporal_fields converts timestamp without timezone correctly."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime
+
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('created_at', pa.timestamp('us'))]
+    )
+
+    rows = [
+        {'id': 1, 'created_at': '2025-03-14 17:10:34.123456'},
+        {'id': 2, 'created_at': '2025-03-14T17:10:34'},
+        {'id': 3, 'created_at': '2025-03-14 17:10:34'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['created_at'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+    assert converted[1]['created_at'] == datetime(2025, 3, 14, 17, 10, 34)
+    assert converted[2]['created_at'] == datetime(2025, 3, 14, 17, 10, 34)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamp_with_tz():
+    """Test convert_temporal_fields converts timestamp with timezone correctly."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime, timezone
+
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('created_at', pa.timestamp('us', tz='UTC'))]
+    )
+
+    rows = [
+        {'id': 1, 'created_at': '2025-03-14 17:10:34.123456+00:00'},
+        {'id': 2, 'created_at': '2025-03-14T17:10:34+00:00'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    expected_dt1 = datetime(2025, 3, 14, 17, 10, 34, 123456, tzinfo=timezone.utc)
+    expected_dt2 = datetime(2025, 3, 14, 17, 10, 34, tzinfo=timezone.utc)
+
+    assert converted[0]['created_at'] == expected_dt1
+    assert converted[1]['created_at'] == expected_dt2
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_nanosecond_truncation():
+    """Test convert_temporal_fields truncates nanoseconds to microseconds."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime
+
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('created_at', pa.timestamp('us'))]
+    )
+
+    rows = [
+        {'id': 1, 'created_at': '2025-03-14 17:10:34.123456789'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # Nanoseconds should be truncated to microseconds
+    assert converted[0]['created_at'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_non_string_passthrough():
+    """Test convert_temporal_fields passes through non-string values."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import date, datetime
+
+    arrow_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('birth_date', pa.date32()),
+            pa.field('created_at', pa.timestamp('us')),
+        ]
+    )
+
+    # Already converted values
+    existing_date = date(2025, 3, 14)
+    existing_datetime = datetime(2025, 3, 14, 17, 10, 34)
+
+    rows = [
+        {'id': 1, 'birth_date': existing_date, 'created_at': existing_datetime},
+        {'id': None, 'birth_date': None, 'created_at': None},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['birth_date'] is existing_date
+    assert converted[0]['created_at'] is existing_datetime
+    assert converted[1]['id'] is None
+    assert converted[1]['birth_date'] is None
+    assert converted[1]['created_at'] is None
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_mixed_types():
+    """Test convert_temporal_fields handles mixed temporal and non-temporal fields."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import date, datetime, time
+
+    arrow_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('name', pa.string()),
+            pa.field('birth_date', pa.date32()),
+            pa.field('event_time', pa.time64('us')),
+            pa.field('created_at', pa.timestamp('us')),
+            pa.field('score', pa.float64()),
+        ]
+    )
+
+    rows = [
+        {
+            'id': 1,
+            'name': 'Alice',
+            'birth_date': '2025-03-14',
+            'event_time': '17:10:34',
+            'created_at': '2025-03-14 17:10:34',
+            'score': 95.5,
+        }
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['id'] == 1
+    assert converted[0]['name'] == 'Alice'
+    assert converted[0]['birth_date'] == date(2025, 3, 14)
+    assert converted[0]['event_time'] == time(17, 10, 34)
+    assert converted[0]['created_at'] == datetime(2025, 3, 14, 17, 10, 34)
+    assert converted[0]['score'] == 95.5
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_invalid_timestamp_tz():
+    """Test convert_temporal_fields raises error for invalid timestamp with timezone."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('created_at', pa.timestamp('us', tz='UTC'))]
+    )
+
+    rows = [
+        {'id': 1, 'created_at': 'invalid-timestamp'},
+    ]
+
+    with pytest.raises(ValueError) as exc_info:
+        convert_temporal_fields(rows, arrow_schema)
+
+    assert 'Could not parse timestamp with timezone' in str(exc_info.value)
+    assert 'invalid-timestamp' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_all_formats():
+    """Test convert_temporal_fields with all supported temporal formats."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import date, datetime, time, timezone
+
+    # Test all temporal formats in one comprehensive test
+    arrow_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('date_field', pa.date32()),
+            pa.field('time_field', pa.time64('us')),
+            pa.field('timestamp_field', pa.timestamp('us')),
+            pa.field('timestamptz_field', pa.timestamp('us', tz='UTC')),
+            pa.field('timestamp_ns_field', pa.timestamp('ns')),
+            pa.field('timestamptz_ns_field', pa.timestamp('ns', tz='UTC')),
+        ]
+    )
+
+    rows = [
+        {
+            'id': 1,
+            'date_field': '2025-03-14',
+            'time_field': '17:10:34.123456',
+            'timestamp_field': '2025-03-14 17:10:34.123456',
+            'timestamptz_field': '2025-03-14 17:10:34.123456-07:00',
+            'timestamp_ns_field': '2025-03-14 17:10:34.123456789',
+            'timestamptz_ns_field': '2025-03-14 17:10:34.123456789-07:00',
+        }
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # Verify date
+    assert converted[0]['date_field'] == date(2025, 3, 14)
+
+    # Verify time
+    assert converted[0]['time_field'] == time(17, 10, 34, 123456)
+
+    # Verify timestamp without timezone
+    assert converted[0]['timestamp_field'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+    # Verify timestamptz - should be converted to UTC
+    # Input: 2025-03-14 17:10:34.123456-07:00
+    # Expected UTC: 2025-03-15 00:10:34.123456+00:00
+    expected_timestamptz = datetime(2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc)
+    assert converted[0]['timestamptz_field'] == expected_timestamptz
+
+    # Verify timestamp_ns - nanoseconds truncated to microseconds
+    assert converted[0]['timestamp_ns_field'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+    # Verify timestamptz_ns - nanoseconds truncated and converted to UTC
+    expected_timestamptz_ns = datetime(2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc)
+    assert converted[0]['timestamptz_ns_field'] == expected_timestamptz_ns
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_date_format():
+    """Test date format: 2025-03-14."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import date
+
+    arrow_schema = pa.schema([pa.field('date_col', pa.date32())])
+    rows = [{'date_col': '2025-03-14'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['date_col'] == date(2025, 3, 14)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_time_format():
+    """Test time format: 17:10:34.123456."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import time
+
+    arrow_schema = pa.schema([pa.field('time_col', pa.time64('us'))])
+    rows = [{'time_col': '17:10:34.123456'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['time_col'] == time(17, 10, 34, 123456)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamp_format():
+    """Test timestamp format: 2025-03-14 17:10:34.123456."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime
+
+    arrow_schema = pa.schema([pa.field('ts_col', pa.timestamp('us'))])
+    rows = [{'ts_col': '2025-03-14 17:10:34.123456'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['ts_col'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamptz_format():
+    """Test timestamptz format: 2025-03-14 17:10:34.123456-07:00.
+
+    Input: 2025-03-14 17:10:34.123456-07:00 (PDT)
+    Expected UTC: 2025-03-15 00:10:34.123456+00:00
+    """
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime, timezone
+
+    arrow_schema = pa.schema([pa.field('tstz_col', pa.timestamp('us', tz='UTC'))])
+    rows = [{'tstz_col': '2025-03-14 17:10:34.123456-07:00'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # Should be converted to UTC: 2025-03-15 00:10:34.123456+00:00
+    expected = datetime(2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc)
+    assert converted[0]['tstz_col'] == expected
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamp_ns_format():
+    """Test timestamp_ns format: 2025-03-14 17:10:34.123456789.
+
+    Nanoseconds should be truncated to microseconds for Python datetime.
+    """
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime
+
+    arrow_schema = pa.schema([pa.field('ts_ns_col', pa.timestamp('ns'))])
+    rows = [{'ts_ns_col': '2025-03-14 17:10:34.123456789'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # Nanoseconds truncated to microseconds
+    assert converted[0]['ts_ns_col'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamptz_ns_format():
+    """Test timestamptz_ns format: 2025-03-14 17:10:34.123456789-07:00.
+
+    Input: 2025-03-14 17:10:34.123456789-07:00 (PDT, nanosecond precision)
+    Expected UTC: 2025-03-15 00:10:34.123456+00:00 (truncated to microseconds)
+    """
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime, timezone
+
+    arrow_schema = pa.schema([pa.field('tstz_ns_col', pa.timestamp('ns', tz='UTC'))])
+    rows = [{'tstz_ns_col': '2025-03-14 17:10:34.123456789-07:00'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # Should be converted to UTC with nanoseconds truncated to microseconds
+    expected = datetime(2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc)
+    assert converted[0]['tstz_ns_col'] == expected
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamptz_various_offsets():
+    """Test timestamptz with various timezone offsets."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime, timezone
+
+    arrow_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('tstz_col', pa.timestamp('us', tz='UTC'))]
+    )
+
+    rows = [
+        # UTC (no offset)
+        {'id': 1, 'tstz_col': '2025-03-14 17:10:34.123456+00:00'},
+        # PDT (-07:00)
+        {'id': 2, 'tstz_col': '2025-03-14 17:10:34.123456-07:00'},
+        # EST (-05:00)
+        {'id': 3, 'tstz_col': '2025-03-14 17:10:34.123456-05:00'},
+        # CET (+01:00)
+        {'id': 4, 'tstz_col': '2025-03-14 17:10:34.123456+01:00'},
+        # JST (+09:00)
+        {'id': 5, 'tstz_col': '2025-03-14 17:10:34.123456+09:00'},
+    ]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    # All should be converted to UTC
+    assert converted[0]['tstz_col'] == datetime(
+        2025, 3, 14, 17, 10, 34, 123456, tzinfo=timezone.utc
+    )
+    assert converted[1]['tstz_col'] == datetime(
+        2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc
+    )
+    assert converted[2]['tstz_col'] == datetime(
+        2025, 3, 14, 22, 10, 34, 123456, tzinfo=timezone.utc
+    )
+    assert converted[3]['tstz_col'] == datetime(
+        2025, 3, 14, 16, 10, 34, 123456, tzinfo=timezone.utc
+    )
+    assert converted[4]['tstz_col'] == datetime(
+        2025, 3, 14, 8, 10, 34, 123456, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamp_t_separator():
+    """Test timestamp with T separator: 2025-03-14T17:10:34.123456."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime
+
+    arrow_schema = pa.schema([pa.field('ts_col', pa.timestamp('us'))])
+    rows = [{'ts_col': '2025-03-14T17:10:34.123456'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    assert converted[0]['ts_col'] == datetime(2025, 3, 14, 17, 10, 34, 123456)
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_timestamptz_t_separator():
+    """Test timestamptz with T separator: 2025-03-14T17:10:34.123456-07:00."""
+    from awslabs.s3_tables_mcp_server.engines.pyiceberg import convert_temporal_fields
+    from datetime import datetime, timezone
+
+    arrow_schema = pa.schema([pa.field('tstz_col', pa.timestamp('us', tz='UTC'))])
+    rows = [{'tstz_col': '2025-03-14T17:10:34.123456-07:00'}]
+
+    converted = convert_temporal_fields(rows, arrow_schema)
+
+    expected = datetime(2025, 3, 15, 0, 10, 34, 123456, tzinfo=timezone.utc)
+    assert converted[0]['tstz_col'] == expected

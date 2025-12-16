@@ -16,7 +16,6 @@ import argparse
 import botocore.serialize
 import ipaddress
 import jmespath
-import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -25,7 +24,7 @@ from ..aws.services import (
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
-from ..common.config import AWS_API_MCP_PROFILE_NAME, get_region
+from ..common.config import AWS_API_MCP_PROFILE_NAME, FILE_ACCESS_MODE, FileAccessMode, get_region
 from ..common.errors import (
     AwsApiMcpError,
     ClientSideFilterError,
@@ -33,11 +32,13 @@ from ..common.errors import (
     DeniedGlobalArgumentsError,
     ExpectedArgumentError,
     FileParameterError,
+    FilePathValidationError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
+    LocalFileAccessDisabledError,
     MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
@@ -52,8 +53,8 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
-from ..common.file_system_controls import validate_file_path
-from ..common.helpers import expand_user_home_directory
+from ..common.file_system_controls import extract_file_paths_from_parameters, validate_file_path
+from ..common.helpers import expand_user_home_directory, is_help_operation
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
 from .custom_validators.ssm_validator import perform_ssm_validations
@@ -68,7 +69,6 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -90,7 +90,7 @@ ALLOWED_CUSTOM_OPERATIONS = {
     's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
     'cloudformation': ['package', 'deploy'],
     'cloudfront': ['sign'],
-    'cloudtrail': ['create-subscription', 'update-subscription', 'validate-logs'],
+    'cloudtrail': ['validate-logs'],
     'codeartifact': ['login'],
     'codecommit': ['credential-helper'],
     'datapipeline': ['list-runs', 'create-default-roles'],
@@ -102,7 +102,7 @@ ALLOWED_CUSTOM_OPERATIONS = {
     'emr': [
         'add-instance-groups',
         'describe-cluster',
-        'terminate-cluster',
+        'terminate-clusters',
         'modify-cluster-attributes',
         'install-applications',
         'create-cluster',
@@ -110,7 +110,7 @@ ALLOWED_CUSTOM_OPERATIONS = {
         'restore-from-hbase-backup',
         'create-hbase-backup',
         'schedule-hbase-backup',
-        'disable-hbase-backup',
+        'disable-hbase-backups',
         'create-default-roles',
     ],
     'emr-containers': ['update-role-trust-policy'],
@@ -118,6 +118,39 @@ ALLOWED_CUSTOM_OPERATIONS = {
     'rds': ['generate-db-auth-token'],
     'servicecatalog': ['generate'],
     'deploy': ['push', 'register', 'deregister'],
+    'configservice': ['subscribe', 'get-status'],
+}
+
+# These are the custom operations allowed when local file access is disabled.
+# This is a subset of ALLOWED_CUSTOM_OPERATIONS that excludes operations requiring local file access.
+ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED = {
+    # blanket allow these custom operation regardless of service
+    '*': [],
+    's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
+    'cloudtrail': ['validate-logs'],
+    'codecommit': ['credential-helper'],
+    'datapipeline': ['list-runs', 'create-default-roles'],
+    'dlm': ['create-default-role'],
+    'ecr': ['get-login', 'get-login-password'],
+    'ecr-public': ['get-login-password'],
+    'eks': ['get-token'],
+    'emr': [
+        'add-instance-groups',
+        'create-cluster',
+        'describe-cluster',
+        'terminate-clusters',
+        'modify-cluster-attributes',
+        'install-applications',
+        'add-steps',
+        'restore-from-hbase-backup',
+        'create-hbase-backup',
+        'schedule-hbase-backup',
+        'disable-hbase-backups',
+        'create-default-roles',
+    ],
+    'emr-containers': ['update-role-trust-policy'],
+    'rds': ['generate-db-auth-token'],
+    'deploy': ['deregister'],
     'configservice': ['subscribe', 'get-status'],
 }
 
@@ -327,12 +360,17 @@ def is_denied_custom_operation(service, operation):
     if not is_custom_operation(service, operation):
         return False
 
-    if operation in ALLOWED_CUSTOM_OPERATIONS['*']:
+    # Choose the appropriate allowlist based on file access settings
+    allowed_operations = (
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+        if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS
+        else ALLOWED_CUSTOM_OPERATIONS
+    )
+
+    if operation in allowed_operations['*']:
         return False
 
-    return not (
-        service in ALLOWED_CUSTOM_OPERATIONS and operation in ALLOWED_CUSTOM_OPERATIONS[service]
-    )
+    return not (service in allowed_operations and operation in allowed_operations[service])
 
 
 driver = get_awscli_driver()
@@ -348,19 +386,20 @@ def parse(cli_command: str, default_region_override: str | None = None) -> IRCom
     tokens = split_cli_command(cli_command)
     # Strip `aws` and expand paths beginning with ~
     tokens = expand_user_home_directory(tokens[1:])
-    global_args, remaining = parser.parse_known_args(tokens)
-    service_command = command_table[global_args.command]
-
-    # Not all commands have parsers as some of them are "aliases" to existing services
-    if isinstance(service_command, ServiceCommand):
-        return _handle_service_command(
-            service_command, global_args, remaining, default_region_override
-        )
+    service_namespace, args = parser.parse_known_args(tokens)
+    service_command = command_table[service_namespace.command]
 
     if service_command.name in DENIED_CUSTOM_SERVICES:
         raise ServiceNotAllowedError(service_command.name)
 
-    return _handle_awscli_customization(global_args, remaining, tokens[0], default_region_override)
+    if isinstance(service_command, ServiceCommand):
+        return _handle_service_command(
+            service_command, service_namespace, args, default_region_override
+        )
+
+    return _handle_awscli_customization(
+        service_namespace, args, tokens[0], default_region_override
+    )
 
 
 def _handle_service_command(
@@ -399,10 +438,12 @@ def _handle_service_command(
 
     try:
         parameters = operation_command._build_call_parameters(
-            parsed_args.operation_args, operation_command.arg_table
+            parsed_args.operation_args, operation_command.arg_table, global_args
         )
     except ParamError as exc:
         raise ShortHandParserError(exc.cli_name, exc.message) from exc
+    except CommandValidationError:
+        raise
     except Exception as exc:
         raise CommandValidationError(exc) from exc
 
@@ -425,7 +466,7 @@ def _handle_service_command(
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
 
-    _validate_file_paths(command_metadata, parsed_args, parameters)
+    _validate_outfile(command_metadata, parsed_args)
 
     _validate_request_serialization(
         operation,
@@ -561,6 +602,9 @@ def _validate_customization_arguments(
             subcommand, command_metadata, operation_args, service, full_operation
         )
 
+        # Validate file paths for custom commands with subcommands
+        _validate_customization_file_paths(command_metadata, service, full_operation, parameters)
+
         return _construct_command(
             command_metadata=command_metadata,
             global_args=global_args,
@@ -585,6 +629,9 @@ def _validate_customization_arguments(
         # Run custom validations for S3 customizations
         if service == 's3':
             _validate_s3_file_paths(service, operation, parameters)
+        else:
+            # Validate file paths for other custom commands
+            _validate_customization_file_paths(command_metadata, service, operation, parameters)
 
         return _construct_command(
             command_metadata=command_metadata,
@@ -711,28 +758,6 @@ def _run_custom_validations(service: str, operation: str, parameters: dict[str, 
         validate_ec2_parameter_values(parameters)
 
 
-def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
-    if operation != 'cp':
-        return
-
-    paths = parameters.get('--paths')
-    if not paths or not isinstance(paths, list) or len(paths) < 2:
-        return
-
-    source_path, dest_path = paths
-
-    if source_path == '-' or dest_path == '-':
-        file_path = source_path if source_path == '-' else dest_path
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason="streaming file ('-') is not allowed",
-        )
-    _validate_file_path(source_path, service, operation)
-    _validate_file_path(dest_path, service, operation)
-
-
 def _validate_request_serialization(
     operation: str,
     service_model: ServiceModel,
@@ -754,50 +779,93 @@ def _validate_request_serialization(
         ) from err
 
 
-def _validate_file_paths(
-    command_metadata: CommandMetadata,
-    parsed_args: ParsedOperationArgs | None,
-    parameters: dict[str, Any],
-):
-    """Validate all file paths in the command."""
-    from ..common.file_operations import extract_file_paths_from_parameters
-
-    # Validate --outfile parameter for streaming operations
-    if command_metadata.has_streaming_output and parsed_args:
-        output_file_path = parsed_args.operation_args.outfile
-        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an absolute path')
-
-        if output_file_path != '-':
-            validate_file_path(output_file_path)
-
-    # Extract and validate all file paths using comprehensive detection
-    file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
-    for file_path in file_paths:
-        validate_file_path(file_path)
-
-
-def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
-    if command_metadata.has_streaming_output:
-        output_file_path = parsed_args.operation_args.outfile
-        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an absolute path')
-
-        # Validate file path is within working directory
-        if output_file_path != '-':
-            validate_file_path(output_file_path)
-
-
-def _validate_file_path(file_path: str, service: str, operation: str):
-    if file_path == '-' or file_path.startswith('s3://'):
+def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
+    if operation not in ('cp', 'sync', 'mv'):
         return
 
-    if not os.path.isabs(Path(file_path)):
+    paths = parameters.get('--paths')
+    if not paths or not isinstance(paths, list) or len(paths) < 2:
+        return
+
+    source_path, dest_path = paths
+    _validate_s3_file_path(source_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
+
+
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # `-` as destination redirects to stdout, which we capture and wrap in an MCP response
+    if file_path == '-' and is_destination:
+        return
+
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
+    if file_path == '-':
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason='should be an absolute path',
+            reason="streaming file on stdin ('-') is not allowed",
+        )
+
+    if not file_path.startswith('s3://'):
+        _validate_file_path(file_path, service, operation)
+
+
+def _validate_customization_file_paths(
+    command_metadata: CommandMetadata,
+    service: str,
+    operation: str,
+    parameters: dict[str, Any],
+):
+    """Validate file paths in custom command parameters.
+
+    This function extracts file paths from custom command parameters (both regular
+    file path arguments and blob arguments with file:// or fileb:// prefixes) and
+    validates each one through _validate_file_path.
+
+    Args:
+        command_metadata: Metadata about the command being executed
+        service: The AWS service name
+        operation: The operation name
+        parameters: Dictionary of command parameters
+
+    Raises:
+        FileParameterError: If any file path validation fails
+    """
+    # Extract all file paths from parameters (with prefixes removed)
+    file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
+
+    # Validate each file path
+    for file_path in file_paths:
+        _validate_file_path(file_path, service, operation)
+
+
+def _validate_outfile(
+    command_metadata: CommandMetadata,
+    parsed_args: ParsedOperationArgs | None,
+):
+    """Validate streaming outfile argument."""
+    # Validate positional outfile argument for streaming operations
+    if command_metadata.has_streaming_output and parsed_args:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-':
+            _validate_file_path(
+                output_file_path,
+                service=command_metadata.service_sdk_name,
+                operation=command_metadata.operation_sdk_name,
+            )
+
+
+def _validate_file_path(file_path: str, service: str, operation: str):
+    try:
+        validate_file_path(file_path)
+    except (FilePathValidationError, LocalFileAccessDisabledError) as e:
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason=e._reason,
         )
 
 
@@ -844,9 +912,13 @@ def _construct_command(
     operation_model: OperationModel | None = None,
     default_region_override: str | None = None,
 ) -> IRCommand:
-    _validate_file_paths(command_metadata, parsed_args, parameters)
+    _validate_outfile(command_metadata, parsed_args)
     endpoint_url = getattr(global_args, 'endpoint_url', None)
     _validate_endpoint(endpoint_url)
+
+    explicitly_passed_arguments = list(parameters.values()) + (
+        parsed_args.given_args if parsed_args else []
+    )
 
     profile = getattr(global_args, 'profile', None)
     region = (
@@ -883,6 +955,7 @@ def _construct_command(
         profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        is_help_operation=is_help_operation(explicitly_passed_arguments),
         output_file=output_file,
         endpoint_url=global_args.endpoint_url,
     )

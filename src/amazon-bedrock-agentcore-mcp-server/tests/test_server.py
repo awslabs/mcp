@@ -14,7 +14,7 @@
 
 """Tests for the Amazon Bedrock AgentCore MCP Server."""
 
-from awslabs.amazon_bedrock_agentcore_mcp_server.server import (
+from awslabs.amazon_bedrock_agentcore_mcp_server.tools.docs import (
     fetch_agentcore_doc,
     search_agentcore_docs,
 )
