@@ -194,7 +194,8 @@ To run in readonly mode with Docker:
 ## Configuration
 
 ### Valkey Connection
-The Valkey server can be configured using the following environment variables:
+The Valkey server can be configured using the following environment variables.
+However, both *MemoryDB* and *ElastiCache Serverless* are *not* compatible with semantic search and vector search:
 
 | Name | Description                                                                                                                    | Default Value |
 |------|--------------------------------------------------------------------------------------------------------------------------------|---------------|
