@@ -21,13 +21,17 @@ from awslabs.dynamodb_mcp_server.database_analysis_queries import (
     get_schema_queries,
 )
 from awslabs.dynamodb_mcp_server.markdown_formatter import MarkdownFormatter
-from awslabs.mysql_mcp_server.server import DBConnection, DummyCtx
+from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
+from awslabs.mysql_mcp_server.connection.rds_data_api_connection import RDSDataAPIConnection
+from awslabs.mysql_mcp_server.server import DummyCtx
 from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from datetime import datetime
 from loguru import logger
 from typing import Any, Dict, List, Tuple
 
 
+DEFAULT_MYSQL_PORT = 3306
+DEFAULT_READONLY = True
 DEFAULT_ANALYSIS_DAYS = 30
 DEFAULT_MAX_QUERY_RESULTS = 500
 SECONDS_PER_DAY = 86400
@@ -63,11 +67,33 @@ class DatabaseAnalyzer:
                 )
             output_dir = user_provided_dir
 
+            # Validate port parameter
+            port_value = kwargs.get('port') or os.getenv('MYSQL_PORT', str(DEFAULT_MYSQL_PORT))
+            port = int(port_value) if str(port_value).isdigit() else DEFAULT_MYSQL_PORT
+
+            # Determine connection method
+            # Priority: explicit args > env vars, and cluster_arn > hostname within each level
+            cluster_arn = kwargs.get('aws_cluster_arn')
+            hostname = kwargs.get('hostname')
+
+            if cluster_arn:
+                # Explicit cluster_arn - use RDS Data API-based access
+                hostname = None
+            elif hostname:
+                # Explicit hostname - use connection-based access
+                cluster_arn = None
+            else:
+                # Fall back to env vars with same precedence
+                cluster_arn = os.getenv('MYSQL_CLUSTER_ARN')
+                hostname = os.getenv('MYSQL_HOSTNAME') if not cluster_arn else None
+
             return {
-                'cluster_arn': kwargs.get('aws_cluster_arn') or os.getenv('MYSQL_CLUSTER_ARN'),
+                'cluster_arn': cluster_arn,
                 'secret_arn': kwargs.get('aws_secret_arn') or os.getenv('MYSQL_SECRET_ARN'),
                 'database': kwargs.get('database_name') or os.getenv('MYSQL_DATABASE'),
                 'region': kwargs.get('aws_region') or os.getenv('AWS_REGION'),
+                'hostname': hostname,
+                'port': port,
                 'max_results': kwargs.get('max_query_results')
                 or int(os.getenv('MYSQL_MAX_QUERY_RESULTS', str(DEFAULT_MAX_QUERY_RESULTS))),
                 'pattern_analysis_days': kwargs.get(
@@ -91,23 +117,38 @@ class DatabaseAnalyzer:
             Tuple of (missing_params, param_descriptions)
         """
         if source_db_type == 'mysql':
-            required_params = ['cluster_arn', 'secret_arn', 'database', 'region']
-            missing_params = [
-                param
-                for param in required_params
-                if not connection_params.get(param)
-                or (
+            missing_params = []
+            param_descriptions = {}
+            cluster_arn = connection_params.get('cluster_arn')
+            hostname = connection_params.get('hostname')
+
+            # Check for either RDS Data API-based or connection-based access
+            has_rds_data_api = bool(isinstance(cluster_arn, str) and cluster_arn.strip())
+            has_connection_based = bool(isinstance(hostname, str) and hostname.strip())
+
+            # Check that we have a connection method
+            if not has_rds_data_api and not has_connection_based:
+                missing_params.append('cluster_arn OR hostname')
+                param_descriptions['cluster_arn OR hostname'] = (
+                    'Required: Either aws_cluster_arn (for RDS Data API-based access) '
+                    'OR hostname (for connection-based access)'
+                )
+
+            # Check common required parameters
+            common_required_params = ['secret_arn', 'database', 'region']
+            for param in common_required_params:
+                if not connection_params.get(param) or (
                     isinstance(connection_params[param], str)
                     and connection_params[param].strip() == ''
-                )
-            ]
-
-            param_descriptions = {
-                'cluster_arn': 'AWS cluster ARN',
-                'secret_arn': 'AWS secret ARN',
-                'database': 'Database name',
-                'region': 'AWS region',
-            }
+                ):
+                    missing_params.append(param)
+            param_descriptions.update(
+                {
+                    'secret_arn': 'Secrets Manager secret ARN containing DB credentials',
+                    'database': 'Database name to analyze',
+                    'region': 'AWS region where your database instance and Secrets Manager are located',
+                }
+            )
             return missing_params, param_descriptions
         return [], {}
 
@@ -232,15 +273,17 @@ class MySQLAnalyzer(DatabaseAnalyzer):
     def is_performance_schema_enabled(result):
         """Check if MySQL performance schema is enabled from query result."""
         if result and len(result) > 0:
-            performance_schema_value = str(
-                result[0].get('', '0')
-            )  # Key is empty string by mysql package design, so checking only value here
+            # MySQL MCP server uses col['label'] for column names, creating {"@@performance_schema": "1"}
+            # Reference: https://github.com/awslabs/mcp/pull/1361
+            performance_schema_value = str(result[0].get('@@performance_schema', '0'))
             return performance_schema_value == '1'
         return False
 
     def __init__(self, connection_params):
         """Initialize MySQL analyzer with connection parameters."""
-        self.cluster_arn = connection_params['cluster_arn']
+        self.cluster_arn = connection_params.get('cluster_arn')
+        self.hostname = connection_params.get('hostname')
+        self.port = connection_params.get('port', 3306)
         self.secret_arn = connection_params['secret_arn']
         self.database = connection_params['database']
         self.region = connection_params['region']
@@ -250,10 +293,27 @@ class MySQLAnalyzer(DatabaseAnalyzer):
     async def _run_query(self, sql, query_parameters=None):
         """Internal method to run SQL queries against MySQL database."""
         try:
-            # Create a new connection with current parameters
-            db_connection = DBConnection(
-                self.cluster_arn, self.secret_arn, self.database, self.region, True
-            )
+            # Create appropriate connection type based on available parameters
+            if self.cluster_arn:
+                # RDS Data API-based access
+                db_connection = RDSDataAPIConnection(
+                    cluster_arn=self.cluster_arn,
+                    secret_arn=self.secret_arn,
+                    database=self.database,
+                    region=self.region,
+                    readonly=DEFAULT_READONLY,
+                )
+            else:
+                # Connection-based access
+                db_connection = AsyncmyPoolConnection(
+                    hostname=self.hostname,
+                    port=self.port,
+                    database=self.database,
+                    readonly=DEFAULT_READONLY,
+                    secret_arn=self.secret_arn,
+                    region=self.region,
+                )
+
             # Pass connection parameter directly to mysql_query
             result = await mysql_query(sql, DummyCtx(), db_connection, query_parameters)
             return result

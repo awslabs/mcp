@@ -47,7 +47,7 @@ Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design
 This tool provides systematic methodology for creating multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
 
-Use the `source_db_analyzer` tool to analyze existing MySQL/Aurora databases for DynamoDB Data Modeling:
+Use the `source_db_analyzer` tool to analyze existing MySQL databases for DynamoDB Data Modeling:
 - Extracts schema structure (tables, columns, indexes, foreign keys)
 - Captures access patterns from Performance Schema (query patterns, RPS, frequencies)
 - Generates timestamped analysis files (JSON format) for use with dynamodb_data_modeling
@@ -124,7 +124,16 @@ async def source_db_analyzer(
         ge=1,
     ),
     aws_cluster_arn: Optional[str] = Field(
-        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
+        default=None,
+        description='AWS cluster ARN for RDS Data API-based access (overrides MYSQL_CLUSTER_ARN env var)',
+    ),
+    hostname: Optional[str] = Field(
+        default=None,
+        description='Database hostname for connection-based access (overrides MYSQL_HOSTNAME env var)',
+    ),
+    port: Optional[int] = Field(
+        default=None,
+        description='Database port for connection-based access (overrides MYSQL_PORT env var, default: 3306)',
     ),
     aws_secret_arn: Optional[str] = Field(
         default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
@@ -149,19 +158,27 @@ async def source_db_analyzer(
     - Files for skipped queries explain why they were skipped (e.g., Performance Schema disabled)
     - Use these analysis files with the dynamodb_data_modeling tool to design your DynamoDB schema
 
-    Connection Requirements (MySQL/Aurora):
-    - AWS RDS Data API enabled on your Aurora MySQL cluster
+    Connection Requirements (MySQL):
+    Two connection methods are supported:
+    1. RDS Data API-based access: Requires aws_cluster_arn
+    2. Connection-based access: Requires hostname and port
+
+    Note: If both are provided, cluster_arn takes precedence over hostname
+
+    Both methods require:
     - Database credentials stored in AWS Secrets Manager
-    - Appropriate IAM permissions to access RDS Data API and Secrets Manager
+    - Appropriate IAM permissions to access Secrets Manager
     - For complete analysis: MySQL Performance Schema must be enabled (set performance_schema=ON)
     - Without Performance Schema: Schema-only analysis is performed (no query pattern data)
 
     Environment Variables (Optional):
     You can set these instead of passing parameters:
     - MYSQL_DATABASE: Database name to analyze
-    - MYSQL_CLUSTER_ARN: Aurora cluster ARN
+    - MYSQL_CLUSTER_ARN: Cluster ARN (for RDS Data API-based access)
+    - MYSQL_HOSTNAME: Database hostname (for connection-based access)
+    - MYSQL_PORT: Database port (for connection-based access, default: 3306)
     - MYSQL_SECRET_ARN: Secrets Manager secret ARN containing DB credentials
-    - AWS_REGION: AWS region where your database is located
+    - AWS_REGION: AWS region where your database and Secrets Manager are located
     - MYSQL_MAX_QUERY_RESULTS: Maximum rows per query (default: 500)
 
     Typical Usage:
@@ -185,6 +202,8 @@ async def source_db_analyzer(
         pattern_analysis_days=pattern_analysis_days,
         max_query_results=max_query_results,
         aws_cluster_arn=aws_cluster_arn,
+        hostname=hostname,
+        port=port,
         aws_secret_arn=aws_secret_arn,
         aws_region=aws_region,
         output_dir=output_dir,
@@ -195,10 +214,9 @@ async def source_db_analyzer(
         source_db_type, connection_params
     )
     if missing_params:
+        # Handle missing required parameters
         missing_descriptions = [param_descriptions[param] for param in missing_params]
-        return (
-            f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
-        )
+        return f'Missing required parameters: {", ".join(missing_descriptions)}'
 
     logger.info(
         f'Starting database analysis for {source_db_type} database: {connection_params.get("database")}'
