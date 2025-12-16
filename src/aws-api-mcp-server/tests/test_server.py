@@ -17,9 +17,10 @@ from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
 @patch('awslabs.aws_api_mcp_server.server.server')
-def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops):
+def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops, mock_chdir):
     """Test main function when read operations index loading fails."""
     mock_get_read_ops.side_effect = Exception('Failed to load operations')
 
