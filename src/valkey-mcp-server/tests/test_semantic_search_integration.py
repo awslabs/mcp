@@ -614,6 +614,8 @@ class TestSemanticSearchIntegration:
             print(f"   ✓ Collection: {info_result['collection']}")
             print(f"   ✓ Stored documents: {info_result['stored_documents']}")
             print(f"   ✓ Indexed documents: {info_result['indexed_documents']}")
+            print(f"   ✓ Indexing failures: {info_result['hash_indexing_failures']}")
+            print(f"   ✓ Percentage indexed: {info_result['percent_indexed']}")
             print(f"   ✓ Indexing complete: {info_result['indexing_complete']}")
             
             # Verify results
