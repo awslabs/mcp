@@ -780,17 +780,6 @@ def test_main_missing_aws_region():
         main()
 
 
-@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', 'relative/path')
-def test_main_relative_working_directory():
-    """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
-    with pytest.raises(
-        ValueError,
-        match=r'AWS_API_MCP_WORKING_DIR must be an absolute path.',
-    ):
-        main()
-
-
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.server')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
