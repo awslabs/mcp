@@ -227,7 +227,7 @@ This defaults to using the Bedrock embeddings provider, but can be configured to
 #### Bedrock
 The following environment variables are used to configure the Bedrock embeddings provider, including a number
 of optional configuration options.  Credentials for the Bedrock service must be provided using the `AWS_ACCESS_KEY_ID` and
-`AWS_SECRET_ACCESS_KEY` environment variables or via `AWS_PROFILE`.
+`AWS_SECRET_ACCESS_KEY` and/or `AWS_SESSION_TOKEN` environment variables or via `AWS_PROFILE`.
 
 | Name | Description                                                                    | Default Value                  |
 |------|--------------------------------------------------------------------------------|--------------------------------|
