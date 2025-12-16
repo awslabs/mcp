@@ -29,7 +29,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 
 
 async def list_workflows(
@@ -132,6 +132,12 @@ async def create_workflow(
         None,
         description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
     ),
+    path_to_main: Annotated[
+        Optional[str],
+        Field(
+            description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
+        ),
+    ] = None,
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
@@ -144,6 +150,7 @@ async def create_workflow(
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
+        path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
 
     Returns:
         Dictionary containing the created workflow information
@@ -179,6 +186,9 @@ async def create_workflow(
 
     if container_registry_map_uri:
         params['containerRegistryMapUri'] = container_registry_map_uri
+
+    if path_to_main is not None and path_to_main != '':
+        params['main'] = path_to_main
 
     try:
         response = client.create_workflow(**params)
@@ -316,6 +326,12 @@ async def create_workflow_version(
         None,
         description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
     ),
+    path_to_main: Annotated[
+        Optional[str],
+        Field(
+            description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
+        ),
+    ] = None,
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -331,6 +347,7 @@ async def create_workflow_version(
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
+        path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
 
     Returns:
         Dictionary containing the created workflow version information
@@ -379,6 +396,9 @@ async def create_workflow_version(
 
     if container_registry_map_uri:
         params['containerRegistryMapUri'] = container_registry_map_uri
+
+    if path_to_main is not None and path_to_main != '':
+        params['main'] = path_to_main
 
     try:
         response = client.create_workflow_version(**params)
