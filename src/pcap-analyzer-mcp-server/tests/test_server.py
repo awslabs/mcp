@@ -462,7 +462,6 @@ class TestNetworkAnalysisTools:
             assert isinstance(result[0], TextContent)
             assert 'Error' in result[0].text
 
-
     # Move ALL individual tests into TestNetworkAnalysisTools to ensure CI discovers them
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._resolve_pcap_path')
     @patch('awslabs.pcap_analyzer_mcp_server.server.PCAPAnalyzerServer._run_tshark_command')
@@ -501,6 +500,7 @@ class TestNetworkAnalysisTools:
         """Comprehensive module import testing - CI DISCOVERABLE."""
         import awslabs
         import awslabs.pcap_analyzer_mcp_server
+
         assert hasattr(awslabs, '__version__')
         assert hasattr(awslabs.pcap_analyzer_mcp_server, '__version__')
 
@@ -513,6 +513,7 @@ class TestNetworkAnalysisTools:
     def test_global_variables_comprehensive(self):
         """Comprehensive global variable testing - CI DISCOVERABLE."""
         from awslabs.pcap_analyzer_mcp_server.server import logger
+
         assert logger is not None
         assert Path('.').exists()
 
@@ -526,8 +527,10 @@ class TestNetworkAnalysisTools:
 
     def test_async_operations_comprehensive(self):
         """Comprehensive async operations testing - CI DISCOVERABLE."""
+
         async def dummy():
             return True
+
         result = asyncio.run(dummy())
         assert result is True
 

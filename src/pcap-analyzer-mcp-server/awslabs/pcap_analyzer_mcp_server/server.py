@@ -635,16 +635,16 @@ class PCAPAnalyzerServer:
         try:
             # Security: Validate wireshark path is safe
             if not WIRESHARK_PATH or not isinstance(WIRESHARK_PATH, str):
-                raise ValueError("Invalid WIRESHARK_PATH configuration")
+                raise ValueError('Invalid WIRESHARK_PATH configuration')
 
             # Security: Sanitize command arguments
             safe_args = []
             for arg in args:
                 if not isinstance(arg, str):
-                    raise ValueError(f"Invalid argument type: {type(arg)}")
+                    raise ValueError(f'Invalid argument type: {type(arg)}')
                 # Remove potentially dangerous characters
                 if any(char in arg for char in [';', '&', '|', '`', '$']):
-                    raise ValueError(f"Potentially unsafe argument: {arg}")
+                    raise ValueError(f'Potentially unsafe argument: {arg}')
                 safe_args.append(arg)
 
             cmd = [WIRESHARK_PATH] + safe_args
@@ -664,17 +664,18 @@ class PCAPAnalyzerServer:
         """Resolve pcap file path with security validation."""
         # Security: Validate file extension first
         if not pcap_file.endswith('.pcap'):
-            raise ValueError("Only .pcap files are allowed")
+            raise ValueError('Only .pcap files are allowed')
 
         # Security: Prevent path traversal attacks
         if '../' in pcap_file or '/..' in pcap_file:
-            raise ValueError("Path traversal patterns not allowed")
+            raise ValueError('Path traversal patterns not allowed')
 
         # Security: Only allow safe characters in filename
         import string
+
         allowed_chars = string.ascii_letters + string.digits + '.-_/'
         if not all(c in allowed_chars for c in pcap_file):
-            raise ValueError("Invalid characters in file path")
+            raise ValueError('Invalid characters in file path')
 
         # Handle relative paths by checking storage directory first
         if not os.path.isabs(pcap_file):
