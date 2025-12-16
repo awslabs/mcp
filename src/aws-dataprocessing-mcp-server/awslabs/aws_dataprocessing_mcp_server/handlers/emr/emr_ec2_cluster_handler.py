@@ -683,7 +683,7 @@ class EMREc2ClusterHandler:
                     clusters=clusters,
                     count=len(clusters),
                     marker=response.get('Marker'),
-                    operation='list',
+                    operation='list-clusters',
                 )
 
                 return CallToolResult(
@@ -788,7 +788,7 @@ class EMREc2ClusterHandler:
                     security_configurations=security_configurations,
                     count=len(security_configurations),
                     marker=response.get('Marker'),
-                    operation='list',
+                    operation='list-security-configurations',
                 )
 
                 return CallToolResult(

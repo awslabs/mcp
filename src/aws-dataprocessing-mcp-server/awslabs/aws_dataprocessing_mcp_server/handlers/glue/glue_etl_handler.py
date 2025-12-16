@@ -361,7 +361,7 @@ class GlueEtlJobsHandler:
                 data = GetJobData(
                     job_name=job_name,
                     job_details=response.get('Job', {}),
-                    operation='get',
+                    operation='get-job',
                 )
 
                 return CallToolResult(
@@ -389,7 +389,7 @@ class GlueEtlJobsHandler:
                     jobs=jobs,
                     count=len(jobs),
                     next_token=response.get('NextToken'),
-                    operation='list',
+                    operation='get-jobs',
                 )
 
                 return CallToolResult(
@@ -448,7 +448,7 @@ class GlueEtlJobsHandler:
                 success_message = f'Successfully updated MCP-managed job {job_name}'
                 data = UpdateJobData(
                     job_name=job_name,
-                    operation='update',
+                    operation='update-job',
                 )
 
                 return CallToolResult(
@@ -579,7 +579,7 @@ class GlueEtlJobsHandler:
                     job_runs=job_runs,
                     count=len(job_runs),
                     next_token=response.get('NextToken'),
-                    operation='list',
+                    operation='get-job-runs',
                 )
 
                 return CallToolResult(
