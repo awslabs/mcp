@@ -192,7 +192,6 @@ class TestGlueDataCatalogHandler:
         assert result.isError is True
         assert 'not allowed without write access' in result.text
 
-
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_databases_update_no_write_access(
         self, handler, mock_ctx
@@ -268,7 +267,12 @@ class TestGlueDataCatalogHandler:
         # Mock the response class
         mock_response = MagicMock()
         mock_response.isError = False
-        mock_response.content = []
+        # Create mock content items to match expected structure
+        mock_content_item1 = MagicMock()
+        mock_content_item2 = MagicMock()
+        mock_content_item2.type = 'text'
+        mock_content_item2.text = '{"databases": [], "count": 0}'
+        mock_response.content = [mock_content_item1, mock_content_item2]
         mock_response.databases = []
         mock_response.count = 0
         mock_response.catalog_id = '123456789012'
