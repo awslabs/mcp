@@ -302,11 +302,25 @@ class DataCatalogTableManager:
                 f'Successfully retrieved table: {database_name}.{table_name}',
             )
 
+            # Convert datetime objects to ISO strings in table definition
+            def convert_datetime_to_iso(obj: Any) -> Any:
+                """Recursively convert datetime objects to ISO strings."""
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {key: convert_datetime_to_iso(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime_to_iso(item) for item in obj]
+                else:
+                    return obj
+
+            table_definition_serializable: Dict[str, Any] = convert_datetime_to_iso(table)
+
             success_message = f'Successfully retrieved table: {database_name}.{table_name}'
             data = GetTableData(
                 database_name=database_name,
                 table_name=table['Name'],
-                table_definition=table,
+                table_definition=table_definition_serializable,
                 creation_time=(
                     table.get('CreateTime', '').isoformat() if table.get('CreateTime') else ''
                 ),

@@ -20,6 +20,7 @@ from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_t
 )
 from botocore.exceptions import ClientError
 from datetime import datetime
+from mcp.types import CallToolResult
 from unittest.mock import MagicMock, patch
 
 
@@ -141,7 +142,7 @@ class TestDataCatalogTableManager:
             }
             mock_glue_client.create_table.side_effect = ClientError(error_response, 'CreateTable')
 
-            # Call the method and verify it returns a result
+            # Call the method and verify it returns an error result
             result = await manager.create_table(
                 mock_ctx,
                 database_name=database_name,
@@ -149,8 +150,12 @@ class TestDataCatalogTableManager:
                 table_input=table_input,
             )
 
-            # Verify the response exists
-            assert result is not None
+            # Verify the response indicates an error
+            mock_glue_client.create_table.assert_called_once()
+            assert isinstance(result, CallToolResult)
+            assert result.isError is True
+            assert f'Failed to create table {database_name}.{table_name}' in result.content[0].text
+            assert 'AlreadyExistsException' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_table_success(self, manager, mock_ctx, mock_glue_client):
@@ -242,12 +247,12 @@ class TestDataCatalogTableManager:
             }
         }
 
-        # Call the method and expect it to fail due to datetime serialization issue
-        # This is a known bug in the implementation where datetime objects can't be JSON serialized
-        with pytest.raises(TypeError, match='Object of type datetime is not JSON serializable'):
-            await manager.get_table(
-                mock_ctx, database_name=database_name, table_name=table_name, catalog_id=catalog_id
-            )
+        result = await manager.get_table(
+            mock_ctx, database_name=database_name, table_name=table_name, catalog_id=catalog_id
+        )
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        assert 'Successfully retrieved table:' in result.content[0].text
 
         # Verify that the Glue client was called with the correct parameters
         mock_glue_client.get_table.assert_called_once_with(
@@ -490,9 +495,13 @@ class TestDataCatalogTableManager:
         # Test list_tables error handling
         mock_glue_client.get_tables.side_effect = ClientError(error_response, 'GetTables')
         result = await manager.list_tables(mock_ctx, database_name='test-db')
-        assert result is not None
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert 'Failed to list tables in database' in result.content[0].text
 
         # Test search_tables error handling
         mock_glue_client.search_tables.side_effect = ClientError(error_response, 'SearchTables')
         result = await manager.search_tables(mock_ctx, search_text='test')
-        assert result is not None
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert 'Failed to search tables' in result.content[0].text

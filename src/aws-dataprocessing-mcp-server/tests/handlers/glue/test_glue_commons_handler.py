@@ -77,7 +77,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'test-profile'
-        assert response_data.get('operation') == 'create'
+        assert response_data.get('operation') == 'create-usage-profile'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_create_no_write_access(
@@ -110,7 +110,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
-        assert response_data.get('operation') == 'create'
+        assert response_data.get('operation') == 'create-security-configuration'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_get_not_found(self, handler, mock_context):
@@ -140,6 +140,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('encryption_settings') == {'test': 'settings'}
+        assert response_data.get('operation') == 'get-datacatalog-encryption'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_put_success(self, handler, mock_context):
@@ -153,7 +154,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'test-hash'
-        assert response_data.get('operation') == 'put'
+        assert response_data.get('operation') == 'put-resource-policy'
 
     @pytest.mark.asyncio
     async def test_invalid_operations(self, handler, mock_context):
@@ -199,10 +200,10 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='test-profile'
             )
 
-        assert result.isError is False
-        response_data = extract_response_data(result)
-        assert response_data.get('profile_name') == 'test-profile'
-        assert response_data.get('operation') == 'delete'
+            assert result.isError is False
+            response_data = extract_response_data(result)
+            assert response_data.get('profile_name') == 'test-profile'
+            assert response_data.get('operation') == 'delete-usage-profile'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_delete_not_found(self, handler, mock_context):
@@ -255,7 +256,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'test-profile'
-        assert response_data.get('operation') == 'get'
+        assert response_data.get('operation') == 'get-usage-profile'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_update_success(self, handler, mock_context):
@@ -280,7 +281,7 @@ class TestGlueCommonsHandler:
             assert result.isError is False
             response_data = extract_response_data(result)
             assert response_data.get('profile_name') == 'test-profile'
-            assert response_data.get('operation') == 'update'
+            assert response_data.get('operation') == 'update-usage-profile'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_create_missing_config(
@@ -348,7 +349,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
-        assert response_data.get('operation') == 'delete'
+        assert response_data.get('operation') == 'delete-security-configuration'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_delete_not_found(self, handler, mock_context):
@@ -383,7 +384,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
-        assert response_data.get('operation') == 'get'
+        assert response_data.get('operation') == 'get-security-configuration'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_create_missing_config(self, handler, mock_context):
@@ -448,7 +449,7 @@ class TestGlueCommonsHandler:
 
         assert result.isError is False
         response_data = extract_response_data(result)
-        assert response_data.get('operation') == 'put'
+        assert response_data.get('operation') == 'put-datacatalog-encryption'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_put_no_write_access(
@@ -531,7 +532,7 @@ class TestGlueCommonsHandler:
         assert result.isError is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'test-hash'
-        assert response_data.get('operation') == 'get'
+        assert response_data.get('operation') == 'get-resource-policy'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_delete_success(self, handler, mock_context):
@@ -544,7 +545,7 @@ class TestGlueCommonsHandler:
 
         assert result.isError is False
         response_data = extract_response_data(result)
-        assert response_data.get('operation') == 'delete'
+        assert response_data.get('operation') == 'delete-resource-policy'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_get_no_write_access(
@@ -713,7 +714,7 @@ class TestGlueCommonsHandler:
 
         assert result.isError is False
         response_data = extract_response_data(result)
-        assert response_data.get('operation') == 'put'
+        assert response_data.get('operation') == 'put-datacatalog-encryption'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_get_error(self, handler, mock_context):

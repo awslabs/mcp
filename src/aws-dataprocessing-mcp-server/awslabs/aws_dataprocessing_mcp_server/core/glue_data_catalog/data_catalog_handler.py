@@ -749,11 +749,39 @@ class DataCatalogManager:
             success_msg = (
                 f'Successfully retrieved partition from table: {database_name}.{table_name}'
             )
+
+            # Convert datetime objects in partition_definition to strings
+            partition_definition = partition.copy()
+            if 'CreationTime' in partition_definition and partition_definition['CreationTime']:
+                creation_time_obj = partition_definition['CreationTime']
+                if hasattr(creation_time_obj, 'isoformat'):
+                    partition_definition['CreationTime'] = creation_time_obj.isoformat()
+                else:
+                    partition_definition['CreationTime'] = str(creation_time_obj)
+
+            if 'LastAccessTime' in partition_definition and partition_definition['LastAccessTime']:
+                last_access_time_obj = partition_definition['LastAccessTime']
+                if hasattr(last_access_time_obj, 'isoformat'):
+                    partition_definition['LastAccessTime'] = last_access_time_obj.isoformat()
+                else:
+                    partition_definition['LastAccessTime'] = str(last_access_time_obj)
+
+            # Also check for any other datetime objects in the partition definition
+            if (
+                'LastAnalyzedTime' in partition_definition
+                and partition_definition['LastAnalyzedTime']
+            ):
+                last_analyzed_time_obj = partition_definition['LastAnalyzedTime']
+                if hasattr(last_analyzed_time_obj, 'isoformat'):
+                    partition_definition['LastAnalyzedTime'] = last_analyzed_time_obj.isoformat()
+                else:
+                    partition_definition['LastAnalyzedTime'] = str(last_analyzed_time_obj)
+
             data = GetPartitionData(
                 database_name=database_name,
                 table_name=table_name,
                 partition_values=partition['Values'],
-                partition_definition=partition,
+                partition_definition=partition_definition,
                 creation_time=(
                     partition.get('CreationTime', '').isoformat()
                     if partition.get('CreationTime')
