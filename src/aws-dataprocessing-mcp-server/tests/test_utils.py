@@ -53,6 +53,7 @@ class AttributeDict:
         """String representation for debugging."""
         return f'AttributeDict({self._data})'
 
+
 def extract_result_data(result: CallToolResult) -> Dict[str, Any]:
     """Extract structured data from CallToolResult content.
 
