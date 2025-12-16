@@ -67,3 +67,116 @@ class TestValidateS3Uri:
 
         mock_logger.error.assert_called_once()
         assert 'test_param must be a valid S3 URI' in mock_logger.error.call_args[0][0]
+
+
+class TestValidateAdhocS3Buckets:
+    """Test cases for validate_adhoc_s3_buckets function."""
+
+    @pytest.mark.asyncio
+    async def test_validate_adhoc_s3_buckets_none_input(self):
+        """Test validation with None input."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_adhoc_s3_buckets,
+        )
+
+        result = await validate_adhoc_s3_buckets(None)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_validate_adhoc_s3_buckets_empty_list(self):
+        """Test validation with empty list."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_adhoc_s3_buckets,
+        )
+
+        result = await validate_adhoc_s3_buckets([])
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_validate_adhoc_s3_buckets_success(self):
+        """Test successful validation of adhoc S3 buckets."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_adhoc_s3_buckets,
+        )
+
+        test_buckets = ['s3://test-bucket-1/', 's3://test-bucket-2/']
+        validated_buckets = ['s3://test-bucket-1/', 's3://test-bucket-2/']
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.s3_utils.validate_bucket_access'
+        ) as mock_validate:
+            mock_validate.return_value = validated_buckets
+
+            with patch(
+                'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+            ) as mock_logger:
+                result = await validate_adhoc_s3_buckets(test_buckets)
+
+                assert result == validated_buckets
+                mock_validate.assert_called_once_with(test_buckets)
+                mock_logger.info.assert_called_once()
+                assert (
+                    'Validated 2 adhoc S3 buckets out of 2 provided'
+                    in mock_logger.info.call_args[0][0]
+                )
+
+    @pytest.mark.asyncio
+    async def test_validate_adhoc_s3_buckets_validation_error(self):
+        """Test handling of validation errors."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_adhoc_s3_buckets,
+        )
+
+        test_buckets = ['s3://invalid-bucket/', 's3://another-invalid/']
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.s3_utils.validate_bucket_access'
+        ) as mock_validate:
+            # Mock validate_bucket_access to raise ValueError
+            mock_validate.side_effect = ValueError('Bucket access validation failed')
+
+            with patch(
+                'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+            ) as mock_logger:
+                result = await validate_adhoc_s3_buckets(test_buckets)
+
+                # Should return empty list when validation fails
+                assert result == []
+                mock_validate.assert_called_once_with(test_buckets)
+                # Should log warning (lines 167-168)
+                mock_logger.warning.assert_called_once()
+                assert (
+                    'Adhoc S3 bucket validation failed: Bucket access validation failed'
+                    in mock_logger.warning.call_args[0][0]
+                )
+
+    @pytest.mark.asyncio
+    async def test_validate_adhoc_s3_buckets_partial_success(self):
+        """Test validation with some valid and some invalid buckets."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_adhoc_s3_buckets,
+        )
+
+        test_buckets = ['s3://valid-bucket/', 's3://invalid-bucket/', 's3://another-valid/']
+        validated_buckets = [
+            's3://valid-bucket/',
+            's3://another-valid/',
+        ]  # Only valid ones returned
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.s3_utils.validate_bucket_access'
+        ) as mock_validate:
+            mock_validate.return_value = validated_buckets
+
+            with patch(
+                'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+            ) as mock_logger:
+                result = await validate_adhoc_s3_buckets(test_buckets)
+
+                assert result == validated_buckets
+                mock_validate.assert_called_once_with(test_buckets)
+                mock_logger.info.assert_called_once()
+                assert (
+                    'Validated 2 adhoc S3 buckets out of 3 provided'
+                    in mock_logger.info.call_args[0][0]
+                )
