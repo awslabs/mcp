@@ -16,7 +16,14 @@
 
 import os
 import pytest
+from awslabs.dynamodb_mcp_server.db_analyzer.mysql import MySQLPlugin
 from awslabs.dynamodb_mcp_server.markdown_formatter import MarkdownFormatter
+
+
+@pytest.fixture
+def mysql_plugin():
+    """MySQL plugin fixture for testing."""
+    return MySQLPlugin()
 
 
 @pytest.fixture
@@ -148,9 +155,13 @@ def sample_metadata():
     }
 
 
-def test_markdown_formatter_initialization(tmp_path, sample_results, sample_metadata):
+def test_markdown_formatter_initialization(
+    tmp_path, sample_results, sample_metadata, mysql_plugin
+):
     """Test MarkdownFormatter initialization."""
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
 
     assert formatter.results == sample_results
     assert formatter.metadata == sample_metadata
@@ -160,14 +171,14 @@ def test_markdown_formatter_initialization(tmp_path, sample_results, sample_meta
     assert formatter.errors == []
 
 
-def test_format_as_markdown_table_basic(tmp_path, sample_metadata):
+def test_format_as_markdown_table_basic(tmp_path, sample_metadata, mysql_plugin):
     """Test basic markdown table formatting."""
     data = [
         {'name': 'Alice', 'age': 30, 'city': 'Seattle'},
         {'name': 'Bob', 'age': 25, 'city': 'Portland'},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| name | age | city |' in table
@@ -176,81 +187,81 @@ def test_format_as_markdown_table_basic(tmp_path, sample_metadata):
     assert '| Bob | 25 | Portland |' in table
 
 
-def test_format_as_markdown_table_with_nulls(tmp_path, sample_metadata):
+def test_format_as_markdown_table_with_nulls(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with NULL values."""
     data = [
         {'name': 'Alice', 'value': None},
         {'name': 'Bob', 'value': 42},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| NULL |' in table
     assert '| 42 |' in table
 
 
-def test_format_as_markdown_table_with_floats(tmp_path, sample_metadata):
+def test_format_as_markdown_table_with_floats(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with float values."""
     data = [
         {'name': 'test', 'value': 3.14159},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| 3.14 |' in table  # Should be rounded to 2 decimal places
 
 
-def test_format_as_markdown_table_empty_data(tmp_path, sample_metadata):
+def test_format_as_markdown_table_empty_data(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with empty data."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table([])
 
     assert table == 'No data returned'
 
 
-def test_format_as_markdown_table_none_data(tmp_path, sample_metadata):
+def test_format_as_markdown_table_none_data(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with None data."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(None)
 
     # None is caught by the "if not data:" check first
     assert table == 'No data returned'
 
 
-def test_format_as_markdown_table_invalid_type(tmp_path, sample_metadata):
+def test_format_as_markdown_table_invalid_type(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with invalid data type."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table('not a list')
 
     assert 'Error: Invalid data format' in table
 
 
-def test_format_as_markdown_table_non_dict_row(tmp_path, sample_metadata):
+def test_format_as_markdown_table_non_dict_row(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with non-dict row."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(['not a dict'])
 
     assert 'Error: Invalid data structure' in table
 
 
-def test_format_as_markdown_table_empty_dict_row(tmp_path, sample_metadata):
+def test_format_as_markdown_table_empty_dict_row(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with empty dict as first row."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table([{}])
 
     assert 'No columns available' in table
 
 
-def test_format_as_markdown_table_mixed_row_types(tmp_path, sample_metadata):
+def test_format_as_markdown_table_mixed_row_types(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with mixed row types (skips invalid rows)."""
     data = [
         {'col1': 'value1', 'col2': 'value2'},
         'invalid row',  # This should be skipped
         {'col1': 'value3', 'col2': 'value4'},
     ]
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     # Should still generate table with valid rows
@@ -259,14 +270,14 @@ def test_format_as_markdown_table_mixed_row_types(tmp_path, sample_metadata):
     assert '| value3 | value4 |' in table
 
 
-def test_format_as_markdown_table_all_invalid_rows(tmp_path, sample_metadata):
+def test_format_as_markdown_table_all_invalid_rows(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting when all rows are invalid after first."""
     data = [
         {'col1': 'value1'},
         'invalid',
         'also invalid',
     ]
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     # Should still generate table with the one valid row
@@ -274,27 +285,27 @@ def test_format_as_markdown_table_all_invalid_rows(tmp_path, sample_metadata):
     assert '| value1 |' in table
 
 
-def test_format_as_markdown_table_escapes_pipes(tmp_path, sample_metadata):
+def test_format_as_markdown_table_escapes_pipes(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting escapes pipe characters."""
     data = [
         {'name': 'test|value', 'description': 'has|pipes'},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| test\\|value |' in table
     assert '| has\\|pipes |' in table
 
 
-def test_generate_query_file(tmp_path, sample_metadata):
+def test_generate_query_file(tmp_path, sample_metadata, mysql_plugin):
     """Test generating a single query result file."""
     query_result = {
         'description': 'Test query',
         'data': [{'col1': 'value1', 'col2': 'value2'}],
     }
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_query_file('test_query', query_result)
 
     assert file_path == os.path.join(str(tmp_path), 'test_query.md')
@@ -309,9 +320,9 @@ def test_generate_query_file(tmp_path, sample_metadata):
         assert '**Total Rows**: 1' in content
 
 
-def test_generate_skipped_query_file(tmp_path, sample_metadata):
+def test_generate_skipped_query_file(tmp_path, sample_metadata, mysql_plugin):
     """Test generating a skipped query file."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_skipped_query_file(
         'skipped_query', 'Performance Schema disabled'
     )
@@ -326,9 +337,11 @@ def test_generate_skipped_query_file(tmp_path, sample_metadata):
         assert 'Performance Schema disabled' in content
 
 
-def test_generate_all_files(tmp_path, sample_results, sample_metadata):
+def test_generate_all_files(tmp_path, sample_results, sample_metadata, mysql_plugin):
     """Test generating all markdown files."""
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
     generated_files, errors = formatter.generate_all_files()
 
     # Should generate files for all expected queries (6 total: 4 schema + 2 performance)
@@ -344,7 +357,7 @@ def test_generate_all_files(tmp_path, sample_results, sample_metadata):
     assert os.path.exists(os.path.join(str(tmp_path), 'column_analysis.md'))
 
 
-def test_generate_all_files_with_skipped_queries(tmp_path, sample_results):
+def test_generate_all_files_with_skipped_queries(tmp_path, sample_results, mysql_plugin):
     """Test generating files with skipped queries."""
     metadata = {
         'database': 'airline',
@@ -352,28 +365,30 @@ def test_generate_all_files_with_skipped_queries(tmp_path, sample_results):
         'analysis_period': '30 days',
         'max_query_results': 500,
         'performance_enabled': False,
-        'skipped_queries': ['all_queries_stats', 'triggers_stats'],
+        'skipped_queries': ['query_performance_stats', 'triggers_stats'],
     }
 
-    formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))
+    formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should still generate 6 files (including skipped ones: 4 schema + 2 performance)
     assert len(generated_files) == 6
 
     # Check that skipped query files exist (using actual query name)
-    assert os.path.exists(os.path.join(str(tmp_path), 'all_queries_stats.md'))
+    assert os.path.exists(os.path.join(str(tmp_path), 'query_performance_stats.md'))
 
     # Verify skipped file content
-    with open(os.path.join(str(tmp_path), 'all_queries_stats.md'), 'r') as f:
+    with open(os.path.join(str(tmp_path), 'query_performance_stats.md'), 'r') as f:
         content = f.read()
         assert '**Query Skipped**' in content
         assert 'Performance schema is disabled' in content
 
 
-def test_manifest_generation(tmp_path, sample_results, sample_metadata):
+def test_manifest_generation(tmp_path, sample_results, sample_metadata, mysql_plugin):
     """Test manifest file generation."""
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
     formatter.generate_all_files()
 
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
@@ -391,7 +406,7 @@ def test_manifest_generation(tmp_path, sample_results, sample_metadata):
         assert '## Summary Statistics' in content
 
 
-def test_manifest_with_skipped_queries(tmp_path, sample_results):
+def test_manifest_with_skipped_queries(tmp_path, sample_results, mysql_plugin):
     """Test manifest includes skipped queries section."""
     metadata = {
         'database': 'airline',
@@ -402,7 +417,7 @@ def test_manifest_with_skipped_queries(tmp_path, sample_results):
         'skipped_queries': ['all_queries_stats'],
     }
 
-    formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))
+    formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path), plugin=mysql_plugin)
     formatter.generate_all_files()
 
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
@@ -412,7 +427,7 @@ def test_manifest_with_skipped_queries(tmp_path, sample_results):
         assert 'The following queries were not executed:' in content
 
 
-def test_error_handling_invalid_data(tmp_path, sample_metadata):
+def test_error_handling_invalid_data(tmp_path, sample_metadata, mysql_plugin):
     """Test error handling with invalid data."""
     results = {
         'bad_query': {
@@ -421,7 +436,7 @@ def test_error_handling_invalid_data(tmp_path, sample_metadata):
         }
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should handle error gracefully
@@ -429,9 +444,11 @@ def test_error_handling_invalid_data(tmp_path, sample_metadata):
     # Errors may or may not be captured depending on implementation
 
 
-def test_summary_statistics_calculation(tmp_path, sample_results, sample_metadata):
+def test_summary_statistics_calculation(tmp_path, sample_results, sample_metadata, mysql_plugin):
     """Test that summary statistics are calculated correctly."""
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
     formatter.generate_all_files()
 
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
@@ -443,9 +460,11 @@ def test_summary_statistics_calculation(tmp_path, sample_results, sample_metadat
         )  # 3 columns in sample data (Aircraft: aircraft_id, aircraft_type; Passenger: email)
 
 
-def test_file_registry_tracking(tmp_path, sample_results, sample_metadata):
+def test_file_registry_tracking(tmp_path, sample_results, sample_metadata, mysql_plugin):
     """Test that file registry tracks generated files."""
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
     generated_files, errors = formatter.generate_all_files()
 
     # File registry should match generated files
@@ -453,7 +472,7 @@ def test_file_registry_tracking(tmp_path, sample_results, sample_metadata):
     assert all(os.path.exists(f) for f in formatter.file_registry)
 
 
-def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch):
+def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch, mysql_plugin):
     """Test handling of file write errors."""
     import builtins
 
@@ -471,7 +490,7 @@ def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch)
         'data': [{'col1': 'value1'}],
     }
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_query_file('test_query', query_result)
 
     # Should return empty string on error
@@ -481,7 +500,9 @@ def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch)
     assert formatter.errors[0][0] == 'test_query'
 
 
-def test_generate_skipped_query_file_write_error(tmp_path, sample_metadata, monkeypatch):
+def test_generate_skipped_query_file_write_error(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of file write errors for skipped queries."""
     import builtins
 
@@ -494,7 +515,7 @@ def test_generate_skipped_query_file_write_error(tmp_path, sample_metadata, monk
 
     monkeypatch.setattr('builtins.open', mock_open_error)
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_skipped_query_file('skipped_query', 'Test reason')
 
     # Should return empty string on error
@@ -504,7 +525,9 @@ def test_generate_skipped_query_file_write_error(tmp_path, sample_metadata, monk
     assert formatter.errors[0][0] == 'skipped_query'
 
 
-def test_generate_manifest_write_error(tmp_path, sample_results, sample_metadata, monkeypatch):
+def test_generate_manifest_write_error(
+    tmp_path, sample_results, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of manifest file write errors."""
     import builtins
 
@@ -517,7 +540,9 @@ def test_generate_manifest_write_error(tmp_path, sample_results, sample_metadata
 
     monkeypatch.setattr('builtins.open', mock_open_error)
 
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
     generated_files, errors = formatter.generate_all_files()
 
     # Should track manifest error
@@ -534,7 +559,9 @@ def test_generate_all_files_directory_creation_error(sample_results, sample_meta
 
     monkeypatch.setattr(os_module, 'makedirs', mock_makedirs_error)
 
-    formatter = MarkdownFormatter(sample_results, sample_metadata, '/invalid/path')
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, '/invalid/path', plugin=mysql_plugin
+    )
     generated_files, errors = formatter.generate_all_files()
 
     # Should return empty list and track error
@@ -543,7 +570,7 @@ def test_generate_all_files_directory_creation_error(sample_results, sample_meta
     assert any('directory_creation' in str(e[0]) for e in errors)
 
 
-def test_format_as_markdown_table_row_formatting_error(tmp_path, sample_metadata):
+def test_format_as_markdown_table_row_formatting_error(tmp_path, sample_metadata, mysql_plugin):
     """Test handling of row formatting errors."""
 
     class BadValue:
@@ -557,7 +584,7 @@ def test_format_as_markdown_table_row_formatting_error(tmp_path, sample_metadata
         {'col1': 'another_good', 'col2': 'also_good'},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     # Should skip the bad row and continue with good rows
@@ -565,7 +592,7 @@ def test_format_as_markdown_table_row_formatting_error(tmp_path, sample_metadata
     assert '| another_good | also_good |' in table
 
 
-def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata):
+def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata, mysql_plugin):
     """Test handling of invalid query result structure."""
     # Missing 'data' key
     query_result = {
@@ -573,7 +600,7 @@ def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata)
         # 'data' key is missing
     }
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_query_file('test_query', query_result)
 
     # Should still generate file with empty data
@@ -585,7 +612,9 @@ def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata)
         assert 'No data returned' in content or '**Total Rows**: 0' in content
 
 
-def test_generate_query_file_unexpected_exception(tmp_path, sample_metadata, monkeypatch):
+def test_generate_query_file_unexpected_exception(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of unexpected exceptions in _generate_query_file."""
 
     # Mock datetime to raise an exception
@@ -606,7 +635,7 @@ def test_generate_query_file_unexpected_exception(tmp_path, sample_metadata, mon
         'data': [{'col1': 'value1'}],
     }
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_query_file('test_query', query_result)
 
     # Should return empty string and track error
@@ -616,7 +645,9 @@ def test_generate_query_file_unexpected_exception(tmp_path, sample_metadata, mon
     assert 'Unexpected error' in formatter.errors[0][1]
 
 
-def test_generate_skipped_query_file_unexpected_exception(tmp_path, sample_metadata, monkeypatch):
+def test_generate_skipped_query_file_unexpected_exception(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of unexpected exceptions in _generate_skipped_query_file."""
     import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
 
@@ -627,7 +658,7 @@ def test_generate_skipped_query_file_unexpected_exception(tmp_path, sample_metad
 
     monkeypatch.setattr(mf_module, 'datetime', MockDateTime)
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     file_path = formatter._generate_skipped_query_file('skipped_query', 'Test reason')
 
     # Should return empty string and track error
@@ -638,7 +669,7 @@ def test_generate_skipped_query_file_unexpected_exception(tmp_path, sample_metad
 
 
 def test_generate_manifest_unexpected_exception(
-    tmp_path, sample_results, sample_metadata, monkeypatch
+    tmp_path, sample_results, sample_metadata, monkeypatch, mysql_plugin
 ):
     """Test handling of unexpected exceptions in _generate_manifest."""
     import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
@@ -650,7 +681,9 @@ def test_generate_manifest_unexpected_exception(
 
     monkeypatch.setattr(mf_module, 'datetime', MockDateTime)
 
-    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(
+        sample_results, sample_metadata, str(tmp_path), plugin=mysql_plugin
+    )
 
     # Call _generate_manifest directly
     formatter._generate_manifest()
@@ -661,34 +694,34 @@ def test_generate_manifest_unexpected_exception(
     assert 'Unexpected error' in manifest_errors[0][1]
 
 
-def test_format_as_markdown_table_with_booleans(tmp_path, sample_metadata):
+def test_format_as_markdown_table_with_booleans(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with boolean values."""
     data = [
         {'name': 'test1', 'active': True},
         {'name': 'test2', 'active': False},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| True |' in table
     assert '| False |' in table
 
 
-def test_format_as_markdown_table_with_integers(tmp_path, sample_metadata):
+def test_format_as_markdown_table_with_integers(tmp_path, sample_metadata, mysql_plugin):
     """Test markdown table formatting with integer values."""
     data = [
         {'id': 1, 'count': 100},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     assert '| 1 |' in table
     assert '| 100 |' in table
 
 
-def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata):
+def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata, mysql_plugin):
     """Test manifest generation with all statistics populated."""
     results = {
         'comprehensive_table_analysis': {
@@ -707,7 +740,7 @@ def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata):
             'description': 'FK analysis',
             'data': [{'fk_name': 'fk1'}, {'fk_name': 'fk2'}],
         },
-        'all_queries_stats': {
+        'query_performance_stats': {
             'description': 'Query stats',
             'data': [
                 {'query': 'SELECT 1', 'source_type': 'QUERY'},
@@ -721,7 +754,7 @@ def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata):
         },
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     formatter.generate_all_files()
 
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
@@ -736,7 +769,7 @@ def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata):
         assert '- **Triggers**: 1' in content
 
 
-def test_manifest_with_errors_section(tmp_path, sample_metadata):
+def test_manifest_with_errors_section(tmp_path, sample_metadata, mysql_plugin):
     """Test manifest includes errors section when errors occur."""
     results = {
         'comprehensive_table_analysis': {
@@ -745,7 +778,7 @@ def test_manifest_with_errors_section(tmp_path, sample_metadata):
         },
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     # Manually add some errors
     formatter.errors.append(('test_query', 'Test error message'))
     formatter.errors.append(('another_query', 'Another error'))
@@ -761,20 +794,22 @@ def test_manifest_with_errors_section(tmp_path, sample_metadata):
         assert '- **another_query**: Another error' in content
 
 
-def test_generate_all_files_with_invalid_query_result(tmp_path, sample_metadata):
+def test_generate_all_files_with_invalid_query_result(tmp_path, sample_metadata, mysql_plugin):
     """Test generate_all_files handles invalid query results."""
     results = {
         'comprehensive_table_analysis': 'not a dict',  # Invalid structure
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should handle gracefully and create skipped file
     assert len(generated_files) >= 0
 
 
-def test_generate_all_files_query_processing_exception(tmp_path, sample_metadata, monkeypatch):
+def test_generate_all_files_query_processing_exception(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of exceptions during query processing."""
 
     def mock_generate_query_file_error(*args, **kwargs):
@@ -787,7 +822,7 @@ def test_generate_all_files_query_processing_exception(tmp_path, sample_metadata
         },
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     monkeypatch.setattr(formatter, '_generate_query_file', mock_generate_query_file_error)
 
     generated_files, errors = formatter.generate_all_files()
@@ -797,29 +832,27 @@ def test_generate_all_files_query_processing_exception(tmp_path, sample_metadata
     assert any('comprehensive_table_analysis' in str(e[0]) for e in errors)
 
 
-def test_generate_all_files_critical_exception(tmp_path, sample_metadata, monkeypatch):
+def test_generate_all_files_critical_exception(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test handling of critical exceptions in generate_all_files."""
-    import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
 
-    def mock_makedirs_critical(*args, **kwargs):
-        # Allow directory creation but fail later
-        pass
+    def mock_get_queries_error():
+        raise RuntimeError('Critical error getting queries')
 
-    def mock_get_schema_queries_error():
-        raise RuntimeError('Critical error getting schema queries')
+    # Mock the plugin's get_queries method to raise an exception
+    monkeypatch.setattr(mysql_plugin, 'get_queries', mock_get_queries_error)
 
-    monkeypatch.setattr('os.makedirs', mock_makedirs_critical)
-    monkeypatch.setattr(mf_module, 'get_schema_queries', mock_get_schema_queries_error)
-
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should track critical error
     assert len(errors) > 0
+    assert any('Critical error' in str(error) for error in errors)
     assert any('generate_all_files' in str(e[0]) for e in errors)
 
 
-def test_generate_all_files_with_metadata_skipped_queries_non_performance(tmp_path):
+def test_generate_all_files_with_metadata_skipped_queries_non_performance(tmp_path, mysql_plugin):
     """Test skipped queries that are in metadata but not performance-related."""
     metadata = {
         'database': 'test',
@@ -832,7 +865,7 @@ def test_generate_all_files_with_metadata_skipped_queries_non_performance(tmp_pa
 
     results = {}
 
-    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should create skipped file with appropriate reason
@@ -844,7 +877,7 @@ def test_generate_all_files_with_metadata_skipped_queries_non_performance(tmp_pa
         assert 'Query was skipped during analysis' in content
 
 
-def test_generate_all_files_missing_query_not_in_metadata(tmp_path):
+def test_generate_all_files_missing_query_not_in_metadata(tmp_path, mysql_plugin):
     """Test missing query that's not in metadata skipped list."""
     metadata = {
         'database': 'test',
@@ -857,7 +890,7 @@ def test_generate_all_files_missing_query_not_in_metadata(tmp_path):
 
     results = {}  # No results for any query
 
-    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path), plugin=mysql_plugin)
     generated_files, errors = formatter.generate_all_files()
 
     # Should create skipped files with generic reason
@@ -869,7 +902,9 @@ def test_generate_all_files_missing_query_not_in_metadata(tmp_path):
         assert 'Query was not executed or failed during analysis' in content
 
 
-def test_format_as_markdown_table_all_rows_fail_formatting(tmp_path, sample_metadata):
+def test_format_as_markdown_table_all_rows_fail_formatting(
+    tmp_path, sample_metadata, mysql_plugin
+):
     """Test when all rows fail to format (after first valid row)."""
 
     class BadValue:
@@ -883,16 +918,18 @@ def test_format_as_markdown_table_all_rows_fail_formatting(tmp_path, sample_meta
         {'col1': BadValue(), 'col2': BadValue()},
     ]
 
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     table = formatter._format_as_markdown_table(data)
 
     # Should return error message when no rows can be formatted
     assert 'Error: Unable to format data rows' in table
 
 
-def test_format_as_markdown_table_exception_handler(tmp_path, sample_metadata, monkeypatch):
+def test_format_as_markdown_table_exception_handler(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test exception handler in _format_as_markdown_table."""
-    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path), plugin=mysql_plugin)
 
     # Patch isinstance to raise an exception during list check
     original_isinstance = isinstance
@@ -911,7 +948,9 @@ def test_format_as_markdown_table_exception_handler(tmp_path, sample_metadata, m
     assert 'Unexpected error' in result
 
 
-def test_generate_all_files_with_file_write_failures(tmp_path, sample_metadata, monkeypatch):
+def test_generate_all_files_with_file_write_failures(
+    tmp_path, sample_metadata, monkeypatch, mysql_plugin
+):
     """Test generate_all_files when file generation returns empty string."""
     import builtins
 
@@ -931,7 +970,7 @@ def test_generate_all_files_with_file_write_failures(tmp_path, sample_metadata, 
         'column_analysis': None,  # Invalid result to trigger skipped file generation
     }
 
-    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path), plugin=mysql_plugin)
     formatter.generate_all_files()
 
     # File registry should be empty since all query file writes failed
@@ -940,7 +979,7 @@ def test_generate_all_files_with_file_write_failures(tmp_path, sample_metadata, 
     assert len(formatter.errors) >= 2
 
 
-def test_generate_all_files_skipped_query_write_failure(tmp_path, monkeypatch):
+def test_generate_all_files_skipped_query_write_failure(tmp_path, monkeypatch, mysql_plugin):
     """Test generate_all_files when skipped query file write fails."""
     import builtins
 
@@ -965,7 +1004,7 @@ def test_generate_all_files_skipped_query_write_failure(tmp_path, monkeypatch):
     # Empty results - all queries will be skipped
     results = {}
 
-    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path), plugin=mysql_plugin)
     formatter.generate_all_files()
 
     # File registry should be empty since all writes failed
