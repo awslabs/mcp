@@ -25,6 +25,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_container_registry_params,
     validate_definition_sources,
+    validate_path_to_main,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -163,6 +164,9 @@ async def create_workflow(
         ctx, container_registry_map, container_registry_map_uri
     )
 
+    # Validate path_to_main parameter
+    validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
     client = get_omics_client()
 
     params: Dict[str, Any] = {
@@ -187,8 +191,8 @@ async def create_workflow(
     if container_registry_map_uri:
         params['containerRegistryMapUri'] = container_registry_map_uri
 
-    if path_to_main is not None and path_to_main != '':
-        params['main'] = path_to_main
+    if validated_path_to_main is not None:
+        params['main'] = validated_path_to_main
 
     try:
         response = client.create_workflow(**params)
@@ -360,6 +364,9 @@ async def create_workflow_version(
         ctx, container_registry_map, container_registry_map_uri
     )
 
+    # Validate path_to_main parameter
+    validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
     # Validate storage requirements
     if storage_type == 'STATIC':
         if not storage_capacity:
@@ -397,8 +404,8 @@ async def create_workflow_version(
     if container_registry_map_uri:
         params['containerRegistryMapUri'] = container_registry_map_uri
 
-    if path_to_main is not None and path_to_main != '':
-        params['main'] = path_to_main
+    if validated_path_to_main is not None:
+        params['main'] = validated_path_to_main
 
     try:
         response = client.create_workflow_version(**params)

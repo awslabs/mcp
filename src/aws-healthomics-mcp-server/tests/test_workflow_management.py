@@ -2552,3 +2552,300 @@ async def test_create_workflow_version_with_path_to_main_empty_string():
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
     assert result['versionName'] == 'v2.0'
+
+
+# Tests for path_to_main validation integration
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_absolute():
+    """Test workflow creation fails with absolute path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_traversal():
+    """Test workflow creation fails with directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='../main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_extension():
+    """Test workflow creation fails with invalid file extension in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='workflows/script.py',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_absolute():
+    """Test workflow version creation fails with absolute path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_traversal():
+    """Test workflow version creation fails with directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/../../../etc/passwd',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_extension():
+    """Test workflow version creation fails with invalid file extension in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/config.json',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_normalization():
+    """Test workflow creation normalizes valid path_to_main."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='./workflows/main.wdl',  # Should be normalized to 'workflows/main.wdl'
+        )
+
+    # Verify client was called with normalized path
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['main'] == 'workflows/main.wdl'  # Normalized path
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'test-workflow'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_normalization():
+    """Test workflow version creation normalizes valid path_to_main."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='./src/pipeline.cwl',  # Should be normalized to 'src/pipeline.cwl'
+        )
+
+    # Verify client was called with normalized path
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['main'] == 'src/pipeline.cwl'  # Normalized path
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+# Tests for path_to_main validation integration
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_absolute_path():
+    """Test that create_workflow rejects absolute paths in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_directory_traversal():
+    """Test that create_workflow rejects directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='../main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_invalid_extension():
+    """Test that create_workflow rejects invalid file extensions in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='main.txt',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_absolute_path():
+    """Test that create_workflow_version rejects absolute paths in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_directory_traversal():
+    """Test that create_workflow_version rejects directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/../main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_invalid_extension():
+    """Test that create_workflow_version rejects invalid file extensions in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='main.py',
+        )
