@@ -18,7 +18,6 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_table_manager import (
     DataCatalogTableManager,
 )
-
 from botocore.exceptions import ClientError
 from datetime import datetime
 from unittest.mock import MagicMock, patch
