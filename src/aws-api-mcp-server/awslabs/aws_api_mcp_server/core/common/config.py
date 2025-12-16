@@ -139,7 +139,9 @@ def get_working_directory() -> Path:
             or not os.path.isdir(custom_workdir)
             or not os.path.isabs(custom_workdir)
         ):
-            error_message = f'{AWS_API_MCP_WORKING_DIR_KEY} must be an existing and absolute path to a directory.'
+            error_message = (
+                f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory'
+            )
             logger.error(error_message)
             raise ValueError(error_message)
 

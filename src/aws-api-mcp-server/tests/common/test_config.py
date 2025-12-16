@@ -384,7 +384,7 @@ def test_get_working_directory_path_does_not_exist(
 
     with pytest.raises(
         ValueError,
-        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an existing and absolute path to a directory',
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
     ):
         get_working_directory()
 
@@ -405,7 +405,7 @@ def test_get_working_directory_path_is_not_directory(
 
     with pytest.raises(
         ValueError,
-        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an existing and absolute path to a directory',
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
     ):
         get_working_directory()
 
@@ -424,6 +424,6 @@ def test_get_working_directory_path_is_relative(mock_exists, mock_isdir, mock_is
 
     with pytest.raises(
         ValueError,
-        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an existing and absolute path to a directory',
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
     ):
         get_working_directory()
