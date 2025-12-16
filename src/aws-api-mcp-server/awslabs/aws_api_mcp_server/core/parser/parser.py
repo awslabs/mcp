@@ -791,16 +791,23 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 
     source_path, dest_path = paths
     _validate_s3_file_path(source_path, service, operation)
-    _validate_s3_file_path(dest_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
 
 
-def _validate_s3_file_path(file_path: str, service: str, operation: str):
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # `-` as destination redirects to stdout, which we capture and wrap in an MCP response
+    if file_path == '-' and is_destination:
+        return
+
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
     if file_path == '-':
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason="streaming file ('-') is not allowed",
+            reason="streaming file on stdin ('-') is not allowed",
         )
 
     if not file_path.startswith('s3://'):
