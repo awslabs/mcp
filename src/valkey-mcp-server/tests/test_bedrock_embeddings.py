@@ -49,7 +49,7 @@ class TestBedrockEmbeddings:
     async def test_titan_v2_with_dimensions(self):
         """Test Titan v2 with custom dimensions."""
         provider = await acquire_bedrock_embeddings(
-            region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', dimensions=256
         )
 
         assert provider.get_dimensions() == 256
@@ -64,7 +64,7 @@ class TestBedrockEmbeddings:
     async def test_titan_v2_with_normalize(self):
         """Test Titan v2 with normalize parameter."""
         provider = await acquire_bedrock_embeddings(
-            region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', normalize=True
         )
 
         embedding = await provider.generate_embedding('Test text')
