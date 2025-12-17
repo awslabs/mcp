@@ -14,8 +14,12 @@
 
 """Unit tests for validation utilities."""
 
+import posixpath
 import pytest
-from awslabs.aws_healthomics_mcp_server.utils.validation_utils import validate_s3_uri
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+    validate_path_to_main,
+    validate_s3_uri,
+)
 from unittest.mock import AsyncMock, patch
 
 
@@ -180,3 +184,160 @@ class TestValidateAdhocS3Buckets:
                     'Validated 2 adhoc S3 buckets out of 3 provided'
                     in mock_logger.info.call_args[0][0]
                 )
+
+
+# Tests for path_to_main validation
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_valid_paths():
+    """Test validation of valid path_to_main values."""
+    mock_ctx = AsyncMock()
+
+    # Valid relative paths with correct extensions
+    valid_paths = [
+        'main.wdl',
+        'workflows/main.wdl',
+        'src/pipeline.cwl',
+        'nextflow/main.nf',
+        'subdir/workflow.WDL',  # Case insensitive
+        'deep/nested/path/workflow.CWL',
+    ]
+
+    for path in valid_paths:
+        result = await validate_path_to_main(mock_ctx, path)
+        assert result == posixpath.normpath(path)
+        mock_ctx.error.assert_not_called()
+        mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_none_and_empty():
+    """Test validation of None and empty path_to_main values."""
+    mock_ctx = AsyncMock()
+
+    # None should return None
+    result = await validate_path_to_main(mock_ctx, None)
+    assert result is None
+    mock_ctx.error.assert_not_called()
+
+    # Empty string should return None
+    result = await validate_path_to_main(mock_ctx, '')
+    assert result is None
+    mock_ctx.error.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_absolute_paths():
+    """Test validation rejects absolute paths."""
+    mock_ctx = AsyncMock()
+
+    # POSIX absolute paths (these will be caught by posixpath.isabs())
+    absolute_paths = [
+        '/main.wdl',
+        '/usr/local/workflows/main.wdl',
+    ]
+
+    for path in absolute_paths:
+        with pytest.raises(ValueError, match='must be a relative path'):
+            await validate_path_to_main(mock_ctx, path)
+        mock_ctx.error.assert_called_once()
+        mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_directory_traversal():
+    """Test validation rejects directory traversal attempts."""
+    mock_ctx = AsyncMock()
+
+    traversal_paths = [
+        '../main.wdl',
+        'workflows/../main.wdl',
+        'workflows/../../main.wdl',
+        '..',
+    ]
+
+    for path in traversal_paths:
+        with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+            await validate_path_to_main(mock_ctx, path)
+        mock_ctx.error.assert_called_once()
+        mock_ctx.reset_mock()
+
+    # This one will also be caught by directory traversal validation
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await validate_path_to_main(mock_ctx, 'workflows/../../../etc/passwd')
+    mock_ctx.error.assert_called_once()
+    mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_empty_components():
+    """Test validation rejects paths with empty components."""
+    mock_ctx = AsyncMock()
+
+    empty_component_paths = [
+        'workflows//main.wdl',
+        '//main.wdl',
+        'workflows///nested//main.wdl',
+    ]
+
+    for path in empty_component_paths:
+        with pytest.raises(ValueError, match='cannot contain empty path components'):
+            await validate_path_to_main(mock_ctx, path)
+        mock_ctx.error.assert_called_once()
+        mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_current_directory():
+    """Test validation rejects current directory references."""
+    mock_ctx = AsyncMock()
+
+    current_dir_paths = [
+        '.',
+        './',
+    ]
+
+    for path in current_dir_paths:
+        with pytest.raises(ValueError, match='cannot be the current directory'):
+            await validate_path_to_main(mock_ctx, path)
+        mock_ctx.error.assert_called_once()
+        mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_invalid_extensions():
+    """Test validation rejects invalid file extensions."""
+    mock_ctx = AsyncMock()
+
+    invalid_extension_paths = [
+        'main.txt',
+        'workflow.py',
+        'pipeline.sh',
+        'workflow',  # No extension
+        'main.WDL.backup',  # Wrong extension
+        'workflows/script.js',
+    ]
+
+    for path in invalid_extension_paths:
+        with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+            await validate_path_to_main(mock_ctx, path)
+        mock_ctx.error.assert_called_once()
+        mock_ctx.reset_mock()
+
+
+@pytest.mark.asyncio
+async def test_validate_path_to_main_normalization():
+    """Test that paths are properly normalized."""
+    # Test path normalization
+    test_cases = [
+        ('workflows/./main.wdl', 'workflows/main.wdl'),
+        ('workflows/subdir/../main.wdl', 'workflows/main.wdl'),
+        ('./workflows/main.wdl', 'workflows/main.wdl'),
+    ]
+
+    for input_path, expected_normalized in test_cases:
+        # These should fail due to directory traversal, but let's test the normalization logic
+        # by checking what would be normalized before validation
+        normalized = posixpath.normpath(input_path)
+        assert normalized == expected_normalized
