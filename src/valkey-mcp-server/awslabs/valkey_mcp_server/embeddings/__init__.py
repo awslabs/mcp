@@ -50,7 +50,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     if provider_type == 'ollama':
         return OllamaEmbeddings(
             base_url=EMBEDDING_CFG.get('ollama_host', 'http://localhost:11434'),
-            model=EMBEDDING_CFG.get('ollama_embedding_model', 'nomic-embed-text')
+            model=EMBEDDING_CFG.get('ollama_embedding_model', 'nomic-embed-text'),
         )
 
     elif provider_type == 'bedrock':
@@ -62,17 +62,16 @@ def create_embeddings_provider() -> EmbeddingsProvider:
             input_type=EMBEDDING_CFG.get('bedrock_input_type'),
             max_attempts=EMBEDDING_CFG.get('bedrock_max_attempts', 3),
             max_pool_connections=EMBEDDING_CFG.get('bedrock_max_pool_connections', 50),
-            retry_mode=EMBEDDING_CFG.get('bedrock_retry_mode', 'adaptive')
+            retry_mode=EMBEDDING_CFG.get('bedrock_retry_mode', 'adaptive'),
         )
 
     elif provider_type == 'openai':
         api_key = EMBEDDING_CFG.get('openai_api_key')
         if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI provider")
-        
+            raise ValueError('OPENAI_API_KEY environment variable is required for OpenAI provider')
+
         return OpenAIEmbeddings(
-            api_key=api_key,
-            model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small')
+            api_key=api_key, model=EMBEDDING_CFG.get('openai_model', 'text-embedding-3-small')
         )
 
     elif provider_type == 'hash':
@@ -80,8 +79,8 @@ def create_embeddings_provider() -> EmbeddingsProvider:
 
     else:
         raise ValueError(
-            f"Unknown embeddings provider: {provider_type}. "
-            f"Supported providers: ollama, bedrock, openai"
+            f'Unknown embeddings provider: {provider_type}. '
+            f'Supported providers: ollama, bedrock, openai'
         )
 
 
@@ -91,5 +90,5 @@ __all__ = [
     'BedrockEmbeddings',
     'OpenAIEmbeddings',
     'HashEmbeddings',
-    'create_embeddings_provider'
+    'create_embeddings_provider',
 ]

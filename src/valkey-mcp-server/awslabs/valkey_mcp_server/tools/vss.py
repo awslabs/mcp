@@ -12,34 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
-from awslabs.valkey_mcp_server.common.server import mcp
-from typing import List, Dict, Any, Union, Optional
-from valkey.exceptions import ValkeyError
-from valkey.commands.search.query import Query
-import struct
 import json
 import logging
+import struct
+from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
+from awslabs.valkey_mcp_server.common.server import mcp
+from typing import Any, Dict, List, Optional, Union
 from valkey import Valkey
 from valkey.cluster import ValkeyCluster
+from valkey.commands.search.query import Query
+from valkey.exceptions import ValkeyError
 
 
 def _search_module_enabled(r: Union[Valkey, ValkeyCluster]) -> bool:
     try:
-        r.execute_command("FT._LIST")
+        r.execute_command('FT._LIST')
         return True
-    except ValkeyError as e:
+    except ValkeyError:
         return False
 
 
 @mcp.tool()
-async def vector_search(index: str,
-                        field: str,
-                        vector: List[float],
-                        filter_expression: Optional[str] = None,
-                        offset: int = 0,
-                        count: int = 10,
-                        no_content: bool = False) -> Dict[str, Any]:
+async def vector_search(
+    index: str,
+    field: str,
+    vector: List[float],
+    filter_expression: Optional[str] = None,
+    offset: int = 0,
+    count: int = 10,
+    no_content: bool = False,
+) -> Dict[str, Any]:
     """Perform a Valkey vector search using the FT.SEARCH command.
 
     This tool performs K-nearest neighbors (KNN) search on vector embeddings stored in Valkey.
@@ -52,6 +54,7 @@ async def vector_search(index: str,
         filter_expression: Optional filter expression to apply to the search results
         offset: Record offset determining the window slice of results to render (default: 0)
         count: Size of the window slice of results to render (default: 10)
+        no_content: If True, return only document IDs without content (default: False)
 
     Returns:
         An object indicating the results of the operation, with a "status" field set toe either "success" or "error",
@@ -70,11 +73,11 @@ async def vector_search(index: str,
     """
     try:
         # Validate filter_expression to prevent injection attacks
-        if filter_expression is not None and "=>" in filter_expression:
+        if filter_expression is not None and '=>' in filter_expression:
             return {
-                "status": "error",
-                "type": "validation",
-                "reason": "Invalid filter expression: '=>' character sequence not allowed"
+                'status': 'error',
+                'type': 'validation',
+                'reason': "Invalid filter expression: '=>' character sequence not allowed",
             }
 
         # Use connection with decode_responses=True for fetching document fields
@@ -82,20 +85,16 @@ async def vector_search(index: str,
 
         # Check if search module is available
         if not _search_module_enabled(r):
-            return {
-                "status": "error",
-                "type": "valkey",
-                "reason": "Search module not available"
-            }
+            return {'status': 'error', 'type': 'valkey', 'reason': 'Search module not available'}
 
         # Access the search index
         ft = r.ft(index)
 
         # Construct the query for vector similarity search
         if filter_expression is None:
-            filter_expression = "*"
+            filter_expression = '*'
 
-        query = Query(f"{filter_expression}=>[KNN {count} @{field} $blob]").paging(offset, count)
+        query = Query(f'{filter_expression}=>[KNN {count} @{field} $blob]').paging(offset, count)
         if no_content:
             query = query.no_content()
 
@@ -103,15 +102,12 @@ async def vector_search(index: str,
         vector_bytes = struct.pack(f'{len(vector)}f', *vector)
 
         # Execute the search to get document IDs
-        query_params={"blob": vector_bytes}
+        query_params = {'blob': vector_bytes}
         result = ft.search(query, query_params=query_params)
 
         # If no results, return empty list
         if result.total == 0:
-            return {
-                "status": "success",
-                "results": []
-            }
+            return {'status': 'success', 'results': []}
 
         documents_list = []
         for doc in result.docs:
@@ -130,29 +126,25 @@ async def vector_search(index: str,
                         document_json_str = document_json_bytes.decode('utf-8')
                     else:
                         document_json_str = str(document_json_bytes)
-                    
+
                     document = json.loads(document_json_str)
                     documents_list.append(document)
                 except (UnicodeDecodeError, json.JSONDecodeError) as e:
                     # Skip documents that can't be decoded/parsed
-                    logging.warning(f"Skipping document {doc_id} due to decode error: {str(e)}")
+                    logging.warning(f'Skipping document {doc_id} due to decode error: {str(e)}')
                     continue
 
-        return {
-            "status": "success",
-            "results": documents_list
-        }
+        return {'status': 'success', 'results': documents_list}
 
     except ValkeyError as e:
         return {
-            "status": "error",
-            "type": "valkey",
-            "reason": f"Error searching index '{index}', field '{field}' with vector of length {len(vector)}: {str(e)}"
+            'status': 'error',
+            'type': 'valkey',
+            'reason': f"Error searching index '{index}', field '{field}' with vector of length {len(vector)}: {str(e)}",
         }
     except Exception as e:
         return {
-            "status": "error", 
-            "type": "general",
-            "reason": f"Error searching index '{index}', field '{field}' with vector of length {len(vector)}: {str(e)}"
+            'status': 'error',
+            'type': 'general',
+            'reason': f"Error searching index '{index}', field '{field}' with vector of length {len(vector)}: {str(e)}",
         }
-

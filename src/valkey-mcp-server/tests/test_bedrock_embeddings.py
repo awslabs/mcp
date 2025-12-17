@@ -13,10 +13,12 @@
 # limitations under the License.
 
 """Tests for Bedrock/Titan embeddings provider."""
+
 import json
-import sys
 import pytest
+import sys
 from unittest.mock import MagicMock
+
 
 @pytest.mark.integration
 @pytest.mark.manual
@@ -27,17 +29,16 @@ class TestBedrockEmbeddings:
     async def test_generate_embedding(self):
         """Test basic embedding generation with real AWS Bedrock."""
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        
+
         provider = BedrockEmbeddings(
-            region_name="us-east-1",
-            model_id="amazon.titan-embed-text-v1"
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
         )
 
         assert provider.get_dimensions() == 1536
 
-        text = "Hello world"
+        text = 'Hello world'
         embedding = await provider.generate_embedding(text)
-        
+
         assert isinstance(embedding, list)
         assert len(embedding) == 1536
         assert all(isinstance(x, float) for x in embedding)
@@ -49,17 +50,15 @@ class TestBedrockEmbeddings:
     async def test_titan_v2_with_dimensions(self):
         """Test Titan v2 with custom dimensions."""
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        
+
         provider = BedrockEmbeddings(
-            region_name="us-east-1",
-            model_id="amazon.titan-embed-text-v2:0",
-            dimensions=256
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', dimensions=256
         )
 
         assert provider.get_dimensions() == 256
 
-        embedding = await provider.generate_embedding("Test text")
-        
+        embedding = await provider.generate_embedding('Test text')
+
         assert isinstance(embedding, list)
         assert len(embedding) == 256
         assert all(isinstance(x, float) for x in embedding)
@@ -68,20 +67,19 @@ class TestBedrockEmbeddings:
     async def test_titan_v2_with_normalize(self):
         """Test Titan v2 with normalize parameter."""
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        
+
         provider = BedrockEmbeddings(
-            region_name="us-east-1",
-            model_id="amazon.titan-embed-text-v2:0",
-            normalize=True
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', normalize=True
         )
 
-        embedding = await provider.generate_embedding("Test text")
-        
+        embedding = await provider.generate_embedding('Test text')
+
         assert isinstance(embedding, list)
         assert len(embedding) == 1024  # v2 default
-        
+
         # Check normalization (L2 norm should be ~1.0)
         import math
+
         norm = math.sqrt(sum(x * x for x in embedding))
         assert abs(norm - 1.0) < 0.01
 
@@ -89,24 +87,25 @@ class TestBedrockEmbeddings:
     async def test_titan_v2_with_all_parameters(self):
         """Test Titan v2 with all parameters combined."""
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        
+
         provider = BedrockEmbeddings(
-            region_name="us-east-1",
-            model_id="amazon.titan-embed-text-v2:0",
+            region_name='us-east-1',
+            model_id='amazon.titan-embed-text-v2:0',
             dimensions=512,
-            normalize=True
+            normalize=True,
         )
 
         assert provider.get_dimensions() == 512
 
-        embedding = await provider.generate_embedding("Combined parameters test")
-        
+        embedding = await provider.generate_embedding('Combined parameters test')
+
         assert isinstance(embedding, list)
         assert len(embedding) == 512
         assert all(isinstance(x, float) for x in embedding)
-        
+
         # Verify normalization
         import math
+
         norm = math.sqrt(sum(x * x for x in embedding))
         assert abs(norm - 1.0) < 0.01
 
@@ -123,9 +122,9 @@ class TestBedrockEmbeddingsMocked:
             self._cleanup_boto3 = True
         else:
             self._cleanup_boto3 = False
-        
+
         yield
-        
+
         if self._cleanup_boto3 and 'boto3' in sys.modules:
             del sys.modules['boto3']
 
@@ -136,30 +135,34 @@ class TestBedrockEmbeddingsMocked:
         mock_body = MagicMock()
         mock_body.read.return_value = json.dumps({'embedding': mock_embedding}).encode()
         mock_response = {'body': mock_body}
-        
+
         mock_bedrock_client = MagicMock()
         mock_bedrock_client.invoke_model.return_value = mock_response
-        
+
         mock_sts_client = MagicMock()
         mock_sts_client.get_caller_identity.return_value = {}
-        
+
         mock_session = MagicMock()
+
         def client_side_effect(service, **kwargs):
             if service == 'bedrock-runtime':
                 return mock_bedrock_client
             elif service == 'sts':
                 return mock_sts_client
             return MagicMock()
+
         mock_session.client.side_effect = client_side_effect
-        
+
         import boto3
+
         boto3.Session = MagicMock(return_value=mock_session)
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
+
         provider = BedrockEmbeddings()
-        
-        embedding = await provider.generate_embedding("test")
-        
+
+        embedding = await provider.generate_embedding('test')
+
         assert embedding == mock_embedding
         mock_bedrock_client.invoke_model.assert_called_once()
 
@@ -167,44 +170,49 @@ class TestBedrockEmbeddingsMocked:
     async def test_get_dimensions_mocked(self):
         """Test dimensions with mocked boto3."""
         import boto3
+
         boto3.client = MagicMock()
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
+
         provider = BedrockEmbeddings()
-        
+
         assert provider.get_dimensions() == 1536
 
     @pytest.mark.asyncio
     async def test_get_provider_name_mocked(self):
         """Test provider name with mocked boto3."""
         import boto3
+
         boto3.client = MagicMock()
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        provider = BedrockEmbeddings(model_id="amazon.titan-embed-text-v1")
-        
+
+        provider = BedrockEmbeddings(model_id='amazon.titan-embed-text-v1')
+
         name = provider.get_provider_name()
-        assert "Bedrock" in name
-        assert "amazon.titan-embed-text-v1" in name
+        assert 'Bedrock' in name
+        assert 'amazon.titan-embed-text-v1' in name
 
     @pytest.mark.asyncio
     async def test_credential_validation_failure(self):
         """Test that BedrockEmbeddings raises ValueError when credentials are invalid."""
         from botocore.exceptions import NoCredentialsError
-        
+
         mock_sts_client = MagicMock()
         mock_sts_client.get_caller_identity.side_effect = NoCredentialsError()
-        
+
         mock_bedrock_client = MagicMock()
-        
+
         import boto3
+
         mock_session = MagicMock()
         mock_session.client.side_effect = lambda service, **kwargs: (
             mock_sts_client if service == 'sts' else mock_bedrock_client
         )
         boto3.Session = MagicMock(return_value=mock_session)
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-        
-        with pytest.raises(ValueError, match="AWS credentials not found"):
+
+        with pytest.raises(ValueError, match='AWS credentials not found'):
             BedrockEmbeddings()

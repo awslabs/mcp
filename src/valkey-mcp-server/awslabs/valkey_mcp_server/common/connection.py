@@ -48,12 +48,11 @@ class ValkeyConnectionManager:
 
         return instance
 
-
     @classmethod
     def reset(cls):
+        """Reset connection instances."""
         cls._default_instance = None
         cls._no_decode_instance = None
-
 
     @classmethod
     def _create_instance(cls, decode_responses: bool) -> Union[Valkey, ValkeyCluster]:

@@ -17,8 +17,10 @@
 This module provides high-level, document-oriented tools for AI assistants to work with
 vector embeddings without needing to understand low-level implementation details.
 """
-import logging
 
+import json
+import logging
+import struct
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
@@ -30,8 +32,6 @@ from typing import Any, Dict, List, Optional, Union
 from valkey import Valkey
 from valkey.cluster import ValkeyCluster
 from valkey.exceptions import ValkeyError
-import json
-import struct
 
 
 # Initialize the embeddings provider based on environment configuration
@@ -40,15 +40,18 @@ _embeddings_provider = create_embeddings_provider()
 
 def _get_collection_index_name(collection: str) -> str:
     """Get the Valkey index name for a collection."""
-    return f"semantic_collection_{collection}"
+    return f'semantic_collection_{collection}'
 
 
 def _get_document_key(collection: str, document_id: str) -> str:
     """Get the Valkey key for a document."""
-    return f"semantic_collection_{collection}:doc:{document_id}"
+    return f'semantic_collection_{collection}:doc:{document_id}'
 
 
-def _index_exists(conn: Union[Valkey, ValkeyCluster], collection: str, ) -> bool:
+def _index_exists(
+    conn: Union[Valkey, ValkeyCluster],
+    collection: str,
+) -> bool:
     """Check if a collection index exists."""
     index_name = _get_collection_index_name(collection)
     try:
@@ -63,7 +66,7 @@ async def add_documents(
     collection: str,
     documents: List[Dict[str, Any]],
     text_fields: Optional[List[str]] = None,
-    embedding_dimensions: Optional[int] = None
+    embedding_dimensions: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Add documents to a collection with automatic embedding generation.
 
@@ -103,16 +106,12 @@ async def add_documents(
         )
     """
     if text_fields is None:
-        text_fields = ["content"]
+        text_fields = ['content']
 
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
         if Context.readonly_mode():
-            return {
-                "status": "error",
-                "added": 0,
-                "reason": "Valkey is in read-only mode"
-            }
+            return {'status': 'error', 'added': 0, 'reason': 'Valkey is in read-only mode'}
 
         index_name = _get_collection_index_name(collection)
         index_exists = _index_exists(r, collection)
@@ -133,7 +132,7 @@ async def add_documents(
 
             try:
                 # Generate embedding from specified text fields
-                text_to_embed = " ".join(str(doc.get(field, "")) for field in text_fields)
+                text_to_embed = ' '.join(str(doc.get(field, '')) for field in text_fields)
                 embedding = await _embeddings_provider.generate_embedding(text_to_embed)
 
                 # Auto-detect dimensions from first embedding if not specified
@@ -145,24 +144,21 @@ async def add_documents(
                         await create_vector_index(
                             index_name,
                             actual_dimensions,
-                            prefix=[ _get_document_key(collection, "") ],
-                            structure_type=VALKEY_CFG['vec_index_type']
+                            prefix=[_get_document_key(collection, '')],
+                            structure_type=VALKEY_CFG['vec_index_type'],
                         )
                         index_exists = True
 
                 embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
 
                 # Store document with embedding
-                doc_data = {
-                    'embedding': embedding_bytes,
-                    'document_json': json.dumps(doc)
-                }
+                doc_data = {'embedding': embedding_bytes, 'document_json': json.dumps(doc)}
 
                 r.hset(doc_key, mapping=doc_data)
                 added_count += 1
-                
+
             except Exception as e:
-                logging.warning(f"Failed to process document {doc_id}: {str(e)}")
+                logging.warning(f'Failed to process document {doc_id}: {str(e)}')
                 error_count += 1
                 continue
 
@@ -175,30 +171,28 @@ async def add_documents(
         total_docs = len(r.keys(f'{_get_document_key(collection, "")}*'))
 
         return {
-            "status": "success",
-            "added": added_count,
-            "errors": error_count,
-            "collection": collection,
-            "total_documents": total_docs,
-            "embedding_dimensions": actual_dimensions,
-            "embeddings_provider": _embeddings_provider.get_provider_name()
+            'status': 'success',
+            'added': added_count,
+            'errors': error_count,
+            'collection': collection,
+            'total_documents': total_docs,
+            'embedding_dimensions': actual_dimensions,
+            'embeddings_provider': _embeddings_provider.get_provider_name(),
         }
 
     except Exception as e:
         return {
-            "status": "error",
-            "added": 0,
-            "errors": len(documents),
-            "collection": collection,
-            "reason": str(e)
+            'status': 'error',
+            'added': 0,
+            'errors': len(documents),
+            'collection': collection,
+            'reason': str(e),
         }
 
 
 @mcp.tool()
 async def update_document(
-    collection: str,
-    document: Dict[str, Any],
-    text_fields: Optional[List[str]] = None
+    collection: str, document: Dict[str, Any], text_fields: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """Update a single document in a collection by its ID.
 
@@ -228,64 +222,48 @@ async def update_document(
         )
     """
     if text_fields is None:
-        text_fields = ["content"]
+        text_fields = ['content']
 
     try:
         if 'id' not in document:
-            return {
-                "status": "error",
-                "updated": 0,
-                "reason": "Document must have an 'id' field"
-            }
+            return {'status': 'error', 'updated': 0, 'reason': "Document must have an 'id' field"}
 
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
         if Context.readonly_mode():
-            return {
-                "status": "error",
-                "updated": 0,
-                "reason": "Valkey is in read-only mode"
-            }
-        
+            return {'status': 'error', 'updated': 0, 'reason': 'Valkey is in read-only mode'}
+
         doc_id = document['id']
         doc_key = _get_document_key(collection, doc_id)
 
         # Check if document exists
         if not r.exists(doc_key):
             return {
-                "status": "error",
-                "updated": 0,
-                "reason": f"Document with id '{doc_id}' not found in collection '{collection}'"
+                'status': 'error',
+                'updated': 0,
+                'reason': f"Document with id '{doc_id}' not found in collection '{collection}'",
             }
 
         # Generate new embedding from specified text fields
-        text_to_embed = " ".join(str(document.get(field, "")) for field in text_fields)
+        text_to_embed = ' '.join(str(document.get(field, '')) for field in text_fields)
         embedding = await _embeddings_provider.generate_embedding(text_to_embed)
         embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
 
         # Update document with new embedding
-        doc_data = {
-            'embedding': embedding_bytes,
-            'document_json': json.dumps(document)
-        }
+        doc_data = {'embedding': embedding_bytes, 'document_json': json.dumps(document)}
 
         r.hset(doc_key, mapping=doc_data)
 
         return {
-            "status": "success",
-            "updated": 1,
-            "collection": collection,
-            "document_id": doc_id,
-            "embedding_dimensions": len(embedding),
-            "embeddings_provider": _embeddings_provider.get_provider_name()
+            'status': 'success',
+            'updated': 1,
+            'collection': collection,
+            'document_id': doc_id,
+            'embedding_dimensions': len(embedding),
+            'embeddings_provider': _embeddings_provider.get_provider_name(),
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "updated": 0,
-            "collection": collection,
-            "reason": str(e)
-        }
+        return {'status': 'error', 'updated': 0, 'collection': collection, 'reason': str(e)}
 
 
 @mcp.tool()
@@ -308,49 +286,49 @@ async def collection_info(collection: str) -> Dict[str, Any]:
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=True)
         index_name = _get_collection_index_name(collection)
-        
+
         # Count stored documents
         stored_docs = len(r.keys(f'{_get_document_key(collection, "")}*'))
-        
+
         # Get index information
         try:
             index_info_result = r.execute_command('FT.INFO', index_name)
             # Parse index info to get indexed document count
             info_dict = {}
             for i in range(0, len(index_info_result), 2):
-                key = index_info_result[i].decode() if isinstance(index_info_result[i], bytes) else index_info_result[i]
-                value = index_info_result[i+1]
+                key = (
+                    index_info_result[i].decode()
+                    if isinstance(index_info_result[i], bytes)
+                    else index_info_result[i]
+                )
+                value = index_info_result[i + 1]
                 if isinstance(value, bytes):
                     value = value.decode()
                 info_dict[key] = value
-            
+
             indexed_docs = int(info_dict.get('num_docs', 0))
-            
+
             return {
-                "status": "success",
-                "collection": collection,
-                "stored_documents": stored_docs,
-                "indexed_documents": indexed_docs,
+                'status': 'success',
+                'collection': collection,
+                'stored_documents': stored_docs,
+                'indexed_documents': indexed_docs,
                 'hash_indexing_failures': info_dict['hash_indexing_failures'],
-                'percent_indexed': stored_docs / indexed_docs,
-                "indexing_complete": stored_docs == indexed_docs,
-                "index_name": index_name
+                'percent_indexed': stored_docs / indexed_docs if indexed_docs > 0 else 0,
+                'indexing_complete': stored_docs == indexed_docs,
+                'index_name': index_name,
             }
-            
+
         except ValkeyError:
             return {
-                "status": "error",
-                "collection": collection,
-                "stored_documents": stored_docs,
-                "reason": f"Index '{index_name}' not found"
+                'status': 'error',
+                'collection': collection,
+                'stored_documents': stored_docs,
+                'reason': f"Index '{index_name}' not found",
             }
-            
+
     except Exception as e:
-        return {
-            "status": "error",
-            "collection": collection,
-            "reason": str(e)
-        }
+        return {'status': 'error', 'collection': collection, 'reason': str(e)}
 
 
 @mcp.tool()
@@ -360,7 +338,7 @@ async def semantic_search(
     offset: int = 0,
     limit: int = 10,
     include_content: bool = True,
-    filter_expression: Optional[str] = None
+    filter_expression: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search for documents using natural language queries.
 
@@ -393,9 +371,9 @@ async def semantic_search(
         index_name = _get_collection_index_name(collection)
         if not _index_exists(r_check, collection):
             return {
-                "status": "error",
-                "type": "index",
-                "reason": f"Index '{index_name}' does not exist"
+                'status': 'error',
+                'type': 'index',
+                'reason': f"Index '{index_name}' does not exist",
             }
 
         # Generate embedding for query
@@ -403,9 +381,9 @@ async def semantic_search(
             query_embedding = await _embeddings_provider.generate_embedding(query)
         except Exception as e:
             return {
-                "status": "error",
-                "type": "embedding",
-                "reason": f"Failed to generate embedding: {str(e)}"
+                'status': 'error',
+                'type': 'embedding',
+                'reason': f'Failed to generate embedding: {str(e)}',
             }
 
         try:
@@ -416,22 +394,22 @@ async def semantic_search(
                 offset=offset,
                 count=limit,
                 no_content=not include_content,
-                filter_expression=filter_expression
+                filter_expression=filter_expression,
             )
         except Exception as e:
             return {
-                "status": "error",
-                "type": "vector_search",
-                "reason": f"Vector search failed: {str(e)}"
+                'status': 'error',
+                'type': 'vector_search',
+                'reason': f'Vector search failed: {str(e)}',
             }
 
         # vector_search now returns a structured dict with status/results
         if search_results['status'] != 'success':
             # Error occurred in vector_search
             return {
-                "status": "error",
-                "type": search_results.get('type', 'valkey'),
-                "reason": search_results.get('reason', 'Unknown vector search error')
+                'status': 'error',
+                'type': search_results.get('type', 'valkey'),
+                'reason': search_results.get('reason', 'Unknown vector search error'),
             }
 
         # Extract the actual results list
@@ -453,40 +431,23 @@ async def semantic_search(
                 else:
                     # Handle unexpected format
                     return {
-                        "status": "error",
-                        "type": "format",
-                        "reason": f"Unexpected document format in results: {type(doc)}"
+                        'status': 'error',
+                        'type': 'format',
+                        'reason': f'Unexpected document format in results: {type(doc)}',
                     }
-            return {
-                "status": "success",
-                "results": results
-            }
+            return {'status': 'success', 'results': results}
 
-        return {
-            "status": "success",
-            "results": results_list
-        }
+        return {'status': 'success', 'results': results_list}
 
     except ValkeyError as ex:
-        return {
-            "status": "error",
-            "type": "valkey",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'valkey', 'reason': str(ex)}
     except Exception as ex:
-        return {
-            "status": "error",
-            "type": "general",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'general', 'reason': str(ex)}
 
 
 @mcp.tool()
 async def find_similar_documents(
-    collection: str,
-    document_id: str,
-    offset: int = 0,
-    limit: int = 10
+    collection: str, document_id: str, offset: int = 0, limit: int = 10
 ) -> Dict[str, Any]:
     """Find documents similar to an existing document.
 
@@ -516,9 +477,9 @@ async def find_similar_documents(
         embedding_bytes = r.hget(doc_key, b'embedding')
         if not embedding_bytes:
             return {
-                "status": "error",
-                "type": "content",
-                "reason": f"Document '{document_id}' not found in collection '{collection}'"
+                'status': 'error',
+                'type': 'content',
+                'reason': f"Document '{document_id}' not found in collection '{collection}'",
             }
 
         # Unpack the embedding vector
@@ -531,48 +492,31 @@ async def find_similar_documents(
             field='embedding',
             vector=embedding,
             offset=offset,
-            count=limit + 1  # Get one extra since we'll filter out the source doc
+            count=limit + 1,  # Get one extra since we'll filter out the source doc
         )
 
         # vector_search returns structured dict
         if search_result['status'] != 'success':
             return {
-                "status": "error",
-                "type": search_result.get('type', 'vss'),
-                "reason": search_result.get('reason', 'Vector search failed')
+                'status': 'error',
+                'type': search_result.get('type', 'vss'),
+                'reason': search_result.get('reason', 'Vector search failed'),
             }
 
         # Filter out the source document itself
-        results = [
-            doc for doc in search_result['results']
-            if doc.get('id') != document_id
-        ]
+        results = [doc for doc in search_result['results'] if doc.get('id') != document_id]
 
         # Return only the requested limit
-        return {
-            "status": "success",
-            "results": results[:limit]
-        }
+        return {'status': 'success', 'results': results[:limit]}
 
     except ValkeyError as ex:
-        return {
-            "status": "error",
-            "type": "valkey",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'valkey', 'reason': str(ex)}
     except Exception as ex:
-        return {
-            "status": "error",
-            "type": "general",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'general', 'reason': str(ex)}
 
 
 @mcp.tool()
-async def get_document(
-    collection: str,
-    document_id: str
-) -> Dict[str, Any]:
+async def get_document(collection: str, document_id: str) -> Dict[str, Any]:
     """Retrieve a specific document by ID.
 
     Args:
@@ -602,36 +546,22 @@ async def get_document(
                     document_json_str = document_json_bytes.decode('utf-8')
                 else:
                     document_json_str = str(document_json_bytes)
-                
+
                 document = json.loads(document_json_str)
-                return {
-                    "status": "success",
-                    "result": document
-                }
+                return {'status': 'success', 'result': document}
             except (UnicodeDecodeError, json.JSONDecodeError) as e:
                 return {
-                    "status": "error",
-                    "type": "decode",
-                    "reason": f"Failed to decode document: {str(e)}"
+                    'status': 'error',
+                    'type': 'decode',
+                    'reason': f'Failed to decode document: {str(e)}',
                 }
-        
-        return {
-            "status": "success",
-            "result": None
-        }
+
+        return {'status': 'success', 'result': None}
 
     except ValkeyError as ex:
-        return {
-            "status": "error",
-            "type": "valkey",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'valkey', 'reason': str(ex)}
     except Exception as ex:
-        return {
-            "status": "error",
-            "type": "general",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'general', 'reason': str(ex)}
 
 
 @mcp.tool()
@@ -674,29 +604,15 @@ async def list_collections(limit: int = 100) -> Dict[str, Any]:
                 # Count documents
                 doc_keys = r.keys(f'semantic_collection_{collection_name}:doc:*'.encode())
 
-                collections.append({
-                    "name": collection_name,
-                    "document_count": len(doc_keys)
-                })
+                collections.append({'name': collection_name, 'document_count': len(doc_keys)})
 
                 # Apply limit
                 if len(collections) >= limit:
                     break
 
-        return {
-            "status": "success",
-            "results": collections
-        }
+        return {'status': 'success', 'results': collections}
 
     except ValkeyError as ex:
-        return {
-            "status": "error",
-            "type": "valkey",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'valkey', 'reason': str(ex)}
     except Exception as ex:
-        return {
-            "status": "error",
-            "type": "general",
-            "reason": str(ex)
-        }
+        return {'status': 'error', 'type': 'general', 'reason': str(ex)}

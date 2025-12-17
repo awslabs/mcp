@@ -29,13 +29,13 @@ class TestSearch:
         with patch('awslabs.valkey_mcp_server.tools.vss.ValkeyConnectionManager') as mock_manager:
             mock_conn = Mock()
             mock_conn_raw = Mock()
-            
+
             def get_connection_side_effect(decode_responses=True):
                 if decode_responses:
                     return mock_conn
                 else:
                     return mock_conn_raw
-            
+
             mock_manager.get_connection.side_effect = get_connection_side_effect
             yield mock_conn, mock_conn_raw
 
@@ -50,8 +50,12 @@ class TestSearch:
         count = 5
 
         # Create mock documents with document_json field
-        doc1_fields = {b'document_json': b'{"id": "doc1", "title": "First Document", "content": "This is the first document content", "author": "Alice"}'}
-        doc2_fields = {b'document_json': b'{"id": "doc2", "title": "Second Document", "content": "This is the second document content", "author": "Bob"}'}
+        doc1_fields = {
+            b'document_json': b'{"id": "doc1", "title": "First Document", "content": "This is the first document content", "author": "Alice"}'
+        }
+        doc2_fields = {
+            b'document_json': b'{"id": "doc2", "title": "Second Document", "content": "This is the second document content", "author": "Bob"}'
+        }
 
         # Create mock search result
         mock_doc1 = Mock()
@@ -103,11 +107,13 @@ class TestSearch:
         index = 'test_index'
         field = 'embedding'
         vector = [0.1, 0.2, 0.3]
-        filter_expression = "@category:electronics"
+        filter_expression = '@category:electronics'
         count = 3
 
         # Create mock document
-        doc_fields = {b'document_json': b'{"id": "doc1", "title": "Laptop", "category": "electronics", "price": 999}'}
+        doc_fields = {
+            b'document_json': b'{"id": "doc1", "title": "Laptop", "category": "electronics", "price": 999}'
+        }
 
         mock_doc = Mock()
         mock_doc.id = 'doc1'
@@ -125,7 +131,9 @@ class TestSearch:
         mock_conn_raw.hgetall.return_value = doc_fields
 
         # Execute search with filter
-        result = await vector_search(index, field, vector, filter_expression=filter_expression, count=count)
+        result = await vector_search(
+            index, field, vector, filter_expression=filter_expression, count=count
+        )
 
         # Verify results
         assert isinstance(result, dict)
@@ -295,14 +303,11 @@ class TestSearch:
         vector = [0.1, 0.2, 0.3]
 
         # Test filter expression with '=>' injection attempt
-        malicious_filter = "@category:test=>[MALICIOUS INJECTION]"
+        malicious_filter = '@category:test=>[MALICIOUS INJECTION]'
 
         # Execute search
         result = await vector_search(
-            index=index,
-            field=field,
-            vector=vector,
-            filter_expression=malicious_filter
+            index=index, field=field, vector=vector, filter_expression=malicious_filter
         )
 
         # Verify injection is blocked
@@ -321,13 +326,11 @@ class TestSearch:
         vector = [0.1, 0.2, 0.3]
 
         # Mock the search module detection helper function to return False
-        with patch('awslabs.valkey_mcp_server.tools.vss._search_module_enabled', return_value=False):
+        with patch(
+            'awslabs.valkey_mcp_server.tools.vss._search_module_enabled', return_value=False
+        ):
             # Execute search
-            result = await vector_search(
-                index=index,
-                field=field,
-                vector=vector
-            )
+            result = await vector_search(index=index, field=field, vector=vector)
 
             # Verify search module detection error
             assert result['status'] == 'error'
@@ -345,7 +348,9 @@ class TestSearch:
         count = 3
 
         # Create mock document with document_json field
-        doc_fields = {b'document_json': b'{"id": "doc1", "title": "High Dimensional Document", "description": "Document with 100-dimensional embedding"}'}
+        doc_fields = {
+            b'document_json': b'{"id": "doc1", "title": "High Dimensional Document", "description": "Document with 100-dimensional embedding"}'
+        }
 
         # Create mock document
         mock_doc = Mock()

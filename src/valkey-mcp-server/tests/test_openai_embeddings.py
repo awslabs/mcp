@@ -13,10 +13,11 @@
 # limitations under the License.
 
 """Tests for OpenAI embeddings provider."""
+
 import os
-import sys
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+import sys
+from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.mark.integration
@@ -27,24 +28,19 @@ class TestOpenAIEmbeddings:
     @pytest.mark.asyncio
     async def test_generate_embedding(self):
         """Test basic embedding generation with real OpenAI API."""
-        import os
-        
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            pytest.skip("OPENAI_API_KEY environment variable not set")
-        
+            pytest.skip('OPENAI_API_KEY environment variable not set')
+
         from awslabs.valkey_mcp_server.embeddings.providers import OpenAIEmbeddings
-        
-        provider = OpenAIEmbeddings(
-            api_key=api_key,
-            model="text-embedding-3-small"
-        )
+
+        provider = OpenAIEmbeddings(api_key=api_key, model='text-embedding-3-small')
 
         assert provider.get_dimensions() == 1536
 
-        text = "Hello world"
+        text = 'Hello world'
         embedding = await provider.generate_embedding(text)
-        
+
         assert isinstance(embedding, list)
         assert len(embedding) == 1536
         assert all(isinstance(x, float) for x in embedding)
@@ -62,9 +58,9 @@ class TestOpenAIEmbeddingsMocked:
             self._cleanup_openai = True
         else:
             self._cleanup_openai = False
-        
+
         yield
-        
+
         if self._cleanup_openai and 'openai' in sys.modules:
             del sys.modules['openai']
 
@@ -76,55 +72,62 @@ class TestOpenAIEmbeddingsMocked:
         mock_data.embedding = mock_embedding
         mock_response = MagicMock()
         mock_response.data = [mock_data]
-        
+
         mock_client = MagicMock()
         mock_client.embeddings.create = AsyncMock(return_value=mock_response)
-        
+
         import openai
+
         openai.AsyncOpenAI = MagicMock(return_value=mock_client)
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import OpenAIEmbeddings
-        provider = OpenAIEmbeddings(api_key="sk-test-key")
-        
-        embedding = await provider.generate_embedding("test")
-        
+
+        provider = OpenAIEmbeddings(api_key='sk-test-key')
+
+        embedding = await provider.generate_embedding('test')
+
         assert embedding == mock_embedding
         mock_client.embeddings.create.assert_called_once_with(
-            model="text-embedding-3-small",
-            input="test"
+            model='text-embedding-3-small', input='test'
         )
 
     @pytest.mark.asyncio
     async def test_get_dimensions_mocked(self):
         """Test dimensions with mocked openai."""
         import openai
+
         openai.AsyncOpenAI = MagicMock()
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import OpenAIEmbeddings
-        provider = OpenAIEmbeddings(api_key="sk-test-key", model="text-embedding-3-small")
-        
+
+        provider = OpenAIEmbeddings(api_key='sk-test-key', model='text-embedding-3-small')
+
         assert provider.get_dimensions() == 1536
 
     @pytest.mark.asyncio
     async def test_get_dimensions_large_model_mocked(self):
         """Test dimensions for large model with mocked openai."""
         import openai
+
         openai.AsyncOpenAI = MagicMock()
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import OpenAIEmbeddings
-        provider = OpenAIEmbeddings(api_key="sk-test-key", model="text-embedding-3-large")
-        
+
+        provider = OpenAIEmbeddings(api_key='sk-test-key', model='text-embedding-3-large')
+
         assert provider.get_dimensions() == 3072
 
     @pytest.mark.asyncio
     async def test_get_provider_name_mocked(self):
         """Test provider name with mocked openai."""
         import openai
+
         openai.AsyncOpenAI = MagicMock()
-        
+
         from awslabs.valkey_mcp_server.embeddings.providers import OpenAIEmbeddings
-        provider = OpenAIEmbeddings(api_key="sk-test-key", model="text-embedding-3-small")
-        
+
+        provider = OpenAIEmbeddings(api_key='sk-test-key', model='text-embedding-3-small')
+
         name = provider.get_provider_name()
-        assert "OpenAI" in name
-        assert "text-embedding-3-small" in name
+        assert 'OpenAI' in name
+        assert 'text-embedding-3-small' in name
