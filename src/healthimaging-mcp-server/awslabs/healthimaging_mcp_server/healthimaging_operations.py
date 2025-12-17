@@ -226,7 +226,7 @@ class HealthImagingClient:
             }
 
         except ClientError as e:
-            logger.error(f'Error deleting patient studies for {patient_id}: {e}')
+            logger.error(f'Error deleting patient studies: {e}')
             raise
 
     async def delete_study(self, datastore_id: str, study_instance_uid: str) -> Dict[str, Any]:
@@ -438,7 +438,7 @@ class HealthImagingClient:
             return search_response
 
         except ClientError as e:
-            logger.error(f'Error searching by patient ID {patient_id}: {e}')
+            logger.error(f'Error searching by patient ID: {e}')
             raise
 
     async def search_by_study_uid(
@@ -545,7 +545,7 @@ class HealthImagingClient:
             return {'patientId': patient_id, 'studies': studies, 'totalStudies': len(studies)}
 
         except ClientError as e:
-            logger.error(f'Error getting patient studies for {patient_id}: {e}')
+            logger.error(f'Error getting patient studies: {e}')
             raise
 
     async def get_patient_series(self, datastore_id: str, patient_id: str) -> Dict[str, Any]:
@@ -562,7 +562,7 @@ class HealthImagingClient:
             }
 
         except ClientError as e:
-            logger.error(f'Error getting patient series for {patient_id}: {e}')
+            logger.error(f'Error getting patient series: {e}')
             raise
 
     async def get_study_primary_image_sets(
@@ -647,7 +647,7 @@ class HealthImagingClient:
             }
 
         except ClientError as e:
-            logger.error(f'Error bulk updating patient metadata for {patient_id}: {e}')
+            logger.error(f'Error bulk updating patient metadata: {e}')
             raise
 
     async def bulk_delete_by_criteria(

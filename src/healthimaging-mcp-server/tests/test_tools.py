@@ -42,9 +42,7 @@ async def test_handle_get_datastore(tool_handler, mock_healthimaging_client, sam
         return_value={'datastore': sample_datastore}
     )
 
-    result = await tool_handler.handle_tool(
-        'get_datastore_details', {'datastore_id': '12345678901234567890123456789012'}
-    )
+    result = await tool_handler.handle_tool('get_datastore_details', {'datastore_id': 'a' * 32})
 
     assert len(result) == 1
     response_data = json.loads(result[0].text)
@@ -61,7 +59,7 @@ async def test_handle_search_image_sets(tool_handler, mock_healthimaging_client,
 
     result = await tool_handler.handle_tool(
         'search_image_sets',
-        {'datastore_id': '12345678901234567890123456789012', 'max_results': 50},
+        {'datastore_id': 'a' * 32, 'max_results': 50},
     )
 
     assert len(result) == 1
@@ -78,8 +76,8 @@ async def test_handle_get_image_set(tool_handler, mock_healthimaging_client, sam
     result = await tool_handler.handle_tool(
         'get_image_set',
         {
-            'datastore_id': '12345678901234567890123456789012',
-            'image_set_id': 'abcdef1234567890abcdef1234567890',
+            'datastore_id': 'a' * 32,
+            'image_set_id': 'b' * 32,
         },
     )
 
@@ -98,8 +96,8 @@ async def test_handle_get_image_set_metadata(tool_handler, mock_healthimaging_cl
     result = await tool_handler.handle_tool(
         'get_image_set_metadata',
         {
-            'datastore_id': '12345678901234567890123456789012',
-            'image_set_id': 'abcdef1234567890abcdef1234567890',
+            'datastore_id': 'a' * 32,
+            'image_set_id': 'b' * 32,
         },
     )
 

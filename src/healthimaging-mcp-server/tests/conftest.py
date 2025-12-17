@@ -16,7 +16,7 @@ def mock_healthimaging_client():
 def sample_datastore():
     """Sample datastore data for testing."""
     return {
-        'datastoreId': '12345678901234567890123456789012',
+        'datastoreId': 'a' * 32,  # 32-char alphanumeric test ID
         'datastoreName': 'test-datastore',
         'datastoreStatus': 'ACTIVE',
         'createdAt': datetime(2024, 1, 1, 0, 0, 0).timestamp(),
@@ -28,7 +28,7 @@ def sample_datastore():
 def sample_image_set():
     """Sample image set data for testing."""
     return {
-        'imageSetId': 'abcdef1234567890abcdef1234567890',
+        'imageSetId': 'b' * 32,  # 32-char alphanumeric test ID
         'versionId': '1',
         'imageSetState': 'ACTIVE',
         'createdAt': datetime(2024, 1, 1, 0, 0, 0).timestamp(),

@@ -16,7 +16,7 @@ def test_max_search_count_constant():
 
 def test_validate_datastore_id_valid():
     """Test validation of valid datastore ID."""
-    valid_id = '12345678901234567890123456789012'
+    valid_id = 'a' * 32  # 32-char alphanumeric test ID
     result = validate_datastore_id(valid_id)
     assert result == valid_id
 
