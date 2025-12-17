@@ -236,7 +236,9 @@ class TestSearchRelevantContent:
         from awslabs.amazon_qindex_mcp_server.server import search_relevant_content
 
         response = await search_relevant_content(**test_data)
-        assert response == mock_response
+        # Response is now a SearchRelevantContentResponse Pydantic model, not a dict
+        assert response.nextToken == mock_response['nextToken']
+        assert response.relevantContent == mock_response['relevantContent']
         mock_client.search_relevant_content.assert_called_once()
 
 

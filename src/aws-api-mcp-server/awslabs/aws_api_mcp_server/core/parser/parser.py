@@ -16,7 +16,6 @@ import argparse
 import botocore.serialize
 import ipaddress
 import jmespath
-import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -70,7 +69,6 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -440,7 +438,7 @@ def _handle_service_command(
 
     try:
         parameters = operation_command._build_call_parameters(
-            parsed_args.operation_args, operation_command.arg_table
+            parsed_args.operation_args, operation_command.arg_table, global_args
         )
     except ParamError as exc:
         raise ShortHandParserError(exc.cli_name, exc.message) from exc
@@ -791,16 +789,23 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 
     source_path, dest_path = paths
     _validate_s3_file_path(source_path, service, operation)
-    _validate_s3_file_path(dest_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
 
 
-def _validate_s3_file_path(file_path: str, service: str, operation: str):
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # `-` as destination redirects to stdout, which we capture and wrap in an MCP response
+    if file_path == '-' and is_destination:
+        return
+
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
     if file_path == '-':
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason="streaming file ('-') is not allowed",
+            reason="streaming file on stdin ('-') is not allowed",
         )
 
     if not file_path.startswith('s3://'):
@@ -853,14 +858,6 @@ def _validate_outfile(
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
-    if not os.path.isabs(Path(file_path)):
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason='should be an absolute path',
-        )
-
     try:
         validate_file_path(file_path)
     except (FilePathValidationError, LocalFileAccessDisabledError) as e:

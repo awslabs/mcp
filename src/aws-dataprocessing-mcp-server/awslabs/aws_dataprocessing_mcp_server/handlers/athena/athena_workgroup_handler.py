@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
-    CreateWorkGroupResponse,
-    DeleteWorkGroupResponse,
-    GetWorkGroupResponse,
-    ListWorkGroupsResponse,
-    UpdateWorkGroupResponse,
+    CreateWorkGroupData,
+    DeleteWorkGroupData,
+    GetWorkGroupData,
+    ListWorkGroupsData,
+    UpdateWorkGroupData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -25,9 +26,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class AthenaWorkGroupHandler:
@@ -106,13 +107,7 @@ class AthenaWorkGroupHandler:
                 description='Pagination token for list-work-groups operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateWorkGroupResponse,
-        DeleteWorkGroupResponse,
-        GetWorkGroupResponse,
-        ListWorkGroupsResponse,
-        UpdateWorkGroupResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena workgroups with both read and write operations.
 
         This tool provides operations for managing Athena workgroups, including creating,
@@ -165,27 +160,10 @@ class AthenaWorkGroupHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-work-group':
-                    return CreateWorkGroupResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        work_group_name='',
-                        operation='create-work-group',
-                    )
-                elif operation == 'delete-work-group':
-                    return DeleteWorkGroupResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        work_group_name='',
-                        operation='delete-work-group',
-                    )
-                elif operation == 'update-work-group':
-                    return UpdateWorkGroupResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        work_group_name='',
-                        operation='update-work-group',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-work-group':
                 if name is None:
@@ -211,16 +189,19 @@ class AthenaWorkGroupHandler:
                 # Create workgroup
                 self.athena_client.create_work_group(**params)
 
-                return CreateWorkGroupResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created Athena workgroup {name} with MCP management tags',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully created Athena workgroup {name} with MCP management tags'
+                )
+                data = CreateWorkGroupData(
                     work_group_name=name,
                     operation='create-work-group',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-work-group':
@@ -234,11 +215,9 @@ class AthenaWorkGroupHandler:
                 if not AwsHelper.verify_resource_managed_by_mcp(workgroup_tags):
                     error_message = f'Cannot delete workgroup {name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteWorkGroupResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        work_group_name=name,
-                        operation='delete-work-group',
                     )
 
                 # Prepare parameters
@@ -250,16 +229,17 @@ class AthenaWorkGroupHandler:
                 # Delete workgroup
                 self.athena_client.delete_work_group(**params)
 
-                return DeleteWorkGroupResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted MCP-managed Athena workgroup {name}',
-                        )
-                    ],
+                success_message = f'Successfully deleted MCP-managed Athena workgroup {name}'
+                data = DeleteWorkGroupData(
                     work_group_name=name,
                     operation='delete-work-group',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-work-group':
@@ -269,16 +249,17 @@ class AthenaWorkGroupHandler:
                 # Get workgroup
                 response = self.athena_client.get_work_group(WorkGroup=name)
 
-                return GetWorkGroupResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved workgroup {name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved workgroup {name}'
+                data = GetWorkGroupData(
                     work_group=response.get('WorkGroup', {}),
                     operation='get-work-group',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-work-groups':
@@ -293,13 +274,19 @@ class AthenaWorkGroupHandler:
                 response = self.athena_client.list_work_groups(**params)
 
                 work_groups = response.get('WorkGroups', [])
-                return ListWorkGroupsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully listed workgroups')],
+                success_message = 'Successfully listed workgroups'
+                data = ListWorkGroupsData(
                     work_groups=work_groups,
                     count=len(work_groups),
                     next_token=response.get('NextToken'),
                     operation='list-work-groups',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-work-group':
@@ -313,16 +300,9 @@ class AthenaWorkGroupHandler:
                 if not AwsHelper.verify_resource_managed_by_mcp(workgroup_tags):
                     error_message = f'Cannot update workgroup {name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateWorkGroupResponse(
+                    return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(
-                                type='text',
-                                text=error_message,
-                            )
-                        ],
-                        work_group_name=name,
-                        operation='update-work-group',
+                        content=[TextContent(type='text', text=error_message)],
                     )
 
                 # Prepare parameters
@@ -340,26 +320,25 @@ class AthenaWorkGroupHandler:
                 # Update workgroup
                 self.athena_client.update_work_group(**params)
 
-                return UpdateWorkGroupResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated workgroup {name}',
-                        )
-                    ],
+                success_message = f'Successfully updated workgroup {name}'
+                data = UpdateWorkGroupData(
                     work_group_name=name,
                     operation='update-work-group',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetWorkGroupResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    work_group={},
-                    operation='get-work-group',
                 )
 
         except ValueError as e:
@@ -368,9 +347,7 @@ class AthenaWorkGroupHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_workgroups: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetWorkGroupResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                work_group={},
-                operation='get-work-group',
             )
