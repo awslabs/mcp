@@ -13,21 +13,21 @@
 # limitations under the License.
 
 """Index operations for Valkey MCP Server."""
-from langchain_core.runnables.configurable import StrEnum
+from enum import Enum
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from typing import Optional
 
 
-class IndexType(StrEnum):
+class IndexType(Enum):
     HASH = 'HASH'
     JSON = 'JSON'
 
-class StructureType(StrEnum):
+class StructureType(Enum):
     FLAT = 'FLAT'
     HNSW = 'HNSW'
 
-class DistanceMetric(StrEnum):
+class DistanceMetric(Enum):
     L2 = 'L2'
     IP = 'IP'
     COSINE = 'COSINE'

@@ -11,7 +11,6 @@ dependencies = [
     "valkey>=6.1.0",
     "dotenv>=0.9.9",
     "numpy>=2.2.4",
-    "langchain_core>=1.2.1",
     "boto3>=1.42.10",
 ]
 license = {text = "Apache-2.0"}
