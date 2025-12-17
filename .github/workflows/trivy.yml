@@ -134,7 +134,7 @@ jobs:
       - name: Upload results
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: results-${{ steps.checkout-depth.outputs.image-name }}
+          name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
           path: |
             '${{ matrix.dockerfile }}/trivy-results.sarif'
             '${{ matrix.dockerfile }}/syft-results.json'
