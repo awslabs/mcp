@@ -1,0 +1,28 @@
+version = 1
+revision = 3
+requires-python = ">=3.10"
+
+[[package]]
+name = "awslabs-healthimaging-mcp-server"
+version = "0.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "mcp" },
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "pre-commit" },
+    { name = "pyright" },
+    { name = "ruff" },
+]

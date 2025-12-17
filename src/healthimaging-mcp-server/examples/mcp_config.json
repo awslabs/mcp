@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "healthimaging": {
+      "command": "uvx",
+      "args": ["awslabs.healthimaging-mcp-server"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
