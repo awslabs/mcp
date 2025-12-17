@@ -17,15 +17,15 @@
 import json
 import os
 from awslabs.aws_dataprocessing_mcp_server.models.common_resource_models import (
-    AddInlinePolicyResponse,
-    AnalyzeS3UsageResponse,
-    CreateRoleResponse,
-    ListS3BucketsResponse,
+    AddInlinePolicyData,
+    AnalyzeS3UsageData,
+    CreateRoleData,
+    ListS3BucketsData,
     PolicySummary,
-    RoleDescriptionResponse,
+    RoleDescriptionData,
     RoleSummary,
-    ServiceRolesResponse,
-    UploadToS3Response,
+    ServiceRolesData,
+    UploadToS3Data,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -35,7 +35,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Union
 
@@ -87,7 +87,7 @@ class CommonResourceHandler:
                 description='Name of the IAM role to get policies for. The role must exist in your AWS account.',
             ),
         ],
-    ) -> RoleDescriptionResponse:
+    ) -> CallToolResult:
         """Get all policies attached to an IAM role.
 
         This tool retrieves all policies associated with an IAM role, providing a comprehensive view
@@ -143,34 +143,31 @@ class CommonResourceHandler:
             else:
                 assume_role_policy_document = role['AssumeRolePolicyDocument']
 
-            # Create the response
-            return RoleDescriptionResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved details for IAM role: {role_name}',
-                    )
-                ],
+            # Create the response data
+            success_message = f'Successfully retrieved details for IAM role: {role_name}'
+            data = RoleDescriptionData(
                 role_arn=role['Arn'],
                 assume_role_policy_document=assume_role_policy_document,
                 description=role.get('Description'),
                 managed_policies=managed_policies,
                 inline_policies=inline_policies,
+                operation='get-policies-for-role',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
         except Exception as e:
             error_message = f'Failed to describe IAM role: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            # Return a response with error status
-            return RoleDescriptionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                role_arn='',
-                assume_role_policy_document={},
-                description=None,
-                managed_policies=[],
-                inline_policies=[],
             )
 
     async def add_inline_policy(
@@ -195,7 +192,7 @@ class CommonResourceHandler:
             Can be either a single statement object or an array of statement objects.""",
             ),
         ],
-    ) -> AddInlinePolicyResponse:
+    ) -> CallToolResult:
         """Add a new inline policy to an IAM role.
 
         This tool creates a new inline policy with the specified permissions and adds it to an IAM role.
@@ -285,7 +282,7 @@ class CommonResourceHandler:
             permissions: Permissions to include in the policy (in JSON format)
 
         Returns:
-            AddInlinePolicyResponse: Information about the created policy
+            CallToolResult: Information about the created policy
         """
         try:
             log_with_request_id(
@@ -298,12 +295,9 @@ class CommonResourceHandler:
             if not self.allow_write:
                 error_message = 'Adding inline policies requires --allow-write flag'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return AddInlinePolicyResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    policy_name=policy_name,
-                    role_name=role_name,
-                    permissions_added={},
                 )
 
             # Create the inline policy
@@ -313,13 +307,9 @@ class CommonResourceHandler:
             error_message = f'Failed to create inline policy: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            # Return a response with error status
-            return AddInlinePolicyResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                policy_name=policy_name,
-                role_name=role_name,
-                permissions_added={},
             )
 
     async def create_data_processing_role(
@@ -355,7 +345,7 @@ class CommonResourceHandler:
                 description='Optional inline policy to add to the role.',
             ),
         ] = None,
-    ) -> CreateRoleResponse:
+    ) -> CallToolResult:
         """Create a new IAM role for data processing services.
 
         This tool creates a new IAM role with the appropriate trust relationship for the specified
@@ -392,7 +382,7 @@ class CommonResourceHandler:
             inline_policy: Optional inline policy to add to the role
 
         Returns:
-            CreateRoleResponse: Information about the created role
+            CallToolResult: Information about the created role
         """
         try:
             log_with_request_id(
@@ -405,11 +395,9 @@ class CommonResourceHandler:
             if not self.allow_write:
                 error_message = 'Creating roles requires --allow-write flag'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return CreateRoleResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    role_name=role_name,
-                    role_arn='',
                 )
 
             # Validate service type
@@ -418,11 +406,9 @@ class CommonResourceHandler:
                     f'Invalid service type: {service_type}. Must be one of: glue, emr, athena'
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return CreateRoleResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    role_name=role_name,
-                    role_arn='',
                 )
 
             # Create the trust relationship based on service type
@@ -474,28 +460,28 @@ class CommonResourceHandler:
                     PolicyDocument=json.dumps(policy_document),
                 )
 
-            return CreateRoleResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully created IAM role {role_name} for {service_type}',
-                    )
-                ],
+            success_message = f'Successfully created IAM role {role_name} for {service_type}'
+            data = CreateRoleData(
                 role_name=role_name,
                 role_arn=role_arn,
+                operation='create-data-processing-role',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except Exception as e:
             error_message = f'Failed to create IAM role: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            # Return a response with error status
-            return CreateRoleResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                role_name=role_name,
-                role_arn='',
             )
 
     async def get_roles_for_service(
@@ -507,7 +493,7 @@ class CommonResourceHandler:
                 description="Type of data processing service: 'glue', 'emr', 'athena', or other AWS service name.",
             ),
         ],
-    ) -> ServiceRolesResponse:
+    ) -> CallToolResult:
         """Get all IAM roles that can be assumed by a specific AWS service.
 
         This tool retrieves all IAM roles in your AWS account that have a trust relationship
@@ -539,7 +525,7 @@ class CommonResourceHandler:
             service_type: Type of data processing service
 
         Returns:
-            ServiceRolesResponse: List of roles that can be assumed by the specified service
+            CallToolResult: List of roles that can be assumed by the specified service
         """
         try:
             log_with_request_id(
@@ -577,27 +563,29 @@ class CommonResourceHandler:
                             )
                         )
 
-            return ServiceRolesResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved {len(roles)} roles for service: {service_type}',
-                    )
-                ],
+            success_message = (
+                f'Successfully retrieved {len(roles)} roles for service: {service_type}'
+            )
+            data = ServiceRolesData(
                 service_type=service_type,
                 roles=roles,
+                operation='get-roles-for-service',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
         except Exception as e:
             error_message = f'Failed to list IAM roles for service {service_type}: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            # Return a response with error status
-            return ServiceRolesResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                service_type=service_type,
-                roles=[],
             )
 
     # ============================================================================
@@ -613,7 +601,7 @@ class CommonResourceHandler:
                 description='AWS region to filter buckets by (defaults to AWS_REGION environment variable)',
             ),
         ] = None,
-    ) -> ListS3BucketsResponse:
+    ) -> CallToolResult:
         """List S3 buckets that have 'glue' in their name and are in the specified region.
 
         This tool helps identify S3 buckets commonly used for data processing workflows,
@@ -639,7 +627,7 @@ class CommonResourceHandler:
             region: AWS region to filter buckets by
 
         Returns:
-            ListS3BucketsResponse: Information about matching S3 buckets
+            CallToolResult: Information about matching S3 buckets
         """
         try:
             log_with_request_id(
@@ -751,33 +739,35 @@ class CommonResourceHandler:
             else:
                 result += f"No buckets found with 'glue' in their name in region {aws_region}."
 
-            return ListS3BucketsResponse(
-                isError=False,
-                content=[TextContent(type='text', text=result)],
+            success_message = result
+            data = ListS3BucketsData(
                 region=aws_region,
                 bucket_count=len(matching_buckets),
                 buckets=bucket_details,
+                operation='list-s3-buckets',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return ListS3BucketsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                region=region or 'unknown',
-                bucket_count=0,
-                buckets=[],
             )
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return ListS3BucketsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                region=region or 'unknown',
-                bucket_count=0,
-                buckets=[],
             )
 
     async def upload_to_s3(
@@ -807,7 +797,7 @@ class CommonResourceHandler:
                 description='Whether to make the file publicly accessible (default: False)',
             ),
         ] = False,
-    ) -> UploadToS3Response:
+    ) -> CallToolResult:
         """Upload Python code content directly to an S3 bucket using putObject.
 
         This tool uploads Python code content directly to an S3 bucket, commonly used
@@ -833,7 +823,7 @@ class CommonResourceHandler:
             make_public: Whether to make the file publicly accessible
 
         Returns:
-            UploadToS3Response: Information about the uploaded file
+            CallToolResult: Information about the uploaded file
         """
         try:
             log_with_request_id(
@@ -846,12 +836,9 @@ class CommonResourceHandler:
             if not self.allow_write:
                 error_message = 'Uploading to S3 requires --allow-write flag'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return UploadToS3Response(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    s3_uri='',
-                    bucket_name=bucket_name,
-                    s3_key=s3_key,
                 )
 
             # Check if bucket exists
@@ -866,12 +853,9 @@ class CommonResourceHandler:
                     error_message = f'Error checking bucket: {str(e)}'
 
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return UploadToS3Response(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    s3_uri='',
-                    bucket_name=bucket_name,
-                    s3_key=s3_key,
                 )
 
             # Upload code content using putObject
@@ -899,33 +883,35 @@ class CommonResourceHandler:
             result += f'S3 URI: {s3_uri}\n'
             result += f'Region: {region}\n'
 
-            return UploadToS3Response(
-                isError=False,
-                content=[TextContent(type='text', text=result)],
+            success_message = result
+            data = UploadToS3Data(
                 s3_uri=s3_uri,
                 bucket_name=bucket_name,
                 s3_key=s3_key,
+                operation='upload-to-s3',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return UploadToS3Response(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                s3_uri='',
-                bucket_name=bucket_name,
-                s3_key=s3_key,
             )
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return UploadToS3Response(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                s3_uri='',
-                bucket_name=bucket_name,
-                s3_key=s3_key,
             )
 
     async def analyze_s3_usage_for_data_processing(
@@ -937,7 +923,7 @@ class CommonResourceHandler:
                 description='Optional specific bucket to analyze (None for all buckets)',
             ),
         ] = None,
-    ) -> AnalyzeS3UsageResponse:
+    ) -> CallToolResult:
         """Analyze S3 bucket usage patterns for data processing services (Glue, EMR, Athena).
 
         This tool helps identify which buckets are actively used by data processing services
@@ -948,7 +934,7 @@ class CommonResourceHandler:
             bucket_name: Optional specific bucket to analyze (None for all buckets)
 
         Returns:
-            AnalyzeS3UsageResponse: Analysis report of S3 usage patterns
+            CallToolResult: Analysis report of S3 usage patterns
         """
         try:
             log_with_request_id(
@@ -970,11 +956,9 @@ class CommonResourceHandler:
                     buckets = [{'Name': bucket_name}]
                 except ClientError:
                     error_message = f"Bucket '{bucket_name}' does not exist or is not accessible"
-                    return AnalyzeS3UsageResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        analysis_summary='',
-                        service_usage={},
                     )
             else:
                 # Get all buckets
@@ -1172,30 +1156,34 @@ class CommonResourceHandler:
             for b in service_usage['idle']:
                 result += f'  - {b}\n'
 
-            return AnalyzeS3UsageResponse(
-                isError=False,
-                content=[TextContent(type='text', text=result)],
+            success_message = result
+            data = AnalyzeS3UsageData(
                 analysis_summary=result,
                 service_usage=service_usage,
+                operation='analyze-s3-usage-for-data-processing',
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
             error_message = f'AWS Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return AnalyzeS3UsageResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                analysis_summary='',
-                service_usage={},
             )
         except Exception as e:
             error_message = f'Error: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return AnalyzeS3UsageResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                analysis_summary='',
-                service_usage={},
             )
 
     # ============================================================================
@@ -1320,12 +1308,9 @@ class CommonResourceHandler:
             # If we get here, the policy exists
             error_message = f'Policy {policy_name} already exists in role {role_name}. Cannot modify existing policies.'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return AddInlinePolicyResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                policy_name=policy_name,
-                role_name=role_name,
-                permissions_added={},
             )
         except self.iam_client.exceptions.NoSuchEntityException:
             # Policy doesn't exist, we can create it
@@ -1356,17 +1341,22 @@ class CommonResourceHandler:
             PolicyDocument=json.dumps(policy_document),
         )
 
-        return AddInlinePolicyResponse(
-            isError=False,
-            content=[
-                TextContent(
-                    type='text',
-                    text=f'Successfully created new inline policy {policy_name} in role {role_name}',
-                )
-            ],
+        success_message = (
+            f'Successfully created new inline policy {policy_name} in role {role_name}'
+        )
+        data = AddInlinePolicyData(
             policy_name=policy_name,
             role_name=role_name,
             permissions_added=permissions,
+            operation='add-inline-policy',
+        )
+
+        return CallToolResult(
+            isError=False,
+            content=[
+                TextContent(type='text', text=success_message),
+                TextContent(type='text', text=json.dumps(data.model_dump())),
+            ],
         )
 
     def _get_service_principal(self, service_type: str) -> str:
