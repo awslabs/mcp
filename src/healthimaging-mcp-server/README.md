@@ -119,7 +119,7 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret he
       "args": [
         "run", "--rm",
         "-e", "AWS_ACCESS_KEY_ID=your_key",
-        "-e", "AWS_SECRET_ACCESS_KEY=your_secret", 
+        "-e", "AWS_SECRET_ACCESS_KEY=your_secret",
         "-e", "AWS_REGION=us-east-1",
         "awslabs/healthimaging-mcp-server"
       ]

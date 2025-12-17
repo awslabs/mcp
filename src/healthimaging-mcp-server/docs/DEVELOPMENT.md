@@ -163,11 +163,11 @@ async def my_new_tool(
 ) -> str:
     """
     Brief description of the tool.
-    
+
     Args:
         param1: Description of param1
         param2: Description of param2 (optional)
-        
+
     Returns:
         JSON string containing results
     """
@@ -220,9 +220,9 @@ async def test_my_new_tool(server):
         mock_hi = MagicMock()
         mock_hi.my_api_call.return_value = {"result": "success"}
         mock_client.return_value = mock_hi
-        
+
         register_tools(server)
-        
+
         tools = [t for t in server._tool_handlers.keys()]
         assert "my_new_tool" in tools
 ```
@@ -275,7 +275,7 @@ with patch("awslabs.healthimaging_mcp_server.tools.boto3.client") as mock_client
     mock_hi = MagicMock()
     mock_hi.some_method.return_value = {"data": "value"}
     mock_client.return_value = mock_hi
-    
+
     # Test code
 ```
 

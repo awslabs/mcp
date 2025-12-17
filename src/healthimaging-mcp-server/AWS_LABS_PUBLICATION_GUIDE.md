@@ -60,7 +60,7 @@ git push origin feature/healthimaging-mcp-server
 ```
 Hi AWS Labs MCP Team,
 
-I've developed a comprehensive HealthImaging MCP server that provides complete 
+I've developed a comprehensive HealthImaging MCP server that provides complete
 medical imaging data lifecycle management for AWS HealthImaging.
 
 Key Features:
@@ -71,7 +71,7 @@ Key Features:
 - Production-tested with 22 passing unit tests
 - Comprehensive documentation and Docker support
 
-The server covers 100% of AWS HealthImaging operational requirements and is 
+The server covers 100% of AWS HealthImaging operational requirements and is
 ready for production clinical environments.
 
 Repository: https://gitlab.aws.dev/manishpl/healthimaging-mcp-server

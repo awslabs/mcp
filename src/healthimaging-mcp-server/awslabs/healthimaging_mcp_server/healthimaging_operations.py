@@ -65,7 +65,7 @@ class HealthImagingClient:
     async def list_datastores(self, filter_status: Optional[str] = None) -> Dict[str, Any]:
         """List HealthImaging datastores."""
         try:
-            params = {'maxResults': 50}
+            params: Dict[str, Any] = {'maxResults': 50}
             if filter_status:
                 params['datastoreStatus'] = filter_status
 

@@ -134,11 +134,11 @@ async def my_new_tool(
 ) -> str:
     """
     Brief description of what the tool does.
-    
+
     Args:
         param1: Description of param1
         param2: Description of param2 (default: 10)
-        
+
     Returns:
         Description of return value
     """

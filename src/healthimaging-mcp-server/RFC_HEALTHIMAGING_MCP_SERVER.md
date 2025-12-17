@@ -129,7 +129,7 @@ class SearchImageSetsRequest(BaseModel):
 
 // 2. Review patient studies
 {
-  "tool": "get_patient_studies", 
+  "tool": "get_patient_studies",
   "args": {"datastore_id": "auto-discovered", "patient_id": "PATIENT123"}
 }
 
@@ -170,7 +170,7 @@ class SearchImageSetsRequest(BaseModel):
 ```
 awslabs/healthimaging_mcp_server/
 ├── server.py                    # MCP server with 21 tool handlers
-├── healthimaging_operations.py  # AWS HealthImaging client operations  
+├── healthimaging_operations.py  # AWS HealthImaging client operations
 ├── models.py                   # Pydantic validation models (21 models)
 ├── main.py                     # Entry point
 └── __init__.py                 # Package initialization
@@ -307,7 +307,7 @@ docker run awslabs/healthimaging-mcp-server
 ## Risks and Mitigation
 
 ### Risk: Healthcare Data Sensitivity
-**Mitigation**: 
+**Mitigation**:
 - No data storage in MCP server
 - Comprehensive audit logging
 - Security documentation
@@ -400,7 +400,7 @@ The server addresses real healthcare industry needs while demonstrating the powe
 
 ---
 
-**Next Steps**: 
+**Next Steps**:
 1. AWS Labs team review and feedback
 2. Technical architecture discussion
 3. Integration planning and timeline
