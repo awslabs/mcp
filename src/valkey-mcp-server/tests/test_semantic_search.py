@@ -349,6 +349,8 @@ class TestSemanticSearchUnit:
             b'3',
             b'max_doc_id',
             b'3',
+            b'hash_indexing_failures',
+            b'0',
         ]
 
         result = await collection_info(collection='test_collection')

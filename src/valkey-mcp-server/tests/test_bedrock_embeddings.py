@@ -17,6 +17,7 @@
 import json
 import pytest
 import sys
+from tests import acquire_bedrock_embeddings
 from unittest.mock import MagicMock
 
 
@@ -28,9 +29,7 @@ class TestBedrockEmbeddings:
     @pytest.mark.asyncio
     async def test_generate_embedding(self):
         """Test basic embedding generation with real AWS Bedrock."""
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings(
+        provider = await acquire_bedrock_embeddings(
             region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
         )
 
@@ -49,10 +48,8 @@ class TestBedrockEmbeddings:
     @pytest.mark.asyncio
     async def test_titan_v2_with_dimensions(self):
         """Test Titan v2 with custom dimensions."""
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings(
-            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', dimensions=256
+        provider = await acquire_bedrock_embeddings(
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
         )
 
         assert provider.get_dimensions() == 256
@@ -66,10 +63,8 @@ class TestBedrockEmbeddings:
     @pytest.mark.asyncio
     async def test_titan_v2_with_normalize(self):
         """Test Titan v2 with normalize parameter."""
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings(
-            region_name='us-east-1', model_id='amazon.titan-embed-text-v2:0', normalize=True
+        provider = await acquire_bedrock_embeddings(
+            region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
         )
 
         embedding = await provider.generate_embedding('Test text')
@@ -86,9 +81,7 @@ class TestBedrockEmbeddings:
     @pytest.mark.asyncio
     async def test_titan_v2_with_all_parameters(self):
         """Test Titan v2 with all parameters combined."""
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings(
+        provider = await acquire_bedrock_embeddings(
             region_name='us-east-1',
             model_id='amazon.titan-embed-text-v2:0',
             dimensions=512,
@@ -157,9 +150,7 @@ class TestBedrockEmbeddingsMocked:
 
         boto3.Session = MagicMock(return_value=mock_session)
 
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings()
+        provider = await acquire_bedrock_embeddings()
 
         embedding = await provider.generate_embedding('test')
 
@@ -173,9 +164,7 @@ class TestBedrockEmbeddingsMocked:
 
         boto3.client = MagicMock()
 
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings()
+        provider = await acquire_bedrock_embeddings()
 
         assert provider.get_dimensions() == 1536
 
@@ -186,9 +175,7 @@ class TestBedrockEmbeddingsMocked:
 
         boto3.client = MagicMock()
 
-        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
-
-        provider = BedrockEmbeddings(model_id='amazon.titan-embed-text-v1')
+        provider = await acquire_bedrock_embeddings(model_id='amazon.titan-embed-text-v1')
 
         name = provider.get_provider_name()
         assert 'Bedrock' in name

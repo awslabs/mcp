@@ -3,8 +3,8 @@
 import pytest
 import struct
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
-from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
 from awslabs.valkey_mcp_server.tools.vss import vector_search
+from tests import acquire_bedrock_embeddings
 
 
 @pytest.mark.integration
@@ -59,21 +59,9 @@ class TestVectorSearchIntegration:
         except Exception:
             pass
 
-    async def assert_bedrock_access(self):
-        """Assert Bedrock access is available."""
-        # Create Bedrock embeddings provider - skip if no credentials
-        try:
-            self.provider = BedrockEmbeddings(
-                region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
-            )
-        except ValueError as e:
-            if 'AWS credentials not found' in str(e):
-                pytest.skip('AWS credentials not configured - skipping Bedrock integration test')
-            raise
-
     async def test_vector_search_with_bedrock_embeddings(self):
         """Test vector_search with live Bedrock embeddings."""
-        await self.assert_bedrock_access()
+        await acquire_bedrock_embeddings()
 
         # Generate embedding for the first text
         text1 = 'The quick brown fox jumped over the lazy dogs'

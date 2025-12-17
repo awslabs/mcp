@@ -7,8 +7,8 @@ provider to test the semantic_search workflow end-to-end.
 import asyncio
 import pytest
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
-from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
 from awslabs.valkey_mcp_server.tools.semantic_search import add_documents, semantic_search
+from tests import acquire_bedrock_embeddings
 from unittest.mock import patch
 
 
@@ -46,7 +46,7 @@ class TestSemanticSearchBedrock:
 
     async def test_bedrock_semantic_search(self):
         """Test add_documents and semantic_search with Bedrock provider."""
-        provider = BedrockEmbeddings(
+        provider = await acquire_bedrock_embeddings(
             region_name='us-east-1', model_id='amazon.titan-embed-text-v1'
         )
 
