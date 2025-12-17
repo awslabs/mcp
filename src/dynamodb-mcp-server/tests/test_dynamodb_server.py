@@ -4,16 +4,17 @@ import pytest
 import pytest_asyncio
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.server import (
+    SERVER_INSTRUCTIONS,
     _execute_access_patterns,
     _execute_dynamodb_command,
     app,
     create_server,
     dynamodb_data_model_validation,
     dynamodb_data_modeling,
-    SERVER_INSTRUCTIONS,
     source_db_analyzer,
 )
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import mock_open, patch
 
 
@@ -882,9 +883,7 @@ def test_property_tool_registration_correctness(iteration: int):
 # **Validates: Requirements 3.1**
 @settings(max_examples=100)
 @given(
-    st.text(min_size=0, max_size=200).filter(
-        lambda s: not s.strip().startswith('aws dynamodb')
-    )
+    st.text(min_size=0, max_size=200).filter(lambda s: not s.strip().startswith('aws dynamodb'))
 )
 def test_property_command_validation_preservation(invalid_command: str):
     """Property test: Command validation preservation.
@@ -911,8 +910,7 @@ def test_property_command_validation_preservation(invalid_command: str):
 
     # Verify the error message is exactly as specified
     assert str(error) == "Command must start with 'aws dynamodb'", (
-        f"Expected error message 'Command must start with 'aws dynamodb'', "
-        f"got '{str(error)}'"
+        f"Expected error message 'Command must start with 'aws dynamodb'', got '{str(error)}'"
     )
 
 
@@ -953,8 +951,7 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
 
                 # Execute with the generated endpoint URL
                 await _execute_dynamodb_command(
-                    command='aws dynamodb list-tables',
-                    endpoint_url=endpoint_url
+                    command='aws dynamodb list-tables', endpoint_url=endpoint_url
                 )
 
                 # Verify credentials were set
@@ -972,9 +969,10 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
                 assert os.environ['AWS_ACCESS_KEY_ID'] == 'AKIAIOSFODNN7EXAMPLE', (
                     'AWS_ACCESS_KEY_ID should be set to the expected fake value'
                 )
-                assert os.environ['AWS_SECRET_ACCESS_KEY'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', (
-                    'AWS_SECRET_ACCESS_KEY should be set to the expected fake value'
-                )
+                assert (
+                    os.environ['AWS_SECRET_ACCESS_KEY']
+                    == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+                ), 'AWS_SECRET_ACCESS_KEY should be set to the expected fake value'
 
         # Run the async check
         asyncio.get_event_loop().run_until_complete(check_credential_configuration())
@@ -1012,6 +1010,7 @@ def test_property_endpoint_url_command_modification(endpoint_url: str):
     original_env = os.environ.copy()
 
     try:
+
         async def check_command_modification():
             with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
                 mock_call_aws.return_value = {'Tables': []}
@@ -1020,8 +1019,7 @@ def test_property_endpoint_url_command_modification(endpoint_url: str):
 
                 # Execute with the generated endpoint URL
                 await _execute_dynamodb_command(
-                    command=original_command,
-                    endpoint_url=endpoint_url
+                    command=original_command, endpoint_url=endpoint_url
                 )
 
                 # Verify call_aws was called
@@ -1034,8 +1032,7 @@ def test_property_endpoint_url_command_modification(endpoint_url: str):
                 # Property: The command passed to call_aws SHALL contain --endpoint-url {endpoint_url}
                 expected_suffix = f'--endpoint-url {endpoint_url}'
                 assert expected_suffix in actual_command, (
-                    f"Command should contain '{expected_suffix}', "
-                    f"but got: '{actual_command}'"
+                    f"Command should contain '{expected_suffix}', but got: '{actual_command}'"
                 )
 
                 # Property: The original command should still be present
@@ -1205,7 +1202,9 @@ async def test_dynamodb_data_model_validation_file_not_found_exception():
 @given(
     st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
     st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # description
-    st.sampled_from(['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']),  # dynamodb_operation
+    st.sampled_from(
+        ['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']
+    ),  # dynamodb_operation
 )
 def test_property_access_pattern_response_format_consistency(
     pattern_id: str,
@@ -1244,9 +1243,7 @@ def test_property_access_pattern_response_format_consistency(
 
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     result = await _execute_access_patterns(
-                        tmp_dir,
-                        [access_pattern],
-                        endpoint_url='http://localhost:8000'
+                        tmp_dir, [access_pattern], endpoint_url='http://localhost:8000'
                     )
 
                     # Verify the response structure
@@ -1262,7 +1259,13 @@ def test_property_access_pattern_response_format_consistency(
                     pattern_result = validation_response[0]
 
                     # Property: Response SHALL contain all required keys
-                    required_keys = {'pattern_id', 'description', 'dynamodb_operation', 'command', 'response'}
+                    required_keys = {
+                        'pattern_id',
+                        'description',
+                        'dynamodb_operation',
+                        'command',
+                        'response',
+                    }
                     actual_keys = set(pattern_result.keys())
 
                     assert required_keys == actual_keys, (
@@ -1271,20 +1274,18 @@ def test_property_access_pattern_response_format_consistency(
 
                     # Verify the values match the input
                     assert pattern_result['pattern_id'] == pattern_id, (
-                        f"pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result['pattern_id']}"
+                        f'pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result["pattern_id"]}'
                     )
                     assert pattern_result['description'] == description, (
-                        f"description mismatch. Expected: {description}, Got: {pattern_result['description']}"
+                        f'description mismatch. Expected: {description}, Got: {pattern_result["description"]}'
                     )
                     assert pattern_result['dynamodb_operation'] == dynamodb_operation, (
-                        f"dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result['dynamodb_operation']}"
+                        f'dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result["dynamodb_operation"]}'
                     )
                     assert pattern_result['command'] == command, (
-                        f"command mismatch. Expected: {command}, Got: {pattern_result['command']}"
+                        f'command mismatch. Expected: {command}, Got: {pattern_result["command"]}'
                     )
-                    assert 'response' in pattern_result, (
-                        'Response should contain response key'
-                    )
+                    assert 'response' in pattern_result, 'Response should contain response key'
 
     # Run the async check
     asyncio.get_event_loop().run_until_complete(check_response_format())
@@ -1296,7 +1297,9 @@ def test_property_access_pattern_response_format_consistency(
 @given(
     st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
     st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # description
-    st.sampled_from(['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']),  # dynamodb_operation
+    st.sampled_from(
+        ['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']
+    ),  # dynamodb_operation
     st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # error_message
 )
 def test_property_error_response_format_consistency(
@@ -1338,9 +1341,7 @@ def test_property_error_response_format_consistency(
 
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     result = await _execute_access_patterns(
-                        tmp_dir,
-                        [access_pattern],
-                        endpoint_url='http://localhost:8000'
+                        tmp_dir, [access_pattern], endpoint_url='http://localhost:8000'
                     )
 
                     # Verify the response structure is maintained even for errors
@@ -1356,7 +1357,13 @@ def test_property_error_response_format_consistency(
                     pattern_result = validation_response[0]
 
                     # Property: Error response SHALL maintain the same format as successful executions
-                    required_keys = {'pattern_id', 'description', 'dynamodb_operation', 'command', 'response'}
+                    required_keys = {
+                        'pattern_id',
+                        'description',
+                        'dynamodb_operation',
+                        'command',
+                        'response',
+                    }
                     actual_keys = set(pattern_result.keys())
 
                     assert required_keys == actual_keys, (
@@ -1365,16 +1372,16 @@ def test_property_error_response_format_consistency(
 
                     # Verify the values match the input (same as successful execution)
                     assert pattern_result['pattern_id'] == pattern_id, (
-                        f"pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result['pattern_id']}"
+                        f'pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result["pattern_id"]}'
                     )
                     assert pattern_result['description'] == description, (
-                        f"description mismatch. Expected: {description}, Got: {pattern_result['description']}"
+                        f'description mismatch. Expected: {description}, Got: {pattern_result["description"]}'
                     )
                     assert pattern_result['dynamodb_operation'] == dynamodb_operation, (
-                        f"dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result['dynamodb_operation']}"
+                        f'dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result["dynamodb_operation"]}'
                     )
                     assert pattern_result['command'] == command, (
-                        f"command mismatch. Expected: {command}, Got: {pattern_result['command']}"
+                        f'command mismatch. Expected: {command}, Got: {pattern_result["command"]}'
                     )
 
                     # Property: Error SHALL be captured in the response field
