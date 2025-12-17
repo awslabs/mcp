@@ -100,6 +100,20 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Generate Container Software Bill of Materials and Vulnerabilities
+        run: |
+          curl -sSfL https://get.anchore.io/syft | sh -s -- -b /usr/local/bin
+          curl -sSfL https://get.anchore.io/grype | sh -s -- -b /usr/local/bin
+          syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
+          cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
+          syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
+          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli convert \
+            --input-file /data/${{ matrix.dockerfile }}/cyclonedx.json \
+            --input-format json \
+            --output-file /data/${{ matrix.dockerfile }}/sbom.csv \
+            --output-format csv
+          cat ${{ matrix.dockerfile }}/sbom.csv
+
       - name: Delete the exported image
         run: |
           rm -r -f "${{ runner.temp }}/image.tar"
@@ -116,20 +130,6 @@ jobs:
         uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
-
-      - name: Generate Container Software Bill of Materials and Vulnerabilities
-        run: |
-          curl -sSfL https://get.anchore.io/syft | sh -s -- -b /usr/local/bin
-          curl -sSfL https://get.anchore.io/grype | sh -s -- -b /usr/local/bin
-          syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
-          cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
-          syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
-          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli convert \
-            --input-file /data/${{ matrix.dockerfile }}/cyclonedx.json \
-            --input-format json \
-            --output-file /data/${{ matrix.dockerfile }}/sbom.csv \
-            --output-format csv
-          cat ${{ matrix.dockerfile }}/sbom.csv
 
       - name: Upload results
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
