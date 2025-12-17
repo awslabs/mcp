@@ -15,16 +15,17 @@
 """Tests for error handling in operations."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from botocore.exceptions import ClientError
-
 from awslabs.healthimaging_mcp_server.healthimaging_operations import HealthImagingClient
+from botocore.exceptions import ClientError
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
 def client():
     """Create a client with mocked boto3."""
-    with patch('awslabs.healthimaging_mcp_server.healthimaging_operations.boto3.Session') as mock_session:
+    with patch(
+        'awslabs.healthimaging_mcp_server.healthimaging_operations.boto3.Session'
+    ) as mock_session:
         mock_session_instance = MagicMock()
         mock_hi_client = MagicMock()
         mock_session_instance.client.return_value = mock_hi_client
