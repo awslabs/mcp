@@ -3,14 +3,6 @@
 # Standard library imports
 import json
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Sequence
-
-# Third-party imports
-from botocore.exceptions import ClientError, NoCredentialsError
-from mcp.server import Server
-from mcp.types import Resource, TextContent, Tool
-from pydantic import AnyUrl, ValidationError
 
 # Local imports
 from .healthimaging_operations import MAX_SEARCH_COUNT, HealthImagingClient, validate_datastore_id
@@ -36,6 +28,14 @@ from .models import (
     SearchImageSetsRequest,
     UpdateImageSetMetadataRequest,
 )
+
+# Third-party imports
+from botocore.exceptions import ClientError, NoCredentialsError
+from datetime import datetime
+from mcp.server import Server
+from mcp.types import Resource, TextContent, Tool
+from pydantic import AnyUrl
+from typing import Any, Dict, List, Sequence
 
 
 logger = logging.getLogger(__name__)
@@ -94,27 +94,22 @@ class ToolHandler:
             'get_image_set_metadata': self._handle_get_image_set_metadata,
             'get_image_frame': self._handle_get_image_frame,
             'list_image_set_versions': self._handle_list_image_set_versions,
-            
             # Delete operations (3 tools)
             'delete_image_set': self._handle_delete_image_set,
             'delete_patient_studies': self._handle_delete_patient_studies,
             'delete_study': self._handle_delete_study,
-            
             # Metadata update operations (3 tools)
             'update_image_set_metadata': self._handle_update_image_set_metadata,
             'remove_series_from_image_set': self._handle_remove_series,
             'remove_instance_from_image_set': self._handle_remove_instance,
-            
             # Enhanced search operations (3 tools)
             'search_by_patient_id': self._handle_search_by_patient,
             'search_by_study_uid': self._handle_search_by_study,
             'search_by_series_uid': self._handle_search_by_series,
-            
             # Data analysis operations (3 tools)
             'get_patient_studies': self._handle_get_patient_studies,
             'get_patient_series': self._handle_get_patient_series,
             'get_study_primary_image_sets': self._handle_get_study_primary_image_sets,
-            
             # Bulk operations (2 tools)
             'bulk_update_patient_metadata': self._handle_bulk_update_patient_metadata,
             'bulk_delete_by_criteria': self._handle_bulk_delete_by_criteria,
@@ -446,7 +441,6 @@ def create_healthimaging_server() -> Server:
                     'required': ['datastore_id', 'image_set_id'],
                 },
             ),
-
             # DELETE OPERATIONS (Critical for data lifecycle management)
             Tool(
                 name='delete_image_set',
@@ -502,7 +496,6 @@ def create_healthimaging_server() -> Server:
                     'required': ['datastore_id', 'study_instance_uid'],
                 },
             ),
-
             # METADATA UPDATE OPERATIONS (Critical for data corrections)
             Tool(
                 name='update_image_set_metadata',
@@ -579,7 +572,6 @@ def create_healthimaging_server() -> Server:
                     'required': ['datastore_id', 'image_set_id', 'sop_instance_uid'],
                 },
             ),
-
             # ENHANCED SEARCH OPERATIONS (Improved clinical workflows)
             Tool(
                 name='search_by_patient_id',
@@ -645,7 +637,6 @@ def create_healthimaging_server() -> Server:
                     'required': ['datastore_id', 'series_instance_uid'],
                 },
             ),
-
             # DATA ANALYSIS OPERATIONS (Clinical insights)
             Tool(
                 name='get_patient_studies',
@@ -701,7 +692,6 @@ def create_healthimaging_server() -> Server:
                     'required': ['datastore_id', 'study_instance_uid'],
                 },
             ),
-
             # BULK OPERATIONS (Efficiency for large datasets)
             Tool(
                 name='bulk_update_patient_metadata',

@@ -1,10 +1,9 @@
 """Pydantic models for HealthImaging MCP server."""
 
 # Standard library imports
-from typing import Any, Dict, Optional
-
 # Third-party imports
 from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, Optional
 
 
 # HealthImaging constants
@@ -27,6 +26,7 @@ class SearchImageSetsRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -41,6 +41,7 @@ class ImageSetRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -56,6 +57,7 @@ class ImageSetMetadataRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -71,6 +73,7 @@ class ImageFrameRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -86,12 +89,14 @@ class ImageSetVersionsRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
 
 
 # NEW MODELS FOR ADDITIONAL OPERATIONS
+
 
 class DeleteImageSetRequest(BaseModel):
     """Request to delete an image set."""
@@ -102,6 +107,7 @@ class DeleteImageSetRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -116,6 +122,7 @@ class DeletePatientStudiesRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -130,6 +137,7 @@ class DeleteStudyRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -146,6 +154,7 @@ class UpdateImageSetMetadataRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -161,6 +170,7 @@ class RemoveSeriesRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -177,6 +187,7 @@ class RemoveInstanceRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -192,6 +203,7 @@ class SearchByPatientRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -207,6 +219,7 @@ class SearchByStudyRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -221,6 +234,7 @@ class SearchBySeriesRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -235,6 +249,7 @@ class GetPatientStudiesRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -249,6 +264,7 @@ class GetPatientSeriesRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -263,6 +279,7 @@ class GetStudyPrimaryImageSetsRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -278,6 +295,7 @@ class BulkUpdatePatientMetadataRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
@@ -292,6 +310,7 @@ class BulkDeleteByCriteriaRequest(BaseModel):
     @field_validator('datastore_id')
     @classmethod
     def validate_datastore_id(cls, v):
+        """Validate that datastore ID is alphanumeric."""
         if not v.isalnum():
             raise ValueError('Datastore ID must be alphanumeric')
         return v
