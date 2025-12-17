@@ -263,7 +263,12 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
             # Validate content type
             content_type = response.headers.get('content-type', '')
             if content_type and not content_type.startswith(
-                ('application/gzip', 'application/x-gzip', 'application/octet-stream')
+                (
+                    'application/gzip',
+                    'application/x-gzip',
+                    'application/octet-stream',
+                    'application/x-tar',
+                )
             ):
                 raise ValueError(f'Unexpected content type: {content_type}')
 
@@ -558,13 +563,13 @@ def start_java_process(java_path: str, port: int) -> str:
         java_path,
         f'-D{DynamoDBLocalConfig.JAVA_PROPERTY_NAME}=true',
         f'-Djava.library.path={lib_path}',
+        '-Djava.net.bindAddress=127.0.0.1',
         '-jar',
         jar_path,
-        '-bindAddress',
-        '127.0.0.1',
         '-port',
         str(port),
         '-inMemory',
+        '-sharedDb',
     ]
 
     try:

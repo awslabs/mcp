@@ -671,6 +671,7 @@ class TestDynamoDBLocalSetup:
                     '-port',
                     '8004',
                     '-inMemory',
+                    '-sharedDb',
                 ],
             }
             mock_process_iter.return_value = [mock_proc]
