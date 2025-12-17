@@ -44,18 +44,43 @@ class DistanceMetric(Enum):
 async def create_vector_index(
     name: str,
     dimensions: int,
-    index_type: IndexType = IndexType.HASH,
+    index_type: IndexType | str = IndexType.HASH,
     prefix: Optional[list[str]] = None,
     embedding_field: str = 'embedding',
     embedding_field_alias: Optional[str] = None,
-    structure_type: StructureType = StructureType.FLAT,
-    distance_metric: DistanceMetric = DistanceMetric.L2,
+    structure_type: StructureType | str = StructureType.FLAT,
+    distance_metric: DistanceMetric | str = DistanceMetric.L2,
     initial_size: Optional[int] = None,
     max_outgoing_edges: Optional[int] = None,
     ef_construction: Optional[int] = None,
     ef_runtime: Optional[int] = None,
 ):
     """Create a Valkey index intended for vector similarity search."""
+    # Convert string parameters to enums with validation
+    if isinstance(index_type, str):
+        try:
+            index_type = IndexType(index_type)
+        except ValueError:
+            raise ValueError(
+                f'Invalid index_type: {index_type}. Must be one of: {[e.value for e in IndexType]}'
+            )
+
+    if isinstance(structure_type, str):
+        try:
+            structure_type = StructureType(structure_type)
+        except ValueError:
+            raise ValueError(
+                f'Invalid structure_type: {structure_type}. Must be one of: {[e.value for e in StructureType]}'
+            )
+
+    if isinstance(distance_metric, str):
+        try:
+            distance_metric = DistanceMetric(distance_metric)
+        except ValueError:
+            raise ValueError(
+                f'Invalid distance_metric: {distance_metric}. Must be one of: {[e.value for e in DistanceMetric]}'
+            )
+
     r = ValkeyConnectionManager.get_connection(decode_responses=True)
     create_args = ['FT.CREATE', name]
 
@@ -64,7 +89,7 @@ async def create_vector_index(
     elif index_type == IndexType.HASH:
         create_args += ['ON', 'HASH']
     else:
-        raise ValueError(f'Unknown index type: {index_type}')
+        raise ValueError(f'Unknown index type: {index_type.name}')
 
     if prefix is not None:
         create_args += ['PREFIX', str(len(prefix)), *prefix]
@@ -73,7 +98,7 @@ async def create_vector_index(
     if embedding_field_alias is not None:
         create_args += ['AS', embedding_field_alias]
 
-    sub_args = ['TYPE', 'FLOAT32', 'DIM', str(dimensions), 'DISTANCE_METRIC', distance_metric]
+    sub_args = ['TYPE', 'FLOAT32', 'DIM', str(dimensions), 'DISTANCE_METRIC', distance_metric.name]
     if initial_size is not None:
         sub_args += ['INITIAL_CAP', str(initial_size)]
     if structure_type == StructureType.HNSW:
@@ -84,6 +109,6 @@ async def create_vector_index(
         if ef_runtime is not None:
             sub_args += ['EF_RUNTIME', str(ef_runtime)]
 
-    create_args += ['VECTOR', structure_type, str(len(sub_args)), *sub_args]
+    create_args += ['VECTOR', structure_type.name, str(len(sub_args)), *sub_args]
 
     return await r.execute_command(*create_args)
