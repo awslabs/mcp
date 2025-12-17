@@ -16,39 +16,46 @@
 
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    # Extended response models
+    BatchOperationResult,
+    # Summary models
     CatalogSummary,
     ConnectionSummary,
-    CreateCatalogResponse,
-    # Connection response models
-    CreateConnectionResponse,
-    # Database response models
-    CreateDatabaseResponse,
-    # Partition response models
-    CreatePartitionResponse,
-    # Table response models
-    CreateTableResponse,
-    # Summary models
+    CrawlerRun,
+    CreateCatalogData,
+    CreateConnectionData,
+    # Data models
+    CreateDatabaseData,
+    CreatePartitionData,
+    CreateTableData,
     DatabaseSummary,
-    DeleteConnectionResponse,
-    DeleteDatabaseResponse,
-    DeleteTableResponse,
-    GetCatalogResponse,
-    GetConnectionResponse,
-    GetDatabaseResponse,
-    GetPartitionResponse,
-    GetTableResponse,
-    # Additional utility models
+    DataQualityResult,
+    DeleteCatalogData,
+    DeleteConnectionData,
+    DeleteDatabaseData,
+    DeletePartitionData,
+    DeleteTableData,
+    GetCatalogData,
+    GetConnectionData,
+    GetDatabaseData,
+    GetPartitionData,
+    GetTableData,
+    GlueJobRun,
+    # Utility models
     GlueOperation,
-    ListDatabasesResponse,
-    ListTablesResponse,
+    ImportCatalogData,
+    ListCatalogsData,
+    ListConnectionsData,
+    ListDatabasesData,
+    ListPartitionsData,
+    ListTablesData,
     PartitionSummary,
-    SearchTablesResponse,
+    SearchTablesData,
     TableSummary,
-    UpdateDatabaseResponse,
-    UpdateTableResponse,
+    UpdateConnectionData,
+    UpdateDatabaseData,
+    UpdatePartitionData,
+    UpdateTableData,
 )
-from mcp.types import TextContent
 from pydantic import ValidationError
 
 
@@ -344,129 +351,84 @@ class TestCatalogSummary:
             )
 
 
-class TestDatabaseResponseModels:
-    """Tests for the database response models."""
+class TestDatabaseDataModels:
+    """Tests for the database data models."""
 
-    def test_create_database_response(self):
-        """Test creating a CreateDatabaseResponse."""
-        response = CreateDatabaseResponse(
-            isError=False,
-            database_name='test-db',
-            content=[TextContent(type='text', text='Successfully created database')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.operation == 'create'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully created database'
+    def test_create_database_data(self):
+        """Test creating a CreateDatabaseData."""
+        data = CreateDatabaseData(database_name='test-db')
+        assert data.database_name == 'test-db'
+        assert data.operation == 'create'  # Default value
 
-    def test_delete_database_response(self):
-        """Test creating a DeleteDatabaseResponse."""
-        response = DeleteDatabaseResponse(
-            isError=False,
-            database_name='test-db',
-            content=[TextContent(type='text', text='Successfully deleted database')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.operation == 'delete'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully deleted database'
+    def test_delete_database_data(self):
+        """Test creating a DeleteDatabaseData."""
+        data = DeleteDatabaseData(database_name='test-db')
+        assert data.database_name == 'test-db'
+        assert data.operation == 'delete'  # Default value
 
-    def test_get_database_response(self):
-        """Test creating a GetDatabaseResponse."""
-        response = GetDatabaseResponse(
-            isError=False,
+    def test_get_database_data(self):
+        """Test creating a GetDatabaseData."""
+        data = GetDatabaseData(
             database_name='test-db',
             description='Test database',
             location_uri='s3://test-bucket/',
             parameters={'key1': 'value1'},
             creation_time='2023-01-01T00:00:00Z',
             catalog_id='123456789012',
-            content=[TextContent(type='text', text='Successfully retrieved database')],
         )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.description == 'Test database'
-        assert response.location_uri == 's3://test-bucket/'
-        assert response.parameters == {'key1': 'value1'}
-        assert response.creation_time == '2023-01-01T00:00:00Z'
-        assert response.catalog_id == '123456789012'
-        assert response.operation == 'get'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully retrieved database'
+        assert data.database_name == 'test-db'
+        assert data.description == 'Test database'
+        assert data.location_uri == 's3://test-bucket/'
+        assert data.parameters == {'key1': 'value1'}
+        assert data.creation_time == '2023-01-01T00:00:00Z'
+        assert data.catalog_id == '123456789012'
+        assert data.operation == 'get'  # Default value
 
-    def test_list_databases_response(self):
-        """Test creating a ListDatabasesResponse."""
+    def test_list_databases_data(self):
+        """Test creating a ListDatabasesData."""
         db1 = DatabaseSummary(name='db1', description='Database 1')
         db2 = DatabaseSummary(name='db2', description='Database 2')
 
-        response = ListDatabasesResponse(
-            isError=False,
+        data = ListDatabasesData(
             databases=[db1, db2],
             count=2,
             catalog_id='123456789012',
-            content=[TextContent(type='text', text='Successfully listed databases')],
+            next_token='next-page-token',
         )
-        assert response.isError is False
-        assert len(response.databases) == 2
-        assert response.databases[0].name == 'db1'
-        assert response.databases[1].name == 'db2'
-        assert response.count == 2
-        assert response.catalog_id == '123456789012'
-        assert response.operation == 'list'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully listed databases'
+        assert len(data.databases) == 2
+        assert data.databases[0].name == 'db1'
+        assert data.databases[1].name == 'db2'
+        assert data.count == 2
+        assert data.catalog_id == '123456789012'
+        assert data.next_token == 'next-page-token'
+        assert data.operation == 'list'  # Default value
 
-    def test_update_database_response(self):
-        """Test creating an UpdateDatabaseResponse."""
-        response = UpdateDatabaseResponse(
-            isError=False,
-            database_name='test-db',
-            content=[TextContent(type='text', text='Successfully updated database')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.operation == 'update'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully updated database'
+    def test_update_database_data(self):
+        """Test creating an UpdateDatabaseData."""
+        data = UpdateDatabaseData(database_name='test-db')
+        assert data.database_name == 'test-db'
+        assert data.operation == 'update'  # Default value
 
 
-class TestTableResponseModels:
-    """Tests for the table response models."""
+class TestTableDataModels:
+    """Tests for the table data models."""
 
-    def test_create_table_response(self):
-        """Test creating a CreateTableResponse."""
-        response = CreateTableResponse(
-            isError=False,
-            database_name='test-db',
-            table_name='test-table',
-            content=[TextContent(type='text', text='Successfully created table')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.operation == 'create'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully created table'
+    def test_create_table_data(self):
+        """Test creating a CreateTableData."""
+        data = CreateTableData(database_name='test-db', table_name='test-table')
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.operation == 'create'  # Default value
 
-    def test_delete_table_response(self):
-        """Test creating a DeleteTableResponse."""
-        response = DeleteTableResponse(
-            isError=False,
-            database_name='test-db',
-            table_name='test-table',
-            content=[TextContent(type='text', text='Successfully deleted table')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.operation == 'delete'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully deleted table'
+    def test_delete_table_data(self):
+        """Test creating a DeleteTableData."""
+        data = DeleteTableData(database_name='test-db', table_name='test-table')
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.operation == 'delete'  # Default value
 
-    def test_get_table_response(self):
-        """Test creating a GetTableResponse."""
+    def test_get_table_data(self):
+        """Test creating a GetTableData."""
         table_definition = {
             'Name': 'test-table',
             'DatabaseName': 'test-db',
@@ -475,122 +437,94 @@ class TestTableResponseModels:
             },
         }
 
-        response = GetTableResponse(
-            isError=False,
+        data = GetTableData(
             database_name='test-db',
             table_name='test-table',
             table_definition=table_definition,
             creation_time='2023-01-01T00:00:00Z',
             last_access_time='2023-01-02T00:00:00Z',
-            content=[TextContent(type='text', text='Successfully retrieved table')],
+            storage_descriptor={
+                'Columns': [{'Name': 'id', 'Type': 'int'}, {'Name': 'name', 'Type': 'string'}]
+            },
+            partition_keys=[{'Name': 'year', 'Type': 'string'}],
         )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.table_definition == table_definition
-        assert response.creation_time == '2023-01-01T00:00:00Z'
-        assert response.last_access_time == '2023-01-02T00:00:00Z'
-        assert response.operation == 'get'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully retrieved table'
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.table_definition == table_definition
+        assert data.creation_time == '2023-01-01T00:00:00Z'
+        assert data.last_access_time == '2023-01-02T00:00:00Z'
+        assert data.operation == 'get'  # Default value
 
-    def test_list_tables_response(self):
-        """Test creating a ListTablesResponse."""
+    def test_list_tables_data(self):
+        """Test creating a ListTablesData."""
         table1 = TableSummary(name='table1', database_name='test-db')
         table2 = TableSummary(name='table2', database_name='test-db')
 
-        response = ListTablesResponse(
-            isError=False,
+        data = ListTablesData(
             database_name='test-db',
             tables=[table1, table2],
             count=2,
-            content=[TextContent(type='text', text='Successfully listed tables')],
         )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert len(response.tables) == 2
-        assert response.tables[0].name == 'table1'
-        assert response.tables[1].name == 'table2'
-        assert response.count == 2
-        assert response.operation == 'list'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully listed tables'
+        assert data.database_name == 'test-db'
+        assert len(data.tables) == 2
+        assert data.tables[0].name == 'table1'
+        assert data.tables[1].name == 'table2'
+        assert data.count == 2
+        assert data.operation == 'list'  # Default value
 
-    def test_update_table_response(self):
-        """Test creating an UpdateTableResponse."""
-        response = UpdateTableResponse(
-            isError=False,
-            database_name='test-db',
-            table_name='test-table',
-            content=[TextContent(type='text', text='Successfully updated table')],
-        )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.operation == 'update'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully updated table'
+    def test_update_table_data(self):
+        """Test creating an UpdateTableData."""
+        data = UpdateTableData(database_name='test-db', table_name='test-table')
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.operation == 'update'  # Default value
 
-    def test_search_tables_response(self):
-        """Test creating a SearchTablesResponse."""
+    def test_search_tables_data(self):
+        """Test creating a SearchTablesData."""
         table1 = TableSummary(name='test_table1', database_name='db1')
         table2 = TableSummary(name='test_table2', database_name='db2')
 
-        response = SearchTablesResponse(
-            isError=False,
+        data = SearchTablesData(
             tables=[table1, table2],
             search_text='test',
             count=2,
-            content=[TextContent(type='text', text='Successfully searched tables')],
+            next_token='next-page-token',
         )
-        assert response.isError is False
-        assert len(response.tables) == 2
-        assert response.tables[0].name == 'test_table1'
-        assert response.tables[1].name == 'test_table2'
-        assert response.search_text == 'test'
-        assert response.count == 2
-        assert response.operation == 'search'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully searched tables'
+        assert len(data.tables) == 2
+        assert data.tables[0].name == 'test_table1'
+        assert data.tables[1].name == 'test_table2'
+        assert data.search_text == 'test'
+        assert data.count == 2
+        assert data.next_token == 'next-page-token'
+        assert data.operation == 'search'  # Default value
 
 
-class TestConnectionResponseModels:
-    """Tests for the connection response models."""
+class TestConnectionDataModels:
+    """Tests for the connection data models."""
 
-    def test_create_connection_response(self):
-        """Test creating a CreateConnectionResponse."""
-        response = CreateConnectionResponse(
-            isError=False,
+    def test_create_connection_data(self):
+        """Test creating a CreateConnectionData."""
+        data = CreateConnectionData(
             connection_name='test-conn',
             catalog_id='123456789012',
-            content=[TextContent(type='text', text='Successfully created connection')],
         )
-        assert response.isError is False
-        assert response.connection_name == 'test-conn'
-        assert response.catalog_id == '123456789012'
-        assert response.operation == 'create'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully created connection'
+        assert data.connection_name == 'test-conn'
+        assert data.catalog_id == '123456789012'
+        assert data.operation == 'create'  # Default value
 
-    def test_delete_connection_response(self):
-        """Test creating a DeleteConnectionResponse."""
-        response = DeleteConnectionResponse(
-            isError=False,
+    def test_delete_connection_data(self):
+        """Test creating a DeleteConnectionData."""
+        data = DeleteConnectionData(
             connection_name='test-conn',
             catalog_id='123456789012',
-            content=[TextContent(type='text', text='Successfully deleted connection')],
         )
-        assert response.isError is False
-        assert response.connection_name == 'test-conn'
-        assert response.catalog_id == '123456789012'
-        assert response.operation == 'delete'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully deleted connection'
+        assert data.connection_name == 'test-conn'
+        assert data.catalog_id == '123456789012'
+        assert data.operation == 'delete'  # Default value
 
-    def test_get_connection_response(self):
-        """Test creating a GetConnectionResponse."""
-        response = GetConnectionResponse(
-            isError=False,
+    def test_get_connection_data(self):
+        """Test creating a GetConnectionData."""
+        data = GetConnectionData(
             connection_name='test-conn',
             connection_type='JDBC',
             connection_properties={
@@ -609,51 +543,82 @@ class TestConnectionResponseModels:
             status_reason='Connection is ready',
             last_connection_validation_time='2023-01-03T00:00:00Z',
             catalog_id='123456789012',
-            content=[TextContent(type='text', text='Successfully retrieved connection')],
         )
-        assert response.isError is False
-        assert response.connection_name == 'test-conn'
-        assert response.connection_type == 'JDBC'
+        assert data.connection_name == 'test-conn'
+        assert data.connection_type == 'JDBC'
         assert (
-            response.connection_properties['JDBC_CONNECTION_URL']
-            == 'jdbc:mysql://localhost:3306/test'
+            data.connection_properties['JDBC_CONNECTION_URL'] == 'jdbc:mysql://localhost:3306/test'
         )
-        assert response.connection_properties['USERNAME'] == 'test-user'
-        assert response.physical_connection_requirements['AvailabilityZone'] == 'us-east-1a'
-        assert response.creation_time == '2023-01-01T00:00:00Z'
-        assert response.last_updated_time == '2023-01-02T00:00:00Z'
-        assert response.last_updated_by == 'test-user'
-        assert response.status == 'READY'
-        assert response.status_reason == 'Connection is ready'
-        assert response.last_connection_validation_time == '2023-01-03T00:00:00Z'
-        assert response.catalog_id == '123456789012'
-        assert response.operation == 'get'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully retrieved connection'
+        assert data.connection_properties['USERNAME'] == 'test-user'
+        assert data.physical_connection_requirements['AvailabilityZone'] == 'us-east-1a'
+        assert data.creation_time == '2023-01-01T00:00:00Z'
+        assert data.last_updated_time == '2023-01-02T00:00:00Z'
+        assert data.last_updated_by == 'test-user'
+        assert data.status == 'READY'
+        assert data.status_reason == 'Connection is ready'
+        assert data.last_connection_validation_time == '2023-01-03T00:00:00Z'
+        assert data.catalog_id == '123456789012'
+        assert data.operation == 'get'  # Default value
+
+    def test_list_connections_data(self):
+        """Test creating a ListConnectionsData."""
+        conn1 = ConnectionSummary(name='conn1', connection_type='JDBC')
+        conn2 = ConnectionSummary(name='conn2', connection_type='KAFKA')
+
+        data = ListConnectionsData(
+            connections=[conn1, conn2],
+            count=2,
+            catalog_id='123456789012',
+            next_token='next-page-token',
+        )
+        assert len(data.connections) == 2
+        assert data.connections[0].name == 'conn1'
+        assert data.connections[1].name == 'conn2'
+        assert data.count == 2
+        assert data.catalog_id == '123456789012'
+        assert data.next_token == 'next-page-token'
+        assert data.operation == 'list'  # Default value
+
+    def test_update_connection_data(self):
+        """Test creating an UpdateConnectionData."""
+        data = UpdateConnectionData(
+            connection_name='test-conn',
+            catalog_id='123456789012',
+        )
+        assert data.connection_name == 'test-conn'
+        assert data.catalog_id == '123456789012'
+        assert data.operation == 'update'  # Default value
 
 
-class TestPartitionResponseModels:
-    """Tests for the partition response models."""
+class TestPartitionDataModels:
+    """Tests for the partition data models."""
 
-    def test_create_partition_response(self):
-        """Test creating a CreatePartitionResponse."""
-        response = CreatePartitionResponse(
-            isError=False,
+    def test_create_partition_data(self):
+        """Test creating a CreatePartitionData."""
+        data = CreatePartitionData(
             database_name='test-db',
             table_name='test-table',
             partition_values=['2023', '01', '01'],
-            content=[TextContent(type='text', text='Successfully created partition')],
         )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.partition_values == ['2023', '01', '01']
-        assert response.operation == 'create'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully created partition'
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.partition_values == ['2023', '01', '01']
+        assert data.operation == 'create'  # Default value
 
-    def test_get_partition_response(self):
-        """Test creating a GetPartitionResponse."""
+    def test_delete_partition_data(self):
+        """Test creating a DeletePartitionData."""
+        data = DeletePartitionData(
+            database_name='test-db',
+            table_name='test-table',
+            partition_values=['2023', '01', '01'],
+        )
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.partition_values == ['2023', '01', '01']
+        assert data.operation == 'delete'  # Default value
+
+    def test_get_partition_data(self):
+        """Test creating a GetPartitionData."""
         partition_definition = {
             'Values': ['2023', '01', '01'],
             'StorageDescriptor': {
@@ -662,8 +627,7 @@ class TestPartitionResponseModels:
             'Parameters': {'key1': 'value1'},
         }
 
-        response = GetPartitionResponse(
-            isError=False,
+        data = GetPartitionData(
             database_name='test-db',
             table_name='test-table',
             partition_values=['2023', '01', '01'],
@@ -674,51 +638,84 @@ class TestPartitionResponseModels:
                 'Location': 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
             },
             parameters={'key1': 'value1'},
-            content=[TextContent(type='text', text='Successfully retrieved partition')],
         )
-        assert response.isError is False
-        assert response.database_name == 'test-db'
-        assert response.table_name == 'test-table'
-        assert response.partition_values == ['2023', '01', '01']
-        assert response.partition_definition == partition_definition
-        assert response.creation_time == '2023-01-01T00:00:00Z'
-        assert response.last_access_time == '2023-01-02T00:00:00Z'
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.partition_values == ['2023', '01', '01']
+        assert data.partition_definition == partition_definition
+        assert data.creation_time == '2023-01-01T00:00:00Z'
+        assert data.last_access_time == '2023-01-02T00:00:00Z'
         assert (
-            response.storage_descriptor['Location']
+            data.storage_descriptor['Location']
             == 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
         )
-        assert response.parameters == {'key1': 'value1'}
-        assert response.operation == 'get'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully retrieved partition'
+        assert data.parameters == {'key1': 'value1'}
+        assert data.operation == 'get'  # Default value
 
-
-class TestCatalogResponseModels:
-    """Tests for the catalog response models."""
-
-    def test_create_catalog_response(self):
-        """Test creating a CreateCatalogResponse."""
-        response = CreateCatalogResponse(
-            isError=False,
-            catalog_id='test-catalog',
-            content=[TextContent(type='text', text='Successfully created catalog')],
+    def test_list_partitions_data(self):
+        """Test creating a ListPartitionsData."""
+        partition1 = PartitionSummary(
+            values=['2023', '01', '01'], database_name='test-db', table_name='test-table'
         )
-        assert response.isError is False
-        assert response.catalog_id == 'test-catalog'
-        assert response.operation == 'create'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully created catalog'
+        partition2 = PartitionSummary(
+            values=['2023', '01', '02'], database_name='test-db', table_name='test-table'
+        )
 
-    def test_get_catalog_response(self):
-        """Test creating a GetCatalogResponse."""
+        data = ListPartitionsData(
+            database_name='test-db',
+            table_name='test-table',
+            partitions=[partition1, partition2],
+            count=2,
+            expression='year = 2023',
+            next_token='next-page-token',
+        )
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert len(data.partitions) == 2
+        assert data.partitions[0].values == ['2023', '01', '01']
+        assert data.partitions[1].values == ['2023', '01', '02']
+        assert data.count == 2
+        assert data.expression == 'year = 2023'
+        assert data.next_token == 'next-page-token'
+        assert data.operation == 'list'  # Default value
+
+    def test_update_partition_data(self):
+        """Test creating an UpdatePartitionData."""
+        data = UpdatePartitionData(
+            database_name='test-db',
+            table_name='test-table',
+            partition_values=['2023', '01', '01'],
+        )
+        assert data.database_name == 'test-db'
+        assert data.table_name == 'test-table'
+        assert data.partition_values == ['2023', '01', '01']
+        assert data.operation == 'update'  # Default value
+
+
+class TestCatalogDataModels:
+    """Tests for the catalog data models."""
+
+    def test_create_catalog_data(self):
+        """Test creating a CreateCatalogData."""
+        data = CreateCatalogData(catalog_id='test-catalog')
+        assert data.catalog_id == 'test-catalog'
+        assert data.operation == 'create'  # Default value
+
+    def test_delete_catalog_data(self):
+        """Test creating a DeleteCatalogData."""
+        data = DeleteCatalogData(catalog_id='test-catalog')
+        assert data.catalog_id == 'test-catalog'
+        assert data.operation == 'delete'  # Default value
+
+    def test_get_catalog_data(self):
+        """Test creating a GetCatalogData."""
         catalog_definition = {
             'Name': 'Test Catalog',
             'Description': 'Test catalog description',
             'Parameters': {'key1': 'value1'},
         }
 
-        response = GetCatalogResponse(
-            isError=False,
+        data = GetCatalogData(
             catalog_id='test-catalog',
             catalog_definition=catalog_definition,
             name='Test Catalog',
@@ -726,16 +723,113 @@ class TestCatalogResponseModels:
             parameters={'key1': 'value1'},
             create_time='2023-01-01T00:00:00Z',
             update_time='2023-01-02T00:00:00Z',
-            content=[TextContent(type='text', text='Successfully retrieved catalog')],
         )
-        assert response.isError is False
-        assert response.catalog_id == 'test-catalog'
-        assert response.catalog_definition == catalog_definition
-        assert response.name == 'Test Catalog'
-        assert response.description == 'Test catalog description'
-        assert response.parameters == {'key1': 'value1'}
-        assert response.create_time == '2023-01-01T00:00:00Z'
-        assert response.update_time == '2023-01-02T00:00:00Z'
-        assert response.operation == 'get'  # Default value
-        assert len(response.content) == 1
-        assert response.content[0].text == 'Successfully retrieved catalog'
+        assert data.catalog_id == 'test-catalog'
+        assert data.catalog_definition == catalog_definition
+        assert data.name == 'Test Catalog'
+        assert data.description == 'Test catalog description'
+        assert data.parameters == {'key1': 'value1'}
+        assert data.create_time == '2023-01-01T00:00:00Z'
+        assert data.update_time == '2023-01-02T00:00:00Z'
+        assert data.operation == 'get'  # Default value
+
+    def test_list_catalogs_data(self):
+        """Test creating a ListCatalogsData."""
+        catalog1 = CatalogSummary(catalog_id='catalog1', name='Catalog 1')
+        catalog2 = CatalogSummary(catalog_id='catalog2', name='Catalog 2')
+
+        data = ListCatalogsData(
+            catalogs=[catalog1, catalog2],
+            count=2,
+        )
+        assert len(data.catalogs) == 2
+        assert data.catalogs[0].catalog_id == 'catalog1'
+        assert data.catalogs[1].catalog_id == 'catalog2'
+        assert data.count == 2
+        assert data.operation == 'list'  # Default value
+
+    def test_import_catalog_data(self):
+        """Test creating an ImportCatalogData."""
+        data = ImportCatalogData(catalog_id='test-catalog')
+        assert data.catalog_id == 'test-catalog'
+        assert data.operation == 'import'  # Default value
+
+
+class TestUtilityModels:
+    """Tests for utility models."""
+
+    def test_glue_job_run(self):
+        """Test creating a GlueJobRun."""
+        job_run = GlueJobRun(
+            job_run_id='jr_12345',
+            job_name='test-job',
+            job_run_state='SUCCEEDED',
+            started_on='2023-01-01T10:00:00Z',
+            completed_on='2023-01-01T10:30:00Z',
+            execution_time=1800,
+            error_message=None,
+        )
+        assert job_run.job_run_id == 'jr_12345'
+        assert job_run.job_name == 'test-job'
+        assert job_run.job_run_state == 'SUCCEEDED'
+        assert job_run.started_on == '2023-01-01T10:00:00Z'
+        assert job_run.completed_on == '2023-01-01T10:30:00Z'
+        assert job_run.execution_time == 1800
+        assert job_run.error_message is None
+
+    def test_batch_operation_result(self):
+        """Test creating a BatchOperationResult."""
+        result = BatchOperationResult(
+            total_requested=10,
+            successful=8,
+            failed=2,
+            errors=[
+                {'table': 'table1', 'error': 'Access denied'},
+                {'table': 'table2', 'error': 'Table not found'},
+            ],
+        )
+        assert result.total_requested == 10
+        assert result.successful == 8
+        assert result.failed == 2
+        assert len(result.errors) == 2
+        assert result.errors[0]['table'] == 'table1'
+        assert result.errors[1]['error'] == 'Table not found'
+
+    def test_data_quality_result(self):
+        """Test creating a DataQualityResult."""
+        result = DataQualityResult(
+            result_id='dq_12345',
+            score=0.85,
+            started_on='2023-01-01T10:00:00Z',
+            completed_on='2023-01-01T10:15:00Z',
+            rule_results=[
+                {'rule': 'completeness', 'passed': True, 'score': 0.9},
+                {'rule': 'uniqueness', 'passed': False, 'score': 0.8},
+            ],
+        )
+        assert result.result_id == 'dq_12345'
+        assert result.score == 0.85
+        assert result.started_on == '2023-01-01T10:00:00Z'
+        assert result.completed_on == '2023-01-01T10:15:00Z'
+        assert len(result.rule_results) == 2
+        assert result.rule_results[0]['rule'] == 'completeness'
+        assert result.rule_results[1]['passed'] is False
+
+    def test_crawler_run(self):
+        """Test creating a CrawlerRun."""
+        run = CrawlerRun(
+            crawler_name='test-crawler',
+            state='SUCCEEDED',
+            start_time='2023-01-01T10:00:00Z',
+            end_time='2023-01-01T10:20:00Z',
+            tables_created=5,
+            tables_updated=2,
+            tables_deleted=1,
+        )
+        assert run.crawler_name == 'test-crawler'
+        assert run.state == 'SUCCEEDED'
+        assert run.start_time == '2023-01-01T10:00:00Z'
+        assert run.end_time == '2023-01-01T10:20:00Z'
+        assert run.tables_created == 5
+        assert run.tables_updated == 2
+        assert run.tables_deleted == 1
