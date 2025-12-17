@@ -14,18 +14,19 @@
 
 """GlueEtlJobsHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
-    CreateTriggerResponse,
-    CreateWorkflowResponse,
-    DeleteTriggerResponse,
-    DeleteWorkflowResponse,
-    GetTriggerResponse,
-    GetTriggersResponse,
-    GetWorkflowResponse,
-    ListWorkflowsResponse,
-    StartTriggerResponse,
-    StartWorkflowRunResponse,
-    StopTriggerResponse,
+    CreateTriggerData,
+    CreateWorkflowData,
+    DeleteTriggerData,
+    DeleteWorkflowData,
+    GetTriggerData,
+    GetTriggersData,
+    GetWorkflowData,
+    ListWorkflowsData,
+    StartTriggerData,
+    StartWorkflowRunData,
+    StopTriggerData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -34,9 +35,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class GlueWorkflowAndTriggerHandler:
@@ -92,13 +93,7 @@ class GlueWorkflowAndTriggerHandler:
                 description='Pagination token for list-workflows operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateWorkflowResponse,
-        DeleteWorkflowResponse,
-        GetWorkflowResponse,
-        ListWorkflowsResponse,
-        StartWorkflowRunResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue workflows to orchestrate complex ETL activities.
 
         This tool allows you to create, delete, retrieve, list, and start AWS Glue workflows.
@@ -156,25 +151,10 @@ class GlueWorkflowAndTriggerHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-workflow':
-                    return CreateWorkflowResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        workflow_name='',
-                    )
-                elif operation == 'delete-workflow':
-                    return DeleteWorkflowResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        workflow_name='',
-                    )
-                elif operation == 'start-workflow-run':
-                    return StartWorkflowRunResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        workflow_name='',
-                        run_id='',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-workflow':
                 if workflow_name is None or workflow_definition is None:
@@ -209,15 +189,18 @@ class GlueWorkflowAndTriggerHandler:
 
                 response = self.glue_client.create_workflow(Name=workflow_name, **params)
 
-                return CreateWorkflowResponse(
+                success_message = f'Successfully created workflow {workflow_name}'
+                data = CreateWorkflowData(
+                    workflow_name=workflow_name,
+                    operation='create-workflow',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created workflow {workflow_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    workflow_name=workflow_name,
                 )
 
             elif operation == 'delete-workflow':
@@ -238,19 +221,17 @@ class GlueWorkflowAndTriggerHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, workflow_arn, {}):
                         error_message = f'Cannot delete workflow {workflow_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteWorkflowResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            workflow_name=workflow_name,
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Workflow {workflow_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteWorkflowResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            workflow_name=workflow_name,
                         )
                     else:
                         raise e
@@ -258,15 +239,18 @@ class GlueWorkflowAndTriggerHandler:
                 # Delete the workflow
                 self.glue_client.delete_workflow(Name=workflow_name)
 
-                return DeleteWorkflowResponse(
+                success_message = f'Successfully deleted workflow {workflow_name}'
+                data = DeleteWorkflowData(
+                    workflow_name=workflow_name,
+                    operation='delete-workflow',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted workflow {workflow_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    workflow_name=workflow_name,
                 )
 
             elif operation == 'get-workflow':
@@ -287,16 +271,19 @@ class GlueWorkflowAndTriggerHandler:
 
                 response = self.glue_client.get_workflow(**params)
 
-                return GetWorkflowResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved workflow {workflow_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved workflow {workflow_name}'
+                data = GetWorkflowData(
                     workflow_name=workflow_name,
                     workflow_details=response.get('Workflow', {}),
+                    operation='get-workflow',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-workflows':
@@ -314,11 +301,19 @@ class GlueWorkflowAndTriggerHandler:
                 workflow_names = response.get('Workflows', [])
                 workflows = [{'Name': name} for name in workflow_names]
 
-                return ListWorkflowsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved workflows')],
+                success_message = 'Successfully retrieved workflows'
+                data = ListWorkflowsData(
                     workflows=workflows,
                     next_token=response.get('NextToken'),
+                    operation='list-workflows',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'start-workflow-run':
@@ -339,21 +334,17 @@ class GlueWorkflowAndTriggerHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, workflow_arn, {}):
                         error_message = f'Cannot start workflow run for {workflow_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StartWorkflowRunResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            workflow_name=workflow_name,
-                            run_id='',
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Workflow {workflow_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StartWorkflowRunResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            workflow_name=workflow_name,
-                            run_id='',
                         )
                     else:
                         raise e
@@ -372,26 +363,27 @@ class GlueWorkflowAndTriggerHandler:
 
                 response = self.glue_client.start_workflow_run(**params)
 
-                return StartWorkflowRunResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully started workflow run for {workflow_name}',
-                        )
-                    ],
+                success_message = f'Successfully started workflow run for {workflow_name}'
+                data = StartWorkflowRunData(
                     workflow_name=workflow_name,
                     run_id=response.get('RunId', ''),
+                    operation='start-workflow-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-workflow, delete-workflow, get-workflow, list-workflows, start-workflow-run'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetWorkflowResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    workflow_name=workflow_name or '',
-                    workflow_details={},
                 )
 
         except ValueError as e:
@@ -400,11 +392,9 @@ class GlueWorkflowAndTriggerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_workflows: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetWorkflowResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                workflow_name=workflow_name or '',
-                workflow_details={},
             )
 
     async def manage_aws_glue_triggers(
@@ -440,14 +430,7 @@ class GlueWorkflowAndTriggerHandler:
                 description='Pagination token for get-triggers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateTriggerResponse,
-        DeleteTriggerResponse,
-        GetTriggerResponse,
-        GetTriggersResponse,
-        StartTriggerResponse,
-        StopTriggerResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue triggers to automate workflow and job execution.
 
         This tool allows you to create, delete, retrieve, list, start, and stop AWS Glue triggers.
@@ -527,37 +510,10 @@ class GlueWorkflowAndTriggerHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-trigger':
-                    return CreateTriggerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        trigger_name='',
-                    )
-                elif operation == 'delete-trigger':
-                    return DeleteTriggerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        trigger_name='',
-                    )
-                elif operation == 'start-trigger':
-                    return StartTriggerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        trigger_name='',
-                    )
-                elif operation == 'stop-trigger':
-                    return StopTriggerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        trigger_name='',
-                    )
-                else:
-                    return GetTriggerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        trigger_name='',
-                        trigger_details={},
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-trigger':
                 if trigger_name is None or trigger_definition is None:
@@ -604,15 +560,18 @@ class GlueWorkflowAndTriggerHandler:
 
                 response = self.glue_client.create_trigger(**params)
 
-                return CreateTriggerResponse(
+                success_message = f'Successfully created trigger {trigger_name}'
+                data = CreateTriggerData(
+                    trigger_name=trigger_name,
+                    operation='create-trigger',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created trigger {trigger_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    trigger_name=trigger_name,
                 )
 
             elif operation == 'delete-trigger':
@@ -633,19 +592,17 @@ class GlueWorkflowAndTriggerHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
                         error_message = f'Cannot delete trigger {trigger_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                     else:
                         raise e
@@ -653,15 +610,18 @@ class GlueWorkflowAndTriggerHandler:
                 # Delete the trigger
                 self.glue_client.delete_trigger(Name=trigger_name)
 
-                return DeleteTriggerResponse(
+                success_message = f'Successfully deleted trigger {trigger_name}'
+                data = DeleteTriggerData(
+                    trigger_name=trigger_name,
+                    operation='delete-trigger',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted trigger {trigger_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    trigger_name=trigger_name,
                 )
 
             elif operation == 'get-trigger':
@@ -673,16 +633,19 @@ class GlueWorkflowAndTriggerHandler:
 
                 response = self.glue_client.get_trigger(**params)
 
-                return GetTriggerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved trigger {trigger_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved trigger {trigger_name}'
+                data = GetTriggerData(
                     trigger_name=trigger_name,
                     trigger_details=response.get('Trigger', {}),
+                    operation='get-trigger',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-triggers':
@@ -696,11 +659,19 @@ class GlueWorkflowAndTriggerHandler:
                 # Get triggers
                 response = self.glue_client.get_triggers(**params)
 
-                return GetTriggersResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved triggers')],
+                success_message = 'Successfully retrieved triggers'
+                data = GetTriggersData(
                     triggers=response.get('Triggers', []),
                     next_token=response.get('NextToken'),
+                    operation='get-triggers',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'start-trigger':
@@ -721,19 +692,17 @@ class GlueWorkflowAndTriggerHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
                         error_message = f'Cannot start trigger {trigger_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StartTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StartTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                     else:
                         raise e
@@ -741,15 +710,18 @@ class GlueWorkflowAndTriggerHandler:
                 # Start trigger
                 self.glue_client.start_trigger(Name=trigger_name)
 
-                return StartTriggerResponse(
+                success_message = f'Successfully started trigger {trigger_name}'
+                data = StartTriggerData(
+                    trigger_name=trigger_name,
+                    operation='start-trigger',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully started trigger {trigger_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    trigger_name=trigger_name,
                 )
 
             elif operation == 'stop-trigger':
@@ -770,19 +742,17 @@ class GlueWorkflowAndTriggerHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
                         error_message = f'Cannot stop trigger {trigger_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StopTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StopTriggerResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            trigger_name=trigger_name,
                         )
                     else:
                         raise e
@@ -790,25 +760,26 @@ class GlueWorkflowAndTriggerHandler:
                 # Stop trigger
                 self.glue_client.stop_trigger(Name=trigger_name)
 
-                return StopTriggerResponse(
+                success_message = f'Successfully stopped trigger {trigger_name}'
+                data = StopTriggerData(
+                    trigger_name=trigger_name,
+                    operation='stop-trigger',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully stopped trigger {trigger_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    trigger_name=trigger_name,
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-trigger, delete-trigger, get-trigger, get-triggers, start-trigger, stop-trigger'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetTriggerResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    trigger_name=trigger_name or '',
-                    trigger_details={},
                 )
 
         except ValueError as e:
@@ -817,9 +788,7 @@ class GlueWorkflowAndTriggerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_triggers: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetTriggerResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                trigger_name=trigger_name or '',
-                trigger_details={},
             )

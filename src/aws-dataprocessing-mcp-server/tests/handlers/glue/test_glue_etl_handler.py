@@ -1,8 +1,23 @@
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_etl_handler import GlueEtlJobsHandler
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from unittest.mock import Mock, patch
+
+
+def extract_response_data(response):
+    """Helper function to extract data from CallToolResult content."""
+    if response.isError:
+        return {}
+    # Find the JSON content in the response
+    for content_item in response.content:
+        if content_item.type == 'text':
+            try:
+                return json.loads(content_item.text)
+            except (json.JSONDecodeError, ValueError):
+                continue
+    return {}
 
 
 @pytest.fixture
@@ -66,7 +81,8 @@ async def test_create_job_success(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert response.job_name == 'test-job'
+    data = extract_response_data(response)
+    assert data.get('job_name') == 'test-job'
     mock_glue_client.create_job.assert_called_once()
 
 
@@ -103,7 +119,8 @@ async def test_get_job_success(handler, mock_glue_client):
     response = await handler.manage_aws_glue_jobs(ctx, operation='get-job', job_name='test-job')
 
     assert not response.isError
-    assert response.job_details == {'Name': 'test-job'}
+    data = extract_response_data(response)
+    assert data.get('job_details') == {'Name': 'test-job'}
 
 
 @pytest.mark.asyncio
@@ -121,8 +138,9 @@ async def test_get_jobs_success(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert len(response.jobs) == 2
-    assert response.next_token == 'token123'
+    data = extract_response_data(response)
+    assert len(data.get('jobs', [])) == 2
+    assert data.get('next_token') == 'token123'
 
 
 @pytest.mark.asyncio
@@ -142,7 +160,8 @@ async def test_start_job_run_success(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert response.job_run_id == 'run123'
+    data = extract_response_data(response)
+    assert data.get('job_run_id') == 'run123'
 
 
 @pytest.mark.asyncio
@@ -473,7 +492,8 @@ async def test_get_job_bookmark_success(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert response.bookmark_details['JobName'] == 'test-job'
+    data = extract_response_data(response)
+    assert data.get('bookmark_details', {}).get('JobName') == 'test-job'
 
 
 @pytest.mark.asyncio
@@ -504,8 +524,9 @@ async def test_batch_stop_job_run_multiple_ids(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert len(response.successful_submissions) == 2
-    assert len(response.failed_submissions) == 0
+    data = extract_response_data(response)
+    assert len(data.get('successful_submissions', [])) == 2
+    assert len(data.get('failed_submissions', [])) == 0
 
 
 @pytest.mark.asyncio
@@ -522,8 +543,9 @@ async def test_batch_stop_job_run_with_failures(handler, mock_glue_client):
     )
 
     assert not response.isError
-    assert len(response.successful_submissions) == 1
-    assert len(response.failed_submissions) == 1
+    data = extract_response_data(response)
+    assert len(data.get('successful_submissions', [])) == 1
+    assert len(data.get('failed_submissions', [])) == 1
 
 
 # Error handling tests

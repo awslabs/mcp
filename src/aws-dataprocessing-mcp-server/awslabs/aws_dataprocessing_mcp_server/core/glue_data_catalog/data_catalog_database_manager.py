@@ -18,13 +18,14 @@ This module provides functionality for managing databases in the AWS Glue Data C
 including creating, updating, retrieving, listing, and deleting databases.
 """
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    CreateDatabaseResponse,
+    CreateDatabaseData,
     DatabaseSummary,
-    DeleteDatabaseResponse,
-    GetDatabaseResponse,
-    ListDatabasesResponse,
-    UpdateDatabaseResponse,
+    DeleteDatabaseData,
+    GetDatabaseData,
+    ListDatabasesData,
+    UpdateDatabaseData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -33,7 +34,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from typing import Any, Dict, List, Optional
 
 
@@ -65,7 +66,7 @@ class DataCatalogDatabaseManager:
         parameters: Optional[Dict[str, Any]] = None,
         catalog_id: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
-    ) -> CreateDatabaseResponse:
+    ) -> CallToolResult:
         """Create a new database in the AWS Glue Data Catalog.
 
         Creates a new database with the specified name and properties. The database
@@ -119,11 +120,17 @@ class DataCatalogDatabaseManager:
             )
 
             success_msg = f'Successfully created database: {database_name}'
-            return CreateDatabaseResponse(
-                isError=False,
+            data = CreateDatabaseData(
                 database_name=database_name,
                 operation='create-database',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -131,16 +138,14 @@ class DataCatalogDatabaseManager:
             error_message = f'Failed to create database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CreateDatabaseResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                operation='create-database',
                 content=[TextContent(type='text', text=error_message)],
             )
 
     async def delete_database(
         self, ctx: Context, database_name: str, catalog_id: Optional[str] = None
-    ) -> DeleteDatabaseResponse:
+    ) -> CallToolResult:
         """Delete a database from the AWS Glue Data Catalog.
 
         Deletes the specified database if it exists and is managed by the MCP server.
@@ -180,20 +185,16 @@ class DataCatalogDatabaseManager:
                 ):
                     error_message = f'Cannot delete database {database_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteDatabaseResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        operation='delete-database',
                         content=[TextContent(type='text', text=error_message)],
                     )
             except ClientError as e:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Database {database_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteDatabaseResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        operation='delete-database',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -211,11 +212,17 @@ class DataCatalogDatabaseManager:
             )
 
             success_msg = f'Successfully deleted database: {database_name}'
-            return DeleteDatabaseResponse(
-                isError=False,
+            data = DeleteDatabaseData(
                 database_name=database_name,
                 operation='delete-database',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -223,16 +230,14 @@ class DataCatalogDatabaseManager:
             error_message = f'Failed to delete database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeleteDatabaseResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                operation='delete-database',
                 content=[TextContent(type='text', text=error_message)],
             )
 
     async def get_database(
         self, ctx: Context, database_name: str, catalog_id: Optional[str] = None
-    ) -> GetDatabaseResponse:
+    ) -> CallToolResult:
         """Get details of a database from the AWS Glue Data Catalog.
 
         Retrieves detailed information about the specified database, including
@@ -259,8 +264,7 @@ class DataCatalogDatabaseManager:
             )
 
             success_msg = f'Successfully retrieved database: {database_name}'
-            return GetDatabaseResponse(
-                isError=False,
+            data = GetDatabaseData(
                 database_name=database['Name'],
                 description=database.get('Description', ''),
                 location_uri=database.get('LocationUri', ''),
@@ -272,7 +276,14 @@ class DataCatalogDatabaseManager:
                 ),
                 catalog_id=database.get('CatalogId', ''),
                 operation='get-database',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -280,15 +291,8 @@ class DataCatalogDatabaseManager:
             error_message = f'Failed to get database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GetDatabaseResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                description='',
-                location_uri='',
-                parameters={},
-                creation_time='',
-                catalog_id=catalog_id,
-                operation='get-database',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -300,7 +304,7 @@ class DataCatalogDatabaseManager:
         max_results: Optional[int] = None,
         resource_share_type: Optional[str] = None,
         attributes_to_get: Optional[List[str]] = None,
-    ) -> ListDatabasesResponse:
+    ) -> CallToolResult:
         """List databases in the AWS Glue Data Catalog.
 
         Retrieves a list of databases with their basic properties. Supports
@@ -339,8 +343,7 @@ class DataCatalogDatabaseManager:
             )
 
             success_msg = f'Successfully listed {len(databases)} databases'
-            return ListDatabasesResponse(
-                isError=False,
+            data = ListDatabasesData(
                 databases=[
                     DatabaseSummary(
                         name=db['Name'],
@@ -357,7 +360,14 @@ class DataCatalogDatabaseManager:
                 catalog_id=catalog_id,
                 operation='list-databases',
                 next_token=next_token,
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -367,12 +377,8 @@ class DataCatalogDatabaseManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ListDatabasesResponse(
+            return CallToolResult(
                 isError=True,
-                databases=[],
-                count=0,
-                catalog_id=catalog_id,
-                operation='list-databases',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -387,7 +393,7 @@ class DataCatalogDatabaseManager:
         create_table_default_permissions: Optional[List[Dict[str, Any]]] = None,
         target_database: Optional[Dict[str, str]] = None,
         federated_database: Optional[Dict[str, str]] = None,
-    ) -> UpdateDatabaseResponse:
+    ) -> CallToolResult:
         """Update an existing database in the AWS Glue Data Catalog.
 
         Updates the properties of the specified database if it exists and is managed
@@ -432,10 +438,8 @@ class DataCatalogDatabaseManager:
                 ):
                     error_message = f'Cannot update database {database_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateDatabaseResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        operation='update-database',
                         content=[TextContent(type='text', text=error_message)],
                     )
 
@@ -455,10 +459,8 @@ class DataCatalogDatabaseManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Database {database_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateDatabaseResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        operation='update-database',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -492,11 +494,17 @@ class DataCatalogDatabaseManager:
             )
 
             success_msg = f'Successfully updated database: {database_name}'
-            return UpdateDatabaseResponse(
-                isError=False,
+            data = UpdateDatabaseData(
                 database_name=database_name,
                 operation='update-database',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -504,9 +512,7 @@ class DataCatalogDatabaseManager:
             error_message = f'Failed to update database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return UpdateDatabaseResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                operation='update-database',
                 content=[TextContent(type='text', text=error_message)],
             )

@@ -16,18 +16,18 @@
 
 import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
-    BatchStopJobRunResponse,
-    CreateJobResponse,
-    DeleteJobResponse,
-    GetJobBookmarkResponse,
-    GetJobResponse,
-    GetJobRunResponse,
-    GetJobRunsResponse,
-    GetJobsResponse,
-    ResetJobBookmarkResponse,
-    StartJobRunResponse,
-    StopJobRunResponse,
-    UpdateJobResponse,
+    BatchStopJobRunData,
+    CreateJobData,
+    DeleteJobData,
+    GetJobBookmarkData,
+    GetJobData,
+    GetJobRunData,
+    GetJobRunsData,
+    GetJobsData,
+    ResetJobBookmarkData,
+    StartJobRunData,
+    StopJobRunData,
+    UpdateJobData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -36,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class GlueEtlJobsHandler:
@@ -159,20 +159,7 @@ class GlueEtlJobsHandler:
                 description='Whether to include predecessor runs in get-job-run operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateJobResponse,
-        DeleteJobResponse,
-        GetJobResponse,
-        GetJobsResponse,
-        StartJobRunResponse,
-        StopJobRunResponse,
-        UpdateJobResponse,
-        GetJobRunResponse,
-        GetJobRunsResponse,
-        BatchStopJobRunResponse,
-        GetJobBookmarkResponse,
-        ResetJobBookmarkResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue ETL jobs and job runs with both read and write operations.
 
         This tool provides comprehensive operations for managing AWS Glue ETL jobs and job runs,
@@ -280,49 +267,10 @@ class GlueEtlJobsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                # Return appropriate error response based on operation
-                if operation == 'create-job':
-                    return CreateJobResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                        job_id='',
-                        operation='create-job',
-                    )
-                elif operation == 'delete-job':
-                    return DeleteJobResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                    )
-                elif operation == 'start-job-run':
-                    return StartJobRunResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                        job_run_id='',
-                    )
-                elif operation == 'stop-job-run':
-                    return StopJobRunResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                        job_run_id='',
-                    )
-                elif operation == 'update-job':
-                    return UpdateJobResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                    )
-                elif operation == 'batch-stop-job-run':
-                    return BatchStopJobRunResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        job_name='',
-                        successful_submissions=[],
-                        failed_submissions=[],
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             # Job operations
             if operation == 'create-job':
@@ -341,16 +289,21 @@ class GlueEtlJobsHandler:
                 # Create the job
                 response = self.glue_client.create_job(Name=job_name, **job_definition)
 
-                return CreateJobResponse(
+                success_message = (
+                    f'Successfully created Glue job {job_name} with MCP management tags'
+                )
+                data = CreateJobData(
+                    job_name=job_name,
+                    job_id=response.get('Name', ''),
+                    operation='create-job',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created Glue job {job_name} with MCP management tags',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    job_name=job_name,
-                    job_id=response.get('Name'),
                 )
 
             elif operation == 'delete-job':
@@ -375,24 +328,26 @@ class GlueEtlJobsHandler:
                 if not AwsHelper.is_resource_mcp_managed(self.glue_client, job_arn, parameters):
                     error_message = f'Cannot delete job {job_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteJobResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        job_name=job_name,
                     )
 
                 # Delete the job
                 self.glue_client.delete_job(JobName=job_name)
 
-                return DeleteJobResponse(
+                success_message = f'Successfully deleted MCP-managed Glue job {job_name}'
+                data = DeleteJobData(
+                    job_name=job_name,
+                    operation='delete-job',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted MCP-managed Glue job {job_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    job_name=job_name,
                 )
 
             elif operation == 'get-job':
@@ -402,16 +357,19 @@ class GlueEtlJobsHandler:
                 # Get the job
                 response = self.glue_client.get_job(JobName=job_name)
 
-                return GetJobResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved job {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved job {job_name}'
+                data = GetJobData(
                     job_name=job_name,
                     job_details=response.get('Job', {}),
+                    operation='get-job',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-jobs':
@@ -426,13 +384,20 @@ class GlueEtlJobsHandler:
                 response = self.glue_client.get_jobs(**params)
 
                 jobs = response.get('Jobs', [])
-                return GetJobsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved jobs')],
+                success_message = 'Successfully retrieved jobs'
+                data = GetJobsData(
                     jobs=jobs,
                     count=len(jobs),
                     next_token=response.get('NextToken'),
-                    operation='list',
+                    operation='get-jobs',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-job':
@@ -459,10 +424,9 @@ class GlueEtlJobsHandler:
                     ):
                         error_message = f'Cannot update job {job_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return UpdateJobResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            job_name=job_name,
                         )
 
                     # Update Job does not support updating jobs
@@ -471,10 +435,9 @@ class GlueEtlJobsHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Job {job_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return UpdateJobResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            job_name=job_name,
                         )
                     else:
                         raise e
@@ -482,15 +445,18 @@ class GlueEtlJobsHandler:
                 # Update the job
                 self.glue_client.update_job(JobName=job_name, JobUpdate=job_definition)
 
-                return UpdateJobResponse(
+                success_message = f'Successfully updated MCP-managed job {job_name}'
+                data = UpdateJobData(
+                    job_name=job_name,
+                    operation='update-job',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated MCP-managed job {job_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    job_name=job_name,
                 )
 
             elif operation == 'start-job-run':
@@ -522,16 +488,19 @@ class GlueEtlJobsHandler:
                 # Start job run
                 response = self.glue_client.start_job_run(**params)
 
-                return StartJobRunResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully started job run for {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully started job run for {job_name}'
+                data = StartJobRunData(
                     job_name=job_name,
                     job_run_id=response.get('JobRunId', ''),
+                    operation='start-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             # Job run operations
@@ -544,15 +513,18 @@ class GlueEtlJobsHandler:
                 # Stop job run
                 self.glue_client.batch_stop_job_run(JobName=job_name, JobRunIds=[job_run_id])
 
-                return StopJobRunResponse(
+                success_message = f'Successfully stopped job run {job_run_id} for job {job_name}'
+                data = StopJobRunData(
                     job_name=job_name,
                     job_run_id=job_run_id,
+                    operation='stop-job-run',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully stopped job run {job_run_id} for job {job_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
                 )
 
@@ -570,17 +542,20 @@ class GlueEtlJobsHandler:
                 # Get the job run
                 response = self.glue_client.get_job_run(**params)
 
-                return GetJobRunResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved job run {job_run_id} for job {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved job run {job_run_id} for job {job_name}'
+                data = GetJobRunData(
                     job_name=job_name,
                     job_run_id=job_run_id,
                     job_run_details=response.get('JobRun', {}),
+                    operation='get-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-job-runs':
@@ -598,19 +573,21 @@ class GlueEtlJobsHandler:
                 response = self.glue_client.get_job_runs(**params)
 
                 job_runs = response.get('JobRuns', [])
-                return GetJobRunsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved job runs for job {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved job runs for job {job_name}'
+                data = GetJobRunsData(
                     job_name=job_name,
                     job_runs=job_runs,
                     count=len(job_runs),
                     next_token=response.get('NextToken'),
-                    operation='list',
+                    operation='get-job-runs',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'batch-stop-job-run':
@@ -631,17 +608,22 @@ class GlueEtlJobsHandler:
                 # Stop job runs
                 response = self.glue_client.batch_stop_job_run(JobName=job_name, JobRunIds=run_ids)
 
-                return BatchStopJobRunResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully processed batch stop job run request for job {job_name}',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully processed batch stop job run request for job {job_name}'
+                )
+                data = BatchStopJobRunData(
                     job_name=job_name,
                     successful_submissions=response.get('SuccessfulSubmissions', []),
                     failed_submissions=response.get('Errors', []),
+                    operation='batch-stop-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             # Job bookmark operations
@@ -652,16 +634,19 @@ class GlueEtlJobsHandler:
                 # Get the job bookmark
                 response = self.glue_client.get_job_bookmark(JobName=job_name)
 
-                return GetJobBookmarkResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved job bookmark for job {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved job bookmark for job {job_name}'
+                data = GetJobBookmarkData(
                     job_name=job_name,
                     bookmark_details=response.get('JobBookmarkEntry', {}),
+                    operation='get-job-bookmark',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'reset-job-bookmark':
@@ -676,16 +661,19 @@ class GlueEtlJobsHandler:
                 # Reset job bookmark
                 self.glue_client.reset_job_bookmark(**params)
 
-                return ResetJobBookmarkResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully reset job bookmark for job {job_name}',
-                        )
-                    ],
+                success_message = f'Successfully reset job bookmark for job {job_name}'
+                data = ResetJobBookmarkData(
                     job_name=job_name,
                     run_id=job_run_id,
+                    operation='reset-job-bookmark',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
@@ -695,11 +683,9 @@ class GlueEtlJobsHandler:
                     'stop-job-run, get-job-run, get-job-runs, batch-stop-job-run'
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetJobResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    job_name=job_name or '',
-                    job_details={},
                 )
 
         except ValueError as e:
@@ -708,9 +694,7 @@ class GlueEtlJobsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_jobs_and_runs: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetJobResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                job_name=job_name or '',
-                job_details={},
             )

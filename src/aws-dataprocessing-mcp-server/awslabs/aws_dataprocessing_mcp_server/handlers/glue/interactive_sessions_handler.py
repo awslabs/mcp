@@ -14,16 +14,17 @@
 
 """GlueInteractiveSessionsHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
-    CancelStatementResponse,
-    CreateSessionResponse,
-    DeleteSessionResponse,
-    GetSessionResponse,
-    GetStatementResponse,
-    ListSessionsResponse,
-    ListStatementsResponse,
-    RunStatementResponse,
-    StopSessionResponse,
+    CancelStatementData,
+    CreateSessionData,
+    DeleteSessionData,
+    GetSessionData,
+    GetStatementData,
+    ListSessionsData,
+    ListStatementsData,
+    RunStatementData,
+    StopSessionData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -32,9 +33,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class GlueInteractiveSessionsHandler:
@@ -168,13 +169,7 @@ class GlueInteractiveSessionsHandler:
                 description='Pagination token for list-sessions operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateSessionResponse,
-        DeleteSessionResponse,
-        GetSessionResponse,
-        ListSessionsResponse,
-        StopSessionResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Interactive Sessions for running Spark and Ray workloads.
 
         This tool provides operations for creating and managing Glue Interactive Sessions, which
@@ -227,7 +222,7 @@ class GlueInteractiveSessionsHandler:
             next_token: Pagination token
 
         Returns:
-            Union of response types specific to the operation performed
+            CallToolResult with operation status and data
         """
         try:
             if not self.allow_write and operation not in [
@@ -237,25 +232,10 @@ class GlueInteractiveSessionsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-session':
-                    return CreateSessionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        session_id='',
-                        session=None,
-                    )
-                elif operation == 'delete-session':
-                    return DeleteSessionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        session_id='',
-                    )
-                elif operation == 'stop-session':
-                    return StopSessionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        session_id='',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-session':
                 if not role or not command:
@@ -307,16 +287,21 @@ class GlueInteractiveSessionsHandler:
                 # Create the session
                 response = self.glue_client.create_session(**create_params)
 
-                return CreateSessionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created session {response.get("Session", {}).get("Id", "")}',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully created session {response.get("Session", {}).get("Id", "")}'
+                )
+                data = CreateSessionData(
                     session_id=response.get('Session', {}).get('Id', ''),
                     session=response.get('Session', {}),
+                    operation='create-session',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-session':
@@ -343,21 +328,17 @@ class GlueInteractiveSessionsHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, session_arn, {}):
                         error_message = f'Cannot delete session {session_id} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteSessionResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            session_id=session_id,
-                            operation='delete-session',
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Session {session_id} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteSessionResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            session_id=session_id,
-                            operation='delete-session',
                         )
                     else:
                         raise e
@@ -370,16 +351,18 @@ class GlueInteractiveSessionsHandler:
                 # Delete the session
                 response = self.glue_client.delete_session(**delete_params)
 
-                return DeleteSessionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted session {session_id}',
-                        )
-                    ],
+                success_message = f'Successfully deleted session {session_id}'
+                data = DeleteSessionData(
                     session_id=session_id,
                     operation='delete-session',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-session':
@@ -394,16 +377,19 @@ class GlueInteractiveSessionsHandler:
                 # Get the session
                 response = self.glue_client.get_session(**get_params)
 
-                return GetSessionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved session {session_id}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved session {session_id}'
+                data = GetSessionData(
                     session_id=session_id,
                     session=response.get('Session', {}),
+                    operation='get-session',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-sessions':
@@ -421,13 +407,21 @@ class GlueInteractiveSessionsHandler:
                 # List sessions
                 response = self.glue_client.list_sessions(**params)
 
-                return ListSessionsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved sessions')],
+                success_message = 'Successfully retrieved sessions'
+                data = ListSessionsData(
                     sessions=response.get('Sessions', []),
                     ids=response.get('Ids', []),
                     next_token=response.get('NextToken'),
                     count=len(response.get('Sessions', [])),
+                    operation='list-sessions',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'stop-session':
@@ -454,19 +448,17 @@ class GlueInteractiveSessionsHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, session_arn, {}):
                         error_message = f'Cannot stop session {session_id} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StopSessionResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            session_id=session_id,
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Session {session_id} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return StopSessionResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            session_id=session_id,
                         )
                     else:
                         raise e
@@ -479,25 +471,26 @@ class GlueInteractiveSessionsHandler:
                 # Stop the session
                 response = self.glue_client.stop_session(**stop_params)
 
-                return StopSessionResponse(
+                success_message = f'Successfully stopped session {session_id}'
+                data = StopSessionData(
+                    session_id=session_id,
+                    operation='stop-session',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully stopped session {session_id}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    session_id=session_id,
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-session, delete-session, get-session, list-sessions, stop-session'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetSessionResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    session_id=session_id or '',
-                    session={},
                 )
 
         except ValueError as e:
@@ -506,11 +499,9 @@ class GlueInteractiveSessionsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_sessions: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetSessionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                session_id=session_id or '',
-                session={},
             )
 
     async def manage_aws_glue_statements(
@@ -558,12 +549,7 @@ class GlueInteractiveSessionsHandler:
                 description='Pagination token for list-statements operation.',
             ),
         ] = None,
-    ) -> Union[
-        RunStatementResponse,
-        CancelStatementResponse,
-        GetStatementResponse,
-        ListStatementsResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue Interactive Session Statements for executing code and retrieving results.
 
         This tool provides operations for executing code, canceling running statements, and retrieving
@@ -602,7 +588,7 @@ class GlueInteractiveSessionsHandler:
             next_token: Pagination token
 
         Returns:
-            Union of response types specific to the operation performed
+            CallToolResult with operation status and data
         """
         try:
             if not self.allow_write and operation not in [
@@ -612,20 +598,10 @@ class GlueInteractiveSessionsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'run-statement':
-                    return RunStatementResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        session_id='',
-                        statement_id=0,
-                    )
-                elif operation == 'cancel-statement':
-                    return CancelStatementResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        session_id='',
-                        statement_id=0,
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'run-statement':
                 if code is None:
@@ -642,16 +618,19 @@ class GlueInteractiveSessionsHandler:
                 # Run the statement
                 response = self.glue_client.run_statement(**run_params)
 
-                return RunStatementResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully ran statement in session {session_id}',
-                        )
-                    ],
+                success_message = f'Successfully ran statement in session {session_id}'
+                data = RunStatementData(
                     session_id=session_id,
                     statement_id=response.get('Id', 0),
+                    operation='run-statement',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'cancel-statement':
@@ -669,16 +648,21 @@ class GlueInteractiveSessionsHandler:
                 # Cancel the statement
                 self.glue_client.cancel_statement(**cancel_params)
 
-                return CancelStatementResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully canceled statement {statement_id} in session {session_id}',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully canceled statement {statement_id} in session {session_id}'
+                )
+                data = CancelStatementData(
                     session_id=session_id,
                     statement_id=statement_id,
+                    operation='cancel-statement',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-statement':
@@ -696,17 +680,22 @@ class GlueInteractiveSessionsHandler:
                 # Get the statement
                 response = self.glue_client.get_statement(**get_params)
 
-                return GetStatementResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved statement {statement_id} in session {session_id}',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully retrieved statement {statement_id} in session {session_id}'
+                )
+                data = GetStatementData(
                     session_id=session_id,
                     statement_id=statement_id,
                     statement=response.get('Statement', {}),
+                    operation='get-statement',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-statements':
@@ -722,29 +711,29 @@ class GlueInteractiveSessionsHandler:
                 # List statements
                 response = self.glue_client.list_statements(**params)
 
-                return ListStatementsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved statements for session {session_id}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved statements for session {session_id}'
+                data = ListStatementsData(
                     session_id=session_id,
                     statements=response.get('Statements', []),
                     next_token=response.get('NextToken'),
                     count=len(response.get('Statements', [])),
+                    operation='list-statements',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: run-statement, cancel-statement, get-statement, list-statements'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetStatementResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    session_id=session_id,
-                    statement_id=statement_id or 0,
-                    statement={},
                 )
 
         except ValueError as e:
@@ -753,10 +742,7 @@ class GlueInteractiveSessionsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_statements: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetStatementResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                session_id=session_id,
-                statement_id=statement_id or 0,
-                statement={},
             )

@@ -14,276 +14,211 @@
 
 
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
-    BatchGetNamedQueryResponse,
-    BatchGetQueryExecutionResponse,
-    CreateDataCatalogResponse,
-    CreateNamedQueryResponse,
-    CreateWorkGroupResponse,
-    DeleteDataCatalogResponse,
-    DeleteNamedQueryResponse,
-    DeleteWorkGroupResponse,
-    GetDatabaseResponse,
-    GetDataCatalogResponse,
-    GetNamedQueryResponse,
-    GetQueryExecutionResponse,
-    GetQueryResultsResponse,
-    GetQueryRuntimeStatisticsResponse,
-    GetTableMetadataResponse,
-    GetWorkGroupResponse,
-    ListDatabasesResponse,
-    ListDataCatalogsResponse,
-    ListNamedQueriesResponse,
-    ListQueryExecutionsResponse,
-    ListTableMetadataResponse,
-    ListWorkGroupsResponse,
-    StartQueryExecutionResponse,
-    StopQueryExecutionResponse,
-    UpdateDataCatalogResponse,
-    UpdateNamedQueryResponse,
-    UpdateWorkGroupResponse,
+    BatchGetNamedQueryData,
+    BatchGetQueryExecutionData,
+    CreateDataCatalogData,
+    CreateNamedQueryData,
+    CreateWorkGroupData,
+    DeleteDataCatalogData,
+    DeleteNamedQueryData,
+    DeleteWorkGroupData,
+    GetDatabaseData,
+    GetDataCatalogData,
+    GetNamedQueryData,
+    GetQueryExecutionData,
+    GetQueryResultsData,
+    GetQueryRuntimeStatisticsData,
+    GetTableMetadataData,
+    GetWorkGroupData,
+    ListDatabasesData,
+    ListDataCatalogsData,
+    ListNamedQueriesData,
+    ListQueryExecutionsData,
+    ListTableMetadataData,
+    ListWorkGroupsData,
+    StartQueryExecutionData,
+    StopQueryExecutionData,
+    UpdateDataCatalogData,
+    UpdateNamedQueryData,
+    UpdateWorkGroupData,
 )
-from mcp.types import TextContent
 
 
 # Test data
-sample_text_content = [TextContent(type='text', text='Test message')]
 sample_dict = {'key': 'value'}
 sample_list = [{'id': 1}, {'id': 2}]
 
 
-class TestQueryExecutionResponses:
-    """Test class for Athena query execution response models."""
+class TestQueryExecutionData:
+    """Test class for Athena query execution data models."""
 
-    def test_batch_get_query_execution_response(self):
-        """Test the BatchGetQueryExecutionResponse model."""
-        response = BatchGetQueryExecutionResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_batch_get_query_execution_data(self):
+        """Test the BatchGetQueryExecutionData model."""
+        data = BatchGetQueryExecutionData(
             query_executions=sample_list,
             unprocessed_query_execution_ids=[],
+            operation='batch-get-query-execution',
         )
-        assert response.isError is False
-        assert response.query_executions == sample_list
-        assert response.unprocessed_query_execution_ids == []
-        assert response.operation == 'batch-get-query-execution'
+        assert data.query_executions == sample_list
+        assert data.unprocessed_query_execution_ids == []
+        assert data.operation == 'batch-get-query-execution'
 
-    def test_get_query_execution_response(self):
-        """Test the GetQueryExecutionResponse model."""
-        response = GetQueryExecutionResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_get_query_execution_data(self):
+        """Test the GetQueryExecutionData model."""
+        data = GetQueryExecutionData(
             query_execution_id='query-123',
             query_execution=sample_dict,
+            operation='get-query-execution',
         )
-        assert response.isError is False
-        assert response.query_execution_id == 'query-123'
-        assert response.query_execution == sample_dict
-        assert response.operation == 'get-query-execution'
+        assert data.query_execution_id == 'query-123'
+        assert data.query_execution == sample_dict
+        assert data.operation == 'get-query-execution'
 
-    def test_get_query_results_response(self):
-        """Test the GetQueryResultsResponse model."""
-        response = GetQueryResultsResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_get_query_results_data(self):
+        """Test the GetQueryResultsData model."""
+        data = GetQueryResultsData(
             query_execution_id='query-123',
             result_set=sample_dict,
             next_token='next-page',
             update_count=10,
+            operation='get-query-results',
         )
-        assert response.isError is False
-        assert response.query_execution_id == 'query-123'
-        assert response.result_set == sample_dict
-        assert response.next_token == 'next-page'
-        assert response.update_count == 10
-        assert response.operation == 'get-query-results'
+        assert data.query_execution_id == 'query-123'
+        assert data.result_set == sample_dict
+        assert data.next_token == 'next-page'
+        assert data.update_count == 10
+        assert data.operation == 'get-query-results'
 
-    def test_get_query_runtime_statistics_response(self):
-        """Test the GetQueryRuntimeStatisticsResponse model."""
-        response = GetQueryRuntimeStatisticsResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_get_query_runtime_statistics_data(self):
+        """Test the GetQueryRuntimeStatisticsData model."""
+        data = GetQueryRuntimeStatisticsData(
             query_execution_id='query-123',
             statistics=sample_dict,
+            operation='get-query-runtime-statistics',
         )
-        assert response.isError is False
-        assert response.query_execution_id == 'query-123'
-        assert response.statistics == sample_dict
-        assert response.operation == 'get-query-runtime-statistics'
+        assert data.query_execution_id == 'query-123'
+        assert data.statistics == sample_dict
+        assert data.operation == 'get-query-runtime-statistics'
 
-    def test_list_query_executions_response(self):
-        """Test the ListQueryExecutionsResponse model."""
-        response = ListQueryExecutionsResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_list_query_executions_data(self):
+        """Test the ListQueryExecutionsData model."""
+        data = ListQueryExecutionsData(
             query_execution_ids=['query-1', 'query-2'],
             count=2,
             next_token='next-page',
+            operation='list-query-executions',
         )
-        assert response.isError is False
-        assert response.query_execution_ids == ['query-1', 'query-2']
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list-query-executions'
+        assert data.query_execution_ids == ['query-1', 'query-2']
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list-query-executions'
 
-    def test_start_query_execution_response(self):
-        """Test the StartQueryExecutionResponse model."""
-        response = StartQueryExecutionResponse(
-            isError=False,
-            content=sample_text_content,
-            query_execution_id='query-123',
+    def test_start_query_execution_data(self):
+        """Test the StartQueryExecutionData model."""
+        data = StartQueryExecutionData(
+            query_execution_id='query-123', operation='start-query-execution'
         )
-        assert response.isError is False
-        assert response.query_execution_id == 'query-123'
-        assert response.operation == 'start-query-execution'
+        assert data.query_execution_id == 'query-123'
+        assert data.operation == 'start-query-execution'
 
-    def test_stop_query_execution_response(self):
-        """Test the StopQueryExecutionResponse model."""
-        response = StopQueryExecutionResponse(
-            isError=False,
-            content=sample_text_content,
-            query_execution_id='query-123',
+    def test_stop_query_execution_data(self):
+        """Test the StopQueryExecutionData model."""
+        data = StopQueryExecutionData(
+            query_execution_id='query-123', operation='stop-query-execution'
         )
-        assert response.isError is False
-        assert response.query_execution_id == 'query-123'
-        assert response.operation == 'stop-query-execution'
+        assert data.query_execution_id == 'query-123'
+        assert data.operation == 'stop-query-execution'
 
 
-class TestNamedQueryResponses:
-    """Test class for Athena named query response models."""
+class TestNamedQueryData:
+    """Test class for Athena named query data models."""
 
-    def test_batch_get_named_query_response(self):
-        """Test the BatchGetNamedQueryResponse model."""
-        response = BatchGetNamedQueryResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_batch_get_named_query_data(self):
+        """Test the BatchGetNamedQueryData model."""
+        data = BatchGetNamedQueryData(
             named_queries=sample_list,
             unprocessed_named_query_ids=[],
+            operation='batch-get-named-query',
         )
-        assert response.isError is False
-        assert response.named_queries == sample_list
-        assert response.unprocessed_named_query_ids == []
-        assert response.operation == 'batch-get-named-query'
+        assert data.named_queries == sample_list
+        assert data.unprocessed_named_query_ids == []
+        assert data.operation == 'batch-get-named-query'
 
-    def test_create_named_query_response(self):
-        """Test the CreateNamedQueryResponse model."""
-        response = CreateNamedQueryResponse(
-            isError=False,
-            content=sample_text_content,
-            named_query_id='query-123',
+    def test_create_named_query_data(self):
+        """Test the CreateNamedQueryData model."""
+        data = CreateNamedQueryData(named_query_id='query-123', operation='create-named-query')
+        assert data.named_query_id == 'query-123'
+        assert data.operation == 'create-named-query'
+
+    def test_delete_named_query_data(self):
+        """Test the DeleteNamedQueryData model."""
+        data = DeleteNamedQueryData(named_query_id='query-123', operation='delete-named-query')
+        assert data.named_query_id == 'query-123'
+        assert data.operation == 'delete-named-query'
+
+    def test_get_named_query_data(self):
+        """Test the GetNamedQueryData model."""
+        data = GetNamedQueryData(
+            named_query_id='query-123', named_query=sample_dict, operation='get-named-query'
         )
-        assert response.isError is False
-        assert response.named_query_id == 'query-123'
-        assert response.operation == 'create-named-query'
+        assert data.named_query_id == 'query-123'
+        assert data.named_query == sample_dict
+        assert data.operation == 'get-named-query'
 
-    def test_delete_named_query_response(self):
-        """Test the DeleteNamedQueryResponse model."""
-        response = DeleteNamedQueryResponse(
-            isError=False,
-            content=sample_text_content,
-            named_query_id='query-123',
-        )
-        assert response.isError is False
-        assert response.named_query_id == 'query-123'
-        assert response.operation == 'delete-named-query'
-
-    def test_get_named_query_response(self):
-        """Test the GetNamedQueryResponse model."""
-        response = GetNamedQueryResponse(
-            isError=False,
-            content=sample_text_content,
-            named_query_id='query-123',
-            named_query=sample_dict,
-        )
-        assert response.isError is False
-        assert response.named_query_id == 'query-123'
-        assert response.named_query == sample_dict
-        assert response.operation == 'get-named-query'
-
-    def test_list_named_queries_response(self):
-        """Test the ListNamedQueriesResponse model."""
-        response = ListNamedQueriesResponse(
-            isError=False,
-            content=sample_text_content,
+    def test_list_named_queries_data(self):
+        """Test the ListNamedQueriesData model."""
+        data = ListNamedQueriesData(
             named_query_ids=['query-1', 'query-2'],
             count=2,
             next_token='next-page',
+            operation='list-named-queries',
         )
-        assert response.isError is False
-        assert response.named_query_ids == ['query-1', 'query-2']
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list-named-queries'
+        assert data.named_query_ids == ['query-1', 'query-2']
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list-named-queries'
 
-    def test_update_named_query_response(self):
-        """Test the UpdateNamedQueryResponse model."""
-        response = UpdateNamedQueryResponse(
-            isError=False,
-            content=sample_text_content,
-            named_query_id='query-123',
-        )
-        assert response.isError is False
-        assert response.named_query_id == 'query-123'
-        assert response.operation == 'update-named-query'
-
-
-def test_error_responses():
-    """Test error cases for various response types."""
-    error_content = [TextContent(type='text', text='Error occurred')]
-
-    # Test query execution error response
-    query_error = StartQueryExecutionResponse(
-        isError=True, content=error_content, query_execution_id='query-123'
-    )
-    assert query_error.isError is True
-    assert query_error.content == error_content
-    assert query_error.query_execution_id == 'query-123'
-
-    # Test named query error response
-    named_query_error = CreateNamedQueryResponse(
-        isError=True, content=error_content, named_query_id='query-123'
-    )
-    assert named_query_error.isError is True
-    assert named_query_error.content == error_content
-    assert named_query_error.named_query_id == 'query-123'
+    def test_update_named_query_data(self):
+        """Test the UpdateNamedQueryData model."""
+        data = UpdateNamedQueryData(named_query_id='query-123', operation='update-named-query')
+        assert data.named_query_id == 'query-123'
+        assert data.operation == 'update-named-query'
 
 
 def test_optional_fields():
-    """Test responses with optional fields."""
-    # Test response with optional next_token
-    results_response = GetQueryResultsResponse(
-        isError=False,
-        content=sample_text_content,
+    """Test data models with optional fields."""
+    # Test data with optional next_token
+    results_data = GetQueryResultsData(
         query_execution_id='query-123',
         result_set=sample_dict,
         next_token=None,
         update_count=None,
+        operation='get-query-results',
     )
-    assert results_response.next_token is None
-    assert results_response.update_count is None
+    assert results_data.next_token is None
+    assert results_data.update_count is None
 
-    # Test response with optional next_token in list response
-    list_response = ListQueryExecutionsResponse(
-        isError=False,
-        content=sample_text_content,
+    # Test data with optional next_token in list data
+    list_data = ListQueryExecutionsData(
         query_execution_ids=['query-1', 'query-2'],
         count=2,
         next_token=None,
+        operation='list-query-executions',
     )
-    assert list_response.next_token is None
+    assert list_data.next_token is None
 
-    # Test response with optional next_token in named queries list response
-    named_list_response = ListNamedQueriesResponse(
-        isError=False,
-        content=sample_text_content,
+    # Test data with optional next_token in named queries list data
+    named_list_data = ListNamedQueriesData(
         named_query_ids=['query-1', 'query-2'],
         count=2,
         next_token=None,
+        operation='list-named-queries',
     )
-    assert named_list_response.next_token is None
+    assert named_list_data.next_token is None
 
 
 def test_complex_data_structures():
-    """Test responses with more complex data structures."""
+    """Test data models with more complex data structures."""
     # Complex query execution
     complex_execution = {
         'QueryExecutionId': 'query-123',
@@ -340,63 +275,50 @@ def test_complex_data_structures():
     }
 
     # Test with complex query execution
-    execution_response = GetQueryExecutionResponse(
-        isError=False,
-        content=sample_text_content,
+    execution_data = GetQueryExecutionData(
         query_execution_id='query-123',
         query_execution=complex_execution,
+        operation='get-query-execution',
     )
-    assert execution_response.query_execution['Status']['State'] == 'SUCCEEDED'
-    assert execution_response.query_execution['Statistics']['DataScannedInBytes'] == 1024
+    assert execution_data.query_execution['Status']['State'] == 'SUCCEEDED'
+    assert execution_data.query_execution['Statistics']['DataScannedInBytes'] == 1024
 
     # Test with complex result set
-    results_response = GetQueryResultsResponse(
-        isError=False,
-        content=sample_text_content,
+    results_data = GetQueryResultsData(
         query_execution_id='query-123',
         result_set=complex_result_set,
+        operation='get-query-results',
     )
-    assert len(results_response.result_set['Rows']) == 2
-    assert results_response.result_set['ResultSetMetadata']['ColumnInfo'][0]['Name'] == 'col1'
+    assert len(results_data.result_set['Rows']) == 2
+    assert results_data.result_set['ResultSetMetadata']['ColumnInfo'][0]['Name'] == 'col1'
 
     # Test with complex statistics
-    statistics_response = GetQueryRuntimeStatisticsResponse(
-        isError=False,
-        content=sample_text_content,
+    statistics_data = GetQueryRuntimeStatisticsData(
         query_execution_id='query-123',
         statistics=complex_statistics,
+        operation='get-query-runtime-statistics',
     )
-    assert statistics_response.statistics['DataScannedInBytes'] == 1024
-    assert statistics_response.statistics['QueryStages'][0]['OutputRows'] == 10
+    assert statistics_data.statistics['DataScannedInBytes'] == 1024
+    assert statistics_data.statistics['QueryStages'][0]['OutputRows'] == 10
 
 
-class TestDataCatalogResponses:
-    """Test class for Athena data catalog response models."""
+class TestDataCatalogData:
+    """Test class for Athena data catalog data models."""
 
-    def test_create_data_catalog_response(self):
-        """Test the CreateDataCatalogResponse model."""
-        response = CreateDataCatalogResponse(
-            isError=False,
-            content=sample_text_content,
-            name='test-catalog',
-        )
-        assert response.isError is False
-        assert response.name == 'test-catalog'
-        assert response.operation == 'create'
+    def test_create_data_catalog_data(self):
+        """Test the CreateDataCatalogData model."""
+        data = CreateDataCatalogData(name='test-catalog', operation='create')
+        assert data.name == 'test-catalog'
+        assert data.operation == 'create'
 
-    def test_delete_data_catalog_response(self):
-        """Test the DeleteDataCatalogResponse model."""
-        response = DeleteDataCatalogResponse(
-            isError=False,
-            content=sample_text_content,
-            name='test-catalog',
-        )
-        assert response.isError is False
-        assert response.name == 'test-catalog'
-        assert response.operation == 'delete'
+    def test_delete_data_catalog_data(self):
+        """Test the DeleteDataCatalogData model."""
+        data = DeleteDataCatalogData(name='test-catalog', operation='delete')
+        assert data.name == 'test-catalog'
+        assert data.operation == 'delete'
 
-    def test_get_data_catalog_response(self):
-        """Test the GetDataCatalogResponse model."""
+    def test_get_data_catalog_data(self):
+        """Test the GetDataCatalogData model."""
         catalog_details = {
             'Name': 'test-catalog',
             'Type': 'LAMBDA',
@@ -405,18 +327,13 @@ class TestDataCatalogResponses:
             'Status': 'ACTIVE',
             'ConnectionType': 'DIRECT',
         }
-        response = GetDataCatalogResponse(
-            isError=False,
-            content=sample_text_content,
-            data_catalog=catalog_details,
-        )
-        assert response.isError is False
-        assert response.data_catalog == catalog_details
-        assert response.data_catalog['Name'] == 'test-catalog'
-        assert response.operation == 'get'
+        data = GetDataCatalogData(data_catalog=catalog_details, operation='get')
+        assert data.data_catalog == catalog_details
+        assert data.data_catalog['Name'] == 'test-catalog'
+        assert data.operation == 'get'
 
-    def test_list_data_catalogs_response(self):
-        """Test the ListDataCatalogsResponse model."""
+    def test_list_data_catalogs_data(self):
+        """Test the ListDataCatalogsData model."""
         catalogs = [
             {
                 'CatalogName': 'catalog1',
@@ -431,49 +348,34 @@ class TestDataCatalogResponses:
                 'ConnectionType': 'DIRECT',
             },
         ]
-        response = ListDataCatalogsResponse(
-            isError=False,
-            content=sample_text_content,
-            data_catalogs=catalogs,
-            count=2,
-            next_token='next-page',
+        data = ListDataCatalogsData(
+            data_catalogs=catalogs, count=2, next_token='next-page', operation='list'
         )
-        assert response.isError is False
-        assert response.data_catalogs == catalogs
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list'
+        assert data.data_catalogs == catalogs
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list'
 
-    def test_update_data_catalog_response(self):
-        """Test the UpdateDataCatalogResponse model."""
-        response = UpdateDataCatalogResponse(
-            isError=False,
-            content=sample_text_content,
-            name='test-catalog',
-        )
-        assert response.isError is False
-        assert response.name == 'test-catalog'
-        assert response.operation == 'update'
+    def test_update_data_catalog_data(self):
+        """Test the UpdateDataCatalogData model."""
+        data = UpdateDataCatalogData(name='test-catalog', operation='update')
+        assert data.name == 'test-catalog'
+        assert data.operation == 'update'
 
-    def test_get_database_response(self):
-        """Test the GetDatabaseResponse model."""
+    def test_get_database_data(self):
+        """Test the GetDatabaseData model."""
         database_details = {
             'Name': 'test-database',
             'Description': 'Test database description',
             'Parameters': {'created_by': 'test-user'},
         }
-        response = GetDatabaseResponse(
-            isError=False,
-            content=sample_text_content,
-            database=database_details,
-        )
-        assert response.isError is False
-        assert response.database == database_details
-        assert response.database['Name'] == 'test-database'
-        assert response.operation == 'get'
+        data = GetDatabaseData(database=database_details, operation='get')
+        assert data.database == database_details
+        assert data.database['Name'] == 'test-database'
+        assert data.operation == 'get'
 
-    def test_get_table_metadata_response(self):
-        """Test the GetTableMetadataResponse model."""
+    def test_get_table_metadata_data(self):
+        """Test the GetTableMetadataData model."""
         table_metadata = {
             'Name': 'test-table',
             'CreateTime': '2023-01-01T00:00:00.000Z',
@@ -486,19 +388,14 @@ class TestDataCatalogResponses:
             'PartitionKeys': [{'Name': 'date', 'Type': 'string'}],
             'Parameters': {'EXTERNAL': 'TRUE'},
         }
-        response = GetTableMetadataResponse(
-            isError=False,
-            content=sample_text_content,
-            table_metadata=table_metadata,
-        )
-        assert response.isError is False
-        assert response.table_metadata == table_metadata
-        assert response.table_metadata['Name'] == 'test-table'
-        assert len(response.table_metadata['Columns']) == 2
-        assert response.operation == 'get'
+        data = GetTableMetadataData(table_metadata=table_metadata, operation='get')
+        assert data.table_metadata == table_metadata
+        assert data.table_metadata['Name'] == 'test-table'
+        assert len(data.table_metadata['Columns']) == 2
+        assert data.operation == 'get'
 
-    def test_list_databases_response(self):
-        """Test the ListDatabasesResponse model."""
+    def test_list_databases_data(self):
+        """Test the ListDatabasesData model."""
         databases = [
             {
                 'Name': 'database1',
@@ -511,21 +408,16 @@ class TestDataCatalogResponses:
                 'Parameters': {'created_by': 'user2'},
             },
         ]
-        response = ListDatabasesResponse(
-            isError=False,
-            content=sample_text_content,
-            database_list=databases,
-            count=2,
-            next_token='next-page',
+        data = ListDatabasesData(
+            database_list=databases, count=2, next_token='next-page', operation='list'
         )
-        assert response.isError is False
-        assert response.database_list == databases
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list'
+        assert data.database_list == databases
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list'
 
-    def test_list_table_metadata_response(self):
-        """Test the ListTableMetadataResponse model."""
+    def test_list_table_metadata_data(self):
+        """Test the ListTableMetadataData model."""
         tables = [
             {
                 'Name': 'table1',
@@ -540,47 +432,32 @@ class TestDataCatalogResponses:
                 'Columns': [{'Name': 'name', 'Type': 'string'}],
             },
         ]
-        response = ListTableMetadataResponse(
-            isError=False,
-            content=sample_text_content,
-            table_metadata_list=tables,
-            count=2,
-            next_token='next-page',
+        data = ListTableMetadataData(
+            table_metadata_list=tables, count=2, next_token='next-page', operation='list'
         )
-        assert response.isError is False
-        assert response.table_metadata_list == tables
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list'
+        assert data.table_metadata_list == tables
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list'
 
 
-class TestWorkGroupResponses:
-    """Test class for Athena work group response models."""
+class TestWorkGroupData:
+    """Test class for Athena work group data models."""
 
-    def test_create_work_group_response(self):
-        """Test the CreateWorkGroupResponse model."""
-        response = CreateWorkGroupResponse(
-            isError=False,
-            content=sample_text_content,
-            work_group_name='test-workgroup',
-        )
-        assert response.isError is False
-        assert response.work_group_name == 'test-workgroup'
-        assert response.operation == 'create'
+    def test_create_work_group_data(self):
+        """Test the CreateWorkGroupData model."""
+        data = CreateWorkGroupData(work_group_name='test-workgroup', operation='create-work-group')
+        assert data.work_group_name == 'test-workgroup'
+        assert data.operation == 'create-work-group'
 
-    def test_delete_work_group_response(self):
-        """Test the DeleteWorkGroupResponse model."""
-        response = DeleteWorkGroupResponse(
-            isError=False,
-            content=sample_text_content,
-            work_group_name='test-workgroup',
-        )
-        assert response.isError is False
-        assert response.work_group_name == 'test-workgroup'
-        assert response.operation == 'delete'
+    def test_delete_work_group_data(self):
+        """Test the DeleteWorkGroupData model."""
+        data = DeleteWorkGroupData(work_group_name='test-workgroup', operation='delete-work-group')
+        assert data.work_group_name == 'test-workgroup'
+        assert data.operation == 'delete-work-group'
 
-    def test_get_work_group_response(self):
-        """Test the GetWorkGroupResponse model."""
+    def test_get_work_group_data(self):
+        """Test the GetWorkGroupData model."""
         work_group_details = {
             'Name': 'test-workgroup',
             'State': 'ENABLED',
@@ -594,18 +471,13 @@ class TestWorkGroupResponses:
             'Description': 'Test work group',
             'CreationTime': '2023-01-01T00:00:00.000Z',
         }
-        response = GetWorkGroupResponse(
-            isError=False,
-            content=sample_text_content,
-            work_group=work_group_details,
-        )
-        assert response.isError is False
-        assert response.work_group == work_group_details
-        assert response.work_group['Name'] == 'test-workgroup'
-        assert response.operation == 'get'
+        data = GetWorkGroupData(work_group=work_group_details, operation='get-work-group')
+        assert data.work_group == work_group_details
+        assert data.work_group['Name'] == 'test-workgroup'
+        assert data.operation == 'get-work-group'
 
-    def test_list_work_groups_response(self):
-        """Test the ListWorkGroupsResponse model."""
+    def test_list_work_groups_data(self):
+        """Test the ListWorkGroupsData model."""
         work_groups = [
             {
                 'Name': 'workgroup1',
@@ -618,68 +490,40 @@ class TestWorkGroupResponses:
                 'Description': 'Second test work group',
             },
         ]
-        response = ListWorkGroupsResponse(
-            isError=False,
-            content=sample_text_content,
-            work_groups=work_groups,
-            count=2,
-            next_token='next-page',
+        data = ListWorkGroupsData(
+            work_groups=work_groups, count=2, next_token='next-page', operation='list-work-groups'
         )
-        assert response.isError is False
-        assert response.work_groups == work_groups
-        assert response.count == 2
-        assert response.next_token == 'next-page'
-        assert response.operation == 'list'
+        assert data.work_groups == work_groups
+        assert data.count == 2
+        assert data.next_token == 'next-page'
+        assert data.operation == 'list-work-groups'
 
-    def test_update_work_group_response(self):
-        """Test the UpdateWorkGroupResponse model."""
-        response = UpdateWorkGroupResponse(
-            isError=False,
-            content=sample_text_content,
-            work_group_name='test-workgroup',
-        )
-        assert response.isError is False
-        assert response.work_group_name == 'test-workgroup'
-        assert response.operation == 'update'
+    def test_update_work_group_data(self):
+        """Test the UpdateWorkGroupData model."""
+        data = UpdateWorkGroupData(work_group_name='test-workgroup', operation='update-work-group')
+        assert data.work_group_name == 'test-workgroup'
+        assert data.operation == 'update-work-group'
 
 
-def test_data_catalog_error_responses():
-    """Test error cases for data catalog response types."""
-    error_content = [TextContent(type='text', text='Error occurred')]
+def test_model_serialization():
+    """Test that all data models can be serialized using model_dump()."""
+    # Test a simple data model
+    create_data = CreateDataCatalogData(name='test-catalog', operation='create')
+    dumped = create_data.model_dump()
+    assert dumped['name'] == 'test-catalog'
+    assert dumped['operation'] == 'create'
 
-    # Test data catalog error response
-    catalog_error = CreateDataCatalogResponse(
-        isError=True, content=error_content, name='test-catalog'
+    # Test a complex data model
+    complex_data = GetQueryResultsData(
+        query_execution_id='query-123',
+        result_set={'columns': [{'name': 'col1', 'type': 'varchar'}]},
+        next_token='next-page',
+        update_count=10,
+        operation='get-query-results',
     )
-    assert catalog_error.isError is True
-    assert catalog_error.content == error_content
-    assert catalog_error.name == 'test-catalog'
-
-    # Test database error response
-    database_error = GetDatabaseResponse(
-        isError=True, content=error_content, database={'Name': 'test-database'}
-    )
-    assert database_error.isError is True
-    assert database_error.content == error_content
-    assert database_error.database['Name'] == 'test-database'
-
-
-def test_work_group_error_responses():
-    """Test error cases for work group response types."""
-    error_content = [TextContent(type='text', text='Error occurred')]
-
-    # Test work group error response
-    work_group_error = CreateWorkGroupResponse(
-        isError=True, content=error_content, work_group_name='test-workgroup'
-    )
-    assert work_group_error.isError is True
-    assert work_group_error.content == error_content
-    assert work_group_error.work_group_name == 'test-workgroup'
-
-    # Test get work group error response
-    get_work_group_error = GetWorkGroupResponse(
-        isError=True, content=error_content, work_group={'Name': 'test-workgroup'}
-    )
-    assert get_work_group_error.isError is True
-    assert get_work_group_error.content == error_content
-    assert get_work_group_error.work_group['Name'] == 'test-workgroup'
+    dumped_complex = complex_data.model_dump()
+    assert dumped_complex['query_execution_id'] == 'query-123'
+    assert dumped_complex['result_set']['columns'][0]['name'] == 'col1'
+    assert dumped_complex['next_token'] == 'next-page'
+    assert dumped_complex['update_count'] == 10
+    assert dumped_complex['operation'] == 'get-query-results'
