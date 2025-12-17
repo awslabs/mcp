@@ -136,10 +136,10 @@ jobs:
         with:
           name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
           path: |
-            '${{ matrix.dockerfile }}/trivy-results.sarif'
-            '${{ matrix.dockerfile }}/syft-results.json'
-            '${{ matrix.dockerfile }}/sbom.csv'
-            '${{ matrix.dockerfile }}/grype.txt'
-            '${{ matrix.dockerfile }}/cyclonedx.json'
+            ${{ matrix.dockerfile }}/trivy-results.sarif
+            ${{ matrix.dockerfile }}/syft-results.json
+            ${{ matrix.dockerfile }}/sbom.csv
+            ${{ matrix.dockerfile }}/grype.txt
+            ${{ matrix.dockerfile }}/cyclonedx.json
           if-no-files-found: error
           retention-days: 1
