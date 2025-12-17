@@ -51,7 +51,7 @@ class TestDatastoreFilter:
 
     def test_none_status(self):
         """Test None status is valid."""
-        model = DatastoreFilter()
+        model = DatastoreFilter(status=None)
         assert model.status is None
 
 
