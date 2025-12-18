@@ -518,6 +518,7 @@ async def test_call_aws_security_policy_deny(
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
     mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_validation = MagicMock()
@@ -554,6 +555,7 @@ async def test_call_aws_security_policy_elicit(
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
     mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_validation = MagicMock()

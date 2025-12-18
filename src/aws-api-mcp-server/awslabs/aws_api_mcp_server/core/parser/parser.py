@@ -16,7 +16,6 @@ import argparse
 import botocore.serialize
 import ipaddress
 import jmespath
-import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -55,7 +54,7 @@ from ..common.errors import (
     UnsupportedFilterError,
 )
 from ..common.file_system_controls import extract_file_paths_from_parameters, validate_file_path
-from ..common.helpers import expand_user_home_directory
+from ..common.helpers import expand_user_home_directory, is_help_operation
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
 from .custom_validators.ssm_validator import perform_ssm_validations
@@ -70,7 +69,6 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -388,19 +386,20 @@ def parse(cli_command: str, default_region_override: str | None = None) -> IRCom
     tokens = split_cli_command(cli_command)
     # Strip `aws` and expand paths beginning with ~
     tokens = expand_user_home_directory(tokens[1:])
-    global_args, remaining = parser.parse_known_args(tokens)
-    service_command = command_table[global_args.command]
-
-    # Not all commands have parsers as some of them are "aliases" to existing services
-    if isinstance(service_command, ServiceCommand):
-        return _handle_service_command(
-            service_command, global_args, remaining, default_region_override
-        )
+    service_namespace, args = parser.parse_known_args(tokens)
+    service_command = command_table[service_namespace.command]
 
     if service_command.name in DENIED_CUSTOM_SERVICES:
         raise ServiceNotAllowedError(service_command.name)
 
-    return _handle_awscli_customization(global_args, remaining, tokens[0], default_region_override)
+    if isinstance(service_command, ServiceCommand):
+        return _handle_service_command(
+            service_command, service_namespace, args, default_region_override
+        )
+
+    return _handle_awscli_customization(
+        service_namespace, args, tokens[0], default_region_override
+    )
 
 
 def _handle_service_command(
@@ -439,7 +438,7 @@ def _handle_service_command(
 
     try:
         parameters = operation_command._build_call_parameters(
-            parsed_args.operation_args, operation_command.arg_table
+            parsed_args.operation_args, operation_command.arg_table, global_args
         )
     except ParamError as exc:
         raise ShortHandParserError(exc.cli_name, exc.message) from exc
@@ -790,16 +789,23 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 
     source_path, dest_path = paths
     _validate_s3_file_path(source_path, service, operation)
-    _validate_s3_file_path(dest_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
 
 
-def _validate_s3_file_path(file_path: str, service: str, operation: str):
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # `-` as destination redirects to stdout, which we capture and wrap in an MCP response
+    if file_path == '-' and is_destination:
+        return
+
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
     if file_path == '-':
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason="streaming file ('-') is not allowed",
+            reason="streaming file on stdin ('-') is not allowed",
         )
 
     if not file_path.startswith('s3://'):
@@ -852,14 +858,6 @@ def _validate_outfile(
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
-    if not os.path.isabs(Path(file_path)):
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason='should be an absolute path',
-        )
-
     try:
         validate_file_path(file_path)
     except (FilePathValidationError, LocalFileAccessDisabledError) as e:
@@ -918,6 +916,10 @@ def _construct_command(
     endpoint_url = getattr(global_args, 'endpoint_url', None)
     _validate_endpoint(endpoint_url)
 
+    explicitly_passed_arguments = list(parameters.values()) + (
+        parsed_args.given_args if parsed_args else []
+    )
+
     profile = getattr(global_args, 'profile', None)
     region = (
         getattr(global_args, 'region', None)
@@ -953,6 +955,7 @@ def _construct_command(
         profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        is_help_operation=is_help_operation(explicitly_passed_arguments),
         output_file=output_file,
         endpoint_url=global_args.endpoint_url,
     )

@@ -23,7 +23,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     StaticAlarmThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from datetime import datetime
+from datetime import datetime, timezone
 from moto import mock_aws
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -116,8 +116,9 @@ class TestGetMetricData:
                 == 'CPUUtilization'
             )
             assert call_args['MetricDataQueries'][0]['MetricStat']['Stat'] == 'Average'
-            assert call_args['StartTime'] == start_time
-            assert call_args['EndTime'] == end_time
+
+            assert call_args['StartTime'] == start_time.replace(tzinfo=timezone.utc)
+            assert call_args['EndTime'] == end_time.replace(tzinfo=timezone.utc)
             assert isinstance(result, GetMetricDataResponse)
             assert len(result.metricDataResults) == 1
             assert result.metricDataResults[0].label == 'CPUUtilization'
@@ -503,6 +504,109 @@ class TestGetMetricData:
                 )
             ctx.error.assert_called_once()
             assert 'Test exception' in ctx.error.call_args[0][0]
+
+    @pytest.mark.parametrize(
+        'start_time,end_time,test_description',
+        [
+            # Timezone-aware start, no end (defaults to now)
+            (
+                '2023-01-01T00:00:00+00:00',
+                None,
+                'timezone-aware start_time with None end_time (defaults to now)',
+            ),
+            # Both timezone-aware
+            (
+                '2023-01-01T00:00:00+00:00',
+                '2023-01-01T01:00:00+00:00',
+                'both timezone-aware (ISO strings)',
+            ),
+            # Both naive datetime objects
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                datetime(2023, 1, 1, 1, 0, 0),
+                'both naive datetime objects',
+            ),
+            # Timezone-aware datetime objects
+            (
+                datetime(2023, 1, 1, 0, 0, 0, tzinfo=__import__('datetime').timezone.utc),
+                datetime(2023, 1, 1, 1, 0, 0, tzinfo=__import__('datetime').timezone.utc),
+                'both timezone-aware datetime objects',
+            ),
+            # Mixed: naive start, timezone-aware end (ISO string)
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                '2023-01-01T01:00:00+00:00',
+                'naive datetime start with timezone-aware ISO string end',
+            ),
+            # Mixed: timezone-aware start (ISO string), naive end
+            (
+                '2023-01-01T00:00:00+00:00',
+                datetime(2023, 1, 1, 1, 0, 0),
+                'timezone-aware ISO string start with naive datetime end',
+            ),
+            # Naive start, no end
+            (
+                datetime(2023, 1, 1, 0, 0, 0),
+                None,
+                'naive datetime start with None end_time',
+            ),
+            # Different timezone offsets
+            (
+                '2023-01-01T00:00:00-05:00',
+                '2023-01-01T06:00:00+00:00',
+                'different timezone offsets (EST and UTC)',
+            ),
+            # ISO string with Z notation
+            (
+                '2023-01-01T00:00:00Z',
+                '2023-01-01T01:00:00Z',
+                'ISO strings with Z notation',
+            ),
+        ],
+    )
+    async def test_get_metric_data_with_various_datetime_formats(
+        self, ctx, cloudwatch_metrics_tools, start_time, end_time, test_description
+    ):
+        """Parametrized test for various datetime format combinations.
+
+        Tests all combinations of:
+        - Timezone-aware vs naive datetimes
+        - ISO strings vs datetime objects
+        - With and without end_time (None defaults to now)
+        - Different timezone offsets
+
+        This ensures the fix for timezone handling works correctly in all scenarios.
+        """
+        mock_client = MagicMock()
+        mock_client.get_metric_data.return_value = {
+            'MetricDataResults': [
+                {
+                    'Id': 'm1',
+                    'Label': 'CPUUtilization',
+                    'StatusCode': 'Complete',
+                    'Timestamps': [datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)],
+                    'Values': [10.5],
+                }
+            ],
+        }
+
+        with patch.object(
+            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        ):
+            result = await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                namespace='AWS/EC2',
+                metric_name='CPUUtilization',
+                start_time=start_time,
+                end_time=end_time,
+                dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                statistic='AVG',
+                target_datapoints=60,
+            )
+
+            # Should not raise an error and should return valid response
+            assert isinstance(result, GetMetricDataResponse), f'Failed for: {test_description}'
+            assert len(result.metricDataResults) == 1, f'Failed for: {test_description}'
 
     async def test_get_metric_metadata_found(self, ctx, cloudwatch_metrics_tools):
         """Test getting metric metadata for existing metric."""
