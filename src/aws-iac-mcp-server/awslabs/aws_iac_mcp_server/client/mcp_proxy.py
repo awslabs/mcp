@@ -15,6 +15,7 @@
 import os
 import sys
 from fastmcp import FastMCP
+from fastmcp.server.proxy import ProxyClient
 from fastmcp.tools import Tool
 from loguru import logger
 from typing import Any, Callable, Dict, Optional
@@ -25,13 +26,13 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 
 async def get_remote_proxy_server_tool(
-    remote_proxy_client: FastMCP,
+    remote_proxy_client: ProxyClient,
     remote_tool_name: str,
 ) -> Tool:
     """Get a tool from a remote MCP server via proxy.
 
     Args:
-        remote_proxy_client: The FastMCP client connected to the remote server.
+        remote_proxy_client: The ProxyClient connected to the remote server.
         remote_tool_name: Name of the tool to retrieve from the remote server.
 
     Returns:
