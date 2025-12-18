@@ -17,7 +17,7 @@ from ..knowledge_models import CDKToolResponse, KnowledgeResult
 from dataclasses import asdict
 from fastmcp.tools.tool_transform import forward
 from mcp.types import TextContent
-from typing import List
+from typing import Any, Callable, Coroutine, List
 
 
 def parse_read_result(result) -> List[KnowledgeResult]:
@@ -55,7 +55,7 @@ def parse_read_result(result) -> List[KnowledgeResult]:
     return results
 
 
-def transform_read_result(next_step_guidance: str):
+def transform_read_result(next_step_guidance: str) -> Callable[..., Coroutine[Any, Any, str]]:
     """Create a transformer for read documentation results.
 
     Args:
@@ -65,7 +65,7 @@ def transform_read_result(next_step_guidance: str):
         An async transformer function.
     """
 
-    async def transformer(**kwargs) -> str:
+    async def transformer(**kwargs: Any) -> str:
         """Transform read documentation result from remote MCP server.
 
         Returns:
