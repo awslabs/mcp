@@ -68,7 +68,7 @@ async def _create_read_tool_proxy():
         remote_tool_name='aws___read_documentation',
     )
 
-    local_tool_description = f'Fetch and convert Infrastructure as Code (CDK or CloudFormation) documentation to markdown format.\n\n {aws_knowledge_mcp_read_tool.description}'
+    local_tool_description = f'Returns Infrastructure as Code (CDK or CloudFormation) documentation in markdown format.\n\n {aws_knowledge_mcp_read_tool.description}'
 
     # Create a proxied version of the remote read_documentation tool
     proxied_read_tool = await create_local_proxied_tool(
