@@ -111,4 +111,4 @@ async def create_vector_index(
 
     create_args += ['VECTOR', structure_type.name, str(len(sub_args)), *sub_args]
 
-    return await r.execute_command(*create_args)
+    return r.execute_command(*create_args)

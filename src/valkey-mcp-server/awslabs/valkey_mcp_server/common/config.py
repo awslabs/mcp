@@ -42,10 +42,10 @@ EMBEDDING_CFG = {
     'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
     'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
     'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1'),
-    'bedrock_normalize': os.getenv('BEDROCK_NORMALIZE').lower() in ('true', '1', 't')
+    'bedrock_normalize': os.getenv('BEDROCK_NORMALIZE', '').lower() in ('true', '1', 't')
     if os.getenv('BEDROCK_NORMALIZE')
     else None,
-    'bedrock_dimensions': int(os.getenv('BEDROCK_DIMENSIONS'))
+    'bedrock_dimensions': int(os.getenv('BEDROCK_DIMENSIONS', '0'))
     if os.getenv('BEDROCK_DIMENSIONS')
     else None,
     'bedrock_input_type': os.getenv('BEDROCK_INPUT_TYPE'),

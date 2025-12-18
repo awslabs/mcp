@@ -168,7 +168,8 @@ async def add_documents(
         # time.sleep(1.0)  # Wait for index to be ready
 
         # Count total documents
-        total_docs = len(r.keys(f'{_get_document_key(collection, "")}*'))
+        keys_result = r.keys(f'{_get_document_key(collection, "")}*')  # type: ignore
+        total_docs = len(keys_result) if keys_result else 0  # type: ignore
 
         return {
             'status': 'success',
@@ -288,23 +289,25 @@ async def collection_info(collection: str) -> Dict[str, Any]:
         index_name = _get_collection_index_name(collection)
 
         # Count stored documents
-        stored_docs = len(r.keys(f'{_get_document_key(collection, "")}*'))
+        keys_result = r.keys(f'{_get_document_key(collection, "")}*')  # type: ignore
+        stored_docs = len(keys_result) if keys_result else 0  # type: ignore
 
         # Get index information
         try:
-            index_info_result = r.execute_command('FT.INFO', index_name)
+            index_info_result = r.execute_command('FT.INFO', index_name)  # type: ignore
             # Parse index info to get indexed document count
             info_dict = {}
-            for i in range(0, len(index_info_result), 2):
-                key = (
-                    index_info_result[i].decode()
-                    if isinstance(index_info_result[i], bytes)
-                    else index_info_result[i]
-                )
-                value = index_info_result[i + 1]
-                if isinstance(value, bytes):
-                    value = value.decode()
-                info_dict[key] = value
+            if index_info_result:
+                for i in range(0, len(index_info_result), 2):  # type: ignore
+                    key = (
+                        index_info_result[i].decode()  # type: ignore
+                        if isinstance(index_info_result[i], bytes)  # type: ignore
+                        else index_info_result[i]  # type: ignore
+                    )
+                    value = index_info_result[i + 1]  # type: ignore
+                    if isinstance(value, bytes):
+                        value = value.decode()
+                    info_dict[key] = value
 
             indexed_docs = int(info_dict.get('num_docs', 0))
 
@@ -471,10 +474,10 @@ async def find_similar_documents(
     """
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
-        doc_key = _get_document_key(collection, document_id).encode()
+        doc_key = _get_document_key(collection, document_id)
 
         # Get the document's embedding
-        embedding_bytes = r.hget(doc_key, b'embedding')
+        embedding_bytes = r.hget(doc_key, b'embedding')  # type: ignore
         if not embedding_bytes:
             return {
                 'status': 'error',
@@ -483,8 +486,12 @@ async def find_similar_documents(
             }
 
         # Unpack the embedding vector
-        num_floats = len(embedding_bytes) // 4  # 4 bytes per float32
-        embedding = list(struct.unpack(f'{num_floats}f', embedding_bytes))
+        num_floats = len(embedding_bytes) // 4 if embedding_bytes else 0  # type: ignore
+        embedding = (
+            list(struct.unpack(f'{num_floats}f', embedding_bytes))  # type: ignore
+            if embedding_bytes
+            else []
+        )
 
         index_name = _get_collection_index_name(collection)
         search_result = await vector_search(
@@ -536,17 +543,17 @@ async def get_document(collection: str, document_id: str) -> Dict[str, Any]:
     """
     try:
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
-        doc_key = _get_document_key(collection, document_id).encode()
+        doc_key = _get_document_key(collection, document_id)
 
-        doc_data = r.hgetall(doc_key)
-        if b'document_json' in doc_data:
+        doc_data = r.hgetall(doc_key)  # type: ignore
+        if b'document_json' in doc_data:  # type: ignore
             try:
-                document_json_bytes = doc_data[b'document_json']
-                if isinstance(document_json_bytes, bytes):
-                    document_json_str = document_json_bytes.decode('utf-8')
-                else:
-                    document_json_str = str(document_json_bytes)
-
+                document_json_bytes = doc_data[b'document_json']  # type: ignore
+                document_json_str = (
+                    document_json_bytes.decode('utf-8')
+                    if isinstance(document_json_bytes, bytes)
+                    else str(document_json_bytes)
+                )
                 document = json.loads(document_json_str)
                 return {'status': 'success', 'result': document}
             except (UnicodeDecodeError, json.JSONDecodeError) as e:
@@ -590,10 +597,11 @@ async def list_collections(limit: int = 100) -> Dict[str, Any]:
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
 
         # Get all indices
-        indices = r.execute_command('FT._LIST')
+        indices_result = r.execute_command('FT._LIST')  # type: ignore
+        indices = indices_result if indices_result else []
 
         collections = []
-        for index in indices:
+        for index in indices:  # type: ignore
             # Decode index name if it's bytes
             index_str = index.decode('utf-8') if isinstance(index, bytes) else index
 
@@ -602,9 +610,10 @@ async def list_collections(limit: int = 100) -> Dict[str, Any]:
                 collection_name = index_str.replace('semantic_collection_', '')
 
                 # Count documents
-                doc_keys = r.keys(f'semantic_collection_{collection_name}:doc:*'.encode())
+                doc_keys_result = r.keys(f'semantic_collection_{collection_name}:doc:*')  # type: ignore
+                doc_keys = doc_keys_result if doc_keys_result else []
 
-                collections.append({'name': collection_name, 'document_count': len(doc_keys)})
+                collections.append({'name': collection_name, 'document_count': len(doc_keys)})  # type: ignore
 
                 # Apply limit
                 if len(collections) >= limit:

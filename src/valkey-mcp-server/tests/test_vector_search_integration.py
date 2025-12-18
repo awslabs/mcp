@@ -61,11 +61,11 @@ class TestVectorSearchIntegration:
 
     async def test_vector_search_with_bedrock_embeddings(self):
         """Test vector_search with live Bedrock embeddings."""
-        await acquire_bedrock_embeddings()
+        provider = await acquire_bedrock_embeddings()
 
         # Generate embedding for the first text
         text1 = 'The quick brown fox jumped over the lazy dogs'
-        embedding1 = await self.provider.generate_embedding(text1)
+        embedding1 = await provider.generate_embedding(text1)
 
         # Store document with embedding in Valkey
         r = ValkeyConnectionManager.get_connection(decode_responses=False)
@@ -81,7 +81,7 @@ class TestVectorSearchIntegration:
 
         # Add noise documents
         text2 = 'Orange juice is good for the soul, but only on Wednesdays'
-        embedding2 = await self.provider.generate_embedding(text2)
+        embedding2 = await provider.generate_embedding(text2)
         doc2_json = f'{{"id": "doc2", "text": "{text2}", "category": "beverages"}}'
 
         r.hset(
@@ -93,7 +93,7 @@ class TestVectorSearchIntegration:
         )
 
         text3 = 'Scientists have discovered where all the missing unpaired socks go after going into the drier, they have found a giant ball of socks floating in outer space'
-        embedding3 = await self.provider.generate_embedding(text3)
+        embedding3 = await provider.generate_embedding(text3)
         doc3_json = f'{{"id": "doc3", "text": "{text3}", "category": "science"}}'
 
         r.hset(
@@ -106,7 +106,7 @@ class TestVectorSearchIntegration:
 
         # Generate embedding for the search query
         query_text = 'Something about one species of quadruped leaping over other slothful quadrupeds of another species'
-        query_embedding = await self.provider.generate_embedding(query_text)
+        query_embedding = await provider.generate_embedding(query_text)
 
         # Perform vector search
         result = await vector_search(

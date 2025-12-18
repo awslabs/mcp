@@ -97,10 +97,8 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         # Validate credentials are available
         try:
-            self.client.get_caller_identity = session.client(
-                'sts', config=config
-            ).get_caller_identity
-            self.client.get_caller_identity()
+            sts_client = session.client('sts', config=config)
+            sts_client.get_caller_identity()
         except (NoCredentialsError, PartialCredentialsError) as e:
             raise ValueError(
                 f'AWS credentials not found or incomplete. Please configure AWS credentials using '
@@ -120,7 +118,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         # Bedrock SDK is synchronous, run in executor
         def _invoke():
-            body = {'inputText': text}
+            body: dict[str, str | bool | int] = {'inputText': text}
 
             # Add optional parameters if specified
             if self.normalize is not None:
