@@ -12,6 +12,8 @@ dependencies = [
     "dotenv>=0.9.9",
     "numpy>=2.2.4",
     "boto3>=1.42.10",
+    "openai>=1.0.0",
+    "httpx>=0.25.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

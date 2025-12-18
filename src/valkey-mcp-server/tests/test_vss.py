@@ -416,3 +416,112 @@ class TestSearch:
         assert isinstance(result, dict)
         assert result['status'] == 'success'
         assert len(result['results']) == 0
+
+    @pytest.mark.asyncio
+    async def test_search_module_enabled_error(self, mock_connection):
+        """Test _search_module_enabled function with ValkeyError."""
+        from awslabs.valkey_mcp_server.tools.vss import _search_module_enabled
+
+        mock_conn, mock_conn_raw = mock_connection
+        mock_conn_raw.execute_command.side_effect = ValkeyError('Unknown command')
+
+        result = _search_module_enabled(mock_conn_raw)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_vector_search_unicode_decode_error(self, mock_connection):
+        """Test vector search with unicode decode error in document_json."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2]
+
+        # Create mock document with invalid UTF-8 bytes
+        doc_fields = {
+            b'document_json': b'\xff\xfe'  # Invalid UTF-8 sequence
+        }
+
+        mock_doc = Mock()
+        mock_doc.id = 'doc1'
+
+        mock_result = Mock()
+        mock_result.total = 1
+        mock_result.docs = [mock_doc]
+
+        mock_ft = Mock()
+        mock_ft.search.return_value = mock_result
+        mock_conn_raw.ft.return_value = mock_ft
+        mock_conn_raw.hgetall.return_value = doc_fields
+
+        result = await vector_search(index, field, vector)
+
+        # Should skip the document and return empty results
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0
+
+    @pytest.mark.asyncio
+    async def test_vector_search_json_decode_error(self, mock_connection):
+        """Test vector search with JSON decode error in document_json."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2]
+
+        # Create mock document with invalid JSON
+        doc_fields = {
+            b'document_json': b'{"invalid": json}'  # Invalid JSON
+        }
+
+        mock_doc = Mock()
+        mock_doc.id = 'doc1'
+
+        mock_result = Mock()
+        mock_result.total = 1
+        mock_result.docs = [mock_doc]
+
+        mock_ft = Mock()
+        mock_ft.search.return_value = mock_result
+        mock_conn_raw.ft.return_value = mock_ft
+        mock_conn_raw.hgetall.return_value = doc_fields
+
+        result = await vector_search(index, field, vector)
+
+        # Should skip the document and return empty results
+        assert result['status'] == 'success'
+        assert len(result['results']) == 0
+
+    @pytest.mark.asyncio
+    async def test_vector_search_non_bytes_document_json(self, mock_connection):
+        """Test vector search with non-bytes document_json field."""
+        mock_conn, mock_conn_raw = mock_connection
+
+        index = 'test_index'
+        field = 'embedding'
+        vector = [0.1, 0.2]
+
+        # Create mock document with string document_json (not bytes)
+        doc_fields = {
+            b'document_json': '{"id": "doc1", "title": "String Document"}'  # String, not bytes
+        }
+
+        mock_doc = Mock()
+        mock_doc.id = 'doc1'
+
+        mock_result = Mock()
+        mock_result.total = 1
+        mock_result.docs = [mock_doc]
+
+        mock_ft = Mock()
+        mock_ft.search.return_value = mock_result
+        mock_conn_raw.ft.return_value = mock_ft
+        mock_conn_raw.hgetall.return_value = doc_fields
+
+        result = await vector_search(index, field, vector)
+
+        # Should successfully process the document
+        assert result['status'] == 'success'
+        assert len(result['results']) == 1
+        assert result['results'][0]['id'] == 'doc1'
+        assert result['results'][0]['title'] == 'String Document'

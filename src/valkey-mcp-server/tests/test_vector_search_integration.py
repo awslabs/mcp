@@ -7,8 +7,6 @@ from awslabs.valkey_mcp_server.tools.vss import vector_search
 from tests import acquire_bedrock_embeddings
 
 
-@pytest.mark.integration
-@pytest.mark.manual
 class TestVectorSearchIntegration:
     """Test vector_search with live Valkey backend and Bedrock embeddings."""
 

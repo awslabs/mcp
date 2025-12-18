@@ -20,8 +20,6 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 
-@pytest.mark.integration
-@pytest.mark.manual
 class TestOpenAIEmbeddings:
     """Integration tests for OpenAI embeddings provider."""
 

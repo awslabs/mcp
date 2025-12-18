@@ -31,8 +31,6 @@ from awslabs.valkey_mcp_server.tools.semantic_search import (
 from unittest.mock import patch
 
 
-@pytest.mark.integration
-@pytest.mark.manual
 class TestSemanticSearchIntegration:
     """Integration tests for semantic search functionality."""
 
