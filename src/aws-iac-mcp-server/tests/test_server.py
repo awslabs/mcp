@@ -319,10 +319,58 @@ class TestMain:
     """Test main function."""
 
     @patch('awslabs.aws_iac_mcp_server.server.mcp')
-    def test_main_calls_mcp_run(self, mock_mcp):
+    @patch('asyncio.run')
+    def test_main_calls_mcp_run(self, mock_asyncio_run, mock_mcp):
         """Test that main() calls mcp.run()."""
         from awslabs.aws_iac_mcp_server.server import main
 
         main()
 
+        mock_asyncio_run.assert_called_once()
+        mock_mcp.run.assert_called_once()
+
+
+class TestCreateReadToolProxy:
+    """Test _create_read_tool_proxy function."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.get_remote_proxy_server_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.create_local_proxied_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.mcp')
+    @pytest.mark.asyncio
+    async def test_create_read_tool_proxy_success(
+        self, mock_mcp, mock_create_local, mock_get_remote
+    ):
+        """Test successful proxy tool creation."""
+        from awslabs.aws_iac_mcp_server.server import _create_read_tool_proxy
+        from unittest.mock import MagicMock
+
+        mock_remote_tool = MagicMock()
+        mock_remote_tool.description = 'Remote tool description'
+        mock_get_remote.return_value = mock_remote_tool
+
+        mock_proxied_tool = MagicMock()
+        mock_create_local.return_value = mock_proxied_tool
+
+        await _create_read_tool_proxy()
+
+        mock_get_remote.assert_called_once()
+        mock_create_local.assert_called_once_with(
+            remote_tool=mock_remote_tool,
+            local_tool_name='read_iac_documentation_page',
+            local_tool_description='Remote tool description',
+        )
+        mock_mcp.add_tool.assert_called_once_with(mock_proxied_tool)
+
+    @patch('awslabs.aws_iac_mcp_server.server.mcp')
+    @patch('asyncio.run')
+    def test_main_handles_proxy_exception(self, mock_asyncio_run, mock_mcp):
+        """Test that main() handles proxy initialization failure gracefully."""
+        from awslabs.aws_iac_mcp_server.server import main
+
+        mock_asyncio_run.side_effect = Exception('Connection failed')
+
+        # Should not raise exception - server should continue
+        main()
+
+        mock_asyncio_run.assert_called_once()
         mock_mcp.run.assert_called_once()

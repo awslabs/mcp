@@ -32,6 +32,7 @@ from .tools.iac_tools import (
 from dataclasses import asdict
 from fastmcp import FastMCP
 from fastmcp.server.proxy import ProxyClient
+from loguru import logger
 from typing import Optional
 
 
@@ -529,7 +530,13 @@ def main():
     import asyncio
 
     # Create the read tool proxy before starting the server
-    asyncio.run(_create_read_tool_proxy())
+    # Don't fail the entire server startup in case there is an issue with the proxy
+    try:
+        asyncio.run(_create_read_tool_proxy())
+    except Exception as e:
+        logger.warning(
+            f'Failed to initialize read tool proxy: {e}. Continuing with server initialization.'
+        )
 
     # Run the server
     mcp.run()
