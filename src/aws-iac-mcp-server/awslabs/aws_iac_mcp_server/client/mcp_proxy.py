@@ -24,38 +24,58 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 
-async def create_proxied_tool(
-    proxy_server: FastMCP,
+async def get_remote_proxy_server_tool(
+    remote_proxy_client: FastMCP,
     remote_tool_name: str,
-    local_tool_name: Optional[str] = None,
-    local_description: Optional[str] = None,
-    default_params: Optional[Dict[str, Any]] = None,
+) -> Tool:
+    """Get a tool from a remote MCP server via proxy.
+
+    Args:
+        remote_proxy_client: The FastMCP client connected to the remote server.
+        remote_tool_name: Name of the tool to retrieve from the remote server.
+
+    Returns:
+        The Tool object from the remote server.
+
+    Raises:
+        ValueError: If the tool is not found on the remote server.
+    """
+    # https://gofastmcp.com/servers/proxy#transport-bridging
+    remote_proxy = FastMCP.as_proxy(remote_proxy_client, name='Remote to local bridge')
+
+    # Get the tool from the proxy server
+    remote_tool = await remote_proxy.get_tool(remote_tool_name)
+    if not remote_tool:
+        raise ValueError(f'Tool {remote_tool_name} not found on remote server')
+
+    return remote_tool
+
+
+async def create_local_proxied_tool(
+    remote_tool: Tool,
+    local_tool_name: str,
+    local_tool_description: Optional[str] = None,
     response_transformer: Optional[Callable[[Any], Any]] = None,
 ) -> Tool:
     """Create a proxied tool using Tool.from_tool() with optional transformations.
 
     Args:
-        proxy_server: The FastMCP proxy server instance.
-        remote_tool_name: Name of the remote tool to proxy.
-        local_tool_name: Optional custom name for the local tool.
-        local_description: Optional custom description for the local tool.
-        default_params: Default parameters to inject into every call.
+        remote_tool: The remote Tool object to proxy.
+        local_tool_name: Custom name for the local tool.
+        local_tool_description: Optional custom description for the local tool.
         response_transformer: Optional function to transform the response.
 
     Returns:
         A Tool object that proxies to the remote tool.
     """
-    # Get the tool from the proxy server
-    remote_tool = await proxy_server.get_tool(remote_tool_name)
-    if not remote_tool:
-        raise ValueError(f'Tool {remote_tool_name} not found on remote server')
+    # Build kwargs dict with only provided optional parameters (filter out None values)
+    kwargs: Dict[str, Any] = {'name': local_tool_name}
+    if local_tool_description is not None:
+        kwargs['description'] = local_tool_description
+    if response_transformer is not None:
+        kwargs['transform_fn'] = response_transformer
 
     # Use Tool.from_tool to create the proxied tool
-    proxied_tool = Tool.from_tool(
-        remote_tool,
-        name=local_tool_name,
-        description=local_description,
-        transform_fn=response_transformer,
-    )
+    proxied_tool = Tool.from_tool(remote_tool, **kwargs)
 
     return proxied_tool

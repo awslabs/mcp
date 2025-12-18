@@ -20,10 +20,6 @@ from typing import Literal
 
 SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.'
 
-READ_TOOL_NEXT_STEPS_GUIDANCE = (
-    'If you need code examples, use `search_cdk_samples_and_constructs` tool.'
-)
-
 SEARCH_CDK_DOCUMENTATION_TOPIC = 'cdk_docs'
 SEARCH_CLOUDFORMATION_DOCUMENTATION_TOPIC = 'cloudformation'
 SEARCH_CDK_CONSTRUCTS_TOPIC = 'cdk_constructs'
