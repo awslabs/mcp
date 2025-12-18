@@ -966,12 +966,13 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
                 )
 
                 # Verify the expected fake credential values
-                assert os.environ['AWS_ACCESS_KEY_ID'] == 'AKIAIOSFODNN7EXAMPLE', (
-                    'AWS_ACCESS_KEY_ID should be set to the expected fake value'
-                )
+                assert (
+                    os.environ['AWS_ACCESS_KEY_ID']
+                    == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+                ), 'AWS_ACCESS_KEY_ID should be set to the expected fake value'
                 assert (
                     os.environ['AWS_SECRET_ACCESS_KEY']
-                    == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+                    == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
                 ), 'AWS_SECRET_ACCESS_KEY should be set to the expected fake value'
 
         # Run the async check
