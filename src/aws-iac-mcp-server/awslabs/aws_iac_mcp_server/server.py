@@ -68,7 +68,9 @@ async def _create_read_tool_proxy():
         remote_tool_name='aws___read_documentation',
     )
 
-    local_tool_description = f'Returns Infrastructure as Code (CDK or CloudFormation) documentation in markdown format.\n\n {aws_knowledge_mcp_read_tool.description}'
+    # This is explicit to make it clear that it is an active choice, not an oversight.
+    # If we find improvements from appending IaC-specific text to the remote read tool description, this should be updated
+    local_tool_description = aws_knowledge_mcp_read_tool.description
 
     # Create a proxied version of the remote read_documentation tool
     proxied_read_tool = await create_local_proxied_tool(
