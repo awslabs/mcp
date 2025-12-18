@@ -1278,6 +1278,27 @@
     },
     {
       "category": "Developer Tools & Support",
+      "description": "Security findings analysis, compliance reporting, and security posture management",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-security-hub-mcp-server",
+      "name": "AWS Security Hub MCP Server",
+      "source_path": "src/aws-security-hub-mcp-server/",
+      "subcategory": "Security & Access",
+      "tags": [
+        "developer-tools",
+        "security-hub",
+        "security",
+        "compliance",
+        "findings",
+        "security-posture",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
       "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
       "icon": "\ud83d\udee0\ufe0f",
       "id": "aws-msk-mcp-server",
