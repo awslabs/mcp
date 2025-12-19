@@ -1,11 +1,3 @@
----
-inclusion: always
----
-<!------------------------------------------------------------------------------------
-   Add rules to this file or a short description that will apply across all your workspaces.
-
-   Learn about inclusion modes: https://kiro.dev/docs/steering/#inclusion-modes
-------------------------------------------------------------------------------------->
 # Aurora Postgres MCP — Steering
 
 ## Purpose
