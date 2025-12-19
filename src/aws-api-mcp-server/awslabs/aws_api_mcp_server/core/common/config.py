@@ -129,12 +129,12 @@ def get_server_auth():
     if TRANSPORT != 'streamable-http':
         return auth_provider
 
-    if not AUTH_TYPE:
+    if not AUTH_TYPE or AUTH_TYPE != 'no-auth' or AUTH_TYPE != 'oauth':
         raise ValueError(
-            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE'
+            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`'
         )
 
-    if AUTH_TYPE != 'oauth':
+    if AUTH_TYPE == 'no-auth':
         return auth_provider
 
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
