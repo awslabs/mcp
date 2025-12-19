@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 
 [[package]]
@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-dataprocessing-mcp-server"
-version = "0.1.17"
+version = "0.1.18"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
