@@ -50,7 +50,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-healthomics-mcp-server"
-version = "0.0.16"
+version = "0.0.17"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
