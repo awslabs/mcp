@@ -17,10 +17,10 @@ import importlib.metadata
 import os
 import tempfile
 from enum import Enum
+from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
 from pathlib import Path
 from typing import Literal, cast
-from fastmcp.server.auth import JWTVerifier
 
 
 # Get package version for user agent
@@ -129,15 +129,18 @@ def get_server_auth():
     if TRANSPORT != 'streamable-http':
         return auth_provider
 
-
     if not AUTH_TYPE:
-        raise ValueError('TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE')
+        raise ValueError(
+            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE'
+        )
 
     if AUTH_TYPE != 'oauth':
         return auth_provider
 
     if not AUTH_ISSUER or not AUTH_JWKS_URI:
-        raise ValueError('AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI')
+        raise ValueError(
+            'AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI'
+        )
 
     auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
 
