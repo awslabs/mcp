@@ -1,5 +1,6 @@
 import pytest
 import requests
+from awslabs.aws_api_mcp_server.core.common.config import get_server_auth
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError, CommandValidationError
 from awslabs.aws_api_mcp_server.core.common.help_command import generate_help_document
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
@@ -10,14 +11,10 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
-from awslabs.aws_api_mcp_server.middleware.http_header_validation_middleware import (
-    HTTPHeaderValidationMiddleware,
-)
 from awslabs.aws_api_mcp_server.server import (
     call_aws,
     call_aws_helper,
     main,
-    setup_server_config,
     suggest_aws_commands,
 )
 from botocore.exceptions import NoCredentialsError
@@ -1102,74 +1099,72 @@ async def test_call_aws_help_command_failure(
     mock_get_help_document.assert_called_once()
 
 
-# Tests for setup_server_config function
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'stdio')
-def test_setup_server_config_non_streamable_http():
-    """Test setup_server_config returns early when TRANSPORT is not 'streamable-http'."""
-    auth_provider, middleware = setup_server_config()
+# Tests for get_server_auth function
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'stdio')
+def test_get_server_auth_non_streamable_http():
+    """Test get_server_auth returns early when TRANSPORT is not 'streamable-http'."""
+    auth_provider = get_server_auth()
 
     assert auth_provider is None
-    assert middleware == []
 
 
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_TYPE', 'none')
-def test_setup_server_config_streamable_http_non_oauth():
-    """Test setup_server_config with streamable-http transport but non-oauth auth."""
-    auth_provider, middleware = setup_server_config()
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'none')
+def test_get_server_auth_streamable_http_non_oauth():
+    """Test get_server_auth with streamable-http transport but non-oauth auth."""
+    auth_provider = get_server_auth()
 
     assert auth_provider is None
-    assert len(middleware) == 1
-    assert isinstance(middleware[0], HTTPHeaderValidationMiddleware)
 
 
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_TYPE', 'oauth')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_ISSUER', None)
-@patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', 'https://example.com/jwks')
-def test_setup_server_config_oauth_missing_issuer():
-    """Test setup_server_config raises ValueError when AUTH_ISSUER is missing for oauth."""
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+def test_get_server_auth_oauth_missing_issuer():
+    """Test get_server_auth raises ValueError when AUTH_ISSUER is missing for oauth."""
     with pytest.raises(
-        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
     ):
-        setup_server_config()
+        get_server_auth()
 
 
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_TYPE', 'oauth')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_ISSUER', 'https://issuer.example.com')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', None)
-def test_setup_server_config_oauth_missing_jwks_uri():
-    """Test setup_server_config raises ValueError when AUTH_JWKS_URI is missing for oauth."""
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', None)
+def test_get_server_auth_oauth_missing_jwks_uri():
+    """Test get_server_auth raises ValueError when AUTH_JWKS_URI is missing for oauth."""
     with pytest.raises(
-        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
     ):
-        setup_server_config()
+        get_server_auth()
 
 
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_TYPE', 'oauth')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_ISSUER', None)
-@patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', None)
-def test_setup_server_config_oauth_missing_both():
-    """Test setup_server_config raises ValueError when both AUTH_ISSUER and AUTH_JWKS_URI are missing for oauth."""
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', None)
+def test_get_server_auth_oauth_missing_both():
+    """Test get_server_auth raises ValueError when both AUTH_ISSUER and AUTH_JWKS_URI are missing for oauth."""
     with pytest.raises(
-        ValueError, match='AUTH_TYPE="oauth" requires AUTH_ISSUER and AUTH_JWKS_URI to be set'
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
     ):
-        setup_server_config()
+        get_server_auth()
 
 
-@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_TYPE', 'oauth')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_ISSUER', 'https://issuer.example.com')
-@patch('awslabs.aws_api_mcp_server.server.AUTH_JWKS_URI', 'https://example.com/jwks')
-def test_setup_server_config_oauth_valid():
-    """Test setup_server_config with valid oauth configuration."""
-    auth_provider, middleware = setup_server_config()
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+def test_get_server_auth_oauth_valid():
+    """Test get_server_auth with valid oauth configuration."""
+    auth_provider = get_server_auth()
 
     assert isinstance(auth_provider, JWTVerifier)
-    assert len(middleware) == 1
-    assert isinstance(middleware[0], HTTPHeaderValidationMiddleware)
 
     # Verify the JWTVerifier is configured correctly
     assert auth_provider.issuer == 'https://issuer.example.com'
