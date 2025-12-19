@@ -129,7 +129,7 @@ def get_server_auth():
     if TRANSPORT != 'streamable-http':
         return auth_provider
 
-    if not AUTH_TYPE or AUTH_TYPE not in ['no-auth', 'oauth']
+    if not AUTH_TYPE or AUTH_TYPE not in ['no-auth', 'oauth']:
         raise ValueError(
             'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`'
         )

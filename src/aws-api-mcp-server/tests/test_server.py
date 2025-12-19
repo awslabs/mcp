@@ -1109,12 +1109,34 @@ def test_get_server_auth_non_streamable_http():
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
-@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'none')
-def test_get_server_auth_streamable_http_non_oauth():
-    """Test get_server_auth with streamable-http transport but non-oauth auth."""
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'no-auth')
+def test_get_server_auth_streamable_http_no_auth():
+    """Test get_server_auth with streamable-http transport but no-auth."""
     auth_provider = get_server_auth()
 
     assert auth_provider is None
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', None)
+def test_get_server_auth_auth_type_not_set():
+    """Test get_server_auth raises ValueError when AUTH_TYPE is not set for streamable-http."""
+    with pytest.raises(
+        ValueError,
+        match='TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'invalid-auth-type')
+def test_get_server_auth_invalid_auth_type():
+    """Test get_server_auth raises ValueError when AUTH_TYPE has invalid value for streamable-http."""
+    with pytest.raises(
+        ValueError,
+        match='TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`',
+    ):
+        get_server_auth()
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
