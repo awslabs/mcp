@@ -94,33 +94,10 @@ def test_get_region_parametrized(
     assert result == expected_region
 
 
-@pytest.mark.parametrize(
-    'transport_value,expected',
-    [
-        ('stdio', 'stdio'),
-        ('streamable-http', 'streamable-http'),
-    ],
-)
-def test_get_transport_from_env_valid_values(monkeypatch, transport_value, expected):
-    """Test get_transport_from_env with valid transport values."""
-    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', transport_value)
-
-    # For streamable-http, AUTH_TYPE must be explicitly set to 'no-auth'
-    if transport_value == 'streamable-http':
-        monkeypatch.setenv('AUTH_TYPE', 'no-auth')
-    else:
-        monkeypatch.delenv('AUTH_TYPE', raising=False)
-
-    result = get_transport_from_env()
-
-    assert result == expected
-
-
 def test_get_transport_from_env_default_value(monkeypatch):
     """Test get_transport_from_env returns default value when env var is not set."""
     # Ensure the environment variable is not set
     monkeypatch.delenv('AWS_API_MCP_TRANSPORT', raising=False)
-    monkeypatch.delenv('AUTH_TYPE', raising=False)
 
     result = get_transport_from_env()
 
@@ -143,33 +120,8 @@ def test_get_transport_from_env_default_value(monkeypatch):
 def test_get_transport_from_env_invalid_values(monkeypatch, invalid_transport):
     """Test get_transport_from_env raises ValueError for invalid transport values."""
     monkeypatch.setenv('AWS_API_MCP_TRANSPORT', invalid_transport)
-    monkeypatch.delenv('AUTH_TYPE', raising=False)
 
     with pytest.raises(ValueError, match=f'Invalid transport: {invalid_transport}'):
-        get_transport_from_env()
-
-
-def test_get_transport_from_env_streamable_http_requires_auth_type(monkeypatch):
-    """Ensure streamable-http transport fails without explicit AUTH_TYPE=no-auth."""
-    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', 'streamable-http')
-    monkeypatch.delenv('AUTH_TYPE', raising=False)
-
-    with pytest.raises(
-        ValueError,
-        match="requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'",
-    ):
-        get_transport_from_env()
-
-
-def test_get_transport_from_env_streamable_http_with_wrong_auth_type(monkeypatch):
-    """Ensure streamable-http transport fails when AUTH_TYPE is not no-auth."""
-    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', 'streamable-http')
-    monkeypatch.setenv('AUTH_TYPE', 'basic')
-
-    with pytest.raises(
-        ValueError,
-        match="requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'",
-    ):
         get_transport_from_env()
 
 

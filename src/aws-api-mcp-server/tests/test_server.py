@@ -1,5 +1,6 @@
 import pytest
 import requests
+from awslabs.aws_api_mcp_server.core.common.config import get_server_auth
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError, CommandValidationError
 from awslabs.aws_api_mcp_server.core.common.help_command import generate_help_document
 from awslabs.aws_api_mcp_server.core.common.helpers import as_json
@@ -10,8 +11,14 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
-from awslabs.aws_api_mcp_server.server import call_aws, call_aws_helper, main, suggest_aws_commands
+from awslabs.aws_api_mcp_server.server import (
+    call_aws,
+    call_aws_helper,
+    main,
+    suggest_aws_commands,
+)
 from botocore.exceptions import NoCredentialsError
+from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.elicitation import AcceptedElicitation
 from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -797,6 +804,7 @@ def test_main_relative_working_directory():
 @patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', True)
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
+@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'stdio')
 def test_main_success_with_read_only_mode(
     mock_get_read_only_operations,
     mock_server,
@@ -1089,3 +1097,97 @@ async def test_call_aws_help_command_failure(
     )
     mock_validate.assert_called_once_with(mock_ir)
     mock_get_help_document.assert_called_once()
+
+
+# Tests for get_server_auth function
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'stdio')
+def test_get_server_auth_non_streamable_http():
+    """Test get_server_auth returns early when TRANSPORT is not 'streamable-http'."""
+    auth_provider = get_server_auth()
+
+    assert auth_provider is None
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'no-auth')
+def test_get_server_auth_streamable_http_no_auth():
+    """Test get_server_auth with streamable-http transport but no-auth."""
+    auth_provider = get_server_auth()
+
+    assert auth_provider is None
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', None)
+def test_get_server_auth_auth_type_not_set():
+    """Test get_server_auth raises ValueError when AUTH_TYPE is not set for streamable-http."""
+    with pytest.raises(
+        ValueError,
+        match='TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'invalid-auth-type')
+def test_get_server_auth_invalid_auth_type():
+    """Test get_server_auth raises ValueError when AUTH_TYPE has invalid value for streamable-http."""
+    with pytest.raises(
+        ValueError,
+        match='TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+def test_get_server_auth_oauth_missing_issuer():
+    """Test get_server_auth raises ValueError when AUTH_ISSUER is missing for oauth."""
+    with pytest.raises(
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', None)
+def test_get_server_auth_oauth_missing_jwks_uri():
+    """Test get_server_auth raises ValueError when AUTH_JWKS_URI is missing for oauth."""
+    with pytest.raises(
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', None)
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', None)
+def test_get_server_auth_oauth_missing_both():
+    """Test get_server_auth raises ValueError when both AUTH_ISSUER and AUTH_JWKS_URI are missing for oauth."""
+    with pytest.raises(
+        ValueError,
+        match='AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI',
+    ):
+        get_server_auth()
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_TYPE', 'oauth')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_ISSUER', 'https://issuer.example.com')
+@patch('awslabs.aws_api_mcp_server.core.common.config.AUTH_JWKS_URI', 'https://example.com/jwks')
+def test_get_server_auth_oauth_valid():
+    """Test get_server_auth with valid oauth configuration."""
+    auth_provider = get_server_auth()
+
+    assert isinstance(auth_provider, JWTVerifier)
+
+    # Verify the JWTVerifier is configured correctly
+    assert auth_provider.issuer == 'https://issuer.example.com'
+    assert auth_provider.jwks_uri == 'https://example.com/jwks'
