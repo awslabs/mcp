@@ -108,7 +108,9 @@ class TestAllModelValidators:
     def test_image_frame_request_invalid_datastore(self):
         """Test ImageFrameRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            ImageFrameRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32, image_frame_id='f1')
+            ImageFrameRequest(
+                datastore_id='a' * 31 + '!', image_set_id='b' * 32, image_frame_id='f1'
+            )
 
     def test_image_set_versions_request_invalid_datastore(self):
         """Test ImageSetVersionsRequest with invalid datastore ID."""
@@ -179,7 +181,9 @@ class TestAllModelValidators:
     def test_get_study_primary_image_sets_request_invalid_datastore(self):
         """Test GetStudyPrimaryImageSetsRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            GetStudyPrimaryImageSetsRequest(datastore_id='a' * 31 + '!', study_instance_uid='1.2.3')
+            GetStudyPrimaryImageSetsRequest(
+                datastore_id='a' * 31 + '!', study_instance_uid='1.2.3'
+            )
 
     def test_bulk_update_patient_metadata_request_invalid_datastore(self):
         """Test BulkUpdatePatientMetadataRequest with invalid datastore ID."""
