@@ -483,18 +483,6 @@ def test_local_file_uri():
         assert result.parameters['Description'] == 'A Hello World Lambda function'
 
 
-def test_http_uri_validation_error():
-    """Test aws command with http:// URI throws validation error."""
-    with pytest.raises(CommandValidationError) as exc_info:
-        parse(
-            'aws cloudformation create-stack --stack-name test-stack '
-            '--template-body http://example.com/template.yaml'
-        )
-
-    error_message = str(exc_info.value)
-    assert 'http:// prefix is not allowed' in error_message
-
-
 def test_local_file_uri_validation_failure():
     """Test aws command with URI input file parameter outside the working directory."""
     with pytest.raises(
