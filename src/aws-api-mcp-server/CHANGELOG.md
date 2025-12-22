@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add OAuth support (#1902)
 
+### Fixed
+
+- Remove http/https prefix restriction (#1973)
+
 ## [1.2.3] - 2025-12-19
 
 ### Changed
