@@ -158,6 +158,24 @@ class TestQueryKnowledgeBase:
         assert 'Reranking is not supported in region eu-west-1' in str(excinfo.value)
 
         # Check that the client methods were not called
+
+    @pytest.mark.asyncio
+    async def test_query_knowledge_base_us_east_1_amazon_reranker_errors(
+        self, mock_bedrock_agent_runtime_client
+    ):
+        """In us-east-1, the AMAZON reranker is not available and should error clearly."""
+        mock_bedrock_agent_runtime_client.meta.region_name = 'us-east-1'
+
+        with pytest.raises(ValueError) as excinfo:
+            await query_knowledge_base(
+                query='test query',
+                knowledge_base_id='kb-12345',
+                kb_agent_client=mock_bedrock_agent_runtime_client,
+                reranking=True,
+                reranking_model_name='AMAZON',
+            )
+
+        assert "Reranking model 'AMAZON' is not available in us-east-1" in str(excinfo.value)
         mock_bedrock_agent_runtime_client.retrieve.assert_not_called()
 
     @pytest.mark.asyncio

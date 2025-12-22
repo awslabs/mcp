@@ -26,6 +26,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.discovery import (
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
     query_knowledge_base,
+    supported_reranking_models_for_region,
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
@@ -66,6 +67,40 @@ if kb_reranking_enabled_raw is not None:
 logger.info(
     f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
 )
+
+# Determine available reranking models based on region.
+current_region = kb_runtime_client.meta.region_name
+logger.debug(f'Detected region: {current_region}')
+
+supported_models = supported_reranking_models_for_region(current_region)
+
+
+def _configure_reranking_schema(models: tuple[str, ...]):
+    """Build reranking schema from supported models.
+
+    Returns (Literal type, default value, description) or None if reranking unsupported.
+    The Literal is ordered with the default first to guide LLM selection.
+    """
+    if not models:
+        return None
+
+    default_model = models[0]  # First element is the recommended default
+
+    if models == ('COHERE',):
+        # Only COHERE is available — make the manifest unambiguous.
+        reranking_model_type = Literal['COHERE']
+        description = "The reranking model. Use 'COHERE'."
+        return reranking_model_type, default_model, description
+
+    # Both models available; default (AMAZON) listed first in Literal.
+    reranking_model_type = Literal['AMAZON', 'COHERE']
+    description = "The reranking model. Use 'AMAZON' (recommended) or 'COHERE'."
+    return reranking_model_type, default_model, description
+
+
+_reranking_schema = _configure_reranking_schema(supported_models)
+if _reranking_schema is not None:
+    RerankingModelType, default_reranking_model, reranking_model_description = _reranking_schema
 
 mcp = FastMCP(
     'awslabs.bedrock-kb-retrieval-mcp-server',
@@ -128,33 +163,35 @@ async def list_knowledge_bases_tool() -> str:
     return json.dumps(knowledge_bases)
 
 
-@mcp.tool(name='QueryKnowledgeBases')
-async def query_knowledge_bases_tool(
-    query: str = Field(
-        ..., description='A natural language query to search the knowledge base with'
-    ),
-    knowledge_base_id: str = Field(
-        ...,
-        description='The knowledge base ID to query. It must be a valid ID from the ListKnowledgeBases tool',
-    ),
-    number_of_results: int = Field(
-        10,
-        description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
-    ),
-    reranking: bool = Field(
-        kb_reranking_enabled,
-        description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
-    ),
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
-        'AMAZON',
-        description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'",
-    ),
-    data_source_ids: Optional[List[str]] = Field(
-        None,
-        description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
-    ),
-) -> str:
-    """Query an Amazon Bedrock Knowledge Base using natural language.
+if supported_models:
+
+    @mcp.tool(name='QueryKnowledgeBases')
+    async def query_knowledge_bases_tool(
+        query: str = Field(
+            ..., description='A natural language query to search the knowledge base with'
+        ),
+        knowledge_base_id: str = Field(
+            ...,
+            description='The knowledge base ID to query. It must be a valid ID from the ListKnowledgeBases tool',
+        ),
+        number_of_results: int = Field(
+            10,
+            description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
+        ),
+        reranking: bool = Field(
+            kb_reranking_enabled,
+            description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
+        ),
+        reranking_model_name: RerankingModelType = Field(
+            default_reranking_model,
+            description=reranking_model_description,
+        ),
+        data_source_ids: Optional[List[str]] = Field(
+            None,
+            description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
+        ),
+    ) -> str:
+        """Query an Amazon Bedrock Knowledge Base using natural language.
 
     ## Usage Requirements
     - You MUST first use the ListKnowledgeBases tool to get valid knowledge base IDs
@@ -180,15 +217,49 @@ async def query_knowledge_bases_tool(
     4. If the response is not relevant, try a different query, knowledge base, and/or data source
     5. After a few attempts, ask the user for clarification or a different query.
     """
-    return await query_knowledge_base(
-        query=query,
-        knowledge_base_id=knowledge_base_id,
-        kb_agent_client=kb_runtime_client,
-        number_of_results=number_of_results,
-        reranking=reranking,
-        reranking_model_name=reranking_model_name,
-        data_source_ids=data_source_ids,
-    )
+        return await query_knowledge_base(
+            query=query,
+            knowledge_base_id=knowledge_base_id,
+            kb_agent_client=kb_runtime_client,
+            number_of_results=number_of_results,
+            reranking=reranking,
+            reranking_model_name=reranking_model_name,
+            data_source_ids=data_source_ids,
+        )
+
+else:
+
+    @mcp.tool(name='QueryKnowledgeBases')
+    async def query_knowledge_bases_tool(
+        query: str = Field(
+            ..., description='A natural language query to search the knowledge base with'
+        ),
+        knowledge_base_id: str = Field(
+            ...,
+            description='The knowledge base ID to query. It must be a valid ID from the ListKnowledgeBases tool',
+        ),
+        number_of_results: int = Field(
+            10,
+            description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
+        ),
+        data_source_ids: Optional[List[str]] = Field(
+            None,
+            description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
+        ),
+    ) -> str:
+        """Query an Amazon Bedrock Knowledge Base using natural language.
+
+        Note: reranking is not supported in the current region and is intentionally not exposed
+        in this tool schema.
+        """
+        return await query_knowledge_base(
+            query=query,
+            knowledge_base_id=knowledge_base_id,
+            kb_agent_client=kb_runtime_client,
+            number_of_results=number_of_results,
+            reranking=False,
+            data_source_ids=data_source_ids,
+        )
 
 
 def main():
