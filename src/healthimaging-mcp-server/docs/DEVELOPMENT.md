@@ -141,7 +141,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `refactor:` Code refactoring
 - `chore:` Maintenance
 
-### 8. Push and Create PR
+### 8. Push and Create Pull Request
 
 ```bash
 git push origin feature/my-new-feature
@@ -418,7 +418,7 @@ python -m twine upload --repository testpypi dist/*
 
 Workflows in `.github/workflows/`:
 
-- **test.yml**: Runs on push/PR
+- **test.yml**: Runs on push/Pull Request
   - Tests on Python 3.10, 3.11, 3.12
   - Linting and formatting checks
   - Type checking

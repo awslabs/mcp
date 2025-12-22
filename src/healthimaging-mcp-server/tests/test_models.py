@@ -98,100 +98,100 @@ class TestAllModelValidators:
     def test_image_set_request_invalid_datastore(self):
         """Test ImageSetRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            ImageSetRequest(datastore_id='invalid!', image_set_id='b' * 32)
+            ImageSetRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32)
 
     def test_image_set_metadata_request_invalid_datastore(self):
         """Test ImageSetMetadataRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            ImageSetMetadataRequest(datastore_id='invalid!', image_set_id='b' * 32)
+            ImageSetMetadataRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32)
 
     def test_image_frame_request_invalid_datastore(self):
         """Test ImageFrameRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            ImageFrameRequest(datastore_id='invalid!', image_set_id='b' * 32, image_frame_id='f1')
+            ImageFrameRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32, image_frame_id='f1')
 
     def test_image_set_versions_request_invalid_datastore(self):
         """Test ImageSetVersionsRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            ImageSetVersionsRequest(datastore_id='invalid!', image_set_id='b' * 32)
+            ImageSetVersionsRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32)
 
     def test_delete_image_set_request_invalid_datastore(self):
         """Test DeleteImageSetRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            DeleteImageSetRequest(datastore_id='invalid!', image_set_id='b' * 32)
+            DeleteImageSetRequest(datastore_id='a' * 31 + '!', image_set_id='b' * 32)
 
     def test_delete_patient_studies_request_invalid_datastore(self):
         """Test DeletePatientStudiesRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            DeletePatientStudiesRequest(datastore_id='invalid!', patient_id='P123')
+            DeletePatientStudiesRequest(datastore_id='a' * 31 + '!', patient_id='P123')
 
     def test_delete_study_request_invalid_datastore(self):
         """Test DeleteStudyRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            DeleteStudyRequest(datastore_id='invalid!', study_instance_uid='1.2.3')
+            DeleteStudyRequest(datastore_id='a' * 31 + '!', study_instance_uid='1.2.3')
 
     def test_update_image_set_metadata_request_invalid_datastore(self):
         """Test UpdateImageSetMetadataRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
             UpdateImageSetMetadataRequest(
-                datastore_id='invalid!', image_set_id='b' * 32, version_id='1', updates={}
+                datastore_id='a' * 31 + '!', image_set_id='b' * 32, version_id='1', updates={}
             )
 
     def test_remove_series_request_invalid_datastore(self):
         """Test RemoveSeriesRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
             RemoveSeriesRequest(
-                datastore_id='invalid!', image_set_id='b' * 32, series_instance_uid='1.2.3'
+                datastore_id='a' * 31 + '!', image_set_id='b' * 32, series_instance_uid='1.2.3'
             )
 
     def test_remove_instance_request_invalid_datastore(self):
         """Test RemoveInstanceRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
             RemoveInstanceRequest(
-                datastore_id='invalid!', image_set_id='b' * 32, sop_instance_uid='1.2.3.4'
+                datastore_id='a' * 31 + '!', image_set_id='b' * 32, sop_instance_uid='1.2.3.4'
             )
 
     def test_search_by_patient_request_invalid_datastore(self):
         """Test SearchByPatientRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            SearchByPatientRequest(datastore_id='invalid!', patient_id='P123')
+            SearchByPatientRequest(datastore_id='a' * 31 + '!', patient_id='P123')
 
     def test_search_by_study_request_invalid_datastore(self):
         """Test SearchByStudyRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            SearchByStudyRequest(datastore_id='invalid!', study_instance_uid='1.2.3')
+            SearchByStudyRequest(datastore_id='a' * 31 + '!', study_instance_uid='1.2.3')
 
     def test_search_by_series_request_invalid_datastore(self):
         """Test SearchBySeriesRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            SearchBySeriesRequest(datastore_id='invalid!', series_instance_uid='1.2.3.4')
+            SearchBySeriesRequest(datastore_id='a' * 31 + '!', series_instance_uid='1.2.3.4')
 
     def test_get_patient_studies_request_invalid_datastore(self):
         """Test GetPatientStudiesRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            GetPatientStudiesRequest(datastore_id='invalid!', patient_id='P123')
+            GetPatientStudiesRequest(datastore_id='a' * 31 + '!', patient_id='P123')
 
     def test_get_patient_series_request_invalid_datastore(self):
         """Test GetPatientSeriesRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            GetPatientSeriesRequest(datastore_id='invalid!', patient_id='P123')
+            GetPatientSeriesRequest(datastore_id='a' * 31 + '!', patient_id='P123')
 
     def test_get_study_primary_image_sets_request_invalid_datastore(self):
         """Test GetStudyPrimaryImageSetsRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            GetStudyPrimaryImageSetsRequest(datastore_id='invalid!', study_instance_uid='1.2.3')
+            GetStudyPrimaryImageSetsRequest(datastore_id='a' * 31 + '!', study_instance_uid='1.2.3')
 
     def test_bulk_update_patient_metadata_request_invalid_datastore(self):
         """Test BulkUpdatePatientMetadataRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
             BulkUpdatePatientMetadataRequest(
-                datastore_id='invalid!', patient_id='P123', new_metadata={}
+                datastore_id='a' * 31 + '!', patient_id='P123', new_metadata={}
             )
 
     def test_bulk_delete_by_criteria_request_invalid_datastore(self):
         """Test BulkDeleteByCriteriaRequest with invalid datastore ID."""
         with pytest.raises(ValidationError):
-            BulkDeleteByCriteriaRequest(datastore_id='invalid!', search_criteria={})
+            BulkDeleteByCriteriaRequest(datastore_id='a' * 31 + '!', search_criteria={})
 
 
 class TestImageSetRequest:

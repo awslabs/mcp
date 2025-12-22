@@ -8,7 +8,7 @@ This document provides a complete overview of the project structure and all file
 healthimaging-mcp-server/
 ├── .github/
 │   └── workflows/
-│       ├── test.yml                    # CI/CD: Run tests on push/PR
+│       ├── test.yml                    # CI/CD: Run tests on push/Pull Request
 │       └── publish.yml                 # CI/CD: Publish to PyPI on release
 │
 ├── docs/
@@ -55,7 +55,7 @@ healthimaging-mcp-server/
 | `pyproject.toml` | Project metadata, dependencies, build configuration, and tool settings (black, ruff, mypy, pytest) |
 | `README.md` | Main documentation with overview, installation, configuration, and usage |
 | `LICENSE` | Apache License 2.0 full text |
-| `CONTRIBUTING.md` | Guidelines for contributing, code style, PR process |
+| `CONTRIBUTING.md` | Guidelines for contributing, code style, Pull Request process |
 | `CHANGELOG.md` | Version history following Keep a Changelog format |
 | `SECURITY.md` | Security policy, vulnerability reporting, best practices |
 | `Makefile` | Common development tasks (install, test, lint, format, build) |

@@ -1,0 +1,360 @@
+{
+  "schema": 1,
+  "applicationInfo": {
+    "name": "Threat Model Export",
+    "description": "AWS HealthImaging MCP Server - A Model Context Protocol server that provides 21 tools for managing medical imaging data in AWS HealthImaging service. Handles sensitive DICOM medical imaging data including patient studies, series, and image sets. Provides comprehensive operations for datastore management, image set operations, delete operations, metadata updates, enhanced search, data analysis, and bulk operations. Integrates with AWS services and requires proper IAM permissions for healthcare data access."
+  },
+  "architecture": {
+    "description": ""
+  },
+  "dataflow": {
+    "description": ""
+  },
+  "assumptions": [
+    {
+      "id": "A001",
+      "numericId": 1,
+      "content": "AWS IAM roles and policies are properly configured and maintained by system administrators to enforce least privilege access to HealthImaging resources",
+      "displayOrder": 1,
+      "metadata": []
+    },
+    {
+      "id": "A002",
+      "numericId": 2,
+      "content": "MCP clients implement proper input validation and sanitization before sending requests to the server",
+      "displayOrder": 2,
+      "metadata": []
+    },
+    {
+      "id": "A003",
+      "numericId": 3,
+      "content": "AWS CloudTrail logging is enabled and properly configured to capture all HealthImaging API calls",
+      "displayOrder": 3,
+      "metadata": []
+    },
+    {
+      "id": "A004",
+      "numericId": 4,
+      "content": "Network communications between MCP clients and server occur over secure, encrypted channels (TLS/HTTPS)",
+      "displayOrder": 4,
+      "metadata": []
+    },
+    {
+      "id": "A005",
+      "numericId": 5,
+      "content": "AWS HealthImaging service implements server-side encryption at rest for all stored medical imaging data",
+      "displayOrder": 5,
+      "metadata": []
+    },
+    {
+      "id": "A006",
+      "numericId": 6,
+      "content": "All identified threats have been adequately mitigated through existing code implementation and AWS service security controls",
+      "displayOrder": 6,
+      "metadata": []
+    },
+    {
+      "id": "A007",
+      "numericId": 7,
+      "content": "Remaining risks are primarily operational and environmental, requiring proper deployment configuration and ongoing security management",
+      "displayOrder": 7,
+      "metadata": []
+    }
+  ],
+  "mitigations": [
+    {
+      "id": "9d9912ab-ca99-4ff5-95a3-c921eaaa064f",
+      "numericId": 1,
+      "status": "mitigationResolved",
+      "content": "Implement strong IAM policies with least privilege principle, role-based access control (RBAC), and regular access reviews. Use AWS IAM Identity Center for centralized identity management and enforce multi-factor authentication (MFA) for all healthcare workers.",
+      "displayOrder": 1,
+      "metadata": []
+    },
+    {
+      "id": "65d08a62-a3e0-489b-9322-26b048443fa4",
+      "numericId": 2,
+      "status": "mitigationResolved",
+      "content": "Implement AWS Secrets Manager or AWS Systems Manager Parameter Store for secure credential storage. Use IAM roles for service-to-service authentication instead of long-term credentials. Enable credential rotation and implement secure credential injection at runtime.",
+      "displayOrder": 2,
+      "metadata": []
+    },
+    {
+      "id": "597a9aba-2aab-4447-9c3b-fa83923a017c",
+      "numericId": 3,
+      "status": "mitigationResolved",
+      "content": "Implement end-to-end encryption for DICOM data using AWS KMS with customer-managed keys. Use digital signatures and checksums to ensure data integrity. Implement secure communication channels with TLS 1.3 and certificate pinning.",
+      "displayOrder": 3,
+      "metadata": []
+    },
+    {
+      "id": "cb8f9904-a691-4e28-b07f-a3ae0743d0ba",
+      "numericId": 4,
+      "status": "mitigationResolved",
+      "content": "Enable comprehensive audit logging with AWS CloudTrail, CloudWatch, and AWS Config. Implement log integrity protection using CloudTrail log file validation and S3 object lock. Set up automated alerts for suspicious activities and implement log retention policies compliant with healthcare regulations.",
+      "displayOrder": 4,
+      "metadata": []
+    },
+    {
+      "id": "99756676-337a-4459-9677-b993f6ad0998",
+      "numericId": 5,
+      "status": "mitigationResolved",
+      "content": "Implement rate limiting, request throttling, and DDoS protection using AWS WAF and AWS Shield. Deploy the MCP server behind AWS Application Load Balancer with health checks and auto-scaling. Implement circuit breaker patterns and graceful degradation for high availability.",
+      "displayOrder": 5,
+      "metadata": []
+    },
+    {
+      "id": "56b255fc-a727-40a8-b176-7a37a3f66ec4",
+      "numericId": 6,
+      "status": "mitigationResolved",
+      "content": "Implement secure software development lifecycle (SSDLC) with code signing, dependency scanning, and container image scanning. Use AWS CodeGuru for security analysis and implement infrastructure as code (IaC) with security scanning. Enable AWS GuardDuty for runtime threat detection.",
+      "displayOrder": 6,
+      "metadata": []
+    },
+    {
+      "id": "6620a17d-02bf-4ac4-9c23-68bde4b55457",
+      "numericId": 7,
+      "status": "mitigationResolved",
+      "content": "Implement data loss prevention (DLP) controls to prevent sensitive data exposure in logs and error messages. Use data masking and tokenization for PHI in non-production environments. Implement secure logging practices with structured logging and sensitive data filtering.",
+      "displayOrder": 7,
+      "metadata": []
+    },
+    {
+      "id": "3f9172e4-0098-4277-8f6e-4310f70e6a29",
+      "numericId": 8,
+      "status": "mitigationResolved",
+      "content": "Implement client-side security controls including session management, secure storage, and data encryption at rest. Use mobile device management (MDM) for healthcare devices and implement remote wipe capabilities. Enable client-side audit logging and implement secure communication protocols.",
+      "displayOrder": 8,
+      "metadata": []
+    }
+  ],
+  "assumptionLinks": [],
+  "mitigationLinks": [
+    {
+      "linkedId": "cbfd5d40-b498-44f2-82b2-44753d34a424",
+      "mitigationId": "9d9912ab-ca99-4ff5-95a3-c921eaaa064f"
+    },
+    {
+      "linkedId": "fe785c80-a21d-4d0f-b748-00afc8398fbd",
+      "mitigationId": "9d9912ab-ca99-4ff5-95a3-c921eaaa064f"
+    },
+    {
+      "linkedId": "594709c7-0421-425c-a69e-4767f70f796a",
+      "mitigationId": "65d08a62-a3e0-489b-9322-26b048443fa4"
+    },
+    {
+      "linkedId": "53261538-431d-4731-8c6a-4c909502169d",
+      "mitigationId": "597a9aba-2aab-4447-9c3b-fa83923a017c"
+    },
+    {
+      "linkedId": "624b6d05-26c5-45cb-b8fc-ebb163e9706a",
+      "mitigationId": "cb8f9904-a691-4e28-b07f-a3ae0743d0ba"
+    },
+    {
+      "linkedId": "23471e26-1381-4e30-a64a-1c3132bf4f9e",
+      "mitigationId": "99756676-337a-4459-9677-b993f6ad0998"
+    },
+    {
+      "linkedId": "60059f6a-22af-4421-b9ec-8f95f31605a9",
+      "mitigationId": "56b255fc-a727-40a8-b176-7a37a3f66ec4"
+    },
+    {
+      "linkedId": "40df0140-e61f-47cf-b17a-25274ecc0585",
+      "mitigationId": "6620a17d-02bf-4ac4-9c23-68bde4b55457"
+    },
+    {
+      "linkedId": "c3d416f9-6d1e-44b2-bc24-f89a5bc3804b",
+      "mitigationId": "3f9172e4-0098-4277-8f6e-4310f70e6a29"
+    }
+  ],
+  "threats": [
+    {
+      "id": "cbfd5d40-b498-44f2-82b2-44753d34a424",
+      "numericId": 1,
+      "threatSource": "Malicious Healthcare Worker",
+      "prerequisites": "with legitimate access to the MCP client application",
+      "threatAction": "access patient medical imaging data beyond their authorized scope",
+      "threatImpact": "unauthorized disclosure of sensitive patient medical information and HIPAA violation",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A011"
+      ],
+      "statement": "A Malicious Healthcare Worker with legitimate access to the MCP client application can access patient medical imaging data beyond their authorized scope, which leads to unauthorized disclosure of sensitive patient medical information and HIPAA violation",
+      "displayOrder": 1,
+      "status": "threatResolved",
+      "tags": [
+        "HIPAA",
+        "insider_threat",
+        "privilege_escalation"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "594709c7-0421-425c-a69e-4767f70f796a",
+      "numericId": 2,
+      "threatSource": "External Attacker",
+      "prerequisites": "with network access to the MCP server",
+      "threatAction": "intercept or steal AWS credentials used by the MCP server",
+      "threatImpact": "complete compromise of AWS HealthImaging service access and potential data breach",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A009"
+      ],
+      "statement": "A External Attacker with network access to the MCP server can intercept or steal AWS credentials used by the MCP server, which leads to complete compromise of AWS HealthImaging service access and potential data breach",
+      "displayOrder": 2,
+      "status": "threatResolved",
+      "tags": [
+        "authentication",
+        "credential_theft",
+        "impersonation"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "53261538-431d-4731-8c6a-4c909502169d",
+      "numericId": 3,
+      "threatSource": "External Attacker",
+      "prerequisites": "with compromised MCP server or man-in-the-middle position",
+      "threatAction": "modify DICOM medical imaging data during transmission or storage",
+      "threatImpact": "corrupted medical images leading to misdiagnosis and patient safety risks",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A011"
+      ],
+      "statement": "A External Attacker with compromised MCP server or man-in-the-middle position can modify DICOM medical imaging data during transmission or storage, which leads to corrupted medical images leading to misdiagnosis and patient safety risks",
+      "displayOrder": 3,
+      "status": "threatResolved",
+      "tags": [
+        "data_integrity",
+        "medical_safety",
+        "tampering"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "624b6d05-26c5-45cb-b8fc-ebb163e9706a",
+      "numericId": 4,
+      "threatSource": "Malicious Administrator",
+      "prerequisites": "with administrative access to CloudTrail or audit systems",
+      "threatAction": "delete or modify audit logs to hide malicious activities",
+      "threatImpact": "inability to detect security incidents and compliance violations",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A010"
+      ],
+      "statement": "A Malicious Administrator with administrative access to CloudTrail or audit systems can delete or modify audit logs to hide malicious activities, which leads to inability to detect security incidents and compliance violations",
+      "displayOrder": 4,
+      "status": "threatResolved",
+      "tags": [
+        "audit_trail",
+        "compliance",
+        "non_repudiation"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "23471e26-1381-4e30-a64a-1c3132bf4f9e",
+      "numericId": 5,
+      "threatSource": "External Attacker",
+      "prerequisites": "with network access to the MCP server endpoints",
+      "threatAction": "overwhelm the MCP server with excessive requests or exploit resource-intensive operations",
+      "threatImpact": "disruption of medical imaging services affecting patient care and diagnosis",
+      "impactedGoal": [],
+      "impactedAssets": [],
+      "statement": "A External Attacker with network access to the MCP server endpoints can overwhelm the MCP server with excessive requests or exploit resource-intensive operations, which leads to disruption of medical imaging services affecting patient care and diagnosis",
+      "displayOrder": 5,
+      "status": "threatResolved",
+      "tags": [
+        "availability",
+        "service_disruption",
+        "healthcare_operations"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "fe785c80-a21d-4d0f-b748-00afc8398fbd",
+      "numericId": 6,
+      "threatSource": "Malicious Healthcare Worker",
+      "prerequisites": "with basic user access to the MCP client application",
+      "threatAction": "exploit vulnerabilities in IAM policies or MCP server authorization logic",
+      "threatImpact": "unauthorized access to administrative functions and sensitive patient data",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A009"
+      ],
+      "statement": "A Malicious Healthcare Worker with basic user access to the MCP client application can exploit vulnerabilities in IAM policies or MCP server authorization logic, which leads to unauthorized access to administrative functions and sensitive patient data",
+      "displayOrder": 6,
+      "status": "threatResolved",
+      "tags": [
+        "privilege_escalation",
+        "authorization_bypass",
+        "access_control"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "40df0140-e61f-47cf-b17a-25274ecc0585",
+      "numericId": 7,
+      "threatSource": "Healthcare Data Broker",
+      "prerequisites": "with access to system logs, memory dumps, or backup files",
+      "threatAction": "extract sensitive patient data from system logs, error messages, or temporary files",
+      "threatImpact": "massive HIPAA violation and exposure of protected health information",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A011"
+      ],
+      "statement": "A Healthcare Data Broker with access to system logs, memory dumps, or backup files can extract sensitive patient data from system logs, error messages, or temporary files, which leads to massive HIPAA violation and exposure of protected health information",
+      "displayOrder": 7,
+      "status": "threatResolved",
+      "tags": [
+        "data_leakage",
+        "HIPAA",
+        "PHI_exposure"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "60059f6a-22af-4421-b9ec-8f95f31605a9",
+      "numericId": 8,
+      "threatSource": "Nation-state Actor",
+      "prerequisites": "with access to the MCP server deployment environment",
+      "threatAction": "inject malicious code into the MCP server or its dependencies",
+      "threatImpact": "complete compromise of the medical imaging system and potential patient data theft",
+      "impactedGoal": [],
+      "impactedAssets": [],
+      "statement": "A Nation-state Actor with access to the MCP server deployment environment can inject malicious code into the MCP server or its dependencies, which leads to complete compromise of the medical imaging system and potential patient data theft",
+      "displayOrder": 8,
+      "status": "threatResolved",
+      "tags": [
+        "supply_chain",
+        "code_injection",
+        "backdoor"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "c3d416f9-6d1e-44b2-bc24-f89a5bc3804b",
+      "numericId": 9,
+      "threatSource": "Unauthorized Patient/Family",
+      "prerequisites": "with physical or remote access to client applications",
+      "threatAction": "access cached medical imaging data or session information on client devices",
+      "threatImpact": "exposure of patient medical information through compromised client applications",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A011"
+      ],
+      "statement": "A Unauthorized Patient/Family with physical or remote access to client applications can access cached medical imaging data or session information on client devices, which leads to exposure of patient medical information through compromised client applications",
+      "displayOrder": 9,
+      "status": "threatResolved",
+      "tags": [
+        "client_side",
+        "data_exposure",
+        "unauthorized_access"
+      ],
+      "metadata": []
+    }
+  ]
+}

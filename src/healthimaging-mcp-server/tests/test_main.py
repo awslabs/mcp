@@ -36,9 +36,6 @@ class TestMain:
         mock_read_stream = MagicMock()
         mock_write_stream = MagicMock()
 
-        async def mock_context_manager():
-            return (mock_read_stream, mock_write_stream)
-
         mock_cm = MagicMock()
         mock_cm.__aenter__ = AsyncMock(return_value=(mock_read_stream, mock_write_stream))
         mock_cm.__aexit__ = AsyncMock(return_value=None)

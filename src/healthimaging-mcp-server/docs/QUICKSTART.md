@@ -245,4 +245,4 @@ AI: "This is a CT study with:
      - Patient ID: PATIENT123"
 ```
 
-That's it! You're now ready to use AWS HealthImaging with your AI assistant.
+You're now ready to use AWS HealthImaging with your AI assistant.
