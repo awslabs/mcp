@@ -39,6 +39,7 @@ from .core.common.config import (
     TRANSPORT,
     WORKING_DIRECTORY,
     FileAccessMode,
+    get_server_auth,
 )
 from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
@@ -67,8 +68,10 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
+
 server = FastMCP(
     name='AWS-API-MCP',
+    auth=get_server_auth(),
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
@@ -377,12 +380,6 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
