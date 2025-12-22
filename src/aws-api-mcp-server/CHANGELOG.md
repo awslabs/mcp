@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add OAuth support (#1902)
+
 ## [1.2.3] - 2025-12-19
 
 ### Changed
@@ -141,7 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `wait` and other polling AWS CLI commands(#1402)
-
+src/aws-api-mcp-server/CHANGELOG.md
 ## [0.3.4] - 2025-09-30
 
 ### Removed

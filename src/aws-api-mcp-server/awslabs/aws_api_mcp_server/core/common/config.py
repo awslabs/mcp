@@ -17,8 +17,8 @@ import importlib.metadata
 import os
 import tempfile
 from enum import Enum
+from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
-from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
@@ -96,14 +96,6 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     if transport not in ['stdio', 'streamable-http']:
         raise ValueError(f'Invalid transport: {transport}')
 
-    # Enforce explicit auth configuration for streamable-http transport
-    if transport == 'streamable-http':
-        auth_type = os.getenv('AUTH_TYPE')
-        if auth_type != 'no-auth':
-            error_message = "Invalid configuration: 'streamable-http' transport requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'."
-            logger.error(error_message)
-            raise ValueError(error_message)
-
     return cast(Literal['stdio', 'streamable-http'], transport)
 
 
@@ -130,6 +122,31 @@ def get_user_agent_extra() -> str:
     return user_agent_extra
 
 
+def get_server_auth():
+    """Configure authentication and for FastMCP server."""
+    auth_provider = None
+
+    if TRANSPORT != 'streamable-http':
+        return auth_provider
+
+    if not AUTH_TYPE or AUTH_TYPE not in ['no-auth', 'oauth']:
+        raise ValueError(
+            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`'
+        )
+
+    if AUTH_TYPE == 'no-auth':
+        return auth_provider
+
+    if not AUTH_ISSUER or not AUTH_JWKS_URI:
+        raise ValueError(
+            'AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI'
+        )
+
+    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
+
+    return auth_provider
+
+
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
 AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
 AWS_REGION = os.getenv('AWS_REGION')
@@ -152,3 +169,8 @@ ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
 )
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 60
+
+# Authentication Configuration
+AUTH_TYPE = os.getenv('AUTH_TYPE')
+AUTH_ISSUER = os.getenv('AUTH_ISSUER')
+AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')
