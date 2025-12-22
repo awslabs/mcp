@@ -39,6 +39,7 @@ from .core.common.config import (
     TRANSPORT,
     WORKING_DIRECTORY,
     FileAccessMode,
+    get_server_auth,
 )
 from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
@@ -67,16 +68,18 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
+
 server = FastMCP(
     name='AWS-API-MCP',
+    auth=get_server_auth(),
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 _FILE_ACCESS_MSGS = {
-    FileAccessMode.UNRESTRICTED: f'File access is unrestricted so commands can reference files anywhere; use forward slashes (/) or relative paths from the working directory ({WORKING_DIRECTORY}).',
+    FileAccessMode.UNRESTRICTED: f"File access is unrestricted so commands can reference files anywhere; use forward slashes (/) regardless of the system (e.g. '/home/user/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory ({WORKING_DIRECTORY}).",
     FileAccessMode.NO_ACCESS: 'File access is disabled and commands with any local file reference will be rejected. S3 URIs (s3://...) and stdout redirect (-) remain allowed.',
-    FileAccessMode.WORKDIR: f'Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) or relative paths.',
+    FileAccessMode.WORKDIR: f"Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) regardless of the system (e.g. if working directory is '/tmp/workdir', use '/tmp/workdir/subdir/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory.",
 }
 
 
