@@ -10,14 +10,12 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     InvalidServiceError,
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
-    MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     ServiceNotAllowedError,
     ShortHandParserError,
-    UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
     _validate_endpoint,
@@ -317,36 +315,6 @@ def test_does_not_crash_on_invalid_command(command, error, params):
 def test_tag_key_filter(command):
     """Test that tag key filters are parsed without error."""
     parse(command)
-
-
-@pytest.mark.parametrize(
-    'command,error_class,message',
-    [
-        (
-            'aws ssm list-documents --filters Key=Unknown,Values=Automation',
-            UnknownFiltersError,
-            str(
-                UnknownFiltersError(
-                    'ssm',
-                    ['Unknown'],
-                )
-            ),
-        ),
-        (
-            'aws ssm list-commands --filters key=InvokedAfter,value=2020-02-01T00:00:00Z,type=Equal',
-            MalformedFilterError,
-            str(
-                MalformedFilterError(
-                    'ssm', 'list-commands', {'key', 'value', 'type'}, {'key', 'value'}
-                )
-            ),
-        ),
-    ],
-)
-def test_filter_validation_errors(command, error_class, message):
-    """Test that filter validation errors raise the correct exception."""
-    with pytest.raises(error_class, match=re.escape(message)):
-        parse(command)
 
 
 @pytest.mark.parametrize(

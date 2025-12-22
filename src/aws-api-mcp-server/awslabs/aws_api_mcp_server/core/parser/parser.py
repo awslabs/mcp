@@ -20,7 +20,6 @@ import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
     get_awscli_driver,
-    get_operation_filters,
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
@@ -39,7 +38,6 @@ from ..common.errors import (
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
     LocalFileAccessDisabledError,
-    MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
     MisspelledParametersError,
@@ -50,8 +48,6 @@ from ..common.errors import (
     ServiceNotAllowedError,
     ShortHandParserError,
     UnknownArgumentsError,
-    UnknownFiltersError,
-    UnsupportedFilterError,
 )
 from ..common.file_system_controls import extract_file_paths_from_parameters, validate_file_path
 from ..common.helpers import expand_user_home_directory, is_help_operation
@@ -173,12 +169,6 @@ _nargs_errors = {
     NARGS_ONE_ARGUMENT: 'expected one argument',
     NARGS_OPTIONAL: 'expected at most one argument',
     NARGS_ONE_OR_MORE: 'expected at least one argument',
-}
-
-ALLOWED_FILTER_KEYS_SUBSETS = {
-    frozenset({'Name', 'Values'}): 'Name',
-    frozenset({'Key', 'Values'}): 'Key',
-    frozenset({'key', 'value'}): 'key',
 }
 
 
@@ -447,13 +437,6 @@ def _handle_service_command(
     except Exception as exc:
         raise CommandValidationError(exc) from exc
 
-    _validate_filters(
-        service_command.service_model.service_name,
-        operation,
-        operation_command._operation_model,
-        parameters,
-    )
-
     _validate_parameters(
         parameters, operation_command.arg_table, operation_command._operation_model
     )
@@ -716,39 +699,6 @@ def _validate_parameters(
                 errors.append(ParameterValidationErrorRecord(cli_name, report.generate_report()))
     if errors:
         raise ParameterSchemaValidationError(errors)
-
-
-def _validate_filters(
-    service: str, operation: str, operation_model: OperationModel, parameters: dict[str, Any]
-):
-    if 'Filters' not in parameters:
-        return
-
-    filters = parameters['Filters']
-    known_filters = get_operation_filters(operation_model)
-
-    filter_name_key = None
-    for allowed_keys_subset, name_key in ALLOWED_FILTER_KEYS_SUBSETS.items():
-        if allowed_keys_subset.issubset(known_filters.filter_keys):
-            filter_name_key = name_key
-
-    if filter_name_key is None:
-        raise UnsupportedFilterError(service, operation, known_filters.filter_keys)
-
-    unknown_filters = []
-    for filter_element in filters:
-        filter_element_key_set = filter_element.keys()
-        if filter_element_key_set != known_filters.filter_keys:
-            raise MalformedFilterError(
-                service, operation, filter_element_key_set, known_filters.filter_keys
-            )
-
-        filter_name = filter_element.get(filter_name_key)
-        if not known_filters.allows_filter(filter_name):
-            unknown_filters.append(filter_name)
-
-    if unknown_filters:
-        raise UnknownFiltersError(service, sorted(unknown_filters))
 
 
 def _run_custom_validations(service: str, operation: str, parameters: dict[str, Any]):
