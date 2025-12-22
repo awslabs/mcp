@@ -380,12 +380,6 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
