@@ -19,6 +19,7 @@ import tempfile
 from enum import Enum
 from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
+from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
