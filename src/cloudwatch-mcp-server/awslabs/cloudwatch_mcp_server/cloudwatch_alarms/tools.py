@@ -59,7 +59,7 @@ class CloudWatchAlarmsTools:
         ] = 50,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -80,7 +80,7 @@ class CloudWatchAlarmsTools:
         Args:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
-            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -209,12 +209,12 @@ class CloudWatchAlarmsTools:
         ] = False,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
@@ -231,7 +231,7 @@ class CloudWatchAlarmsTools:
 
         Args:
             ctx: The MCP context object for error handling and logging.
-            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
             alarm_name: Name of the alarm to retrieve history for.
             start_time: Optional start time for the history query. Defaults to 24 hours ago.
             end_time: Optional end time for the history query. Defaults to current time.

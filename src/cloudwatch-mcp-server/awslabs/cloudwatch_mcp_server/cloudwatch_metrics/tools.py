@@ -208,12 +208,12 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> GetMetricDataResponse:
@@ -598,22 +598,13 @@ class CloudWatchMetricsTools:
         metric_name: str = Field(
             ..., description="The name of the metric (e.g., 'CPUUtilization', 'Duration')"
         ),
-        region: Annotated[
-            str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
-        ] = None,
-        profile_name: Annotated[
-            str | None,
-            Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
-            ),
-        ] = None,
     ) -> Optional[MetricMetadata]:
         """Gets metadata for a CloudWatch metric including description, unit and recommended
         statistics that can be used for metric data retrieval.
 
         This tool retrieves comprehensive metadata about a specific CloudWatch metric
-        identified by its namespace and metric name.
+        identified by its namespace and metric name. Note: This function uses local metadata
+        and does not make AWS API calls.
 
         Usage: Use this tool to get detailed information about CloudWatch metrics,
         including their descriptions, units, and recommended statistics to use.
@@ -622,7 +613,6 @@ class CloudWatchMetricsTools:
             ctx: The MCP context object for error handling and logging.
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
-            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
 
         Returns:
             Optional[MetricMetadata]: An object containing the metric's description,
@@ -685,7 +675,7 @@ class CloudWatchMetricsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -723,7 +713,7 @@ class CloudWatchMetricsTools:
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
-            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
             statistic: The statistic to use for alarm recommendations. Must match the metric's data type:
                 - Aggregate count metrics (RequestCount, Errors, Faults, Throttles, CacheHits, Connections, EventsProcessed): Use 'Sum'
                 - Event occurrence metrics (Invocations, CacheMisses): Use 'SampleCount'
@@ -1054,7 +1044,7 @@ class CloudWatchMetricsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -1094,7 +1084,7 @@ class CloudWatchMetricsTools:
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
             statistic: The statistic to use for metric analysis. For guidance on choosing the correct statistic, refer to the get_recommended_metric_alarms tool.
-            region: AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
 
         Returns:
             Dict[str, Any]: Analysis results including:

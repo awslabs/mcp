@@ -241,12 +241,12 @@ class CloudWatchLogsTools:
         ] = None,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> LogsMetadata:
@@ -359,12 +359,12 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> LogsAnalysisResult:
@@ -538,12 +538,12 @@ class CloudWatchLogsTools:
         ] = 30,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> Dict:
@@ -613,12 +613,12 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> Dict:
@@ -673,12 +673,12 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable, then profile config, then boto3 defaults.'),
+            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
         ] = None,
         profile_name: Annotated[
             str | None,
             Field(
-                description='AWS CLI Profile Name to use for AWS access. By default uses the profile configured in MCP configuration.'
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
             ),
         ] = None,
     ) -> LogsQueryCancelResult:
