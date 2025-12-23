@@ -14,20 +14,21 @@
 
 """AthenaQueryHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
-    BatchGetNamedQueryResponse,
-    BatchGetQueryExecutionResponse,
-    CreateNamedQueryResponse,
-    DeleteNamedQueryResponse,
-    GetNamedQueryResponse,
-    GetQueryExecutionResponse,
-    GetQueryResultsResponse,
-    GetQueryRuntimeStatisticsResponse,
-    ListNamedQueriesResponse,
-    ListQueryExecutionsResponse,
-    StartQueryExecutionResponse,
-    StopQueryExecutionResponse,
-    UpdateNamedQueryResponse,
+    BatchGetNamedQueryData,
+    BatchGetQueryExecutionData,
+    CreateNamedQueryData,
+    DeleteNamedQueryData,
+    GetNamedQueryData,
+    GetQueryExecutionData,
+    GetQueryResultsData,
+    GetQueryRuntimeStatisticsData,
+    ListNamedQueriesData,
+    ListQueryExecutionsData,
+    StartQueryExecutionData,
+    StopQueryExecutionData,
+    UpdateNamedQueryData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -36,9 +37,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.sql_analyzer import SqlAnalyzer
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class AthenaQueryHandler:
@@ -142,15 +143,7 @@ class AthenaQueryHandler:
                 description='Type of query results to return: DATA_ROWS (default) or DATA_MANIFEST (optional for get-query-results).',
             ),
         ] = None,
-    ) -> Union[
-        BatchGetQueryExecutionResponse,
-        GetQueryExecutionResponse,
-        GetQueryResultsResponse,
-        GetQueryRuntimeStatisticsResponse,
-        ListQueryExecutionsResponse,
-        StartQueryExecutionResponse,
-        StopQueryExecutionResponse,
-    ]:
+    ) -> CallToolResult:
         """Execute and manage AWS Athena SQL queries.
 
         This tool provides comprehensive operations for AWS Athena query management, including
@@ -226,11 +219,9 @@ class AthenaQueryHandler:
                     )
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                    return StartQueryExecutionResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        query_execution_id='',
-                        operation='start-query-execution',
                     )
 
                 # Prepare parameters
@@ -257,13 +248,17 @@ class AthenaQueryHandler:
                 # Start query execution
                 response = self.athena_client.start_query_execution(**params)
 
-                return StartQueryExecutionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(type='text', text='Successfully started query execution')
-                    ],
+                data = StartQueryExecutionData(
                     query_execution_id=response.get('QueryExecutionId', ''),
                     operation='start-query-execution',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully started query execution'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'batch-get-query-execution':
@@ -279,17 +274,19 @@ class AthenaQueryHandler:
 
                 query_executions = response.get('QueryExecutions', [])
                 unprocessed_ids = response.get('UnprocessedQueryExecutionIds', [])
-                return BatchGetQueryExecutionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully retrieved query executions',
-                        )
-                    ],
+
+                data = BatchGetQueryExecutionData(
                     query_executions=query_executions,
                     unprocessed_query_execution_ids=unprocessed_ids,
                     operation='batch-get-query-execution',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully retrieved query executions'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-query-execution':
@@ -303,17 +300,21 @@ class AthenaQueryHandler:
                     QueryExecutionId=query_execution_id
                 )
 
-                return GetQueryExecutionResponse(
+                data = GetQueryExecutionData(
+                    query_execution_id=query_execution_id,
+                    query_execution=response.get('QueryExecution', {}),
+                    operation='get-query-execution',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
                             type='text',
                             text=f'Successfully retrieved query execution {query_execution_id}',
-                        )
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    query_execution_id=query_execution_id,
-                    query_execution=response.get('QueryExecution', {}),
-                    operation='get-query-execution',
                 )
 
             elif operation == 'get-query-results':
@@ -334,19 +335,23 @@ class AthenaQueryHandler:
                 # Get query results
                 response = self.athena_client.get_query_results(**params)
 
-                return GetQueryResultsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved query results for {query_execution_id}',
-                        )
-                    ],
+                data = GetQueryResultsData(
                     query_execution_id=query_execution_id,
                     result_set=response.get('ResultSet', {}),
                     next_token=response.get('NextToken'),
                     update_count=response.get('UpdateCount'),
                     operation='get-query-results',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(
+                            type='text',
+                            text=f'Successfully retrieved query results for {query_execution_id}',
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-query-runtime-statistics':
@@ -360,17 +365,21 @@ class AthenaQueryHandler:
                     QueryExecutionId=query_execution_id
                 )
 
-                return GetQueryRuntimeStatisticsResponse(
+                data = GetQueryRuntimeStatisticsData(
+                    query_execution_id=query_execution_id,
+                    statistics=response.get('QueryRuntimeStatistics', {}),
+                    operation='get-query-runtime-statistics',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
                             type='text',
                             text=f'Successfully retrieved query runtime statistics for {query_execution_id}',
-                        )
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    query_execution_id=query_execution_id,
-                    statistics=response.get('QueryRuntimeStatistics', {}),
-                    operation='get-query-runtime-statistics',
                 )
 
             elif operation == 'list-query-executions':
@@ -387,15 +396,19 @@ class AthenaQueryHandler:
                 response = self.athena_client.list_query_executions(**params)
 
                 query_execution_ids_res: List[str] = response.get('QueryExecutionIds', [])
-                return ListQueryExecutionsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(type='text', text='Successfully listed query executions')
-                    ],
+                data = ListQueryExecutionsData(
                     query_execution_ids=query_execution_ids_res,
                     count=len(query_execution_ids_res),
                     next_token=response.get('NextToken'),
                     operation='list-query-executions',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully listed query executions'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'stop-query-execution':
@@ -407,27 +420,28 @@ class AthenaQueryHandler:
                 # Stop query execution
                 self.athena_client.stop_query_execution(QueryExecutionId=query_execution_id)
 
-                return StopQueryExecutionResponse(
+                data = StopQueryExecutionData(
+                    query_execution_id=query_execution_id,
+                    operation='stop-query-execution',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
                             type='text',
                             text=f'Successfully stopped query execution {query_execution_id}',
-                        )
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    query_execution_id=query_execution_id,
-                    operation='stop-query-execution',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: batch-get-query-execution, get-query-execution, get-query-results, get-query-runtime-statistics, list-query-executions, start-query-execution, stop-query-execution'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetQueryExecutionResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    query_execution_id='',
-                    query_execution={},
-                    operation='get-query-execution',
                 )
 
         except ValueError as e:
@@ -436,12 +450,9 @@ class AthenaQueryHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_queries: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetQueryExecutionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                query_execution_id=query_execution_id or '',
-                query_execution={},
-                operation='get-query-execution',
             )
 
     async def manage_aws_athena_named_queries(
@@ -513,14 +524,7 @@ class AthenaQueryHandler:
                 description='Pagination token for list-named-queries operation.',
             ),
         ] = None,
-    ) -> Union[
-        BatchGetNamedQueryResponse,
-        CreateNamedQueryResponse,
-        DeleteNamedQueryResponse,
-        GetNamedQueryResponse,
-        ListNamedQueriesResponse,
-        UpdateNamedQueryResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage saved SQL queries in AWS Athena.
 
         This tool provides operations for creating, retrieving, updating, and deleting named queries
@@ -589,27 +593,10 @@ class AthenaQueryHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-named-query':
-                    return CreateNamedQueryResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        named_query_id='',
-                        operation='create-named-query',
-                    )
-                elif operation == 'delete-named-query':
-                    return DeleteNamedQueryResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        named_query_id='',
-                        operation='delete-named-query',
-                    )
-                elif operation == 'update-named-query':
-                    return UpdateNamedQueryResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        named_query_id='',
-                        operation='update-named-query',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'batch-get-named-query':
                 if named_query_ids is None:
@@ -622,14 +609,18 @@ class AthenaQueryHandler:
 
                 named_queries = response.get('NamedQueries', [])
                 unprocessed_ids = response.get('UnprocessedNamedQueryIds', [])
-                return BatchGetNamedQueryResponse(
-                    isError=False,
-                    content=[
-                        TextContent(type='text', text='Successfully retrieved named queries')
-                    ],
+                data = BatchGetNamedQueryData(
                     named_queries=named_queries,
                     unprocessed_named_query_ids=unprocessed_ids,
                     operation='batch-get-named-query',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully retrieved named queries'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'create-named-query':
@@ -657,16 +648,17 @@ class AthenaQueryHandler:
                 # Create named query
                 response = self.athena_client.create_named_query(**params)
 
-                return CreateNamedQueryResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created named query {name}',
-                        )
-                    ],
+                data = CreateNamedQueryData(
                     named_query_id=response.get('NamedQueryId', ''),
                     operation='create-named-query',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=f'Successfully created named query {name}'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-named-query':
@@ -676,16 +668,19 @@ class AthenaQueryHandler:
                 # Delete named query
                 self.athena_client.delete_named_query(NamedQueryId=named_query_id)
 
-                return DeleteNamedQueryResponse(
+                data = DeleteNamedQueryData(
+                    named_query_id=named_query_id,
+                    operation='delete-named-query',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
-                            type='text',
-                            text=f'Successfully deleted named query {named_query_id}',
-                        )
+                            type='text', text=f'Successfully deleted named query {named_query_id}'
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    named_query_id=named_query_id,
-                    operation='delete-named-query',
                 )
 
             elif operation == 'get-named-query':
@@ -695,17 +690,21 @@ class AthenaQueryHandler:
                 # Get named query
                 response = self.athena_client.get_named_query(NamedQueryId=named_query_id)
 
-                return GetNamedQueryResponse(
+                data = GetNamedQueryData(
+                    named_query_id=named_query_id,
+                    named_query=response.get('NamedQuery', {}),
+                    operation='get-named-query',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
                             type='text',
                             text=f'Successfully retrieved named query {named_query_id}',
-                        )
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    named_query_id=named_query_id,
-                    named_query=response.get('NamedQuery', {}),
-                    operation='get-named-query',
                 )
 
             elif operation == 'list-named-queries':
@@ -722,13 +721,19 @@ class AthenaQueryHandler:
                 response = self.athena_client.list_named_queries(**params)
 
                 named_query_ids_res = response.get('NamedQueryIds', [])
-                return ListNamedQueriesResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully listed named queries')],
+                data = ListNamedQueriesData(
                     named_query_ids=named_query_ids_res,
                     count=len(named_query_ids_res),
                     next_token=response.get('NextToken'),
                     operation='list-named-queries',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully listed named queries'),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-named-query':
@@ -753,27 +758,27 @@ class AthenaQueryHandler:
                 # Update named query
                 self.athena_client.update_named_query(**params)
 
-                return UpdateNamedQueryResponse(
+                data = UpdateNamedQueryData(
+                    named_query_id=named_query_id,
+                    operation='update-named-query',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
                         TextContent(
-                            type='text',
-                            text=f'Successfully updated named query {named_query_id}',
-                        )
+                            type='text', text=f'Successfully updated named query {named_query_id}'
+                        ),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    named_query_id=named_query_id,
-                    operation='update-named-query',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: batch-get-named-query, create-named-query, delete-named-query, get-named-query, list-named-queries, update-named-query'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetNamedQueryResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    named_query_id='',
-                    named_query={'': ''},
-                    operation='get-named-query',
                 )
 
         except ValueError as e:
@@ -782,10 +787,7 @@ class AthenaQueryHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_named_queries: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetNamedQueryResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                named_query_id=named_query_id or '',
-                named_query={},
-                operation='get-named-query',
             )
