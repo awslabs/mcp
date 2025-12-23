@@ -35,10 +35,6 @@ def get_aws_client(
     Returns:
         boto3 client for the specified service
     """
-    # Set default region
-    if region_name is None:
-        region_name = getenv('AWS_REGION', 'us-east-1')
-
     # Set profile from parameter or environment
     if profile_name is None:
         profile_name = getenv('AWS_PROFILE', None)
@@ -46,10 +42,14 @@ def get_aws_client(
     # Configure user agent
     config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
 
-    # Create client with or without profile
+    # Create session with or without profile
     if profile_name:
         session = Session(profile_name=profile_name)
-        return session.client(service_name, region_name=region_name, config=config)
     else:
-        return client(service_name, region_name=region_name, config=config)
+        session = Session()
+
+    # Use provided region, or session's region, or fallback to us-east-1
+    region = region_name or session.region_name or 'us-east-1'
+
+    return session.client(service_name, region_name=region, config=config)
 
