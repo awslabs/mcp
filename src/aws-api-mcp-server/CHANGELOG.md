@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add OAuth support (#1902)
 
+### Changed
+
+- Directory from `AWS_API_MCP_WORKING_DIR` will no longer be automatically created (#1962)
+
 ### Fixed
 
 - Remove http/https prefix restriction (#1973)
+- Remove filters restriction (#1972)
 
 ## [1.2.3] - 2025-12-19
 
