@@ -19,6 +19,7 @@ import tempfile
 from enum import Enum
 from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
+from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
@@ -34,6 +35,7 @@ READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
 TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
 REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
 FILE_ACCESS_MODE_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+AWS_API_MCP_WORKING_DIR_KEY = 'AWS_API_MCP_WORKING_DIR'
 
 
 class FileAccessMode(str, Enum):
@@ -122,6 +124,28 @@ def get_user_agent_extra() -> str:
     return user_agent_extra
 
 
+def get_working_directory() -> Path:
+    """Returns the custom working directory if AWS_API_MCP_WORKING_DIR is set, otherwise returns a default directory under the server directory."""
+    if custom_workdir := os.getenv(AWS_API_MCP_WORKING_DIR_KEY):
+        if (
+            not os.path.exists(custom_workdir)
+            or not os.path.isdir(custom_workdir)
+            or not os.path.isabs(custom_workdir)
+        ):
+            error_message = (
+                f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory'
+            )
+            logger.error(error_message)
+            raise ValueError(error_message)
+
+        return Path(custom_workdir)
+
+    workdir = get_server_directory() / 'workdir'
+    os.makedirs(workdir, exist_ok=True)
+
+    return workdir
+
+
 def get_server_auth():
     """Configure authentication and for FastMCP server."""
     auth_provider = None
@@ -153,7 +177,7 @@ AWS_REGION = os.getenv('AWS_REGION')
 DEFAULT_REGION = get_region(AWS_API_MCP_PROFILE_NAME)
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
-WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
+WORKING_DIRECTORY = get_working_directory()
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
 ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
 TRANSPORT = get_transport_from_env()

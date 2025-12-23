@@ -2,12 +2,14 @@ import awslabs.aws_api_mcp_server.core.common.config as config_module
 import importlib
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
+    AWS_API_MCP_WORKING_DIR_KEY,
     FileAccessMode,
     get_file_access_mode,
     get_region,
     get_server_directory,
     get_transport_from_env,
     get_user_agent_extra,
+    get_working_directory,
 )
 from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
@@ -275,3 +277,105 @@ def test_get_file_access_mode_unknown_defaults_to_workdir(monkeypatch, env_value
     monkeypatch.setenv('AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS', env_value)
     result = get_file_access_mode()
     assert result == FileAccessMode.WORKDIR
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.get_server_directory')
+@patch('os.makedirs')
+def test_get_working_directory_default(mock_makedirs, mock_get_server_directory, monkeypatch):
+    """Test that default working directory is created when env var is not set."""
+    monkeypatch.delenv(AWS_API_MCP_WORKING_DIR_KEY, raising=False)
+
+    mock_server_dir = MagicMock()
+    mock_workdir = MagicMock()
+    mock_server_dir.__truediv__ = MagicMock(return_value=mock_workdir)
+    mock_get_server_directory.return_value = mock_server_dir
+
+    result = get_working_directory()
+
+    mock_get_server_directory.assert_called_once()
+    mock_server_dir.__truediv__.assert_called_once_with('workdir')
+    mock_makedirs.assert_called_once_with(mock_workdir, exist_ok=True)
+    assert result == mock_workdir
+
+
+@patch('os.path.isabs')
+@patch('os.path.isdir')
+@patch('os.path.exists')
+def test_get_working_directory_custom_valid_path(
+    mock_exists, mock_isdir, mock_isabs, monkeypatch, tmp_path
+):
+    """Test that custom working directory is used when set to valid absolute directory path."""
+    custom_dir = str(tmp_path / 'custom_workdir')
+    monkeypatch.setenv(AWS_API_MCP_WORKING_DIR_KEY, custom_dir)
+
+    mock_exists.return_value = True
+    mock_isdir.return_value = True
+    mock_isabs.return_value = True
+
+    result = get_working_directory()
+
+    assert result.as_posix() == custom_dir.replace('\\', '/')
+    mock_exists.assert_called_once_with(custom_dir)
+    mock_isdir.assert_called_once_with(custom_dir)
+    mock_isabs.assert_called_once_with(custom_dir)
+
+
+@patch('os.path.isabs')
+@patch('os.path.isdir')
+@patch('os.path.exists')
+def test_get_working_directory_path_does_not_exist(
+    mock_exists, mock_isdir, mock_isabs, monkeypatch
+):
+    """Test that ValueError is raised when custom working directory does not exist."""
+    non_existent_path = '/non/existent/path'
+    monkeypatch.setenv(AWS_API_MCP_WORKING_DIR_KEY, non_existent_path)
+
+    mock_exists.return_value = False
+    mock_isdir.return_value = True
+    mock_isabs.return_value = True
+
+    with pytest.raises(
+        ValueError,
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
+    ):
+        get_working_directory()
+
+
+@patch('os.path.isabs')
+@patch('os.path.isdir')
+@patch('os.path.exists')
+def test_get_working_directory_path_is_not_directory(
+    mock_exists, mock_isdir, mock_isabs, monkeypatch
+):
+    """Test that ValueError is raised when custom working directory is not a directory."""
+    file_path = '/path/to/file.txt'
+    monkeypatch.setenv(AWS_API_MCP_WORKING_DIR_KEY, file_path)
+
+    mock_exists.return_value = True
+    mock_isdir.return_value = False
+    mock_isabs.return_value = True
+
+    with pytest.raises(
+        ValueError,
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
+    ):
+        get_working_directory()
+
+
+@patch('os.path.isabs')
+@patch('os.path.isdir')
+@patch('os.path.exists')
+def test_get_working_directory_path_is_relative(mock_exists, mock_isdir, mock_isabs, monkeypatch):
+    """Test that ValueError is raised when custom working directory is a relative path."""
+    relative_path = 'relative/path/to/dir'
+    monkeypatch.setenv(AWS_API_MCP_WORKING_DIR_KEY, relative_path)
+
+    mock_exists.return_value = True
+    mock_isdir.return_value = True
+    mock_isabs.return_value = False
+
+    with pytest.raises(
+        ValueError,
+        match=f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory',
+    ):
+        get_working_directory()

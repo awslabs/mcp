@@ -24,9 +24,10 @@ from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
 @patch('awslabs.aws_api_mcp_server.server.server')
-def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops):
+def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops, mock_chdir):
     """Test main function when read operations index loading fails."""
     mock_get_read_ops.side_effect = Exception('Failed to load operations')
 
@@ -784,17 +785,6 @@ async def test_call_aws_awscli_customization_error(
 def test_main_missing_aws_region():
     """Test main function raises ValueError when AWS_REGION environment variable is not set."""
     with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
-        main()
-
-
-@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', 'relative/path')
-def test_main_relative_working_directory():
-    """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
-    with pytest.raises(
-        ValueError,
-        match=r'AWS_API_MCP_WORKING_DIR must be an absolute path.',
-    ):
         main()
 
 

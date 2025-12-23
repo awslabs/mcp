@@ -77,9 +77,9 @@ server = FastMCP(
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 _FILE_ACCESS_MSGS = {
-    FileAccessMode.UNRESTRICTED: f"File access is unrestricted so commands can reference files anywhere; use forward slashes (/) regardless of the system (e.g. '/home/user/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory ({WORKING_DIRECTORY}).",
+    FileAccessMode.UNRESTRICTED: f"File access is unrestricted so commands can reference files anywhere; use forward slashes (/) regardless of the system (e.g. 'c:/users/name/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory ({WORKING_DIRECTORY}).",
     FileAccessMode.NO_ACCESS: 'File access is disabled and commands with any local file reference will be rejected. S3 URIs (s3://...) and stdout redirect (-) remain allowed.',
-    FileAccessMode.WORKDIR: f"Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) regardless of the system (e.g. if working directory is '/tmp/workdir', use '/tmp/workdir/subdir/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory.",
+    FileAccessMode.WORKDIR: f"Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) regardless of the system (e.g. if working directory is 'c:/tmp/workdir', use 'c:/tmp/workdir/subdir/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory.",
 }
 
 
@@ -380,12 +380,6 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
