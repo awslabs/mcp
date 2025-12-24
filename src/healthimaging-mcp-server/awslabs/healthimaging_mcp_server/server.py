@@ -16,7 +16,9 @@
 
 # Standard library imports
 import json
-import logging
+
+# Third-party imports
+from loguru import logger
 
 # Local imports
 from .healthimaging_operations import MAX_SEARCH_COUNT, HealthImagingClient, validate_datastore_id
@@ -52,7 +54,7 @@ from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
 
 
-logger = logging.getLogger(__name__)
+
 
 
 class DateTimeEncoder(json.JSONEncoder):

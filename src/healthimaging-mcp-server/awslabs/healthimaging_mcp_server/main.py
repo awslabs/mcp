@@ -16,18 +16,13 @@
 
 # Standard library imports
 import asyncio
-import logging
+
+# Third-party imports
+from loguru import logger
+from mcp.server.stdio import stdio_server
 
 # Local imports
 from .server import create_healthimaging_server
-
-# Third-party imports
-from mcp.server.stdio import stdio_server
-
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 async def main() -> None:

@@ -442,7 +442,7 @@ ruff check awslabs/ tests/
 pyright awslabs/
 
 # Run all checks
-make test lint format
+pre-commit run --all-files
 ```
 
 ### IDE Setup
@@ -461,16 +461,20 @@ make test lint format
 
 ```bash
 # Run unit tests (fast, no AWS dependencies)
-make test
+pytest tests/ -v
 
 # Run with coverage
-make test-coverage
+pytest tests/ -v --cov=awslabs/healthimaging_mcp_server --cov-report=html
 
 # Format code
-make format
+ruff format awslabs/ tests/
 
 # Lint code
-make lint
+ruff check awslabs/ tests/
+pyright awslabs/
+
+# Run all checks (recommended)
+pre-commit run --all-files
 ```
 
 **Test Results**: All 5 tests pass successfully, covering:
@@ -498,8 +502,8 @@ awslabs/healthimaging_mcp_server/
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Make changes and add tests
-4. Run tests: `make test`
-5. Format code: `make format`
+4. Run tests: `pytest tests/ -v`
+5. Format code: `ruff format awslabs/ tests/`
 6. Submit a pull request
 
 [↑ Back to Table of Contents](#table-of-contents)

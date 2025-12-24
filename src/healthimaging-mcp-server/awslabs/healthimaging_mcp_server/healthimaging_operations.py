@@ -15,15 +15,17 @@
 """AWS HealthImaging client for medical imaging operations."""
 
 # Standard library imports
-# Third-party imports
-import boto3
 import json
-import logging
-from botocore.exceptions import ClientError, NoCredentialsError
 from typing import Any, Dict, Optional
 
+# Third-party imports
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError, NoCredentialsError
+from loguru import logger
 
-logger = logging.getLogger(__name__)
+# Local imports
+from awslabs.healthimaging_mcp_server import __version__
 
 # HealthImaging API limits
 MAX_SEARCH_COUNT = 100  # Maximum number of resources per search request
@@ -53,8 +55,14 @@ class HealthImagingClient:
         """Initialize the HealthImaging client."""
         try:
             self.session = boto3.Session()
+            
+            # Create config with standardized user agent
+            config = Config(
+                user_agent_extra=f'awslabs/mcp/healthimaging-mcp-server/{__version__}'
+            )
+            
             self.healthimaging_client = self.session.client(
-                'medical-imaging', region_name=region_name
+                'medical-imaging', region_name=region_name, config=config
             )
             self.region = region_name or self.session.region_name or 'us-east-1'
 
