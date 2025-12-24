@@ -1,0 +1,2 @@
+vulnerability:
+  vex: [ .vex/CVE-2023-45853.openvex.json ]
