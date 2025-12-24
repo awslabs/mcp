@@ -17,9 +17,6 @@
 # Standard library imports
 import json
 
-# Third-party imports
-from loguru import logger
-
 # Local imports
 from .healthimaging_operations import MAX_SEARCH_COUNT, HealthImagingClient, validate_datastore_id
 from .models import (
@@ -48,13 +45,13 @@ from .models import (
 # Third-party imports
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime
+
+# Third-party imports
+from loguru import logger
 from mcp.server import Server
 from mcp.types import Resource, TextContent, Tool
 from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
-
-
-
 
 
 class DateTimeEncoder(json.JSONEncoder):

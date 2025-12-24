@@ -17,12 +17,12 @@
 # Standard library imports
 import asyncio
 
+# Local imports
+from .server import create_healthimaging_server
+
 # Third-party imports
 from loguru import logger
 from mcp.server.stdio import stdio_server
-
-# Local imports
-from .server import create_healthimaging_server
 
 
 async def main() -> None:
