@@ -281,11 +281,11 @@ uv run python -m pytest tests/ -v --cov=awslabs.healthimaging_mcp_server --cov-r
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](../../CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](https://github.com/awslabs/mcp-server-collection/blob/main/CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](../../LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/awslabs/mcp-server-collection/blob/main/LICENSE) file for details.
 
 ## Support
 
