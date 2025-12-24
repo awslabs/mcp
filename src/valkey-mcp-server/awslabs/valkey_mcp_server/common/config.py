@@ -33,6 +33,27 @@ VALKEY_CFG = {
     'ssl_cert_reqs': os.getenv('VALKEY_SSL_CERT_REQS', 'required'),
     'ssl_ca_certs': os.getenv('VALKEY_SSL_CA_CERTS', None),
     'cluster_mode': os.getenv('VALKEY_CLUSTER_MODE', False) in ('true', '1', 't'),
+    'vec_index_type': os.getenv('VALKEY_VECTOR_INDEX_TYPE', 'FLAT'),
+}
+
+EMBEDDING_CFG = {
+    'provider': os.getenv('EMBEDDING_PROVIDER', 'ollama').lower(),
+    'ollama_host': os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
+    'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
+    'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
+    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1'),
+    'bedrock_normalize': os.getenv('BEDROCK_NORMALIZE', '').lower() in ('true', '1', 't')
+    if os.getenv('BEDROCK_NORMALIZE')
+    else None,
+    'bedrock_dimensions': int(os.getenv('BEDROCK_DIMENSIONS', '0'))
+    if os.getenv('BEDROCK_DIMENSIONS')
+    else None,
+    'bedrock_input_type': os.getenv('BEDROCK_INPUT_TYPE'),
+    'bedrock_max_attempts': int(os.getenv('BEDROCK_MAX_ATTEMPTS', '3')),
+    'bedrock_max_pool_connections': int(os.getenv('BEDROCK_MAX_POOL_CONNECTIONS', '50')),
+    'bedrock_retry_mode': os.getenv('BEDROCK_RETRY_MODE', 'adaptive'),
+    'openai_api_key': os.getenv('OPENAI_API_KEY'),
+    'openai_model': os.getenv('OPENAI_MODEL', 'text-embedding-3-small'),
 }
 
 

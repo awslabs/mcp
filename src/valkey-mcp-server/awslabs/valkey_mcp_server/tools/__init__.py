@@ -23,6 +23,8 @@ from . import (
     json,
     list,
     misc,
+    vss,
+    semantic_search,
     server_management,
     set,
     sorted_set,
