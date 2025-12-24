@@ -5,7 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for researching g
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.26",
+    "boto3[crt]>=1.41.0",
     "backoff>=2.2.1",
     "faiss-cpu>=1.10.0",
     "gitpython>=3.1.44",
