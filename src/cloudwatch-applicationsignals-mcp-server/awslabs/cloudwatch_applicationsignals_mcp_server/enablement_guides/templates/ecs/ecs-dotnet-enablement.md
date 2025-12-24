@@ -87,6 +87,8 @@ const taskDefinition = new ecs.FargateTaskDefinition(this, '{SERVICE_NAME}TaskDe
 ```
 
 #### 2.2 Add ADOT Auto-instrumentation Init Container
+
+##### For Linux Containers:
 ```typescript
 const initContainer = taskDefinition.addContainer('init', {
   image: ecs.ContainerImage.fromRegistry('public.ecr.aws/aws-observability/adot-autoinstrumentation-dotnet:v1.9.2'),
@@ -108,17 +110,39 @@ initContainer.addMountPoints({
 });
 ```
 
+##### For Windows Server Containers:
+```typescript
+const initContainer = taskDefinition.addContainer('init', {
+  image: ecs.ContainerImage.fromRegistry('public.ecr.aws/aws-observability/adot-autoinstrumentation-dotnet:v1.9.2'),
+  essential: false,
+  memoryReservationMiB: 64,
+  cpu: 32,
+  command: ['CMD', '/c', 'xcopy', '/e', 'C:\\autoinstrumentation\\*', 'C:\\otel-auto-instrumentation', '&&', 'icacls', 'C:\\otel-auto-instrumentation', '/grant', '*S-1-1-0:R', '/T'],
+  logging: ecs.LogDrivers.awsLogs({
+    streamPrefix: 'init-{SERVICE_NAME}',
+    logGroup: serviceLogGroup,
+  }),
+});
+
+// Add mount point to init container
+initContainer.addMountPoints({
+  sourceVolume: 'opentelemetry-auto-instrumentation-dotnet',
+  containerPath: 'C:\\otel-auto-instrumentation',
+  readOnly: false,
+});
+```
+
 #### 2.3 Configure Main Application Container OpenTelemetry Environment Variables
 
-##### .NET Application Configuration:
+##### For Linux Containers:
 ```typescript
 const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
   // Existing configuration...
   environment: {
     // Existing environment variables...
 
-    // ADOT Configuration for Application Signals - .NET
-    OTEL_RESOURCE_ATTRIBUTES: 'service.name={SERVICE_NAME}', // SERVICE_NAME is defined by user
+    // ADOT Configuration for Application Signals - .NET Linux
+    OTEL_RESOURCE_ATTRIBUTES: 'service.name={SERVICE_NAME}', // SERVICE_NAME is defined by user. Check for service.serviceName for example
     OTEL_METRICS_EXPORTER: 'none',
     OTEL_LOGS_EXPORTER: 'none',
     DOTNET_STARTUP_HOOKS: '/otel-auto-instrumentation-dotnet/net/OpenTelemetry.AutoInstrumentation.StartupHook.dll',
@@ -130,16 +154,60 @@ const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
     OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: 'http://localhost:4316/v1/metrics',
     OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true',
+    CORECLR_ENABLE_PROFILING: '1',
+    CORECLR_PROFILER: '{918728DD-259F-4A6A-AC2B-B85E1B658318}',
+    CORECLR_PROFILER_PATH: '/otel-auto-instrumentation-dotnet/linux-x64/OpenTelemetry.AutoInstrumentation.Native.so',
+    OTEL_DOTNET_AUTO_PLUGINS: 'AWS.Distro.OpenTelemetry.AutoInstrumentation.Plugin, AWS.Distro.OpenTelemetry.AutoInstrumentation',
+  },
+});
+```
+
+##### For Windows Server Containers:
+```typescript
+const mainContainer = taskDefinition.addContainer('{SERVICE_NAME}-container', {
+  // Existing configuration...
+  environment: {
+    // Existing environment variables...
+
+    // ADOT Configuration for Application Signals - .NET Windows
+    OTEL_RESOURCE_ATTRIBUTES: 'service.name={SERVICE_NAME}', // SERVICE_NAME is defined by user. Check for service.serviceName for example
+    OTEL_METRICS_EXPORTER: 'none',
+    OTEL_LOGS_EXPORTER: 'none',
+    DOTNET_STARTUP_HOOKS: 'C:\\otel-auto-instrumentation\\net\\OpenTelemetry.AutoInstrumentation.StartupHook.dll',
+    DOTNET_ADDITIONAL_DEPS: 'C:\\otel-auto-instrumentation\\AdditionalDeps',
+    DOTNET_SHARED_STORE: 'C:\\otel-auto-instrumentation\\store',
+    OTEL_DOTNET_AUTO_HOME: 'C:\\otel-auto-instrumentation',
+    OTEL_TRACES_EXPORTER: 'otlp',
+    OTEL_EXPORTER_OTLP_PROTOCOL: 'http/protobuf',
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:4316/v1/traces',
+    OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT: 'http://localhost:4316/v1/metrics',
+    OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'true',
+    CORECLR_ENABLE_PROFILING: '1',
+    CORECLR_PROFILER: '{918728DD-259F-4A6A-AC2B-B85E1B658318}',
+    CORECLR_PROFILER_PATH: 'C:\\otel-auto-instrumentation\\win-x64\\OpenTelemetry.AutoInstrumentation.Native.dll',
+    OTEL_DOTNET_AUTO_PLUGINS: 'AWS.Distro.OpenTelemetry.AutoInstrumentation.Plugin, AWS.Distro.OpenTelemetry.AutoInstrumentation',
   },
 });
 ```
 
 #### 2.4 Add Mount Point to Main Container
+
+##### For Linux Containers:
 ```typescript
 // Add mount point to main application container
 mainContainer.addMountPoints({
   sourceVolume: 'opentelemetry-auto-instrumentation-dotnet',
   containerPath: '/otel-auto-instrumentation-dotnet',
+  readOnly: false,
+});
+```
+
+##### For Windows Server Containers:
+```typescript
+// Add mount point to main application container
+mainContainer.addMountPoints({
+  sourceVolume: 'opentelemetry-auto-instrumentation-dotnet',
+  containerPath: 'C:\\otel-auto-instrumentation',
   readOnly: false,
 });
 ```
