@@ -20,6 +20,7 @@ including parameter validation, response formatting, AWS client interaction,
 permissions checks, and error handling.
 """
 
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler import (
     EMREc2InstanceHandler,
@@ -602,12 +603,20 @@ class TestAddInstanceFleet:
 
                 # Verify response
                 assert result.isError is False
-                assert result.cluster_id == 'j-12345ABCDEF'
-                assert result.instance_fleet_id == 'if-12345ABCDEF'
+                assert len(result.content) == 2
                 assert any(
                     'Successfully added instance fleet' in content.text
                     for content in result.content
                 )
+                # Parse JSON data from second content element
+                json_content = None
+                for content in result.content:
+                    if content.text.startswith('{'):
+                        json_content = json.loads(content.text)
+                        break
+                assert json_content is not None
+                assert json_content['cluster_id'] == 'j-12345ABCDEF'
+                assert json_content['instance_fleet_id'] == 'if-12345ABCDEF'
 
     async def test_add_instance_fleet_aws_error(self, emr_handler_with_write_access, mock_context):
         """Test handling of AWS errors during add-instance-fleet."""
@@ -693,7 +702,14 @@ class TestAddInstanceGroups:
 
                 # Verify response
                 assert result.isError is False
-                assert result.cluster_id == 'j-12345ABCDEF'
+                # Parse JSON data from second content element
+                json_content = None
+                for content in result.content:
+                    if content.text.startswith('{'):
+                        json_content = json.loads(content.text)
+                        break
+                assert json_content is not None
+                assert json_content['cluster_id'] == 'j-12345ABCDEF'
 
 
 class TestModifyInstanceFleet:
@@ -740,8 +756,15 @@ class TestModifyInstanceFleet:
 
             # Verify response
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.instance_fleet_id == 'if-12345ABCDEF'
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['cluster_id'] == 'j-12345ABCDEF'
+            assert json_content['instance_fleet_id'] == 'if-12345ABCDEF'
             assert any(
                 'Successfully modified instance fleet' in content.text
                 for content in result.content
@@ -857,10 +880,17 @@ class TestModifyInstanceGroups:
 
             # Verify response
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert len(result.instance_group_ids) == 2
-            assert 'ig-12345ABCDEF' in result.instance_group_ids
-            assert 'ig-67890GHIJKL' in result.instance_group_ids
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['cluster_id'] == 'j-12345ABCDEF'
+            assert len(json_content['instance_group_ids']) == 2
+            assert 'ig-12345ABCDEF' in json_content['instance_group_ids']
+            assert 'ig-67890GHIJKL' in json_content['instance_group_ids']
 
     async def test_modify_instance_groups_unmanaged_resource(
         self, emr_handler_with_write_access, mock_context, mock_aws_helper
@@ -946,10 +976,17 @@ class TestListInstanceFleets:
 
             # Verify response
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert len(result.instance_fleets) == 2
-            assert result.count == 2
-            assert result.marker == 'next-page-token'
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['cluster_id'] == 'j-12345ABCDEF'
+            assert len(json_content['instance_fleets']) == 2
+            assert json_content['count'] == 2
+            assert json_content['marker'] == 'next-page-token'
 
     async def test_list_instance_fleets_with_marker(
         self, emr_handler_with_write_access, mock_context
@@ -978,8 +1015,15 @@ class TestListInstanceFleets:
 
             # Verify response
             assert result.isError is False
-            assert result.count == 0
-            assert result.marker is None
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['count'] == 0
+            assert json_content['marker'] is None
 
 
 class TestListInstances:
@@ -1031,10 +1075,17 @@ class TestListInstances:
 
             # Verify response
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert len(result.instances) == 2
-            assert result.count == 2
-            assert result.marker == 'next-page-token'
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['cluster_id'] == 'j-12345ABCDEF'
+            assert len(json_content['instances']) == 2
+            assert json_content['count'] == 2
+            assert json_content['marker'] == 'next-page-token'
 
     async def test_list_instances_with_filters(self, emr_handler_with_write_access, mock_context):
         """Test list-instances with various filters."""
@@ -1069,8 +1120,15 @@ class TestListInstances:
 
             # Verify response
             assert result.isError is False
-            assert result.count == 0
-            assert result.marker is None
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['count'] == 0
+            assert json_content['marker'] is None
 
     async def test_list_instances_with_instance_fleet_type(
         self, emr_handler_with_write_access, mock_context
@@ -1146,10 +1204,17 @@ class TestListSupportedInstanceTypes:
 
             # Verify response
             assert result.isError is False
-            assert len(result.instance_types) == 2
-            assert result.count == 2
-            assert result.marker == 'next-page-token'
-            assert result.release_label == 'emr-6.10.0'
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert len(json_content['instance_types']) == 2
+            assert json_content['count'] == 2
+            assert json_content['marker'] == 'next-page-token'
+            assert json_content['release_label'] == 'emr-6.10.0'
 
     async def test_list_supported_instance_types_with_marker(
         self, emr_handler_with_write_access, mock_context
@@ -1178,5 +1243,12 @@ class TestListSupportedInstanceTypes:
 
             # Verify response
             assert result.isError is False
-            assert result.count == 0
-            assert result.marker is None
+            # Parse JSON data from second content element
+            json_content = None
+            for content in result.content:
+                if content.text.startswith('{'):
+                    json_content = json.loads(content.text)
+                    break
+            assert json_content is not None
+            assert json_content['count'] == 0
+            assert json_content['marker'] is None

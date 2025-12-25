@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add OAuth support (#1902)
+
+### Changed
+
+- Directory from `AWS_API_MCP_WORKING_DIR` will no longer be automatically created (#1962)
+
+### Fixed
+
+- Remove http/https prefix restriction (#1973)
+- Remove filters restriction (#1972)
+
+## [1.2.3] - 2025-12-19
+
+### Changed
+
+- Upgrade AWS CLI to v1.44.1 (#1971)
+- `call_aws` tool description changes related to working directory (#1920)
+
+### Fixed
+
+- Allow `s3 cp` on stdout and better error handling for CLI customizations (#1954)
+- Query bug with non-compatible JSON data types (#1955)
+
+## [1.2.2] - 2025-12-12
+
+### Changed
+
+- Upgrade AWS CLI to v1.43.13 (#1937)
+
+## [1.2.1] - 2025-12-10
+
+### Changed
+
+- Upgrade AWS CLI to v1.43.11 (#1913)
+
+## [1.2.0] - 2025-12-08
+
 ### Changed
 
 - Updated default AWS API connect and read timeout (#1876)
@@ -115,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `wait` and other polling AWS CLI commands(#1402)
-
+src/aws-api-mcp-server/CHANGELOG.md
 ## [0.3.4] - 2025-09-30
 
 ### Removed

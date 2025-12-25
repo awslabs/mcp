@@ -17,6 +17,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.interactive_sessions_ha
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
+from tests.test_utils import CallToolResultWrapper
 from unittest.mock import MagicMock, patch
 
 
@@ -80,7 +81,7 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
     }
 
     # Call the manage_aws_glue_sessions method with create-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx,
         operation='create-session',
         session_id='test-session',
@@ -99,9 +100,12 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
         tags={'Environment': 'Test'},
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -146,13 +150,16 @@ async def test_create_session_no_write_access(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_sessions method with create-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx,
         operation='create-session',
         session_id='test-session',
         role='arn:aws:iam::123456789012:role/GlueInteractiveSessionRole',
         command={'Name': 'glueetl', 'PythonVersion': '3'},
     )
+
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
     assert result.isError
@@ -200,13 +207,16 @@ async def test_delete_session_success(
     }
 
     # Call the manage_aws_glue_sessions method with delete-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx, operation='delete-session', session_id='test-session'
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully deleted session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -256,9 +266,12 @@ async def test_delete_session_not_mcp_managed(
     }
 
     # Call the manage_aws_glue_sessions method with delete-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx, operation='delete-session', session_id='test-session'
     )
+
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the session is not MCP managed
     assert result.isError
@@ -268,7 +281,6 @@ async def test_delete_session_not_mcp_managed(
         'Cannot delete session test-session - it is not managed by the MCP server'
         in result.content[0].text
     )
-    assert result.session_id == 'test-session'
 
     # Verify that delete_session was NOT called
     mock_glue_client.delete_session.assert_not_called()
@@ -301,13 +313,16 @@ async def test_get_session_success(mock_create_client):
     mock_glue_client.get_session.return_value = {'Session': mock_session_details}
 
     # Call the manage_aws_glue_sessions method with get-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx, operation='get-session', session_id='test-session'
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -347,7 +362,7 @@ async def test_list_sessions_success(mock_create_client):
     }
 
     # Call the manage_aws_glue_sessions method with list-sessions operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx,
         operation='list-sessions',
         max_results=10,
@@ -355,9 +370,12 @@ async def test_list_sessions_success(mock_create_client):
         tags={'Environment': 'Test'},
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved sessions' in result.content[0].text
     assert len(result.sessions) == 2
@@ -414,13 +432,16 @@ async def test_stop_session_success(
     }
 
     # Call the manage_aws_glue_sessions method with stop-session operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully stopped session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -465,7 +486,6 @@ async def test_session_not_found(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Session test-session not found' in result.content[0].text
-    assert result.session_id == 'test-session'
 
     # Verify that delete_session was NOT called
     mock_glue_client.delete_session.assert_not_called()
@@ -489,16 +509,21 @@ async def test_session_invalid_operation(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_sessions method with an invalid operation
-    result = await handler.manage_aws_glue_sessions(
+    raw_result = await handler.manage_aws_glue_sessions(
         mock_ctx, operation='invalid-operation', session_id='test-session'
     )
+
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to invalid operation
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
-    assert result.session_id == 'test-session'
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
+    assert result.session_id == ''
 
 
 # Tests for manage_aws_glue_statements method
@@ -525,16 +550,19 @@ async def test_run_statement_success(mock_create_client):
     mock_glue_client.run_statement.return_value = {'Id': 1}
 
     # Call the manage_aws_glue_statements method with run-statement operation
-    result = await handler.manage_aws_glue_statements(
+    raw_result = await handler.manage_aws_glue_statements(
         mock_ctx,
         operation='run-statement',
         session_id='test-session',
         code="df = spark.read.csv('s3://bucket/data.csv')\ndf.show(5)",
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully ran statement in session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -565,12 +593,15 @@ async def test_run_statement_no_write_access(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_statements method with run-statement operation
-    result = await handler.manage_aws_glue_statements(
+    raw_result = await handler.manage_aws_glue_statements(
         mock_ctx,
         operation='run-statement',
         session_id='test-session',
         code="df = spark.read.csv('s3://bucket/data.csv')\ndf.show(5)",
     )
+
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
     assert result.isError
@@ -601,13 +632,16 @@ async def test_cancel_statement_success(mock_create_client):
     mock_ctx = MagicMock(spec=Context)
 
     # Call the manage_aws_glue_statements method with cancel-statement operation
-    result = await handler.manage_aws_glue_statements(
+    raw_result = await handler.manage_aws_glue_statements(
         mock_ctx, operation='cancel-statement', session_id='test-session', statement_id=1
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully canceled statement 1 in session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -652,13 +686,16 @@ async def test_get_statement_success(mock_create_client):
     mock_glue_client.get_statement.return_value = {'Statement': mock_statement_details}
 
     # Call the manage_aws_glue_statements method with get-statement operation
-    result = await handler.manage_aws_glue_statements(
+    raw_result = await handler.manage_aws_glue_statements(
         mock_ctx, operation='get-statement', session_id='test-session', statement_id=1
     )
 
+    # Wrap the result to access structured data
+    result = CallToolResultWrapper(raw_result)
+
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved statement 1 in session test-session' in result.content[0].text
     assert result.session_id == 'test-session'
@@ -706,15 +743,21 @@ async def test_list_statements_success(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved statements for session test-session' in result.content[0].text
-    assert result.session_id == 'test-session'
-    assert len(result.statements) == 2
-    assert result.statements[0]['Id'] == 1
-    assert result.statements[1]['Id'] == 2
-    assert result.next_token == 'next-token'
-    assert result.count == 2
+    assert result.content[1].type == 'text'
+    # Parse the JSON response from the second content item
+    import json
+
+    response_data = json.loads(result.content[1].text)
+    assert response_data['session_id'] == 'test-session'
+    assert response_data['count'] == 2
+    assert response_data['next_token'] == 'next-token'
+    assert response_data['operation'] == 'list-statements'
+    assert len(response_data['statements']) == 2
+    assert response_data['statements'][0]['Id'] == 1
+    assert response_data['statements'][1]['Id'] == 2
 
     # Verify that list_statements was called with the correct parameters
     mock_glue_client.list_statements.assert_called_once()
@@ -750,9 +793,9 @@ async def test_statement_invalid_operation(mock_create_client):
     assert result.isError
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
-    assert result.session_id == 'test-session'
-    assert result.statement_id == 1
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 # Split the test_missing_required_parameters into individual tests for better isolation
@@ -1191,7 +1234,9 @@ async def test_invalid_session_operation(mock_create_client):
     )
 
     assert result.isError
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
@@ -1364,7 +1409,9 @@ async def test_invalid_statement_operation(mock_create_client):
     )
 
     assert result.isError
-    assert 'Invalid operation: invalid-operation' in result.content[0].text
+    assert (
+        'Operation invalid-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
@@ -1878,7 +1925,9 @@ async def test_session_no_write_access_fallback(mock_create_client):
     )
 
     assert result.isError is True
-    assert 'Invalid operation: unknown-operation' in result.content[0].text
+    assert (
+        'Operation unknown-operation is not allowed without write access' in result.content[0].text
+    )
 
 
 @pytest.mark.asyncio
