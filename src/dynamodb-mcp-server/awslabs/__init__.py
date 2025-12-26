@@ -15,4 +15,3 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
-__path__ = __import__('pkgutil').extend_path(__path__, __name__)
