@@ -21,8 +21,7 @@
       "**/*.ts",
       "**/*.cs",
       "**/*.properties",
-      "**/*.xml",
-      "**/awslabs/__init__.py"
+      "**/*.xml"
     ],
     "include": [
       "**/*.py",
