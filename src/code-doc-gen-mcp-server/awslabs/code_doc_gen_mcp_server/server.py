@@ -191,9 +191,9 @@ async def prepare_repository(
     warnings.warn(
         'prepare_repository tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
         DeprecationWarning,
-        stacklevel=1
+        stacklevel=1,
     )
-    
+
     try:
         # Set up output paths
         project_path = Path(project_root)
@@ -324,9 +324,9 @@ async def create_context(
     warnings.warn(
         'create_context tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
         DeprecationWarning,
-        stacklevel=1
+        stacklevel=1,
     )
-    
+
     start_time = time.time()
     logger.debug(f'CONTEXT TIMING: Starting create_context at {start_time}')
 
@@ -375,9 +375,9 @@ async def plan_documentation(
     warnings.warn(
         'plan_documentation tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
         DeprecationWarning,
-        stacklevel=1
+        stacklevel=1,
     )
-    
+
     start_time = time.time()
     logger.debug(f'PLAN TIMING: Starting plan_documentation at {start_time}')
 
@@ -462,9 +462,9 @@ async def generate_documentation(
     warnings.warn(
         'generate_documentation tool is deprecated and will be archived. See https://github.com/awslabs/mcp/issues/2004',
         DeprecationWarning,
-        stacklevel=1
+        stacklevel=1,
     )
-    
+
     start_time = time.time()
     logger.debug(f'GENERATE TIMING: Starting generate_documentation at {start_time}')
 
