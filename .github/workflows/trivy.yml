@@ -62,6 +62,8 @@ jobs:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
           sparse-checkout: |
+            trivy.yaml
+            .vex
             ${{ matrix.dockerfile }}
 
       - name: If trivy-results.sarif exists, it must be part of the PR changes
