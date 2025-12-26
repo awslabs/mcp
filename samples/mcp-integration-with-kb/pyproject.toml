@@ -10,7 +10,7 @@ dependencies = [
     "langchain-aws>=0.2.18",
     "langchain-community>=0.3.21",
     "langchain-mcp-adapters>=0.0.7",
-    "mcp>=1.11.0",
+    "mcp>=1.23.0",
     "streamlit>=1.44.1",
     "uvicorn>=0.34.0",
 ]

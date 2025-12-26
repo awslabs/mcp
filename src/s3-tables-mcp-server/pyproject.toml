@@ -9,8 +9,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru==0.7.3",
-    "mcp[cli]==1.11.0",
-    "pydantic==2.9.2",
+    "mcp[cli]==1.23.0",
+    "pydantic==2.11.0",
     "boto3==1.40.8",
     "pyiceberg==0.10.0",
     "pyarrow==22.0.0",
