@@ -41,7 +41,9 @@ FILE_CONTENTS = """# Copyright Amazon.com, Inc. or its affiliates. All Rights Re
 # limitations under the License.
 
 # This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages."""
+# It is intentionally minimal to support PEP 420 namespace packages.
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
+"""
 
 
 logging.basicConfig(
