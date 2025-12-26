@@ -47,7 +47,7 @@ jobs:
         echo "vars.GITHUB_WORKSPACE=${{ vars.GITHUB_WORKSPACE }}"
         python -m pip install --require-hashes --requirement ${{ github.workspace }}/.github/workflows/pre-commit-requirements.txt
         python -m pip freeze --local
-    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4.3.0
+    - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb #v5.0.1
       with:
         path: ~/.cache/pre-commit
         key: pre-commit-3|${{ runner.os }}|${{ hashFiles(matrix.precommit) }}
