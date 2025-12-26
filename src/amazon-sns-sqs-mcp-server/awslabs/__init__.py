@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs package"""
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
