@@ -27,6 +27,7 @@ from awslabs.dynamodb_mcp_server.model_validation_utils import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -92,7 +93,14 @@ def create_server():
 app = create_server()
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Data Modeling Expert',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_modeling() -> str:
     """Retrieves the complete DynamoDB Data Modeling Expert prompt.
@@ -116,7 +124,14 @@ async def dynamodb_data_modeling() -> str:
     return architect_prompt
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Source Database Analyzer',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 @handle_exceptions
 async def source_db_analyzer(
     source_db_type: str = Field(
@@ -250,7 +265,14 @@ async def source_db_analyzer(
     return 'Invalid parameter combination. For self-service mode, provide either queries_file_path (to generate queries) or query_result_file_path (to parse results).'
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Execute DynamoDB Command',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 @handle_exceptions
 async def execute_dynamodb_command(
     command: str = Field(description="AWS CLI DynamoDB command (must start with 'aws dynamodb')"),
@@ -284,7 +306,14 @@ async def execute_dynamodb_command(
         return e
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Data Model Validation',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_model_validation(
     workspace_dir: str = Field(description='Absolute path of the workspace directory'),
