@@ -20,6 +20,7 @@ This module provides tools for ECS Express Mode deployments.
 from typing import Any, Dict, Optional
 
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.express import (
@@ -38,7 +39,15 @@ wait_for_service_ready = wait_for_service_ready
 def register_module(mcp: FastMCP) -> None:
     """Register Express Mode module tools with the MCP server."""
 
-    @mcp.tool(name="build_and_push_image_to_ecr")
+    @mcp.tool(
+        name="build_and_push_image_to_ecr",
+        annotations=ToolAnnotations(
+            title='Build and Push Image to ECR',
+            readOnlyHint=False,
+            destructiveHint=True,
+            openWorldHint=True,
+        ),
+    )
     async def mcp_build_and_push_image_to_ecr(
         app_name: str = Field(
             ...,
@@ -111,7 +120,15 @@ def register_module(mcp: FastMCP) -> None:
         """
         return await build_and_push_image_to_ecr(app_name=app_name, app_path=app_path, tag=tag)
 
-    @mcp.tool(name="validate_ecs_express_mode_prerequisites")
+    @mcp.tool(
+        name="validate_ecs_express_mode_prerequisites",
+        annotations=ToolAnnotations(
+            title='Validate ECS Express Mode Prerequisites',
+            readOnlyHint=True,
+            destructiveHint=False,
+            openWorldHint=True,
+        ),
+    )
     async def mcp_validate_ecs_express_mode_prerequisites(
         image_uri: str = Field(
             ...,
@@ -240,7 +257,15 @@ def register_module(mcp: FastMCP) -> None:
             infrastructure_role_arn=infrastructure_role_arn,
         )
 
-    @mcp.tool(name="delete_app")
+    @mcp.tool(
+        name="delete_app",
+        annotations=ToolAnnotations(
+            title='Delete Application',
+            readOnlyHint=False,
+            destructiveHint=True,
+            openWorldHint=True,
+        ),
+    )
     async def mcp_delete_app(
         service_arn: str = Field(
             ...,
@@ -321,7 +346,15 @@ def register_module(mcp: FastMCP) -> None:
         """
         return await delete_app(service_arn=service_arn, app_name=app_name)
 
-    @mcp.tool(name="wait_for_service_ready")
+    @mcp.tool(
+        name="wait_for_service_ready",
+        annotations=ToolAnnotations(
+            title='Wait for Service Ready',
+            readOnlyHint=True,
+            destructiveHint=False,
+            openWorldHint=True,
+        ),
+    )
     async def mcp_wait_for_service_ready(
         cluster: str = Field(
             ...,
