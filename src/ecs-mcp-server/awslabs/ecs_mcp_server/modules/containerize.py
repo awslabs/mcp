@@ -20,6 +20,7 @@ This module provides tools and prompts for containerizing web applications.
 from typing import Any, Dict
 
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.containerize import containerize_app
@@ -28,7 +29,15 @@ from awslabs.ecs_mcp_server.api.containerize import containerize_app
 def register_module(mcp: FastMCP) -> None:
     """Register containerize module tools and prompts with the MCP server."""
 
-    @mcp.tool(name="containerize_app", annotations=None)
+    @mcp.tool(
+        name="containerize_app",
+        annotations=ToolAnnotations(
+            title='Containerize Application',
+            readOnlyHint=True,
+            destructiveHint=False,
+            openWorldHint=False,
+        ),
+    )
     async def mcp_containerize_app(
         app_path: str = Field(
             ...,

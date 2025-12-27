@@ -28,6 +28,7 @@ from awslabs.dynamodb_mcp_server.model_validation_utils import (
 from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -116,7 +117,14 @@ def create_server():
 app = create_server()
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Data Modeling Expert',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_modeling() -> str:
     """Retrieves the complete DynamoDB Data Modeling Expert prompt.
@@ -144,7 +152,13 @@ async def dynamodb_data_modeling() -> str:
     return architect_prompt + next_steps_prompt
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Schema Converter',
+        readOnlyHint=True,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_model_schema_converter(
     generate_usage_data: bool = Field(
@@ -204,7 +218,13 @@ After schema.json validation succeeds, you MUST also generate usage_data.json wi
     return combined_prompt + next_steps_prompt
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Schema Validator',
+        readOnlyHint=True,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_model_schema_validator(
     schema_path: str = Field(description='Absolute path to the schema.json file to validate'),
@@ -295,7 +315,14 @@ async def dynamodb_data_model_schema_validator(
         return f'Error during schema validation: {str(e)}'
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Source Database Analyzer',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 @handle_exceptions
 async def source_db_analyzer(
     source_db_type: str = Field(
@@ -503,7 +530,14 @@ async def _execute_dynamodb_command(
         return e
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='DynamoDB Data Model Validation',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def dynamodb_data_model_validation(
     workspace_dir: str = Field(description='Absolute path of the workspace directory'),
@@ -606,7 +640,14 @@ async def dynamodb_data_model_validation(
         return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Generate Resources',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def generate_resources(
     dynamodb_data_model_json_file: str = Field(
@@ -664,7 +705,14 @@ async def generate_resources(
         return f"Error: Unknown resource type '{resource_type}'. Supported types: cdk"
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Generate Data Access Layer',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 @handle_exceptions
 async def generate_data_access_layer(
     schema_path: str = Field(..., description='Path to the schema JSON file'),

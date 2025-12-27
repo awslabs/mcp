@@ -23,6 +23,7 @@ from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.cfn_mcp_server.iac_generator import create_template as create_template_impl
 from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 
@@ -39,7 +40,14 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get Resource Schema Information',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_resource_schema_information(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -64,7 +72,14 @@ async def get_resource_schema_information(
     return schema
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List Resources',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_resources(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -99,7 +114,14 @@ async def list_resources(
     return [response['Identifier'] for response in results]
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get Resource',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_resource(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -142,7 +164,14 @@ async def get_resource(
         raise handle_aws_api_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Update Resource',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def update_resource(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -208,7 +237,14 @@ async def update_resource(
     return progress_event(response['ProgressEvent'], None)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create Resource',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def create_resource(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -259,7 +295,14 @@ async def create_resource(
     return progress_event(response['ProgressEvent'], None)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete Resource',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_resource(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
@@ -311,7 +354,14 @@ async def delete_resource(
     return progress_event(response['ProgressEvent'], None)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get Resource Request Status',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_resource_request_status(
     request_token: str = Field(
         description='The request_token returned from the long running operation'
@@ -353,7 +403,14 @@ async def get_resource_request_status(
     return progress_event(response['ProgressEvent'], response.get('HooksProgressEvent', None))
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create Template',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def create_template(
     template_name: str | None = Field(None, description='Name for the generated template'),
     resources: list | None = Field(

@@ -42,6 +42,7 @@ from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -107,7 +108,16 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(name='run_query', description='Run a SQL query against PostgreSQL')
+@mcp.tool(
+    name='run_query',
+    description='Run a SQL query against PostgreSQL',
+    annotations=ToolAnnotations(
+        title='Run SQL Query',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def run_query(
     sql: Annotated[str, Field(description='The SQL query to run')],
     ctx: Context,
@@ -209,7 +219,16 @@ async def run_query(
         return [{'error': unexpected_error_key}]
 
 
-@mcp.tool(name='get_table_schema', description='Fetch table columns and comments from Postgres')
+@mcp.tool(
+    name='get_table_schema',
+    description='Fetch table columns and comments from Postgres',
+    annotations=ToolAnnotations(
+        title='Get Table Schema',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_table_schema(
     connection_method: Annotated[ConnectionMethod, Field(description='connection method')],
     cluster_identifier: Annotated[str, Field(description='Cluster identifier')],
@@ -268,6 +287,12 @@ async def get_table_schema(
 @mcp.tool(
     name='connect_to_database',
     description='Connect to a specific database and save the connection internally',
+    annotations=ToolAnnotations(
+        title='Connect to Database',
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
 )
 def connect_to_database(
     region: Annotated[str, Field(description='region')],
@@ -324,7 +349,16 @@ def connect_to_database(
         return json.dumps(llm_response, indent=2)
 
 
-@mcp.tool(name='is_database_connected', description='Check if a connection has been established')
+@mcp.tool(
+    name='is_database_connected',
+    description='Check if a connection has been established',
+    annotations=ToolAnnotations(
+        title='Is Database Connected',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def is_database_connected(
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
     db_endpoint: Annotated[str, Field(description='database endpoint')] = '',
@@ -360,6 +394,12 @@ def is_database_connected(
 @mcp.tool(
     name='get_database_connection_info',
     description='Get all cached database connection information',
+    annotations=ToolAnnotations(
+        title='Get Database Connection Info',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
 )
 def get_database_connection_info() -> str:
     """Get all cached database connection information.
@@ -371,7 +411,16 @@ def get_database_connection_info() -> str:
     return db_connection_map.get_keys_json()
 
 
-@mcp.tool(name='create_cluster', description='Create an Aurora Postgres cluster')
+@mcp.tool(
+    name='create_cluster',
+    description='Create an Aurora Postgres cluster',
+    annotations=ToolAnnotations(
+        title='Create Aurora Cluster',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 def create_cluster(
     region: Annotated[str, Field(description='region')],
     cluster_identifier: Annotated[str, Field(description='cluster identifier')],
@@ -442,7 +491,16 @@ def create_cluster(
     return json.dumps(result, indent=2)
 
 
-@mcp.tool(name='get_job_status', description='get background job status')
+@mcp.tool(
+    name='get_job_status',
+    description='get background job status',
+    annotations=ToolAnnotations(
+        title='Get Job Status',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=False,
+    ),
+)
 def get_job_status(job_id: str) -> dict:
     """Get background job status.
 

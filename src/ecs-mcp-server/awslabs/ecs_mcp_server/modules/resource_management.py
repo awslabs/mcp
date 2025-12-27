@@ -20,6 +20,7 @@ This module provides tools and prompts for managing ECS resources.
 from typing import Any, Dict
 
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.resource_management import ecs_api_operation
@@ -37,7 +38,15 @@ def register_module(mcp: FastMCP) -> None:
         description="Dictionary of parameters to pass to the API operation",
     )
 
-    @mcp.tool(name="ecs_resource_management", annotations=None)
+    @mcp.tool(
+        name="ecs_resource_management",
+        annotations=ToolAnnotations(
+            title='ECS Resource Management',
+            readOnlyHint=False,
+            destructiveHint=True,
+            openWorldHint=True,
+        ),
+    )
     async def mcp_ecs_resource_management(
         api_operation: str = api_operation_field,
         api_params: Dict[str, Any] = api_params_field,
