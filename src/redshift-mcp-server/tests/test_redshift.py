@@ -27,6 +27,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    get_execution_plan,
 )
 from botocore.config import Config
 
@@ -1206,3 +1207,510 @@ class TestExecuteQuery:
 
         with pytest.raises(Exception, match='Query execution failed'):
             await execute_query('test-cluster', 'dev', 'SELECT * FROM nonexistent')
+
+
+class TestGetExecutionPlan:
+    """Tests for get_execution_plan function."""
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_success(self, mocker):
+        """Test successful execution plan generation with structured output."""
+        # Mock _execute_protected_statement - will be called twice now (EXPLAIN + table design)
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        # First call: EXPLAIN query
+        # Second call: pg_table_def query (returns empty to avoid parsing issues in test)
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                        [
+                            {
+                                'stringValue': '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)'
+                            }
+                        ],
+                    ]
+                },
+                'explain-123',
+            ),
+            # Return empty results for pg_table_def query
+            ({'Records': []}, 'table-design-query'),
+        ]
+
+        # Mock time for execution time calculation
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]  # start_time, end_time
+
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM users LIMIT 5')
+
+        # Verify structured output format
+        assert result['plan_format'] == 'structured'
+        assert result['explained_query'] == 'SELECT * FROM users LIMIT 5'
+        assert result['query_id'] == 'explain-123'
+        assert 49 <= result['execution_time_ms'] <= 51
+
+        # Verify raw_plan_text is included
+        assert 'raw_plan_text' in result
+        assert isinstance(result['raw_plan_text'], list)
+        assert len(result['raw_plan_text']) == 2
+
+        # Verify query_plan is list of parsed nodes (dicts)
+        assert isinstance(result['query_plan'], list)
+        assert len(result['query_plan']) == 2
+        assert all(isinstance(node, dict) for node in result['query_plan'])
+
+        # Verify first node structure
+        node1 = result['query_plan'][0]
+        assert node1['node_id'] == 1
+        assert node1['operation'] == 'Limit'
+        assert node1['cost_startup'] == 0.00
+        assert node1['cost_total'] == 0.07
+        assert node1['rows'] == 5
+        assert node1['width'] == 27
+        assert node1['level'] == 0
+
+        # Verify second node structure and parent relationship
+        node2 = result['query_plan'][1]
+        assert node2['node_id'] == 2
+        assert node2['parent_node_id'] == 1
+        assert node2['operation'] == 'Seq Scan'
+        assert node2['relation_name'] == 'users'
+        assert node2['level'] == 1
+
+        # Verify both EXPLAIN and table design queries were executed
+        assert mock_execute_protected.call_count == 2
+        # First call should be EXPLAIN query
+        first_call_args = mock_execute_protected.call_args_list[0]
+        assert first_call_args[1]['sql'] == 'EXPLAIN SELECT * FROM users LIMIT 5'
+        # Second call should be pg_table_def query for table designs
+        second_call_args = mock_execute_protected.call_args_list[1]
+        assert 'pg_table_def' in second_call_args[1]['sql']
+
+        # Verify table_designs field exists in result
+        assert 'table_designs' in result
+        assert isinstance(result['table_designs'], dict)
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_already_has_explain(self, mocker):
+        """Test error when SQL already contains EXPLAIN."""
+        # Should raise error without calling _execute_protected_statement
+        with pytest.raises(
+            Exception,
+            match='SQL already contains EXPLAIN. Please provide the query without EXPLAIN.',
+        ):
+            await get_execution_plan('test-cluster', 'dev', 'EXPLAIN SELECT * FROM users')
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_empty_records(self, mocker):
+        """Test handling of empty records in response."""
+        # Mock _execute_protected_statement with empty records
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [],  # Empty record
+                    [{'stringValue': ''}],  # Empty string value
+                    [{'stringValue': 'XN Result  (cost=0.00..0.01 rows=1 width=4)'}],
+                ]
+            },
+            'explain-789',
+        )
+
+        # Mock time
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT 1')
+
+        # Should parse the valid line into structured format
+        assert isinstance(result['query_plan'], list)
+        assert len(result['query_plan']) == 1
+        assert isinstance(result['query_plan'][0], dict)
+        assert result['query_plan'][0]['operation'] == 'Result'
+        assert result['query_id'] == 'explain-789'
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_error_handling(self, mocker):
+        """Test error handling in get_execution_plan."""
+        # Mock _execute_protected_statement to raise exception
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.side_effect = Exception('EXPLAIN query failed')
+
+        with pytest.raises(Exception, match='EXPLAIN query failed'):
+            await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM invalid_table')
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_with_edge_case_operations(self, mocker):
+        """Test execution plan parsing with complex operations that might not match primary regex."""
+        # Mock _execute_protected_statement with operations that have unusual formatting
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Real-world edge case: complex operation names with unusual spacing
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [{'stringValue': 'XN HashAggregate  (cost=100.00..200.00 rows=50 width=8)'}],
+                    [
+                        {
+                            'stringValue': '  ->  XN Hash Join DS_DIST_ALL_INNER  (cost=10.00..90.00 rows=100 width=16)'
+                        }
+                    ],
+                    [{'stringValue': '        Hash Cond: ("outer".userid = "inner".userid)'}],
+                    [
+                        {
+                            'stringValue': '        ->  XN Seq Scan on table1 outer  (cost=0.00..5.00 rows=500 width=8)'
+                        }
+                    ],
+                ]
+            },
+            'edge-case-123',
+        )
+
+        # Mock time
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan(
+            'test-cluster', 'dev', 'SELECT COUNT(*) FROM table1 JOIN table2 USING (userid)'
+        )
+
+        # Verify all nodes have the required 'operation' field
+        assert isinstance(result['query_plan'], list)
+        assert len(result['query_plan']) == 3  # HashAggregate, Hash Join, Seq Scan
+
+        # Verify each node has the required 'operation' field
+        for idx, node in enumerate(result['query_plan']):
+            assert 'operation' in node, f'Node {idx} missing operation field'
+            assert isinstance(node['operation'], str), f'Node {idx} operation is not a string'
+            assert node['operation'], f'Node {idx} operation is empty'
+
+        # Verify specific operations were parsed correctly
+        assert result['query_plan'][0]['operation'] == 'HashAggregate'
+        assert result['query_plan'][1]['operation'] == 'Hash Join'
+        assert result['query_plan'][2]['operation'] == 'Seq Scan'
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_with_sorting_operations(self, mocker):
+        """Test execution plan parsing with Sort, Merge, and Network operations."""
+        # Mock _execute_protected_statement with complex sorting plan
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # Real EXPLAIN output from Redshift with sorting operations
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {
+                            'stringValue': ' XN Limit  (cost=1000000008004.73..1000000008004.74 rows=3 width=28)'
+                        }
+                    ],
+                    [
+                        {
+                            'stringValue': '   ->  XN Merge  (cost=1000000008004.73..1000000008185.87 rows=72457 width=28)'
+                        }
+                    ],
+                    [{'stringValue': '         Merge Key: saletime'}],
+                    [
+                        {
+                            'stringValue': '         ->  XN Network  (cost=1000000008004.73..1000000008185.87 rows=72457 width=28)'
+                        }
+                    ],
+                    [{'stringValue': '               Send to leader'}],
+                    [
+                        {
+                            'stringValue': '               ->  XN Sort  (cost=1000000008004.73..1000000008185.87 rows=72457 width=28)'
+                        }
+                    ],
+                    [{'stringValue': '                     Sort Key: saletime'}],
+                    [
+                        {
+                            'stringValue': '                     ->  XN Seq Scan on sales  (cost=0.00..2155.70 rows=72457 width=28)'
+                        }
+                    ],
+                    [{'stringValue': '                           Filter: (salesid > 100000)'}],
+                ]
+            },
+            'explain-sort-123',
+        )
+
+        # Mock time
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan(
+            'test-cluster',
+            'dev',
+            'SELECT * FROM sales WHERE salesid > 100000 ORDER BY saletime LIMIT 3',
+        )
+
+        # Verify structured output
+        assert result['plan_format'] == 'structured'
+        assert result['query_id'] == 'explain-sort-123'
+        assert isinstance(result['query_plan'], list)
+
+        # Should have 5 operation nodes (Limit, Merge, Network, Sort, Seq Scan)
+        # Metadata lines (Merge Key, Send to leader, Sort Key, Filter) should be attached
+        assert len(result['query_plan']) == 5
+
+        # Verify Limit node
+        limit_node = result['query_plan'][0]
+        assert limit_node['operation'] == 'Limit'
+        assert limit_node['cost_startup'] == 1000000008004.73
+        assert limit_node['rows'] == 3
+        assert limit_node['level'] == 0
+        assert limit_node['parent_node_id'] is None
+
+        # Verify Merge node with metadata attached
+        merge_node = result['query_plan'][1]
+        assert merge_node['operation'] == 'Merge'
+        assert merge_node['parent_node_id'] == 1  # Child of Limit
+        assert merge_node['level'] == 1
+        assert (
+            'join_condition' in merge_node or 'sort_key' in merge_node
+        )  # Merge Key should be attached
+
+        # Verify Network node
+        network_node = result['query_plan'][2]
+        assert network_node['operation'] == 'Network'
+        assert network_node['parent_node_id'] == 2  # Child of Merge
+        assert network_node['level'] == 2
+
+        # Verify Sort node with Sort Key metadata
+        sort_node = result['query_plan'][3]
+        assert sort_node['operation'] == 'Sort'
+        assert sort_node['parent_node_id'] == 3  # Child of Network
+        assert sort_node['level'] == 3
+        assert 'sort_key' in sort_node
+        assert sort_node['sort_key'] == 'saletime'
+
+        # Verify Seq Scan node with Filter metadata
+        scan_node = result['query_plan'][4]
+        assert scan_node['operation'] == 'Seq Scan'
+        assert scan_node['relation_name'] == 'sales'
+        assert scan_node['parent_node_id'] == 4  # Child of Sort
+        assert scan_node['level'] == 4
+        assert 'filter_condition' in scan_node
+        assert '(salesid > 100000)' in scan_node['filter_condition']
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_with_join_operations(self, mocker):
+        """Test execution plan parsing with Hash Join and Hash Cond operations."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # EXPLAIN output with Hash Join operations
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {
+                            'stringValue': ' XN Hash Join DS_BCAST_INNER  (cost=0.25..100.50 rows=1000 width=16)'
+                        }
+                    ],
+                    [{'stringValue': '       Hash Cond: ("outer".id = "inner".user_id)'}],
+                    [
+                        {
+                            'stringValue': '       ->  XN Seq Scan on orders outer  (cost=0.00..50.00 rows=5000 width=8)'
+                        }
+                    ],
+                    [{'stringValue': '       ->  XN Hash  (cost=0.10..0.10 rows=100 width=8)'}],
+                    [
+                        {
+                            'stringValue': '             ->  XN Seq Scan on users inner  (cost=0.00..0.10 rows=100 width=8)'
+                        }
+                    ],
+                ]
+            },
+            'explain-join-456',
+        )
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.05]
+
+        result = await get_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM orders JOIN users ON orders.id = users.user_id'
+        )
+
+        # Verify Hash Join was parsed with join condition
+        assert (
+            len(result['query_plan']) == 4
+        )  # Hash Join, Seq Scan (outer), Hash, Seq Scan (inner)
+
+        join_node = result['query_plan'][0]
+        assert join_node['operation'] == 'Hash Join'
+        assert join_node['distribution_type'] == 'DS_BCAST_INNER'
+        assert 'join_condition' in join_node
+        assert 'outer' in join_node['join_condition'] and 'inner' in join_node['join_condition']
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_with_table_designs(self, mocker):
+        """Test that table designs are fetched and included in execution plan."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # First call: EXPLAIN query returns a plan with a table reference
+        # Second call: pg_table_def query returns table design
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [
+                            {
+                                'stringValue': ' XN Seq Scan on public.users  (cost=0.00..10.00 rows=100 width=8)'
+                            }
+                        ],
+                    ]
+                },
+                'explain-123',
+            ),
+            (
+                {
+                    'Records': [
+                        [
+                            {'stringValue': 'public'},  # schemaname
+                            {'stringValue': 'users'},  # tablename
+                            {'stringValue': 'id'},  # column
+                            {'stringValue': 'integer'},  # type
+                            {'stringValue': 'lzo'},  # encoding
+                            {'booleanValue': True},  # distkey
+                            {'longValue': 1},  # sortkey
+                            {'booleanValue': True},  # notnull
+                            {'stringValue': 'KEY'},  # diststyle
+                        ],
+                        [
+                            {'stringValue': 'public'},
+                            {'stringValue': 'users'},
+                            {'stringValue': 'name'},
+                            {'stringValue': 'varchar(100)'},
+                            {'stringValue': 'lzo'},
+                            {'booleanValue': False},
+                            {'longValue': 0},
+                            {'booleanValue': False},
+                            {'stringValue': 'KEY'},
+                        ],
+                    ]
+                },
+                'table-design-query',
+            ),
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM public.users')
+
+        # Verify table_designs field is populated
+        assert 'table_designs' in result
+        assert isinstance(result['table_designs'], dict)
+        assert 'public.users' in result['table_designs']
+
+        # Verify table design structure
+        table_design = result['table_designs']['public.users']
+        assert table_design['schema_name'] == 'public'
+        assert table_design['table_name'] == 'users'
+        assert table_design['diststyle'] == 'KEY'
+        assert len(table_design['columns']) == 2
+
+        # Verify column details
+        id_col = table_design['columns'][0]
+        assert id_col['column_name'] == 'id'
+        assert id_col['data_type'] == 'integer'
+        assert id_col['distkey'] is True
+        assert id_col['sortkey'] == 1
+        assert id_col['notnull'] is True
+
+        name_col = table_design['columns'][1]
+        assert name_col['column_name'] == 'name'
+        assert name_col['sortkey'] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_table_design_query_fails(self, mocker):
+        """Test that execution plan succeeds even if table design fetch fails."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        # First call: EXPLAIN succeeds
+        # Second call: table design query fails (will log warning but not raise)
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [
+                            {
+                                'stringValue': ' XN Seq Scan on users  (cost=0.00..10.00 rows=100 width=8)'
+                            }
+                        ],
+                    ]
+                },
+                'explain-123',
+            ),
+            Exception('Table design query failed'),
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        # Should not raise, just log warning
+        result = await get_execution_plan('test-cluster', 'dev', 'SELECT * FROM users')
+
+        # Verify execution plan is still returned
+        assert result['query_id'] == 'explain-123'
+        assert len(result['query_plan']) == 1
+        # table_designs will be empty since fetch failed
+        assert result['table_designs'] == {}
+
+    @pytest.mark.asyncio
+    async def test_get_execution_plan_with_formatted_text(self, mocker):
+        """Test that formatted_plan_text is properly generated."""
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+
+        mock_execute_protected.side_effect = [
+            (
+                {
+                    'Records': [
+                        [{'stringValue': 'XN Limit  (cost=0.00..0.07 rows=5 width=27)'}],
+                        [
+                            {
+                                'stringValue': '  ->  XN Seq Scan on users  (cost=0.00..1.00 rows=100 width=27)'
+                            }
+                        ],
+                        [{'stringValue': '        Filter: (age > 18)'}],
+                    ]
+                },
+                'explain-123',
+            ),
+            ({'Records': []}, 'table-design-query'),
+        ]
+
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.1]
+
+        result = await get_execution_plan(
+            'test-cluster', 'dev', 'SELECT * FROM users WHERE age > 18 LIMIT 5'
+        )
+
+        # Verify formatted_plan_text exists and is properly formatted
+        assert 'formatted_plan_text' in result
+        assert isinstance(result['formatted_plan_text'], list)
+        assert len(result['formatted_plan_text']) > 0
+
+        # Verify indentation is preserved
+        formatted_text = '\n'.join(result['formatted_plan_text'])
+        assert 'XN Limit' in formatted_text
+        assert 'XN Seq Scan' in formatted_text
+        assert 'Filter: (age > 18)' in formatted_text

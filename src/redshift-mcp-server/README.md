@@ -401,6 +401,133 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Row count and execution time
 - Query ID for reference
 
+### get_execution_plan
+
+Generates and retrieves the query execution plan for a SQL statement without executing the query. This tool uses EXPLAIN to show how Redshift would execute the query, providing **structured, AI-friendly output** for query optimization analysis.
+
+```python
+get_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> ExecutionPlan
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database where the query would run against
+- `sql`: SQL statement to explain (do not include EXPLAIN keyword)
+
+**Returns**: ExecutionPlan object with structured query plan nodes:
+
+- `query_id`: Unique identifier for the explain execution
+- `explained_query`: The original SQL query that was explained
+- `execution_time_ms`: Time taken to generate the plan in milliseconds
+- `raw_plan_text`: Array of strings containing the raw EXPLAIN output from Redshift (stripped of indentation/metadata)
+- `formatted_plan_text`: Array of strings with reconstructed EXPLAIN output with proper indentation and metadata
+- `query_plan`: List of QueryPlanNode objects with hierarchical structure:
+  - `node_id`: Unique identifier for the operation
+  - `parent_node_id`: Parent node ID for tree structure
+  - `level`: Depth in the execution tree (0 = root)
+  - `operation`: Operation type (e.g., "Limit", "Hash Join", "Seq Scan")
+  - `relation_name`: Table/view name if applicable
+  - `distribution_type`: Data movement pattern (DS_DIST_NONE, DS_BCAST_INNER, etc.)
+  - `cost_startup`: Relative cost to return first row
+  - `cost_total`: Relative cost to complete the operation
+  - `rows`: Estimated number of rows
+  - `width`: Estimated average row width in bytes
+  - `join_condition`: Join condition if applicable
+  - `filter_condition`: Filter/WHERE condition if applicable
+  - `sort_key`: Sort key information if applicable
+- `plan_format`: Format of the plan (always "structured")
+- `table_designs`: Dictionary mapping "schema.table" to TableDesign objects for tables in the execution plan
+  - Each TableDesign contains:
+    - `schema_name`: Schema name
+    - `table_name`: Table name
+    - `diststyle`: Distribution style (KEY, EVEN, ALL, AUTO)
+    - `columns`: List of TableColumnDesign objects with:
+      - `column_name`: Column name
+      - `data_type`: Column data type
+      - `encoding`: Compression encoding
+      - `distkey`: Whether this column is the distribution key
+      - `sortkey`: Sort key position (0 if not a sort key, 1+ for position)
+      - `notnull`: Whether the column has NOT NULL constraint
+
+**Important Notes**:
+
+- Do not include EXPLAIN in your SQL - it is automatically prepended
+- This tool does not execute the actual query, making it safe for performance evaluation
+- The structured output enables AI-powered performance analysis and optimization recommendations
+- Useful for understanding query execution paths and identifying optimization opportunities
+
+**Understanding Plan Output Formats**:
+
+- `raw_plan_text`: The raw EXPLAIN output as returned by Redshift Data API (stripped of original indentation/metadata)
+- `formatted_plan_text`: Reconstructed version with proper indentation and metadata for better readability
+- `query_plan`: Structured list of QueryPlanNode objects for programmatic analysis
+
+**Using Table Designs for Optimization**:
+
+The `table_designs` field provides actual table configuration from `pg_table_def`, enabling you to:
+
+1. **Distinguish Runtime Sorts from Table SORTKEY**:
+   - EXPLAIN shows "Sort Key: price" → Check table_designs
+   - If `sortkey=0` for price column → Table lacks SORTKEY, runtime sort required
+   - Recommendation: `ALTER TABLE ADD SORTKEY(price)`
+
+2. **Verify DISTKEY Alignment**:
+   - EXPLAIN shows "DS_DIST_INNER" on join → Check table_designs
+   - If join columns have different `distkey` values → Tables not co-located
+   - Recommendation: Align DISTKEY on frequently joined columns
+
+3. **Analyze Distribution Strategy**:
+   - `diststyle='EVEN'` with frequent joins → Consider KEY distribution
+   - `diststyle='KEY'` but no column has `distkey=true` → Configuration issue
+   - Check `distkey` and `sortkey` fields in columns to understand current setup
+
+### Query Optimization with Execution Plans
+
+The structured execution plan provides key insights for Redshift query optimization:
+
+#### Understanding Distribution Types
+
+Distribution types indicate how data moves during query execution:
+
+- `DS_DIST_NONE`: **Optimal** - Collocated join, no data movement required
+- `DS_DIST_ALL_NONE`: **Good** - Table already on all nodes (DISTSTYLE ALL)
+- `DS_BCAST_INNER`: **Acceptable** for small tables; consider DISTSTYLE ALL for frequently joined tables
+- `DS_DIST_INNER`/`DS_DIST_OUTER`: **Suboptimal** - Data redistribution occurring; review DISTKEY alignment
+- `DS_DIST_BOTH`: **Critical Issue** - Both tables being redistributed; requires immediate attention
+
+#### Join Type Performance
+
+Join types are listed in performance order (fastest to slowest):
+
+1. **Merge Join**: Fastest - requires matching DISTKEY and SORTKEY with <20% unsorted data
+2. **Hash Join**: Acceptable - used when merge join conditions not met
+3. **Nested Loop**: Slowest - often indicates missing join conditions (potential Cartesian product)
+
+#### Critical: No Index Support in Redshift
+
+**IMPORTANT**: Redshift does NOT support traditional database indexes. Performance optimization focuses on:
+
+- **DISTKEY**: Determines data distribution across nodes for collocated joins
+- **SORTKEY**: Enables zone map pruning to skip data blocks
+- **DISTSTYLE ALL**: Replicates small dimension tables across all nodes
+
+#### Sequential Scan Optimization
+
+High-cost sequential scans may benefit from:
+
+- **SORTKEY**: On columns frequently used in WHERE clauses and ORDER BY
+- **Zone Maps**: Automatically maintained for SORTKEY columns to skip blocks
+- **DISTSTYLE**: Proper distribution to minimize data movement
+
+#### Common Optimization Patterns
+
+1. **Match DISTKEYs** on frequently joined columns → Achieves DS_DIST_NONE
+2. **Use SORTKEY** for filtered columns → Enables efficient block skipping
+3. **DISTSTYLE ALL** for small dimensions → Eliminates broadcast overhead (use for <1-2% of total data)
+4. **Avoid DISTSTYLE ALL** on large tables → Can cause storage and performance issues
+5. **Review join conditions** → Prevent nested loop joins that indicate Cartesian products
+
 ## Permissions
 
 ### AWS IAM Permissions
