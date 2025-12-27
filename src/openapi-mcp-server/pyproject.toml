@@ -28,7 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "fastmcp>=2.13.0",
+    "fastmcp>=2.14.0",
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
     "typing-extensions>=4.14.1",
