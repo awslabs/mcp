@@ -129,7 +129,9 @@ jobs:
         run: uv sync --frozen --all-extras --dev
 
       - name: Verify package name consistency
-        run: python3 scripts/verify_package_name.py src/${{ matrix.package }}
+        run: |
+          python3 scripts/verify_package_name.py src/${{ matrix.package }}
+          uv run --script scripts/verify_awslabs_init.py src/${{ matrix.package }}
 
       - name: Run tests
         working-directory: src/${{ matrix.package }}
