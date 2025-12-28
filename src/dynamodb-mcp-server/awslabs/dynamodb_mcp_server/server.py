@@ -269,7 +269,7 @@ async def source_db_analyzer(
     annotations=ToolAnnotations(
         title='Execute DynamoDB Command',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
