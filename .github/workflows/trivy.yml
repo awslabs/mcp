@@ -104,8 +104,8 @@ jobs:
 
       - name: Generate Container Software Bill of Materials and Vulnerabilities
         run: |
-          curl -sSfL https://get.anchore.io/syft | sh -s -- -b /usr/local/bin
-          curl -sSfL https://get.anchore.io/grype | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/e9e34948534ab945c7e750376235cfe0c442f532/install.sh | sh -s -- -b /usr/local/bin v1.39.0
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/43e7e3246ed01b1ec0ff54f9b054201ccbe78e3a/install.sh | sh -s -- -b /usr/local/bin v0.104.3
           syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
           cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
           syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
