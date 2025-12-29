@@ -270,7 +270,7 @@ async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] =
     annotations=ToolAnnotations(
         title='Create Table Bucket',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
@@ -301,7 +301,7 @@ async def create_table_bucket(
     annotations=ToolAnnotations(
         title='Create Namespace',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
@@ -329,7 +329,7 @@ async def create_namespace(
     annotations=ToolAnnotations(
         title='Create Table',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
@@ -727,7 +727,7 @@ async def query_database(
     annotations=ToolAnnotations(
         title='Import CSV to Table',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
@@ -807,7 +807,7 @@ async def import_csv_to_table(
     annotations=ToolAnnotations(
         title='Import Parquet to Table',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
@@ -960,7 +960,7 @@ async def get_bucket_metadata_config(
     annotations=ToolAnnotations(
         title='Append Rows to Table',
         readOnlyHint=False,
-        destructiveHint=True,
+        destructiveHint=False,
         openWorldHint=True,
     ),
 )
