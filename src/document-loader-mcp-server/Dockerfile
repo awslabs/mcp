@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:ac4274977cc5093aa7675b5f39e59403c7b692d0bf7549b49563177ddc02552d AS uv
+FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:ac4274977cc5093aa7675b5f39e59403c7b692d0bf7549b49563177ddc02552d
+FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -61,6 +61,17 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --force --system app \
     && useradd app -g app -d /app
+
+# # Install build tools and update SQLite
+# RUN apt-get update && apt-get install -y build-essential wget tar \
+#     && wget https://www.sqlite.org/2025/sqlite-autoconf-3510100.tar.gz  \
+#     && tar xvf sqlite-autoconf-3510100.tar.gz \
+#     && cd sqlite-autoconf-3510100 \
+#     && ./configure --prefix=/usr \
+#     && make && make install \
+#     && cd .. && rm -rf sqlite-autoconf-3510100* \
+#     && apt-get purge -y build-essential wget && apt-get autoremove -y
+
 
 # Copy application artifacts from build stage
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
