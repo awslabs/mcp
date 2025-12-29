@@ -1,5 +1,13 @@
 # AWS Labs Code Documentation Generation MCP Server
 
+> **⚠️ DEPRECATION NOTICE**
+>
+> This MCP server is deprecated and will be archived. Modern LLMs now handle documentation generation more effectively using native file and code intelligence tools.
+>
+> **Migration:** Simply prompt your AI assistant: "Generate comprehensive documentation for this project including README, deployment guide, and API docs." For reusable workflows, use Cline Rules, Claude Skills, or Kiro Powers.
+>
+> See [RFC #2004](https://github.com/awslabs/mcp/issues/2004) for details.
+
 [![smithery badge](https://smithery.ai/badge/@awslabs/code-doc-gen-mcp-server)](https://smithery.ai/server/@awslabs/code-doc-gen-mcp-server)
 
 A Model Context Protocol (MCP) server that automatically analyzes repository structure and generates comprehensive documentation for code projects. This server uses [repomix](https://github.com/yamadashy/repomix/tree/main) to extract project structure and creates tailored documentation based on project type.
