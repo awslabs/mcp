@@ -41,7 +41,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="ecs_resource_management",
         annotations=ToolAnnotations(
-            title='ECS Resource Management',
+            title="ECS Resource Management",
             readOnlyHint=False,
             destructiveHint=True,
             openWorldHint=True,

@@ -32,7 +32,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="containerize_app",
         annotations=ToolAnnotations(
-            title='Containerize Application',
+            title="Containerize Application",
             readOnlyHint=True,
             destructiveHint=False,
             openWorldHint=False,

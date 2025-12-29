@@ -64,7 +64,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="ecs_troubleshooting_tool",
         annotations=ToolAnnotations(
-            title='ECS Troubleshooting Tool',
+            title="ECS Troubleshooting Tool",
             readOnlyHint=True,
             destructiveHint=False,
             openWorldHint=True,

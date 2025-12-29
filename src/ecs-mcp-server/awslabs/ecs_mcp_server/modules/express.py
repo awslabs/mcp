@@ -42,7 +42,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="build_and_push_image_to_ecr",
         annotations=ToolAnnotations(
-            title='Build and Push Image to ECR',
+            title="Build and Push Image to ECR",
             readOnlyHint=False,
             destructiveHint=True,
             openWorldHint=True,
@@ -123,7 +123,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="validate_ecs_express_mode_prerequisites",
         annotations=ToolAnnotations(
-            title='Validate ECS Express Mode Prerequisites',
+            title="Validate ECS Express Mode Prerequisites",
             readOnlyHint=True,
             destructiveHint=False,
             openWorldHint=True,
@@ -260,7 +260,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="delete_app",
         annotations=ToolAnnotations(
-            title='Delete Application',
+            title="Delete Application",
             readOnlyHint=False,
             destructiveHint=True,
             openWorldHint=True,
@@ -349,7 +349,7 @@ def register_module(mcp: FastMCP) -> None:
     @mcp.tool(
         name="wait_for_service_ready",
         annotations=ToolAnnotations(
-            title='Wait for Service Ready',
+            title="Wait for Service Ready",
             readOnlyHint=True,
             destructiveHint=False,
             openWorldHint=True,

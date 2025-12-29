@@ -125,7 +125,12 @@ def test_mcp_tool_signature():
     # Now we can examine the registered function
     assert registered_func is not None
     assert registered_name == "ecs_resource_management"
-    assert registered_annotations is None
+    # Verify annotations are set correctly
+    assert registered_annotations is not None
+    assert registered_annotations.title == "ECS Resource Management"
+    assert registered_annotations.readOnlyHint is False
+    assert registered_annotations.destructiveHint is True
+    assert registered_annotations.openWorldHint is True
 
     # Get the signature of the registered function
     import inspect
