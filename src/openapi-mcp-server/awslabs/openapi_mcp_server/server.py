@@ -29,7 +29,7 @@ from awslabs.openapi_mcp_server.utils.metrics_provider import metrics
 from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
-from fastmcp.server.openapi import FastMCPOpenAPI, RouteMap, RouteType
+from fastmcp.server.openapi import FastMCPOpenAPI, MCPType, RouteMap
 from typing import Any, Dict
 
 
@@ -57,11 +57,6 @@ def create_mcp_server(config: Config) -> FastMCP:
     server = FastMCP(
         'awslabs.openapi-mcp-server',
         instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
-        dependencies=[
-            'pydantic',
-            'loguru',
-            'httpx',
-        ],
     )
 
     try:
@@ -184,7 +179,7 @@ def create_mcp_server(config: Config) -> FastMCP:
                             RouteMap(
                                 methods=['GET'],
                                 pattern=f'^{re.escape(path)}$',
-                                route_type=RouteType.TOOL,
+                                mcp_type=MCPType.TOOL,
                             )
                         )
 
@@ -214,8 +209,8 @@ def create_mcp_server(config: Config) -> FastMCP:
                 for i, route in enumerate(routes):
                     path = getattr(route, 'path', 'unknown')
                     method = getattr(route, 'method', 'unknown')
-                    route_type = getattr(route, 'route_type', 'unknown')
-                    logger.debug(f'Route {i}: {method} {path} - Type: {route_type}')
+                    mcp_type = getattr(route, 'mcp_type', 'unknown')
+                    logger.debug(f'Route {i}: {method} {path} - Type: {mcp_type}')
 
         logger.info(f'Successfully configured API: {config.api_name}')
 

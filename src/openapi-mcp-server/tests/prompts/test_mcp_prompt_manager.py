@@ -18,7 +18,7 @@ from awslabs.openapi_mcp_server.prompts import MCPPromptManager
 from awslabs.openapi_mcp_server.prompts.generators.workflow_prompts import (
     identify_workflows,
 )
-from fastmcp.server.openapi import RouteType
+from fastmcp.server.openapi import MCPType
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -33,12 +33,12 @@ def mock_server():
     mock_route = MagicMock()
     mock_route.path = '/pet/{petId}'
     mock_route.method = 'GET'
-    mock_route.route_type = RouteType.RESOURCE
+    mock_route.mcp_type = MCPType.RESOURCE
 
     mock_route2 = MagicMock()
     mock_route2.path = '/pet/findByStatus'
     mock_route2.method = 'GET'
-    mock_route2.route_type = RouteType.TOOL
+    mock_route2.v = MCPType.TOOL
 
     server._openapi_router = MagicMock()
     server._openapi_router._routes = [mock_route, mock_route2]

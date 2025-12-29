@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.38.12",
-    "fastmcp>=2.13.0",
+    "fastmcp>=2.14.0",
     "langdetect>=1.0.9",
     "loguru>=0.7.0",
     "markdownify>=0.13.1",
