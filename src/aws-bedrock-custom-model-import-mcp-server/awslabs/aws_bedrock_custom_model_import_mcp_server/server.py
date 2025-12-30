@@ -74,7 +74,6 @@ mcp = FastMCP(
     name=SERVER_NAME,
     version=__version__,
     instructions=MCP_INSTRUCTIONS,
-    dependencies=['pydantic', 'boto3', 'loguru'],
 )
 
 
