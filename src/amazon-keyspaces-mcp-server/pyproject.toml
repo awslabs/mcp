@@ -7,7 +7,7 @@ requires-python = ">=3.10,<3.12"
 dependencies = [
     "boto3>=1.37.27",
     "cassandra-driver>=3.25.0",
-    "fastmcp>=2.13.0",
+    "fastmcp>=2.14.0",
     "loguru>=0.7.0",
     "mcp>=1.23.0",
     "pydantic>=2.10.6",

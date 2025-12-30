@@ -204,7 +204,6 @@ mcp = FastMCP(
        - Include context about what the attachment shows
        - Use attachment sets within their 1-hour expiry window
     """,
-    dependencies=['pydantic', 'boto3'],
 )
 
 # Initialize the AWS Support client
