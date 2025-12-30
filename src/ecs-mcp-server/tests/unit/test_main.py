@@ -377,17 +377,17 @@ class TestMainFunctionBehavior(unittest.TestCase):
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_successful_server_startup(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_successful_server_startup(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test successful server startup and execution."""
         # Configure mocks
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
         mock_config.get.side_effect = lambda key, default: {
             "allow-write": True,
             "allow-sensitive-data": False,
         }.get(key, default)
-        mock_create_server.return_value = (mock_mcp, mock_config)
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger
@@ -399,19 +399,19 @@ class TestMainFunctionBehavior(unittest.TestCase):
         mock_logger.info.assert_any_call("Server started")
         mock_logger.info.assert_any_call("Write operations enabled: True")
         mock_logger.info.assert_any_call("Sensitive data access enabled: False")
-        mock_mcp.run.assert_called_once()
+        mock_mcp_obj.run.assert_called_once()
         mock_exit.assert_not_called()
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_keyboard_interrupt_handling(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_keyboard_interrupt_handling(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test graceful handling of keyboard interrupt."""
         # Configure mocks for keyboard interrupt
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
-        mock_mcp.run.side_effect = KeyboardInterrupt()
-        mock_create_server.return_value = (mock_mcp, mock_config)
+        mock_mcp_obj.run.side_effect = KeyboardInterrupt()
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger
@@ -425,14 +425,14 @@ class TestMainFunctionBehavior(unittest.TestCase):
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_general_exception_handling(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_general_exception_handling(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test handling of unexpected exceptions."""
         # Configure mocks for general exception
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
-        mock_mcp.run.side_effect = Exception("Unexpected error")
-        mock_create_server.return_value = (mock_mcp, mock_config)
+        mock_mcp_obj.run.side_effect = Exception("Unexpected error")
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger
