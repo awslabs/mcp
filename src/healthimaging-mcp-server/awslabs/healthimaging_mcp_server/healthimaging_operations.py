@@ -446,8 +446,6 @@ def delete_image_set_operation(request: DeleteImageSetRequest) -> DeleteImageSet
         datastore_id=response['datastoreId'],
         image_set_id=response['imageSetId'],
         image_set_state=response['imageSetState'],
-        image_set_workflow_status=response.get('imageSetWorkflowStatus'),
-        message=response.get('message'),
     )
 
 

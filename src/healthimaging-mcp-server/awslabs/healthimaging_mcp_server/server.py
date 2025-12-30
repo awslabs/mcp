@@ -20,6 +20,7 @@ from .models import (
     CopyImageSetResponse,
     CreateDatastoreRequest,
     CreateDatastoreResponse,
+    DatastoreStatus,
     DeleteDatastoreRequest,
     DeleteDatastoreResponse,
     DeleteImageSetRequest,
@@ -36,6 +37,7 @@ from .models import (
     GetImageSetMetadataResponse,
     GetImageSetRequest,
     GetImageSetResponse,
+    JobStatus,
     ListDatastoresRequest,
     ListDatastoresResponse,
     ListDICOMExportJobsRequest,
@@ -68,6 +70,26 @@ from typing import Any, Dict, List, Optional
 def _handle_field_value(value):
     """Convert FieldInfo objects to None, otherwise return the value as-is."""
     return None if isinstance(value, FieldInfo) else value
+
+
+def _convert_to_datastore_status(value: Optional[str]) -> Optional[DatastoreStatus]:
+    """Convert string to DatastoreStatus enum."""
+    if value is None:
+        return None
+    try:
+        return DatastoreStatus(value)
+    except ValueError:
+        return None
+
+
+def _convert_to_job_status(value: Optional[str]) -> Optional[JobStatus]:
+    """Convert string to JobStatus enum."""
+    if value is None:
+        return None
+    try:
+        return JobStatus(value)
+    except ValueError:
+        return None
 
 
 # Define server instructions
@@ -192,7 +214,7 @@ def list_datastores(
 ) -> ListDatastoresResponse:
     """List all data stores in the account."""
     request = ListDatastoresRequest(
-        datastore_status=_handle_field_value(datastore_status),
+        datastore_status=_convert_to_datastore_status(_handle_field_value(datastore_status)),
         max_results=_handle_field_value(max_results),
         next_token=_handle_field_value(next_token),
     )
@@ -246,7 +268,7 @@ def list_dicom_import_jobs(
     """List DICOM import jobs for a data store."""
     request = ListDICOMImportJobsRequest(
         datastore_id=datastore_id,
-        job_status=_handle_field_value(job_status),
+        job_status=_convert_to_job_status(_handle_field_value(job_status)),
         next_token=_handle_field_value(next_token),
         max_results=_handle_field_value(max_results),
     )
@@ -471,7 +493,7 @@ def list_dicom_export_jobs(
     """List DICOM export jobs for a data store."""
     request = ListDICOMExportJobsRequest(
         datastore_id=datastore_id,
-        job_status=_handle_field_value(job_status),
+        job_status=_convert_to_job_status(_handle_field_value(job_status)),
         next_token=_handle_field_value(next_token),
         max_results=_handle_field_value(max_results),
     )
