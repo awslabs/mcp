@@ -15,53 +15,29 @@
 """Tests for main module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 
 class TestMain:
     """Tests for main entry point."""
 
-    @pytest.mark.asyncio
-    @patch('awslabs.healthimaging_mcp_server.main.create_healthimaging_server')
-    @patch('awslabs.healthimaging_mcp_server.main.stdio_server')
-    async def test_main_success(self, mock_stdio, mock_create_server):
-        """Test main function runs successfully."""
+    def test_main_module_exists(self):
+        """Test that main module can be imported."""
+        import awslabs.healthimaging_mcp_server.main
+        assert awslabs.healthimaging_mcp_server.main is not None
+
+    def test_main_imports_server_main(self):
+        """Test that main module imports main from server."""
+        import awslabs.healthimaging_mcp_server.main
+        # Check that the main function is available
         from awslabs.healthimaging_mcp_server.main import main
+        assert callable(main)
 
-        mock_server = MagicMock()
-        mock_server.run = AsyncMock()
-        mock_server.create_initialization_options.return_value = {}
-        mock_create_server.return_value = mock_server
-
-        mock_read_stream = MagicMock()
-        mock_write_stream = MagicMock()
-
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=(mock_read_stream, mock_write_stream))
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_stdio.return_value = mock_cm
-
-        await main()
-
-        mock_create_server.assert_called_once()
-        mock_server.run.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch('awslabs.healthimaging_mcp_server.main.create_healthimaging_server')
-    @patch('awslabs.healthimaging_mcp_server.main.stdio_server')
-    async def test_main_error_handling(self, mock_stdio, mock_create_server):
-        """Test main function handles errors."""
+    def test_main_function_exists(self):
+        """Test that main function exists and is callable."""
         from awslabs.healthimaging_mcp_server.main import main
-
-        mock_create_server.side_effect = Exception('Test error')
-
-        with pytest.raises(Exception, match='Test error'):
-            await main()
-
-    @patch('awslabs.healthimaging_mcp_server.main.asyncio.run')
-    def test_sync_main(self, mock_run):
-        """Test sync_main wrapper."""
-        from awslabs.healthimaging_mcp_server.main import sync_main
-
-        sync_main()
-        mock_run.assert_called_once()
+        assert callable(main)
+        
+        # Verify it's the same function as in server
+        from awslabs.healthimaging_mcp_server.server import main as server_main
+        assert main is server_main
