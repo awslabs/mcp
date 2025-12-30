@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-iac-mcp-server"
-version = "1.0.6"
+version = "1.0.7"
 description = "An Infrastructure as Code MCP server that provides CloudFormation template validation, compliance checking, and deployment troubleshooting capabilities."
 readme = "README.md"
 requires-python = ">=3.10"
