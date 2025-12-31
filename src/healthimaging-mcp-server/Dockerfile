@@ -31,7 +31,7 @@ ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_FROZEN=true
 
 # Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY pyproject.toml uv.lock ./
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
@@ -50,7 +50,6 @@ RUN apk update && \
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
