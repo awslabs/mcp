@@ -15,6 +15,12 @@
 # dependabot should continue to update this to the latest hash.
 FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba AS uv
 
+# Install build dependencies needed for compiling packages like asyncmy (Cython-based)
+RUN apt-get update -y && \
+    apt-get install -y build-essential gcc python3-dev && \
+    apt-get clean -y && \
+    apt-get autoremove -y
+
 # Install the project into `/app`
 WORKDIR /app
 
@@ -52,20 +58,10 @@ FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcaf
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
 
-# Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
-RUN out=$(mktemp) && \
-    apt-get update -y && \
-    apt-get install -y wget procps && \
-    wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg && \
-    cat $out | \
-      tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
-	chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
-      tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    apt-get update -y && \
-    apt-get install -y gh && \
+RUN apt-get update -y && \
+    apt-get install -y build-essential gcc && \
     apt-get clean -y && \
     apt-get autoremove -y && \
     groupadd --force --system app && \
