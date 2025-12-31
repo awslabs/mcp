@@ -50,7 +50,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-s3-tables-mcp-server"
-version = "0.0.15"
+version = "0.0.16"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

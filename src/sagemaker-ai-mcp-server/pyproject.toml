@@ -2,7 +2,7 @@
 name = "awslabs.sagemaker-ai-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "1.0.2"
+version = "1.0.3"
 
 description = "MCP server for AWS SageMaker AI"
 readme = "README.md"
