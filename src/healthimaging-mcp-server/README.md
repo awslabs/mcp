@@ -1,216 +1,154 @@
-# HealthImaging MCP Server
+# AWS HealthImaging MCP Server
 
-A comprehensive Model Context Protocol (MCP) server for AWS HealthImaging operations. Provides **39 tools** for complete medical imaging data lifecycle management with automatic datastore discovery and advanced DICOM operations.
+## Overview
 
-## Table of Contents
+The AWS HealthImaging MCP Server enables AI assistants to interact with AWS HealthImaging services through the Model Context Protocol (MCP). It provides comprehensive medical imaging data lifecycle management with **39 specialized tools** for DICOM operations, datastore management, and advanced medical imaging workflows.
 
-- [Features](#features)
-- [Quick Start](#quick-start)
-  - [Option 1: uvx (Recommended)](#option-1-uvx-recommended)
-  - [Option 2: uv install](#option-2-uv-install)
-  - [Option 3: Docker](#option-3-docker)
-- [Docker](#docker)
-  - [Quick Start with Docker](#quick-start-with-docker)
-  - [Building Locally](#building-locally)
-  - [MCP Client Configuration for Docker](#mcp-client-configuration-for-docker)
-  - [Environment Variables](#environment-variables)
-- [Prerequisites](#prerequisites)
-- [MCP Client Configuration](#mcp-client-configuration)
-  - [Amazon Q Developer CLI](#amazon-q-developer-cli)
-  - [Other MCP Clients](#other-mcp-clients)
-- [Available Tools](#available-tools)
-  - [Datastore Management](#datastore-management)
-  - [Image Set Operations](#image-set-operations)
-  - [Image Frame Operations](#image-frame-operations)
-  - [MCP Resources](#mcp-resources)
-- [Usage Examples](#usage-examples)
-  - [Basic Operations](#basic-operations)
-  - [Advanced Search](#advanced-search)
-  - [DICOM Metadata](#dicom-metadata)
-- [Authentication](#authentication)
-  - [Required Permissions](#required-permissions)
-- [Error Handling](#error-handling)
-- [Troubleshooting](#troubleshooting)
-  - [Common Issues](#common-issues)
-  - [Debug Mode](#debug-mode)
-- [Development](#development)
-  - [Local Development Setup](#local-development-setup)
-  - [Running the Server Locally](#running-the-server-locally)
-  - [Development Workflow](#development-workflow)
-  - [IDE Setup](#ide-setup)
-  - [Testing](#testing)
-  - [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Support](#support)
-
-## Features
-
-- **39 Comprehensive HealthImaging Tools**: Complete medical imaging data lifecycle management
-- **21 Standard AWS API Operations**: Full AWS HealthImaging API coverage including datastore management, import/export jobs, image sets, metadata, and resource tagging
-- **18 Advanced DICOM Operations**: Specialized medical imaging workflows including patient/study/series level operations, bulk operations, and DICOM hierarchy management
-- **Delete Operations**: Patient data removal, study deletion, supports compliance with "right to be forgotten/right to erasure" GDPR objectives
-- **Metadata Updates**: Patient corrections, study modifications, series/instance management
-- **Enhanced Search**: Patient-focused, study-focused, and series-focused searches with DICOM-aware filtering
-- **Data Analysis**: Patient studies overview, series analysis, primary image set filtering, DICOMweb integration
-- **Bulk Operations**: Efficient large-scale metadata updates and deletions with safety limits
-- **DICOM Hierarchy Operations**: Series and instance removal with deep DICOM knowledge
-- **Import/Export Jobs**: Complete DICOM data import and export workflow management
-- **MCP Resources**: Automatic datastore discovery - no manual datastore IDs needed
-- **DICOM Metadata**: Access detailed medical imaging metadata with base64 encoding for binary data
-- **AWS Integration**: SigV4 authentication with automatic credential handling
-- **Error Handling**: Structured error responses with specific error types
-- **Docker Support**: Production-ready containerization
-- **Type Safety**: Comprehensive Pydantic models for all operations
-
-## Quick Start
-
-Choose your preferred installation method:
-
-### Option 1: uvx (Recommended)
-
-```bash
-# Install and run latest version automatically
-uvx awslabs.healthimaging-mcp-server@latest
-```
-
-### Option 2: uv install
-
-```bash
-uv tool install awslabs.healthimaging-mcp-server
-awslabs.healthimaging-mcp-server
-```
-
-### Option 3: Docker
-
-```bash
-# Build and run with Docker
-docker build -t healthimaging-mcp-server .
-docker run -e AWS_ACCESS_KEY_ID=xxx -e AWS_SECRET_ACCESS_KEY=yyy healthimaging-mcp-server
-```
-
-[↑ Back to Table of Contents](#table-of-contents)
-
-## Docker
-
-### Quick Start with Docker
-
-```bash
-# Run with environment variables
-docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 awslabs/healthimaging-mcp-server
-
-# Run with AWS profile (mount credentials)
-docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile awslabs/healthimaging-mcp-server
-```
-
-### Building Locally
-
-```bash
-# Build the image
-docker build -t healthimaging-mcp-server .
-
-# Run locally built image
-docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret healthimaging-mcp-server
-```
-
-### MCP Client Configuration for Docker
-
-**Amazon Q Developer CLI:**
-```json
-{
-  "mcpServers": {
-    "healthimaging": {
-      "command": "docker",
-      "args": [
-        "run", "--rm",
-        "-e", "AWS_ACCESS_KEY_ID=your_key",
-        "-e", "AWS_SECRET_ACCESS_KEY=your_secret",
-        "-e", "AWS_REGION=us-east-1",
-        "awslabs/healthimaging-mcp-server"
-      ]
-    }
-  }
-}
-```
-
-**With AWS credentials mounted:**
-```json
-{
-  "mcpServers": {
-    "healthimaging": {
-      "command": "docker",
-      "args": [
-        "run", "--rm",
-        "-v", "~/.aws:/root/.aws",
-        "-e", "AWS_PROFILE=your-profile",
-        "awslabs/healthimaging-mcp-server"
-      ]
-    }
-  }
-}
-```
-
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AWS_ACCESS_KEY_ID` | AWS access key | Yes* |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | Yes* |
-| `AWS_REGION` | AWS region | Yes |
-| `AWS_PROFILE` | AWS profile name | No |
-
-*Not required if using IAM roles or mounted credentials
-
-[↑ Back to Table of Contents](#table-of-contents)
+This server acts as a bridge between AI assistants and AWS HealthImaging, allowing you to search, retrieve, and manage medical imaging data while maintaining proper security controls and HIPAA compliance considerations.
 
 ## Prerequisites
 
-- **Python 3.10+** (required by MCP framework)
-- **AWS credentials** configured
-- **AWS HealthImaging access** with appropriate permissions
+- You must have an AWS account with HealthImaging access and credentials properly configured. Please refer to the official documentation [here ↗](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for guidance. We recommend configuring your credentials using the `AWS_PROFILE` environment variable. If not specified, the system follows boto3's default credential selection order.
+- Ensure you have Python 3.10 or newer installed. You can download it from the [official Python website](https://www.python.org/downloads/) or use a version manager such as [pyenv](https://github.com/pyenv/pyenv).
+- (Optional) Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for faster dependency management and improved Python environment handling.
 
-[↑ Back to Table of Contents](#table-of-contents)
+## 📦 Installation Methods
 
-## MCP Client Configuration
+Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Amazon Q Developer CLI, Cursor, or Cline.
 
-### Amazon Q Developer CLI
+### ⚡ Using uv
 
-Add to your MCP configuration file:
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-**Location:**
-- macOS: `~/.aws/amazonq/mcp.json`
-- Linux: `~/.config/amazon-q/mcp.json`
-- Windows: `%APPDATA%\Amazon Q\mcp.json`
+**For Linux/MacOS users:**
 
-**Configuration:**
 ```json
 {
   "mcpServers": {
-    "healthimaging": {
+    "awslabs.healthimaging-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.healthimaging-mcp-server@latest"],
+      "args": [
+        "awslabs.healthimaging-mcp-server@latest"
+      ],
       "env": {
-        "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "your-profile-name"
-      }
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
 ```
 
-### Other MCP Clients
+**For Windows users:**
 
-See `examples/mcp_config.json` for additional configuration examples.
+```json
+{
+  "mcpServers": {
+    "awslabs.healthimaging-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.healthimaging-mcp-server@latest",
+        "awslabs.healthimaging-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
-[↑ Back to Table of Contents](#table-of-contents)
+### 🐍 Using Python (pip)
 
-## Available Tools
+> [!TIP]
+> It's recommended to use a virtual environment because the AWS CLI version of the MCP server might not match the locally installed one
+> and can cause it to be downgraded. In the MCP client config file you can change `"command"` to the path of the python executable in your
+> virtual environment (e.g., `"command": "/workspace/project/.venv/bin/python"`).
+
+**Step 1: Install the package**
+```bash
+pip install awslabs.healthimaging-mcp-server
+```
+
+**Step 2: Configure your MCP client**
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.healthimaging-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.healthimaging_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### 🐳 Using Docker
+
+You can isolate the MCP server by running it in a Docker container.
+
+```json
+{
+  "mcpServers": {
+    "awslabs.healthimaging-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "AWS_REGION=us-east-1",
+        "--volume",
+        "/full/path/to/.aws:/app/.aws",
+        "awslabs/healthimaging-mcp-server:latest"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+### 🔧 Using Cloned Repository
+
+For detailed instructions on setting up your local development environment and running the server from source, please see the [Development](#development) section below.
+
+## 🚀 Quick Start
+
+Once configured, you can ask your AI assistant questions such as:
+
+- **"List all my HealthImaging datastores"**
+- **"Search for CT scans for patient PATIENT123"**
+- **"Get DICOM metadata for image set abc123"**
+
+## Features
+
+- **Comprehensive HealthImaging Support**: 39 specialized tools covering all aspects of medical imaging data lifecycle management
+- **21 Standard AWS API Operations**: Full AWS HealthImaging API coverage including datastore management, import/export jobs, image sets, metadata, and resource tagging
+- **18 Advanced DICOM Operations**: Specialized medical imaging workflows including patient/study/series level operations, bulk operations, and DICOM hierarchy management
+- **GDPR Compliance Support**: Patient data removal and study deletion tools support "right to be forgotten/right to erasure" objectives
+- **Enhanced Search Capabilities**: Patient-focused, study-focused, and series-focused searches with DICOM-aware filtering
+- **Bulk Operations**: Efficient large-scale metadata updates and deletions with built-in safety limits
+- **MCP Resources**: Automatic datastore discovery eliminates need for manual datastore ID entry
+- **Security-First Design**: Built with healthcare security requirements in mind, supporting HIPAA compliance considerations
+
+## Available MCP Tools
 
 The server provides **39 comprehensive HealthImaging tools** organized into eight categories:
-
 ### Datastore Management (4 tools)
 - **`create_datastore`** - Create new HealthImaging datastores with optional KMS encryption
-- **`delete_datastore`** - Delete HealthImaging datastores (IRREVERSIBLE)
 - **`get_datastore`** - Get detailed datastore information including endpoints and metadata
 - **`list_datastores`** - List all HealthImaging datastores with optional status filtering
 
@@ -271,8 +209,6 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 - **Status visibility** (ACTIVE, CREATING, etc.)
 - **Metadata access** (creation date, endpoints, etc.)
 
-[↑ Back to Table of Contents](#table-of-contents)
-
 ## Usage Examples
 
 ### Basic Operations
@@ -313,8 +249,6 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 }
 ```
 
-[↑ Back to Table of Contents](#table-of-contents)
-
 ## Authentication
 
 Configure AWS credentials using any of these methods:
@@ -325,6 +259,8 @@ Configure AWS credentials using any of these methods:
 4. **AWS profiles**: Set `AWS_PROFILE` environment variable
 
 ### Required Permissions
+
+The server requires specific IAM permissions for HealthImaging operations. Here's a comprehensive policy:
 
 ```json
 {
@@ -381,7 +317,13 @@ Configure AWS credentials using any of these methods:
 }
 ```
 
-[↑ Back to Table of Contents](#table-of-contents)
+### Security Best Practices
+
+- **Principle of Least Privilege**: Create custom policies tailored to your specific use case rather than using broad permissions
+- **Minimal Permissions**: Start with minimal permissions and gradually add access as needed
+- **MFA Requirements**: Consider requiring multi-factor authentication for sensitive operations
+- **Regular Monitoring**: Monitor AWS CloudTrail logs to track actions performed by the MCP server
+- **HIPAA Compliance**: Ensure your AWS account and HealthImaging setup meet HIPAA requirements for healthcare data
 
 ## Error Handling
 
@@ -401,8 +343,6 @@ All tools return structured error responses:
 - `auth_error` - AWS credentials not configured
 - `service_error` - AWS HealthImaging service error
 - `server_error` - Internal server error
-
-[↑ Back to Table of Contents](#table-of-contents)
 
 ## Troubleshooting
 
@@ -431,13 +371,20 @@ export AWS_LOG_LEVEL=DEBUG
 awslabs.healthimaging-mcp-server
 ```
 
-[↑ Back to Table of Contents](#table-of-contents)
-
 ## Development
 
 ### Local Development Setup
 
-#### Option 1: Using uv (Recommended)
+#### Prerequisites
+
+- Python 3.10 or higher
+- Git
+- AWS account with HealthImaging access
+- Code editor (VS Code recommended)
+
+#### Setup Instructions
+
+**Option 1: Using uv (Recommended)**
 
 ```bash
 git clone <repository-url>
@@ -446,7 +393,7 @@ uv sync --dev
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-#### Option 2: Using pip/venv
+**Option 2: Using pip/venv**
 
 ```bash
 git clone <repository-url>
@@ -455,20 +402,6 @@ cd healthimaging-mcp-server
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -e ".[dev]"
-```
-
-#### Option 3: Using conda
-
-```bash
-git clone <repository-url>
-cd healthimaging-mcp-server
-
-# Create conda environment
-conda create -n healthimaging-mcp python=3.10
-conda activate healthimaging-mcp
 
 # Install dependencies
 pip install -e ".[dev]"
@@ -504,45 +437,6 @@ pyright awslabs/
 pre-commit run --all-files
 ```
 
-### IDE Setup
-
-#### VS Code
-1. Install Python extension
-2. Select the virtual environment: `Ctrl+Shift+P` → "Python: Select Interpreter"
-3. Choose `.venv/bin/python`
-
-#### PyCharm
-1. File → Settings → Project → Python Interpreter
-2. Add Interpreter → Existing Environment
-3. Select `.venv/bin/python`
-
-### Testing
-
-```bash
-# Run unit tests (fast, no AWS dependencies)
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ -v --cov=awslabs/healthimaging_mcp_server --cov-report=html
-
-# Format code
-ruff format awslabs/ tests/
-
-# Lint code
-ruff check awslabs/ tests/
-pyright awslabs/
-
-# Run all checks (recommended)
-pre-commit run --all-files
-```
-
-**Test Results**: All 5 tests pass successfully, covering:
-- Tool handler functionality
-- Response formatting
-- Input validation
-- Server initialization
-- Error handling
-
 ### Project Structure
 
 ```
@@ -554,8 +448,6 @@ awslabs/healthimaging_mcp_server/
 └── __init__.py                 # Package initialization
 ```
 
-[↑ Back to Table of Contents](#table-of-contents)
-
 ## Contributing
 
 1. Fork the repository
@@ -565,19 +457,14 @@ awslabs/healthimaging_mcp_server/
 5. Format code: `ruff format awslabs/ tests/`
 6. Submit a pull request
 
-[↑ Back to Table of Contents](#table-of-contents)
-
 ## License
 
 Licensed under the Apache License, Version 2.0. See LICENSE file for details.
 
-[↑ Back to Table of Contents](#table-of-contents)
+## Disclaimer
 
-## Support
+This AWS HealthImaging MCP Server package is provided "as is" without warranty of any kind, express or implied, and is intended for development, testing, and evaluation purposes only. We do not provide any guarantee on the quality, performance, or reliability of this package.
 
-For issues and questions:
-- Check the troubleshooting section above
-- Review AWS HealthImaging documentation
-- Open an issue in the repository
+Users of this package are solely responsible for implementing proper security controls and MUST use AWS Identity and Access Management (IAM) to manage access to AWS resources. You are responsible for configuring appropriate IAM policies, roles, and permissions, and any security vulnerabilities resulting from improper IAM configuration are your sole responsibility.
 
-[↑ Back to Table of Contents](#table-of-contents)
+When working with medical imaging data, ensure compliance with applicable healthcare regulations such as HIPAA, and implement appropriate safeguards for protected health information (PHI). By using this package, you acknowledge that you have read and understood this disclaimer and agree to use the package at your own risk.
