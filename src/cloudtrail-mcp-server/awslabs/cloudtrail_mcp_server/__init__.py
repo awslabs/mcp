@@ -14,5 +14,5 @@
 
 """awslabs.cloudtrail-mcp-server"""
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 MCP_SERVER_VERSION = __version__
