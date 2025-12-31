@@ -224,16 +224,19 @@ AWS documentation including ECS's newest feature launches
     return mcp, config
 
 
+# Initialize mcp and config at module level for external imports
+mcp, _config = _create_ecs_mcp_server()
+
+
 def main() -> None:
     """Main entry point for the ECS MCP Server."""
     try:
         # Start the server
-        mcp, config = _create_ecs_mcp_server()
         logger = _setup_logging()
 
         logger.info("Server started")
-        logger.info(f"Write operations enabled: {config.get('allow-write', False)}")
-        logger.info(f"Sensitive data access enabled: {config.get('allow-sensitive-data', False)}")
+        logger.info(f"Write operations enabled: {_config.get('allow-write', False)}")
+        logger.info(f"Sensitive data access enabled: {_config.get('allow-sensitive-data', False)}")
         mcp.run()
     except KeyboardInterrupt:
         logger.info("Server stopped by user")
