@@ -102,73 +102,51 @@ class HealthImagingExamples:
 
         # Enhanced Search Operations (3 tools)
         print('Enhanced Search Operations:')
-        print(
-            f'- Search by patient ID: Search for all data for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Search by study UID: Search for study with UID {STUDY_UID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Search by series UID: Search for series with UID {SERIES_UID} in datastore {DATASTORE_ID}'
-        )
+        print('- Search by patient ID: Search for all data for a specific patient in datastore')
+        print('- Search by study UID: Search for study with specific UID in datastore')
+        print('- Search by series UID: Search for series with specific UID in datastore')
 
         # Data Analysis Operations (3 tools)
         print('\nData Analysis Operations:')
+        print('- Get patient studies: Get all studies for a specific patient in datastore')
+        print('- Get patient series: Get all series for a specific patient in datastore')
         print(
-            f'- Get patient studies: Get all studies for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Get patient series: Get all series for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Get study primary image sets: Get primary image sets for study {STUDY_UID} in datastore {DATASTORE_ID}'
+            '- Get study primary image sets: Get primary image sets for a specific study in datastore'
         )
 
         # Delete Operations (5 tools)
         print('\nDelete Operations (GDPR Compliance):')
-        print(
-            f'- Delete patient studies: Delete all studies for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
-        )
-        print(f'- Delete study: Delete study with UID {STUDY_UID} in datastore {DATASTORE_ID}')
-        print(
-            f'- Delete series by UID: Delete series with UID {SERIES_UID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Delete instance in study: Delete instance from study {STUDY_UID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Delete instance in series: Delete instance from series {SERIES_UID} in datastore {DATASTORE_ID}'
-        )
+        print('- Delete patient studies: Delete all studies for a specific patient in datastore')
+        print('- Delete study: Delete study with specific UID in datastore')
+        print('- Delete series by UID: Delete series with specific UID in datastore')
+        print('- Delete instance in study: Delete instance from specific study in datastore')
+        print('- Delete instance in series: Delete instance from specific series in datastore')
 
         # Metadata Update Operations (3 tools)
         print('\nMetadata Update Operations:')
         print(
-            f'- Get series primary image set: Get primary image set for series {SERIES_UID} in datastore {DATASTORE_ID}'
+            '- Get series primary image set: Get primary image set for specific series in datastore'
         )
         print(
-            f'- Get patient DICOMweb studies: Get DICOMweb studies for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
+            '- Get patient DICOMweb studies: Get DICOMweb studies for specific patient in datastore'
         )
         print(
-            f'- Update patient study metadata: Update patient and study metadata for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
+            '- Update patient study metadata: Update patient and study metadata for specific patient in datastore'
         )
 
         # Bulk Operations (2 tools)
         print('\nBulk Operations:')
         print(
-            f'- Bulk update patient metadata: Bulk update metadata for patient {PATIENT_ID} in datastore {DATASTORE_ID}'
+            '- Bulk update patient metadata: Bulk update metadata for specific patient in datastore'
         )
         print(
-            f"- Bulk delete by criteria: Bulk delete image sets in datastore {DATASTORE_ID} where modality is 'CR'"
+            "- Bulk delete by criteria: Bulk delete image sets in datastore where modality is 'CR'"
         )
 
         # DICOM Hierarchy Operations (2 tools)
         print('\nDICOM Hierarchy Operations:')
-        print(
-            f'- Remove series from image set: Remove series {SERIES_UID} from image set {IMAGE_SET_ID} in datastore {DATASTORE_ID}'
-        )
-        print(
-            f'- Remove instance from image set: Remove instance from image set {IMAGE_SET_ID} in datastore {DATASTORE_ID}'
-        )
+        print('- Remove series from image set: Remove specific series from image set in datastore')
+        print('- Remove instance from image set: Remove instance from image set in datastore')
 
     async def run_import_export_examples(self):
         """Demonstrate DICOM import/export jobs (6 tools)."""
@@ -192,10 +170,8 @@ class HealthImagingExamples:
         print('\n🏷️  Resource Tagging Examples')
         print('=' * 50)
 
-        resource_arn = f'arn:aws:medical-imaging:us-east-1:000000000000:datastore/{DATASTORE_ID}'
-
         print('Tagging Operations:')
-        print(f'- List tags: List tags for resource {resource_arn}')
+        print('- List tags: List tags for datastore resource')
         print('- Tag resource: Add Environment=Production tag to resource')
         print('- Untag resource: Remove Environment tag from resource')
 

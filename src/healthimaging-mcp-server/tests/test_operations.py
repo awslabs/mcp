@@ -213,6 +213,11 @@ class TestDICOMJobOperations:
             data_access_role_arn='arn:aws:iam::000000000000:role/Role',
             output_s3_uri='s3://bucket/output/',
             client_token='client456',
+            study_instance_uid='1.2.3.4.5.6.7.8.9',
+            series_instance_uid='1.2.3.4.5.6.7.8.9.10',
+            sop_instance_uid='1.2.3.4.5.6.7.8.9.10.11',
+            submitted_before='2023-01-01T00:00:00Z',
+            submitted_after='2022-01-01T00:00:00Z',
         )
 
         result = start_dicom_export_job_operation(request)
@@ -228,6 +233,11 @@ class TestDICOMJobOperations:
             'outputS3Uri': 's3://bucket/output/',
             'jobName': 'test-export-job',
             'clientToken': 'client456',
+            'studyInstanceUID': '1.2.3.4.5.6.7.8.9',
+            'seriesInstanceUID': '1.2.3.4.5.6.7.8.9.10',
+            'sopInstanceUID': '1.2.3.4.5.6.7.8.9.10.11',
+            'submittedBefore': '2023-01-01T00:00:00Z',
+            'submittedAfter': '2022-01-01T00:00:00Z',
         }
         mock_client.start_dicom_export_job.assert_called_once_with(**expected_kwargs)
 
@@ -1365,6 +1375,60 @@ class TestErrorHandlingAndEdgeCases:
         import base64
 
         expected_base64 = base64.b64encode(b'image_data').decode('utf-8')
+        assert response.image_frame_blob == expected_base64
+
+    @patch('boto3.client')
+    def test_get_image_frame_none_blob(self, mock_boto_client):
+        """Test get_image_frame_operation with None blob."""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+
+        mock_client.get_image_frame.return_value = {
+            'imageFrameBlob': None,
+            'contentType': 'application/octet-stream',
+        }
+
+        request = GetImageFrameRequest(
+            datastore_id='00000000000034567890000000000000',
+            image_set_id='img123',
+            image_frame_information={'imageFrameId': 'frame123'},
+        )
+
+        response = get_image_frame_operation(request)
+
+        # Should return empty base64 string for None
+        import base64
+
+        expected_base64 = base64.b64encode(b'').decode('utf-8')
+        assert response.image_frame_blob == expected_base64
+
+    @patch('boto3.client')
+    def test_get_image_frame_streaming_string_content(self, mock_boto_client):
+        """Test get_image_frame_operation with streaming body returning string."""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+
+        # Mock streaming body that returns string content
+        mock_streaming_body = Mock()
+        mock_streaming_body.read.return_value = 'string_image_data'
+
+        mock_client.get_image_frame.return_value = {
+            'imageFrameBlob': mock_streaming_body,
+            'contentType': 'application/octet-stream',
+        }
+
+        request = GetImageFrameRequest(
+            datastore_id='00000000000034567890000000000000',
+            image_set_id='img123',
+            image_frame_information={'imageFrameId': 'frame123'},
+        )
+
+        response = get_image_frame_operation(request)
+
+        # Should encode string to bytes then to base64
+        import base64
+
+        expected_base64 = base64.b64encode(b'string_image_data').decode('utf-8')
         assert response.image_frame_blob == expected_base64
 
 
