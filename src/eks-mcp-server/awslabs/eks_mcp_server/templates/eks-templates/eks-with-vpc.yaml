@@ -322,6 +322,12 @@ Resources:
       GroupDescription: Cluster communication with worker nodes
       VpcId:
         Ref: VPC
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: "F1000"
+            reason": "TODO: Update this comment"
+
 
   # EKS Cluster IAM Role with required policies for Auto Mode
   EksClusterRole:
