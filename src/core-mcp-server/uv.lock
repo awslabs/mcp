@@ -297,7 +297,7 @@ wheels = [
 
 [[package]]
 name = "awscli"
-version = "1.44.5"
+version = "1.44.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
@@ -307,9 +307,9 @@ dependencies = [
     { name = "rsa" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/1d/c282d46facd271013d4513923d29fb140ae16c53fc35981f2255205c37fc/awscli-1.44.5.tar.gz", hash = "sha256:8bcde13136491f9e2756a0fde321c84d5fdfe0d4c27db1d33bd540d6db184f66", size = 1888756, upload-time = "2025-12-22T20:34:07.207Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/fd/25eddefa7f6144202d3267ad6da23b9b7829cccf4a8593e931f4107336a0/awscli-1.44.7.tar.gz", hash = "sha256:6972a906cebeb5621f3fb953dc657ed18863e3d35111a54c976882239c85a9d2", size = 1892365, upload-time = "2025-12-26T20:33:34.224Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/29/1f2c670e3835c30de49bc50284dedc8f436b2ea2abbe9784216cdc93df13/awscli-1.44.5-py3-none-any.whl", hash = "sha256:bc27d91373379cdaa1c8a5de7be708c44422fc37d8ed239a31e0068a9fe3212a", size = 4646890, upload-time = "2025-12-22T20:34:04.796Z" },
+    { url = "https://files.pythonhosted.org/packages/af/b1/ef38677da07dd847d6645c1109ccbde5e7e61812458800dd013ba76e7ccd/awscli-1.44.7-py3-none-any.whl", hash = "sha256:b82fff5bfcf9d1479948c197256a05b357e592958571d081ec9ce83ab2e9a223", size = 4651618, upload-time = "2025-12-26T20:33:31.185Z" },
 ]
 
 [[package]]
@@ -343,7 +343,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-kendra-index-mcp-server"
-version = "1.0.9"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -352,14 +352,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/33/553527c8c390973dab1013becf0e8ac9b12141160ee7f9437a1b224fb3d0/awslabs_amazon_kendra_index_mcp_server-1.0.9.tar.gz", hash = "sha256:a5a608d45c45f9c6802a9729cbde43b70d699c8467203998973b73baf649f2e8", size = 93031, upload-time = "2025-12-11T23:28:53.519Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/cf/d946c92afaea664bc376c981898c94496944791ec70eedd086ef505616bd/awslabs_amazon_kendra_index_mcp_server-1.0.10.tar.gz", hash = "sha256:705ca69a25fac620707d66051d8c59b89b27743729b1525edf458040a42515a8", size = 93058, upload-time = "2025-12-30T23:52:05.129Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1f/23/17f7ff4b15eb35c16c16a92af72f9c65850c76881f3c991bf48586dcd16a/awslabs_amazon_kendra_index_mcp_server-1.0.9-py3-none-any.whl", hash = "sha256:d52513fd5c1b989c46df276d485fc8d9c4f8dcdb2cbddb13fbfd34eadbe6bc14", size = 13277, upload-time = "2025-12-11T23:28:50.685Z" },
+    { url = "https://files.pythonhosted.org/packages/53/6e/01ecf2ad6fb1f73bb48f4b97d3310375b8cb434f14d140fabfe82f98b207/awslabs_amazon_kendra_index_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:34bbeb79a09cc63f33e01a3f585efb0bac00e902c575e5c9893fcb922bccd41b", size = 13335, upload-time = "2025-12-30T23:52:03.639Z" },
 ]
 
 [[package]]
 name = "awslabs-amazon-keyspaces-mcp-server"
-version = "0.0.8"
+version = "0.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -370,14 +370,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/ab/8d32107208bb8d33f33b383d0411af69dcc03d36e9ed5a117c534a866eaf/awslabs_amazon_keyspaces_mcp_server-0.0.8.tar.gz", hash = "sha256:64661d05cbac5334b3b237d3b08ff091db979686c77786e222fa59355ecb7018", size = 92318, upload-time = "2025-12-11T23:28:54.491Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/75/104eca6723ced32acb18ae0c841c7197c6524b05177ef6f482614ba84363/awslabs_amazon_keyspaces_mcp_server-0.0.9.tar.gz", hash = "sha256:57756372946bf70e73215c0c023f3991d05a9c6a0152361cf4baa3641407ec4c", size = 100800, upload-time = "2025-12-30T23:52:08.625Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/87/9fb3c13de34ff177ac09092b897fc0971dea68ccf1d51390d857cc988898/awslabs_amazon_keyspaces_mcp_server-0.0.8-py3-none-any.whl", hash = "sha256:2069880f1a1915fba07a204badbd96e0e4506f9125cc0279ca017a45760bd551", size = 30649, upload-time = "2025-12-11T23:28:51.28Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/af/82db6d8f7f6fa84433686e30071d97511cddfc266286dfea8b84ee930ae4/awslabs_amazon_keyspaces_mcp_server-0.0.9-py3-none-any.whl", hash = "sha256:062a3338b356d3500cdc2fadd191d14b0772ac133d1ff86e39a7963819c57807", size = 30693, upload-time = "2025-12-30T23:52:06.088Z" },
 ]
 
 [[package]]
 name = "awslabs-amazon-mq-mcp-server"
-version = "2.0.12"
+version = "2.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -387,14 +387,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/25/53659d866cc5c7fc2f57c84330a1eeffc15abdf1d2d393478af12fe32f3e/awslabs_amazon_mq_mcp_server-2.0.12.tar.gz", hash = "sha256:0f7c7dfab93261e7f1e012b69fb65ecc35d29a61edd3b2b04d993dcfec4d36ba", size = 120237, upload-time = "2025-12-11T23:28:51.648Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/eb/18debd61e68759ec1f571f7c9ec2d574ced419cc8201260813b332c6b280/awslabs_amazon_mq_mcp_server-2.0.13.tar.gz", hash = "sha256:edfe222f02142406932beef0cdb4ced3db4be7822a3f29bcd9bbabd6c219a07a", size = 120282, upload-time = "2025-12-30T23:52:14.871Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/f4/ab9a5f264c2c2cb7c8801bed86158075041d6647a2f667f3ab2ceffabc44/awslabs_amazon_mq_mcp_server-2.0.12-py3-none-any.whl", hash = "sha256:a97f3738515769f8a44a25d6161398be658ec377db57a95ed5cec658ad395086", size = 38426, upload-time = "2025-12-11T23:28:50.379Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/4d/83a5b96d68cc0d4e885160e075b17b1d08ed3aab11cbecc27e4dbd76ef36/awslabs_amazon_mq_mcp_server-2.0.13-py3-none-any.whl", hash = "sha256:d2f362905654a2ad0f47a58327d1108dab3ba34c686d01a2e5c7251c97808275", size = 38470, upload-time = "2025-12-30T23:52:13.485Z" },
 ]
 
 [[package]]
 name = "awslabs-amazon-neptune-mcp-server"
-version = "1.0.8"
+version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -402,14 +402,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/89/09307f6db1ca7b06c6144725f1524df44f85ba9b827360fdd50b0e310260/awslabs_amazon_neptune_mcp_server-1.0.8.tar.gz", hash = "sha256:836acc6c0d7031dfaea38eaa0264137331eea7d3377c43dbc244a38cd6c1b478", size = 102353, upload-time = "2025-12-11T23:28:47.449Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/e1/f837e58de9ca56c84ed96b1f53d47ae8ef00b0d6baa3ec0c853fee08daa9/awslabs_amazon_neptune_mcp_server-1.0.9.tar.gz", hash = "sha256:4904dd63b5b49038d68a326811037ea41b2b33db75fa01d81280fc6a65e63a2e", size = 102396, upload-time = "2025-12-30T23:52:09.607Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/75/d739a2546b922e471c11dcea942c20c1ca6c2f03d68ed95655fb53916f13/awslabs_amazon_neptune_mcp_server-1.0.8-py3-none-any.whl", hash = "sha256:1f1a7e47857e2bd4b59daabd5526b54e020d7dc77b56d9432345cf8b33fbea26", size = 22459, upload-time = "2025-12-11T23:28:46.113Z" },
+    { url = "https://files.pythonhosted.org/packages/62/18/5fb71931a21bde2788c46f29b8ba9ff3d05a2c61217d8dbd9701311b4213/awslabs_amazon_neptune_mcp_server-1.0.9-py3-none-any.whl", hash = "sha256:efbdbc89e812bef8b9ea5c83aced62e30819f51f7a84b20feed2edba290051d7", size = 22498, upload-time = "2025-12-30T23:52:06.636Z" },
 ]
 
 [[package]]
 name = "awslabs-amazon-sns-sqs-mcp-server"
-version = "2.0.11"
+version = "2.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -421,14 +421,14 @@ dependencies = [
     { name = "readabilipy" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/73/1bc1073d2caf06b2dabf4cf8d36dcd0022216883f290d9316439394023f2/awslabs_amazon_sns_sqs_mcp_server-2.0.11.tar.gz", hash = "sha256:31e0ebda3999a088349fd81c5d8085169a6383dee09076d889a15f935dfb3a60", size = 117161, upload-time = "2025-12-11T23:28:50.406Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/0a/361af36f15e97c463ae600ff9a1baffff84515e38a59e6572f5238995fb8/awslabs_amazon_sns_sqs_mcp_server-2.0.12.tar.gz", hash = "sha256:02a707903733053f59bade11c18888336f1ffc4f3888c22ba44cec6936332d88", size = 117239, upload-time = "2025-12-30T23:52:07.904Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/3a/9220572a8c79173ed1e005f71d517aa0f09759173cb8386cfcb1988a092d/awslabs_amazon_sns_sqs_mcp_server-2.0.11-py3-none-any.whl", hash = "sha256:79b766cea291421acab4d7ac858ccdb55c9b3e49d32f7764804d1e5ad99845eb", size = 20894, upload-time = "2025-12-11T23:28:48.315Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/2f/d91e9b2a554c176b52cd500363b5420e8db796539428181d167470146300/awslabs_amazon_sns_sqs_mcp_server-2.0.12-py3-none-any.whl", hash = "sha256:c1e00a35e72217b63e6b3609c90fc8f74ec3ccb39b6b1234122be4969776ce06", size = 20985, upload-time = "2025-12-30T23:52:04.498Z" },
 ]
 
 [[package]]
 name = "awslabs-aurora-dsql-mcp-server"
-version = "1.0.10"
+version = "1.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -439,14 +439,14 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/80/7f14502ac460124e4c1372ec70fa5197a5ae3007d8f9ad674f5003011ec0/awslabs_aurora_dsql_mcp_server-1.0.10.tar.gz", hash = "sha256:386024d60bd5c3792b0fde55531d479d8c60f5aea468864b2c58ff8b9329e2cc", size = 111827, upload-time = "2025-12-11T23:28:57.642Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/65/ad3a92c3327f9a01fbf0f286b9febce7d6c403b73d848aef48d10b691f47/awslabs_aurora_dsql_mcp_server-1.0.11.tar.gz", hash = "sha256:118f14f3c9669a177aa2722a2677e63dceeacdaa4521816fccfcf3bf337aad56", size = 131678, upload-time = "2025-12-30T23:52:11.957Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/c8/a50dc7068672f60cf0ec46c4bd899c04e70b3a5837caa27e19e91e21ef04/awslabs_aurora_dsql_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:5dda30ee44a7dbeeaa21f0af97204215b731ff6d2e18e4375b494a4b2611feec", size = 20562, upload-time = "2025-12-11T23:28:54.994Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/bc/7c4631fda36e2ea34c93d610bc8b05210a0137ca18ce8650b17e18b015d3/awslabs_aurora_dsql_mcp_server-1.0.11-py3-none-any.whl", hash = "sha256:8fe2c2864a16c6279b37e8bff4269c4cfc462b2241e837103ae6c21d08c36db3", size = 20604, upload-time = "2025-12-30T23:52:08.085Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-api-mcp-server"
-version = "1.3.0"
+version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "awscli" },
@@ -463,14 +463,14 @@ dependencies = [
     { name = "requests" },
     { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/a8/12047a454dd1b65489cef8b586260cc85bf01148e1f1485230dd0ec4486f/awslabs_aws_api_mcp_server-1.3.0.tar.gz", hash = "sha256:2845d6a9d9297569f4a4ecfa9a9146532121d5d4a3ed2886128eed182f0cba4c", size = 338142, upload-time = "2025-12-23T10:28:24.384Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/de/8fb8aa81fb9ccf5074d2aa7c5a5b1aca7d824a03ff99ef736db5e5fba57e/awslabs_aws_api_mcp_server-1.3.1.tar.gz", hash = "sha256:f5026b53286e90e87919504255085da2a50a2cb08298bebc2f7617d3c720a60d", size = 354307, upload-time = "2025-12-30T23:52:06.755Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/d3/e24146b6fb2d488764094f961c6d2b2406965173af0c97ccc41750ea3a61/awslabs_aws_api_mcp_server-1.3.0-py3-none-any.whl", hash = "sha256:ad8739e1905d84cead27a122c71985ca8975572584bd7a0f59a80b4294bdd745", size = 205642, upload-time = "2025-12-23T10:28:22.642Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/b9/33c4d568dbe29e64bd46fef8952ab1ca1e77c6587a0706068a1df093d0ca/awslabs_aws_api_mcp_server-1.3.1-py3-none-any.whl", hash = "sha256:6f1a54f0a08ba9586e6b19a39c29aa8a5f09dd9bb4aef266b68b2d3476635e97", size = 205683, upload-time = "2025-12-30T23:52:04.028Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-dataprocessing-mcp-server"
-version = "0.1.18"
+version = "0.1.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -481,9 +481,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/d9/4c04daea654b79b66404c148b810f2c1b6706aec8f2941683a2d5212cbec/awslabs_aws_dataprocessing_mcp_server-0.1.18.tar.gz", hash = "sha256:b3c1899125b306f6fc5a4e51ba2a29421f25eca50cbc5e25943c9480b55d0d38", size = 300531, upload-time = "2025-12-19T00:37:49.097Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/6e/5e7f869e0a0844e832e17b731764d873e46fbfbb76258533ab165a574b36/awslabs_aws_dataprocessing_mcp_server-0.1.19.tar.gz", hash = "sha256:583dcfbce139ba1d0a7467746efe27ccb7de05673a253f48e617ed9a5302beb8", size = 300571, upload-time = "2025-12-30T23:56:52.112Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/3c/9baa1f8becfba8cf12aec6fa1b763c3060069254ffd4b545a4c219a12c58/awslabs_aws_dataprocessing_mcp_server-0.1.18-py3-none-any.whl", hash = "sha256:0a483b55507ccb2ae2969bf88f0fce332226b3dc4363cc3534db18c4b9106f27", size = 143789, upload-time = "2025-12-19T00:37:47.86Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/cb/f1832f3458c0ab43020a648faca32c78e19ed53559742a5c9e5a3fa07a6e/awslabs_aws_dataprocessing_mcp_server-0.1.19-py3-none-any.whl", hash = "sha256:c17bb79ef3b6269ee62ad1966b1afb4f48fe5f0e1c7916da498e6d2a394e4e37", size = 143828, upload-time = "2025-12-30T23:56:49.372Z" },
 ]
 
 [[package]]
@@ -512,7 +512,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-diagram-mcp-server"
-version = "1.0.13"
+version = "1.0.14"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -529,14 +529,14 @@ dependencies = [
     { name = "starlette", marker = "python_full_version >= '3.12'" },
     { name = "urllib3", marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/31/b9f43235c72530c47e54bbd2e7181aa8d016e9378975b1c510a237570347/awslabs_aws_diagram_mcp_server-1.0.13.tar.gz", hash = "sha256:c164698ef4a62a110b53dc666da483a910d73d0b964efaed92b248f27243c7d7", size = 99646, upload-time = "2025-12-11T23:33:59.837Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/8f/10f510e74bb676d319b1268b10c2a60c7256b106661a0d098846ecebb0e8/awslabs_aws_diagram_mcp_server-1.0.14.tar.gz", hash = "sha256:90cf177033f6aadf461d40475b3c24bf3875fbe2638468dc1643ff4c05be8e7e", size = 99603, upload-time = "2025-12-30T23:56:56.037Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/df/a7a1325b74927e78a8d3fb1a6b223e54017835a5d1bd33622cb8dc1609d4/awslabs_aws_diagram_mcp_server-1.0.13-py3-none-any.whl", hash = "sha256:be959e92f237cd798854285018e693676658677c616fe31e03f4621f64acb9df", size = 25705, upload-time = "2025-12-11T23:33:58.431Z" },
+    { url = "https://files.pythonhosted.org/packages/40/56/cfd42e958219c4e4545938407748abd1fc688225ad9be20776d3fbd9a480/awslabs_aws_diagram_mcp_server-1.0.14-py3-none-any.whl", hash = "sha256:5cb5e74c331cb00067105fe7c4720c5367ad23655bc79f7f622ef8ea911ae871", size = 25662, upload-time = "2025-12-30T23:56:52.019Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-documentation-mcp-server"
-version = "1.1.13"
+version = "1.1.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -546,9 +546,9 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/32/d0/fe559e06521571c9ee7e6f2b7b903fb3220fc9d49d4a3e08e4289768b178/awslabs_aws_documentation_mcp_server-1.1.13.tar.gz", hash = "sha256:73a8722d3fe290f89e05987f3e23086deb823dcab32e967d6e72598c0601a699", size = 3877491, upload-time = "2025-12-11T23:34:00.767Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/48/d8/bcd5ed37d1c72b0fc18f9f3966881c39ae59f86e677e9c698b84247cbc5c/awslabs_aws_documentation_mcp_server-1.1.14.tar.gz", hash = "sha256:2f81702adeae5849840ab191783a47973e4f6a35535a48af0c276ac3d556ca4a", size = 3877519, upload-time = "2025-12-30T23:56:50.68Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/b8/101f3d4f563a1ccb9d932cc10304877c1463e0472fb691dde35a491e4fab/awslabs_aws_documentation_mcp_server-1.1.13-py3-none-any.whl", hash = "sha256:721cc5b757671639b2515eaf0618da9b2391f39a907222d792054e2e0636a65a", size = 25298, upload-time = "2025-12-11T23:33:58.637Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/e1/4dfccb663e05dd5f6dd1b3c9b19b9087531004980ebff58a97b10c92fbfc/awslabs_aws_documentation_mcp_server-1.1.14-py3-none-any.whl", hash = "sha256:3ce001758a1e79e29826498dd366bedce26a54811de07dd5980a39e16beb0682", size = 25343, upload-time = "2025-12-30T23:56:49.162Z" },
 ]
 
 [[package]]
@@ -568,7 +568,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-msk-mcp-server"
-version = "0.0.10"
+version = "0.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -576,14 +576,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/be/7cc4223022b538c2d603f7134ac9f88560163e7bb03ff1b28fceee854fa7/awslabs_aws_msk_mcp_server-0.0.10.tar.gz", hash = "sha256:16c195995beeec149c7a0696ef479023218b39ffbced208ccd532237c74d916e", size = 170298, upload-time = "2025-12-11T23:34:01.882Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/2a/ec3f98968a9e9cffdc9094acdcac237132f2a89a8a682660322161ebc3fd/awslabs_aws_msk_mcp_server-0.0.11.tar.gz", hash = "sha256:15a1312f94894ab2af34f40322a4fcf5290b03e841fe9884950ccccc1e954738", size = 170335, upload-time = "2025-12-31T00:12:57.265Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/ed/e1919cf80238c2e8e980606cd3932575e44eaeea66f1a33d075645a38ae5/awslabs_aws_msk_mcp_server-0.0.10-py3-none-any.whl", hash = "sha256:816d33b59d3bfa3b57c8d816eca89dfd4bd59263762351090afd80a9c014974d", size = 94352, upload-time = "2025-12-11T23:33:58.773Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/9d/31f086533043517f6bd1ca4a2ac2f79535f3afc73fd20cc71b24b4c24b4d/awslabs_aws_msk_mcp_server-0.0.11-py3-none-any.whl", hash = "sha256:a3c162226c460ba88b71e5ae76abd92f1c4dd0c5d06dce80dc749419215345d4", size = 94395, upload-time = "2025-12-31T00:12:50.676Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-pricing-mcp-server"
-version = "1.0.20"
+version = "1.0.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -594,14 +594,14 @@ dependencies = [
     { name = "pytest-asyncio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/ac/1ab0ed9a8d33c0d966a1577808932cbe3f86bad83a77c80f600092011018/awslabs_aws_pricing_mcp_server-1.0.20.tar.gz", hash = "sha256:a0e6f869c03ca1b79d070ff066f52b91cb4281c9168cdbbc1db617a12c45b6f7", size = 159123, upload-time = "2025-12-11T23:40:48.843Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/05/8f/769403ad23e31b7245b5374e5567a13aab2b7c3857d437f8d7d2847ecadd/awslabs_aws_pricing_mcp_server-1.0.21.tar.gz", hash = "sha256:f28b94fbc59e5a98093a798df8968a333406ab494a4a555abed8692b2b6f4b55", size = 159157, upload-time = "2025-12-31T00:12:49.431Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/e1/e49fa01587c23628e486a7cda53d261ee64039c7079fecd1fcaa6a405d4f/awslabs_aws_pricing_mcp_server-1.0.20-py3-none-any.whl", hash = "sha256:8c0fc570cc2cf347fbdbc4ea9bd6158080b0f2751b189e08a06d0796de3639ea", size = 65301, upload-time = "2025-12-11T23:40:45.806Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/5e/8e644409b40f6da2c029572da2f09208256973f2917b4d43d926402cea0a/awslabs_aws_pricing_mcp_server-1.0.21-py3-none-any.whl", hash = "sha256:22f1347ac560a6b6dd06e530baf075ac929be886eb96363adc1d97846e8499c8", size = 65347, upload-time = "2025-12-31T00:12:47.67Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-serverless-mcp-server"
-version = "0.1.13"
+version = "0.1.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -611,14 +611,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/70/da50278e95d01fab4c2e9cee2a155c34ed370a3210d3b9a13f2f38779f16/awslabs_aws_serverless_mcp_server-0.1.13.tar.gz", hash = "sha256:90eff1cdf80df4ca84122881886eca8cd82050d2129dc5f3ec0229d023f2edab", size = 271237, upload-time = "2025-12-11T23:40:50.339Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7c/b8/a05684e67fe9e5dd2a4d8e0a56de472185b43effc2c2f78efe08dfa9a569/awslabs_aws_serverless_mcp_server-0.1.14.tar.gz", hash = "sha256:7404202bcb2c85056855e404a08d1a1e125af8acf855e94d818f4c2cca8b82ff", size = 271235, upload-time = "2025-12-31T00:12:52.797Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/d4/996b88d2166677a4cfcac0c386b94c02b80cc593d21843600fc088610427/awslabs_aws_serverless_mcp_server-0.1.13-py3-none-any.whl", hash = "sha256:ec9ba1fc9dee93f75d40aa7561d66d730b35ec82dbff89e27d6fae83ce0c2d83", size = 181183, upload-time = "2025-12-11T23:40:45.801Z" },
+    { url = "https://files.pythonhosted.org/packages/de/c1/26ad104a87fc0e97e293cede7b743a4e223a5e31a1b5dd79437ad8b8cf26/awslabs_aws_serverless_mcp_server-0.1.14-py3-none-any.whl", hash = "sha256:79ed7f6d0399a2ed25a9052b4f1a96e86370494ccacc8ad8d1dfe7fcc9e88783", size = 181183, upload-time = "2025-12-31T00:12:48.172Z" },
 ]
 
 [[package]]
 name = "awslabs-aws-support-mcp-server"
-version = "0.1.12"
+version = "0.1.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -636,14 +636,14 @@ dependencies = [
     { name = "readabilipy" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/e0/dce69d0245622da6c24c9f50328d8aeb3a3b60404c54ef9311f522e6e770/awslabs_aws_support_mcp_server-0.1.12.tar.gz", hash = "sha256:bb74188583ac80628f8da3d29def292e30c77e8e57841aa6b1cad4ba943d889d", size = 41634, upload-time = "2025-12-11T23:40:54.6Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/f5/be00500342b038725082992c79fa97b9dfe726a368b624d0b8001013a130/awslabs_aws_support_mcp_server-0.1.13.tar.gz", hash = "sha256:84837af52ce6e518228598c20eb6ef78a2aa39336baf72b7f801ca34fb811503", size = 41654, upload-time = "2025-12-31T00:12:51.665Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/44/c30bb97e8dcabd0a0e063d62ec223a81825e0a123c9eaa9323ebc56e6d22/awslabs_aws_support_mcp_server-0.1.12-py3-none-any.whl", hash = "sha256:fde9173e215b412eb9e88f3da14412c3c9da60a9758a3d42c80483ac15b75e33", size = 30389, upload-time = "2025-12-11T23:40:49.158Z" },
+    { url = "https://files.pythonhosted.org/packages/01/90/17ade49bb95b17a28aefde96d0904461a4693673492f35e9eb4aebb04b30/awslabs_aws_support_mcp_server-0.1.13-py3-none-any.whl", hash = "sha256:b8015739c568cc1ed952b6a251c1024270ca55d0c854bff45ae9558de942c479", size = 30407, upload-time = "2025-12-31T00:12:47.703Z" },
 ]
 
 [[package]]
 name = "awslabs-billing-cost-management-mcp-server"
-version = "0.0.7"
+version = "0.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -653,14 +653,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/88/81ad26d3d6790ceeba7397de83880936d02a67451845cd6339875525498c/awslabs_billing_cost_management_mcp_server-0.0.7.tar.gz", hash = "sha256:8d936fe7f2f04d9040dfbcb224e14c922f7f0ae07c5c6b75fef2a08a1b6b8f14", size = 278107, upload-time = "2025-12-11T23:40:46.757Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/42/05c17c1e7b5c04bd01c8056fe0d0db0f7e65a22059e081569abbfc0731a2/awslabs_billing_cost_management_mcp_server-0.0.8.tar.gz", hash = "sha256:48fac6148db1d21181175d85d578f84d50f0d905071170a9059743f9d23c15dc", size = 293412, upload-time = "2025-12-31T00:12:46.086Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/9e/a262f1249623971f38ddd15427f4d0b727decfaaa5e546f6d36c8a8a3548/awslabs_billing_cost_management_mcp_server-0.0.7-py3-none-any.whl", hash = "sha256:6c3b5d15fa39ae87a0fc2ef860c9e32c3271ad0ba3ed5aabb98bc17d5bc6baab", size = 147474, upload-time = "2025-12-11T23:40:45.261Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/52/6798f542a6d7678706df7d55fcc8eabae2ae55f9dbf114e5e2e05e04a10e/awslabs_billing_cost_management_mcp_server-0.0.8-py3-none-any.whl", hash = "sha256:19cb674f3fb03e9aef071cdaa6b23724bcbf783255150261171c077b8658a04f", size = 147513, upload-time = "2025-12-31T00:12:44.485Z" },
 ]
 
 [[package]]
 name = "awslabs-cdk-mcp-server"
-version = "1.0.10"
+version = "1.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aws-lambda-powertools" },
@@ -669,14 +669,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/6e/c248de50c205c15ec91da37cab62a4c51c872b6a255a088b4b66aea1cd4a/awslabs_cdk_mcp_server-1.0.10.tar.gz", hash = "sha256:bb1ca9fb2cb9bbeb28443e41bc8f2de5a01e35f2f8fe60545d8866655f316146", size = 151412, upload-time = "2025-12-11T23:40:53.855Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/74/53e57bcf44f177cf006a701dcc7680b61cdb74fbe5ce426585b44c2a93f0/awslabs_cdk_mcp_server-1.0.11.tar.gz", hash = "sha256:dbe394d99458067c7537c5ebea779f731a90e79915f20110200d77fb12683fcd", size = 151503, upload-time = "2025-12-31T00:12:50.585Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/d7/bfe3e6be3fb571cc69b765e30c9ace0034d70c19f4b8fa0b8f556118c38f/awslabs_cdk_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:2a2f0f182efb595078a68ff938e4840bc58cb0952142d6625fa2e1022ba69387", size = 71087, upload-time = "2025-12-11T23:40:48.849Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/a1/7e2fe97d68f74a76227a9011032f439e17c2ceb0d3fbd62f3c74d3314a89/awslabs_cdk_mcp_server-1.0.11-py3-none-any.whl", hash = "sha256:7b783f043138157c400213004160f235a1ed3d1105dc812f12ea7919b1a579a9", size = 71190, upload-time = "2025-12-31T00:12:47.646Z" },
 ]
 
 [[package]]
 name = "awslabs-cfn-mcp-server"
-version = "1.0.12"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -685,14 +685,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/de/8d2d4858b84efd64f1260c8fa85aaeb6418056f0f92bfbd85547f5dc0ba3/awslabs_cfn_mcp_server-1.0.12.tar.gz", hash = "sha256:69764b9daf4daeb125f19835044985f843a9b48aaff63120d4e21b8b0eb75874", size = 102720, upload-time = "2025-12-11T23:40:51.741Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/8e/a7ac6c053e8d56c2ec19a8db95954343a6be0250fb27f880600f7037b60f/awslabs_cfn_mcp_server-1.0.13.tar.gz", hash = "sha256:17f4fc8a0ea6f65c5755c4e960605ca9e39db8fd78c1c7e68c1e27063f39d907", size = 102760, upload-time = "2025-12-31T00:20:30.717Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/bc/244ea52a0ccd809c5d639926db79a3e6e72b3b1da49051fa79fe2ddc90d8/awslabs_cfn_mcp_server-1.0.12-py3-none-any.whl", hash = "sha256:627693b25f6be52fbc1b348a16f5703c0956692962a44cf764690f3f37dbe2ed", size = 24582, upload-time = "2025-12-11T23:40:47.173Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/10/305857be70c5d6a77352f338269503d099bdbe8c7d1bcd5595f3ca72bfea/awslabs_cfn_mcp_server-1.0.13-py3-none-any.whl", hash = "sha256:d542df4d5fc17e4af28618de93d514d6dc31ce4726b51aa49260924f08ec77a1", size = 24622, upload-time = "2025-12-31T00:20:29.546Z" },
 ]
 
 [[package]]
 name = "awslabs-cloudtrail-mcp-server"
-version = "0.0.6"
+version = "0.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -700,14 +700,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/57/f0/c53fa3cc8b4566bc0729641d55242f7a4afcd14fc81cfa2f3392b7ff42b6/awslabs_cloudtrail_mcp_server-0.0.6.tar.gz", hash = "sha256:160ae83c5c3629349dca702e615a091999eea6d545b8a07b7d1468e49e3b41be", size = 110281, upload-time = "2025-12-11T23:59:17.449Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/64/1f93fb6e8a21dcf91733fd4b9cd12f7f90b60e1cd0a600fe1251be46cb68/awslabs_cloudtrail_mcp_server-0.0.7.tar.gz", hash = "sha256:db138ead02f922920c88561de4aa3dfd0aabbe8ffe8989d1671322f3d13395e8", size = 110314, upload-time = "2025-12-31T00:20:31.892Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/be/474c8039558884c492a4cb3b8cf85093cf99ba213c9ef94d3721302399ad/awslabs_cloudtrail_mcp_server-0.0.6-py3-none-any.whl", hash = "sha256:da8e514978b5823d9c1cd4061159686f8515b80189bbb177c690dd30dfa43350", size = 22113, upload-time = "2025-12-11T23:59:16.401Z" },
+    { url = "https://files.pythonhosted.org/packages/62/cc/4abd2c6aebf6e41d2e548e842d3ce1531fe2f0e284be65e3f0e13fff3edb/awslabs_cloudtrail_mcp_server-0.0.7-py3-none-any.whl", hash = "sha256:e90d6bb41558dfa90990399851572333b1c026e860c7fd2c105673049f38d6ee", size = 22154, upload-time = "2025-12-31T00:20:29.868Z" },
 ]
 
 [[package]]
 name = "awslabs-cloudwatch-appsignals-mcp-server"
-version = "0.1.14"
+version = "0.1.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -716,14 +716,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/79/ae90428519a7e5fe6ba7e39ea2d70251178924ca5432f6a1949de05dc7eb/awslabs_cloudwatch_appsignals_mcp_server-0.1.14.tar.gz", hash = "sha256:482fdbff1d6a668eaa4c952ed337283df7ca2ae41acbc42a0d87dbb4a3f6c9cd", size = 206504, upload-time = "2025-12-11T23:59:20.636Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/d6/e874de7c1d7f01a32c84e0ab39aa1db8e4d77a6b6137e5b3934a51878e11/awslabs_cloudwatch_appsignals_mcp_server-0.1.15.tar.gz", hash = "sha256:d8558a780b798aa2850419ebf9980f84934735d4bb7ab2805c1a8e6e45b49f91", size = 206545, upload-time = "2025-12-31T00:20:37.028Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/6d/1145dc542162c0d2dc06e31284abac3d8a7ac4e04ef5e21e67e218c11bae/awslabs_cloudwatch_appsignals_mcp_server-0.1.14-py3-none-any.whl", hash = "sha256:4b7383567e75e94b23ed7fe8d006c08c093eb4dfe841c12286d66ab9c30d2520", size = 85177, upload-time = "2025-12-11T23:59:17.422Z" },
+    { url = "https://files.pythonhosted.org/packages/65/78/71efb148d9a8655185e043a0b539da9e72efe4c61ffed396c5a873881792/awslabs_cloudwatch_appsignals_mcp_server-0.1.15-py3-none-any.whl", hash = "sha256:920485cf96f034377940c677f2b6bf9bf2e0caa4cf54e933708edf9741bfff45", size = 85216, upload-time = "2025-12-31T00:20:35.65Z" },
 ]
 
 [[package]]
 name = "awslabs-cloudwatch-mcp-server"
-version = "0.0.14"
+version = "0.0.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -735,14 +735,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "statsmodels" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/4b/6552ee677df5e4530b57b45ea482bf0c5cce200099adf3f954375ded420b/awslabs_cloudwatch_mcp_server-0.0.14.tar.gz", hash = "sha256:53698377aa398dae9095353013644b4d10d3c788f2691ecada2ec4fe36701512", size = 289514, upload-time = "2025-12-11T23:59:23.72Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/15/4c059b8adaa775aff5acc2689cb29e3b88d9070fb2e01a6039ecf367179f/awslabs_cloudwatch_mcp_server-0.0.15.tar.gz", hash = "sha256:dfbe476d8df075b2a84774c9c8162837051e9c084aadb45351c56ad1ef6afc7f", size = 289553, upload-time = "2025-12-31T00:20:35.097Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/af/66/ada6a735ae1b043e9632d4cf1c573f468c01da3077e2113a3ed62af94eb5/awslabs_cloudwatch_mcp_server-0.0.14-py3-none-any.whl", hash = "sha256:092ff88321bbb899dc03dc9e060760c79b9b299e5081d16997b8bf7225048580", size = 153194, upload-time = "2025-12-11T23:59:20.406Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/f7/a3e5bd7e678cf7599c82fe7095403eafc5fa5177052cf9c1a2f98b6e906e/awslabs_cloudwatch_mcp_server-0.0.15-py3-none-any.whl", hash = "sha256:c083cdd6a5ef76a4234eed84815a413aaa67051555488cbe3273b4c8a27c3118", size = 153233, upload-time = "2025-12-31T00:20:32.93Z" },
 ]
 
 [[package]]
 name = "awslabs-code-doc-gen-mcp-server"
-version = "1.0.6"
+version = "1.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defusedxml" },
@@ -751,9 +751,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "repomix" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/a9/ba7ee32eb3980f040e650d27b58d7fc609ee039c9a75c3848a5239d457fb/awslabs_code_doc_gen_mcp_server-1.0.6.tar.gz", hash = "sha256:50b7bc36ff042ce4d6bb85dd6100a3d20b03646a7567c1c63f444428e5985eb8", size = 118167, upload-time = "2025-12-11T23:59:21.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/13/c3997aca91b7375a61d6f43738e05e2d1554fc8487b4ca371b0c58255544/awslabs_code_doc_gen_mcp_server-1.0.7.tar.gz", hash = "sha256:3d40b6d3eaf785e9947f61e6906ed5ffa334ea2dad016d62fc203d8d20e04b14", size = 118590, upload-time = "2025-12-31T00:20:37.947Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/53/ecd1159c389d1abb9f9ae651e554e6673dbf84d0dfb453d74beb486920f9/awslabs_code_doc_gen_mcp_server-1.0.6-py3-none-any.whl", hash = "sha256:3eedffde6136b269e4101a4faabf009467d53ea02b6b0475a0416a0940ffb0a9", size = 29412, upload-time = "2025-12-11T23:59:17.497Z" },
+    { url = "https://files.pythonhosted.org/packages/47/56/c19e3d55bbe80406ebe052f231bbcd4f88b2465243d61e29a81cf8916cd1/awslabs_code_doc_gen_mcp_server-1.0.7-py3-none-any.whl", hash = "sha256:876455c2d0bf919cbb9c3eebfe7cf41c314c564058ba6e73f78b8832ee286095", size = 29868, upload-time = "2025-12-31T00:20:35.715Z" },
 ]
 
 [[package]]
@@ -770,7 +770,7 @@ dependencies = [
     { name = "awslabs-aws-api-mcp-server" },
     { name = "awslabs-aws-dataprocessing-mcp-server" },
     { name = "awslabs-aws-diagram-mcp-server", version = "1.0.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "awslabs-aws-diagram-mcp-server", version = "1.0.13", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "awslabs-aws-diagram-mcp-server", version = "1.0.14", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "awslabs-aws-documentation-mcp-server" },
     { name = "awslabs-aws-healthomics-mcp-server" },
     { name = "awslabs-aws-msk-mcp-server" },
@@ -915,7 +915,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cost-explorer-mcp-server"
-version = "0.0.14"
+version = "0.0.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -924,14 +924,14 @@ dependencies = [
     { name = "pandas" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/f3/61e5cb7f6d818c0d14e6c2838232ecd08f4e8b5235f9990be4de6dc3f8b2/awslabs_cost_explorer_mcp_server-0.0.14.tar.gz", hash = "sha256:b0bd1285564ea0866131cc0501630094ec4ee7ba15151041bb34d1bb240ebe38", size = 137421, upload-time = "2025-12-11T23:59:14.543Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/7a/ff42099acc5cfc0d712282667ce3fe1936df9847dc76bc51bf969f23bdb0/awslabs_cost_explorer_mcp_server-0.0.15.tar.gz", hash = "sha256:ccbd8c77dbfe062f0b050a685721de0c5a3ef1f0d8d805bd9b7fa4fc2fde0c47", size = 137512, upload-time = "2025-12-31T00:20:34.184Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/4c/66a030165cad7b304e95878858b72705c9f1963301a8c174e79e6ffbd2ac/awslabs_cost_explorer_mcp_server-0.0.14-py3-none-any.whl", hash = "sha256:7e2b6545e3ed54fe06d11fc1c7bffd8c67a363a36c1fa27d89a76ca47b984b13", size = 38466, upload-time = "2025-12-11T23:59:13.324Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/c1/2432a0c64ab212f062d5440c197cb8c64ce6325d90bd97d3dd518a31f2f8/awslabs_cost_explorer_mcp_server-0.0.15-py3-none-any.whl", hash = "sha256:adf11919f1662a0ba5a402db5b7cc51962b54763148f380c8bc97aba9a7f494f", size = 38537, upload-time = "2025-12-31T00:20:32.729Z" },
 ]
 
 [[package]]
 name = "awslabs-documentdb-mcp-server"
-version = "1.0.7"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "loguru" },
@@ -939,9 +939,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pymongo" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c3/b4/476f8768ca46c33c6043df572276fce16033067f5a236196382659d1f1b4/awslabs_documentdb_mcp_server-1.0.7.tar.gz", hash = "sha256:3368d5f0bded23ebbe911eb253ec3aeb0c2f33e531a8c322049a416a54c6d65c", size = 109189, upload-time = "2025-12-11T23:59:22.536Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1c/48/fd21dc76fa37a8637a7463be15f9e23880724347545ef89f7ba553650261/awslabs_documentdb_mcp_server-1.0.8.tar.gz", hash = "sha256:404231ce6fab8787b043185710836c9587a3c24534ff5f710e4a47c76dfa308d", size = 109189, upload-time = "2025-12-31T00:25:59.889Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/a2/eae7c0e3fd4a3990cd5c8822a05df3a572b553e5903fb7c343cc61c51784/awslabs_documentdb_mcp_server-1.0.7-py3-none-any.whl", hash = "sha256:a81955a0fe710e22193105d98dda8a99133e6102c84b55f2ca8bb5ab27073a7e", size = 23575, upload-time = "2025-12-11T23:59:18.148Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/f7/14fa65a5c01f418b732c473cdfa2046c18e754e654eede5d8336c11da103/awslabs_documentdb_mcp_server-1.0.8-py3-none-any.whl", hash = "sha256:d8c8630a310f0ef75fc5515b34e08c7db62c0146ff60b61d75c9d00090d92b5d", size = 23576, upload-time = "2025-12-31T00:25:58.423Z" },
 ]
 
 [[package]]
@@ -962,7 +962,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-ecs-mcp-server"
-version = "0.1.20"
+version = "0.1.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -973,14 +973,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/68/abec904edf0e60df6c92a21f55fcad81e8d4a4a8199dae1fd1ff228841b6/awslabs_ecs_mcp_server-0.1.20.tar.gz", hash = "sha256:1ce927e7eec1ec2ff544fc4d04eed583e92e08bcc960df140e2d0c92ec25faad", size = 330706, upload-time = "2025-12-12T00:10:50.922Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/42/e372b592134533e75bcbe5640b6e1ca30b77e907ae8c3a095b1c9f1e5fd7/awslabs_ecs_mcp_server-0.1.21.tar.gz", hash = "sha256:089aada2b4a5e212da450fa5e8d242e02c54dbca8d48f6653b3acb9114324d25", size = 346763, upload-time = "2025-12-31T00:26:00.982Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/ab/2042d2e9b5640f7f7bb5b0ce1da167e2a227aeab6936353fc7141e5efaaa/awslabs_ecs_mcp_server-0.1.20-py3-none-any.whl", hash = "sha256:69775ab921eaa22c87c8bcc32a314a9dee2eaace7e69abcab3b0f7dab078508a", size = 110162, upload-time = "2025-12-12T00:10:48.618Z" },
+    { url = "https://files.pythonhosted.org/packages/64/42/d7d4e4fb33bf0abc09968a2d63ad34bb9ae0efba18fece65bb2698000659/awslabs_ecs_mcp_server-0.1.21-py3-none-any.whl", hash = "sha256:5429bda53e0754b2036bba16fc025a79bdeda4bd0c6da1468d0edbf58a6c0c85", size = 110263, upload-time = "2025-12-31T00:25:58.831Z" },
 ]
 
 [[package]]
 name = "awslabs-eks-mcp-server"
-version = "0.1.17"
+version = "0.1.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -993,14 +993,14 @@ dependencies = [
     { name = "requests" },
     { name = "requests-auth-aws-sigv4" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/20/51a0d24b3580a1515789a3024be99de19f0a3a5135e40d6c8ac35b42087f/awslabs_eks_mcp_server-0.1.17.tar.gz", hash = "sha256:0c1f9e62e8bf92a212119274445166803bcc98a383e92c42c8c9af0b3b10f7c4", size = 218210, upload-time = "2025-12-12T00:10:57.457Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/2f/1cc494326c817a2579b9fa7a912f6964a1f869edcb2a84e929d75c32ace4/awslabs_eks_mcp_server-0.1.18.tar.gz", hash = "sha256:e2069d7444a2c7eebd3e29dc726597e68b86eec2fb3de2684225f35b7f37310a", size = 218244, upload-time = "2025-12-31T00:26:05.201Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/54/81c9ad734d145c958f1ad52bd9485ea32679f09ec8dd44d3c841be4fd160/awslabs_eks_mcp_server-0.1.17-py3-none-any.whl", hash = "sha256:01cae1f93b83b47bd6ec393bd87558570259499d361e451554c1d014dc5fc7f9", size = 80459, upload-time = "2025-12-12T00:10:54.573Z" },
+    { url = "https://files.pythonhosted.org/packages/73/aa/04451ff782ee909c4128e187cf117045684ba25d867c917c75758e2ffffc/awslabs_eks_mcp_server-0.1.18-py3-none-any.whl", hash = "sha256:d09bea3d9888bf3096b973e301445ff1158267bb811038946ddb19bc84a8d868", size = 80501, upload-time = "2025-12-31T00:26:02.543Z" },
 ]
 
 [[package]]
 name = "awslabs-elasticache-mcp-server"
-version = "0.1.10"
+version = "0.1.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1008,14 +1008,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/a0/9cb875a2dc52c77972a38c2b7a9cbe88539d5d754e2eabe0a18b5637717c/awslabs_elasticache_mcp_server-0.1.10.tar.gz", hash = "sha256:a454724d9cc613b20099b895ed62999bc87be25e3f208152969d29a4c65a702a", size = 175107, upload-time = "2025-12-12T00:10:58.074Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/15/364ac6e7a4bbfd622256c5613f94c3bdc79c99127b5b2f295d60bd5b923c/awslabs_elasticache_mcp_server-0.1.11.tar.gz", hash = "sha256:0547f826dff4e7e3bb938d693d2927b2dbc29f49ebce96aa3ac0bc3892ebb0ec", size = 175144, upload-time = "2025-12-31T00:26:02.25Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/ef/78fb257138d5fe33b2486279b906ace051fa25653c5393df8431ca7d7ac3/awslabs_elasticache_mcp_server-0.1.10-py3-none-any.whl", hash = "sha256:3bd430da95e7f16c64d30f0d1ce5163bc2bc772c66f46d09f6b45723cbe8a849", size = 98859, upload-time = "2025-12-12T00:10:56.037Z" },
+    { url = "https://files.pythonhosted.org/packages/41/df/ce7c23fa61aa470fc3f85887dca027b929dd3b59652871e4c4dae8b30dca/awslabs_elasticache_mcp_server-0.1.11-py3-none-any.whl", hash = "sha256:329d99b74cd47ce2aa3600558d0c573ed96e555cd3360cf0bee1635a1145532f", size = 98903, upload-time = "2025-12-31T00:26:00.836Z" },
 ]
 
 [[package]]
 name = "awslabs-finch-mcp-server"
-version = "0.1.9"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1024,28 +1024,28 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/b9/29e3c3c4e7074e37e329152674e2958f79befc57d0f9d81903cafa5edb71/awslabs_finch_mcp_server-0.1.9.tar.gz", hash = "sha256:b324a75ac858e0e84d51e365fc1b6ce1048a422a4a4f4bae662b476a354db126", size = 113931, upload-time = "2025-12-12T00:10:51.987Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/2c/6658612d6da25db98be1064a8a6c3091a3cd5d6a055c84bcef8fd50cfbdc/awslabs_finch_mcp_server-0.1.10.tar.gz", hash = "sha256:5bdcb7fcf426acd84592b24168b6b77fd341906f8be8c2ede7bc16ae09a1f599", size = 114001, upload-time = "2025-12-31T00:26:04.027Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/60/5f53bd3f5b48b5abf5897caa18a6be4374e993a2ab3804605e75bdb7f8df/awslabs_finch_mcp_server-0.1.9-py3-none-any.whl", hash = "sha256:990959e1ab51eb5796b416ee9fa1e3e5a358d1c6840f1928765f3557fc6b5ca8", size = 32496, upload-time = "2025-12-12T00:10:49.954Z" },
+    { url = "https://files.pythonhosted.org/packages/28/c5/c7da3e12fc6d272120080a519b2305b36cc91dd6fc5f9446530babbc6c82/awslabs_finch_mcp_server-0.1.10-py3-none-any.whl", hash = "sha256:16882c4d791b64ebda1381dbf41b6725e237502dbde1bd5886424e1c93e02b60", size = 32588, upload-time = "2025-12-31T00:26:02.262Z" },
 ]
 
 [[package]]
 name = "awslabs-frontend-mcp-server"
-version = "1.0.7"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/46/b246585ed9c71e8b1fa29c40e270cbf89f6f0abc0a8c3f1460a6b109d682/awslabs_frontend_mcp_server-1.0.7.tar.gz", hash = "sha256:2d1d6a88f7628291d01d57450443feb6bb5608c2c5630b8ebd075c54df8fb399", size = 89219, upload-time = "2025-12-12T00:10:53.011Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/ca/31e0ac6c76841c20ecca9c32978880a0ef945949bdde6e2190beb95cec96/awslabs_frontend_mcp_server-1.0.8.tar.gz", hash = "sha256:a1b57f47ff3abc448aa3acf08e3fe13f1fa9bd307eb8933cc5cdca7c5a8eb69f", size = 89245, upload-time = "2025-12-31T00:30:07.308Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/28/b44b0128b54d14203904f7b31c8b24d322595f90af719bd5a75e4128ab1a/awslabs_frontend_mcp_server-1.0.7-py3-none-any.whl", hash = "sha256:1235dec3b2167179903862d5545fc502ea4a102fc3f3c5f039e42896806b4f0c", size = 17089, upload-time = "2025-12-12T00:10:51.654Z" },
+    { url = "https://files.pythonhosted.org/packages/77/6b/6ce4d4ecb595e503b2ebd4329f8d03414a784c0bcf8fad32eaf73a4f7355/awslabs_frontend_mcp_server-1.0.8-py3-none-any.whl", hash = "sha256:4fc32f2900638984a1f10cb6b95359dd68f9f0eeeaf2288510fac995c65e4940", size = 17131, upload-time = "2025-12-31T00:30:06.078Z" },
 ]
 
 [[package]]
 name = "awslabs-git-repo-research-mcp-server"
-version = "1.0.9"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
@@ -1061,14 +1061,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/42/2423b862bb5d19e9ef97095857b602db8df7ce9610753bca918fbc974738/awslabs_git_repo_research_mcp_server-1.0.9.tar.gz", hash = "sha256:682dbac57fde7b7d3b658e5cc97a1828dc5833127ae43953a81fd442bc6d3c66", size = 213858, upload-time = "2025-12-12T00:10:55.88Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/a8/3472e6aad9addb90d167119ef46f97445249872fc6e80e51850e08b25975/awslabs_git_repo_research_mcp_server-1.0.10.tar.gz", hash = "sha256:6bc1b36ec37cac9e185ef9705d194133dac446dd599a2a846918fa57b87e1205", size = 219831, upload-time = "2025-12-31T00:30:10.614Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/24/a30109b4827d9d2712c29749c390ff04af3296c18b2a389019c78ff5e6f6/awslabs_git_repo_research_mcp_server-1.0.9-py3-none-any.whl", hash = "sha256:a872a1df521564ab0da4b47593482a2cb562d750660b400d76fe16f796774371", size = 46631, upload-time = "2025-12-12T00:10:54.497Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/a2/fc3ccf047bdb92ac5ee9e7c2db223b973754b881c880752d55dfb1cd89e6/awslabs_git_repo_research_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:c12ff06e407c55c15b82dcecaed3f1b517a4f2135cb7f4a758a75b0b9d503726", size = 46687, upload-time = "2025-12-31T00:30:06.839Z" },
 ]
 
 [[package]]
 name = "awslabs-iam-mcp-server"
-version = "1.0.9"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1077,9 +1077,9 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/34/09/eac6201f019e6516b519c34c357364af46cd02d38b035b7545ae15f5705b/awslabs_iam_mcp_server-1.0.9.tar.gz", hash = "sha256:6fb01a21ee342bc78bff8e0d1b0a91d5bff424ce8822960ef489c05ca6ef42b1", size = 118078, upload-time = "2025-12-12T00:31:04.772Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/16/ab/f5d53f5a28e15883ec1938faf404d05f82807d3248794ac5b9b8ea0dccca/awslabs_iam_mcp_server-1.0.10.tar.gz", hash = "sha256:dea716848aabe50519a76ab173edee482c61b481592f53a17c75f621ba28907d", size = 118171, upload-time = "2025-12-31T00:30:09.521Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/71/c29a96a3438fc7baac7b2613118152ff8f4bb5333e8de675b7ac451e49f4/awslabs_iam_mcp_server-1.0.9-py3-none-any.whl", hash = "sha256:0b97216c98bb4d6ae116579a7698cf7af6a7921fce0fd690855ff9168661acdf", size = 26904, upload-time = "2025-12-12T00:31:02.274Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/97/231e3cda4112aee34c13bb37e0b824b5e651787ed06561855539af7067e3/awslabs_iam_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:7dbfe02ac60352653ccc847f846c854dea3bdd1313b9b164499c048f775a8a88", size = 26974, upload-time = "2025-12-31T00:30:06.344Z" },
 ]
 
 [[package]]
@@ -1098,21 +1098,21 @@ wheels = [
 
 [[package]]
 name = "awslabs-lambda-tool-mcp-server"
-version = "2.0.11"
+version = "2.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/2d/8c18f3c7f886ae5477e7e433eca6c4c51c7b1001a0a43f0a657b7750ef02/awslabs_lambda_tool_mcp_server-2.0.11.tar.gz", hash = "sha256:210b966374d1b1e15b8c8537f8ef1f6d3c5c94df2a84395755d31b7c20202dd8", size = 106145, upload-time = "2025-12-12T00:31:01.583Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/da/7b3b7fb14757d389d7b84f9be9d11fae44376312a88d135cb7215d49ebf7/awslabs_lambda_tool_mcp_server-2.0.12.tar.gz", hash = "sha256:e31ecc3154b236774ee4d9ce4b6ed3e8baedbf30018c0c5e00ed80e9053af4e3", size = 106178, upload-time = "2025-12-31T00:30:04.572Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/8c/7305c422cc7e0367a000cf14f9a65d3323bb4b6038ef835f2d40f0e7f271/awslabs_lambda_tool_mcp_server-2.0.11-py3-none-any.whl", hash = "sha256:f13adefbec697f3f9fcc2a11e6d934c87e8367fa1d6db5a880813210d3dbf9f3", size = 14268, upload-time = "2025-12-12T00:31:00.196Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/92/93166707a56555a6a83d6513d756e351db44c204dd8a0496c4781200be39/awslabs_lambda_tool_mcp_server-2.0.12-py3-none-any.whl", hash = "sha256:61a49ce236d262e0fa45ff0763e9672f2e1d0ce586e006075cbff7ea7ef47cf7", size = 14309, upload-time = "2025-12-31T00:30:03.199Z" },
 ]
 
 [[package]]
 name = "awslabs-memcached-mcp-server"
-version = "1.0.10"
+version = "1.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "loguru" },
@@ -1121,14 +1121,14 @@ dependencies = [
     { name = "pymemcache" },
     { name = "python-dotenv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d9/56/8509cbca3ab5a3a67ba24c255e3de416bdc68c498cadaace9e87fb902071/awslabs_memcached_mcp_server-1.0.10.tar.gz", hash = "sha256:25b2a2c5cc77cb53cef201d15557e5b967d0a50523bd23d52c977552832d829f", size = 96382, upload-time = "2025-12-12T00:31:09.033Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/b8/f0dc4b8cf235d13eeb71493df3f94aa8a019cd9eb5584e7f3fcb4d574bf9/awslabs_memcached_mcp_server-1.0.11.tar.gz", hash = "sha256:cd40c1118e71b10f30492db9bc4aa5cf3912623947172ee47ddcaeb04e9a88fc", size = 96412, upload-time = "2025-12-31T00:34:22.074Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/ba/963e66965b241c33546cae333e3192aa68cf8c213ffb001ddacb7a475abb/awslabs_memcached_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:356addde150dabdcc599ebb864aa9d2139cbe23634e2baf3f0877f5a78291efd", size = 16771, upload-time = "2025-12-12T00:31:04.186Z" },
+    { url = "https://files.pythonhosted.org/packages/03/25/bd9b14aec49f794b24fd211a36049a25e4a49d9d9d85e16c0c6275ea5995/awslabs_memcached_mcp_server-1.0.11-py3-none-any.whl", hash = "sha256:9e085856d7df6795c2c83b1bb3ac423247fb8276c04049f497619aacb647a86b", size = 16818, upload-time = "2025-12-31T00:34:20.657Z" },
 ]
 
 [[package]]
 name = "awslabs-mysql-mcp-server"
-version = "1.0.10"
+version = "1.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asyncmy" },
@@ -1138,14 +1138,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/df/90a72716d44ee91a5b9e82d988fdf79beae232a2c401c0abf56eb59a578b/awslabs_mysql_mcp_server-1.0.10.tar.gz", hash = "sha256:540412c6e532ec3cdb6f3085397ec8349db8d702ac15de7a3e1908d440d2b15f", size = 114169, upload-time = "2025-12-12T00:31:08.118Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/83/dc/ba102964e00d41f33d98f5e71feed73e884db184c5c7f9b41f1483cb40f0/awslabs_mysql_mcp_server-1.0.11.tar.gz", hash = "sha256:5ac8a4c81c63c0c1be096ab8a151f9fad38d93dd62a417a2a13b6c303280ebbe", size = 114209, upload-time = "2025-12-31T00:34:19.517Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/3d/422cadd929db97aa7ad48b46b9b4ed590ee54c700f488b1930510712df6c/awslabs_mysql_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:d6d2600b27518116dd50c8077d74838f6502c37af0af1f4846a0f40d1b73ee87", size = 23592, upload-time = "2025-12-12T00:31:03.265Z" },
+    { url = "https://files.pythonhosted.org/packages/16/93/83259b982fd0726527f4fdeeee7dcbcc32b45659898a589c3eff590a3c6f/awslabs_mysql_mcp_server-1.0.11-py3-none-any.whl", hash = "sha256:4281aece203944e12cd0d6193179eb1e9e4c2949e507f681af90c5867ca89e83", size = 23634, upload-time = "2025-12-31T00:34:17.974Z" },
 ]
 
 [[package]]
 name = "awslabs-nova-canvas-mcp-server"
-version = "1.0.9"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1157,14 +1157,14 @@ dependencies = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/2b/b7746e92286bd16225671d80e748f3099168ac9af8b1294bb315d86bb450/awslabs_nova_canvas_mcp_server-1.0.9.tar.gz", hash = "sha256:87b7a270ea3b1f5f569107415dc144ffb57f4c27bc0e182750acf5adda6b75e9", size = 106938, upload-time = "2025-12-12T00:31:00.356Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1c/3b/fc46b808e5494992fc8dc7cb513f73d48ae6c486de7b429f0ffb1cd2b5d1/awslabs_nova_canvas_mcp_server-1.0.10.tar.gz", hash = "sha256:f13f92b11a1cc15a4609b818cf8f16ca6762a96ca1be08fb06fd5e662b41483d", size = 106983, upload-time = "2025-12-31T00:34:24.229Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/08/a7fe93d87c1cb9f93df0004cbf63ffbac547f88daa046bb96f5869eb2da4/awslabs_nova_canvas_mcp_server-1.0.9-py3-none-any.whl", hash = "sha256:00750bb6ade479c4a12c91041c6005e7ed95ba3f7d9420ce74cf704778a09918", size = 21332, upload-time = "2025-12-12T00:30:59.134Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/4a/312dd107da4635ad15ebef5b37d9f8c98bdba6178ddfd3d1e05c2513150a/awslabs_nova_canvas_mcp_server-1.0.10-py3-none-any.whl", hash = "sha256:922fd430ba8fefff33a836389f8082d60fe00f9ebecb37f8abb541cc13884b54", size = 21390, upload-time = "2025-12-31T00:34:20.787Z" },
 ]
 
 [[package]]
 name = "awslabs-postgres-mcp-server"
-version = "1.0.13"
+version = "1.0.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiorwlock" },
@@ -1175,14 +1175,14 @@ dependencies = [
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ff/5e/24d00b5c86b9e10a82619fdd28fa095dcf8384db136844e004d37c5807f4/awslabs_postgres_mcp_server-1.0.13.tar.gz", hash = "sha256:1e149254ee5b432c659b24a5bdd1c96281b3ec93e8623b16222d9b01567741e0", size = 180545, upload-time = "2025-12-19T00:37:51.439Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/a9/da15c5037d8785c7e29af962e8ba7beb7f6659e46f8dc4507dd7cc48531b/awslabs_postgres_mcp_server-1.0.14.tar.gz", hash = "sha256:56408f01f5e6e04b7d6c6ab481298cbc0f60f0dc3cd6763f45cb169576f9d02e", size = 180571, upload-time = "2025-12-31T00:34:26.293Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/da/92eb6716013216d3ad6c1cd1c0161bbb4eb7fb2db015b1a6e1043188ebe1/awslabs_postgres_mcp_server-1.0.13-py3-none-any.whl", hash = "sha256:ffb48a6ce7758b0cf7fe2efcc983866b546db1a9d87fa251dbbd9099a457dbb6", size = 33519, upload-time = "2025-12-19T00:37:49.334Z" },
+    { url = "https://files.pythonhosted.org/packages/10/f1/33fc6cc51707165420a1584d066e06100b2b45ec1f45c98489e15179f130/awslabs_postgres_mcp_server-1.0.14-py3-none-any.whl", hash = "sha256:6c04a4ed437617a45220500fd45ce25b2d5fc7481d8514828e2b8899469664aa", size = 33560, upload-time = "2025-12-31T00:34:21.451Z" },
 ]
 
 [[package]]
 name = "awslabs-prometheus-mcp-server"
-version = "0.2.8"
+version = "0.2.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1193,14 +1193,14 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/79/f48e42f10a574847cfc7e7a39a6a23b1b0d1e3fea1ae8003e9165f7e3784/awslabs_prometheus_mcp_server-0.2.8.tar.gz", hash = "sha256:2e737ac19bdf19b92c46b39bd1df74b02e0ba45a186f7321d88143b12939bceb", size = 112632, upload-time = "2025-12-12T00:42:24.16Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/13/8002d2bca20333272d7df84292210899b6b8ea3f7e862408abc168e410cf/awslabs_prometheus_mcp_server-0.2.9.tar.gz", hash = "sha256:ec4e887dcf8004c97787771d1597bd677794db15e6fe7f3e762d346b3836cd3e", size = 112705, upload-time = "2025-12-31T00:40:55.314Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/9f/587f294eae080d32cf552065e80672dadae982310fd5f7a66ec73a458bb4/awslabs_prometheus_mcp_server-0.2.8-py3-none-any.whl", hash = "sha256:cebbcd037168a59765f7556a1b6c7d27cd917a0ee5cb22c691f7ca2ff641ec94", size = 21015, upload-time = "2025-12-12T00:42:22.567Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/5e/43d37a3609b6f577dfbe200b1c621742a8564f8bb717dd686641c293593d/awslabs_prometheus_mcp_server-0.2.9-py3-none-any.whl", hash = "sha256:d80a442f5b0ba0eda35581cd2ecb497e5ff906b9a784bf3675df7102762aa2e7", size = 21120, upload-time = "2025-12-31T00:40:53.184Z" },
 ]
 
 [[package]]
 name = "awslabs-redshift-mcp-server"
-version = "0.0.13"
+version = "0.0.14"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1210,9 +1210,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "regex" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/67/070a11b00f929f251a18375ed2ffedbaf570e5efa1c54ab8f98a374e38e3/awslabs_redshift_mcp_server-0.0.13.tar.gz", hash = "sha256:2a9eb2e78d6ae70d07e70cd7e60d1e5fcba0c56d0c0e5a1e0e4b32c98d910a1c", size = 118404, upload-time = "2025-12-12T00:42:27.121Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b5/d1/a9fe3481f6d9ada009b55d3890f953f2e0f90dd85e171d3805465194fa8e/awslabs_redshift_mcp_server-0.0.14.tar.gz", hash = "sha256:0442dac5ba8547f5130e8172bcc332c2cff59a49acc1ccb9dd7c6322f12ba2dc", size = 118464, upload-time = "2025-12-31T00:40:54.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/c8/985d132561dcd4185ccf8f155d3a2763f2c28fce31737c408815fc286347/awslabs_redshift_mcp_server-0.0.13-py3-none-any.whl", hash = "sha256:ea8b5d5b432ed08528d0c70e0ded110a0622c9e4ac033803b6727f152bd64c69", size = 28489, upload-time = "2025-12-12T00:42:23.63Z" },
+    { url = "https://files.pythonhosted.org/packages/96/d5/4f1e9eb15bffdf890d46e64fb6e12d6b98f053fa8e288f5df0b4a6a1e8cf/awslabs_redshift_mcp_server-0.0.14-py3-none-any.whl", hash = "sha256:c4b43dd35dcdf5cfcfe2406bbd89ae8e2433d6d5eeb3a68ccdb687e9d670e798", size = 28532, upload-time = "2025-12-31T00:40:52.261Z" },
 ]
 
 [[package]]
@@ -1236,21 +1236,21 @@ wheels = [
 
 [[package]]
 name = "awslabs-stepfunctions-tool-mcp-server"
-version = "0.1.15"
+version = "0.1.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/e3/cdd47cb8ce064d50d1478351fa49e7d3ec915a6565159df8f6e8cc277b51/awslabs_stepfunctions_tool_mcp_server-0.1.15.tar.gz", hash = "sha256:8c4aec4f5628578fcc3a241fbfbadb3a8f8d6e6ff0331b373dab39026b26113f", size = 105104, upload-time = "2025-12-12T00:42:21.671Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/b4/ada8d6c157500e8fed26ca6f2a1c211d1527a970ac95a8f6cd2e4bbc68c6/awslabs_stepfunctions_tool_mcp_server-0.1.16.tar.gz", hash = "sha256:ba35cbd49c1676db9060b8770b4aeff3dfae61bc1ba69b20e04d22605491c805", size = 105128, upload-time = "2025-12-31T00:40:57.577Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/19/5aaaff8ae36be717b04f58ffe8f73ba4ca6c3280d6ea33000d7136e948f0/awslabs_stepfunctions_tool_mcp_server-0.1.15-py3-none-any.whl", hash = "sha256:4824144d6c3ba8a270dfc739ed38ef6bfc69151695387af552995da73793b0cd", size = 16778, upload-time = "2025-12-12T00:42:20.531Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/b5/c02ac9fea326361aae218e476bf06fb3b5388b8fed093dcc056dcc15d972/awslabs_stepfunctions_tool_mcp_server-0.1.16-py3-none-any.whl", hash = "sha256:61412710f002cdf845c0a204c40644564c72d2f974796d340adf62eb3e2710a3", size = 16820, upload-time = "2025-12-31T00:40:56.406Z" },
 ]
 
 [[package]]
 name = "awslabs-syntheticdata-mcp-server"
-version = "1.0.7"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1260,14 +1260,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-snappy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/00/84f320555431b89193c92b3b2ff45c81a5a37adac58561d284ff517f3930/awslabs_syntheticdata_mcp_server-1.0.7.tar.gz", hash = "sha256:c4bbcbf280dc8bcdb7bf06b3e9b5ff0497c4682f299d0745bcc6a872435a6bdb", size = 121892, upload-time = "2025-12-12T00:42:22.869Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/56/d39f095e8c7e72eedaade6cdcc357a250432e885d54bdd0b77e943f9627e/awslabs_syntheticdata_mcp_server-1.0.8.tar.gz", hash = "sha256:a233e96e20be2c5ec82a824968e0cf6deeef71f4d1b555a9f3206e46ffe137ea", size = 121922, upload-time = "2025-12-31T00:40:51.695Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/21/54f3ef74ae0231b13e07eed21c292946ff02711969ff391d2d1341617722/awslabs_syntheticdata_mcp_server-1.0.7-py3-none-any.whl", hash = "sha256:426a24d2411eb906505e0502537a2040dc6b6706eaec716244c1cab6109e7e69", size = 25000, upload-time = "2025-12-12T00:42:21.172Z" },
+    { url = "https://files.pythonhosted.org/packages/71/4e/8cdbab743834237dc36b43c5e17734b55e615bb21557d6287d63acc5347b/awslabs_syntheticdata_mcp_server-1.0.8-py3-none-any.whl", hash = "sha256:6a8bd25281b4ad58de86351230855911914e2cd5d41c1fba0178c46e875c9582", size = 25060, upload-time = "2025-12-31T00:40:49.48Z" },
 ]
 
 [[package]]
 name = "awslabs-timestream-for-influxdb-mcp-server"
-version = "0.0.8"
+version = "0.0.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1276,14 +1276,14 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/1c/b1bca0c7f55f6cdcba813c4279f97b5bb691a5413b1cc89c4354586df27e/awslabs_timestream_for_influxdb_mcp_server-0.0.8.tar.gz", hash = "sha256:ef4fb9467daf32404aa9a18449dc717e14f6d4c67474e94a3751957c2e255a28", size = 102027, upload-time = "2025-12-12T00:42:29.714Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/64/6374956d3e49efa11cd66dd498cd339f8f371398625fbb5d3f9fff54aa18/awslabs_timestream_for_influxdb_mcp_server-0.0.9.tar.gz", hash = "sha256:2a1986feac9d8ec77fd9c7573dfd123cff96b2870a98d9fd572d925e36b23021", size = 102066, upload-time = "2025-12-31T00:43:23.461Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/e6/9012cd3fd6864b2d418a21df257d873bb16af08cc9f7a063437cbd3b4558/awslabs_timestream_for_influxdb_mcp_server-0.0.8-py3-none-any.whl", hash = "sha256:6062fc5db64ae1013c6e214dc2f64bf34287342f554f8b1f12040a375b432214", size = 17026, upload-time = "2025-12-12T00:42:24.32Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/ea/c41dd9c157ecc9eb28c8e9577e3e9d77c4803dafb4bdc69d8a040091ce44/awslabs_timestream_for_influxdb_mcp_server-0.0.9-py3-none-any.whl", hash = "sha256:56b6673ac3031ac8a3144da8f1f0735fb3106df42366abf9bf9dbda76346a231", size = 17066, upload-time = "2025-12-31T00:43:22.231Z" },
 ]
 
 [[package]]
 name = "awslabs-well-architected-security-mcp-server"
-version = "0.1.3"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1298,9 +1298,9 @@ dependencies = [
     { name = "pytest-mock" },
     { name = "ruff" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/f6/78545d1e45a244995cea4363aabbcc4eaca7020f424c020991eae6f9cdd8/awslabs_well_architected_security_mcp_server-0.1.3.tar.gz", hash = "sha256:673c3e069292c04ee43fd1aab852800950129c916794f8529457fc15efacfc06", size = 150619, upload-time = "2025-12-12T00:44:43.867Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d2/13/9574ebf9ea305278dbc47b82d10d8aa37a1e588bf12d8d8dccd46e3627c8/awslabs_well_architected_security_mcp_server-0.1.4.tar.gz", hash = "sha256:30c773db8b203c7780a5f9bf0bd511c2e75d266f40eba52949d886adffd359d4", size = 150791, upload-time = "2025-12-31T00:54:06.21Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d6/8e/9521bdb17223d2cb92c08132cad9547e91a43bfc4a1244ea857d7a3a969e/awslabs_well_architected_security_mcp_server-0.1.3-py3-none-any.whl", hash = "sha256:bd44bb1b3661ab2458c4255efb56106be7eaf7090e3ee524be936b417b71c6fa", size = 51288, upload-time = "2025-12-12T00:44:42.662Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/3c/073201b5010cab9753fde58d7ab2cc54fafba14409b82bb3b5b17530b023/awslabs_well_architected_security_mcp_server-0.1.4-py3-none-any.whl", hash = "sha256:62b82ae2e4b014be452742e3af10e5c2bf0a759c1a02371b78e2848765103ef6", size = 51286, upload-time = "2025-12-31T00:54:04.622Z" },
 ]
 
 [[package]]
@@ -1369,30 +1369,30 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.42.15"
+version = "1.42.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a0/82/66f1cd7ce283ab717c96700899e9d128927abda236bd96019747f45ad53d/boto3-1.42.15.tar.gz", hash = "sha256:d673c9b6bb9e293e028e354de6701351f1881e3fbeb25d739dd33c4940a30929", size = 112774, upload-time = "2025-12-22T20:34:10.621Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/cf/6e4a794e73cbf3e774ec27a5acc8442ce55d97cfc5226a20c1f58d8aee16/boto3-1.42.17.tar.gz", hash = "sha256:8a2e345e96d5ceba755c55539c93f99705f403fbfdeef2e838eabdc56750828b", size = 112776, upload-time = "2025-12-26T20:33:38.289Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/28/1cc2a2bade62ea6e3455e0572097758a3e4b38f017181ee7910023145ed8/boto3-1.42.15-py3-none-any.whl", hash = "sha256:94aabb83e3be3e2ea5ffa530cd5e221e8f4eb65f8d126d097e03d1ab80e5c5ce", size = 140572, upload-time = "2025-12-22T20:34:09.116Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/53/9f4241152eb1f5a57351232c14ef411ef35fbcc1d97a63873235d0503a8a/boto3-1.42.17-py3-none-any.whl", hash = "sha256:e0ee40f7102712452f6776af891c8f49b5ae9133bdaf22711d6f4a78963c2614", size = 140572, upload-time = "2025-12-26T20:33:36.307Z" },
 ]
 
 [[package]]
 name = "boto3-stubs"
-version = "1.42.18"
+version = "1.42.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore-stubs" },
     { name = "types-s3transfer" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/c3/95001eefcf62a0c7e8d931826eb4e0cfa7e2c9fb04ed66af2804b50d582b/boto3_stubs-1.42.18.tar.gz", hash = "sha256:885270b0ff70f4b0d44bbcc3a799b802552141b25512b6f96ab9d95305ac7fa3", size = 100885, upload-time = "2025-12-29T20:38:26.423Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/99/e9a30a7be5b1d76d512724116e6715f49a54a248732ee2381a2acb5abd59/boto3_stubs-1.42.19.tar.gz", hash = "sha256:9c22e9c591dc39d7f12e77148e7e52268d11f45ec356cdc4204ba412e5c902a1", size = 100913, upload-time = "2025-12-30T20:37:17.369Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/c9/baacde03892c7c45896bea3f16110d75064e0aee0ac40514329e1d6a5799/boto3_stubs-1.42.18-py3-none-any.whl", hash = "sha256:6ebd0636575df5e5e4be8a449fef1593c68e1da454913385d4d92ecdeb64278d", size = 69779, upload-time = "2025-12-29T20:38:20.843Z" },
+    { url = "https://files.pythonhosted.org/packages/80/66/cffe2e3ba8cfde81f29e7730767a73f431dfac234d1e5dc7e04473f7b8a4/boto3_stubs-1.42.19-py3-none-any.whl", hash = "sha256:d7035ed6d9c4ade5ba48bc024e0511d09b7bc2f800f183dc862c9e44291ee1d3", size = 69778, upload-time = "2025-12-30T20:37:09.413Z" },
 ]
 
 [package.optional-dependencies]
@@ -1402,16 +1402,16 @@ kendra = [
 
 [[package]]
 name = "botocore"
-version = "1.42.15"
+version = "1.42.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/be/ae/80c8689a846066156117ad76cdfca52003fb9d3f1f5de38535f4aba9bf6c/botocore-1.42.15.tar.gz", hash = "sha256:504c548aa333728c99a692908d3e6acb718983585ad7a836d2fab9604518a636", size = 14911429, upload-time = "2025-12-22T20:34:01.198Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/d2/128e2d8b9d426bd3a339e7dcf3eedca55f449af121604b6891ae80f6be9a/botocore-1.42.17.tar.gz", hash = "sha256:d73fe22c8e1497e4d59ff7dc68eb05afac68a4a6457656811562285d6132bc04", size = 14911757, upload-time = "2025-12-26T20:33:27.641Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/e9/0eb22fca88484f356f0af888b9655bd18db9173f8ab6b66600fd9e636473/botocore-1.42.15-py3-none-any.whl", hash = "sha256:888ec4a817cbc56a93d5945b458621d8a6f580694373f8e93f68984f27523913", size = 14584154, upload-time = "2025-12-22T20:33:58.491Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/47/cc00f2421f49784de8b9113c94b7b6580db989721f5109a24b9108308fe1/botocore-1.42.17-py3-none-any.whl", hash = "sha256:a832e4c04e63141221480967e9e511363aa54d24c405935fccb913a18583c96b", size = 14586536, upload-time = "2025-12-26T20:33:24.032Z" },
 ]
 
 [package.optional-dependencies]
@@ -1421,14 +1421,14 @@ crt = [
 
 [[package]]
 name = "botocore-stubs"
-version = "1.42.18"
+version = "1.42.19"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "types-awscrt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/86/db/7b0836eebe73df62a26815a73d20f1db4ac380121951bbbf1d301abeb4f2/botocore_stubs-1.42.18.tar.gz", hash = "sha256:15f2f7715a21d442c1efadc60876d29770e2bb8441c61c3b86ab90122fbfd4b5", size = 42386, upload-time = "2025-12-29T20:31:23.464Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8c/b2/0909f369c7cb641c246595d21623a1ffd9e041f8b52acc5db6cc2c986ebc/botocore_stubs-1.42.19.tar.gz", hash = "sha256:2fcae271af2a24cd46166246589b22c76b49ba30656b3b0c504b92a49fda1ca2", size = 42385, upload-time = "2025-12-30T20:30:37.263Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/47/c32fa2346c381980277fb45782e53fbeb13edf1251adaed17b370400dc24/botocore_stubs-1.42.18-py3-none-any.whl", hash = "sha256:c20a19ef2a8ab9a0c04ac873ef4d4c9c0b3cbbde8cbbde39806eea080b629ebc", size = 66761, upload-time = "2025-12-29T20:31:22.163Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/36/e361ab7583ec6d7710e3757482272d4d8853b70d6674618ceffaebc8bf3f/botocore_stubs-1.42.19-py3-none-any.whl", hash = "sha256:bdfc3ffe6487bcf9c8f66783ea370653ccd7c16950fa82a15f811e7e5ccaeeb0", size = 66762, upload-time = "2025-12-30T20:30:35.753Z" },
 ]
 
 [[package]]
@@ -3074,7 +3074,7 @@ wheels = [
 
 [[package]]
 name = "langsmith"
-version = "0.5.1"
+version = "0.5.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -3086,9 +3086,9 @@ dependencies = [
     { name = "uuid-utils" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/92/967ba83ec40448f46e23f231731b1564207af5ffba32aecef4e1f2f9f83f/langsmith-0.5.1.tar.gz", hash = "sha256:6a10b38cb4ce58941b7f1dbdf41a461868605dd0162bf05d17690f2e4b6e50e7", size = 871631, upload-time = "2025-12-24T19:50:24.823Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/7e/e38706c85dde3865c4eeadb044a19e6c7de4f40e2be0cc9100d2ff6e82aa/langsmith-0.5.2.tar.gz", hash = "sha256:a6186d555ba59732b1b10e2ba6fe34ee0b3c1bf3a7fb8d7be0dec367ac3b75f1", size = 883096, upload-time = "2025-12-30T13:41:36.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/67/1720b01e58d3487a44c780a86aabad95d9eaaf6b2fa8d0718c98f0eca18d/langsmith-0.5.1-py3-none-any.whl", hash = "sha256:70aa2a4c75add3f723c3bbac80dbb8adc575077834d3a733ee1ec133206ff351", size = 275527, upload-time = "2025-12-24T19:50:22.808Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/d8/91a8b483b30e0708a8911df10b4ce04ebf2b4b8dde8d020c124aec77380a/langsmith-0.5.2-py3-none-any.whl", hash = "sha256:42f8b853a18dd4d5f7fa38c8ff29e38da065a727022da410d91b3e13819aacc1", size = 283311, upload-time = "2025-12-30T13:41:33.915Z" },
 ]
 
 [[package]]
