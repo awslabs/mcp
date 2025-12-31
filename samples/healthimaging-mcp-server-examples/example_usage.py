@@ -27,11 +27,11 @@ import asyncio
 
 
 # Example configuration - update with your values
-DATASTORE_ID = 'ff065a6b17494ed3b3f33da4dfc60a7a'  # Workshop datastore
-IMAGE_SET_ID = '3660db84e44321533b5f61590f06b18e'  # Example image set
-PATIENT_ID = 'PATIENT123'
-STUDY_UID = '1.2.3.4.5.6.7.8.9'
-SERIES_UID = '1.2.3.4.5.6.7.8.9.10'
+DATASTORE_ID = 'example-datastore-id-12345'  # Replace with your datastore ID
+IMAGE_SET_ID = 'example-image-set-id-67890'  # Replace with your image set ID
+PATIENT_ID = 'EXAMPLE_PATIENT_ID'  # Replace with actual patient ID
+STUDY_UID = 'example.study.uid.1.2.3.4.5'  # Replace with actual study UID
+SERIES_UID = 'example.series.uid.1.2.3.4.5.6'  # Replace with actual series UID
 
 
 class HealthImagingExamples:
@@ -192,7 +192,7 @@ class HealthImagingExamples:
         print('\n🏷️  Resource Tagging Examples')
         print('=' * 50)
 
-        resource_arn = f'arn:aws:medical-imaging:us-east-1:123456789012:datastore/{DATASTORE_ID}'
+        resource_arn = f'arn:aws:medical-imaging:us-east-1:000000000000:datastore/{DATASTORE_ID}'
 
         print('Tagging Operations:')
         print(f'- List tags: List tags for resource {resource_arn}')

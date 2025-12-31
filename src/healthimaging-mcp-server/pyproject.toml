@@ -113,6 +113,7 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+reportCallIssue = "none"
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]

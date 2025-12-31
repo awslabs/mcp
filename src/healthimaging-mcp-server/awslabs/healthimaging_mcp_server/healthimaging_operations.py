@@ -93,10 +93,10 @@ def create_datastore_operation(request: CreateDatastoreRequest) -> CreateDatasto
     """Create a new data store in AWS HealthImaging."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreName': request.datastore_name}
+    kwargs: Dict[str, Any] = {'datastoreName': request.datastore_name}
 
     if request.tags:
-        kwargs['tags'] = request.tags
+        kwargs['tags'] = request.tags  # type: ignore[assignment]
     if request.kms_key_arn:
         kwargs['kmsKeyArn'] = request.kms_key_arn
 
@@ -143,13 +143,13 @@ def list_datastores_operation(request: ListDatastoresRequest) -> ListDatastoresR
     """List all data stores in the account."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {}
+    kwargs: Dict[str, Any] = {}
     if request.datastore_status:
         kwargs['datastoreStatus'] = request.datastore_status
     if request.next_token:
         kwargs['nextToken'] = request.next_token
     if request.max_results:
-        kwargs['maxResults'] = request.max_results
+        kwargs['maxResults'] = request.max_results  # type: ignore[assignment]
 
     response = client.list_datastores(**kwargs)
 
@@ -181,7 +181,7 @@ def start_dicom_import_job_operation(
     """Start a DICOM import job."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {
+    kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
         'dataAccessRoleArn': request.data_access_role_arn,
         'inputS3Uri': request.input_s3_uri,
@@ -233,14 +233,14 @@ def list_dicom_import_jobs_operation(
     """List DICOM import jobs for a data store."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id}
+    kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
     if request.job_status:
         kwargs['jobStatus'] = request.job_status
     if request.next_token:
         kwargs['nextToken'] = request.next_token
     if request.max_results:
-        kwargs['maxResults'] = request.max_results
+        kwargs['maxResults'] = request.max_results  # type: ignore[assignment]
 
     response = client.list_dicom_import_jobs(**kwargs)
 
@@ -267,14 +267,14 @@ def search_image_sets_operation(request: SearchImageSetsRequest) -> SearchImageS
     """Search for image sets in a data store."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id}
+    kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
     if request.search_criteria:
-        kwargs['searchCriteria'] = request.search_criteria
+        kwargs['searchCriteria'] = request.search_criteria  # type: ignore[assignment]
     if request.next_token:
         kwargs['nextToken'] = request.next_token
     if request.max_results:
-        kwargs['maxResults'] = request.max_results
+        kwargs['maxResults'] = request.max_results  # type: ignore[assignment]
 
     response = client.search_image_sets(**kwargs)
 
@@ -300,7 +300,10 @@ def get_image_set_operation(request: GetImageSetRequest) -> GetImageSetResponse:
     """Get information about a specific image set."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id, 'imageSetId': request.image_set_id}
+    kwargs: Dict[str, Any] = {
+        'datastoreId': request.datastore_id,
+        'imageSetId': request.image_set_id,
+    }
 
     if request.version_id:
         kwargs['versionId'] = request.version_id
@@ -328,7 +331,10 @@ def get_image_set_metadata_operation(
 
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id, 'imageSetId': request.image_set_id}
+    kwargs: Dict[str, Any] = {
+        'datastoreId': request.datastore_id,
+        'imageSetId': request.image_set_id,
+    }
 
     if request.version_id:
         kwargs['versionId'] = request.version_id
@@ -378,12 +384,15 @@ def list_image_set_versions_operation(
     """List versions of an image set."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id, 'imageSetId': request.image_set_id}
+    kwargs: Dict[str, Any] = {
+        'datastoreId': request.datastore_id,
+        'imageSetId': request.image_set_id,
+    }
 
     if request.next_token:
         kwargs['nextToken'] = request.next_token
     if request.max_results:
-        kwargs['maxResults'] = request.max_results
+        kwargs['maxResults'] = request.max_results  # type: ignore[assignment]
 
     response = client.list_image_set_versions(**kwargs)
 
@@ -413,7 +422,7 @@ def update_image_set_metadata_operation(
     """Update metadata for an image set."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {
+    kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
         'imageSetId': request.image_set_id,
         'latestVersionId': request.latest_version_id,
@@ -453,7 +462,7 @@ def copy_image_set_operation(request: CopyImageSetRequest) -> CopyImageSetRespon
     """Copy an image set."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {
+    kwargs: Dict[str, Any] = {
         'sourceDatastoreId': request.source_datastore_id,
         'sourceImageSetId': request.source_image_set_id,
         'destinationDatastoreId': request.datastore_id,
@@ -592,7 +601,7 @@ def start_dicom_export_job_operation(
     """Start a DICOM export job."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {
+    kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
         'dataAccessRoleArn': request.data_access_role_arn,
         'outputS3Uri': request.output_s3_uri,
@@ -650,14 +659,14 @@ def list_dicom_export_jobs_operation(
     """List DICOM export jobs for a data store."""
     client = boto3.client('medical-imaging')
 
-    kwargs = {'datastoreId': request.datastore_id}
+    kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
     if request.job_status:
         kwargs['jobStatus'] = request.job_status
     if request.next_token:
         kwargs['nextToken'] = request.next_token
     if request.max_results:
-        kwargs['maxResults'] = request.max_results
+        kwargs['maxResults'] = request.max_results  # type: ignore[assignment]
 
     response = client.list_dicom_export_jobs(**kwargs)
 
@@ -1639,13 +1648,13 @@ def update_patient_study_metadata_operation(
             for image_set in search_response['imageSetsMetadataSummaries']:
                 try:
                     # Create updatable attributes
-                    dicom_updates = {'SchemaVersion': '1.1'}
+                    dicom_updates: Dict[str, Any] = {'SchemaVersion': '1.1'}
 
                     if patient_updates:
-                        dicom_updates['Patient'] = {'DICOM': patient_updates}
+                        dicom_updates['Patient'] = {'DICOM': patient_updates}  # type: ignore[assignment]
 
                     if study_updates:
-                        dicom_updates['Study'] = {study_instance_uid: {'DICOM': study_updates}}
+                        dicom_updates['Study'] = {study_instance_uid: {'DICOM': study_updates}}  # type: ignore[assignment]
 
                     updates = {
                         'DICOMUpdates': {'updatableAttributes': json.dumps(dicom_updates).encode()}

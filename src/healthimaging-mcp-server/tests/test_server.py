@@ -1655,3 +1655,53 @@ class TestDICOMHierarchyOperationsServer:
             remove_series_from_image_set(
                 datastore_id='ds123', image_set_id='img123', series_instance_uid='series123'
             )
+
+
+class TestEnumConversionFunctions:
+    """Test enum conversion helper functions."""
+
+    def test_convert_to_datastore_status_valid_values(self):
+        """Test _convert_to_datastore_status with valid enum values."""
+        from awslabs.healthimaging_mcp_server.models import DatastoreStatus
+        from awslabs.healthimaging_mcp_server.server import _convert_to_datastore_status
+
+        # Test all valid enum values
+        assert _convert_to_datastore_status('CREATING') == DatastoreStatus.CREATING
+        assert _convert_to_datastore_status('ACTIVE') == DatastoreStatus.ACTIVE
+        assert _convert_to_datastore_status('DELETING') == DatastoreStatus.DELETING
+        assert _convert_to_datastore_status('DELETED') == DatastoreStatus.DELETED
+
+    def test_convert_to_datastore_status_none_value(self):
+        """Test _convert_to_datastore_status with None value."""
+        from awslabs.healthimaging_mcp_server.server import _convert_to_datastore_status
+
+        assert _convert_to_datastore_status(None) is None
+
+    def test_convert_to_datastore_status_invalid_value(self):
+        """Test _convert_to_datastore_status with invalid value."""
+        from awslabs.healthimaging_mcp_server.server import _convert_to_datastore_status
+
+        assert _convert_to_datastore_status('INVALID_STATUS') is None
+
+    def test_convert_to_job_status_valid_values(self):
+        """Test _convert_to_job_status with valid enum values."""
+        from awslabs.healthimaging_mcp_server.models import JobStatus
+        from awslabs.healthimaging_mcp_server.server import _convert_to_job_status
+
+        # Test all valid enum values
+        assert _convert_to_job_status('SUBMITTED') == JobStatus.SUBMITTED
+        assert _convert_to_job_status('IN_PROGRESS') == JobStatus.IN_PROGRESS
+        assert _convert_to_job_status('COMPLETED') == JobStatus.COMPLETED
+        assert _convert_to_job_status('FAILED') == JobStatus.FAILED
+
+    def test_convert_to_job_status_none_value(self):
+        """Test _convert_to_job_status with None value."""
+        from awslabs.healthimaging_mcp_server.server import _convert_to_job_status
+
+        assert _convert_to_job_status(None) is None
+
+    def test_convert_to_job_status_invalid_value(self):
+        """Test _convert_to_job_status with invalid value."""
+        from awslabs.healthimaging_mcp_server.server import _convert_to_job_status
+
+        assert _convert_to_job_status('INVALID_STATUS') is None
