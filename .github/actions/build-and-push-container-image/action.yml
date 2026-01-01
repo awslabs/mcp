@@ -129,10 +129,12 @@ runs:
         github-token: ${{ inputs.github-container-registry-token }}
 
     - name: Export digest
+      env:
+        TEMPORARY_DIRECTORY: ${{ inputs.image }}
       run: |
-        mkdir -p ${{ runner.temp }}/digests/${{ inputs.image }}
+        mkdir -p "${{ runner.temp }}/digests/$TEMPORARY_DIRECTORY"
         digest="${{ steps.build.outputs.digest }}"
-        touch "${{ runner.temp }}/digests/${{ inputs.image }}/${digest#sha256:}"
+        touch "${{ runner.temp }}/digests/$TEMPORARY_DIRECTORY/${digest#sha256:}"
       shell: bash
 
     - name: Upload digest
