@@ -34,13 +34,12 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/aws-diagram-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @MichaelWalker-git
 /src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen @AadityaBhoota @artb30 @alexisareyn
-/src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat
 /src/aws-iot-sitewise-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
 /src/aws-knowledge-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust
 /src/aws-location-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy
-/src/aws-msk-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @elmoctarebnou @dingyiheng
+/src/aws-msk-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @dingyiheng # @elmoctarebnou
 /src/aws-network-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
 /src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
 /src/aws-serverless-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900
@@ -57,6 +56,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/code-doc-gen-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
 /src/core-mcp-server                                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @PaulVincent707
 /src/cost-explorer-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers
+/src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy
 /src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @akeyesamzn @shetsa-amzn @LeeroyHannigan
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar @lewisct
@@ -72,7 +72,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/memcached-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/mysql-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz
 /src/nova-canvas-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy
-/src/openapi-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko
+/src/openapi-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @prajwalendra
 /src/postgres-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz @thephantomthief
 /src/prometheus-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @MohamedSherifAbdelsamiea
 /src/redshift-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp @saeedma8
