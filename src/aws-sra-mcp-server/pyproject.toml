@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "awslabs.aws-sra-mcp-server"
+version = "0.1.0"
+description = "AWS Security Reference Architecture MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Amazon Web Services" },
+    { name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    { name = "MCP SRA Team", email="aws-sra-mcp-server@amazon.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "beautifulsoup4>=4.12.2",
+    "httpx>=0.24.1",
+    "loguru>=0.7.0",
+    "markdownify>=0.11.6",
+    "mcp-server>=0.1.0",
+    "fastmcp>2.10.0",
+    "loguru",
+    "mcp",
+    "pydantic",
+    "markdownify",
+    "tenacity>=9.1.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "mypy>=1.3.0",
+    "pytest>=7.3.1",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.0.270",
+    "pyright>=1.1.403",
+]
+
+[project.scripts]
+aws-sra-mcp-server = "awslabs.aws_sra_mcp_server.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+   version = "0.1.0"
+   tag_format = "$version"
+   version_files = [
+       "pyproject.toml:version",
+       "awslabs/aws-sra-mcp-server/__init__.py:__version__"
+   ]
+   update_changelog_on_bump = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+]
