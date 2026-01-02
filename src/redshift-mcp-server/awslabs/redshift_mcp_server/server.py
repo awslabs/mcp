@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server.consts import (
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
+    ExecutionPlan,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -36,6 +37,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    get_execution_plan,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -619,6 +621,164 @@ async def execute_query_tool(
         logger.error(f'Error in execute_query_tool: {str(e)}')
         await ctx.error(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
+        )
+        raise
+
+
+@mcp.tool(name='get_execution_plan')
+async def get_execution_plan_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to explain the query on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        ...,
+        description='The database name to explain the query against. Must be a valid database name from the list_databases tool.',
+    ),
+    sql: str = Field(
+        ...,
+        description='The SQL statement to generate an execution plan for. Should be a single SQL statement without the EXPLAIN prefix.',
+    ),
+) -> ExecutionPlan:
+    """Get the execution plan for a SQL query without executing it.
+
+    This tool uses Redshift's EXPLAIN command to generate a structured execution plan
+    showing how a query would be executed, providing insights into query performance
+    without actually running the query. This is essential for query optimization and
+    understanding query execution strategies.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The user must have appropriate permissions to execute queries in the specified database.
+
+    ## Parameters
+
+    - cluster_identifier: The unique identifier of the Redshift cluster to query.
+                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
+    - database_name: The database name to explain the query against.
+                    IMPORTANT: Use a valid database name from the list_databases tool.
+    - sql: The SQL statement to generate an execution plan for. Should be a single SQL statement without the EXPLAIN prefix.
+
+    ## Response Structure
+
+    Returns an ExecutionPlan object with the following fields (in presentation order):
+
+    1. **query_id**: Unique identifier for the explain execution
+    2. **explained_query**: The original SQL query that was explained
+    3. **execution_time_ms**: Time taken to generate the plan in milliseconds
+    4. **raw_plan_text**: Array of strings containing the raw EXPLAIN output from Redshift
+    5. **query_plan**: List of QueryPlanNode objects with structured/parsed execution plan
+    6. **plan_format**: Format indicator ('structured')
+
+    ### Query Plan Node Structure (in query_plan field):
+
+    - node_id: Unique identifier for each operation
+    - parent_node_id: Links to parent node for tree structure
+    - level: Depth in execution tree
+    - operation: Type of operation (Hash Join, Seq Scan, etc.)
+    - relation_name: Table/view name if applicable
+    - distribution_type: Data movement pattern (DS_BCAST_INNER, DS_DIST_NONE, etc.)
+    - cost_startup: Relative cost to return first row
+    - cost_total: Relative cost to complete operation
+    - rows: Estimated number of rows
+    - width: Estimated average row width in bytes
+    - join_condition: Join condition if applicable
+    - filter_condition: Filter/WHERE condition if applicable
+
+    ## CRITICAL: Display Instructions for LLMs/Clients
+
+    **When presenting execution plan results, you MUST follow this order:**
+
+    1. **Display query_id, explained_query, and execution_time_ms** (metadata section)
+    2. **Display raw_plan_text field FIRST** - This is the traditional EXPLAIN output that users expect to see
+       - Show it as a code block or formatted text
+       - This is the authoritative source that matches Redshift's native EXPLAIN output
+    3. **Then display the structured analysis** from query_plan field (optional enhancement)
+       - Use the parsed nodes for AI-powered insights and recommendations
+       - Present performance analysis and optimization suggestions
+
+    **Example presentation format:**
+    ```
+    Query ID: abc123
+    Query: SELECT * FROM table
+    Execution Time: 50ms
+
+    ## Raw EXPLAIN Output:
+    [Display each line from raw_plan_text array here]
+
+    ## Structured Analysis: (optional)
+    [Present parsed query_plan nodes and recommendations here]
+    ```
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Ensure the cluster status is 'available' before getting execution plan.
+    4. Use this tool before executing expensive queries to understand their performance impact.
+    5. The structured format enables AI-powered performance analysis and recommendations.
+
+    ## Interpretation Best Practices - Redshift-Specific
+
+    **CRITICAL**: Redshift does NOT support traditional database indexes.
+    Performance tuning focuses on DISTKEY and SORTKEY, not index creation.
+
+    ### Key Optimization Areas:
+
+    1. **Sequential Scans** - Look for `Seq Scan` operations:
+       - High cost on large tables may benefit from SORTKEY optimization
+       - SORTKEY enables zone map pruning to skip data blocks
+
+    2. **Distribution Patterns** - Check distribution_type values:
+       - `DS_DIST_NONE`: Optimal - collocated join, no data movement
+       - `DS_DIST_ALL_NONE`: Good - table already on all nodes (DISTSTYLE ALL)
+       - `DS_BCAST_INNER`: Acceptable for small tables; consider DISTSTYLE ALL
+       - `DS_DIST_INNER/OUTER`: Data redistribution occurring; review DISTKEY alignment
+       - `DS_DIST_BOTH`: Worst case - both tables redistributed; critical issue
+
+    3. **Join Types** - Review operation types:
+       - Merge Join: Fastest (requires matching DISTKEY and SORTKEY, <20% unsorted)
+       - Hash Join: Acceptable when merge join not possible
+       - Nested Loop: Slowest - indicates potential Cartesian product issue
+
+    4. **High Costs** - Operations with high cost_total values indicate bottlenecks:
+       - Consider adding appropriate DISTKEY on join columns
+       - Consider adding SORTKEY on frequently filtered columns
+       - Review data distribution for skew
+
+    5. **Performance Recommendations**:
+       - Match DISTKEYs on frequently joined columns for DS_DIST_NONE
+       - Use SORTKEY for columns in WHERE clauses and ORDER BY
+       - Use DISTSTYLE ALL for small dimension tables (<1-2% of total data)
+       - Avoid DISTSTYLE ALL on large tables
+       - Review join conditions to prevent nested loops
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+
+        plan_result_data = await get_execution_plan(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+        )
+
+        # Convert to ExecutionPlan model
+        execution_plan = ExecutionPlan(**plan_result_data)
+
+        logger.info(
+            f'Successfully generated execution plan on cluster {cluster_identifier}: '
+            f'{len(execution_plan.query_plan)} nodes in {execution_plan.execution_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error in get_execution_plan_tool: {str(e)}')
+        await ctx.error(
+            f'Failed to get execution plan on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
         raise
 
