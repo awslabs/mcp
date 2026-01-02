@@ -322,6 +322,12 @@ Resources:
       GroupDescription: Cluster communication with worker nodes
       VpcId:
         Ref: VPC
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: "F1000"
+            reason: "This security group intentionally relies on the EC2 default allow-all egress rule. It is used for EKS control plane communication with worker nodes, while outbound access is constrained through VPC design (private subnets, routing, and VPC endpoints) rather than per-security-group egress rules."
+
 
   # EKS Cluster IAM Role with required policies for Auto Mode
   EksClusterRole:
