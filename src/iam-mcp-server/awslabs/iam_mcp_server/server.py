@@ -38,7 +38,7 @@ from awslabs.iam_mcp_server.models import (
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
@@ -84,7 +84,14 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List IAM Users',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_users(
     ctx: CallToolResult,
     path_prefix: Optional[str] = Field(
@@ -152,7 +159,14 @@ async def list_users(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get IAM User',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_user(
     ctx: CallToolResult, user_name: str = Field(description='The name of the IAM user to retrieve')
 ) -> UserDetailsResponse:
@@ -240,7 +254,14 @@ async def get_user(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create IAM User',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def create_user(
     ctx: CallToolResult,
     user_name: str = Field(description='The name of the new IAM user'),
@@ -313,7 +334,14 @@ async def create_user(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete IAM User',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_user(
     user_name: str = Field(description='The name of the IAM user to delete'),
     force: bool = Field(
@@ -367,7 +395,14 @@ async def delete_user(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List IAM Roles',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_roles(
     path_prefix: Optional[str] = Field(
         description='Path prefix to filter roles (e.g., "/service-role/")', default=None
@@ -418,7 +453,14 @@ async def list_roles(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create IAM Role',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def create_role(
     role_name: str = Field(description='The name of the new IAM role'),
     assume_role_policy_document: Union[str, dict] = Field(
@@ -497,7 +539,14 @@ async def create_role(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List IAM Policies',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_policies(
     scope: str = Field(
         description='Scope of policies to list: "All", "AWS", or "Local"', default='Local'
@@ -560,7 +609,14 @@ async def list_policies(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get Managed Policy Document',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_managed_policy_document(
     policy_arn: str = Field(description='The ARN of the managed policy'),
     version_id: Optional[str] = Field(
@@ -617,7 +673,14 @@ async def get_managed_policy_document(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Attach User Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def attach_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_arn: str = Field(description='The ARN of the policy to attach'),
@@ -650,7 +713,14 @@ async def attach_user_policy(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Detach User Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def detach_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_arn: str = Field(description='The ARN of the policy to detach'),
@@ -683,7 +753,14 @@ async def detach_user_policy(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create Access Key',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def create_access_key(
     user_name: str = Field(description='The name of the IAM user'),
 ) -> Dict[str, Any]:
@@ -721,7 +798,14 @@ async def create_access_key(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete Access Key',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_access_key(
     user_name: str = Field(description='The name of the IAM user'),
     access_key_id: str = Field(description='The access key ID to delete'),
@@ -754,7 +838,14 @@ async def delete_access_key(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Simulate Principal Policy',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def simulate_principal_policy(
     policy_source_arn: str = Field(description='ARN of the user or role to simulate'),
     action_names: List[str] = Field(description='List of actions to simulate'),
@@ -816,7 +907,14 @@ async def simulate_principal_policy(
 # Group Management Tools
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List IAM Groups',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_groups(
     path_prefix: Optional[str] = Field(
         None, description='Path prefix to filter groups (e.g., "/division_abc/")'
@@ -875,7 +973,14 @@ async def list_groups(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get IAM Group',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_group(
     group_name: str = Field(description='The name of the IAM group to retrieve'),
 ) -> GroupDetailsResponse:
@@ -940,7 +1045,14 @@ async def get_group(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Create IAM Group',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def create_group(
     group_name: str = Field(description='The name of the new IAM group'),
     path: str = Field('/', description='The path for the group'),
@@ -987,7 +1099,14 @@ async def create_group(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete IAM Group',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_group(
     group_name: str = Field(description='The name of the IAM group to delete'),
     force: bool = Field(
@@ -1034,7 +1153,14 @@ async def delete_group(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Add User to Group',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def add_user_to_group(
     group_name: str = Field(description='The name of the IAM group'),
     user_name: str = Field(description='The name of the IAM user'),
@@ -1065,7 +1191,14 @@ async def add_user_to_group(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Remove User from Group',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def remove_user_from_group(
     group_name: str = Field(description='The name of the IAM group'),
     user_name: str = Field(description='The name of the IAM user'),
@@ -1096,7 +1229,14 @@ async def remove_user_from_group(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Attach Group Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def attach_group_policy(
     group_name: str = Field(description='The name of the IAM group'),
     policy_arn: str = Field(description='The ARN of the policy to attach'),
@@ -1127,7 +1267,14 @@ async def attach_group_policy(
         raise handle_iam_error(e)
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Detach Group Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def detach_group_policy(
     group_name: str = Field(description='The name of the IAM group'),
     policy_arn: str = Field(description='The ARN of the policy to detach'),
@@ -1161,7 +1308,14 @@ async def detach_group_policy(
 # Inline Policy Management Tools
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Put User Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def put_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_name: str = Field(description='The name of the inline policy'),
@@ -1235,7 +1389,14 @@ async def put_user_policy(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get User Policy',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_name: str = Field(description='The name of the inline policy'),
@@ -1278,7 +1439,14 @@ async def get_user_policy(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete User Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_user_policy(
     user_name: str = Field(description='The name of the IAM user'),
     policy_name: str = Field(description='The name of the inline policy to delete'),
@@ -1329,7 +1497,14 @@ async def delete_user_policy(
 # Role Inline Policy Management Tools
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Put Role Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def put_role_policy(
     role_name: str = Field(description='The name of the IAM role'),
     policy_name: str = Field(description='The name of the inline policy'),
@@ -1397,7 +1572,14 @@ async def put_role_policy(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Get Role Policy',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def get_role_policy(
     role_name: str = Field(description='The name of the IAM role'),
     policy_name: str = Field(description='The name of the inline policy'),
@@ -1440,7 +1622,14 @@ async def get_role_policy(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='Delete Role Policy',
+        readOnlyHint=False,
+        destructiveHint=True,
+        openWorldHint=True,
+    ),
+)
 async def delete_role_policy(
     role_name: str = Field(description='The name of the IAM role'),
     policy_name: str = Field(description='The name of the inline policy to delete'),
@@ -1488,7 +1677,14 @@ async def delete_role_policy(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List User Policies',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_user_policies(
     user_name: str = Field(description='The name of the IAM user'),
 ) -> InlinePolicyListResponse:
@@ -1528,7 +1724,14 @@ async def list_user_policies(
         raise error
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title='List Role Policies',
+        readOnlyHint=True,
+        destructiveHint=False,
+        openWorldHint=True,
+    ),
+)
 async def list_role_policies(
     role_name: str = Field(description='The name of the IAM role'),
 ) -> InlinePolicyListResponse:
