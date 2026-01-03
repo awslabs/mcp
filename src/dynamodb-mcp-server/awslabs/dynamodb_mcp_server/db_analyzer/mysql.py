@@ -16,10 +16,15 @@
 
 from awslabs.dynamodb_mcp_server.common import validate_database_name
 from awslabs.dynamodb_mcp_server.db_analyzer.base_plugin import DatabasePlugin
-from awslabs.mysql_mcp_server.server import DBConnection, DummyCtx
+from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
+from awslabs.mysql_mcp_server.connection.rds_data_api_connection import RDSDataAPIConnection
+from awslabs.mysql_mcp_server.server import DummyCtx
 from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from loguru import logger
 from typing import Any, Dict, List
+
+
+DEFAULT_READONLY = True
 
 
 # SQL Query Templates for MySQL
@@ -352,8 +357,15 @@ class MySQLPlugin(DatabasePlugin):
                 all_errors.append(f'{query_name}: {str(e)}')
 
     async def execute_managed_mode(self, connection_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute MySQL analysis in managed mode using RDS Data API."""
-        cluster_arn = connection_params['cluster_arn']
+        """Execute MySQL analysis in managed mode.
+
+        Supports two connection methods:
+        - RDS Data API: Uses cluster_arn for serverless Aurora connections
+        - Connection-based: Uses hostname/port for direct MySQL connections
+        """
+        cluster_arn = connection_params.get('cluster_arn')
+        hostname = connection_params.get('hostname')
+        port = connection_params.get('port', 3306)
         secret_arn = connection_params['secret_arn']
         database = connection_params['database']
         region = connection_params['region']
@@ -362,8 +374,26 @@ class MySQLPlugin(DatabasePlugin):
         # Validate database name
         validate_database_name(database)
 
-        # Create connection
-        db_connection = DBConnection(cluster_arn, secret_arn, database, region, True)
+        # Create appropriate connection type based on available parameters
+        if cluster_arn:
+            # RDS Data API-based access
+            db_connection = RDSDataAPIConnection(
+                cluster_arn=cluster_arn,
+                secret_arn=secret_arn,
+                database=database,
+                region=region,
+                readonly=DEFAULT_READONLY,
+            )
+        else:
+            # Connection-based access
+            db_connection = AsyncmyPoolConnection(
+                hostname=hostname,
+                port=port,
+                database=database,
+                readonly=DEFAULT_READONLY,
+                secret_arn=secret_arn,
+                region=region,
+            )
 
         async def run_query(sql_cmd):
             """Execute query using MySQL MCP server."""
@@ -384,7 +414,7 @@ class MySQLPlugin(DatabasePlugin):
 
         performance_enabled = False
         if perf_result and len(perf_result) > 0:
-            performance_schema_value = str(perf_result[0].get('', '0'))
+            performance_schema_value = str(perf_result[0].get('@@performance_schema', '0'))
             performance_enabled = performance_schema_value == '1'
 
         # Execute schema queries

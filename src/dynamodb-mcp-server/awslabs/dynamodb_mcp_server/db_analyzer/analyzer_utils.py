@@ -36,12 +36,15 @@ def resolve_and_validate_path(file_path: str, base_dir: str, path_type: str) -> 
     return validate_path_within_directory(resolved, base_dir, path_type)
 
 
+DEFAULT_MYSQL_PORT = 3306
+
+
 def build_connection_params(source_db_type: str, **kwargs) -> Dict[str, Any]:
     """Build connection parameters for database analysis.
 
     Args:
         source_db_type: Type of source database (e.g., 'mysql')
-        **kwargs: Connection parameters (aws_cluster_arn, aws_secret_arn, etc.)
+        **kwargs: Connection parameters (aws_cluster_arn, aws_secret_arn, hostname, port, etc.)
 
     Returns:
         Dictionary of connection parameters
@@ -61,11 +64,33 @@ def build_connection_params(source_db_type: str, **kwargs) -> Dict[str, Any]:
             )
         output_dir = user_provided_dir
 
+        # Validate port parameter
+        port_value = kwargs.get('port') or os.getenv('MYSQL_PORT', str(DEFAULT_MYSQL_PORT))
+        port = int(port_value) if str(port_value).isdigit() else DEFAULT_MYSQL_PORT
+
+        # Determine connection method
+        # Priority: explicit args > env vars, and cluster_arn > hostname within each level
+        cluster_arn = kwargs.get('aws_cluster_arn')
+        hostname = kwargs.get('hostname')
+
+        if cluster_arn:
+            # Explicit cluster_arn - use RDS Data API-based access
+            hostname = None
+        elif hostname:
+            # Explicit hostname - use connection-based access
+            cluster_arn = None
+        else:
+            # Fall back to env vars with same precedence
+            cluster_arn = os.getenv('MYSQL_CLUSTER_ARN')
+            hostname = os.getenv('MYSQL_HOSTNAME') if not cluster_arn else None
+
         return {
-            'cluster_arn': kwargs.get('aws_cluster_arn') or os.getenv('MYSQL_CLUSTER_ARN'),
+            'cluster_arn': cluster_arn,
             'secret_arn': kwargs.get('aws_secret_arn') or os.getenv('MYSQL_SECRET_ARN'),
             'database': kwargs.get('database_name') or os.getenv('MYSQL_DATABASE'),
             'region': kwargs.get('aws_region') or os.getenv('AWS_REGION'),
+            'hostname': hostname,
+            'port': port,
             'max_results': kwargs.get('max_query_results')
             or int(os.getenv('MYSQL_MAX_QUERY_RESULTS', str(DEFAULT_MAX_QUERY_RESULTS))),
             'pattern_analysis_days': kwargs.get('pattern_analysis_days', DEFAULT_ANALYSIS_DAYS),
@@ -87,23 +112,38 @@ def validate_connection_params(
         Tuple of (missing_params, param_descriptions)
     """
     if source_db_type == 'mysql':
-        required_params = ['cluster_arn', 'secret_arn', 'database', 'region']
-        missing_params = [
-            param
-            for param in required_params
-            if not connection_params.get(param)
-            or (
+        missing_params = []
+        param_descriptions = {}
+        cluster_arn = connection_params.get('cluster_arn')
+        hostname = connection_params.get('hostname')
+
+        # Check for either RDS Data API-based or connection-based access
+        has_rds_data_api = bool(isinstance(cluster_arn, str) and cluster_arn.strip())
+        has_connection_based = bool(isinstance(hostname, str) and hostname.strip())
+
+        # Check that we have a connection method
+        if not has_rds_data_api and not has_connection_based:
+            missing_params.append('cluster_arn OR hostname')
+            param_descriptions['cluster_arn OR hostname'] = (
+                'Required: Either aws_cluster_arn (for RDS Data API-based access) '
+                'OR hostname (for connection-based access)'
+            )
+
+        # Check common required parameters
+        common_required_params = ['secret_arn', 'database', 'region']
+        for param in common_required_params:
+            if not connection_params.get(param) or (
                 isinstance(connection_params[param], str)
                 and connection_params[param].strip() == ''
-            )
-        ]
-
-        param_descriptions = {
-            'cluster_arn': 'AWS cluster ARN',
-            'secret_arn': 'AWS secret ARN',  # pragma: allowlist secret
-            'database': 'Database name',
-            'region': 'AWS region',
-        }
+            ):
+                missing_params.append(param)
+        param_descriptions.update(
+            {
+                'secret_arn': 'Secrets Manager secret ARN containing DB credentials',  # pragma: allowlist secret
+                'database': 'Database name to analyze',
+                'region': 'AWS region where your database instance and Secrets Manager are located',
+            }
+        )
         return missing_params, param_descriptions
     return [], {}
 
