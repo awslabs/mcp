@@ -626,7 +626,7 @@ class FileParameterError(CommandValidationError):
         )
 
 
-class OperationIsNotSuppoertedInTheRegionError(CommandValidationError):
+class OperationIsNotSupportedInTheRegionError(CommandValidationError):
     """Thrown when an operation is not supported in a specific region."""
 
     _message = 'The operation {service}:{operation} is not supported in the {region} region.'
