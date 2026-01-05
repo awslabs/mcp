@@ -163,7 +163,7 @@
           "rules_to_suppress": [
             {
               "id": "F15",
-              "reason": "TODO: Update this comment"
+              "reason": "S3 bucket policy requires s3:* action for account root to enable ALB access logging and administrative operations on the access logs bucket"
             }
           ]
         }
@@ -265,7 +265,7 @@
           "rules_to_suppress": [
             {
               "id": "F1000",
-              "reason": "TODO: Update this comment"
+              "reason": "ALB security group intentionally allows all outbound traffic to enable communication with backend services and health checks"
             }
           ]
         },
@@ -768,7 +768,7 @@
           "rules_to_suppress": [
             {
               "id": "F1000",
-              "reason": "TODO: Update this comment"
+              "reason": "VPC endpoint security group intentionally allows all outbound traffic to enable ECS tasks to communicate with AWS services through VPC endpoints"
             }
           ]
         }
