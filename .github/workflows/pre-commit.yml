@@ -3,7 +3,6 @@ name: pre-commit
 on:
   pull_request:
   push:
-    branches: [main]
 permissions: {}
 jobs:
   detect-precommit:
@@ -51,5 +50,8 @@ jobs:
       with:
         path: ~/.cache/pre-commit
         key: pre-commit-3|${{ runner.os }}|${{ hashFiles(matrix.precommit) }}
-    - run: pre-commit run --show-diff-on-failure --color=always --all-files
+    - name: Set SKIP variable for main branch
+      if: github.ref == 'refs/heads/main'
+      run: echo "SKIP=no-commit-to-branch" >> $GITHUB_ENV
+    - run: SKIP="$SKIP" pre-commit run --show-diff-on-failure --color=always --all-files
       working-directory: ${{ matrix.precommit }}
