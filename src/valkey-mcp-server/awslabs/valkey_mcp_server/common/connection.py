@@ -84,10 +84,11 @@ class ValkeyConnectionManager:
             }
 
             # Add max_connections parameter based on mode
+            max_connections_per_node = VALKEY_CFG.get('max_connections_per_node', 300)
             if VALKEY_CFG['cluster_mode']:
-                connection_kwargs['max_connections_per_node'] = 10
+                connection_kwargs['max_connections_per_node'] = max_connections_per_node
             else:
-                connection_kwargs['max_connections'] = 10
+                connection_kwargs['max_connections'] = max_connections_per_node
 
             # Create new instance
             return valkey_class(**connection_kwargs)

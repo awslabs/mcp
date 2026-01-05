@@ -38,6 +38,7 @@ class TestConfig:
         assert VALKEY_CFG['ssl_cert_reqs'] == 'required'
         assert VALKEY_CFG['ssl_ca_certs'] is None
         assert VALKEY_CFG['cluster_mode'] is False
+        assert VALKEY_CFG['max_connections_per_node'] == 300
 
     @patch.dict(
         os.environ,
