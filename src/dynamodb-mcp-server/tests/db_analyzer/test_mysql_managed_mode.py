@@ -30,10 +30,10 @@ class TestMySQLManagedMode:
         self, mysql_plugin, mysql_connection_params
     ):
         """Test successful managed mode execution with performance schema enabled."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
                 mock_query.side_effect = [
-                    [{'': '1'}],  # performance_schema_check - enabled
+                    [{'@@performance_schema': '1'}],  # performance_schema_check - enabled
                     [{'table_name': 'users', 'row_count': 100}],  # comprehensive_table_analysis
                     [{'index_name': 'idx_users'}],  # comprehensive_index_analysis
                     [{'column_name': 'id'}],  # column_analysis
@@ -55,10 +55,10 @@ class TestMySQLManagedMode:
         self, mysql_plugin, mysql_connection_params
     ):
         """Test managed mode when performance schema is disabled."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
                 mock_query.side_effect = [
-                    [{'': '0'}],  # performance_schema_check - disabled
+                    [{'@@performance_schema': '0'}],  # performance_schema_check - disabled
                     [{'table_name': 'users'}],  # comprehensive_table_analysis
                     [{'index_name': 'idx_users'}],  # comprehensive_index_analysis
                     [{'column_name': 'id'}],  # column_analysis
@@ -75,10 +75,10 @@ class TestMySQLManagedMode:
     @pytest.mark.asyncio
     async def test_execute_managed_mode_query_error(self, mysql_plugin, mysql_connection_params):
         """Test managed mode when a query returns an error."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
                 mock_query.side_effect = [
-                    [{'': '1'}],  # performance_schema_check - enabled
+                    [{'@@performance_schema': '1'}],  # performance_schema_check - enabled
                     [{'error': 'Access denied'}],  # comprehensive_table_analysis - error
                     [{'index_name': 'idx_users'}],  # comprehensive_index_analysis
                     [{'column_name': 'id'}],  # column_analysis
@@ -95,10 +95,10 @@ class TestMySQLManagedMode:
     @pytest.mark.asyncio
     async def test_execute_managed_mode_empty_results(self, mysql_plugin, mysql_connection_params):
         """Test managed mode when queries return empty results."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
                 mock_query.side_effect = [
-                    [{'': '1'}],  # performance_schema_check - enabled
+                    [{'@@performance_schema': '1'}],  # performance_schema_check - enabled
                     [],  # comprehensive_table_analysis - empty
                     [],  # comprehensive_index_analysis - empty
                     [],  # column_analysis - empty
@@ -118,10 +118,10 @@ class TestMySQLManagedMode:
         self, mysql_plugin, mysql_connection_params
     ):
         """Test managed mode when a query raises an exception."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
                 mock_query.side_effect = [
-                    [{'': '1'}],  # performance_schema_check - enabled
+                    [{'@@performance_schema': '1'}],  # performance_schema_check - enabled
                     Exception('Connection timeout'),  # comprehensive_table_analysis - exception
                     [{'index_name': 'idx_users'}],  # comprehensive_index_analysis
                     [{'column_name': 'id'}],  # column_analysis
@@ -140,7 +140,7 @@ class TestMySQLManagedMode:
         self, mysql_plugin, mysql_connection_params
     ):
         """Test managed mode when mysql_query returns error dict."""
-        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.DBConnection'):
+        with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.RDSDataAPIConnection'):
             with patch('awslabs.dynamodb_mcp_server.db_analyzer.mysql.mysql_query') as mock_query:
 
                 async def mock_query_with_error(*args, **kwargs):

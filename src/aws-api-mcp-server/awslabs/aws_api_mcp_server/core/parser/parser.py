@@ -53,6 +53,7 @@ from ..common.file_system_controls import extract_file_paths_from_parameters, va
 from ..common.helpers import expand_user_home_directory, is_help_operation
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
+from .custom_validators.s3_express_one_validator import validate_s3_express_one_region
 from .custom_validators.ssm_validator import perform_ssm_validations
 from .lexer import split_cli_command
 from argparse import Namespace
@@ -459,9 +460,7 @@ def _handle_service_command(
     )
 
     _run_custom_validations(
-        service_command.service_model.service_name,
-        operation,
-        parameters,
+        service_command.service_model.service_name, operation, parameters, global_args
     )
 
     return _construct_command(
@@ -701,11 +700,16 @@ def _validate_parameters(
         raise ParameterSchemaValidationError(errors)
 
 
-def _run_custom_validations(service: str, operation: str, parameters: dict[str, Any]):
+def _run_custom_validations(
+    service: str, operation: str, parameters: dict[str, Any], global_args: argparse.Namespace
+):
     if service == 'ssm':
         perform_ssm_validations(operation, parameters)
     if service == 'ec2':
         validate_ec2_parameter_values(parameters)
+    if service == 's3':
+        region = getattr(global_args, 'region', None) or _fetch_region_from_arn(parameters)
+        validate_s3_express_one_region(service, operation, region)
 
 
 def _validate_request_serialization(
