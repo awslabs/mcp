@@ -624,3 +624,28 @@ class FileParameterError(CommandValidationError):
                 'reason': self._reason,
             },
         )
+
+
+class OperationIsNotSupportedInTheRegionError(CommandValidationError):
+    """Thrown when an operation is not supported in a specific region."""
+
+    _message = 'The operation {service}:{operation} is not supported in the {region} region.'
+
+    def __init__(self, service: str, operation: str, region: str):
+        """Initialize UnknownFiltersError with service and invalid filters."""
+        message = self._message.format(service=service, operation=operation, region=region)
+        self._operation = operation
+        self._service = service
+        self._region = region
+        super().__init__(message)
+
+    def as_failure(self) -> Failure:
+        """Return a Failure object representing this error."""
+        return Failure(
+            reason=str(self),
+            context={
+                'service': self._service,
+                'operation': self._operation,
+                'region': self._region,
+            },
+        )
