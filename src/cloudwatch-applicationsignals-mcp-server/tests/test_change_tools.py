@@ -17,6 +17,7 @@
 import json
 import pytest
 from datetime import datetime, timezone
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 from botocore.exceptions import ClientError, NoCredentialsError
 
@@ -226,10 +227,16 @@ class TestListChangeEventsErrorHandling:
     @pytest.mark.asyncio
     async def test_validation_exception_error(self, mock_aws_clients):
         """Test handling of ValidationException."""
-        error_response = {
+        error_response: Any = {
             'Error': {
                 'Code': 'ValidationException',
                 'Message': 'Invalid parameter value'
+            },
+            'ResponseMetadata': {
+                'RequestId': 'test-request-id',
+                'HTTPStatusCode': 400,
+                'HTTPHeaders': {},
+                'RetryAttempts': 0
             }
         }
         mock_aws_clients['applicationsignals_client'].list_entity_events.side_effect = ClientError(
@@ -250,10 +257,16 @@ class TestListChangeEventsErrorHandling:
     @pytest.mark.asyncio
     async def test_throttling_exception_error(self, mock_aws_clients):
         """Test handling of ThrottlingException."""
-        error_response = {
+        error_response: Any = {
             'Error': {
                 'Code': 'ThrottlingException',
                 'Message': 'Request was throttled'
+            },
+            'ResponseMetadata': {
+                'RequestId': 'test-request-id',
+                'HTTPStatusCode': 429,
+                'HTTPHeaders': {},
+                'RetryAttempts': 0
             }
         }
         mock_aws_clients['applicationsignals_client'].list_entity_events.side_effect = ClientError(
@@ -274,10 +287,16 @@ class TestListChangeEventsErrorHandling:
     @pytest.mark.asyncio
     async def test_generic_client_error(self, mock_aws_clients):
         """Test handling of generic ClientError."""
-        error_response = {
+        error_response: Any = {
             'Error': {
                 'Code': 'InternalServerError',
                 'Message': 'Internal server error'
+            },
+            'ResponseMetadata': {
+                'RequestId': 'test-request-id',
+                'HTTPStatusCode': 500,
+                'HTTPHeaders': {},
+                'RetryAttempts': 0
             }
         }
         mock_aws_clients['applicationsignals_client'].list_entity_events.side_effect = ClientError(
@@ -456,7 +475,7 @@ class TestListChangeEventsEdgeCases:
         result = json.loads(result_str)
         assert result["total_events"] == 1
         event = result["change_events"][0]
-        assert event["timestamp"] == 1705320000.0
+        assert event["timestamp"] == "2024-01-15T12:00:00+00:00"
 
     @pytest.mark.asyncio
     async def test_service_key_attributes_filtering(self, mock_aws_clients):
@@ -563,6 +582,60 @@ class TestListChangeEventsEdgeCases:
         assert isinstance(result["change_events"], list)
         assert isinstance(result["events_by_type"], dict)
         assert isinstance(result["total_events"], int)
+
+    @pytest.mark.asyncio
+    async def test_seconds_since_event_calculation(self, mock_aws_clients):
+        """Test that seconds_since_event is calculated correctly for different timestamp formats."""
+        # Create events with different timestamp formats
+        mock_response = {
+            "ChangeEvents": [
+                {
+                    "EventId": "event-datetime",
+                    "EventName": "UpdateService",
+                    "ChangeEventType": "DEPLOYMENT",
+                    "Timestamp": datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
+                    "AccountId": "123456789012",
+                    "Region": "us-east-1",
+                    "UserName": "deploy-user",
+                    "Entity": {"Type": "Service", "Name": "test-service"}
+                },
+                {
+                    "EventId": "event-numeric",
+                    "EventName": "UpdateConfiguration", 
+                    "ChangeEventType": "CONFIGURATION",
+                    "Timestamp": 1705320000.0,  # 2024-01-15T12:00:00Z
+                    "AccountId": "123456789012",
+                    "Region": "us-east-1",
+                    "UserName": "config-user",
+                    "Entity": {"Type": "Service", "Name": "test-service"}
+                }
+            ],
+            "NextToken": None
+        }
+        
+        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+        
+        # Mock current time to be 1 hour after the events
+        with patch('awslabs.cloudwatch_applicationsignals_mcp_server.change_tools.datetime') as mock_datetime:
+            mock_datetime.now.return_value = datetime(2024, 1, 15, 13, 0, 0, tzinfo=timezone.utc)
+            mock_datetime.fromtimestamp = datetime.fromtimestamp
+            
+            result_str = await list_change_events(
+                start_time="2024-01-15T10:00:00Z",
+                end_time="2024-01-15T16:00:00Z",
+                service_key_attributes={"Name": "test-service", "Type": "Service"}
+            )
+        
+        result = json.loads(result_str)
+        events = result["change_events"]
+        
+        # Both events should have seconds_since_event = 3600 (1 hour = 3600 seconds)
+        assert len(events) == 2
+        for event in events:
+            assert "seconds_since_event" in event
+            assert event["seconds_since_event"] == 3600
+            assert isinstance(event["seconds_since_event"], int)
+
 class TestListChangeEventsServiceStates:
     """Test ListServiceStates API path (comprehensive_history=False)."""
 
@@ -767,6 +840,56 @@ class TestListChangeEventsServiceStates:
         assert result["total_events"] == 2
         assert mock_aws_clients['applicationsignals_client'].list_service_states.call_count == 2
 
+    @pytest.mark.asyncio
+    async def test_list_service_states_seconds_since_event(self, mock_aws_clients):
+        """Test that seconds_since_event is calculated correctly for ServiceStates API."""
+        mock_response = {
+            "ServiceStates": [
+                {
+                    "Service": {
+                        "Name": "test-service",
+                        "Environment": "eks:production",
+                        "Type": "Service"
+                    },
+                    "LatestChangeEvents": [
+                        {
+                            "EventId": "deploy-123",
+                            "EventName": "ServiceDeployment",
+                            "ChangeEventType": "DEPLOYMENT",
+                            "Timestamp": datetime(2024, 1, 15, 12, 30, 0, tzinfo=timezone.utc),
+                            "AccountId": "123456789012",
+                            "Region": "us-east-1",
+                            "UserName": "deploy-pipeline"
+                        }
+                    ]
+                }
+            ],
+            "NextToken": None
+        }
+        
+        mock_aws_clients['applicationsignals_client'].list_service_states.return_value = mock_response
+        
+        # Mock current time to be 30 minutes after the deployment
+        with patch('awslabs.cloudwatch_applicationsignals_mcp_server.change_tools.datetime') as mock_datetime:
+            mock_datetime.now.return_value = datetime(2024, 1, 15, 13, 0, 0, tzinfo=timezone.utc)
+            mock_datetime.fromtimestamp = datetime.fromtimestamp
+            
+            result_str = await list_change_events(
+                start_time="2024-01-15T10:00:00Z",
+                end_time="2024-01-15T16:00:00Z",
+                comprehensive_history=False
+            )
+        
+        result = json.loads(result_str)
+        events = result["change_events"]
+        
+        # Event should have seconds_since_event = 1800 (30 minutes = 1800 seconds)
+        assert len(events) == 1
+        event = events[0]
+        assert "seconds_since_event" in event
+        assert event["seconds_since_event"] == 1800
+        assert isinstance(event["seconds_since_event"], int)
+
 
 class TestListChangeEventsRegionHandling:
     """Test region parameter handling."""
@@ -836,7 +959,7 @@ class TestListChangeEventsIntegration:
     @pytest.mark.asyncio
     async def test_server_integration_list_entity_events(self, mock_aws_clients):
         """Test MCP server integration with ListEntityEvents API."""
-        from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_change_events as server_list_change_events
+        from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import list_change_events as server_list_change_events
         
         # Mock ListEntityEvents response
         mock_response = {
@@ -872,12 +995,11 @@ class TestListChangeEventsIntegration:
         result = json.loads(result_str)
         assert result["total_events"] == 1
         assert result["change_events"][0]["event_id"] == "integration-event-1"
-        assert result["change_events"][0]["entity"]["Name"] == "integration-service"
 
     @pytest.mark.asyncio
     async def test_server_integration_list_service_states(self, mock_aws_clients):
         """Test MCP server integration with ListServiceStates API."""
-        from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_change_events as server_list_change_events
+        from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import list_change_events as server_list_change_events
         
         # Mock ListServiceStates response
         mock_response = {
@@ -917,7 +1039,6 @@ class TestListChangeEventsIntegration:
         result = json.loads(result_str)
         assert result["total_events"] == 1
         assert result["change_events"][0]["event_id"] == "integration-state-1"
-        assert result["change_events"][0]["entity"]["Name"] == "integration-service-2"
 
     @pytest.mark.asyncio
     async def test_server_integration_parameter_validation(self):
@@ -937,13 +1058,19 @@ class TestListChangeEventsIntegration:
     @pytest.mark.asyncio
     async def test_server_integration_error_handling(self, mock_aws_clients):
         """Test MCP server error handling integration."""
-        from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_change_events as server_list_change_events
+        from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import list_change_events as server_list_change_events
         
         # Mock AWS API error
-        error_response = {
+        error_response: Any = {
             'Error': {
                 'Code': 'AccessDeniedException',
                 'Message': 'User is not authorized to perform this action'
+            },
+            'ResponseMetadata': {
+                'RequestId': 'test-request-id',
+                'HTTPStatusCode': 403,
+                'HTTPHeaders': {},
+                'RetryAttempts': 0
             }
         }
         mock_aws_clients['applicationsignals_client'].list_entity_events.side_effect = ClientError(
@@ -1027,7 +1154,7 @@ class TestListChangeEventsIntegration:
     @pytest.mark.asyncio
     async def test_server_integration_real_world_scenario(self, mock_aws_clients):
         """Test MCP server integration with realistic incident investigation scenario."""
-        from awslabs.cloudwatch_applicationsignals_mcp_server.server import list_change_events as server_list_change_events
+        from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import list_change_events as server_list_change_events
         
         # Mock realistic incident scenario: payment service deployment followed by errors
         mock_response = {
@@ -1107,11 +1234,11 @@ class TestListChangeEventsIntegration:
         assert events[1]["event_name"] == "UpdateTaskDefinition"  # 15:15 - Config change
         assert events[2]["event_name"] == "RollbackService"    # 15:25 - Rollback (before alarm at 15:30)
         
-        # Verify all events are for the same service
-        for event in events:
-            assert event["entity"]["Name"] == "payment-service"
-            assert event["entity"]["Environment"] == "eks:production"
-class TestListChangeEventsIntegration:
+        # Verify all events have the expected event IDs
+        assert events[0]["event_id"] == "incident-deploy-1"
+        assert events[1]["event_id"] == "incident-config-1"
+        assert events[2]["event_id"] == "incident-rollback-1"
+class TestListChangeEventsToolFunctionality:
     """Integration tests for list_change_events tool functionality."""
 
     @pytest.mark.asyncio
@@ -1187,10 +1314,16 @@ class TestListChangeEventsIntegration:
     async def test_integration_error_recovery_workflow(self, mock_aws_clients):
         """Test integration of error handling and recovery workflows."""
         # First call fails with throttling
-        error_response = {
+        error_response: Any = {
             'Error': {
                 'Code': 'ThrottlingException',
                 'Message': 'Request was throttled'
+            },
+            'ResponseMetadata': {
+                'RequestId': 'test-request-id',
+                'HTTPStatusCode': 429,
+                'HTTPHeaders': {},
+                'RetryAttempts': 0
             }
         }
         
@@ -1292,7 +1425,7 @@ class TestListChangeEventsIntegration:
         
         # Note: entity field is not included in ListEntityEvents response
         # Verify timestamp is in correct format for timeline analysis
-        assert isinstance(event["timestamp"], (int, float))
+        assert isinstance(event["timestamp"], str)
         
         # Verify events_by_type aggregation for summary reporting
         assert result["events_by_type"]["DEPLOYMENT"] == 1
