@@ -272,7 +272,7 @@
         "checkov": {
           "skip": [
             {
-              "comment": "TODO: Update this comment",
+              "comment": "ALB security group intentionally allows all outbound traffic to enable communication with backend services and health checks",
               "id": "CKV_AWS_260"
             }
           ]
