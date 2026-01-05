@@ -210,7 +210,7 @@ However, both *MemoryDB* and *ElastiCache Serverless* are *not* compatible with 
 | `VALKEY_CERT_REQS` | Server certificate verification                                                                                                | `"required"`  |
 | `VALKEY_CA_CERTS` | Path to trusted CA certificates                                                                                                | `None`        |
 | `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode                                                                                                     | `False`       |
-| `VALKEY_VECTOR_INDEX_TYPE` | Default vector index structure type to use when vector indices are created in calls to add documents (either `FLAT` or `HNSW`) | `FLAT`        |
+| `VALKEY_VECTOR_INDEX_TYPE` | Default vector index structure type to use when vector indices are created in calls to add documents (either `FLAT` or `HNSW`) | `HNSW`        |
 
 ### Embeddings Provider
 Semantic search requires integration with an embeddings provider.
