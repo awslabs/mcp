@@ -21,7 +21,8 @@
       "**/*.ts",
       "**/*.cs",
       "**/*.properties",
-      "**/*.xml"
+      "**/*.xml",
+      "**/dist/**"
     ],
     "include": [
       "**/*.py",
@@ -75,7 +76,8 @@
       "**/*.npz",
       "**/*.template",
       "**/*.properties",
-      "**/*.xml"
+      "**/*.xml",
+      "**/dist/**"
     ]
   }
 ]
