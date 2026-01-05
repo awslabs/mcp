@@ -12,7 +12,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     InvalidTypeForParameterError,
     MissingOperationError,
     MissingRequiredParametersError,
-    OperationIsNotSuppoertedInTheRegionError,
+    OperationIsNotSupportedInTheRegionError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     ServiceNotAllowedError,
@@ -699,7 +699,7 @@ def test_allowed_custom_operations_when_file_access_disabled_is_subset():
 def test_s3_express_one_in_unsupported_region():
     """Test aws s3 list-directory-buckets command in region where this operation is not supported."""
     with pytest.raises(
-        OperationIsNotSuppoertedInTheRegionError,
+        OperationIsNotSupportedInTheRegionError,
         match='The operation s3:list-directory-buckets is not supported in the eu-central-1 region.',
     ):
         result = parse('aws s3api list-directory-buckets --region eu-central-1')

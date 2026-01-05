@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from ...common.errors import (
-    OperationIsNotSuppoertedInTheRegionError,
+    OperationIsNotSupportedInTheRegionError,
 )
 from typing import Optional
 
@@ -35,4 +35,4 @@ def validate_s3_express_one_region(service: str, operation: str, region: Optiona
     """Validates whether an S3 Express one region is supported by AWS API."""
     if operation == 'list-directory-buckets':
         if region and region not in SUPPORTED_REGIONS:
-            raise OperationIsNotSuppoertedInTheRegionError(service, operation, region)
+            raise OperationIsNotSupportedInTheRegionError(service, operation, region)
