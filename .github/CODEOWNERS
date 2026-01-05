@@ -58,7 +58,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/cost-explorer-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers
 /src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy
-/src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @akeyesamzn @shetsa-amzn @LeeroyHannigan
+/src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @akeyesamzn @shetsa-amzn @LeeroyHannigan @amzn-erdemkemer
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar @lewisct
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @srhsrhsrhsrh
 /src/elasticache-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
