@@ -14,7 +14,7 @@ The DynamoDB MCP server provides four tools for data modeling and validation:
 
   **Example invocation:** "Validate my DynamoDB data model"
 
-- `source_db_analyzer` - Analyzes existing MySQL/Aurora databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Requires AWS RDS Data API and credentials in Secrets Manager.
+- `source_db_analyzer` - Analyzes existing MySQL databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
@@ -159,7 +159,11 @@ The tool automates the traditional manual validation process:
 
 ### Source Database Analysis
 
-The DynamoDB MCP server includes source database integration for database analysis. The `source_db_analyzer` tool extracts schema and access patterns from your existing database to help design your DynamoDB model.
+The `source_db_analyzer` tool extracts schema and access patterns from your existing database to help design your DynamoDB model. This is useful when migrating from relational databases.
+
+The tool supports two connection methods for MySQL:
+- **RDS Data API-based access**: Serverless connection using cluster ARN
+- **Connection-based access**: Traditional connection using hostname/port
 
 **Supported Databases:**
 - MySQL / Aurora MySQL
@@ -186,9 +190,18 @@ Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existin
 
 #### Prerequisites for MySQL Integration (Managed Mode)
 
-1. Aurora MySQL Cluster with credentials stored in AWS Secrets Manager
-2. Enable RDS Data API for your Aurora MySQL Cluster
-3. Enable Performance Schema for access pattern analysis (optional but recommended):
+**For RDS Data API-based access:**
+1. MySQL cluster with RDS Data API enabled
+2. Database credentials stored in AWS Secrets Manager
+3. AWS credentials with permissions to access RDS Data API and Secrets Manager
+
+**For Connection-based access:**
+1. MySQL server accessible from your environment
+2. Database credentials stored in AWS Secrets Manager
+3. AWS credentials with permissions to access Secrets Manager
+
+**For both connection methods:**
+4. Enable Performance Schema for access pattern analysis (optional but recommended):
    - Set `performance_schema` parameter to 1 in your DB parameter group
    - Reboot the DB instance after changes
    - Verify with: `SHOW GLOBAL VARIABLES LIKE '%performance_schema'`
@@ -197,17 +210,27 @@ Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existin
      - `performance_schema_max_digest_length` - Maximum byte length per statement digest (default: 1024)
    - Without Performance Schema, analysis is based on information schema only
 
-4. AWS credentials with permissions to access RDS Data API and AWS Secrets Manager
-
 #### MySQL Environment Variables
 
 Add these environment variables to enable MySQL integration:
 
-- `MYSQL_CLUSTER_ARN`: Aurora MySQL cluster Resource ARN
+**For RDS Data API-based access:**
+- `MYSQL_CLUSTER_ARN`: MySQL cluster ARN
 - `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
 - `MYSQL_DATABASE`: Database name to analyze
-- `AWS_REGION`: AWS region of the Aurora MySQL cluster
+- `AWS_REGION`: AWS region of the cluster
+
+**For Connection-based access:**
+- `MYSQL_HOSTNAME`: MySQL server hostname or endpoint
+- `MYSQL_PORT`: MySQL server port (optional, default: 3306)
+- `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
+- `MYSQL_DATABASE`: Database name to analyze
+- `AWS_REGION`: AWS region where Secrets Manager is located
+
+**Common options:**
 - `MYSQL_MAX_QUERY_RESULTS`: Maximum rows in analysis output files (optional, default: 500)
+
+**Note:** Explicit tool parameters take precedence over environment variables. Only one connection method (cluster ARN or hostname) should be specified.
 
 #### MCP Configuration with MySQL
 
