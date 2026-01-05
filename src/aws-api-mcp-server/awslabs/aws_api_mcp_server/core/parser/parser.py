@@ -708,9 +708,7 @@ def _run_custom_validations(
     if service == 'ec2':
         validate_ec2_parameter_values(parameters)
     if service == 's3':
-        region = getattr(global_args, 'region', None)
-        if region is None:
-            region = _fetch_region_from_arn(parameters)
+        region = getattr(global_args, 'region', None) or _fetch_region_from_arn(parameters)
         validate_s3_express_one_region(service, operation, region)
 
 
