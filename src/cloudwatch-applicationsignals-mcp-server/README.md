@@ -257,7 +257,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 **Key Capabilities:**
 - **Change Correlation**: Link deployments, configuration changes, and infrastructure modifications to performance issues
-- **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches  
+- **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches
 - **Service-Specific Filtering**: Focus on changes to specific services using Application Signals service attributes
 - **Multi-Change Type Tracking**: Monitor deployment events, configuration updates, infrastructure scaling, and other modifications
 - **Incident Investigation**: Essential for root cause analysis when services experience performance degradation
@@ -269,7 +269,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
   - **Returns**: Complete chronological list of all change events (deployments, configurations, scaling) within time range
   - **Use when**: You need to see all changes that happened and correlate them with performance issues
 
-- **comprehensive_history=False**: Uses ListServiceStates API  
+- **comprehensive_history=False**: Uses ListServiceStates API
   - **Question it answers**: "Has anything changed in my service?" - Current change status
   - **Best for**: Service status monitoring, checking if recent changes occurred, troubleshooting current state
   - **Returns**: Information about the last deployment and other change states of services, providing visibility into recent changes that may have affected service performance
@@ -285,7 +285,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 **Integration with Other Tools:**
 - **Enhances audit_services()**: Provides change context for service health issues
-- **Correlates with audit_slos()**: Links changes to SLO breach analysis  
+- **Correlates with audit_slos()**: Links changes to SLO breach analysis
 - **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
 - **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
 
@@ -763,7 +763,7 @@ list_change_events(
 
 **RECENT CHANGE INDICATORS:**
 • Services with recent deployments: 3
-• Services with configuration changes: 2  
+• Services with configuration changes: 2
 • Services with scaling events: 1
 • Stable services: 2
 
