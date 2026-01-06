@@ -16,16 +16,16 @@
 
 import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    CreateClusterResponse,
-    CreateSecurityConfigurationResponse,
-    DeleteSecurityConfigurationResponse,
-    DescribeClusterResponse,
-    DescribeSecurityConfigurationResponse,
-    ListClustersResponse,
-    ListSecurityConfigurationsResponse,
-    ModifyClusterAttributesResponse,
-    ModifyClusterResponse,
-    TerminateClustersResponse,
+    CreateClusterData,
+    CreateSecurityConfigurationData,
+    DeleteSecurityConfigurationData,
+    DescribeClusterData,
+    DescribeSecurityConfigurationData,
+    ListClustersData,
+    ListSecurityConfigurationsData,
+    ModifyClusterAttributesData,
+    ModifyClusterData,
+    TerminateClustersData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
@@ -36,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2ClusterHandler:
@@ -62,49 +62,10 @@ class EMREc2ClusterHandler:
 
     def _create_error_response(self, operation: str, error_message: str):
         """Create appropriate error response based on operation type."""
-        content: List[Content] = [TextContent(type='text', text=error_message)]
-
-        if operation == 'create-cluster':
-            return CreateClusterResponse(
-                isError=True, content=content, cluster_id='', cluster_arn='', operation='create'
-            )
-        elif operation == 'describe-cluster':
-            return DescribeClusterResponse(isError=True, content=content, cluster={})
-        elif operation == 'modify-cluster':
-            return ModifyClusterResponse(isError=True, content=content, cluster_id='')
-        elif operation == 'modify-cluster-attributes':
-            return ModifyClusterAttributesResponse(isError=True, content=content, cluster_id='')
-        elif operation == 'terminate-clusters':
-            return TerminateClustersResponse(isError=True, content=content, cluster_ids=[])
-        elif operation == 'list-clusters':
-            return ListClustersResponse(
-                isError=True, content=content, clusters=[], count=0, marker='', operation='list'
-            )
-        elif operation == 'create-security-configuration':
-            return CreateSecurityConfigurationResponse(
-                isError=True, content=content, name='', creation_date_time=''
-            )
-        elif operation == 'delete-security-configuration':
-            return DeleteSecurityConfigurationResponse(isError=True, content=content, name='')
-        elif operation == 'describe-security-configuration':
-            return DescribeSecurityConfigurationResponse(
-                isError=True,
-                content=content,
-                name='',
-                security_configuration='',
-                creation_date_time='',
-            )
-        elif operation == 'list-security-configurations':
-            return ListSecurityConfigurationsResponse(
-                isError=True,
-                content=content,
-                security_configurations=[],
-                count=0,
-                marker='',
-                operation='list',
-            )
-        else:
-            return DescribeClusterResponse(isError=True, content=content, cluster={})
+        return CallToolResult(
+            isError=True,
+            content=[TextContent(type='text', text=error_message)],
+        )
 
     async def manage_aws_emr_clusters(
         self,
@@ -325,18 +286,7 @@ class EMREc2ClusterHandler:
                 description='JSON format security configuration (required for create-security-configuration).',
             ),
         ] = None,
-    ) -> Union[
-        CreateClusterResponse,
-        DescribeClusterResponse,
-        ModifyClusterResponse,
-        ModifyClusterAttributesResponse,
-        TerminateClustersResponse,
-        ListClustersResponse,
-        CreateSecurityConfigurationResponse,
-        DeleteSecurityConfigurationResponse,
-        DescribeSecurityConfigurationResponse,
-        ListSecurityConfigurationsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 clusters with comprehensive control over cluster lifecycle.
 
         This tool provides operations for managing Amazon EMR clusters running on EC2 instances,
@@ -549,17 +499,21 @@ class EMREc2ClusterHandler:
                 # Create cluster
                 response = self.emr_client.run_job_flow(**params)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully created EMR cluster {name} with MCP management tags',
-                    )
-                ]
-                return CreateClusterResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully created EMR cluster {name} with MCP management tags'
+                )
+                data = CreateClusterData(
                     cluster_id=response.get('JobFlowId', ''),
                     cluster_arn=None,  # EMR doesn't return ARN in the create response
+                    operation='create',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'describe-cluster':
@@ -570,16 +524,17 @@ class EMREc2ClusterHandler:
                 # Describe cluster
                 response = self.emr_client.describe_cluster(ClusterId=cluster_id)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully described EMR cluster {cluster_id}',
-                    )
-                ]
-                return DescribeClusterResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully described EMR cluster {cluster_id}'
+                data = DescribeClusterData(
                     cluster=response.get('Cluster', {}),
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'modify-cluster':
@@ -608,17 +563,18 @@ class EMREc2ClusterHandler:
                     StepConcurrencyLevel=step_concurrency_level,
                 )
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully modified EMR cluster {cluster_id}',
-                    )
-                ]
-                return ModifyClusterResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully modified EMR cluster {cluster_id}'
+                data = ModifyClusterData(
                     cluster_id=cluster_id,
                     step_concurrency_level=response.get('StepConcurrencyLevel'),
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'modify-cluster-attributes':
@@ -655,16 +611,17 @@ class EMREc2ClusterHandler:
                         TerminationProtected=termination_protected,
                     )
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully modified attributes for EMR cluster {cluster_id}',
-                    )
-                ]
-                return ModifyClusterAttributesResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully modified attributes for EMR cluster {cluster_id}'
+                data = ModifyClusterAttributesData(
                     cluster_id=cluster_id,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'terminate-clusters':
@@ -692,16 +649,17 @@ class EMREc2ClusterHandler:
                 # Terminate clusters
                 self.emr_client.terminate_job_flows(JobFlowIds=cluster_ids)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully initiated termination for {len(cluster_ids)} MCP-managed EMR clusters',
-                    )
-                ]
-                return TerminateClustersResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully initiated termination for {len(cluster_ids)} MCP-managed EMR clusters'
+                data = TerminateClustersData(
                     cluster_ids=cluster_ids,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-clusters':
@@ -720,16 +678,20 @@ class EMREc2ClusterHandler:
                 response = self.emr_client.list_clusters(**params)
 
                 clusters = response.get('Clusters', [])
-                content: List[Content] = [
-                    TextContent(type='text', text='Successfully listed EMR clusters')
-                ]
-                return ListClustersResponse(
-                    isError=False,
-                    content=content,
+                success_message = 'Successfully listed EMR clusters'
+                data = ListClustersData(
                     clusters=clusters,
                     count=len(clusters),
                     marker=response.get('Marker'),
-                    operation='list',
+                    operation='list-clusters',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'create-security-configuration':
@@ -747,17 +709,18 @@ class EMREc2ClusterHandler:
                 if hasattr(creation_date_time, 'isoformat'):
                     creation_date_time = creation_date_time.isoformat()
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully created EMR security configuration {security_configuration_name}',
-                    )
-                ]
-                return CreateSecurityConfigurationResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully created EMR security configuration {security_configuration_name}'
+                data = CreateSecurityConfigurationData(
                     name=security_configuration_name,
                     creation_date_time=creation_date_time,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-security-configuration':
@@ -768,16 +731,17 @@ class EMREc2ClusterHandler:
                 # Delete security configuration
                 self.emr_client.delete_security_configuration(Name=security_configuration_name)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully deleted EMR security configuration {security_configuration_name}',
-                    )
-                ]
-                return DeleteSecurityConfigurationResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully deleted EMR security configuration {security_configuration_name}'
+                data = DeleteSecurityConfigurationData(
                     name=security_configuration_name,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'describe-security-configuration':
@@ -794,18 +758,19 @@ class EMREc2ClusterHandler:
                 if hasattr(creation_date_time, 'isoformat'):
                     creation_date_time = creation_date_time.isoformat()
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully described EMR security configuration {security_configuration_name}',
-                    )
-                ]
-                return DescribeSecurityConfigurationResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully described EMR security configuration {security_configuration_name}'
+                data = DescribeSecurityConfigurationData(
                     name=security_configuration_name,
                     security_configuration=response.get('SecurityConfiguration', ''),
                     creation_date_time=creation_date_time,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-security-configurations':
@@ -818,25 +783,26 @@ class EMREc2ClusterHandler:
                 response = self.emr_client.list_security_configurations(**params)
 
                 security_configurations = response.get('SecurityConfigurations', [])
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text='Successfully listed EMR security configurations',
-                    )
-                ]
-                return ListSecurityConfigurationsResponse(
-                    isError=False,
-                    content=content,
+                success_message = 'Successfully listed EMR security configurations'
+                data = ListSecurityConfigurationsData(
                     security_configurations=security_configurations,
                     count=len(security_configurations),
                     marker=response.get('Marker'),
-                    operation='list',
+                    operation='list-security-configurations',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-cluster, describe-cluster, modify-cluster, modify-cluster-attributes, terminate-clusters, list-clusters, create-security-configuration, delete-security-configuration, describe-security-configuration, list-security-configurations'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return self._create_error_response('describe-cluster', error_message)
+                return self._create_error_response('', error_message)
 
         except ValueError as e:
             error_message = str(e)

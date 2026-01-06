@@ -66,6 +66,10 @@ async def search_genomics_files(
         ge=100,
         le=50000,
     ),
+    adhoc_s3_buckets: Optional[List[str]] = Field(
+        None,
+        description='Optional list of additional S3 bucket paths to search (e.g., ["s3://bucket-name/prefix/"]). These buckets will be searched in addition to any configured buckets, allowing you to search buckets that are not part of the standard configuration. Maximum 50 bucket paths.',
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -83,6 +87,7 @@ async def search_genomics_files(
         continuation_token: Continuation token from previous search response for paginated results
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
+        adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
 
     Returns:
         Comprehensive dictionary containing:
@@ -129,7 +134,8 @@ async def search_genomics_files(
             f'include_associated_files={include_associated_files}, '
             f'offset={offset}, continuation_token={continuation_token is not None}, '
             f'enable_storage_pagination={enable_storage_pagination}, '
-            f'pagination_buffer_size={pagination_buffer_size}'
+            f'pagination_buffer_size={pagination_buffer_size}, '
+            f'adhoc_s3_buckets={len(adhoc_s3_buckets) if adhoc_s3_buckets else 0} buckets'
         )
 
         # Validate file_type parameter if provided
@@ -155,6 +161,7 @@ async def search_genomics_files(
             continuation_token=continuation_token,
             enable_storage_pagination=enable_storage_pagination,
             pagination_buffer_size=pagination_buffer_size,
+            adhoc_s3_buckets=adhoc_s3_buckets,
         )
 
         # Initialize search orchestrator from environment configuration

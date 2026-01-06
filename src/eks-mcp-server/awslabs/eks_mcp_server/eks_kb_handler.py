@@ -16,6 +16,7 @@
 
 import requests
 from loguru import logger
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from requests_auth_aws_sigv4 import AWSSigV4
 
@@ -49,7 +50,7 @@ class EKSKnowledgeBaseHandler:
             ...,
             description='Your specific question or issue description related to EKS troubleshooting',
         ),
-    ) -> str:
+    ) -> CallToolResult:
         """Search the EKS Troubleshoot Guide for troubleshooting information.
 
         This tool provides troubleshooting guidance for Amazon EKS issues by querying
@@ -74,7 +75,7 @@ class EKSKnowledgeBaseHandler:
             contain letters, numbers, commas, periods, question marks, colons, and spaces.
 
         Returns:
-            str: Detailed troubleshooting guidance for the EKS issue
+            CallToolResult: Detailed troubleshooting guidance for the EKS issue
         """
         try:
             response = requests.post(
@@ -83,7 +84,24 @@ class EKSKnowledgeBaseHandler:
                 auth=AWSSigV4(AWS_SERVICE, region=AWS_REGION),
             )
             response.raise_for_status()
-            return response.text
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=response.text,
+                    )
+                ],
+            )
         except Exception as e:
             logger.error(f'Error in search_eks_troubleshoot_guide: {str(e)}')
-            return f'Error: {str(e)}'
+            return CallToolResult(
+                isError=True,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Error: {str(e)}',
+                    )
+                ],
+            )

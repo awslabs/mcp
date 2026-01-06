@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from enum import Enum
-from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
@@ -103,23 +102,23 @@ class CatalogSummary(BaseModel):
     update_time: Optional[str] = Field(None, description='Last update timestamp in ISO format')
 
 
-# Database Response Models
-class CreateDatabaseResponse(CallToolResult):
-    """Response model for create database operation."""
+# Database Data Models
+class CreateDatabaseData(BaseModel):
+    """Data model for create database operation."""
 
     database_name: str = Field(..., description='Name of the created database')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteDatabaseResponse(CallToolResult):
-    """Response model for delete database operation."""
+class DeleteDatabaseData(BaseModel):
+    """Data model for delete database operation."""
 
     database_name: str = Field(..., description='Name of the deleted database')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetDatabaseResponse(CallToolResult):
-    """Response model for get database operation."""
+class GetDatabaseData(BaseModel):
+    """Data model for get database operation."""
 
     database_name: str = Field(..., description='Name of the database')
     description: Optional[str] = Field(None, description='Description of the database')
@@ -130,8 +129,8 @@ class GetDatabaseResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListDatabasesResponse(CallToolResult):
-    """Response model for list databases operation."""
+class ListDatabasesData(BaseModel):
+    """Data model for list databases operation."""
 
     databases: List[DatabaseSummary] = Field(..., description='List of databases')
     count: int = Field(..., description='Number of databases found')
@@ -140,32 +139,32 @@ class ListDatabasesResponse(CallToolResult):
     next_token: Optional[str] = Field(None, description='Token for the next page of results')
 
 
-class UpdateDatabaseResponse(CallToolResult):
-    """Response model for update database operation."""
+class UpdateDatabaseData(BaseModel):
+    """Data model for update database operation."""
 
     database_name: str = Field(..., description='Name of the updated database')
     operation: str = Field(default='update', description='Operation performed')
 
 
-# Table Response Models
-class CreateTableResponse(CallToolResult):
-    """Response model for create table operation."""
+# Table Data Models
+class CreateTableData(BaseModel):
+    """Data model for create table operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the created table')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteTableResponse(CallToolResult):
-    """Response model for delete table operation."""
+class DeleteTableData(BaseModel):
+    """Data model for delete table operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the deleted table')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetTableResponse(CallToolResult):
-    """Response model for get table operation."""
+class GetTableData(BaseModel):
+    """Data model for get table operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table')
@@ -183,8 +182,8 @@ class GetTableResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListTablesResponse(CallToolResult):
-    """Response model for list tables operation."""
+class ListTablesData(BaseModel):
+    """Data model for list tables operation."""
 
     database_name: str = Field(..., description='Name of the database')
     tables: List[TableSummary] = Field(..., description='List of tables')
@@ -192,16 +191,16 @@ class ListTablesResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateTableResponse(CallToolResult):
-    """Response model for update table operation."""
+class UpdateTableData(BaseModel):
+    """Data model for update table operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the updated table')
     operation: str = Field(default='update', description='Operation performed')
 
 
-class SearchTablesResponse(CallToolResult):
-    """Response model for search tables operation."""
+class SearchTablesData(BaseModel):
+    """Data model for search tables operation."""
 
     tables: List[TableSummary] = Field(..., description='List of matching tables')
     search_text: str = Field(..., description='Search text used for matching')
@@ -210,25 +209,25 @@ class SearchTablesResponse(CallToolResult):
     next_token: Optional[str] = Field('', description='Token for pagination')
 
 
-# Connection Response Models
-class CreateConnectionResponse(CallToolResult):
-    """Response model for create connection operation."""
+# Connection Data Models
+class CreateConnectionData(BaseModel):
+    """Data model for create connection operation."""
 
     connection_name: str = Field(..., description='Name of the created connection')
     catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connection')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteConnectionResponse(CallToolResult):
-    """Response model for delete connection operation."""
+class DeleteConnectionData(BaseModel):
+    """Data model for delete connection operation."""
 
     connection_name: str = Field(..., description='Name of the deleted connection')
     catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connection')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetConnectionResponse(CallToolResult):
-    """Response model for get connection operation."""
+class GetConnectionData(BaseModel):
+    """Data model for get connection operation."""
 
     connection_name: str = Field(..., description='Name of the connection')
     connection_type: str = Field(..., description='Type of the connection')
@@ -256,8 +255,8 @@ class GetConnectionResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListConnectionsResponse(CallToolResult):
-    """Response model for list connections operation."""
+class ListConnectionsData(BaseModel):
+    """Data model for list connections operation."""
 
     connections: List[ConnectionSummary] = Field(..., description='List of connections')
     count: int = Field(..., description='Number of connections found')
@@ -266,17 +265,17 @@ class ListConnectionsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateConnectionResponse(CallToolResult):
-    """Response model for update connection operation."""
+class UpdateConnectionData(BaseModel):
+    """Data model for update connection operation."""
 
     connection_name: str = Field(..., description='Name of the updated connection')
     catalog_id: Optional[str] = Field(None, description='Catalog ID containing the connection')
     operation: str = Field(default='update', description='Operation performed')
 
 
-# Partition Response Models
-class CreatePartitionResponse(CallToolResult):
-    """Response model for create partition operation."""
+# Partition Data Models
+class CreatePartitionData(BaseModel):
+    """Data model for create partition operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table containing the partition')
@@ -284,8 +283,8 @@ class CreatePartitionResponse(CallToolResult):
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeletePartitionResponse(CallToolResult):
-    """Response model for delete partition operation."""
+class DeletePartitionData(BaseModel):
+    """Data model for delete partition operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table containing the partition')
@@ -295,8 +294,8 @@ class DeletePartitionResponse(CallToolResult):
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetPartitionResponse(CallToolResult):
-    """Response model for get partition operation."""
+class GetPartitionData(BaseModel):
+    """Data model for get partition operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table containing the partition')
@@ -313,8 +312,8 @@ class GetPartitionResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListPartitionsResponse(CallToolResult):
-    """Response model for list partitions operation."""
+class ListPartitionsData(BaseModel):
+    """Data model for list partitions operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table')
@@ -325,8 +324,8 @@ class ListPartitionsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdatePartitionResponse(CallToolResult):
-    """Response model for update partition operation."""
+class UpdatePartitionData(BaseModel):
+    """Data model for update partition operation."""
 
     database_name: str = Field(..., description='Name of the database containing the table')
     table_name: str = Field(..., description='Name of the table containing the partition')
@@ -336,23 +335,23 @@ class UpdatePartitionResponse(CallToolResult):
     operation: str = Field(default='update', description='Operation performed')
 
 
-# Catalog Response Models
-class CreateCatalogResponse(CallToolResult):
-    """Response model for create catalog operation."""
+# Catalog Data Models
+class CreateCatalogData(BaseModel):
+    """Data model for create catalog operation."""
 
     catalog_id: str = Field(..., description='ID of the created catalog')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteCatalogResponse(CallToolResult):
-    """Response model for delete catalog operation."""
+class DeleteCatalogData(BaseModel):
+    """Data model for delete catalog operation."""
 
     catalog_id: str = Field(..., description='ID of the deleted catalog')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetCatalogResponse(CallToolResult):
-    """Response model for get catalog operation."""
+class GetCatalogData(BaseModel):
+    """Data model for get catalog operation."""
 
     catalog_id: str = Field(..., description='ID of the catalog')
     catalog_definition: Dict[str, Any] = Field(..., description='Complete catalog definition')
@@ -364,16 +363,16 @@ class GetCatalogResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListCatalogsResponse(CallToolResult):
-    """Response model for list catalogs operation."""
+class ListCatalogsData(BaseModel):
+    """Data model for list catalogs operation."""
 
     catalogs: List[CatalogSummary] = Field(..., description='List of catalogs')
     count: int = Field(..., description='Number of catalogs found')
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ImportCatalogResponse(CallToolResult):
-    """Response model for import catalog operation."""
+class ImportCatalogData(BaseModel):
+    """Data model for import catalog operation."""
 
     catalog_id: str = Field(..., description='ID of the catalog being imported to')
     operation: str = Field(default='import', description='Operation performed')
@@ -427,9 +426,9 @@ class CrawlerRun(BaseModel):
     tables_deleted: int = Field(default=0, description='Number of tables deleted')
 
 
-# Extended response models for advanced operations
-class BatchCreateTablesResponse(CallToolResult):
-    """Response model for batch create tables operation."""
+# Extended data models for advanced operations
+class BatchCreateTablesData(BaseModel):
+    """Data model for batch create tables operation."""
 
     database_name: str = Field(..., description='Name of the database')
     batch_result: BatchOperationResult = Field(..., description='Batch operation results')
@@ -437,8 +436,8 @@ class BatchCreateTablesResponse(CallToolResult):
     operation: str = Field(default='batch_create', description='Operation performed')
 
 
-class BatchDeleteTablesResponse(CallToolResult):
-    """Response model for batch delete tables operation."""
+class BatchDeleteTablesData(BaseModel):
+    """Data model for batch delete tables operation."""
 
     database_name: str = Field(..., description='Name of the database')
     batch_result: BatchOperationResult = Field(..., description='Batch operation results')
@@ -446,8 +445,8 @@ class BatchDeleteTablesResponse(CallToolResult):
     operation: str = Field(default='batch_delete', description='Operation performed')
 
 
-class TableSchemaComparisonResponse(CallToolResult):
-    """Response model for table schema comparison operation."""
+class TableSchemaComparisonData(BaseModel):
+    """Data model for table schema comparison operation."""
 
     source_table: str = Field(..., description='Source table name')
     target_table: str = Field(..., description='Target table name')
@@ -458,8 +457,8 @@ class TableSchemaComparisonResponse(CallToolResult):
     operation: str = Field(default='compare_schema', description='Operation performed')
 
 
-class DataLineageResponse(CallToolResult):
-    """Response model for data lineage tracking operation."""
+class DataLineageData(BaseModel):
+    """Data model for data lineage tracking operation."""
 
     table_name: str = Field(..., description='Name of the table')
     database_name: str = Field(..., description='Name of the database')
@@ -475,8 +474,8 @@ class DataLineageResponse(CallToolResult):
     operation: str = Field(default='get_lineage', description='Operation performed')
 
 
-class PartitionProjectionResponse(CallToolResult):
-    """Response model for partition projection configuration."""
+class PartitionProjectionData(BaseModel):
+    """Data model for partition projection configuration."""
 
     database_name: str = Field(..., description='Name of the database')
     table_name: str = Field(..., description='Name of the table')
@@ -488,8 +487,8 @@ class PartitionProjectionResponse(CallToolResult):
     operation: str = Field(default='configure_projection', description='Operation performed')
 
 
-class CatalogEncryptionResponse(CallToolResult):
-    """Response model for catalog encryption configuration."""
+class CatalogEncryptionData(BaseModel):
+    """Data model for catalog encryption configuration."""
 
     catalog_id: str = Field(..., description='ID of the catalog')
     encryption_at_rest: Dict[str, Any] = Field(
@@ -501,8 +500,8 @@ class CatalogEncryptionResponse(CallToolResult):
     operation: str = Field(default='configure_encryption', description='Operation performed')
 
 
-class ResourceLinkResponse(CallToolResult):
-    """Response model for resource link operations."""
+class ResourceLinkData(BaseModel):
+    """Data model for resource link operations."""
 
     link_name: str = Field(..., description='Name of the resource link')
     source_catalog_id: str = Field(..., description='Source catalog ID')

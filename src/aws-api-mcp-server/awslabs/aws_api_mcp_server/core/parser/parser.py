@@ -16,12 +16,10 @@ import argparse
 import botocore.serialize
 import ipaddress
 import jmespath
-import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
     get_awscli_driver,
-    get_operation_filters,
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
@@ -40,7 +38,6 @@ from ..common.errors import (
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
     LocalFileAccessDisabledError,
-    MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
     MisspelledParametersError,
@@ -51,13 +48,12 @@ from ..common.errors import (
     ServiceNotAllowedError,
     ShortHandParserError,
     UnknownArgumentsError,
-    UnknownFiltersError,
-    UnsupportedFilterError,
 )
 from ..common.file_system_controls import extract_file_paths_from_parameters, validate_file_path
 from ..common.helpers import expand_user_home_directory, is_help_operation
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
+from .custom_validators.s3_express_one_validator import validate_s3_express_one_region
 from .custom_validators.ssm_validator import perform_ssm_validations
 from .lexer import split_cli_command
 from argparse import Namespace
@@ -70,7 +66,6 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
-from pathlib import Path
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -175,12 +170,6 @@ _nargs_errors = {
     NARGS_ONE_ARGUMENT: 'expected one argument',
     NARGS_OPTIONAL: 'expected at most one argument',
     NARGS_ONE_OR_MORE: 'expected at least one argument',
-}
-
-ALLOWED_FILTER_KEYS_SUBSETS = {
-    frozenset({'Name', 'Values'}): 'Name',
-    frozenset({'Key', 'Values'}): 'Key',
-    frozenset({'key', 'value'}): 'key',
 }
 
 
@@ -440,7 +429,7 @@ def _handle_service_command(
 
     try:
         parameters = operation_command._build_call_parameters(
-            parsed_args.operation_args, operation_command.arg_table
+            parsed_args.operation_args, operation_command.arg_table, global_args
         )
     except ParamError as exc:
         raise ShortHandParserError(exc.cli_name, exc.message) from exc
@@ -448,13 +437,6 @@ def _handle_service_command(
         raise
     except Exception as exc:
         raise CommandValidationError(exc) from exc
-
-    _validate_filters(
-        service_command.service_model.service_name,
-        operation,
-        operation_command._operation_model,
-        parameters,
-    )
 
     _validate_parameters(
         parameters, operation_command.arg_table, operation_command._operation_model
@@ -478,9 +460,7 @@ def _handle_service_command(
     )
 
     _run_custom_validations(
-        service_command.service_model.service_name,
-        operation,
-        parameters,
+        service_command.service_model.service_name, operation, parameters, global_args
     )
 
     return _construct_command(
@@ -720,44 +700,16 @@ def _validate_parameters(
         raise ParameterSchemaValidationError(errors)
 
 
-def _validate_filters(
-    service: str, operation: str, operation_model: OperationModel, parameters: dict[str, Any]
+def _run_custom_validations(
+    service: str, operation: str, parameters: dict[str, Any], global_args: argparse.Namespace
 ):
-    if 'Filters' not in parameters:
-        return
-
-    filters = parameters['Filters']
-    known_filters = get_operation_filters(operation_model)
-
-    filter_name_key = None
-    for allowed_keys_subset, name_key in ALLOWED_FILTER_KEYS_SUBSETS.items():
-        if allowed_keys_subset.issubset(known_filters.filter_keys):
-            filter_name_key = name_key
-
-    if filter_name_key is None:
-        raise UnsupportedFilterError(service, operation, known_filters.filter_keys)
-
-    unknown_filters = []
-    for filter_element in filters:
-        filter_element_key_set = filter_element.keys()
-        if filter_element_key_set != known_filters.filter_keys:
-            raise MalformedFilterError(
-                service, operation, filter_element_key_set, known_filters.filter_keys
-            )
-
-        filter_name = filter_element.get(filter_name_key)
-        if not known_filters.allows_filter(filter_name):
-            unknown_filters.append(filter_name)
-
-    if unknown_filters:
-        raise UnknownFiltersError(service, sorted(unknown_filters))
-
-
-def _run_custom_validations(service: str, operation: str, parameters: dict[str, Any]):
     if service == 'ssm':
         perform_ssm_validations(operation, parameters)
     if service == 'ec2':
         validate_ec2_parameter_values(parameters)
+    if service == 's3':
+        region = getattr(global_args, 'region', None) or _fetch_region_from_arn(parameters)
+        validate_s3_express_one_region(service, operation, region)
 
 
 def _validate_request_serialization(
@@ -791,16 +743,23 @@ def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, 
 
     source_path, dest_path = paths
     _validate_s3_file_path(source_path, service, operation)
-    _validate_s3_file_path(dest_path, service, operation)
+    _validate_s3_file_path(dest_path, service, operation, is_destination=True)
 
 
-def _validate_s3_file_path(file_path: str, service: str, operation: str):
+def _validate_s3_file_path(
+    file_path: str, service: str, operation: str, is_destination: bool = False
+):
+    # `-` as destination redirects to stdout, which we capture and wrap in an MCP response
+    if file_path == '-' and is_destination:
+        return
+
+    # `-` as source redirects from stdin, which we don't support since we don't execute CLI commands directly
     if file_path == '-':
         raise FileParameterError(
             service=service,
             operation=operation,
             file_path=file_path,
-            reason="streaming file ('-') is not allowed",
+            reason="streaming file on stdin ('-') is not allowed",
         )
 
     if not file_path.startswith('s3://'):
@@ -853,14 +812,6 @@ def _validate_outfile(
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
-    if not os.path.isabs(Path(file_path)):
-        raise FileParameterError(
-            service=service,
-            operation=operation,
-            file_path=file_path,
-            reason='should be an absolute path',
-        )
-
     try:
         validate_file_path(file_path)
     except (FilePathValidationError, LocalFileAccessDisabledError) as e:

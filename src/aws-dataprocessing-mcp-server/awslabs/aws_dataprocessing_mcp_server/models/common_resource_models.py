@@ -14,7 +14,6 @@
 
 """Response models for Common Resource operations."""
 
-from mcp.types import CallToolResult
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional, Union
 
@@ -34,13 +33,6 @@ class RoleSummary(BaseModel):
     assume_role_policy_document: Dict[str, Any]
 
 
-class ServiceRolesResponse(CallToolResult):
-    """Response model for listing IAM roles for a specific service."""
-
-    service_type: str
-    roles: List[RoleSummary]
-
-
 class PolicySummary(BaseModel):
     """Summary of an IAM policy."""
 
@@ -49,29 +41,45 @@ class PolicySummary(BaseModel):
     policy_document: Optional[Dict[str, Any]] = None
 
 
-class RoleDescriptionResponse(CallToolResult):
-    """Response model for describing an IAM role."""
+# ============================================================================
+# Data Models
+# ============================================================================
+
+
+class ServiceRolesData(BaseModel):
+    """Data model for listing IAM roles for a specific service."""
+
+    service_type: str
+    roles: List[RoleSummary]
+    operation: str = 'get-roles-for-service'
+
+
+class RoleDescriptionData(BaseModel):
+    """Data model for describing an IAM role."""
 
     role_arn: str
     assume_role_policy_document: Dict[str, Any]
     description: Optional[str] = None
     managed_policies: List[PolicySummary]
     inline_policies: List[PolicySummary]
+    operation: str = 'get-policies-for-role'
 
 
-class AddInlinePolicyResponse(CallToolResult):
-    """Response model for adding an inline policy to an IAM role."""
+class AddInlinePolicyData(BaseModel):
+    """Data model for adding an inline policy to an IAM role."""
 
     policy_name: str
     role_name: str
     permissions_added: Union[Dict[str, Any], List[Dict[str, Any]]]
+    operation: str = 'add-inline-policy'
 
 
-class CreateRoleResponse(CallToolResult):
-    """Response model for creating an IAM role."""
+class CreateRoleData(BaseModel):
+    """Data model for creating an IAM role."""
 
     role_name: str
     role_arn: str
+    operation: str = 'create-data-processing-role'
 
 
 # ============================================================================
@@ -90,24 +98,27 @@ class BucketInfo(BaseModel):
     idle_status: str
 
 
-class ListS3BucketsResponse(CallToolResult):
-    """Response model for listing S3 buckets."""
+class ListS3BucketsData(BaseModel):
+    """Data model for listing S3 buckets."""
 
     region: str
     bucket_count: int
     buckets: List[BucketInfo]
+    operation: str = 'list-s3-buckets'
 
 
-class UploadToS3Response(CallToolResult):
-    """Response model for uploading to S3."""
+class UploadToS3Data(BaseModel):
+    """Data model for uploading to S3."""
 
     s3_uri: str
     bucket_name: str
     s3_key: str
+    operation: str = 'upload-to-s3'
 
 
-class AnalyzeS3UsageResponse(CallToolResult):
-    """Response model for S3 usage analysis."""
+class AnalyzeS3UsageData(BaseModel):
+    """Data model for S3 usage analysis."""
 
     analysis_summary: str
     service_usage: Dict[str, List[str]]
+    operation: str = 'analyze-s3-usage-for-data-processing'

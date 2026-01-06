@@ -20,6 +20,7 @@ including parameter validation, response formatting, AWS client interaction,
 permissions checks, and error handling.
 """
 
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler import (
     EMREc2StepsHandler,
@@ -181,9 +182,13 @@ class TestAddSteps:
             )
 
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.step_ids == ['s-12345ABCDEF', 's-67890GHIJKL']
-            assert result.count == 2
+            assert len(result.content) == 2
+
+            # Parse JSON data from the second content item
+            json_data = json.loads(result.content[1].text)
+            assert json_data['cluster_id'] == 'j-12345ABCDEF'
+            assert json_data['step_ids'] == ['s-12345ABCDEF', 's-67890GHIJKL']
+            assert json_data['count'] == 2
 
     async def test_add_steps_with_execution_role(
         self, steps_handler_with_write_access, mock_context
@@ -257,8 +262,12 @@ class TestCancelSteps:
             )
 
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.count == 1
+            assert len(result.content) == 2
+
+            # Parse JSON data from the second content item
+            json_data = json.loads(result.content[1].text)
+            assert json_data['cluster_id'] == 'j-12345ABCDEF'
+            assert json_data['count'] == 1
 
     async def test_cancel_steps_for_unmanaged_resource(
         self, mock_aws_helper, steps_handler_with_write_access, mock_context
@@ -357,8 +366,12 @@ class TestDescribeStep:
             )
 
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.step['Id'] == 's-12345ABCDEF'
+            assert len(result.content) == 2
+
+            # Parse JSON data from the second content item
+            json_data = json.loads(result.content[1].text)
+            assert json_data['cluster_id'] == 'j-12345ABCDEF'
+            assert json_data['step']['Id'] == 's-12345ABCDEF'
 
     async def test_describe_step_missing_step_id(
         self, steps_handler_with_write_access, mock_context
@@ -397,9 +410,13 @@ class TestListSteps:
 
             # Verify results without checking mock calls
             assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.count == 1
-            assert result.marker == 'next-marker'
+            assert len(result.content) == 2
+
+            # Parse JSON data from the second content item
+            json_data = json.loads(result.content[1].text)
+            assert json_data['cluster_id'] == 'j-12345ABCDEF'
+            assert json_data['count'] == 1
+            assert json_data['marker'] == 'next-marker'
 
     async def test_list_steps_with_filters(self, steps_handler_with_write_access, mock_context):
         """Test list-steps with filters."""

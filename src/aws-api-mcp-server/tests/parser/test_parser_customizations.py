@@ -185,7 +185,7 @@ def test_s3_cp_stdin_as_source_blocked():
     """Test that 'aws s3 cp - s3://bucket/key' (stdin) is blocked."""
     expected_message = (
         "Invalid file parameter '-' for service 's3' and operation 'cp': "
-        "streaming file ('-') is not allowed."
+        "streaming file on stdin ('-') is not allowed."
     )
     with pytest.raises(FileParameterError) as exc_info:
         parse('aws s3 cp - s3://my-bucket/file.txt')
@@ -197,46 +197,25 @@ def test_s3_cp_stdin_as_source_blocked():
     assert error._file_path == '-'
 
 
-def test_s3_cp_stdout_as_destination_blocked():
-    """Test that 'aws s3 cp s3://bucket/key -' (stdout) is blocked."""
-    expected_message = (
-        "Invalid file parameter '-' for service 's3' and operation 'cp': "
-        "streaming file ('-') is not allowed."
-    )
-    with pytest.raises(FileParameterError) as exc_info:
-        parse('aws s3 cp s3://my-bucket/file.txt -')
+def test_s3_cp_stdout_as_destination_allowed():
+    """Test that 'aws s3 cp s3://bucket/key -' (stdout) is allowed."""
+    result = parse('aws s3 cp s3://my-bucket/file.txt -')
 
-    error = exc_info.value
-    assert str(error) == expected_message
-    assert error._service == 's3'
-    assert error._operation == 'cp'
-    assert error._file_path == '-'
+    assert isinstance(result, IRCommand)
+    assert result.command_metadata.service_sdk_name == 's3'
+    assert result.command_metadata.operation_sdk_name == 'cp'
+    assert result.is_awscli_customization is True
+    assert result.parameters['--paths'] == ['s3://my-bucket/file.txt', '-']
 
 
 def test_s3_sync_stdin_as_source_blocked():
     """Test that 'aws s3 sync - s3://bucket/' (stdin) is blocked."""
     expected_message = (
         "Invalid file parameter '-' for service 's3' and operation 'sync': "
-        "streaming file ('-') is not allowed."
+        "streaming file on stdin ('-') is not allowed."
     )
     with pytest.raises(FileParameterError) as exc_info:
         parse('aws s3 sync - s3://my-bucket/')
-
-    error = exc_info.value
-    assert str(error) == expected_message
-    assert error._service == 's3'
-    assert error._operation == 'sync'
-    assert error._file_path == '-'
-
-
-def test_s3_sync_stdout_as_destination_blocked():
-    """Test that 'aws s3 sync s3://bucket/ -' (stdout) is blocked."""
-    expected_message = (
-        "Invalid file parameter '-' for service 's3' and operation 'sync': "
-        "streaming file ('-') is not allowed."
-    )
-    with pytest.raises(FileParameterError) as exc_info:
-        parse('aws s3 sync s3://my-bucket/ -')
 
     error = exc_info.value
     assert str(error) == expected_message
@@ -249,26 +228,10 @@ def test_s3_mv_stdin_as_source_blocked():
     """Test that 'aws s3 mv - s3://bucket/key' (stdin) is blocked."""
     expected_message = (
         "Invalid file parameter '-' for service 's3' and operation 'mv': "
-        "streaming file ('-') is not allowed."
+        "streaming file on stdin ('-') is not allowed."
     )
     with pytest.raises(FileParameterError) as exc_info:
         parse('aws s3 mv - s3://my-bucket/file.txt')
-
-    error = exc_info.value
-    assert str(error) == expected_message
-    assert error._service == 's3'
-    assert error._operation == 'mv'
-    assert error._file_path == '-'
-
-
-def test_s3_mv_stdout_as_destination_blocked():
-    """Test that 'aws s3 mv s3://bucket/key -' (stdout) is blocked."""
-    expected_message = (
-        "Invalid file parameter '-' for service 's3' and operation 'mv': "
-        "streaming file ('-') is not allowed."
-    )
-    with pytest.raises(FileParameterError) as exc_info:
-        parse('aws s3 mv s3://my-bucket/file.txt -')
 
     error = exc_info.value
     assert str(error) == expected_message
@@ -518,18 +481,6 @@ def test_local_file_uri():
         assert result.parameters['Role'] == 'arn:aws:iam::123456789012:role/lambda-test-role'
         assert result.parameters['Handler'] == 'lambda_function.lambda_handler'
         assert result.parameters['Description'] == 'A Hello World Lambda function'
-
-
-def test_http_uri_validation_error():
-    """Test aws command with http:// URI throws validation error."""
-    with pytest.raises(CommandValidationError) as exc_info:
-        parse(
-            'aws cloudformation create-stack --stack-name test-stack '
-            '--template-body http://example.com/template.yaml'
-        )
-
-    error_message = str(exc_info.value)
-    assert 'http:// prefix is not allowed' in error_message
 
 
 def test_local_file_uri_validation_failure():

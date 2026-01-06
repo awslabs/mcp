@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
+"""DynamoDB MCP Server for data modeling and database analysis."""
 
 import json
 import os
 from awslabs.aws_api_mcp_server.server import call_aws
 from awslabs.dynamodb_mcp_server.common import handle_exceptions
-from awslabs.dynamodb_mcp_server.database_analyzers import (
-    DatabaseAnalyzer,
-    DatabaseAnalyzerRegistry,
-)
+from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
+from awslabs.dynamodb_mcp_server.db_analyzer.plugin_registry import PluginRegistry
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
     create_validation_resources,
     get_validation_result_transform_prompt,
@@ -36,6 +34,7 @@ from typing import Any, Dict, List, Optional
 
 DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
 DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
+
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
@@ -47,12 +46,24 @@ Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design
 This tool provides systematic methodology for creating multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
 
-Use the `source_db_analyzer` tool to analyze existing MySQL/Aurora databases for DynamoDB Data Modeling:
+Use the `source_db_analyzer` tool to analyze existing databases for DynamoDB Data Modeling:
+- Supports MySQL, PostgreSQL, and SQL Server
+- Two execution modes:
+  * SELF_SERVICE: Generate SQL queries, user runs them, tool parses results
+  * MANAGED: Direct database connection (MySQL supports RDS Data API or connection-based access)
+
+Managed Analysis Workflow:
 - Extracts schema structure (tables, columns, indexes, foreign keys)
-- Captures access patterns from Performance Schema (query patterns, RPS, frequencies)
-- Generates timestamped analysis files (JSON format) for use with dynamodb_data_modeling
-- Requires AWS RDS Data API and credentials in Secrets Manager
+- Captures access patterns from query logs (when available)
+- Generates timestamped analysis files (Markdown format) for use with dynamodb_data_modeling
 - Safe for production use (read-only analysis)
+
+Self-Service Mode Workflow:
+1. User selects database type (mysql/postgresql/sqlserver)
+2. Tool generates SQL queries to file
+3. User runs queries against their database
+4. User provides result file path
+5. Tool generates analysis markdown files
 
 Use the `execute_dynamodb_command` tool to execute AWS CLI DynamoDB commands:
 - Executes AWS CLI commands that start with 'aws dynamodb'
@@ -109,180 +120,170 @@ async def dynamodb_data_modeling() -> str:
 @app.tool()
 @handle_exceptions
 async def source_db_analyzer(
-    source_db_type: str = Field(description="Supported Source Database type: 'mysql'"),
+    source_db_type: str = Field(
+        description="Database type: 'mysql', 'postgresql', or 'sqlserver'"
+    ),
     database_name: Optional[str] = Field(
-        default=None, description='Database name to analyze (overrides MYSQL_DATABASE env var)'
+        default=None,
+        description='Database name to analyze. REQUIRED for self_service. Env: MYSQL_DATABASE.',
+    ),
+    execution_mode: str = Field(
+        default='self_service',
+        description=(
+            "'self_service': generates SQL for user to run, then parses results. "
+            "'managed' (MySQL only): RDS Data API-based access (aws_cluster_arn) "
+            'or Connection-based access (hostname+port).'
+        ),
+    ),
+    queries_file_path: Optional[str] = Field(
+        default=None,
+        description='[self_service] Output path for generated SQL queries (Step 1).',
+    ),
+    query_result_file_path: Optional[str] = Field(
+        default=None,
+        description='[self_service] Path to query results file for parsing (Step 2).',
     ),
     pattern_analysis_days: Optional[int] = Field(
         default=30,
-        description='Number of days to analyze the logs for pattern analysis query',
+        description='Days of query logs to analyze. Default: 30.',
         ge=1,
     ),
     max_query_results: Optional[int] = Field(
         default=None,
-        description='Maximum number of rows to include in analysis output files for schema and query log data (overrides MYSQL_MAX_QUERY_RESULTS env var)',
+        description='Max rows per query. Default: 500. Env: MYSQL_MAX_QUERY_RESULTS.',
         ge=1,
     ),
     aws_cluster_arn: Optional[str] = Field(
-        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
+        default=None,
+        description='[managed/RDS Data API-based] Aurora cluster ARN. Use this OR hostname, not both. Env: MYSQL_CLUSTER_ARN.',
     ),
     aws_secret_arn: Optional[str] = Field(
-        default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
+        default=None,
+        description='[managed] Secrets Manager ARN for DB credentials. REQUIRED. Env: MYSQL_SECRET_ARN.',
     ),
     aws_region: Optional[str] = Field(
-        default=None, description='AWS region (overrides AWS_REGION env var)'
+        default=None,
+        description='[managed] AWS region. REQUIRED. Env: AWS_REGION.',
+    ),
+    hostname: Optional[str] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL hostname. Use this OR aws_cluster_arn, not both. Env: MYSQL_HOSTNAME.',
+    ),
+    port: Optional[int] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL port. Default: 3306. Env: MYSQL_PORT.',
     ),
     output_dir: str = Field(
-        description='Absolute directory path where the timestamped output analysis folder will be created.'
+        description='Absolute path for output folder. Must exist and be writable. REQUIRED.',
     ),
 ) -> str:
-    """Analyzes your source database to extract schema and access patterns for DynamoDB Data Modeling.
+    """Analyzes source database to extract schema and access patterns for DynamoDB modeling.
 
-    This tool connects to your existing relational database, examines your current database structure and query
-    patterns to help you design an optimal DynamoDB data model.
+    WHEN TO USE: Call this tool when the user selects "Existing Database Analysis" option
+    after invoking the `dynamodb_data_modeling` tool. This extracts schema and query patterns
+    from an existing relational database to accelerate DynamoDB data model design.
 
-    Output & Next Steps:
-    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with Markdown analysis files
-    - CRITICAL: Immediately read manifest.md from the timestamped folder - it lists all analysis files
-    - The manifest includes summary statistics, links to all analysis files, and skipped queries
-    - Read ALL analysis files listed in the manifest to understand the complete database structure
-    - Files for skipped queries explain why they were skipped (e.g., Performance Schema disabled)
-    - Use these analysis files with the dynamodb_data_modeling tool to design your DynamoDB schema
+    IMPORTANT: Always ask the user which execution mode they prefer before calling this tool.
 
-    Connection Requirements (MySQL/Aurora):
-    - AWS RDS Data API enabled on your Aurora MySQL cluster
-    - Database credentials stored in AWS Secrets Manager
-    - Appropriate IAM permissions to access RDS Data API and Secrets Manager
-    - For complete analysis: MySQL Performance Schema must be enabled (set performance_schema=ON)
-    - Without Performance Schema: Schema-only analysis is performed (no query pattern data)
+    Execution Modes:
+    - self_service: Generates SQL queries for user to run manually, then parses their results.
+    - managed (MySQL only): Database connection via RDS Data API or hostname.
 
-    Environment Variables (Optional):
-    You can set these instead of passing parameters:
-    - MYSQL_DATABASE: Database name to analyze
-    - MYSQL_CLUSTER_ARN: Aurora cluster ARN
-    - MYSQL_SECRET_ARN: Secrets Manager secret ARN containing DB credentials
-    - AWS_REGION: AWS region where your database is located
-    - MYSQL_MAX_QUERY_RESULTS: Maximum rows per query (default: 500)
+    Supported Databases: MySQL, PostgreSQL, SQL Server
 
-    Typical Usage:
-    1. Run this tool against your source database
-    2. Review the generated analysis files to understand your current schema and patterns
-    3. Use dynamodb_data_modeling tool with these files to design your DynamoDB tables
-    4. The analysis helps identify entity relationships, access patterns, and optimization opportunities
+    Output: Generates analysis files (schema structure, access patterns, relationships) in
+    Markdown format. These files feed into the DynamoDB data modeling workflow to inform
+    table design, GSI selection, and access pattern mapping.
 
-    Returns: Analysis summary with saved file locations, query statistics, and next steps.
+    Returns: Analysis summary with file locations and next steps.
     """
+    # Validate execution mode
+    if execution_mode not in ['managed', 'self_service']:
+        return f'Invalid execution_mode: {execution_mode}. Must be "self_service" or "managed".'
+
+    # Get plugin for database type
     try:
-        analyzer_class = DatabaseAnalyzerRegistry.get_analyzer(source_db_type)
+        plugin = PluginRegistry.get_plugin(source_db_type)
     except ValueError as e:
-        supported_types = DatabaseAnalyzerRegistry.get_supported_types()
-        return f'{str(e)}. Supported types: {supported_types}'
+        return f'{str(e)}. Supported types: {PluginRegistry.get_supported_types()}'
 
-    # Build connection parameters based on database type
-    connection_params = DatabaseAnalyzer.build_connection_params(
-        source_db_type,
-        database_name=database_name,
-        pattern_analysis_days=pattern_analysis_days,
-        max_query_results=max_query_results,
-        aws_cluster_arn=aws_cluster_arn,
-        aws_secret_arn=aws_secret_arn,
-        aws_region=aws_region,
-        output_dir=output_dir,
-    )
-
-    # Validate parameters based on database type
-    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
-        source_db_type, connection_params
-    )
-    if missing_params:
-        missing_descriptions = [param_descriptions[param] for param in missing_params]
+    # Managed mode only supports MySQL
+    if execution_mode == 'managed' and source_db_type != 'mysql':
         return (
-            f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
+            f'Managed mode is not supported for {source_db_type}. Use self_service mode instead.'
         )
 
-    logger.info(
-        f'Starting database analysis for {source_db_type} database: {connection_params.get("database")}'
-    )
+    max_results = max_query_results or 500
 
-    try:
-        analysis_result = await analyzer_class.analyze(connection_params)
-
-        # Save results to files
-        saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
-            analysis_result['results'],
-            source_db_type,
-            connection_params.get('database'),
-            connection_params.get('pattern_analysis_days'),
-            connection_params.get('max_results'),
-            connection_params.get('output_dir'),
-            analysis_result.get('performance_enabled', True),
-            analysis_result.get('skipped_queries', []),
-        )
-
-        # Generate report
-        logger.info('Generating analysis report')
-        if analysis_result['results']:
-            report_sections = []
-
-            # Header section
-            report_sections.append('Database Analysis Complete')
-            report_sections.append('')
-
-            # Summary section
-            summary_lines = [
-                'Summary:',
-                f'- Database: {connection_params.get("database")}',
-                f'- Analysis Period: {connection_params.get("pattern_analysis_days")} days',
-                '**CRITICAL: Read ALL Analysis Files**',
-                '',
-                'Follow these steps IN ORDER:',
-                '',
-            ]
-            report_sections.extend(summary_lines)
-
-            # Add workflow section
-            workflow_lines = [
-                '1. Read manifest.md from the timestamped analysis directory',
-                '   - Lists all generated analysis files by category',
-                '   - Shows which queries succeeded/skipped and why',
-                '',
-                '2. Read EVERY file listed in the manifest (both schema and performance sections)',
-                '   - You MUST read all files, even those marked as SKIPPED',
-                '   - Skipped files explain why queries failed (e.g., Performance Schema disabled)',
-                '   - Each file contains critical information for data modeling',
-                '',
-                '3. After reading all files, use dynamodb_data_modeling tool',
-                '   - Extract entities and relationships from schema files',
-                '   - Identify access patterns from performance files',
-                '   - Document findings in dynamodb_requirement.md',
-            ]
-            report_sections.extend(workflow_lines)
-
-            if saved_files:
-                report_sections.append('')
-                report_sections.append('Generated Analysis Files (Read All):')
-                report_sections.extend(f'- {f}' for f in saved_files)
-
-            if save_errors:
-                report_sections.append('')
-                report_sections.append('File Save Errors:')
-                report_sections.extend(f'- {e}' for e in save_errors)
-
-            report = '\n'.join(report_sections)
-
-        else:
-            report = (
-                f'Database Analysis Failed\n\nAll {len(analysis_result["errors"])} queries failed:\n'
-                + '\n'.join(
-                    f'{i}. {error}' for i, error in enumerate(analysis_result['errors'], 1)
-                )
+    # Self-service mode - Step 1: Generate queries
+    if execution_mode == 'self_service' and queries_file_path and not query_result_file_path:
+        try:
+            return analyzer_utils.generate_query_file(
+                plugin, database_name, max_results, queries_file_path, output_dir, source_db_type
             )
+        except Exception as e:
+            logger.error(f'Failed to write queries: {str(e)}')
+            return f'Failed to write queries: {str(e)}'
 
-        return report
+    # Self-service mode - Step 2: Parse results and generate analysis
+    if execution_mode == 'self_service' and query_result_file_path:
+        try:
+            return analyzer_utils.parse_results_and_generate_analysis(
+                plugin,
+                query_result_file_path,
+                output_dir,
+                database_name,
+                pattern_analysis_days,
+                max_results,
+                source_db_type,
+            )
+        except FileNotFoundError as e:
+            logger.error(f'Query Result file not found: {str(e)}')
+            return str(e)
+        except Exception as e:
+            logger.error(f'Analysis failed: {str(e)}')
+            return f'Analysis failed: {str(e)}'
 
-    except Exception as e:
-        logger.error(f'Analysis failed with exception: {str(e)}')
-        return f'Analysis failed: {str(e)}'
+    # Managed analysis mode
+    if execution_mode == 'managed':
+        connection_params = analyzer_utils.build_connection_params(
+            source_db_type,
+            database_name=database_name,
+            pattern_analysis_days=pattern_analysis_days,
+            max_query_results=max_results,
+            aws_cluster_arn=aws_cluster_arn,
+            aws_secret_arn=aws_secret_arn,
+            aws_region=aws_region,
+            hostname=hostname,
+            port=port,
+            output_dir=output_dir,
+        )
+
+        # Validate parameters
+        missing_params, param_descriptions = analyzer_utils.validate_connection_params(
+            source_db_type, connection_params
+        )
+        if missing_params:
+            missing_descriptions = [param_descriptions[param] for param in missing_params]
+            return f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
+
+        logger.info(
+            f'Starting managed analysis for {source_db_type}: {connection_params.get("database")}'
+        )
+
+        try:
+            return await analyzer_utils.execute_managed_analysis(
+                plugin, connection_params, source_db_type
+            )
+        except NotImplementedError as e:
+            logger.error(f'Managed mode not supported: {str(e)}')
+            return str(e)
+        except Exception as e:
+            logger.error(f'Analysis failed: {str(e)}')
+            return f'Analysis failed: {str(e)}'
+
+    # Invalid mode combination
+    return 'Invalid parameter combination. For self-service mode, provide either queries_file_path (to generate queries) or query_result_file_path (to parse results).'
 
 
 @app.tool()

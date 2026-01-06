@@ -16,21 +16,13 @@
 """Tests for EMREc2ClusterHandler."""
 
 import datetime
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_cluster_handler import (
     EMREc2ClusterHandler,
 )
-from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    CreateSecurityConfigurationResponse,
-    DeleteSecurityConfigurationResponse,
-    DescribeSecurityConfigurationResponse,
-    ListClustersResponse,
-    ListSecurityConfigurationsResponse,
-    ModifyClusterAttributesResponse,
-    ModifyClusterResponse,
-    TerminateClustersResponse,
-)
 from mcp.server.fastmcp import Context
+from mcp.types import CallToolResult
 from unittest.mock import MagicMock, patch
 
 
@@ -99,7 +91,9 @@ async def test_create_cluster_success(handler, mock_context):
     )
 
     assert not response.isError
-    assert response.cluster_id == 'j-1234567890ABCDEF0'
+    # Parse JSON data from the second content item
+    data = json.loads(response.content[1].text)
+    assert data['cluster_id'] == 'j-1234567890ABCDEF0'
     handler.emr_client.run_job_flow.assert_called_once()
 
 
@@ -219,8 +213,10 @@ async def test_describe_cluster_success(handler, mock_context):
     )
 
     assert not response.isError
-    assert response.cluster['Id'] == 'j-1234567890ABCDEF0'
-    assert response.cluster['Name'] == 'TestCluster'
+    # Parse JSON data from the second content item
+    data = json.loads(response.content[1].text)
+    assert data['cluster']['Id'] == 'j-1234567890ABCDEF0'
+    assert data['cluster']['Name'] == 'TestCluster'
     handler.emr_client.describe_cluster.assert_called_once_with(ClusterId='j-1234567890ABCDEF0')
 
 
@@ -333,10 +329,12 @@ async def test_list_clusters_success(handler, mock_context):
         mock_context, operation='list-clusters', cluster_states=['RUNNING', 'TERMINATED']
     )
 
-    assert isinstance(response, ListClustersResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.count == 2
-    assert response.marker == 'next-page-token'
+    # Parse JSON data from the second content item
+    data = json.loads(response.content[1].text)
+    assert data['count'] == 2
+    assert data['marker'] == 'next-page-token'
     # Verify the call was made and check the important parameter
     handler.emr_client.list_clusters.assert_called_once()
     call_args = handler.emr_client.list_clusters.call_args[1]
@@ -362,9 +360,13 @@ async def test_terminate_clusters_success(handler, mock_context):
         mock_context, operation='terminate-clusters', cluster_ids=['j-1234567890ABCDEF0']
     )
 
-    assert isinstance(response, TerminateClustersResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.cluster_ids == ['j-1234567890ABCDEF0']
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['cluster_ids'] == ['j-1234567890ABCDEF0']
     handler.emr_client.terminate_job_flows.assert_called_once_with(
         JobFlowIds=['j-1234567890ABCDEF0']
     )
@@ -413,10 +415,14 @@ async def test_modify_cluster_success(handler, mock_context):
         step_concurrency_level=5,
     )
 
-    assert isinstance(response, ModifyClusterResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.cluster_id == 'j-1234567890ABCDEF0'
-    assert response.step_concurrency_level == 5
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['cluster_id'] == 'j-1234567890ABCDEF0'
+    assert data['step_concurrency_level'] == 5
 
 
 @pytest.mark.asyncio
@@ -435,7 +441,7 @@ async def test_modify_cluster_unmanaged(handler, mock_aws_helper, mock_context):
         step_concurrency_level=5,
     )
 
-    assert isinstance(response, ModifyClusterResponse)
+    assert isinstance(response, CallToolResult)
     assert response.isError
     assert 'need to be mcp managed tag' in response.content[0].text
 
@@ -465,9 +471,13 @@ async def test_modify_cluster_attributes_success(handler, mock_context):
         termination_protected=True,
     )
 
-    assert isinstance(response, ModifyClusterAttributesResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.cluster_id == 'j-1234567890ABCDEF0'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['cluster_id'] == 'j-1234567890ABCDEF0'
 
 
 @pytest.mark.asyncio
@@ -484,7 +494,7 @@ async def test_modify_cluster_attributes_unmanaged(handler, mock_aws_helper, moc
         termination_protected=True,
     )
 
-    assert isinstance(response, ModifyClusterAttributesResponse)
+    assert isinstance(response, CallToolResult)
     assert response.isError
     assert 'need to be mcp managed tag' in response.content[0].text
 
@@ -524,9 +534,13 @@ async def test_create_security_configuration_success(handler, mock_context):
         security_configuration_json={'EncryptionConfiguration': {}},
     )
 
-    assert isinstance(response, CreateSecurityConfigurationResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.name == 'test-config'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['name'] == 'test-config'
 
 
 @pytest.mark.asyncio
@@ -689,9 +703,13 @@ async def test_delete_security_configuration_success(handler, mock_context):
         security_configuration_name='test-config',
     )
 
-    assert isinstance(response, DeleteSecurityConfigurationResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.name == 'test-config'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['name'] == 'test-config'
 
 
 @pytest.mark.asyncio
@@ -722,10 +740,14 @@ async def test_describe_security_configuration_success(handler, mock_context):
         security_configuration_name='test-config',
     )
 
-    assert isinstance(response, DescribeSecurityConfigurationResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.name == 'test-config'
-    assert response.security_configuration == '{"EncryptionConfiguration": {}}'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['name'] == 'test-config'
+    assert data['security_configuration'] == '{"EncryptionConfiguration": {}}'
 
 
 @pytest.mark.asyncio
@@ -756,10 +778,14 @@ async def test_list_security_configurations_success(handler, mock_context):
         mock_context, operation='list-security-configurations', marker='test-marker'
     )
 
-    assert isinstance(response, ListSecurityConfigurationsResponse)
+    assert isinstance(response, CallToolResult)
     assert not response.isError
-    assert response.count == 2
-    assert response.marker == 'next-token'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['count'] == 2
+    assert data['marker'] == 'next-token'
 
 
 # Test create cluster with all optional parameters
@@ -838,7 +864,11 @@ async def test_create_security_configuration_string_datetime(handler, mock_conte
     )
 
     assert not response.isError
-    assert response.creation_date_time == '2023-01-01T00:00:00Z'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['creation_date_time'] == '2023-01-01T00:00:00Z'
 
 
 # Test describe security configuration with string CreationDateTime
@@ -859,7 +889,11 @@ async def test_describe_security_configuration_string_datetime(handler, mock_con
     )
 
     assert not response.isError
-    assert response.creation_date_time == '2023-01-01T00:00:00Z'
+    # Parse JSON data from the second content item
+    import json
+
+    data = json.loads(response.content[1].text)
+    assert data['creation_date_time'] == '2023-01-01T00:00:00Z'
 
 
 # Test write access restrictions for all write operations

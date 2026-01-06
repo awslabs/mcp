@@ -469,10 +469,13 @@ class GenomicsSearchOrchestrator:
         """
         search_tasks = []
 
-        # Add S3 search task if bucket paths are configured and S3 engine is available
-        if self.config.s3_bucket_paths and self.s3_engine is not None:
-            logger.info(f'Adding S3 search task for {len(self.config.s3_bucket_paths)} buckets')
-            s3_task = self._search_s3_with_timeout(request)
+        # Combine configured buckets with validated adhoc buckets
+        all_bucket_paths = await self._get_all_s3_bucket_paths(request)
+
+        # Add S3 search task if bucket paths are available and S3 engine is available
+        if all_bucket_paths and self.s3_engine is not None:
+            logger.info(f'Adding S3 search task for {len(all_bucket_paths)} buckets')
+            s3_task = self._search_s3_with_timeout_for_buckets(request, all_bucket_paths)
             search_tasks.append(('s3', s3_task))
 
         # Add HealthOmics search tasks if enabled
@@ -544,12 +547,15 @@ class GenomicsSearchOrchestrator:
             total_results_seen=global_token.total_results_seen,
         )
 
-        # Add S3 paginated search task if bucket paths are configured and S3 engine is available
-        if self.config.s3_bucket_paths and self.s3_engine is not None:
-            logger.info(
-                f'Adding S3 paginated search task for {len(self.config.s3_bucket_paths)} buckets'
+        # Combine configured buckets with validated adhoc buckets
+        all_bucket_paths = await self._get_all_s3_bucket_paths(request)
+
+        # Add S3 paginated search task if bucket paths are available and S3 engine is available
+        if all_bucket_paths and self.s3_engine is not None:
+            logger.info(f'Adding S3 paginated search task for {len(all_bucket_paths)} buckets')
+            s3_task = self._search_s3_paginated_with_timeout_for_buckets(
+                request, storage_pagination_request, all_bucket_paths
             )
-            s3_task = self._search_s3_paginated_with_timeout(request, storage_pagination_request)
             search_tasks.append(('s3', s3_task))
 
         # Add HealthOmics paginated search tasks if enabled
@@ -639,6 +645,41 @@ class GenomicsSearchOrchestrator:
 
         return all_files, final_next_token, total_scanned
 
+    async def _get_all_s3_bucket_paths(self, request: GenomicsFileSearchRequest) -> List[str]:
+        """Get all S3 bucket paths including configured and validated adhoc buckets.
+
+        Args:
+            request: Search request containing potential adhoc buckets
+
+        Returns:
+            Combined list of all valid S3 bucket paths
+        """
+        all_bucket_paths = self.config.s3_bucket_paths.copy()
+
+        # Validate and add adhoc buckets if provided
+        if request.adhoc_s3_buckets:
+            try:
+                from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+                    validate_adhoc_s3_buckets,
+                )
+
+                validated_adhoc_buckets = await validate_adhoc_s3_buckets(request.adhoc_s3_buckets)
+                if validated_adhoc_buckets:
+                    all_bucket_paths.extend(validated_adhoc_buckets)
+                    # Deduplicate bucket paths to avoid searching the same bucket multiple times
+                    all_bucket_paths = list(dict.fromkeys(all_bucket_paths))
+                    f'Added {len(validated_adhoc_buckets)} validated adhoc S3 buckets to search'
+                else:
+                    logger.warning(
+                        'No adhoc S3 buckets were accessible, continuing with configured buckets only'
+                    )
+            except Exception as e:
+                logger.error(
+                    f'Error validating adhoc S3 buckets: {e}. Continuing with configured buckets only'
+                )
+
+        return all_bucket_paths
+
     async def _search_s3_with_timeout(
         self, request: GenomicsFileSearchRequest
     ) -> List[GenomicsFile]:
@@ -658,6 +699,36 @@ class GenomicsSearchOrchestrator:
             return await asyncio.wait_for(
                 self.s3_engine.search_buckets(
                     self.config.s3_bucket_paths, request.file_type, request.search_terms
+                ),
+                timeout=self.config.search_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(f'S3 search timed out after {self.config.search_timeout_seconds} seconds')
+            return []
+        except Exception as e:
+            logger.error(f'S3 search failed: {e}')
+            return []
+
+    async def _search_s3_with_timeout_for_buckets(
+        self, request: GenomicsFileSearchRequest, bucket_paths: List[str]
+    ) -> List[GenomicsFile]:
+        """Execute S3 search with timeout protection for specific bucket paths.
+
+        Args:
+            request: Search request
+            bucket_paths: List of S3 bucket paths to search
+
+        Returns:
+            List of GenomicsFile objects from S3 search
+        """
+        if self.s3_engine is None:
+            logger.warning('S3 search engine not available, skipping S3 search')
+            return []
+
+        try:
+            return await asyncio.wait_for(
+                self.s3_engine.search_buckets(
+                    bucket_paths, request.file_type, request.search_terms
                 ),
                 timeout=self.config.search_timeout_seconds,
             )
@@ -746,6 +817,47 @@ class GenomicsSearchOrchestrator:
             return await asyncio.wait_for(
                 self.s3_engine.search_buckets_paginated(
                     self.config.s3_bucket_paths,
+                    request.file_type,
+                    request.search_terms,
+                    storage_pagination_request,
+                ),
+                timeout=self.config.search_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f'S3 paginated search timed out after {self.config.search_timeout_seconds} seconds'
+            )
+            return StoragePaginationResponse(results=[], has_more_results=False)
+        except Exception as e:
+            logger.error(f'S3 paginated search failed: {e}')
+            return StoragePaginationResponse(results=[], has_more_results=False)
+
+    async def _search_s3_paginated_with_timeout_for_buckets(
+        self,
+        request: GenomicsFileSearchRequest,
+        storage_pagination_request: 'StoragePaginationRequest',
+        bucket_paths: List[str],
+    ) -> 'StoragePaginationResponse':
+        """Execute S3 paginated search with timeout protection for specific bucket paths.
+
+        Args:
+            request: Search request
+            storage_pagination_request: Storage-level pagination parameters
+            bucket_paths: List of S3 bucket paths to search
+
+        Returns:
+            StoragePaginationResponse from S3 search
+        """
+        from awslabs.aws_healthomics_mcp_server.models import StoragePaginationResponse
+
+        if self.s3_engine is None:
+            logger.warning('S3 search engine not available, skipping S3 paginated search')
+            return StoragePaginationResponse(results=[], has_more_results=False)
+
+        try:
+            return await asyncio.wait_for(
+                self.s3_engine.search_buckets_paginated(
+                    bucket_paths,
                     request.file_type,
                     request.search_terms,
                     storage_pagination_request,
@@ -971,13 +1083,18 @@ class GenomicsSearchOrchestrator:
         import hashlib
         import json
 
+        # Include adhoc buckets in cache key to ensure cache isolation
+        all_buckets = self.config.s3_bucket_paths.copy()
+        if request.adhoc_s3_buckets:
+            all_buckets.extend(request.adhoc_s3_buckets)
+
         key_data = {
             'file_type': request.file_type or '',
             'search_terms': sorted(request.search_terms),
             'include_associated_files': request.include_associated_files,
             'page_number': page_number,
             'buffer_size': request.pagination_buffer_size,
-            's3_buckets': sorted(self.config.s3_bucket_paths),
+            's3_buckets': sorted(all_buckets),  # Include both configured and adhoc buckets
             'enable_healthomics': self.config.enable_healthomics_search,
         }
 

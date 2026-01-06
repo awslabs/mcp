@@ -5,8 +5,8 @@ modules during development testing before the package is installed.
 Without this, test imports would fail with ModuleNotFoundError.
 """
 
-import sys
 import os
+import sys
 
 # Add the project root to Python path so tests can import local modules when running pytest
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

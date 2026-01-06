@@ -14,14 +14,15 @@
 
 """EMRServerlessApplicationHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    CreateApplicationResponse,
-    DeleteApplicationResponse,
-    GetApplicationResponse,
-    ListApplicationsResponse,
-    StartApplicationResponse,
-    StopApplicationResponse,
-    UpdateApplicationResponse,
+    CreateApplicationData,
+    DeleteApplicationData,
+    GetApplicationData,
+    ListApplicationsData,
+    StartApplicationData,
+    StopApplicationData,
+    UpdateApplicationData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
@@ -32,9 +33,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMRServerlessApplicationHandler:
@@ -60,28 +61,10 @@ class EMRServerlessApplicationHandler:
 
     def _create_error_response(self, operation: str, error_message: str):
         """Create appropriate error response based on operation type."""
-        content: List[Content] = [TextContent(type='text', text=error_message)]
-
-        if operation == 'create-application':
-            return CreateApplicationResponse(
-                isError=True, content=content, application_id='', name='', arn=''
-            )
-        elif operation == 'get-application':
-            return GetApplicationResponse(isError=True, content=content, application={})
-        elif operation == 'update-application':
-            return UpdateApplicationResponse(isError=True, content=content, application={})
-        elif operation == 'delete-application':
-            return DeleteApplicationResponse(isError=True, content=content, application_id='')
-        elif operation == 'list-applications':
-            return ListApplicationsResponse(
-                isError=True, content=content, applications=[], count=0, next_token=None
-            )
-        elif operation == 'start-application':
-            return StartApplicationResponse(isError=True, content=content, application_id='')
-        elif operation == 'stop-application':
-            return StopApplicationResponse(isError=True, content=content, application_id='')
-        else:
-            return GetApplicationResponse(isError=True, content=content, application={})
+        return CallToolResult(
+            isError=True,
+            content=[TextContent(type='text', text=error_message)],
+        )
 
     async def manage_aws_emr_serverless_applications(
         self,
@@ -224,15 +207,7 @@ class EMRServerlessApplicationHandler:
                 description='An optional filter for application states (optional for list-applications).',
             ),
         ] = None,
-    ) -> Union[
-        CreateApplicationResponse,
-        GetApplicationResponse,
-        UpdateApplicationResponse,
-        DeleteApplicationResponse,
-        ListApplicationsResponse,
-        StartApplicationResponse,
-        StopApplicationResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR Serverless applications with comprehensive control over application lifecycle.
 
         This tool provides operations for managing Amazon EMR Serverless applications,
@@ -380,18 +355,20 @@ class EMRServerlessApplicationHandler:
                 # Create application
                 response = self.emr_serverless_client.create_application(**params)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully created EMR Serverless application {response.get("name", "")} with MCP management tags',
-                    )
-                ]
-                return CreateApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully created EMR Serverless application {response.get("name", "")} with MCP management tags'
+                data = CreateApplicationData(
                     application_id=response.get('applicationId', ''),
                     name=response.get('name', ''),
                     arn=response.get('arn', ''),
+                    operation='create-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-application':
@@ -402,16 +379,20 @@ class EMRServerlessApplicationHandler:
                 # Get application
                 response = self.emr_serverless_client.get_application(applicationId=application_id)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved EMR Serverless application {application_id}',
-                    )
-                ]
-                return GetApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully retrieved EMR Serverless application {application_id}'
+                )
+                data = GetApplicationData(
                     application=response.get('application', {}),
+                    operation='get-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-application':
@@ -472,16 +453,20 @@ class EMRServerlessApplicationHandler:
                 # Update application
                 response = self.emr_serverless_client.update_application(**params)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully updated EMR Serverless application {application_id}',
-                    )
-                ]
-                return UpdateApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully updated EMR Serverless application {application_id}'
+                )
+                data = UpdateApplicationData(
                     application=response.get('application', {}),
+                    operation='update-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-application':
@@ -504,16 +489,20 @@ class EMRServerlessApplicationHandler:
                 # Delete application
                 self.emr_serverless_client.delete_application(applicationId=application_id)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully deleted EMR Serverless application {application_id}',
-                    )
-                ]
-                return DeleteApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully deleted EMR Serverless application {application_id}'
+                )
+                data = DeleteApplicationData(
                     application_id=application_id,
+                    operation='delete-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-applications':
@@ -530,18 +519,20 @@ class EMRServerlessApplicationHandler:
                 response = self.emr_serverless_client.list_applications(**params)
 
                 applications = response.get('applications', [])
-                content: List[Content] = [
-                    TextContent(
-                        type='text', text='Successfully listed EMR Serverless applications'
-                    )
-                ]
-                return ListApplicationsResponse(
-                    isError=False,
-                    content=content,
+                success_message = 'Successfully listed EMR Serverless applications'
+                data = ListApplicationsData(
                     applications=applications,
                     count=len(applications),
                     next_token=response.get('nextToken'),
-                    operation='list',
+                    operation='list-applications',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'start-application':
@@ -564,16 +555,20 @@ class EMRServerlessApplicationHandler:
                 # Start application
                 self.emr_serverless_client.start_application(applicationId=application_id)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully started EMR Serverless application {application_id}',
-                    )
-                ]
-                return StartApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully started EMR Serverless application {application_id}'
+                )
+                data = StartApplicationData(
                     application_id=application_id,
+                    operation='start-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'stop-application':
@@ -596,16 +591,20 @@ class EMRServerlessApplicationHandler:
                 # Stop application
                 self.emr_serverless_client.stop_application(applicationId=application_id)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully stopped EMR Serverless application {application_id}',
-                    )
-                ]
-                return StopApplicationResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully stopped EMR Serverless application {application_id}'
+                )
+                data = StopApplicationData(
                     application_id=application_id,
+                    operation='stop-application',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:

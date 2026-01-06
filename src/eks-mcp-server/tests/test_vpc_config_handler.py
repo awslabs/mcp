@@ -14,6 +14,7 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the VpcConfigHandler class."""
 
+import json
 import pytest
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from mcp.server.fastmcp import Context
@@ -177,11 +178,14 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.vpc_id == 'vpc-explicit'
-        assert result.cidr_block == '10.0.0.0/16'
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.subnets) == 1
-        assert result.subnets[0]['subnet_id'] == 'subnet-explicit'
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['vpc_id'] == 'vpc-explicit'
+        assert data['cidr_block'] == '10.0.0.0/16'
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['subnets']) == 1
+        assert data['subnets'][0]['subnet_id'] == 'subnet-explicit'
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_vpc_not_found(self, mock_context, mock_mcp):
@@ -221,8 +225,6 @@ class TestVpcConfigHandler:
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
         assert 'Error' in result.content[0].text
-        assert result.vpc_id == ''
-        assert result.cluster_name == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_no_vpc_id(self, mock_context, mock_mcp):
@@ -258,8 +260,6 @@ class TestVpcConfigHandler:
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
         assert 'Could not determine VPC ID for cluster' in result.content[0].text
-        assert result.vpc_id == ''
-        assert result.cluster_name == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_api_error(self, mock_context, mock_mcp):
@@ -289,8 +289,6 @@ class TestVpcConfigHandler:
         )  # Ensure it's TextContent before accessing .text
         assert 'Error getting cluster information' in result.content[0].text
         assert 'API Error' in result.content[0].text
-        assert result.vpc_id == ''
-        assert result.cluster_name == 'test-cluster'
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_with_remote_network(self, mock_context, mock_mcp):
@@ -375,20 +373,23 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.vpc_id == 'vpc-remote'
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['vpc_id'] == 'vpc-remote'
 
         # Verify remote network detection
-        assert len(result.remote_node_cidr_blocks) == 2
-        assert '192.168.0.0/16' in result.remote_node_cidr_blocks
-        assert '192.168.1.0/24' in result.remote_node_cidr_blocks
-        assert len(result.remote_pod_cidr_blocks) == 2
-        assert '172.16.0.0/16' in result.remote_pod_cidr_blocks
-        assert '172.17.0.0/16' in result.remote_pod_cidr_blocks
+        assert len(data['remote_node_cidr_blocks']) == 2
+        assert '192.168.0.0/16' in data['remote_node_cidr_blocks']
+        assert '192.168.1.0/24' in data['remote_node_cidr_blocks']
+        assert len(data['remote_pod_cidr_blocks']) == 2
+        assert '172.16.0.0/16' in data['remote_pod_cidr_blocks']
+        assert '172.17.0.0/16' in data['remote_pod_cidr_blocks']
 
         # Verify subnet information
-        assert len(result.subnets) == 2
-        assert any(s['subnet_id'] == 'subnet-remote1' for s in result.subnets)
-        assert any(s['subnet_id'] == 'subnet-remote2' for s in result.subnets)
+        assert len(data['subnets']) == 2
+        assert any(s['subnet_id'] == 'subnet-remote1' for s in data['subnets'])
+        assert any(s['subnet_id'] == 'subnet-remote2' for s in data['subnets'])
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_with_no_pod_networks(self, mock_context, mock_mcp):
@@ -468,24 +469,27 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.vpc_id == 'vpc-nopod'
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['vpc_id'] == 'vpc-nopod'
 
         # Verify node CIDRs but no pod CIDRs
-        assert len(result.remote_node_cidr_blocks) == 2
-        assert '192.168.0.0/16' in result.remote_node_cidr_blocks
-        assert '172.16.0.0/16' in result.remote_node_cidr_blocks
-        assert len(result.remote_pod_cidr_blocks) == 0  # Key test assertion
+        assert len(data['remote_node_cidr_blocks']) == 2
+        assert '192.168.0.0/16' in data['remote_node_cidr_blocks']
+        assert '172.16.0.0/16' in data['remote_node_cidr_blocks']
+        assert len(data['remote_pod_cidr_blocks']) == 0  # Key test assertion
 
         # Verify routes for remote connectivity
         assert any(
             r['destination_cidr_block'] == '192.168.0.0/16'
             and r['target_type'] == 'transitgateway'
-            for r in result.routes
+            for r in data['routes']
         )
         assert any(
             r['destination_cidr_block'] == '172.16.0.0/16'
             and r['target_type'] == 'vpcpeeringconnection'
-            for r in result.routes
+            for r in data['routes']
         )
 
     @pytest.mark.asyncio
@@ -580,27 +584,30 @@ class TestVpcConfigHandler:
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
         assert 'Retrieved VPC configuration' in result.content[0].text
-        assert result.vpc_id == 'vpc-12345'
-        assert result.cidr_block == '10.0.0.0/16'
-        assert len(result.additional_cidr_blocks) == 1
-        assert result.additional_cidr_blocks[0] == '10.1.0.0/16'
-        assert len(result.routes) == 2  # Local route should be filtered out
-        assert any(route['destination_cidr_block'] == '0.0.0.0/0' for route in result.routes)
-        assert any(route['destination_cidr_block'] == '192.168.0.0/16' for route in result.routes)
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['vpc_id'] == 'vpc-12345'
+        assert data['cidr_block'] == '10.0.0.0/16'
+        assert len(data['additional_cidr_blocks']) == 1
+        assert data['additional_cidr_blocks'][0] == '10.1.0.0/16'
+        assert len(data['routes']) == 2  # Local route should be filtered out
+        assert any(route['destination_cidr_block'] == '0.0.0.0/0' for route in data['routes'])
+        assert any(route['destination_cidr_block'] == '192.168.0.0/16' for route in data['routes'])
 
         # Verify remote network detection
-        assert len(result.remote_node_cidr_blocks) == 2
-        assert '192.168.0.0/16' in result.remote_node_cidr_blocks
-        assert '192.168.1.0/24' in result.remote_node_cidr_blocks
-        assert len(result.remote_pod_cidr_blocks) == 2
-        assert '172.16.0.0/16' in result.remote_pod_cidr_blocks
-        assert '172.17.0.0/16' in result.remote_pod_cidr_blocks
+        assert len(data['remote_node_cidr_blocks']) == 2
+        assert '192.168.0.0/16' in data['remote_node_cidr_blocks']
+        assert '192.168.1.0/24' in data['remote_node_cidr_blocks']
+        assert len(data['remote_pod_cidr_blocks']) == 2
+        assert '172.16.0.0/16' in data['remote_pod_cidr_blocks']
+        assert '172.17.0.0/16' in data['remote_pod_cidr_blocks']
 
         # Verify subnet information
-        assert len(result.subnets) == 2
+        assert len(data['subnets']) == 2
 
         # Check first subnet
-        subnet1 = next((s for s in result.subnets if s['subnet_id'] == 'subnet-12345'), None)
+        subnet1 = next((s for s in data['subnets'] if s['subnet_id'] == 'subnet-12345'), None)
         assert subnet1 is not None
         assert subnet1['cidr_block'] == '10.0.1.0/24'
         assert subnet1['az_name'] == 'us-west-2a'
@@ -609,7 +616,7 @@ class TestVpcConfigHandler:
         assert subnet1['has_sufficient_ips'] is True
 
         # Check second subnet
-        subnet2 = next((s for s in result.subnets if s['subnet_id'] == 'subnet-67890'), None)
+        subnet2 = next((s for s in data['subnets'] if s['subnet_id'] == 'subnet-67890'), None)
         assert subnet2 is not None
         assert subnet2['cidr_block'] == '10.0.2.0/24'
         assert subnet2['az_name'] == 'us-west-2b'
@@ -1050,3 +1057,64 @@ class TestVpcConfigHandler:
         # Verify the result (should be empty lists)
         assert len(remote_node_cidr_blocks) == 0
         assert len(remote_pod_cidr_blocks) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_eks_vpc_config_outer_exception(self, mock_context, mock_mcp):
+        """Test get_eks_vpc_config with outer exception (Error retrieving VPC configuration)."""
+        # Create mock AWS clients
+        mock_eks_client = MagicMock()
+        mock_ec2_client = MagicMock()
+
+        # Set up EKS client to raise an exception during describe_cluster
+        mock_eks_client.describe_cluster.side_effect = Exception('Unexpected error')
+
+        # Initialize the handler with our mock clients
+        handler = VpcConfigHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        handler.eks_client = mock_eks_client
+
+        # Call the public method (not the implementation method)
+        result = await handler.get_eks_vpc_config(mock_context, cluster_name='test-cluster')
+
+        # Verify EKS client was called
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+
+        # Verify error response - the error is caught at the inner level first
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        # The error message will be "Error getting cluster information" from the inner try-catch
+        assert 'Error getting cluster information' in result.content[0].text
+        assert 'Unexpected error' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_eks_vpc_config_impl_inner_exception(self, mock_context, mock_mcp):
+        """Test _get_eks_vpc_config_impl with inner exception during VPC details retrieval."""
+        # Create mock AWS clients
+        mock_eks_client = MagicMock()
+        mock_ec2_client = MagicMock()
+
+        # Set up EKS mock response with valid VPC ID
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {'resourcesVpcConfig': {'vpcId': 'vpc-12345'}}
+        }
+
+        # Set up EC2 client to raise an exception during describe_vpcs
+        mock_ec2_client.describe_vpcs.side_effect = Exception('VPC retrieval failed')
+
+        # Initialize the handler with our mock clients
+        handler = VpcConfigHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        handler.eks_client = mock_eks_client
+
+        # Call the implementation method directly
+        result = await handler._get_eks_vpc_config_impl(mock_context, cluster_name='test-cluster')
+
+        # Verify calls
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+        mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
+
+        # Verify error response
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Error retrieving VPC configuration' in result.content[0].text
+        assert 'VPC retrieval failed' in result.content[0].text

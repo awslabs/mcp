@@ -14,25 +14,26 @@
 
 """Kubernetes handler for the EKS MCP Server."""
 
+import json
 import os
 import yaml
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
-    ApiVersionsResponse,
-    ApplyYamlResponse,
+    ApiVersionsData,
+    ApplyYamlData,
     EventItem,
-    EventsResponse,
-    GenerateAppManifestResponse,
-    KubernetesResourceListResponse,
-    KubernetesResourceResponse,
+    EventsData,
+    GenerateAppManifestData,
+    KubernetesResourceData,
+    KubernetesResourceListData,
     Operation,
-    PodLogsResponse,
+    PodLogsData,
     ResourceSummary,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -106,7 +107,7 @@ class K8sHandler:
             True,
             description='Whether to update resources if they already exist (similar to kubectl apply). Set to false to only create new resources.',
         ),
-    ) -> ApplyYamlResponse:
+    ) -> CallToolResult:
         """Apply a Kubernetes YAML from a local file.
 
         This tool applies Kubernetes resources defined in a YAML file to an EKS cluster,
@@ -141,12 +142,9 @@ class K8sHandler:
             if not os.path.isabs(yaml_path):
                 error_msg = f'Path must be absolute: {yaml_path}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return ApplyYamlResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    force_applied=force,
-                    resources_created=0,
-                    resources_updated=0,
                 )
 
             # Get Kubernetes client for the cluster
@@ -161,22 +159,16 @@ class K8sHandler:
             except FileNotFoundError:
                 error_msg = f'YAML file not found: {yaml_path}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return ApplyYamlResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    force_applied=force,
-                    resources_created=0,
-                    resources_updated=0,
                 )
             except IOError as e:
                 error_msg = f'Error reading YAML file {yaml_path}: {str(e)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return ApplyYamlResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    force_applied=force,
-                    resources_created=0,
-                    resources_updated=0,
                 )
 
             # Parse YAML documents
@@ -203,12 +195,18 @@ class K8sHandler:
                 )
                 log_with_request_id(ctx, LogLevel.INFO, success_msg)
 
-                return ApplyYamlResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text=success_msg)],
+                data = ApplyYamlData(
                     force_applied=force,
                     resources_created=created_count,
                     resources_updated=updated_count,
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_msg),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             except Exception as e:
@@ -216,24 +214,18 @@ class K8sHandler:
                 error_msg = f'Failed to apply YAML from file {yaml_path}: {str(e)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
-                return ApplyYamlResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    force_applied=force,
-                    resources_created=0,
-                    resources_updated=0,
                 )
 
         except Exception as e:
             error_msg = f'Error applying YAML from file: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
-            return ApplyYamlResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                force_applied=force,
-                resources_created=0,
-                resources_updated=0,
             )
 
     def filter_null_values(self, data: Any) -> Any:
@@ -330,7 +322,7 @@ class K8sHandler:
             For create and replace, this should be a complete resource definition.
             For patch, this should contain only the fields to update.""",
         ),
-    ) -> KubernetesResourceResponse:
+    ) -> CallToolResult:
         """Manage a single Kubernetes resource with various operations.
 
         This tool provides complete CRUD (Create, Read, Update, Delete) operations
@@ -381,30 +373,18 @@ class K8sHandler:
                 valid_ops = ', '.join([op.value for op in Operation])
                 error_msg = f'Invalid operation: {operation}. Valid operations are: {valid_ops}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return KubernetesResourceResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    kind=kind,
-                    name=name or '',
-                    namespace=namespace,
-                    api_version=api_version,
-                    operation=operation,
-                    resource=None,
                 )
 
             # Check if write access is disabled and trying to perform a mutating operation
             if not self.allow_write and operation_enum not in [Operation.READ]:
                 error_msg = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return KubernetesResourceResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    kind=kind,
-                    name=name or '',
-                    namespace=namespace,
-                    api_version=api_version,
-                    operation=operation,
-                    resource=None,
                 )
 
             # Check if sensitive data access is disabled and trying to read Secret resources
@@ -417,15 +397,9 @@ class K8sHandler:
                     'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return KubernetesResourceResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    kind=kind,
-                    name=name or '',
-                    namespace=namespace,
-                    api_version=api_version,
-                    operation=operation,
-                    resource=None,
                 )
 
             # Get Kubernetes client for the cluster
@@ -467,21 +441,28 @@ class K8sHandler:
                     f'Cleaned up resource response for {kind} {resource_name}',
                 )
 
-            # Return success response
-            return KubernetesResourceResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully {operation_past_tense} {kind} {resource_name}',
-                    )
-                ],
+            # Return success response with structured data
+            data = KubernetesResourceData(
                 kind=kind,
                 name=name or '',
                 namespace=namespace,
                 api_version=api_version,
                 operation=operation,
                 resource=resource_data,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully {operation_past_tense} {kind} {resource_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
             )
 
         except Exception as e:
@@ -491,15 +472,9 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             # Return error response
-            return KubernetesResourceResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                kind=kind,
-                name=name or '',
-                namespace=namespace,
-                api_version=api_version,
-                operation=operation,
-                resource=None,
             )
 
     async def list_k8s_resources(
@@ -533,7 +508,7 @@ class K8sHandler:
             description="""Field selector to filter resources (e.g., 'metadata.name=my-pod,status.phase=Running').
             Uses the same syntax as kubectl's --field-selector flag.""",
         ),
-    ) -> KubernetesResourceListResponse:
+    ) -> CallToolResult:
         """List Kubernetes resources of a specific kind.
 
         This tool lists Kubernetes resources of a specified kind in an EKS cluster,
@@ -609,20 +584,27 @@ class K8sHandler:
                 ctx, LogLevel.INFO, f'Listed {len(summaries)} {kind} resources {resource_location}'
             )
 
-            # Return success response
-            return KubernetesResourceListResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully listed {len(summaries)} {kind} resources {resource_location}',
-                    )
-                ],
+            # Return success response with structured data
+            data = KubernetesResourceListData(
                 kind=kind,
                 api_version=api_version,
                 namespace=namespace,
                 count=len(summaries),
                 items=summaries,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully listed {len(summaries)} {kind} resources {resource_location}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
             )
 
         except Exception as e:
@@ -631,14 +613,9 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             # Return error response
-            return KubernetesResourceListResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                kind=kind,
-                api_version=api_version,
-                namespace=namespace,
-                count=0,
-                items=[],
             )
 
     async def generate_app_manifest(
@@ -674,7 +651,7 @@ class K8sHandler:
             'internal',
             description='AWS load balancer scheme. Options: "internal" (private VPC only) or "internet-facing" (public access).',
         ),
-    ) -> GenerateAppManifestResponse:
+    ) -> CallToolResult:
         """Generate Kubernetes manifest for a deployment and service.
 
         This tool generates Kubernetes manifests for deploying an application to an EKS cluster,
@@ -715,20 +692,18 @@ class K8sHandler:
             if not self.allow_write:
                 error_msg = 'Operation generate_app_manifest is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return GenerateAppManifestResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    output_file_path='',
                 )
 
             # Validate that the path is absolute
             if not os.path.isabs(output_dir):
                 error_msg = f'Output directory path must be absolute: {output_dir}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-                return GenerateAppManifestResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_msg)],
-                    output_file_path='',
                 )
 
             log_with_request_id(
@@ -774,20 +749,25 @@ class K8sHandler:
 
             log_with_request_id(ctx, LogLevel.INFO, success_message)
 
-            return GenerateAppManifestResponse(
-                isError=False,
-                content=[TextContent(type='text', text=success_message)],
+            data = GenerateAppManifestData(
                 output_file_path=output_file_path,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except Exception as e:
             error_message = f'Failed to generate YAML: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GenerateAppManifestResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                output_file_path='',
             )
 
     def _remove_checkov_skip_annotations(self, content: str) -> str:
@@ -882,7 +862,7 @@ class K8sHandler:
             False,
             description='Return previous terminated container logs. Default: false. Useful to get logs for pods that are restarting.',
         ),
-    ) -> PodLogsResponse:
+    ) -> CallToolResult:
         """Get logs from a pod in a Kubernetes cluster.
 
         This tool retrieves logs from a specified pod in an EKS cluster, with options
@@ -918,13 +898,9 @@ class K8sHandler:
         if not self.allow_sensitive_data_access:
             error_msg = 'Access to pod logs requires --allow-sensitive-data-access flag'
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-            return PodLogsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                pod_name=pod_name,
-                namespace=namespace,
-                container_name=container_name,
-                log_lines=[],
             )
 
         try:
@@ -959,19 +935,26 @@ class K8sHandler:
                 f'Retrieved {len(log_lines)} log lines from pod {namespace}/{pod_name}{container_info}',
             )
 
-            # Return success response
-            return PodLogsResponse(
+            # Return success response with structured data
+            data = PodLogsData(
+                pod_name=pod_name,
+                namespace=namespace,
+                container_name=container_name,
+                log_lines=log_lines,
+            )
+
+            return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
                         type='text',
                         text=f'Successfully retrieved {len(log_lines)} log lines from pod {namespace}/{pod_name}{container_info}',
-                    )
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
                 ],
-                pod_name=pod_name,
-                namespace=namespace,
-                container_name=container_name,
-                log_lines=log_lines,
             )
 
         except Exception as e:
@@ -985,13 +968,9 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             # Return error response
-            return PodLogsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                pod_name=pod_name,
-                namespace=namespace,
-                container_name=container_name,
-                log_lines=[],
             )
 
     async def get_k8s_events(
@@ -1010,7 +989,7 @@ class K8sHandler:
             description="""Namespace of the involved object. Required for namespaced resources (like Pods, Deployments).
             Not required for cluster-scoped resources (like Nodes, PersistentVolumes).""",
         ),
-    ) -> EventsResponse:
+    ) -> CallToolResult:
         """Get events related to a specific Kubernetes resource.
 
         This tool retrieves Kubernetes events related to a specific resource, providing
@@ -1048,14 +1027,9 @@ class K8sHandler:
         if not self.allow_sensitive_data_access:
             error_msg = 'Access to Kubernetes events requires --allow-sensitive-data-access flag'
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
-            return EventsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                involved_object_kind=kind,
-                involved_object_name=name,
-                involved_object_namespace=namespace,
-                count=0,
-                events=[],
             )
 
         try:
@@ -1096,20 +1070,27 @@ class K8sHandler:
                 ctx, LogLevel.INFO, f'Retrieved {len(events)} events for {kind} {resource_name}'
             )
 
-            # Return success response
-            return EventsResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved {len(events)} events for {kind} {resource_name}',
-                    )
-                ],
+            # Return success response with structured data
+            data = EventsData(
                 involved_object_kind=kind,
                 involved_object_name=name,
                 involved_object_namespace=namespace,
                 count=len(events),
                 events=event_items,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully retrieved {len(events)} events for {kind} {resource_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
             )
 
         except Exception as e:
@@ -1121,14 +1102,9 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             # Return error response
-            return EventsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                involved_object_kind=kind,
-                involved_object_name=name or '',
-                involved_object_namespace=namespace,
-                count=0,
-                events=[],
             )
 
     async def list_api_versions(
@@ -1137,7 +1113,7 @@ class K8sHandler:
         cluster_name: str = Field(
             ..., description='Name of the EKS cluster to query for available API versions.'
         ),
-    ) -> ApiVersionsResponse:
+    ) -> CallToolResult:
         """List all available API versions in the Kubernetes cluster.
 
         This tool discovers all available API versions on the Kubernetes cluster,
@@ -1177,18 +1153,25 @@ class K8sHandler:
                 f'Retrieved {len(api_versions)} API versions from cluster {cluster_name}',
             )
 
-            # Return success response
-            return ApiVersionsResponse(
+            # Return success response with structured data
+            data = ApiVersionsData(
+                cluster_name=cluster_name,
+                api_versions=api_versions,
+                count=len(api_versions),
+            )
+
+            return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
                         type='text',
                         text=f'Successfully retrieved {len(api_versions)} API versions from cluster {cluster_name}',
-                    )
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
                 ],
-                cluster_name=cluster_name,
-                api_versions=api_versions,
-                count=len(api_versions),
             )
 
         except Exception as e:
@@ -1197,10 +1180,7 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             # Return error response
-            return ApiVersionsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_msg)],
-                cluster_name=cluster_name,
-                api_versions=[],
-                count=0,
             )

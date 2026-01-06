@@ -13,189 +13,72 @@
 # limitations under the License.
 
 
-"""Response models for EMR operations."""
+"""Data models for EMR operations."""
 
-from mcp.types import CallToolResult, Content, TextContent
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
 
-# Create a base model to avoid inheritance issues with CallToolResult
-class EMRResponseBase(BaseModel):
-    """Base model for EMR responses."""
-
-    cluster_id: str = Field(..., description='ID of the cluster')
+# Data models for EMR Instance Operations
 
 
-# Response models for EMR Instance Operations
+class AddInstanceFleetData(BaseModel):
+    """Data model for add instance fleet operation."""
 
-
-class AddInstanceFleetResponseModel(EMRResponseBase):
-    """Model for add instance fleet operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     instance_fleet_id: str = Field(..., description='ID of the added instance fleet')
     cluster_arn: Optional[str] = Field(None, description='ARN of the cluster')
     operation: str = Field(default='add_fleet', description='Operation performed')
 
 
-class AddInstanceFleetResponse(CallToolResult):
-    """Response model for add instance fleet operation."""
+class AddInstanceGroupsData(BaseModel):
+    """Data model for add instance groups operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: AddInstanceFleetResponseModel
-    ) -> 'AddInstanceFleetResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            instance_fleet_id=model.instance_fleet_id,
-            cluster_arn=model.cluster_arn,
-            operation=model.operation,
-        )
-
-
-class AddInstanceGroupsResponseModel(EMRResponseBase):
-    """Model for add instance groups operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     job_flow_id: Optional[str] = Field(None, description='Job flow ID (same as cluster ID)')
     instance_group_ids: List[str] = Field(..., description='IDs of the added instance groups')
     cluster_arn: Optional[str] = Field(None, description='ARN of the cluster')
     operation: str = Field(default='add_groups', description='Operation performed')
 
 
-class AddInstanceGroupsResponse(CallToolResult):
-    """Response model for add instance groups operation."""
+class ModifyInstanceFleetData(BaseModel):
+    """Data model for modify instance fleet operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: AddInstanceGroupsResponseModel
-    ) -> 'AddInstanceGroupsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            job_flow_id=model.job_flow_id,
-            instance_group_ids=model.instance_group_ids,
-            cluster_arn=model.cluster_arn,
-            operation=model.operation,
-        )
-
-
-class ModifyInstanceFleetResponseModel(EMRResponseBase):
-    """Model for modify instance fleet operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     instance_fleet_id: str = Field(..., description='ID of the modified instance fleet')
     operation: str = Field(default='modify_fleet', description='Operation performed')
 
 
-class ModifyInstanceFleetResponse(CallToolResult):
-    """Response model for modify instance fleet operation."""
+class ModifyInstanceGroupsData(BaseModel):
+    """Data model for modify instance groups operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: ModifyInstanceFleetResponseModel
-    ) -> 'ModifyInstanceFleetResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            instance_fleet_id=model.instance_fleet_id,
-            operation=model.operation,
-        )
-
-
-class ModifyInstanceGroupsResponseModel(EMRResponseBase):
-    """Model for modify instance groups operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     instance_group_ids: List[str] = Field(..., description='IDs of the modified instance groups')
     operation: str = Field(default='modify_groups', description='Operation performed')
 
 
-class ModifyInstanceGroupsResponse(CallToolResult):
-    """Response model for modify instance groups operation."""
+class ListInstanceFleetsData(BaseModel):
+    """Data model for list instance fleets operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: ModifyInstanceGroupsResponseModel
-    ) -> 'ModifyInstanceGroupsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            instance_group_ids=model.instance_group_ids,
-            operation=model.operation,
-        )
-
-
-class ListInstanceFleetsResponseModel(EMRResponseBase):
-    """Model for list instance fleets operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     instance_fleets: List[Dict[str, Any]] = Field(..., description='List of instance fleets')
     count: int = Field(..., description='Number of instance fleets found')
     marker: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ListInstanceFleetsResponse(CallToolResult):
-    """Response model for list instance fleets operation."""
+class ListInstancesData(BaseModel):
+    """Data model for list instances operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: ListInstanceFleetsResponseModel
-    ) -> 'ListInstanceFleetsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            instance_fleets=model.instance_fleets,
-            count=model.count,
-            marker=model.marker,
-            operation=model.operation,
-        )
-
-
-class ListInstancesResponseModel(EMRResponseBase):
-    """Model for list instances operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     instances: List[Dict[str, Any]] = Field(..., description='List of instances')
     count: int = Field(..., description='Number of instances found')
     marker: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ListInstancesResponse(CallToolResult):
-    """Response model for list instances operation."""
-
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: ListInstancesResponseModel
-    ) -> 'ListInstancesResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            instances=model.instances,
-            count=model.count,
-            marker=model.marker,
-            operation=model.operation,
-        )
-
-
-class ListSupportedInstanceTypesResponseModel(BaseModel):
-    """Model for list supported instance types operation response."""
+class ListSupportedInstanceTypesData(BaseModel):
+    """Data model for list supported instance types operation."""
 
     instance_types: List[Dict[str, Any]] = Field(
         ..., description='List of supported instance types'
@@ -206,62 +89,22 @@ class ListSupportedInstanceTypesResponseModel(BaseModel):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ListSupportedInstanceTypesResponse(CallToolResult):
-    """Response model for list supported instance types operation."""
-
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls,
-        is_error: bool,
-        content: List[TextContent],
-        model: ListSupportedInstanceTypesResponseModel,
-    ) -> 'ListSupportedInstanceTypesResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            instance_types=model.instance_types,
-            count=model.count,
-            marker=model.marker,
-            release_label=model.release_label,
-            operation=model.operation,
-        )
+# Data models for EMR Steps Operations
 
 
-# Response models for EMR Steps Operations
+class AddStepsData(BaseModel):
+    """Data model for add steps operation."""
 
-
-class AddStepsResponseModel(EMRResponseBase):
-    """Model for add steps operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     step_ids: List[str] = Field(..., description='IDs of the added steps')
     count: int = Field(..., description='Number of steps added')
     operation: str = Field(default='add', description='Operation performed')
 
 
-class AddStepsResponse(CallToolResult):
-    """Response model for add steps operation."""
+class CancelStepsData(BaseModel):
+    """Data model for cancel steps operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: AddStepsResponseModel
-    ) -> 'AddStepsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            step_ids=model.step_ids,
-            count=model.count,
-            operation=model.operation,
-        )
-
-
-class CancelStepsResponseModel(EMRResponseBase):
-    """Model for cancel steps operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     step_cancellation_info: List[Dict[str, Any]] = Field(
         ...,
         description='Information about cancelled steps with status (SUBMITTED/FAILED) and reason',
@@ -270,28 +113,10 @@ class CancelStepsResponseModel(EMRResponseBase):
     operation: str = Field(default='cancel', description='Operation performed')
 
 
-class CancelStepsResponse(CallToolResult):
-    """Response model for cancel steps operation."""
+class DescribeStepData(BaseModel):
+    """Data model for describe step operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: CancelStepsResponseModel
-    ) -> 'CancelStepsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            step_cancellation_info=model.step_cancellation_info,
-            count=model.count,
-            operation=model.operation,
-        )
-
-
-class DescribeStepResponseModel(EMRResponseBase):
-    """Model for describe step operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     step: Dict[str, Any] = Field(
         ...,
         description='Step details including ID, name, config, status, and execution role',
@@ -299,27 +124,10 @@ class DescribeStepResponseModel(EMRResponseBase):
     operation: str = Field(default='describe', description='Operation performed')
 
 
-class DescribeStepResponse(CallToolResult):
-    """Response model for describe step operation."""
+class ListStepsData(BaseModel):
+    """Data model for list steps operation."""
 
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: DescribeStepResponseModel
-    ) -> 'DescribeStepResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            step=model.step,
-            operation=model.operation,
-        )
-
-
-class ListStepsResponseModel(EMRResponseBase):
-    """Model for list steps operation response."""
-
+    cluster_id: str = Field(..., description='ID of the EMR cluster')
     steps: List[Dict[str, Any]] = Field(
         ..., description='List of steps in reverse order (most recent first)'
     )
@@ -330,258 +138,189 @@ class ListStepsResponseModel(EMRResponseBase):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ListStepsResponse(CallToolResult):
-    """Response model for list steps operation."""
-
-    # Factory method to create response
-    @classmethod
-    def create(
-        cls, is_error: bool, content: List[TextContent], model: ListStepsResponseModel
-    ) -> 'ListStepsResponse':
-        """Create response from model."""
-        return cls(
-            isError=is_error,
-            content=content,
-            cluster_id=model.cluster_id,
-            steps=model.steps,
-            count=model.count,
-            marker=model.marker,
-            operation=model.operation,
-        )
+# Data models for EMR Cluster Operations
 
 
-# Response models for EMR Security Configuration Operations
+class CreateClusterData(BaseModel):
+    """Data model for create cluster operation."""
 
-
-class CreateSecurityConfigurationResponse(CallToolResult):
-    """Response model for create security configuration operation."""
-
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
-    name: str = Field(..., description='Name of the created security configuration')
-    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
-    operation: str = Field(default='create', description='Operation performed')
-
-
-class DeleteSecurityConfigurationResponse(CallToolResult):
-    """Response model for delete security configuration operation."""
-
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
-    name: str = Field(..., description='Name of the deleted security configuration')
-    operation: str = Field(default='delete', description='Operation performed')
-
-
-class DescribeSecurityConfigurationResponse(CallToolResult):
-    """Response model for describe security configuration operation."""
-
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
-    name: str = Field(..., description='Name of the security configuration')
-    security_configuration: str = Field(..., description='Security configuration content')
-    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
-    operation: str = Field(default='describe', description='Operation performed')
-
-
-class ListSecurityConfigurationsResponse(CallToolResult):
-    """Response model for list security configurations operation."""
-
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
-    security_configurations: List[Dict[str, Any]] = Field(
-        ..., description='List of security configurations'
-    )
-    count: int = Field(..., description='Number of security configurations found')
-    marker: Optional[str] = Field(None, description='Token for pagination')
-    operation: str = Field(default='list', description='Operation performed')
-
-
-# Response models for EMR Cluster Operations
-
-
-class CreateClusterResponse(CallToolResult):
-    """Response model for create cluster operation."""
-
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster_id: Optional[str] = Field(default='', description='ID of the created cluster')
     cluster_arn: Optional[str] = Field(default='', description='ARN of the created cluster')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DescribeClusterResponse(CallToolResult):
-    """Response model for describe cluster operation."""
+class DescribeClusterData(BaseModel):
+    """Data model for describe cluster operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster: Dict[str, Any] = Field(..., description='Cluster details')
     operation: str = Field(default='describe', description='Operation performed')
 
 
-class ModifyClusterResponse(CallToolResult):
-    """Response model for modify cluster operation."""
+class ModifyClusterData(BaseModel):
+    """Data model for modify cluster operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster_id: str = Field(..., description='ID of the modified cluster')
     step_concurrency_level: Optional[int] = Field(None, description='Step concurrency level')
     operation: str = Field(default='modify', description='Operation performed')
 
 
-class ModifyClusterAttributesResponse(CallToolResult):
-    """Response model for modify cluster attributes operation."""
+class ModifyClusterAttributesData(BaseModel):
+    """Data model for modify cluster attributes operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster_id: str = Field(..., description='ID of the cluster with modified attributes')
     operation: str = Field(default='modify_attributes', description='Operation performed')
 
 
-class TerminateClustersResponse(CallToolResult):
-    """Response model for terminate clusters operation."""
+class TerminateClustersData(BaseModel):
+    """Data model for terminate clusters operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster_ids: List[str] = Field(..., description='IDs of the terminated clusters')
     operation: str = Field(default='terminate', description='Operation performed')
 
 
-class ListClustersResponse(CallToolResult):
-    """Response model for list clusters operation."""
+class ListClustersData(BaseModel):
+    """Data model for list clusters operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     clusters: List[Dict[str, Any]] = Field(..., description='List of clusters')
     count: int = Field(..., description='Number of clusters found')
     marker: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list', description='Operation performed')
 
 
-class WaitClusterResponse(CallToolResult):
-    """Response model for wait operation."""
+class WaitClusterData(BaseModel):
+    """Data model for wait operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     cluster_id: str = Field(..., description='ID of the cluster')
     state: str = Field(..., description='Current state of the cluster')
     operation: str = Field(default='wait', description='Operation performed')
 
 
-# Response models for EMR Serverless Operations
+# Data models for EMR Serverless Operations
 
 
-class CreateApplicationResponse(CallToolResult):
-    """Response model for create EMR Serverless application operation."""
+class CreateApplicationData(BaseModel):
+    """Data model for create EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the created application')
     name: str = Field(..., description='Name of the created application')
     arn: str = Field(..., description='ARN of the created application')
     operation: str = Field(default='create-application', description='Operation performed')
 
 
-class GetApplicationResponse(CallToolResult):
-    """Response model for get EMR Serverless application operation."""
+class GetApplicationData(BaseModel):
+    """Data model for get EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application: Dict[str, Any] = Field(..., description='Application details')
     operation: str = Field(default='get-application', description='Operation performed')
 
 
-class UpdateApplicationResponse(CallToolResult):
-    """Response model for update EMR Serverless application operation."""
+class UpdateApplicationData(BaseModel):
+    """Data model for update EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application: Dict[str, Any] = Field(..., description='Updated application details')
     operation: str = Field(default='update-application', description='Operation performed')
 
 
-class DeleteApplicationResponse(CallToolResult):
-    """Response model for delete EMR Serverless application operation."""
+class DeleteApplicationData(BaseModel):
+    """Data model for delete EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the deleted application')
     operation: str = Field(default='delete-application', description='Operation performed')
 
 
-class ListApplicationsResponse(CallToolResult):
-    """Response model for list EMR Serverless applications operation."""
+class ListApplicationsData(BaseModel):
+    """Data model for list EMR Serverless applications operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     applications: List[Dict[str, Any]] = Field(..., description='List of applications')
     count: int = Field(..., description='Number of applications found')
     next_token: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list-applications', description='Operation performed')
 
 
-class StartApplicationResponse(CallToolResult):
-    """Response model for start EMR Serverless application operation."""
+class StartApplicationData(BaseModel):
+    """Data model for start EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the started application')
     operation: str = Field(default='start-application', description='Operation performed')
 
 
-class StopApplicationResponse(CallToolResult):
-    """Response model for stop EMR Serverless application operation."""
+class StopApplicationData(BaseModel):
+    """Data model for stop EMR Serverless application operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the stopped application')
     operation: str = Field(default='stop-application', description='Operation performed')
 
 
-class StartJobRunResponse(CallToolResult):
-    """Response model for start EMR Serverless job run operation."""
+class StartJobRunData(BaseModel):
+    """Data model for start EMR Serverless job run operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the application')
     job_run_id: str = Field(..., description='ID of the started job run')
     arn: str = Field(..., description='ARN of the job run')
     operation: str = Field(default='start-job-run', description='Operation performed')
 
 
-class GetJobRunResponse(CallToolResult):
-    """Response model for get EMR Serverless job run operation."""
+class GetJobRunData(BaseModel):
+    """Data model for get EMR Serverless job run operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     job_run: Dict[str, Any] = Field(..., description='Job run details')
     operation: str = Field(default='get-job-run', description='Operation performed')
 
 
-class CancelJobRunResponse(CallToolResult):
-    """Response model for cancel EMR Serverless job run operation."""
+class CancelJobRunData(BaseModel):
+    """Data model for cancel EMR Serverless job run operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     application_id: str = Field(..., description='ID of the application')
     job_run_id: str = Field(..., description='ID of the cancelled job run')
     operation: str = Field(default='cancel-job-run', description='Operation performed')
 
 
-class ListJobRunsResponse(CallToolResult):
-    """Response model for list EMR Serverless job runs operation."""
+class ListJobRunsData(BaseModel):
+    """Data model for list EMR Serverless job runs operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     job_runs: List[Dict[str, Any]] = Field(..., description='List of job runs')
     count: int = Field(..., description='Number of job runs found')
     next_token: Optional[str] = Field(None, description='Token for pagination')
     operation: str = Field(default='list-job-runs', description='Operation performed')
 
 
-class GetDashboardForJobRunResponse(CallToolResult):
-    """Response model for get dashboard for EMR Serverless job run operation."""
+class GetDashboardForJobRunData(BaseModel):
+    """Data model for get dashboard for EMR Serverless job run operation."""
 
-    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
-    content: List[Content] = Field(..., description='Content of the response')
     url: str = Field(..., description='Dashboard URL for the job run')
     operation: str = Field(default='get-dashboard-for-job-run', description='Operation performed')
+
+
+class CreateSecurityConfigurationData(BaseModel):
+    """Data model for create security configuration operation."""
+
+    name: str = Field(..., description='Name of the created security configuration')
+    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
+    operation: str = Field(default='create', description='Operation performed')
+
+
+class DeleteSecurityConfigurationData(BaseModel):
+    """Data model for delete security configuration operation."""
+
+    name: str = Field(..., description='Name of the deleted security configuration')
+    operation: str = Field(default='delete', description='Operation performed')
+
+
+class DescribeSecurityConfigurationData(BaseModel):
+    """Data model for describe security configuration operation."""
+
+    name: str = Field(..., description='Name of the security configuration')
+    security_configuration: str = Field(..., description='Security configuration content')
+    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
+    operation: str = Field(default='describe', description='Operation performed')
+
+
+class ListSecurityConfigurationsData(BaseModel):
+    """Data model for list security configurations operation."""
+
+    security_configurations: List[Dict[str, Any]] = Field(
+        ..., description='List of security configurations'
+    )
+    count: int = Field(..., description='Number of security configurations found')
+    marker: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list', description='Operation performed')

@@ -13,13 +13,10 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     InvalidParametersReceivedError,
     InvalidServiceError,
     InvalidServiceOperationError,
-    MalformedFilterError,
     MissingRequiredParametersError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     UnknownArgumentsError,
-    UnknownFiltersError,
-    UnsupportedFilterError,
 )
 from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from botocore.exceptions import NoCredentialsError
@@ -186,83 +183,6 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
                             '--no-sign-request',
                             '--no-verify-ssl',
                         ],
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-instances --region eu-west-1 --filters "Name=instance-state-name-1,Values=running"',
-            IRTranslation(
-                validation_failures=[
-                    UnknownFiltersError(
-                        'ec2',
-                        [
-                            'instance-state-name-1',
-                        ],
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-route-tables --filters instance-state-name=running',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-route-tables',
-                        keys={'instance-state-name'},
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-instances --filters {}',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-instances',
-                        keys=set(),
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-instances --filters \'{"Name": "test", "Name": "test"}\'',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-instances',
-                        keys={'Name'},
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws elasticbeanstalk list-platform-versions --filters=some-fitler=some-value',
-            IRTranslation(
-                validation_failures=[
-                    UnsupportedFilterError(
-                        'elasticbeanstalk',
-                        'list-platform-versions',
-                        keys={'Type', 'Operator', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            # list-notebook-metadata doesn't accept list of filters, this case we don't handle yet
-            'aws athena list-notebook-metadata --filters Name=test --work-group grp',
-            IRTranslation(
-                validation_failures=[
-                    UnsupportedFilterError(
-                        'athena',
-                        'list-notebook-metadata',
-                        keys=set(),
                     ).as_failure()
                 ]
             ),

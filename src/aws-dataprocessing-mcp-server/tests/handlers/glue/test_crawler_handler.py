@@ -1,6 +1,7 @@
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import CrawlerHandler
 from botocore.exceptions import ClientError
+from tests.test_utils import CallToolResultWrapper
 from unittest.mock import Mock, patch
 
 
@@ -85,7 +86,7 @@ class TestCrawlerHandler:
             }
 
             # Test
-            result = await handler.manage_aws_glue_crawlers(
+            raw_result = await handler.manage_aws_glue_crawlers(
                 mock_context,
                 operation='create-crawler',
                 crawler_name='test-crawler',
@@ -99,6 +100,7 @@ class TestCrawlerHandler:
                     'Tags': {'custom': 'tag'},
                 },
             )
+            result = CallToolResultWrapper(raw_result)
 
             # Assertions
             assert result.isError is False
@@ -164,9 +166,10 @@ class TestCrawlerHandler:
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
             # Test
-            result = await handler.manage_aws_glue_crawlers(
+            raw_result = await handler.manage_aws_glue_crawlers(
                 mock_context, operation='delete-crawler', crawler_name='test-crawler'
             )
+            result = CallToolResultWrapper(raw_result)
 
             # Assertions
             assert result.isError is False
@@ -225,9 +228,10 @@ class TestCrawlerHandler:
         handler.glue_client.get_crawler.return_value = {'Crawler': crawler_details}
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context, operation='get-crawler', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -252,9 +256,10 @@ class TestCrawlerHandler:
         no_write_handler.glue_client.get_crawler.return_value = {'Crawler': crawler_details}
 
         # Test
-        result = await no_write_handler.manage_aws_glue_crawlers(
+        raw_result = await no_write_handler.manage_aws_glue_crawlers(
             mock_context, operation='get-crawler', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -276,9 +281,10 @@ class TestCrawlerHandler:
         }
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context, operation='get-crawlers', max_results=10, next_token='token'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -295,9 +301,10 @@ class TestCrawlerHandler:
         handler.glue_client.start_crawler.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context, operation='start-crawler', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -325,9 +332,10 @@ class TestCrawlerHandler:
         handler.glue_client.stop_crawler.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context, operation='stop-crawler', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -364,11 +372,12 @@ class TestCrawlerHandler:
         }
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context,
             operation='batch-get-crawlers',
             crawler_names=['test-crawler-1', 'test-crawler-2', 'test-crawler-3'],
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -389,13 +398,14 @@ class TestCrawlerHandler:
         }
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context,
             operation='list-crawlers',
             max_results=10,
             next_token='token',
             tags={'tag1': 'value1'},
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -414,7 +424,7 @@ class TestCrawlerHandler:
         handler.glue_client.update_crawler.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawlers(
+        raw_result = await handler.manage_aws_glue_crawlers(
             mock_context,
             operation='update-crawler',
             crawler_name='test-crawler',
@@ -427,6 +437,7 @@ class TestCrawlerHandler:
                 'TablePrefix': 'updated_',
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -582,7 +593,7 @@ class TestCrawlerHandler:
         handler.glue_client.create_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='create-classifier',
             classifier_definition={
@@ -595,6 +606,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -648,9 +660,10 @@ class TestCrawlerHandler:
         handler.glue_client.delete_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context, operation='delete-classifier', classifier_name='test-classifier'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -681,9 +694,10 @@ class TestCrawlerHandler:
         handler.glue_client.get_classifier.return_value = {'Classifier': classifier_details}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context, operation='get-classifier', classifier_name='test-classifier'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -708,9 +722,10 @@ class TestCrawlerHandler:
         }
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context, operation='get-classifiers', max_results=10, next_token='token'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -729,7 +744,7 @@ class TestCrawlerHandler:
         handler.glue_client.update_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='update-classifier',
             classifier_definition={
@@ -740,6 +755,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -831,12 +847,13 @@ class TestCrawlerHandler:
         }
 
         # Test
-        result = await handler.manage_aws_glue_crawler_management(
+        raw_result = await handler.manage_aws_glue_crawler_management(
             mock_context,
             operation='get-crawler-metrics',
             crawler_name_list=['test-crawler-1', 'test-crawler-2'],
             max_results=10,
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -857,9 +874,10 @@ class TestCrawlerHandler:
         handler.glue_client.start_crawler_schedule.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawler_management(
+        raw_result = await handler.manage_aws_glue_crawler_management(
             mock_context, operation='start-crawler-schedule', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -891,9 +909,10 @@ class TestCrawlerHandler:
         handler.glue_client.stop_crawler_schedule.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawler_management(
+        raw_result = await handler.manage_aws_glue_crawler_management(
             mock_context, operation='stop-crawler-schedule', crawler_name='test-crawler'
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -925,12 +944,13 @@ class TestCrawlerHandler:
         handler.glue_client.update_crawler_schedule.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_crawler_management(
+        raw_result = await handler.manage_aws_glue_crawler_management(
             mock_context,
             operation='update-crawler-schedule',
             crawler_name='test-crawler',
             schedule='cron(0 12 * * ? *)',
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1037,9 +1057,10 @@ class TestCrawlerHandler:
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
             # Test
-            result = await handler.manage_aws_glue_crawlers(
+            raw_result = await handler.manage_aws_glue_crawlers(
                 mock_context, operation='delete-crawler', crawler_name='test-crawler'
             )
+            result = CallToolResultWrapper(raw_result)
 
             # Assertions
             assert result.isError is False
@@ -1066,7 +1087,7 @@ class TestCrawlerHandler:
         handler.glue_client.create_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='create-classifier',
             classifier_definition={
@@ -1077,6 +1098,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1091,7 +1113,7 @@ class TestCrawlerHandler:
         handler.glue_client.create_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='create-classifier',
             classifier_definition={
@@ -1102,6 +1124,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1116,13 +1139,14 @@ class TestCrawlerHandler:
         handler.glue_client.create_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='create-classifier',
             classifier_definition={
                 'JsonClassifier': {'Name': 'test-json-classifier', 'JsonPath': '$.records[*]'}
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1137,7 +1161,7 @@ class TestCrawlerHandler:
         handler.glue_client.update_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='update-classifier',
             classifier_definition={
@@ -1148,6 +1172,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1162,7 +1187,7 @@ class TestCrawlerHandler:
         handler.glue_client.update_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='update-classifier',
             classifier_definition={
@@ -1173,6 +1198,7 @@ class TestCrawlerHandler:
                 }
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
@@ -1187,13 +1213,14 @@ class TestCrawlerHandler:
         handler.glue_client.update_classifier.return_value = {}
 
         # Test
-        result = await handler.manage_aws_glue_classifiers(
+        raw_result = await handler.manage_aws_glue_classifiers(
             mock_context,
             operation='update-classifier',
             classifier_definition={
                 'JsonClassifier': {'Name': 'test-json-classifier', 'JsonPath': '$.items[*]'}
             },
         )
+        result = CallToolResultWrapper(raw_result)
 
         # Assertions
         assert result.isError is False
