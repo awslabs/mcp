@@ -37,7 +37,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-healthomics-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD @a-li @alxawan
 /src/aws-iac-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kdbrogan @vishaalmehrishi @aemada-aws @kumvprat
 /src/aws-iot-sitewise-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare @ashuanand1226 @charlie-7 @ajain13
-/src/aws-knowledge-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust
+/src/aws-knowledge-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @FaresYoussef94 @animebar @zdwheels @nihal712 @forerocf @deepankanbn @nzmdn @GuXiangTS
 /src/aws-location-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy
 /src/aws-msk-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @dingyiheng # @elmoctarebnou
 /src/aws-network-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
