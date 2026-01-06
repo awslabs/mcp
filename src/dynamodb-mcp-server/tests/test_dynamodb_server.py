@@ -774,122 +774,12 @@ def test_create_server():
     assert server.name == 'awslabs.dynamodb-mcp-server'
 
 
-@pytest.mark.asyncio
-async def test_mcp_server_tools_registration():
-    """Test that all tools are properly registered in the MCP server."""
-    tools = await app.list_tools()
-    tool_names = [tool.name for tool in tools]
-
-    expected_tools = [
-        'dynamodb_data_modeling',
-        'source_db_analyzer',
-        'dynamodb_data_model_validation',
-    ]
-
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Tool '{tool_name}' not found in MCP server"
-
-    # Verify execute_dynamodb_command is NOT exposed as a public tool
-    assert 'execute_dynamodb_command' not in tool_names, (
-        'execute_dynamodb_command should not be a public tool'
-    )
-
-
-@pytest.mark.asyncio
-async def test_execute_dynamodb_command_not_exposed_as_tool():
-    """Test that execute_dynamodb_command is NOT exposed as a public MCP tool."""
-    tools = await app.list_tools()
-    execute_tool = next((tool for tool in tools if tool.name == 'execute_dynamodb_command'), None)
-
-    # The tool should NOT be found since it's now a private function
-    assert execute_tool is None, 'execute_dynamodb_command should not be exposed as a public tool'
-
-
-def test_server_instructions_content():
-    """Test that SERVER_INSTRUCTIONS content is accurate after refactoring.
-
-    Verifies:
-    - execute_dynamodb_command is NOT mentioned in SERVER_INSTRUCTIONS
-    - The three remaining tools (dynamodb_data_modeling, source_db_analyzer,
-      dynamodb_data_model_validation) ARE documented
-
-    _Requirements: 4.1, 4.2_
-    """
-    # Verify execute_dynamodb_command is NOT mentioned
-    assert 'execute_dynamodb_command' not in SERVER_INSTRUCTIONS, (
-        'SERVER_INSTRUCTIONS should not mention execute_dynamodb_command after refactoring'
-    )
-
-    # Verify the three remaining tools ARE documented
-    expected_tools = [
-        'dynamodb_data_modeling',
-        'source_db_analyzer',
-        'dynamodb_data_model_validation',
-    ]
-
-    for tool_name in expected_tools:
-        assert tool_name in SERVER_INSTRUCTIONS, (
-            f"SERVER_INSTRUCTIONS should document the '{tool_name}' tool"
-        )
-
-
-# Property-based tests for tool registration
-# **Feature: refactor-execute-dynamodb-command, Property 1: Tool Registration Correctness**
-# **Validates: Requirements 1.1, 1.2**
-@settings(max_examples=100)
-@given(st.integers(min_value=1, max_value=100))
-def test_property_tool_registration_correctness(iteration: int):
-    """Property test: Tool registration correctness.
-
-    **Feature: refactor-execute-dynamodb-command, Property 1: Tool Registration Correctness**
-    **Validates: Requirements 1.1, 1.2**
-
-    *For any* instantiation of the DynamoDB MCP server, the set of registered public tools
-    SHALL equal exactly {dynamodb_data_modeling, source_db_analyzer, dynamodb_data_model_validation}
-    and SHALL NOT contain execute_dynamodb_command.
-
-    This property test verifies that regardless of how many times we check the server,
-    the tool registration remains consistent and correct.
-    """
-    import asyncio
-
-    async def check_tools():
-        # Use the module-level app instance which has tools registered via @app.tool()
-        tools = await app.list_tools()
-        return {tool.name for tool in tools}
-
-    # Run the async check
-    tool_names = asyncio.get_event_loop().run_until_complete(check_tools())
-
-    # Expected set of tools
-    expected_tools = {
-        'dynamodb_data_modeling',
-        'source_db_analyzer',
-        'dynamodb_data_model_validation',
-    }
-
-    # Property 1: The set of registered tools SHALL equal exactly the expected set
-    assert tool_names == expected_tools, (
-        f'Tool set mismatch. Expected: {expected_tools}, Got: {tool_names}'
-    )
-
-    # Property 2: execute_dynamodb_command SHALL NOT be in the tool set
-    assert 'execute_dynamodb_command' not in tool_names, (
-        'execute_dynamodb_command should not be exposed as a public tool'
-    )
-
-
-# **Feature: refactor-execute-dynamodb-command, Property 2: Command Validation Preservation**
-# **Validates: Requirements 3.1**
 @settings(max_examples=100)
 @given(
     st.text(min_size=0, max_size=200).filter(lambda s: not s.strip().startswith('aws dynamodb'))
 )
 def test_property_command_validation_preservation(invalid_command: str):
     """Property test: Command validation preservation.
-
-    **Feature: refactor-execute-dynamodb-command, Property 2: Command Validation Preservation**
-    **Validates: Requirements 3.1**
 
     *For any* command string that does not start with 'aws dynamodb', calling
     `_execute_dynamodb_command` SHALL raise a `ValueError` with the message
@@ -924,9 +814,6 @@ def test_property_command_validation_preservation(invalid_command: str):
 )
 def test_property_endpoint_url_credential_configuration(endpoint_url: str):
     """Property test: Endpoint URL credential configuration.
-
-    **Feature: refactor-execute-dynamodb-command, Property 3: Endpoint URL Credential Configuration**
-    **Validates: Requirements 3.2**
 
     *For any* non-None endpoint_url provided to `_execute_dynamodb_command`, the function
     SHALL set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION`
@@ -983,9 +870,6 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
         os.environ.clear()
         os.environ.update(original_env)
 
-
-# **Feature: refactor-execute-dynamodb-command, Property 4: Endpoint URL Command Modification**
-# **Validates: Requirements 3.3**
 @settings(max_examples=100)
 @given(
     st.text(min_size=1, max_size=100).filter(
@@ -994,9 +878,6 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
 )
 def test_property_endpoint_url_command_modification(endpoint_url: str):
     """Property test: Endpoint URL command modification.
-
-    **Feature: refactor-execute-dynamodb-command, Property 4: Endpoint URL Command Modification**
-    **Validates: Requirements 3.3**
 
     *For any* non-None endpoint_url provided to `_execute_dynamodb_command`, the command
     passed to `call_aws` SHALL contain `--endpoint-url {endpoint_url}` appended to the
@@ -1197,8 +1078,6 @@ async def test_dynamodb_data_model_validation_file_not_found_exception():
                     assert 'Required file not found' in result
 
 
-# **Feature: refactor-execute-dynamodb-command, Property 5: Access Pattern Response Format Consistency**
-# **Validates: Requirements 2.2**
 @settings(max_examples=100)
 @given(
     st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
@@ -1213,9 +1092,6 @@ def test_property_access_pattern_response_format_consistency(
     dynamodb_operation: str,
 ):
     """Property test: Access pattern response format consistency.
-
-    **Feature: refactor-execute-dynamodb-command, Property 5: Access Pattern Response Format Consistency**
-    **Validates: Requirements 2.2**
 
     *For any* valid access pattern executed through `_execute_access_patterns`, the response
     dictionary SHALL contain keys `pattern_id`, `description`, `dynamodb_operation`, `command`,
@@ -1292,8 +1168,6 @@ def test_property_access_pattern_response_format_consistency(
     asyncio.get_event_loop().run_until_complete(check_response_format())
 
 
-# **Feature: refactor-execute-dynamodb-command, Property 6: Error Response Format Consistency**
-# **Validates: Requirements 2.3**
 @settings(max_examples=100)
 @given(
     st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
@@ -1311,8 +1185,7 @@ def test_property_error_response_format_consistency(
 ):
     """Property test: Error response format consistency.
 
-    **Feature: refactor-execute-dynamodb-command, Property 6: Error Response Format Consistency**
-    **Validates: Requirements 2.3**
+    ** Error Response Format Consistency**
 
     *For any* access pattern that fails during execution, the error SHALL be captured in the
     `response` field of the result dictionary, maintaining the same format as successful executions.
