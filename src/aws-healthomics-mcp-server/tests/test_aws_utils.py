@@ -268,7 +268,7 @@ class TestCreateAwsClient:
 
         result = create_aws_client('s3')
 
-        mock_get_session.assert_called_once_with()
+        mock_get_session.assert_called_once_with(None)
         mock_session.client.assert_called_once_with('s3')
         assert result == mock_client
 
@@ -403,7 +403,7 @@ class TestGetLogsClient:
 
         result = get_logs_client()
 
-        mock_create_client.assert_called_once_with('logs')
+        mock_create_client.assert_called_once_with('logs', None)
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -426,7 +426,7 @@ class TestGetSsmClient:
 
         result = get_ssm_client()
 
-        mock_create_client.assert_called_once_with('ssm')
+        mock_create_client.assert_called_once_with('ssm', None)
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
@@ -538,8 +538,8 @@ class TestRegionResolution:
         get_ssm_client()
         create_aws_client('s3')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
+        # Verify all calls used region=None (centralized region resolution)
+        expected_calls = [(None,), (None,), (None,), (None,)]
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 
@@ -558,8 +558,27 @@ class TestRegionResolution:
         get_ssm_client()
         create_aws_client('dynamodb')
 
-        # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
+        # Verify all calls used region=None (centralized region resolution)
+        expected_calls = [(None,), (None,), (None,), (None,)]
+        actual_calls = [call.args for call in mock_get_session.call_args_list]
+        assert actual_calls == expected_calls
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_clients_with_explicit_region(self, mock_get_session):
+        """Test that client functions pass explicit region parameter."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        # Test each client function with explicit region
+        get_omics_client(region='us-west-2')
+        get_logs_client(region='eu-west-1')
+        get_ssm_client(region='ap-northeast-1')
+        create_aws_client('s3', region='sa-east-1')
+
+        # Verify all calls used explicit region parameter
+        expected_calls = [('us-west-2',), ('eu-west-1',), ('ap-northeast-1',), ('sa-east-1',)]
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 

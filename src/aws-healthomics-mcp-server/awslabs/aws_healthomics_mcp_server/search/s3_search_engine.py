@@ -43,12 +43,15 @@ from typing import Any, Dict, List, Optional, Tuple
 class S3SearchEngine:
     """Search engine for genomics files in S3 buckets."""
 
-    def __init__(self, config: SearchConfig, _internal: bool = False):
+    def __init__(
+        self, config: SearchConfig, _internal: bool = False, region: Optional[str] = None
+    ):
         """Initialize the S3 search engine.
 
         Args:
             config: Search configuration containing S3 bucket paths and other settings
             _internal: Internal flag to prevent direct instantiation. Use from_environment() instead.
+            region: Optional AWS region override
 
         Raises:
             RuntimeError: If called directly without _internal=True
@@ -61,7 +64,8 @@ class S3SearchEngine:
             )
 
         self.config = config
-        self.session = get_aws_session()
+        self.region = region
+        self.session = get_aws_session(region=region)
         self.s3_client = self.session.client('s3')
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
@@ -78,8 +82,11 @@ class S3SearchEngine:
         )
 
     @classmethod
-    def from_environment(cls) -> 'S3SearchEngine':
+    def from_environment(cls, region: Optional[str] = None) -> 'S3SearchEngine':
         """Create an S3SearchEngine using configuration from environment variables.
+
+        Args:
+            region: Optional AWS region override
 
         Returns:
             S3SearchEngine instance configured from environment
@@ -107,7 +114,7 @@ class S3SearchEngine:
             logger.error(f'S3 bucket access validation failed: {e}')
             raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
 
-        return cls(config, _internal=True)
+        return cls(config, _internal=True, region=region)
 
     @classmethod
     def _create_for_testing(cls, config: SearchConfig) -> 'S3SearchEngine':

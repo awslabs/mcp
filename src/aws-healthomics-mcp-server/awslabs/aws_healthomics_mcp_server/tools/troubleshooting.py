@@ -26,7 +26,7 @@ from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 def safe_datetime_to_iso(dt_obj):
@@ -88,6 +88,10 @@ async def diagnose_run_failure(
         ...,
         description='ID of the failed run',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Provides comprehensive diagnostic information for a failed workflow run.
 
@@ -101,6 +105,7 @@ async def diagnose_run_failure(
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the failed run
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing comprehensive diagnostic information including:
@@ -114,7 +119,7 @@ async def diagnose_run_failure(
         - recommendations: Troubleshooting recommendations
     """
     try:
-        omics_client = get_omics_client()
+        omics_client = get_omics_client(region=region)
 
         # Get run details
         run_response = omics_client.get_run(id=run_id)
