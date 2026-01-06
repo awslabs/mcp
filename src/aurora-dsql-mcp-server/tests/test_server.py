@@ -21,7 +21,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT,
     ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY,
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
-    ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
+    ERROR_WRITE_QUERY_PROHIBITED,
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     COMMIT_TRANSACTION_SQL,
     ROLLBACK_TRANSACTION_SQL,
@@ -29,7 +29,8 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
-    ERROR_BEGIN_TRANSACTION
+    ERROR_BEGIN_TRANSACTION,
+    ERROR_BEGIN_READ_ONLY_TRANSACTION,
 )
 from awslabs.aurora_dsql_mcp_server.server import (
     get_connection,
@@ -80,10 +81,48 @@ async def test_transact_throws_exception_on_empty_input():
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
-async def test_transact_throws_exception_when_read_only():
+async def test_transact_uses_read_only_transaction(mocker):
+    """Test that transact uses BEGIN READ ONLY TRANSACTION in read-only mode."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'column': 1}
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql_list = ['SELECT * FROM orders']
+    result = await transact(sql_list, ctx)
+
+    assert result == {'column': 1}
+
+    # Verify it uses BEGIN READ ONLY TRANSACTION
+    from awslabs.aurora_dsql_mcp_server.consts import BEGIN_READ_ONLY_TRANSACTION_SQL
+    mock_execute_query.assert_any_call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
+
+
+@patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+async def test_transact_error_on_failed_begin_read_only(mocker):
+    """Test that transact handles BEGIN READ ONLY TRANSACTION failures."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = Exception('Connection error')
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql_list = ['SELECT 1']
     with pytest.raises(Exception) as excinfo:
-        await transact(['select 1'], ctx)
-    assert str(excinfo.value) == ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE
+        await transact(sql_list, ctx)
+
+    from awslabs.aurora_dsql_mcp_server.consts import ERROR_BEGIN_READ_ONLY_TRANSACTION
+    assert ERROR_BEGIN_READ_ONLY_TRANSACTION in str(excinfo.value)
+
+    from awslabs.aurora_dsql_mcp_server.consts import BEGIN_READ_ONLY_TRANSACTION_SQL
+    mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
 
 
 async def test_get_schema_throws_exception_on_empty_input():
