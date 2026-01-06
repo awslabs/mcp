@@ -45,6 +45,7 @@ from .canary_utils import (
     get_canary_code,
     get_canary_metrics_and_service_insights,
 )
+from .change_tools import list_change_events as _list_change_events
 from .enablement_tools import get_enablement_guide
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
@@ -55,7 +56,6 @@ from .service_tools import (
 )
 from .slo_tools import get_slo, list_slos
 from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
-from .change_tools import list_change_events as _list_change_events
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -1479,18 +1479,26 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
 
 @mcp.tool()
 async def list_change_events(
-    start_time: str = Field(description="Start time for change event query (ISO 8601 datetime string or Unix timestamp)"),
-    end_time: str = Field(description="End time for change event query (ISO 8601 datetime string or Unix timestamp)"),
+    start_time: str = Field(
+        description='Start time for change event query (ISO 8601 datetime string or Unix timestamp)'
+    ),
+    end_time: str = Field(
+        description='End time for change event query (ISO 8601 datetime string or Unix timestamp)'
+    ),
     service_key_attributes: Optional[Dict[str, str]] = Field(
         default=None,
-        description='Service key attributes to filter events. REQUIRED when comprehensive_history=True (ListEntityEvents API). Optional when comprehensive_history=False (ListServiceStates API). Use get_service_detail() to retrieve these attributes first. Dictionary with keys like "Type", "Name", "Environment", "ResourceType", "Identifier", "AwsAccountId". Example: {"Environment": "ecs:ecs-pet-clinic-demo", "Name": "pet-clinic-vets-service", "Type": "Service"}'
+        description='Service key attributes to filter events. REQUIRED when comprehensive_history=True (ListEntityEvents API). Optional when comprehensive_history=False (ListServiceStates API). Use get_service_detail() to retrieve these attributes first. Dictionary with keys like "Type", "Name", "Environment", "ResourceType", "Identifier", "AwsAccountId". Example: {"Environment": "ecs:ecs-pet-clinic-demo", "Name": "pet-clinic-vets-service", "Type": "Service"}',
     ),
-    max_results: int = Field(default=100, description="Maximum number of events to return (1-250, default: 100)"),
-    region: str = Field(default=AWS_REGION, description="AWS region to query (defaults to configured region)"),
+    max_results: int = Field(
+        default=100, description='Maximum number of events to return (1-250, default: 100)'
+    ),
+    region: str = Field(
+        default=AWS_REGION, description='AWS region to query (defaults to configured region)'
+    ),
     comprehensive_history: bool = Field(
-        default=True, 
-        description="If True, uses ListEntityEvents API for complete change history (REQUIRES service_key_attributes). If False, uses ListServiceStates API for current service state information (service_key_attributes optional)."
-    )
+        default=True,
+        description='If True, uses ListEntityEvents API for complete change history (REQUIRES service_key_attributes). If False, uses ListServiceStates API for current service state information (service_key_attributes optional).',
+    ),
 ) -> str:
     """Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues.
 
@@ -1500,7 +1508,7 @@ async def list_change_events(
 
     **Key Capabilities:**
     - **Change Correlation**: Link deployments, configuration changes, and infrastructure modifications to performance issues
-    - **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches  
+    - **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches
     - **Service-Specific Filtering**: Focus on changes to specific services using Application Signals service attributes
     - **Multi-Change Type Tracking**: Monitor deployment events, configuration updates, infrastructure scaling, and other modifications
     - **Incident Investigation**: Essential for root cause analysis when services experience performance degradation
@@ -1511,8 +1519,8 @@ async def list_change_events(
       - **Best for**: Incident investigation, change correlation, root cause analysis, timeline reconstruction
       - **Returns**: Complete chronological list of all change events (deployments, configurations, scaling) within time range
       - **Use when**: You need to see all changes that happened and correlate them with performance issues
-    
-    - **comprehensive_history=False**: Uses ListServiceStates API  
+
+    - **comprehensive_history=False**: Uses ListServiceStates API
       - **Question it answers**: "Has anything changed in my service?" - Current change status
       - **Best for**: Service status monitoring, checking if recent changes occurred, troubleshooting current state
       - **Returns**: Information about the last deployment and other change states of services, providing visibility into recent changes that may have affected service performance
@@ -1529,7 +1537,7 @@ async def list_change_events(
     **Service Key Attributes (Required for ListEntityEvents):**
     When using comprehensive_history=True (ListEntityEvents API), service_key_attributes is REQUIRED. Get these attributes from get_service_detail() first:
     - **Type**: Usually "Service" for Application Signals monitored services
-    - **Name**: Service name (e.g., "checkout-service", "payment-api")  
+    - **Name**: Service name (e.g., "checkout-service", "payment-api")
     - **Environment**: Service environment (e.g., "ecs:production-cluster", "lambda", "eks:my-cluster")
     - **ResourceType**: Platform type (e.g., "AWS::ECS::Service", "AWS::Lambda::Function")
     - **Identifier**: Unique service identifier
@@ -1539,7 +1547,7 @@ async def list_change_events(
 
     **Integration with Other Tools:**
     - **Enhances audit_services()**: Provides change context for service health issues
-    - **Correlates with audit_slos()**: Links changes to SLO breach analysis  
+    - **Correlates with audit_slos()**: Links changes to SLO breach analysis
     - **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
     - **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
 
@@ -1553,7 +1561,7 @@ async def list_change_events(
 
     Args:
         start_time: Start time for change event query (ISO 8601 datetime string or Unix timestamp)
-        end_time: End time for change event query (ISO 8601 datetime string or Unix timestamp)  
+        end_time: End time for change event query (ISO 8601 datetime string or Unix timestamp)
         service_key_attributes: Service attributes dictionary to filter events to specific services. REQUIRED when comprehensive_history=True (ListEntityEvents). Optional when comprehensive_history=False (ListServiceStates). Use get_service_detail() to retrieve these attributes.
         max_results: Maximum number of events to return (1-250, default: 100)
         region: AWS region to query (defaults to configured region)
@@ -1561,14 +1569,14 @@ async def list_change_events(
 
     Returns:
         JSON string containing change events with timeline analysis and correlation insights for incident investigation
-    """    
+    """
     return await _list_change_events(
         start_time=start_time,
         end_time=end_time,
         service_key_attributes=service_key_attributes,
         max_results=max_results,
         region=region,
-        comprehensive_history=comprehensive_history
+        comprehensive_history=comprehensive_history,
     )
 
 
