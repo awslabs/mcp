@@ -40,7 +40,6 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_READONLY_QUERY,
     ERROR_ROLLBACK_TRANSACTION,
     ERROR_TRANSACT,
-    ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
     ERROR_WRITE_QUERY_PROHIBITED,
     GET_SCHEMA_SQL,
@@ -84,6 +83,8 @@ mcp = FastMCP(
 
     ### transact
     Executes one or more SQL commands in a transaction.
+    - In READ-ONLY mode: Use for consistent multi-query reads. Statements are best-effort read-only validated.
+    - In READ-WRITE mode: Use for any transactions including mutation. Supports all DDL and DML statements.
 
     ### get_schema
     Returns the schema of a table.
@@ -206,18 +207,49 @@ async def readonly_query(
 
 @mcp.tool(
     name='transact',
-    description="""Write or modify data using SQL, in a transaction against the configured Aurora DSQL cluster.
+    description="""Execute SQL statements in a transaction against the configured Aurora DSQL cluster.
 
 Aurora DSQL is a distributed SQL database with Postgres compatibility. This tool will automatically
 insert `BEGIN` and `COMMIT` statements; you only need to provide the statements to run
 within the transaction scope.
 
-In addition to the `SELECT` functionality described on the `readonly_query` tool, DSQL supports
-common DDL statements such as `CREATE TABLE`. Note that it is a best practice to use UUIDs
-for new tables in DSQL as this will spread your workload out over as many nodes as possible.
+## Behavior by Mode
 
-Some DDL commands are async (like `CREATE INDEX ASYNC`), and return a job id. Jobs can
-be viewed by running `SELECT * FROM sys.jobs`.
+**READ-ONLY MODE:**
+- Use this tool for read operations that require transactional consistency (point-in-time snapshots)
+- Multiple SELECT queries will see data as it existed at transaction start time
+- All statements are validated before execution - NO write operations allowed
+- Prohibited operations: mutating queries ie. INSERT, UPDATE, DELETE, CREATE, DROP etc.
+- Allowed operations: SELECT, SHOW, EXPLAIN (read-only queries only)
+
+**READ-WRITE MODE:**
+- Use this tool for any write or modify operations
+- Supports all DDL statements (CREATE TABLE, CREATE INDEX, etc.)
+- Supports all DML statements (INSERT, UPDATE, DELETE)
+- Best practice: Use UUIDs for new tables to spread workload across nodes
+- Async DDL commands (like CREATE INDEX ASYNC) return a job id
+- View jobs with: SELECT * FROM sys.jobs
+
+## When to Use Transact vs readonly_query
+
+- Use `transact` when you need multiple queries to see consistent data (same point in time)
+- Use `readonly_query` for single read queries that don't need transactional isolation
+- In read-only mode, both tools validate against write operations
+
+## Examples
+
+Read-only mode - consistent multi-query read:
+```
+transact(["SELECT COUNT(*) FROM orders", "SELECT SUM(total) FROM orders"])
+```
+
+Read-write mode - create and populate table:
+```
+transact([
+  "CREATE TABLE users (id UUID PRIMARY KEY, name TEXT)",
+  "INSERT INTO users VALUES (gen_random_uuid(), 'Alice')"
+])
+```
 """,
 )
 async def transact(
@@ -239,23 +271,48 @@ async def transact(
     """
     logger.info(f'transact: {sql_list}')
 
-    if read_only:
-        await ctx.error(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
-        raise Exception(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
-
     if not sql_list:
         await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
+    # In read-only mode, validate all statements before executing
+    if read_only:
+        for idx, sql in enumerate(sql_list):
+            # Apply the same security checks as readonly_query
+            mutating_matches = detect_mutating_keywords(sql)
+            if mutating_matches:
+                logger.warning(
+                    f'transact rejected due to mutating keywords: {mutating_matches}, SQL: {sql}'
+                )
+                await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
+                raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
+
+            injection_issues = check_sql_injection_risk(sql)
+            if injection_issues:
+                logger.warning(
+                    f'transact rejected due to injection risks: {injection_issues}, SQL: {sql}'
+                )
+                await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+                raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+
+            if detect_transaction_bypass_attempt(sql):
+                logger.warning(f'transact rejected due to transaction bypass attempt, SQL: {sql}')
+                await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+                raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+
     try:
         conn = await get_connection(ctx)
 
+        # Use read-only transaction in read-only mode, regular transaction otherwise
+        begin_sql = BEGIN_READ_ONLY_TRANSACTION_SQL if read_only else BEGIN_TRANSACTION_SQL
+
         try:
-            await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
+            await execute_query(ctx, conn, begin_sql)
         except Exception as e:
-            logger.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            await ctx.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            raise Exception(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            error_msg = ERROR_BEGIN_READ_ONLY_TRANSACTION if read_only else ERROR_BEGIN_TRANSACTION
+            logger.error(f'{error_msg}: {str(e)}')
+            await ctx.error(f'{error_msg}: {str(e)}')
+            raise Exception(f'{error_msg}: {str(e)}')
 
         try:
             rows = []
@@ -263,6 +320,9 @@ async def transact(
                 rows = await execute_query(ctx, conn, query)
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
+        except psycopg.errors.ReadOnlySqlTransaction:
+            await ctx.error(READ_ONLY_QUERY_WRITE_ERROR)
+            raise Exception(READ_ONLY_QUERY_WRITE_ERROR)
         except Exception as e:
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
@@ -624,12 +684,13 @@ def main():
     global knowledge_timeout
     knowledge_timeout = args.knowledge_timeout
 
+    mode_description = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, MODE:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
         cluster_endpoint,
         region,
         database_user,
-        args.allow_writes,
+        mode_description,
         aws_profile or 'default',
         knowledge_server,
         knowledge_timeout,
