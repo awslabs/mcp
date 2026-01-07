@@ -90,7 +90,7 @@ def build_result(
 
     to take into account token limits, max results and timeouts. The first page is always processed.
 
-    https://github.com/boto/botocore/blob/master/botocore/paginate.py#L481
+    https://github.com/boto/botocore/blob/c8f4f63e568e6c3fdab7f0778529797be95e4304/botocore/paginate.py#L485
     """
     result: dict[str, Any] = {}
     response_metadata = None

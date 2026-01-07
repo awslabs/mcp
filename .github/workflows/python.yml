@@ -137,16 +137,28 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: |
           if [ -d "tests" ]; then
-            uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:${{ matrix.package }}-coverage.xml
+            uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:${{ matrix.package }}-coverage.xml --junitxml=${{ matrix.package}}-junit.xml -o junit-family=legacy
           else
             echo "No tests directory found, skipping tests"
           fi
 
       - name: Upload coverage reports to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.package }}-coverage.xml
+          report_type: "coverage"
+          handle_no_reports_found: true
+
+      - name: Upload test reports to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ matrix.package }}-junit.xml
+          report_type: "test_results"
+          handle_no_reports_found: true
 
       - name: Run pyright
         working-directory: src/${{ matrix.package }}

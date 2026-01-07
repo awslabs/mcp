@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
+"""DynamoDB MCP Server for data modeling and database analysis."""
 
 import json
 import os
@@ -34,6 +34,7 @@ from typing import Any, Dict, List, Optional
 
 DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
 DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
+
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
@@ -49,7 +50,7 @@ Use the `source_db_analyzer` tool to analyze existing databases for DynamoDB Dat
 - Supports MySQL, PostgreSQL, and SQL Server
 - Two execution modes:
   * SELF_SERVICE: Generate SQL queries, user runs them, tool parses results
-  * MANAGED: Direct connection via AWS RDS Data API (MySQL only)
+  * MANAGED: Direct database connection (MySQL supports RDS Data API or connection-based access)
 
 Managed Analysis Workflow:
 - Extracts schema structure (tables, columns, indexes, foreign keys)
@@ -120,52 +121,79 @@ async def dynamodb_data_modeling() -> str:
 @handle_exceptions
 async def source_db_analyzer(
     source_db_type: str = Field(
-        description="Supported Source Database type: 'mysql', 'postgresql', 'sqlserver'"
+        description="Database type: 'mysql', 'postgresql', or 'sqlserver'"
     ),
     database_name: Optional[str] = Field(
         default=None,
-        description='Database name to analyze. REQUIRED for self_service mode. For managed mode, can use MYSQL_DATABASE env var if not provided. ALWAYS ask the user for this value before calling the tool.',
+        description='Database name to analyze. REQUIRED for self_service. Env: MYSQL_DATABASE.',
     ),
     execution_mode: str = Field(
         default='self_service',
-        description="Execution mode: 'self_service' (user runs queries) or 'managed' (AWS RDS Data API connection).",
+        description=(
+            "'self_service': generates SQL for user to run, then parses results. "
+            "'managed' (MySQL only): RDS Data API-based access (aws_cluster_arn) "
+            'or Connection-based access (hostname+port).'
+        ),
     ),
     queries_file_path: Optional[str] = Field(
         default=None,
-        description='For self_service mode: Path where SQL queries will be written (e.g., ./query.sql)',
+        description='[self_service] Output path for generated SQL queries (Step 1).',
     ),
     query_result_file_path: Optional[str] = Field(
         default=None,
-        description='For self_service mode: Path to file containing query results from user execution',
+        description='[self_service] Path to query results file for parsing (Step 2).',
     ),
     pattern_analysis_days: Optional[int] = Field(
         default=30,
-        description='Number of days to analyze the logs for pattern analysis query',
+        description='Days of query logs to analyze. Default: 30.',
         ge=1,
     ),
     max_query_results: Optional[int] = Field(
         default=None,
-        description='Maximum number of rows to include in analysis output files for schema and query log data (overrides MYSQL_MAX_QUERY_RESULTS env var)',
+        description='Max rows per query. Default: 500. Env: MYSQL_MAX_QUERY_RESULTS.',
         ge=1,
     ),
     aws_cluster_arn: Optional[str] = Field(
-        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
+        default=None,
+        description='[managed/RDS Data API-based] Aurora cluster ARN. Use this OR hostname, not both. Env: MYSQL_CLUSTER_ARN.',
     ),
     aws_secret_arn: Optional[str] = Field(
-        default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
+        default=None,
+        description='[managed] Secrets Manager ARN for DB credentials. REQUIRED. Env: MYSQL_SECRET_ARN.',
     ),
     aws_region: Optional[str] = Field(
-        default=None, description='AWS region (overrides AWS_REGION env var)'
+        default=None,
+        description='[managed] AWS region. REQUIRED. Env: AWS_REGION.',
+    ),
+    hostname: Optional[str] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL hostname. Use this OR aws_cluster_arn, not both. Env: MYSQL_HOSTNAME.',
+    ),
+    port: Optional[int] = Field(
+        default=None,
+        description='[managed/connection-based] MySQL port. Default: 3306. Env: MYSQL_PORT.',
     ),
     output_dir: str = Field(
-        description='Absolute directory path where the timestamped output analysis folder will be created. If unknown, prompt the user to provide a path or confirm using their current working directory.'
+        description='Absolute path for output folder. Must exist and be writable. REQUIRED.',
     ),
 ) -> str:
     """Analyzes source database to extract schema and access patterns for DynamoDB modeling.
 
-    Supports MySQL, PostgreSQL, SQL Server in two modes:
-    - self_service: Generate queries, user runs them, tool parses results
-    - managed: Direct AWS RDS Data API connection (MySQL only)
+    WHEN TO USE: Call this tool when the user selects "Existing Database Analysis" option
+    after invoking the `dynamodb_data_modeling` tool. This extracts schema and query patterns
+    from an existing relational database to accelerate DynamoDB data model design.
+
+    IMPORTANT: Always ask the user which execution mode they prefer before calling this tool.
+
+    Execution Modes:
+    - self_service: Generates SQL queries for user to run manually, then parses their results.
+    - managed (MySQL only): Database connection via RDS Data API or hostname.
+
+    Supported Databases: MySQL, PostgreSQL, SQL Server
+
+    Output: Generates analysis files (schema structure, access patterns, relationships) in
+    Markdown format. These files feed into the DynamoDB data modeling workflow to inform
+    table design, GSI selection, and access pattern mapping.
 
     Returns: Analysis summary with file locations and next steps.
     """
@@ -178,6 +206,12 @@ async def source_db_analyzer(
         plugin = PluginRegistry.get_plugin(source_db_type)
     except ValueError as e:
         return f'{str(e)}. Supported types: {PluginRegistry.get_supported_types()}'
+
+    # Managed mode only supports MySQL
+    if execution_mode == 'managed' and source_db_type != 'mysql':
+        return (
+            f'Managed mode is not supported for {source_db_type}. Use self_service mode instead.'
+        )
 
     max_results = max_query_results or 500
 
@@ -220,6 +254,8 @@ async def source_db_analyzer(
             aws_cluster_arn=aws_cluster_arn,
             aws_secret_arn=aws_secret_arn,
             aws_region=aws_region,
+            hostname=hostname,
+            port=port,
             output_dir=output_dir,
         )
 
