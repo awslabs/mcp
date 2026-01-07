@@ -4,7 +4,6 @@ import pytest
 import pytest_asyncio
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.server import (
-    SERVER_INSTRUCTIONS,
     _execute_access_patterns,
     _execute_dynamodb_command,
     app,
@@ -804,8 +803,6 @@ def test_property_command_validation_preservation(invalid_command: str):
     )
 
 
-# **Feature: refactor-execute-dynamodb-command, Property 3: Endpoint URL Credential Configuration**
-# **Validates: Requirements 3.2**
 @settings(max_examples=100)
 @given(
     st.text(min_size=1, max_size=100).filter(
@@ -869,6 +866,7 @@ def test_property_endpoint_url_credential_configuration(endpoint_url: str):
         # Restore original environment
         os.environ.clear()
         os.environ.update(original_env)
+
 
 @settings(max_examples=100)
 @given(
