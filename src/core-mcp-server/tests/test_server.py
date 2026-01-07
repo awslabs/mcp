@@ -1049,11 +1049,11 @@ class TestMainFunction:
                 mock_asyncio_run = MagicMock()
                 asyncio.run = mock_asyncio_run
 
-                # Create a coroutine object that can be passed to asyncio.run
+                # Create a coroutine function that can be passed to asyncio.run
                 async def mock_setup_coroutine():
                     pass
 
-                mock_setup = MagicMock(return_value=mock_setup_coroutine())
+                mock_setup = MagicMock(side_effect=mock_setup_coroutine)
                 server.setup = mock_setup
 
                 mock_mcp_run = MagicMock()

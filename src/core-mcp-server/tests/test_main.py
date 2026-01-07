@@ -23,7 +23,9 @@ class TestMain:
     @pytest.fixture
     def mock_setup(self):
         """Fixture to provide a mock setup function."""
-        with patch('awslabs.core_mcp_server.server.setup', new_callable=AsyncMock) as mock:
+        async def mock_setup_coroutine():
+            pass
+        with patch('awslabs.core_mcp_server.server.setup', side_effect=mock_setup_coroutine) as mock:
             yield mock
 
     @pytest.fixture
