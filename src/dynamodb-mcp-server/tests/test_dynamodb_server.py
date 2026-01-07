@@ -5,13 +5,15 @@ import pytest_asyncio
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.server import (
     _execute_access_patterns,
+    _execute_dynamodb_command,
     app,
     create_server,
     dynamodb_data_model_validation,
     dynamodb_data_modeling,
-    execute_dynamodb_command,
     source_db_analyzer,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import mock_open, patch
 
 
@@ -614,14 +616,14 @@ async def test_invalid_execution_modes(tmp_path):
     assert 'unsupported' in result_str.lower() or 'not supported' in result_str.lower()
 
 
-# Tests for execute_dynamodb_command
+# Tests for _execute_dynamodb_command (private function)
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_valid_command():
-    """Test execute_dynamodb_command with valid DynamoDB command."""
+    """Test _execute_dynamodb_command with valid DynamoDB command."""
     with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
         mock_call_aws.return_value = {'Tables': []}
 
-        result = await execute_dynamodb_command(
+        result = await _execute_dynamodb_command(
             command='aws dynamodb list-tables', endpoint_url='http://localhost:8000'
         )
 
@@ -633,18 +635,18 @@ async def test_execute_dynamodb_command_valid_command():
 
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_invalid_command():
-    """Test execute_dynamodb_command with invalid command."""
-    result = await execute_dynamodb_command(command='aws s3 ls')
-    assert "Command must start with 'aws dynamodb'" in str(result)
+    """Test _execute_dynamodb_command with invalid command raises ValueError."""
+    with pytest.raises(ValueError, match="Command must start with 'aws dynamodb'"):
+        await _execute_dynamodb_command(command='aws s3 ls')
 
 
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_without_endpoint():
-    """Test execute_dynamodb_command without endpoint URL."""
+    """Test _execute_dynamodb_command without endpoint URL."""
     with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
         mock_call_aws.return_value = {'Tables': ['MyTable']}
 
-        result = await execute_dynamodb_command(command='aws dynamodb list-tables')
+        result = await _execute_dynamodb_command(command='aws dynamodb list-tables')
 
         assert result == {'Tables': ['MyTable']}
         mock_call_aws.assert_called_once()
@@ -654,14 +656,14 @@ async def test_execute_dynamodb_command_without_endpoint():
 
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
-    """Test that execute_dynamodb_command sets AWS environment variables when endpoint_url is provided."""
+    """Test that _execute_dynamodb_command sets AWS environment variables when endpoint_url is provided."""
     original_env = os.environ.copy()
 
     try:
         with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
             mock_call_aws.return_value = {'Tables': []}
 
-            await execute_dynamodb_command(
+            await _execute_dynamodb_command(
                 command='aws dynamodb list-tables', endpoint_url='http://localhost:8000'
             )
 
@@ -681,12 +683,12 @@ async def test_execute_dynamodb_command_with_endpoint_sets_env_vars():
 
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_exception_handling():
-    """Test execute_dynamodb_command exception handling."""
+    """Test _execute_dynamodb_command exception handling."""
     with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
         test_exception = Exception('AWS CLI error')
         mock_call_aws.side_effect = test_exception
 
-        result = await execute_dynamodb_command(command='aws dynamodb list-tables')
+        result = await _execute_dynamodb_command(command='aws dynamodb list-tables')
 
         assert result == test_exception
 
@@ -710,7 +712,7 @@ async def test_execute_access_patterns_success():
         },
     ]
 
-    with patch('awslabs.dynamodb_mcp_server.server.execute_dynamodb_command') as mock_execute:
+    with patch('awslabs.dynamodb_mcp_server.server._execute_dynamodb_command') as mock_execute:
         with patch('builtins.open', mock_open()) as mock_file:
             mock_execute.side_effect = [{'Items': []}, {'Item': {'id': {'S': '123'}}}]
 
@@ -749,7 +751,7 @@ async def test_execute_access_patterns_exception_handling():
         {'pattern': 'AP1', 'implementation': 'aws dynamodb scan --table-name Users'}
     ]
 
-    with patch('awslabs.dynamodb_mcp_server.server.execute_dynamodb_command') as mock_execute:
+    with patch('awslabs.dynamodb_mcp_server.server._execute_dynamodb_command') as mock_execute:
         mock_execute.side_effect = Exception('Command failed')
 
         result = await _execute_access_patterns('/tmp', access_patterns)
@@ -857,32 +859,166 @@ def test_create_server():
     assert server.name == 'awslabs.dynamodb-mcp-server'
 
 
-@pytest.mark.asyncio
-async def test_mcp_server_tools_registration():
-    """Test that all tools are properly registered in the MCP server."""
-    tools = await app.list_tools()
-    tool_names = [tool.name for tool in tools]
+@settings(max_examples=100)
+@given(
+    st.text(min_size=0, max_size=200).filter(lambda s: not s.strip().startswith('aws dynamodb'))
+)
+def test_property_command_validation_preservation(invalid_command: str):
+    """Property test: Command validation preservation.
 
-    expected_tools = [
-        'dynamodb_data_modeling',
-        'source_db_analyzer',
-        'execute_dynamodb_command',
-        'dynamodb_data_model_validation',
-    ]
+    *For any* command string that does not start with 'aws dynamodb', calling
+    `_execute_dynamodb_command` SHALL raise a `ValueError` with the message
+    "Command must start with 'aws dynamodb'".
 
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Tool '{tool_name}' not found in MCP server"
+    This property test verifies that the command validation logic correctly rejects
+    all invalid commands regardless of their content.
+    """
+    import asyncio
+
+    async def check_validation():
+        with pytest.raises(ValueError) as exc_info:
+            await _execute_dynamodb_command(command=invalid_command)
+        return exc_info.value
+
+    # Run the async check
+    error = asyncio.get_event_loop().run_until_complete(check_validation())
+
+    # Verify the error message is exactly as specified
+    assert str(error) == "Command must start with 'aws dynamodb'", (
+        f"Expected error message 'Command must start with 'aws dynamodb'', got '{str(error)}'"
+    )
 
 
-@pytest.mark.asyncio
-async def test_execute_dynamodb_command_mcp_integration():
-    """Test execute_dynamodb_command tool through MCP client."""
-    tools = await app.list_tools()
-    execute_tool = next((tool for tool in tools if tool.name == 'execute_dynamodb_command'), None)
+@settings(max_examples=100)
+@given(
+    st.text(min_size=1, max_size=100).filter(
+        lambda s: s.strip() and not any(c in s for c in [' ', '\n', '\t', '\r'])
+    )
+)
+def test_property_endpoint_url_credential_configuration(endpoint_url: str):
+    """Property test: Endpoint URL credential configuration.
 
-    assert execute_tool is not None
-    assert execute_tool.description is not None
-    assert 'AWSCLI DynamoDB' in execute_tool.description
+    *For any* non-None endpoint_url provided to `_execute_dynamodb_command`, the function
+    SHALL set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION`
+    environment variables before executing the command.
+
+    This property test verifies that when an endpoint URL is provided, the function
+    correctly configures fake AWS credentials for DynamoDB Local.
+    """
+    import asyncio
+
+    # Save original environment
+    original_env = os.environ.copy()
+
+    try:
+        # Clear relevant env vars to ensure we're testing the function's behavior
+        for key in ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_DEFAULT_REGION']:
+            os.environ.pop(key, None)
+
+        async def check_credential_configuration():
+            with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
+                mock_call_aws.return_value = {'Tables': []}
+
+                # Execute with the generated endpoint URL
+                await _execute_dynamodb_command(
+                    command='aws dynamodb list-tables', endpoint_url=endpoint_url
+                )
+
+                # Verify credentials were set
+                assert 'AWS_ACCESS_KEY_ID' in os.environ, (
+                    'AWS_ACCESS_KEY_ID should be set when endpoint_url is provided'
+                )
+                assert 'AWS_SECRET_ACCESS_KEY' in os.environ, (
+                    'AWS_SECRET_ACCESS_KEY should be set when endpoint_url is provided'
+                )
+                assert 'AWS_DEFAULT_REGION' in os.environ, (
+                    'AWS_DEFAULT_REGION should be set when endpoint_url is provided'
+                )
+
+                # Verify the expected fake credential values
+                assert (
+                    os.environ['AWS_ACCESS_KEY_ID']
+                    == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+                ), 'AWS_ACCESS_KEY_ID should be set to the expected fake value'
+                assert (
+                    os.environ['AWS_SECRET_ACCESS_KEY']
+                    == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+                ), 'AWS_SECRET_ACCESS_KEY should be set to the expected fake value'
+
+        # Run the async check
+        asyncio.get_event_loop().run_until_complete(check_credential_configuration())
+
+    finally:
+        # Restore original environment
+        os.environ.clear()
+        os.environ.update(original_env)
+
+
+@settings(max_examples=100)
+@given(
+    st.text(min_size=1, max_size=100).filter(
+        lambda s: s.strip() and not any(c in s for c in [' ', '\n', '\t', '\r'])
+    )
+)
+def test_property_endpoint_url_command_modification(endpoint_url: str):
+    """Property test: Endpoint URL command modification.
+
+    *For any* non-None endpoint_url provided to `_execute_dynamodb_command`, the command
+    passed to `call_aws` SHALL contain `--endpoint-url {endpoint_url}` appended to the
+    original command.
+
+    This property test verifies that when an endpoint URL is provided, the function
+    correctly appends the endpoint URL flag to the command before execution.
+    """
+    import asyncio
+
+    # Save original environment
+    original_env = os.environ.copy()
+
+    try:
+
+        async def check_command_modification():
+            with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
+                mock_call_aws.return_value = {'Tables': []}
+
+                original_command = 'aws dynamodb list-tables'
+
+                # Execute with the generated endpoint URL
+                await _execute_dynamodb_command(
+                    command=original_command, endpoint_url=endpoint_url
+                )
+
+                # Verify call_aws was called
+                mock_call_aws.assert_called_once()
+
+                # Get the command that was passed to call_aws
+                args, kwargs = mock_call_aws.call_args
+                actual_command = args[0]
+
+                # Property: The command passed to call_aws SHALL contain --endpoint-url {endpoint_url}
+                expected_suffix = f'--endpoint-url {endpoint_url}'
+                assert expected_suffix in actual_command, (
+                    f"Command should contain '{expected_suffix}', but got: '{actual_command}'"
+                )
+
+                # Property: The original command should still be present
+                assert original_command in actual_command, (
+                    f"Original command '{original_command}' should be preserved in: '{actual_command}'"
+                )
+
+                # Property: The endpoint URL should be appended (not prepended)
+                assert actual_command.startswith(original_command), (
+                    f"Command should start with original command '{original_command}', "
+                    f"but got: '{actual_command}'"
+                )
+
+        # Run the async check
+        asyncio.get_event_loop().run_until_complete(check_command_modification())
+
+    finally:
+        # Restore original environment
+        os.environ.clear()
+        os.environ.update(original_env)
 
 
 @pytest.mark.asyncio
@@ -926,17 +1062,20 @@ async def test_error_propagation_in_validation_chain():
 
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_edge_cases():
-    """Test execute_dynamodb_command edge cases."""
-    result = await execute_dynamodb_command(command='  aws s3 ls  ')
-    assert "Command must start with 'aws dynamodb'" in str(result)
+    """Test _execute_dynamodb_command edge cases."""
+    # Test with whitespace-padded invalid command
+    with pytest.raises(ValueError, match="Command must start with 'aws dynamodb'"):
+        await _execute_dynamodb_command(command='  aws s3 ls  ')
 
-    result = await execute_dynamodb_command(command='')
-    assert "Command must start with 'aws dynamodb'" in str(result)
+    # Test with empty command
+    with pytest.raises(ValueError, match="Command must start with 'aws dynamodb'"):
+        await _execute_dynamodb_command(command='')
 
+    # Test with valid command that returns error response
     with patch('awslabs.dynamodb_mcp_server.server.call_aws') as mock_call_aws:
         mock_call_aws.return_value = {'error': 'Invalid syntax'}
 
-        result = await execute_dynamodb_command(command='aws dynamodb invalid-operation')
+        result = await _execute_dynamodb_command(command='aws dynamodb invalid-operation')
         assert result == {'error': 'Invalid syntax'}
 
 
@@ -1021,3 +1160,201 @@ async def test_dynamodb_data_model_validation_file_not_found_exception():
                     result = await dynamodb_data_model_validation(workspace_dir='/tmp')
 
                     assert 'Required file not found' in result
+
+
+@settings(max_examples=100)
+@given(
+    st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
+    st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # description
+    st.sampled_from(
+        ['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']
+    ),  # dynamodb_operation
+)
+def test_property_access_pattern_response_format_consistency(
+    pattern_id: str,
+    description: str,
+    dynamodb_operation: str,
+):
+    """Property test: Access pattern response format consistency.
+
+    *For any* valid access pattern executed through `_execute_access_patterns`, the response
+    dictionary SHALL contain keys `pattern_id`, `description`, `dynamodb_operation`, `command`,
+    and `response`.
+
+    This property test verifies that regardless of the access pattern content, the response
+    format remains consistent with the required keys.
+    """
+    import asyncio
+    import tempfile
+
+    # Build a valid access pattern with the generated values
+    command = f'aws dynamodb {dynamodb_operation} --table-name TestTable'
+    access_pattern = {
+        'pattern': pattern_id,
+        'description': description,
+        'dynamodb_operation': dynamodb_operation,
+        'implementation': command,
+    }
+
+    async def check_response_format():
+        with patch('awslabs.dynamodb_mcp_server.server._execute_dynamodb_command') as mock_execute:
+            with patch('builtins.open', mock_open()):
+                # Mock successful command execution
+                mock_execute.return_value = {'Items': [], 'Count': 0}
+
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    result = await _execute_access_patterns(
+                        tmp_dir, [access_pattern], endpoint_url='http://localhost:8000'
+                    )
+
+                    # Verify the response structure
+                    assert 'validation_response' in result, (
+                        'Response should contain validation_response key'
+                    )
+
+                    validation_response = result['validation_response']
+                    assert len(validation_response) == 1, (
+                        'Should have exactly one response for one access pattern'
+                    )
+
+                    pattern_result = validation_response[0]
+
+                    # Property: Response SHALL contain all required keys
+                    required_keys = {
+                        'pattern_id',
+                        'description',
+                        'dynamodb_operation',
+                        'command',
+                        'response',
+                    }
+                    actual_keys = set(pattern_result.keys())
+
+                    assert required_keys == actual_keys, (
+                        f'Response keys mismatch. Expected: {required_keys}, Got: {actual_keys}'
+                    )
+
+                    # Verify the values match the input
+                    assert pattern_result['pattern_id'] == pattern_id, (
+                        f'pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result["pattern_id"]}'
+                    )
+                    assert pattern_result['description'] == description, (
+                        f'description mismatch. Expected: {description}, Got: {pattern_result["description"]}'
+                    )
+                    assert pattern_result['dynamodb_operation'] == dynamodb_operation, (
+                        f'dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result["dynamodb_operation"]}'
+                    )
+                    assert pattern_result['command'] == command, (
+                        f'command mismatch. Expected: {command}, Got: {pattern_result["command"]}'
+                    )
+                    assert 'response' in pattern_result, 'Response should contain response key'
+
+    # Run the async check
+    asyncio.get_event_loop().run_until_complete(check_response_format())
+
+
+@settings(max_examples=100)
+@given(
+    st.text(min_size=1, max_size=50).filter(lambda s: s.strip()),  # pattern_id
+    st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # description
+    st.sampled_from(
+        ['scan', 'query', 'get-item', 'put-item', 'delete-item', 'update-item']
+    ),  # dynamodb_operation
+    st.text(min_size=1, max_size=100).filter(lambda s: s.strip()),  # error_message
+)
+def test_property_error_response_format_consistency(
+    pattern_id: str,
+    description: str,
+    dynamodb_operation: str,
+    error_message: str,
+):
+    """Property test: Error response format consistency.
+
+    ** Error Response Format Consistency**
+
+    *For any* access pattern that fails during execution, the error SHALL be captured in the
+    `response` field of the result dictionary, maintaining the same format as successful executions.
+
+    This property test verifies that when _execute_dynamodb_command returns an error (exception object
+    or error dict), the response format remains consistent with successful executions - containing
+    all required keys (pattern_id, description, dynamodb_operation, command, response).
+    """
+    import asyncio
+    import tempfile
+
+    # Build a valid access pattern with the generated values
+    command = f'aws dynamodb {dynamodb_operation} --table-name TestTable'
+    access_pattern = {
+        'pattern': pattern_id,
+        'description': description,
+        'dynamodb_operation': dynamodb_operation,
+        'implementation': command,
+    }
+
+    async def check_error_response_format():
+        with patch('awslabs.dynamodb_mcp_server.server._execute_dynamodb_command') as mock_execute:
+            with patch('builtins.open', mock_open()):
+                # Mock command execution returning an error (as exception object converted to string)
+                # This simulates what happens when _execute_dynamodb_command catches an exception
+                mock_execute.return_value = Exception(error_message)
+
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    result = await _execute_access_patterns(
+                        tmp_dir, [access_pattern], endpoint_url='http://localhost:8000'
+                    )
+
+                    # Verify the response structure is maintained even for errors
+                    assert 'validation_response' in result, (
+                        'Response should contain validation_response key even for errors'
+                    )
+
+                    validation_response = result['validation_response']
+                    assert len(validation_response) == 1, (
+                        'Should have exactly one response for one access pattern'
+                    )
+
+                    pattern_result = validation_response[0]
+
+                    # Property: Error response SHALL maintain the same format as successful executions
+                    required_keys = {
+                        'pattern_id',
+                        'description',
+                        'dynamodb_operation',
+                        'command',
+                        'response',
+                    }
+                    actual_keys = set(pattern_result.keys())
+
+                    assert required_keys == actual_keys, (
+                        f'Error response keys mismatch. Expected: {required_keys}, Got: {actual_keys}'
+                    )
+
+                    # Verify the values match the input (same as successful execution)
+                    assert pattern_result['pattern_id'] == pattern_id, (
+                        f'pattern_id mismatch. Expected: {pattern_id}, Got: {pattern_result["pattern_id"]}'
+                    )
+                    assert pattern_result['description'] == description, (
+                        f'description mismatch. Expected: {description}, Got: {pattern_result["description"]}'
+                    )
+                    assert pattern_result['dynamodb_operation'] == dynamodb_operation, (
+                        f'dynamodb_operation mismatch. Expected: {dynamodb_operation}, Got: {pattern_result["dynamodb_operation"]}'
+                    )
+                    assert pattern_result['command'] == command, (
+                        f'command mismatch. Expected: {command}, Got: {pattern_result["command"]}'
+                    )
+
+                    # Property: Error SHALL be captured in the response field
+                    assert 'response' in pattern_result, (
+                        'Error response should contain response key'
+                    )
+
+                    # The error should be converted to string representation
+                    response_value = pattern_result['response']
+                    assert isinstance(response_value, str), (
+                        f'Error response should be converted to string, got: {type(response_value)}'
+                    )
+                    assert error_message in response_value, (
+                        f'Error message should be captured in response. Expected to contain: {error_message}, Got: {response_value}'
+                    )
+
+    # Run the async check
+    asyncio.get_event_loop().run_until_complete(check_error_response_format())
