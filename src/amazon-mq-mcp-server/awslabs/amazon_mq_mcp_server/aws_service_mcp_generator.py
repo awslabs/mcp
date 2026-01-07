@@ -145,8 +145,8 @@ class AWSToolGenerator:
             'map': dict[Any, Any],
         }
         type_default = {
-            'string': str(),
-            'boolean': bool(),
+            'string': '',
+            'boolean': False,
             'integer': 10,
             'map': {},
         }

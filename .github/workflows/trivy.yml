@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@45627a95f42e6943b9f8f71ccfba72cb7f95e4d0
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@4c395a2996bc0e90108f286e767d187e8fcaf20f
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -104,8 +104,8 @@ jobs:
 
       - name: Generate Container Software Bill of Materials and Vulnerabilities
         run: |
-          curl -sSfL https://get.anchore.io/syft | sh -s -- -b /usr/local/bin
-          curl -sSfL https://get.anchore.io/grype | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/e9e34948534ab945c7e750376235cfe0c442f532/install.sh | sh -s -- -b /usr/local/bin v1.39.0
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/43e7e3246ed01b1ec0ff54f9b054201ccbe78e3a/install.sh | sh -s -- -b /usr/local/bin v0.104.3
           syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
           cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
           syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
@@ -129,7 +129,7 @@ jobs:
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
+        uses: github/codeql-action/upload-sarif@7434149006143a4d75b82a2f411ef15b03ccc2d7 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
