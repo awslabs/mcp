@@ -241,7 +241,9 @@ class CloudWatchLogsTools:
         ] = None,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -359,7 +361,9 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -538,7 +542,9 @@ class CloudWatchLogsTools:
         ] = 30,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -613,7 +619,9 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -673,7 +681,9 @@ class CloudWatchLogsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,

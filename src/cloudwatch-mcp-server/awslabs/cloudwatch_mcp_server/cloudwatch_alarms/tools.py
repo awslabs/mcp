@@ -59,7 +59,9 @@ class CloudWatchAlarmsTools:
         ] = 50,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -81,6 +83,7 @@ class CloudWatchAlarmsTools:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
             region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -209,7 +212,9 @@ class CloudWatchAlarmsTools:
         ] = False,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -238,6 +243,7 @@ class CloudWatchAlarmsTools:
             history_item_type: Optional type of history items to retrieve. Defaults to 'StateUpdate'.
             max_items: Maximum number of history items to return. Defaults to 50.
             include_component_alarms: For composite alarms, whether to include details about component alarms.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
 
         Returns:
             Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]: Either a response containing

@@ -208,7 +208,9 @@ class CloudWatchMetricsTools:
         ] = None,
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -675,7 +677,9 @@ class CloudWatchMetricsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -714,6 +718,7 @@ class CloudWatchMetricsTools:
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
             region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
             statistic: The statistic to use for alarm recommendations. Must match the metric's data type:
                 - Aggregate count metrics (RequestCount, Errors, Faults, Throttles, CacheHits, Connections, EventsProcessed): Use 'Sum'
                 - Event occurrence metrics (Invocations, CacheMisses): Use 'SampleCount'
@@ -1044,7 +1049,9 @@ class CloudWatchMetricsTools:
         ),
         region: Annotated[
             str | None,
-            Field(description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'),
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
         ] = None,
         profile_name: Annotated[
             str | None,
@@ -1083,8 +1090,9 @@ class CloudWatchMetricsTools:
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
-            statistic: The statistic to use for metric analysis. For guidance on choosing the correct statistic, refer to the get_recommended_metric_alarms tool.
             region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
+            statistic: The statistic to use for metric analysis. For guidance on choosing the correct statistic, refer to the get_recommended_metric_alarms tool.
 
         Returns:
             Dict[str, Any]: Analysis results including:
