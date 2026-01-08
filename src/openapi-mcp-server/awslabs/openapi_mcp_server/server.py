@@ -33,7 +33,7 @@ from fastmcp.server.openapi import FastMCPOpenAPI, MCPType, RouteMap
 from typing import Any, Dict
 
 
-def create_mcp_server(config: Config) -> FastMCP:
+async def create_mcp_server(config: Config) -> FastMCP:
     """Create and configure the FastMCP server.
 
     Args:
@@ -221,7 +221,7 @@ def create_mcp_server(config: Config) -> FastMCP:
             prompt_manager = MCPPromptManager()
 
             # Generate prompts
-            asyncio.run(prompt_manager.generate_prompts(server, config.api_name, openapi_spec))
+            await prompt_manager.generate_prompts(server, config.api_name, openapi_spec)
 
             # Register resource handler
             prompt_manager.register_api_resource_handler(server, config.api_name, client)
@@ -292,7 +292,7 @@ def create_mcp_server(config: Config) -> FastMCP:
     if hasattr(server, 'list_tools'):
         try:
             # Use asyncio to run the async method in a synchronous context
-            tools = asyncio.run(server.list_tools())  # type: ignore
+            tools = await server.list_tools()  # type: ignore
             tool_count = len(tools)
             tool_names = [tool.get('name') for tool in tools]
 
@@ -459,7 +459,7 @@ def main():
 
     # Create and run the MCP server
     logger.info('Creating MCP server')
-    mcp_server = create_mcp_server(config)
+    mcp_server = asyncio.run(create_mcp_server(config))
 
     # Set up signal handlers
     setup_signal_handlers()
