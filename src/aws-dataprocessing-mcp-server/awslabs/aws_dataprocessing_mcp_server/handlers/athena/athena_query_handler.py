@@ -257,7 +257,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully started query execution'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -285,7 +285,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully retrieved query executions'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -313,7 +313,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query execution {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -350,7 +350,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query results for {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -378,7 +378,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved query runtime statistics for {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -407,7 +407,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully listed query executions'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -432,7 +432,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully stopped query execution {query_execution_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -619,7 +619,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully retrieved named queries'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -657,7 +657,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=f'Successfully created named query {name}'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -679,7 +679,7 @@ class AthenaQueryHandler:
                         TextContent(
                             type='text', text=f'Successfully deleted named query {named_query_id}'
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -703,7 +703,7 @@ class AthenaQueryHandler:
                             type='text',
                             text=f'Successfully retrieved named query {named_query_id}',
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -732,7 +732,7 @@ class AthenaQueryHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text='Successfully listed named queries'),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
@@ -769,7 +769,7 @@ class AthenaQueryHandler:
                         TextContent(
                             type='text', text=f'Successfully updated named query {named_query_id}'
                         ),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                     ],
                 )
 
