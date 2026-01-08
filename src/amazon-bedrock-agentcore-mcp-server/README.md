@@ -27,7 +27,11 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 Configure the MCP server in your MCP client configuration:
 
-For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json`
+For [Kiro](https://kiro.dev/), see the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -42,30 +46,6 @@ For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json
       "autoApprove": []
     }
   }
-}
-```
-
-For [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html), add the MCP client configuration and tool command to the agent file in `~/.aws/amazonq/cli-agents`.
-
-Example, `~/.aws/amazonq/cli-agents/default.json`
-
-```json
-{
-  "mcpServers": {
-    "bedrock-agentcore-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  },
-  "tools": [
-    // .. other existing tools
-    "@awslabs.amazon-bedrock-agentcore-mcp-server"
-  ]
 }
 ```
 

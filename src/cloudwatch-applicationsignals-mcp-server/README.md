@@ -2,7 +2,7 @@
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
 
-This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
+This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
 
 ## Key Features
 
@@ -317,7 +317,11 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ### Installing for Kiro
 
-- Add the following configuration to your Kiro MCP settings file at `~/.kiro/settings/mcp.json`:
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Add the following configuration to your Kiro MCP settings file:
 
 ```json
 {
@@ -338,8 +342,6 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     }
 }
 ```
-
-- Restart Kiro to make sure AWS credentials are properly loaded for MCP server after updating your AWS credentials
 
 ### Windows Installation
 

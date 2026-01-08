@@ -47,7 +47,7 @@ The S3 Tables MCP Server simplifies the management of S3-based tables by providi
 |:----:|:------:|:-------:|
 | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.s3-tables-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.s3-tables-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.s3-tables-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuczMtdGFibGVzLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEifX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=S3%20Tables%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.s3-tables-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%7D) |
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -200,29 +200,29 @@ You can override the default by providing the `--log-dir` flag with a custom pat
 | `Show the schema for customer_data table` | Retrieves the table structure and column definitions to understand the data format and types |
 | `Run a query to find monthly revenue trends` | Performs data analysis using **read-only** SQL queries to extract business insights from stored table data. For write operations, only appending new data (inserts) is supported; updates and deletes are not available via SQL. |
 
-## Using Amazon Q with S3 Tables MCP Server
+## Using Kiro with S3 Tables MCP Server
 
-Amazon Q can provide better answers and code suggestions when it has additional context. To enhance Amazon Q's understanding of S3 Tables, you can add the provided context file to your Q environment.
+Kiro can provide better answers and code suggestions when it has additional context. To enhance Kiro's understanding of S3 Tables, you can add the provided context file to your Kiro environment.
 
-### How to Add Context to Amazon Q
+### How to Add Context to Kiro CLI
 
 1. **Download the CONTEXT.md file**
    - Download the `CONTEXT.md` file from the GitHub repository for this project.
 
-2. **Start Amazon Q Chat**
-   - Run the following command to start a chat session with Amazon Q:
+2. **Start Kiro CLI**
+   - Run the following command to start a chat session with Kiro:
      ```sh
-     q chat
+     kiro-cli chat
      ```
 
 3. **Add the Context File**
-   - In the Q chat, run:
+   - In the Kiro chat, run:
      ```sh
      /context add <path>/CONTEXT.md
      ```
    - Replace `<path>` with the actual path to where you downloaded `CONTEXT.md`.
 
-Now, Amazon Q will have improved context about S3 Tables and can provide more relevant answers.
+Now, Kiro CLI will have improved context about S3 Tables and can provide more relevant answers.
 
 ## Security Considerations
 

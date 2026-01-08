@@ -45,7 +45,7 @@ MCP server for accessing real-time AWS pricing information and providing cost an
 
 ### ⚡ Using uv
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 
 **For Linux/MacOS users:**

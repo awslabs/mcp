@@ -138,7 +138,31 @@ For write operations, we recommend the following IAM policies:
 
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
+This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with coding assistants such as Kiro and Cursor. By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
+
+**Set up Kiro**
+
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit ~/.kiro/settings/mcp.json. For project-specific configuration, edit .kiro/settings/mcp.json in your project directory.
+
+```json
+{
+  "mcpServers": {
+    "aws.dp-mcp": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-dataprocessing-mcp-server@latest",
+        "--allow-write"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
 
 **Set up Cursor**
 
@@ -199,29 +223,6 @@ For Windows users, the MCP server configuration format is slightly different:
 After a few minutes, you should see a green indicator if your MCP server definition is valid.
 
 4. Open a chat panel in Cursor (e.g., `Ctrl/⌘ + L`).  In your Cursor chat window, enter your prompt. For example, "Look at all the tables from my account federated across GDC"
-
-**Set up the Amazon Q Developer CLI**
-
-1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). For example:
-
-```
-{
-  "mcpServers": {
-    "aws.dp-mcp": {
-      "command": "uvx",
-      "args": ["awslabs.aws-dataprocessing-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    }
-  }
-}
-```
-
-3. Verify your setup by running the `/tools` command in the Q Developer CLI to see the available Data Processing MCP tools.
 
 Note that this is a basic quickstart. You can enable additional capabilities, such as [running MCP servers in containers](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers) or combining more MCP servers like the [AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) into a single MCP server definition. To view an example, see the [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) guide in AWS MCP Servers on GitHub. To view a real-world implementation with application code in context with an MCP server, see the [Server Developer](https://modelcontextprotocol.io/quickstart/server) guide in Anthropic documentation.
 

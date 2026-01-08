@@ -44,30 +44,9 @@ Configure the MCP server in your MCP client configuration:
 }
 ```
 
-For [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html), add the MCP client configuration and tool command to the agent file in `~/.aws/amazonq/cli-agents`.
+For Kiro MCP configuration, see the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
 
-Example, `~/.aws/amazonq/cli-agents/default.json`
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  },
-  "tools": [
-    // .. other existing tools
-    "@awslabs.aws-documentation-mcp-server"
-  ],
-}
-```
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
 
 ### Windows Installation
 

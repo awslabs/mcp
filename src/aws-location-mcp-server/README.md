@@ -32,7 +32,7 @@ Here are the ways you can work with the Amazon Location MCP server:
 
 ## Configuration
 
-Configure the server in your MCP configuration file. Here are some ways you can work with MCP across AWS, and we'll be adding support to more products soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+Configure the server in your MCP configuration file. Here are some ways you can work with MCP across AWS, and we'll be adding support to more products soon: (e.g. for Kiro, `~/.kiro/settings/mcp.json`):
 
 ```json
 {

@@ -4,7 +4,7 @@ An Amazon Keyspaces (for Apache Cassandra) MCP server for interacting with Amazo
 
 ## Overview
 
-The Amazon Keyspaces MCP server implements the Model Context Protocol (MCP) to enable AI assistants like Amazon Q to
+The Amazon Keyspaces MCP server implements the Model Context Protocol (MCP) to enable AI assistants like Kiro to
 interact with Amazon Keyspaces or Apache Cassandra databases through natural language. This server allows you to explore
  database schemas, execute queries, and analyze query performance without having to write CQL code directly.
 
@@ -123,36 +123,36 @@ After installation, you can run the server directly:
 awslabs.amazon-keyspaces-mcp-server
 ```
 
-## Configuring Amazon Q to Use the MCP Server
+## Configuring Kiro to Use the MCP Server
 
-To use the Amazon Keyspaces MCP server with Amazon Q CLI, you need to configure it in your Q configuration file.
+To use the Amazon Keyspaces MCP server with Kiro, you need to configure it in your Kiro configuration file.
 
-### Configuration for Amazon Q CLI
+### Configuration for Kiro
 
-Edit the Q configuration file at `~/.aws/amazonq/mcp.json`:
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "keyspaces-mcp",
+  "mcpServers": {
+    "keyspaces-mcp": {
       "command": "awslabs.amazon-keyspaces-mcp-server",
       "args": [],
       "env": {}
     }
-  ]
+  }
 }
 ```
 
 ### Windows Installation
 
-For Windows users, the MCP server configuration format is slightly different. Edit your MCP configuration file (e.g., `~/.aws/amazonq/mcp.json` for Amazon Q CLI) with the following format:
+For Windows users, the MCP server configuration format is slightly different. Edit your MCP configuration file (e.g., `~/.kiro/settings/mcp.json`) with the following format:
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "keyspaces-mcp",
+  "mcpServers": {
+    "keyspaces-mcp": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -170,13 +170,13 @@ For Windows users, the MCP server configuration format is slightly different. Ed
         "AWS_REGION": "us-east-1"
       }
     }
-  ]
+  }
 }
 ```
 
 If the file doesn't exist yet or doesn't have an `mcpServers` section, create it with the structure shown above.
 
-Now when you use Q Chat by running `q chat`, it will automatically connect to your Keyspaces MCP server.
+Now when you use Kiro, it will automatically connect to your Keyspaces MCP server.
 
 ## Available Tools
 

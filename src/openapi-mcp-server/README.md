@@ -65,7 +65,7 @@ pip install -e .
 
 ### Using MCP Configuration
 
-Here are some ways you can work with MCP across AWS (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+Example configuration for Kiro (`~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -338,17 +338,18 @@ The server includes built-in monitoring capabilities:
 - Prometheus metrics (disabled by default)
 - Detailed logging of API calls and tool usage
 - Performance tracking for API operations
-## Testing with Amazon Q
 
-To test the OpenAPI MCP Server with Amazon Q, you need to configure Amazon Q to use your MCP server. Here's how:
+## Testing with Kiro
 
-1. **Configure Amazon Q MCP Integration**
+To test the OpenAPI MCP Server with Kiro, you need to configure Kiro to use your MCP server. Here's how:
+
+1. **Configure Kiro MCP Integration**
 
    Create or edit the MCP configuration file:
 
    ```bash
-   mkdir -p ~/.aws/amazonq
-   nano ~/.aws/amazonq/mcp.json
+   mkdir -p ~/.kiro/settings
+   nano ~/.kiro/settings/mcp.json
    ```
 
    Add the following configuration:
@@ -378,20 +379,20 @@ To test the OpenAPI MCP Server with Amazon Q, you need to configure Amazon Q to 
    }
    ```
 
-2. **Start Amazon Q CLI**
+2. **Start Kiro CLI**
 
-   Launch the Amazon Q CLI:
+   Launch the Kiro CLI:
 
    ```bash
-   q chat
+   kiro-cli chat
    ```
 
 3. **Test the Operation Prompts**
 
-   Once connected, you can test the operation prompts by asking Amazon Q to help you with specific API operations:
+   Once connected, you can test the operation prompts by asking Kiro to help you with specific API operations:
 
    ```
    I need to find a pet by ID using the Petstore API
    ```
 
-   Amazon Q should respond with guidance using the natural language prompt.
+   Kiro should respond with guidance using the natural language prompt.

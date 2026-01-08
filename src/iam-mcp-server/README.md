@@ -119,8 +119,8 @@ The AWS credentials used by this server need the following IAM permissions:
 
 ### MCP Client Configuration
 
-#### Amazon Q CLI
-Add to your `~/.aws/amazonq/mcp.json`:
+#### Kiro
+Add to your `~/.kiro/settings/mcp.json`:
 
 ```json
 {
@@ -234,7 +234,7 @@ python -m awslabs.iam_mcp_server.server --readonly
 
 ### MCP Client Configuration with Read-Only Mode
 
-#### Amazon Q CLI
+#### Kiro
 ```json
 {
   "mcpServers": {

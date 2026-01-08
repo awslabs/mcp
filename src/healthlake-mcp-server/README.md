@@ -11,7 +11,7 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
   - [Option 2: uv install](#option-2-uv-install)
   - [Option 3: Docker](#option-3-docker)
 - [MCP Client Configuration](#mcp-client-configuration)
-  - [Amazon Q Developer CLI](#amazon-q-developer-cli)
+  - [Kiro](#kiro)
   - [Docker Configuration](#docker-configuration)
   - [Other MCP Clients](#other-mcp-clients)
 - [Read-Only Mode](#read-only-mode)
@@ -105,14 +105,11 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e
 
 ## MCP Client Configuration
 
-### Amazon Q Developer CLI
+### Kiro
 
-Add to your MCP configuration file:
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
 
-**Location:**
-- macOS: `~/.aws/amazonq/mcp.json`
-- Linux: `~/.config/amazon-q/mcp.json`
-- Windows: `%APPDATA%\Amazon Q\mcp.json`
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
 
 **Configuration:**
 ```json
