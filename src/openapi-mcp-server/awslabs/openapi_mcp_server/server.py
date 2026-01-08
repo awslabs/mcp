@@ -344,6 +344,27 @@ async def create_mcp_server(config: Config) -> FastMCP:
     return server
 
 
+async def get_all_counts(server):
+    """Get counts of prompts, tools, resources, and resource templates."""
+    prompts = await server.get_prompts()
+    tools = await server.get_tools()
+    resources = await server.get_resources()
+
+    # Get resource templates if available
+    resource_templates = []
+    if hasattr(server, 'get_resource_templates'):
+        try:
+            resource_templates = await server.get_resource_templates()
+        except AttributeError as e:
+            # This is expected if the method exists but is not implemented
+            logger.debug(f'get_resource_templates exists but not implemented: {e}')
+        except Exception as e:
+            # Log other unexpected errors
+            logger.warning(f'Error retrieving resource templates: {e}')
+
+    return len(prompts), len(tools), len(resources), len(resource_templates)
+
+
 def setup_signal_handlers():
     """Set up signal handlers for graceful shutdown."""
     # Store original SIGINT handler
@@ -466,25 +487,6 @@ def main():
 
     try:
         # Get counts of prompts, tools, resources, and resource templates
-        async def get_all_counts(server):
-            prompts = await server.get_prompts()
-            tools = await server.get_tools()
-            resources = await server.get_resources()
-
-            # Get resource templates if available
-            resource_templates = []
-            if hasattr(server, 'get_resource_templates'):
-                try:
-                    resource_templates = await server.get_resource_templates()
-                except AttributeError as e:
-                    # This is expected if the method exists but is not implemented
-                    logger.debug(f'get_resource_templates exists but not implemented: {e}')
-                except Exception as e:
-                    # Log other unexpected errors
-                    logger.warning(f'Error retrieving resource templates: {e}')
-
-            return len(prompts), len(tools), len(resources), len(resource_templates)
-
         prompt_count, tool_count, resource_count, resource_template_count = asyncio.run(
             get_all_counts(mcp_server)
         )
