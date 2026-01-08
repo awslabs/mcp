@@ -2,6 +2,7 @@ import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_etl_handler import GlueEtlJobsHandler
 from botocore.exceptions import ClientError
+from datetime import datetime
 from mcp.server.fastmcp import Context
 from unittest.mock import Mock, patch
 
@@ -111,24 +112,42 @@ async def test_delete_job_success(handler, mock_glue_client):
 
 @pytest.mark.asyncio
 async def test_get_job_success(handler, mock_glue_client):
-    """Test successful retrieval of a Glue job."""
+    """Test successful retrieval of a Glue job with datetime fields (as returned by real AWS API)."""
     handler.glue_client = mock_glue_client
-    mock_glue_client.get_job.return_value = {'Job': {'Name': 'test-job'}}
+    mock_glue_client.get_job.return_value = {
+        'Job': {
+            'Name': 'test-job',
+            'CreatedOn': datetime(2025, 12, 15, 10, 30, 0),
+            'LastModifiedOn': datetime(2025, 12, 16, 14, 20, 0),
+        }
+    }
 
     ctx = Mock()
     response = await handler.manage_aws_glue_jobs(ctx, operation='get-job', job_name='test-job')
 
     assert not response.isError
     data = extract_response_data(response)
-    assert data.get('job_details') == {'Name': 'test-job'}
+    assert data.get('job_details', {}).get('Name') == 'test-job'
 
 
 @pytest.mark.asyncio
 async def test_get_jobs_success(handler, mock_glue_client):
-    """Test successful retrieval of multiple Glue jobs."""
+    """Test successful retrieval of multiple Glue jobs with datetime fields (as returned by real AWS API)."""
     handler.glue_client = mock_glue_client
+    # Mock realistic AWS response with datetime objects (as boto3 returns them)
     mock_glue_client.get_jobs.return_value = {
-        'Jobs': [{'Name': 'job1'}, {'Name': 'job2'}],
+        'Jobs': [
+            {
+                'Name': 'job1',
+                'CreatedOn': datetime(2025, 12, 15, 10, 30, 0),
+                'LastModifiedOn': datetime(2025, 12, 16, 14, 20, 0),
+            },
+            {
+                'Name': 'job2',
+                'CreatedOn': datetime(2025, 12, 14, 9, 15, 0),
+                'LastModifiedOn': datetime(2025, 12, 15, 11, 45, 0),
+            },
+        ],
         'NextToken': 'token123',
     }
 
@@ -137,6 +156,8 @@ async def test_get_jobs_success(handler, mock_glue_client):
         ctx, operation='get-jobs', max_results=10, next_token='token'
     )
 
+    # This will FAIL on current code (v0.1.19) with:
+    # TypeError: Object of type datetime is not JSON serializable
     assert not response.isError
     data = extract_response_data(response)
     assert len(data.get('jobs', [])) == 2
