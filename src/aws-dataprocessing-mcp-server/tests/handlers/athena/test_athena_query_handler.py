@@ -19,6 +19,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler 
     AthenaQueryHandler,
 )
 from botocore.exceptions import ClientError
+from datetime import datetime
 from mcp.server.fastmcp import Context
 from unittest.mock import Mock, patch
 
@@ -78,10 +79,28 @@ def mock_context():
 
 @pytest.mark.asyncio
 async def test_batch_get_query_execution_success(handler, mock_athena_client):
-    """Test successful batch retrieval of query executions."""
+    """Test successful batch retrieval of query executions with datetime fields (as returned by real AWS API)."""
     handler.athena_client = mock_athena_client
+    # Mock realistic AWS response with datetime objects (as boto3 returns them)
     mock_athena_client.batch_get_query_execution.return_value = {
-        'QueryExecutions': [{'QueryExecutionId': 'query1'}, {'QueryExecutionId': 'query2'}],
+        'QueryExecutions': [
+            {
+                'QueryExecutionId': 'query1',
+                'Query': 'SELECT * FROM table1',
+                'Status': {'State': 'SUCCEEDED'},
+                'SubmissionDateTime': datetime(2025, 12, 20, 9, 0, 0),
+                'CompletionDateTime': datetime(2025, 12, 20, 9, 5, 0),
+                'StatementType': 'DML',
+            },
+            {
+                'QueryExecutionId': 'query2',
+                'Query': 'SELECT * FROM table2',
+                'Status': {'State': 'SUCCEEDED'},
+                'SubmissionDateTime': datetime(2025, 12, 20, 10, 0, 0),
+                'CompletionDateTime': datetime(2025, 12, 20, 10, 3, 0),
+                'StatementType': 'DML',
+            },
+        ],
         'UnprocessedQueryExecutionIds': [],
     }
 
@@ -90,6 +109,8 @@ async def test_batch_get_query_execution_success(handler, mock_athena_client):
         ctx, operation='batch-get-query-execution', query_execution_ids=['query1', 'query2']
     )
 
+    # This will FAIL on current code with:
+    # TypeError: Object of type datetime is not JSON serializable
     data = extract_response_data(response)
     assert not response.isError
     assert len(data.get('query_executions', [])) == 2
