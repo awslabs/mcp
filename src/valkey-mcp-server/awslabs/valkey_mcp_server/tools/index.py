@@ -85,7 +85,7 @@ async def create_vector_index(
     create_args = ['FT.CREATE', name]
 
     if index_type == IndexType.JSON:
-        create_args += ['JSON']
+        create_args += ['ON', 'JSON']
     elif index_type == IndexType.HASH:
         create_args += ['ON', 'HASH']
     else:
