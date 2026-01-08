@@ -129,7 +129,7 @@ class DataCatalogDatabaseManager:
                 isError=False,
                 content=[
                     TextContent(type='text', text=success_msg),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                    TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                 ],
             )
 
@@ -221,7 +221,7 @@ class DataCatalogDatabaseManager:
                 isError=False,
                 content=[
                     TextContent(type='text', text=success_msg),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                    TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                 ],
             )
 
@@ -282,7 +282,7 @@ class DataCatalogDatabaseManager:
                 isError=False,
                 content=[
                     TextContent(type='text', text=success_msg),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                    TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                 ],
             )
 
@@ -366,7 +366,7 @@ class DataCatalogDatabaseManager:
                 isError=False,
                 content=[
                     TextContent(type='text', text=success_msg),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                    TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                 ],
             )
 
@@ -503,7 +503,7 @@ class DataCatalogDatabaseManager:
                 isError=False,
                 content=[
                     TextContent(type='text', text=success_msg),
-                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                    TextContent(type='text', text=json.dumps(data.model_dump(mode='json'))),
                 ],
             )
 
