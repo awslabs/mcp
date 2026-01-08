@@ -4,7 +4,7 @@ The official developer experience MCP Server for Amazon DynamoDB. This server pr
 
 ## Available Tools
 
-The DynamoDB MCP server provides four tools for data modeling and validation:
+The DynamoDB MCP server provides three tools for data modeling and validation:
 
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt with enterprise-level design patterns, cost optimization strategies, and multi-table design philosophy. Guides through requirements gathering, access pattern analysis, and schema design.
 
@@ -17,10 +17,6 @@ The DynamoDB MCP server provides four tools for data modeling and validation:
 - `source_db_analyzer` - Analyzes existing MySQL databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
-
-- `execute_dynamodb_command` - Executes AWS CLI DynamoDB commands against DynamoDB Local or AWS DynamoDB. Supports all DynamoDB API operations and automatically configures credentials for local testing.
-
-  **Example invocation:** "Create the tables from the data model that was just created in my account in region us-east-1"
 
 ## Prerequisites
 
