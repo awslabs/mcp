@@ -152,10 +152,14 @@ class TestSearch:
         vector = [0.1, 0.2]
         count = 5
 
-        # Create mock search result
+        # Create mock document
+        mock_doc = Mock()
+        mock_doc.id = 'doc1'
+
+        # Create mock search result with documents
         mock_result = Mock()
-        mock_result.total = 0
-        mock_result.docs = []
+        mock_result.total = 1
+        mock_result.docs = [mock_doc]
 
         # Setup mock search interface
         mock_ft = Mock()
@@ -165,10 +169,11 @@ class TestSearch:
         # Execute search with no_content=True
         result = await vector_search(index, field, vector, no_content=True, count=count)
 
-        # Verify empty list returned
+        # Verify only document IDs returned
         assert isinstance(result, dict)
         assert result['status'] == 'success'
-        assert len(result['results']) == 0
+        assert len(result['results']) == 1
+        assert result['results'][0] == {'id': 'doc1'}
 
         # Verify search was called
         mock_ft.search.assert_called_once()

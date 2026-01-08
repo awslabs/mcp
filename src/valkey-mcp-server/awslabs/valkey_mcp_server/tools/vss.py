@@ -112,30 +112,32 @@ async def vector_search(
         documents_list = []
         if hasattr(result, 'docs'):  # type: ignore
             for doc in result.docs:  # type: ignore
-                # Get the document ID
                 doc_id = doc.id
 
-                # Fetch the document hash
-                doc_fields = r.hgetall(doc_id.encode() if isinstance(doc_id, str) else str(doc_id))  # type: ignore
+                if no_content:
+                    documents_list.append({'id': doc_id})
+                else:
+                    # Fetch the document hash
+                    doc_fields = r.hgetall(str(doc_id))  # type: ignore
 
-                if doc_fields and b'document_json' in doc_fields:  # type: ignore
-                    try:
-                        # Parse the document_json field which contains the original document
-                        document_json_bytes = doc_fields[b'document_json']  # type: ignore
-                        # Ensure we decode bytes properly
-                        if isinstance(document_json_bytes, bytes):
-                            document_json_str = document_json_bytes.decode('utf-8')
-                        else:
-                            document_json_str = str(document_json_bytes)
+                    if doc_fields and b'document_json' in doc_fields:  # type: ignore
+                        try:
+                            # Parse the document_json field which contains the original document
+                            document_json_bytes = doc_fields[b'document_json']  # type: ignore
+                            # Ensure we decode bytes properly
+                            if isinstance(document_json_bytes, bytes):
+                                document_json_str = document_json_bytes.decode('utf-8')
+                            else:
+                                document_json_str = str(document_json_bytes)
 
-                        document = json.loads(document_json_str)
-                        documents_list.append(document)
-                    except (UnicodeDecodeError, json.JSONDecodeError) as e:
-                        # Skip documents that can't be decoded/parsed
-                        logging.warning(
-                            f'Skipping document {doc_id} due to decode error: {str(e)}'
-                        )
-                        continue
+                            document = json.loads(document_json_str)
+                            documents_list.append(document)
+                        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                            # Skip documents that can't be decoded/parsed
+                            logging.warning(
+                                f'Skipping document {doc_id} due to decode error: {str(e)}'
+                            )
+                            continue
 
         return {'status': 'success', 'results': documents_list}
 
