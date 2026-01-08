@@ -344,7 +344,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
     return server
 
 
-async def create_mcp_server(config: Config) -> FastMCP:
+def create_mcp_server(config: Config) -> FastMCP:
     """Create and configure the FastMCP server.
 
     Args:
