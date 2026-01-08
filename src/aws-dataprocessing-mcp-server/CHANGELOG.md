@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fixed datetime serialization bug causing `TypeError: Object of type datetime is not JSON serializable` 
+  when AWS API responses contain datetime fields (#1990, #2023)
+- Applied fix across all handlers by using `model_dump(mode='json')` instead of `model_dump()`
+- Updated test mocks to include datetime fields matching real AWS API responses
+
 ### Added
 
 - Initial project setup

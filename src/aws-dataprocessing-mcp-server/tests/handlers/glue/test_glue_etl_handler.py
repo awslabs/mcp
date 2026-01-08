@@ -156,8 +156,6 @@ async def test_get_jobs_success(handler, mock_glue_client):
         ctx, operation='get-jobs', max_results=10, next_token='token'
     )
 
-    # This will FAIL on current code (v0.1.19) with:
-    # TypeError: Object of type datetime is not JSON serializable
     assert not response.isError
     data = extract_response_data(response)
     assert len(data.get('jobs', [])) == 2

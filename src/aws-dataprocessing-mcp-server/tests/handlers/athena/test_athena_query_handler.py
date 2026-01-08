@@ -109,8 +109,6 @@ async def test_batch_get_query_execution_success(handler, mock_athena_client):
         ctx, operation='batch-get-query-execution', query_execution_ids=['query1', 'query2']
     )
 
-    # This will FAIL on current code with:
-    # TypeError: Object of type datetime is not JSON serializable
     data = extract_response_data(response)
     assert not response.isError
     assert len(data.get('query_executions', [])) == 2
