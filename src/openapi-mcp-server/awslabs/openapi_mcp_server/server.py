@@ -362,7 +362,7 @@ def create_mcp_server(config: Config) -> FastMCP:
     return asyncio.run(create_mcp_server_async(config))
 
 
-async def get_all_counts(server):
+async def get_all_counts(server: FastMCP) -> tuple[int, int, int, int]:
     """Get counts of prompts, tools, resources, and resource templates."""
     prompts = await server.get_prompts()
     tools = await server.get_tools()
