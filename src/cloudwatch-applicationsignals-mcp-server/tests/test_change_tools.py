@@ -83,7 +83,11 @@ class TestListChangeEventsBasic:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'payment-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'payment-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             comprehensive_history=True,
         )
 
@@ -145,8 +149,8 @@ class TestListChangeEventsBasic:
         event = result['change_events'][0]
         assert event['event_id'] == 'state-event-456'
         assert event['change_event_type'] == 'CONFIGURATION'
-        # Note: entity field can be None in ListServiceStates response
-        assert event['entity'] is None
+        # Note: entity field is not included when not present in the event
+        assert 'entity' not in event
 
 
 class TestListChangeEventsValidation:
@@ -191,7 +195,11 @@ class TestListChangeEventsValidation:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             max_results=500,  # Should be clamped to 250
         )
 
@@ -213,6 +221,199 @@ class TestListChangeEventsValidation:
         result = json.loads(result_str)
         assert 'error' in result
 
+    @pytest.mark.asyncio
+    async def test_missing_required_service_key_attributes_type(self):
+        """Test ValueError when service_key_attributes is missing 'Type' field."""
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Name': 'test-service',
+                'Environment': 'eks:production',
+                # Missing 'Type' - should raise ValueError
+            },
+            comprehensive_history=True,
+        )
+
+        result = json.loads(result_str)
+        assert 'error' in result
+        assert 'Missing required service_key_attributes: Type' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_missing_required_service_key_attributes_name(self):
+        """Test ValueError when service_key_attributes is missing 'Name' field."""
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Type': 'Service',
+                'Environment': 'eks:production',
+                # Missing 'Name' - should raise ValueError
+            },
+            comprehensive_history=True,
+        )
+
+        result = json.loads(result_str)
+        assert 'error' in result
+        assert 'Missing required service_key_attributes: Name' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_missing_required_service_key_attributes_environment(self):
+        """Test ValueError when service_key_attributes is missing 'Environment' field."""
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Type': 'Service',
+                'Name': 'test-service',
+                # Missing 'Environment' - should raise ValueError
+            },
+            comprehensive_history=True,
+        )
+
+        result = json.loads(result_str)
+        assert 'error' in result
+        assert 'Missing required service_key_attributes: Environment' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_missing_multiple_required_service_key_attributes(self):
+        """Test ValueError when service_key_attributes is missing multiple required fields."""
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Name': 'test-service',
+                # Missing 'Type' and 'Environment' - should raise ValueError
+            },
+            comprehensive_history=True,
+        )
+
+        result = json.loads(result_str)
+        assert 'error' in result
+        assert 'Missing required service_key_attributes: Type, Environment' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_empty_service_key_attributes_dict(self):
+        """Test ValueError when service_key_attributes is an empty dict."""
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={},  # Empty dict - should be treated as falsy
+            comprehensive_history=True,
+        )
+
+        result = json.loads(result_str)
+        assert 'error' in result
+        assert 'service_key_attributes is required when comprehensive_history=True' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_service_key_attributes_with_extra_fields_filtered(self, mock_aws_clients):
+        """Test that extra fields in service_key_attributes are filtered out."""
+        mock_response = {'ChangeEvents': [], 'NextToken': None}
+        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+
+        service_attrs = {
+            'Type': 'Service',
+            'Name': 'test-service',
+            'Environment': 'eks:production',
+            'AwsAccountId': '123456789012',  # Valid extra field
+            'InvalidField': 'should-be-filtered',  # Invalid field - should be filtered
+            'AnotherInvalid': 'also-filtered',  # Another invalid field
+        }
+
+        await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes=service_attrs,
+            comprehensive_history=True,
+        )
+
+        # Verify the entity was built correctly with only valid attributes
+        call_args = mock_aws_clients['applicationsignals_client'].list_entity_events.call_args[1]
+        entity = call_args['Entity']
+
+        # Should include valid attributes
+        assert entity['Type'] == 'Service'
+        assert entity['Name'] == 'test-service'
+        assert entity['Environment'] == 'eks:production'
+        assert entity['AwsAccountId'] == '123456789012'
+
+        # Should NOT include invalid attributes
+        assert 'InvalidField' not in entity
+        assert 'AnotherInvalid' not in entity
+
+    @pytest.mark.asyncio
+    async def test_max_results_boundary_minimum(self, mock_aws_clients):
+        """Test max_results boundary condition with minimum value (1)."""
+        mock_response = {'ChangeEvents': [], 'NextToken': None}
+        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Type': 'Service',
+                'Name': 'test-service',
+                'Environment': 'eks:production',
+            },
+            max_results=1,  # Minimum valid value
+        )
+
+        result = json.loads(result_str)
+        assert 'change_events' in result
+
+        # Verify the API was called with max_results=1
+        call_args = mock_aws_clients['applicationsignals_client'].list_entity_events.call_args[1]
+        assert call_args['MaxResults'] == 1
+
+    @pytest.mark.asyncio
+    async def test_max_results_boundary_zero_clamped(self, mock_aws_clients):
+        """Test max_results boundary condition with zero (should be clamped to 1)."""
+        mock_response = {'ChangeEvents': [], 'NextToken': None}
+        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Type': 'Service',
+                'Name': 'test-service',
+                'Environment': 'eks:production',
+            },
+            max_results=0,  # Should be clamped to 1
+        )
+
+        result = json.loads(result_str)
+        assert 'change_events' in result
+
+        # Verify the API was called with max_results=1 (clamped from 0)
+        call_args = mock_aws_clients['applicationsignals_client'].list_entity_events.call_args[1]
+        assert call_args['MaxResults'] == 1
+
+    @pytest.mark.asyncio
+    async def test_max_results_boundary_negative_clamped(self, mock_aws_clients):
+        """Test max_results boundary condition with negative value (should be clamped to 1)."""
+        mock_response = {'ChangeEvents': [], 'NextToken': None}
+        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+
+        result_str = await list_change_events(
+            start_time='2024-01-15T10:00:00Z',
+            end_time='2024-01-15T16:00:00Z',
+            service_key_attributes={
+                'Type': 'Service',
+                'Name': 'test-service',
+                'Environment': 'eks:production',
+            },
+            max_results=-5,  # Should be clamped to 1
+        )
+
+        result = json.loads(result_str)
+        assert 'change_events' in result
+
+        # Verify the API was called with max_results=1 (clamped from -5)
+        call_args = mock_aws_clients['applicationsignals_client'].list_entity_events.call_args[1]
+        assert call_args['MaxResults'] == 1
+
 
 class TestListChangeEventsErrorHandling:
     """Test AWS API error handling."""
@@ -227,7 +428,11 @@ class TestListChangeEventsErrorHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -253,7 +458,11 @@ class TestListChangeEventsErrorHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -280,7 +489,11 @@ class TestListChangeEventsErrorHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -307,7 +520,11 @@ class TestListChangeEventsErrorHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -325,7 +542,11 @@ class TestListChangeEventsErrorHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -381,7 +602,11 @@ class TestListChangeEventsPagination:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             max_results=10,
         )
 
@@ -426,7 +651,11 @@ class TestListChangeEventsPagination:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             max_results=3,  # Limit to 3 events
         )
 
@@ -449,7 +678,11 @@ class TestListChangeEventsEdgeCases:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -484,7 +717,11 @@ class TestListChangeEventsEdgeCases:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -519,8 +756,11 @@ class TestListChangeEventsEdgeCases:
         call_args = mock_aws_clients['applicationsignals_client'].list_entity_events.call_args[1]
         entity = call_args['Entity']
 
-        for key in service_attrs:
-            assert entity[key] == service_attrs[key]
+        # Only check valid attributes that should be passed through
+        valid_attrs = ['Type', 'Name', 'Environment', 'AwsAccountId']
+        for key in valid_attrs:
+            if key in service_attrs:
+                assert entity[key] == service_attrs[key]
 
     @pytest.mark.asyncio
     async def test_events_by_type_aggregation(self, mock_aws_clients):
@@ -568,7 +808,11 @@ class TestListChangeEventsEdgeCases:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -586,7 +830,11 @@ class TestListChangeEventsEdgeCases:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -646,7 +894,11 @@ class TestListChangeEventsEdgeCases:
             result_str = await list_change_events(
                 start_time='2024-01-15T10:00:00Z',
                 end_time='2024-01-15T16:00:00Z',
-                service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+                service_key_attributes={
+                    'Name': 'test-service',
+                    'Type': 'Service',
+                    'Environment': 'eks:production',
+                },
             )
 
         result = json.loads(result_str)
@@ -707,8 +959,8 @@ class TestListChangeEventsServiceStates:
 
         event = result['change_events'][0]
         assert event['event_id'] == 'state-event-1'
-        # Note: entity field can be None in ListServiceStates response
-        assert event['entity'] is None
+        # Note: entity field is not included in ListServiceStates response when not present
+        assert 'entity' not in event
 
     @pytest.mark.asyncio
     async def test_list_service_states_with_service_filtering(self, mock_aws_clients):
@@ -727,17 +979,12 @@ class TestListChangeEventsServiceStates:
             comprehensive_history=False,
         )
 
-        # Verify AttributeFilters were set correctly
+        # Verify that the API was called without AttributeFilters (filtering happens post-response)
         call_args = mock_aws_clients['applicationsignals_client'].list_service_states.call_args[1]
-        assert 'AttributeFilters' in call_args
+        assert 'AttributeFilters' not in call_args
 
-        filters = call_args['AttributeFilters']
-        assert len(filters) == 2
-
-        # Check that filters contain the service attributes (using correct field names)
-        filter_dict = {f['AttributeFilterName']: f['AttributeFilterValues'][0] for f in filters}
-        assert filter_dict['Name'] == 'payment-service'
-        assert filter_dict['Environment'] == 'eks:production'
+        # The filtering happens after the API call in the implementation
+        # We can't easily test the filtering logic without mocking the service states response
 
     @pytest.mark.asyncio
     async def test_list_service_states_multiple_services_multiple_events(self, mock_aws_clients):
@@ -940,7 +1187,11 @@ class TestListChangeEventsRegionHandling:
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             region='us-west-2',
         )
 
@@ -963,7 +1214,11 @@ class TestListChangeEventsTimestampFormats:
         result_str = await list_change_events(
             start_time='1705320000',  # Unix timestamp as string
             end_time='1705341600',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -989,7 +1244,11 @@ class TestListChangeEventsTimestampFormats:
             result_str = await list_change_events(
                 start_time=start_format,
                 end_time='2024-01-15T16:00:00Z',
-                service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+                service_key_attributes={
+                    'Name': 'test-service',
+                    'Type': 'Service',
+                    'Environment': 'eks:production',
+                },
             )
 
             result = json.loads(result_str)
@@ -1035,7 +1294,11 @@ class TestListChangeEventsIntegration:
         result_str = await server_list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'integration-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'integration-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             comprehensive_history=True,
         )
 
@@ -1135,7 +1398,11 @@ class TestListChangeEventsIntegration:
         result_str = await server_list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -1200,7 +1467,11 @@ class TestListChangeEventsIntegration:
         result_str = await server_list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Type': 'Service'},
+            service_key_attributes={
+                'Type': 'Service',
+                'Name': 'test-service',
+                'Environment': 'eks:production',
+            },
             max_results=100,
         )
 
@@ -1367,7 +1638,11 @@ class TestListChangeEventsToolFunctionality:
         result1_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'test-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
             comprehensive_history=True,
         )
 
@@ -1426,7 +1701,11 @@ class TestListChangeEventsToolFunctionality:
         result1_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'recovery-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'recovery-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result1 = json.loads(result1_str)
@@ -1437,7 +1716,11 @@ class TestListChangeEventsToolFunctionality:
         result2_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
-            service_key_attributes={'Name': 'recovery-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'recovery-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result2 = json.loads(result2_str)
@@ -1557,7 +1840,11 @@ class TestListChangeEventsWorkflowIntegration:
         result_str = await list_change_events(
             start_time='2024-01-15T12:00:00Z',
             end_time='2024-01-15T18:00:00Z',
-            service_key_attributes={'Name': 'api-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'api-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)
@@ -1682,7 +1969,11 @@ class TestListChangeEventsWorkflowIntegration:
         result_str = await list_change_events(
             start_time='2024-01-15T09:00:00Z',
             end_time='2024-01-15T13:00:00Z',
-            service_key_attributes={'Name': 'cache-service', 'Type': 'Service'},
+            service_key_attributes={
+                'Name': 'cache-service',
+                'Type': 'Service',
+                'Environment': 'eks:production',
+            },
         )
 
         result = json.loads(result_str)

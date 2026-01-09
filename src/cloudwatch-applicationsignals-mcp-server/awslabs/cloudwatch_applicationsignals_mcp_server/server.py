@@ -1537,11 +1537,18 @@ async def list_change_events(
     **Service Key Attributes (Required for ListEntityEvents):**
     When using comprehensive_history=True (ListEntityEvents API), service_key_attributes is REQUIRED. Get these attributes from get_service_detail() first:
     - **Type**: Usually "Service" for Application Signals monitored services
-    - **Name**: Service name (e.g., "checkout-service", "payment-api")
-    - **Environment**: Service environment (e.g., "ecs:production-cluster", "lambda", "eks:my-cluster")
-    - **ResourceType**: Platform type (e.g., "AWS::ECS::Service", "AWS::Lambda::Function")
-    - **Identifier**: Unique service identifier
-    - **AwsAccountId**: AWS account ID for cross-account filtering
+    - **Name**: Service name (e.g., "checkout-service", "payment-api", "hello-world-python")
+    - **Environment**: Service environment (e.g., "ecs:production-cluster", "lambda:default", "eks:my-cluster")
+    - **AwsAccountId**: AWS account ID for cross-account filtering (optional)
+
+    Example service key attributes:
+    ```json
+    {
+        "Type": "Service",
+        "Name": "hello-world-python",
+        "Environment": "lambda:default"
+    }
+    ```
 
     When using comprehensive_history=False (ListServiceStates API), service_key_attributes is optional.
 
@@ -1556,7 +1563,6 @@ async def list_change_events(
     - **change_events**: Array of change events with timestamps, event types, and entity information
     - **events_by_type**: Summary of change types (DEPLOYMENT, CONFIGURATION, etc.)
     - **affected_services**: List of services with change counts and latest change timestamps
-    - **timeline_analysis**: Temporal patterns and change clustering information
     - **api_used**: Which AWS API was used (ListEntityEvents or ListServiceStates)
 
     Args:

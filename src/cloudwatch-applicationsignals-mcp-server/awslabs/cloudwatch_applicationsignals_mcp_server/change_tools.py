@@ -19,7 +19,83 @@ from .aws_clients import applicationsignals_client
 from .utils import parse_timestamp
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
+
+
+def _filter_service_states_by_attributes(
+    service_states: List[Dict], service_key_attributes: Dict[str, str]
+) -> List[Dict]:
+    """Filter service states based on service key attributes.
+
+    Args:
+        service_states: List of service state dictionaries from AWS API
+        service_key_attributes: Dictionary of service attributes to match against
+
+    Returns:
+        List of filtered service states that match the provided attributes
+    """
+    filtered_states = []
+
+    for state in service_states:
+        service = state.get('Service', {})
+
+        # Check if all provided service_key_attributes match the service attributes
+        if all(
+            service.get(key) == expected_value
+            for key, expected_value in service_key_attributes.items()
+        ):
+            filtered_states.append(state)
+
+    return filtered_states
+
+
+def _process_change_events(events: List[Dict]) -> tuple[List[Dict], Dict[str, int]]:
+    """Process change events into a standardized format.
+
+    Args:
+        events: List of change event dictionaries from AWS API
+
+    Returns:
+        Tuple of (processed_events, events_by_type_count)
+    """
+    processed_events = []
+    events_by_type = {}
+    current_time = datetime.now(timezone.utc)
+
+    for event in events:
+        # AWS API returns datetime objects via boto3, but handle numeric timestamps too
+        timestamp_value = event.get('Timestamp')
+        if isinstance(timestamp_value, (int, float)):
+            # Convert numeric timestamp to datetime
+            event_dt = datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
+        else:
+            # Assume it's already a datetime object
+            event_dt = timestamp_value.astimezone(timezone.utc)
+        timestamp = event_dt.isoformat()
+
+        # Calculate seconds since event occurred
+        seconds_since_event = int((current_time - event_dt).total_seconds())
+
+        processed_event = {
+            'event_id': event.get('EventId', ''),
+            'event_name': event.get('EventName', ''),
+            'change_event_type': event.get('ChangeEventType', ''),
+            'timestamp': timestamp,
+            'seconds_since_event': seconds_since_event,
+            'account_id': event.get('AccountId', ''),
+            'region': event.get('Region', ''),
+            'user_name': event.get('UserName', ''),
+        }
+
+        processed_events.append(processed_event)
+
+        event_type = processed_event['change_event_type']
+        events_by_type[event_type] = events_by_type.get(event_type, 0) + 1
+
+    # Sort events by timestamp
+    processed_events.sort(key=lambda x: x['timestamp'])
+
+    return processed_events, events_by_type
 
 
 async def list_change_events(
@@ -160,14 +236,24 @@ async def _list_entity_events(
 ) -> str:
     """Use ListEntityEvents API for comprehensive change history."""
     # Build entity filter
+    # Define valid and required attributes
+    valid_attrs = ['Type', 'Name', 'Environment', 'AwsAccountId']
+    required_attrs = ['Type', 'Name', 'Environment']
+
     entity = {}
     if service_key_attributes:
-        for key in ['Type', 'Name', 'Environment', 'ResourceType', 'Identifier', 'AwsAccountId']:
+        for key in valid_attrs:
             if key in service_key_attributes:
                 entity[key] = service_key_attributes[key]
 
-    if not entity:
-        entity = {'Type': 'Service'}
+    # Validate that we have the minimum required attributes
+    missing_attrs = [attr for attr in required_attrs if attr not in entity]
+
+    if missing_attrs:
+        raise ValueError(
+            f'Missing required service_key_attributes: {", ".join(missing_attrs)}. '
+            f'Use get_service_detail() to retrieve the correct service key attributes.'
+        )
 
     # Call API with pagination
     all_events = []
@@ -191,42 +277,8 @@ async def _list_entity_events(
         if not next_token or len(all_events) >= max_results:
             break
 
-    # Process events
-    processed_events = []
-    events_by_type = {}
-
-    for event in all_events[:max_results]:
-        # Handle both datetime objects and numeric timestamps from AWS API
-        timestamp_value = event.get('Timestamp', 0)
-        if hasattr(timestamp_value, 'timestamp'):
-            # It's a datetime object, convert to UTC string
-            event_dt = timestamp_value.astimezone(timezone.utc)
-            timestamp = event_dt.isoformat()
-        else:
-            # It's a numeric value, convert to datetime then UTC string
-            event_dt = datetime.fromtimestamp(float(timestamp_value), tz=timezone.utc)
-            timestamp = event_dt.isoformat()
-
-        # Calculate seconds since event occurred
-        current_time = datetime.now(timezone.utc)
-        seconds_since_event = int((current_time - event_dt).total_seconds())
-
-        processed_event = {
-            'event_id': event.get('EventId', ''),
-            'event_name': event.get('EventName', ''),
-            'change_event_type': event.get('ChangeEventType', ''),
-            'timestamp': timestamp,
-            'seconds_since_event': seconds_since_event,
-            'account_id': event.get('AccountId', ''),
-            'region': event.get('Region', ''),
-            'user_name': event.get('UserName', ''),
-        }
-        processed_events.append(processed_event)
-
-        event_type = processed_event['change_event_type']
-        events_by_type[event_type] = events_by_type.get(event_type, 0) + 1
-
-    processed_events.sort(key=lambda x: x['timestamp'])
+    # Process events using shared function
+    processed_events, events_by_type = _process_change_events(all_events[:max_results])
 
     return json.dumps(
         {
@@ -247,15 +299,6 @@ async def _list_service_states(
     max_results: int,
 ) -> str:
     """Use ListServiceStates API for latest service states."""
-    # Build attribute filters
-    attribute_filters = []
-    if service_key_attributes:
-        for key, value in service_key_attributes.items():
-            if key in ['Name', 'Environment', 'Type']:
-                attribute_filters.append(
-                    {'AttributeFilterName': key, 'AttributeFilterValues': [value]}
-                )
-
     # Call API with pagination
     all_states = []
     next_token = None
@@ -266,8 +309,6 @@ async def _list_service_states(
             'EndTime': end_timestamp,
             'MaxResults': min(max_results, 250),
         }
-        if attribute_filters:
-            params['AttributeFilters'] = attribute_filters
         if next_token:
             params['NextToken'] = next_token
 
@@ -279,47 +320,22 @@ async def _list_service_states(
         if not next_token or len(all_states) >= max_results:
             break
 
-    # Extract change events from service states
-    processed_events = []
-    events_by_type = {}
+    # Filter service states based on service_key_attributes if provided
+    filtered_states = all_states[:max_results]
+    if service_key_attributes:
+        filtered_states = _filter_service_states_by_attributes(
+            all_states[:max_results], service_key_attributes
+        )
 
-    for state in all_states[:max_results]:
+    # Extract change events from filtered service states
+    all_change_events = []
+    for state in filtered_states:
         # Process LatestChangeEvents from each service state
         latest_change_events = state.get('LatestChangeEvents', [])
+        all_change_events.extend(latest_change_events)
 
-        for event in latest_change_events:
-            # Handle both datetime objects and numeric timestamps from AWS API
-            timestamp_value = event.get('Timestamp', start_timestamp)
-            if hasattr(timestamp_value, 'timestamp'):
-                # It's a datetime object, convert to UTC string
-                event_dt = timestamp_value.astimezone(timezone.utc)
-                timestamp = event_dt.isoformat()
-            else:
-                # It's a numeric value, convert to datetime then UTC string
-                event_dt = datetime.fromtimestamp(float(timestamp_value), tz=timezone.utc)
-                timestamp = event_dt.isoformat()
-
-            # Calculate seconds since event occurred
-            current_time = datetime.now(timezone.utc)
-            seconds_since_event = int((current_time - event_dt).total_seconds())
-
-            processed_event = {
-                'event_id': event.get('EventId'),
-                'event_name': event.get('EventName'),
-                'change_event_type': event.get('ChangeEventType'),
-                'timestamp': timestamp,
-                'seconds_since_event': seconds_since_event,
-                'account_id': event.get('AccountId', ''),
-                'region': event.get('Region', ''),
-                'user_name': event.get('UserName'),
-                'entity': event.get('Entity'),
-            }
-            processed_events.append(processed_event)
-
-            event_type = processed_event['change_event_type']
-            events_by_type[event_type] = events_by_type.get(event_type, 0) + 1
-
-    processed_events.sort(key=lambda x: x['timestamp'])
+    # Process events using shared function
+    processed_events, events_by_type = _process_change_events(all_change_events)
 
     return json.dumps(
         {
