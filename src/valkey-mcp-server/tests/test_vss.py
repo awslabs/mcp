@@ -49,20 +49,14 @@ class TestSearch:
         vector = [0.1, 0.2, 0.3, 0.4]
         count = 5
 
-        # Create mock documents with document_json field
-        doc1_fields = {
-            b'document_json': b'{"id": "doc1", "title": "First Document", "content": "This is the first document content", "author": "Alice"}'
-        }
-        doc2_fields = {
-            b'document_json': b'{"id": "doc2", "title": "Second Document", "content": "This is the second document content", "author": "Bob"}'
-        }
-
         # Create mock search result
         mock_doc1 = Mock()
         mock_doc1.id = 'doc1'
+        mock_doc1.document_json = b'{"id": "doc1", "title": "First Document", "content": "This is the first document content", "author": "Alice"}'
 
         mock_doc2 = Mock()
         mock_doc2.id = 'doc2'
+        mock_doc2.document_json = b'{"id": "doc2", "title": "Second Document", "content": "This is the second document content", "author": "Bob"}'
 
         mock_result = Mock()
         mock_result.total = 2
@@ -72,9 +66,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-
-        # Setup mock connection to return document fields
-        mock_conn_raw.hgetall.side_effect = [doc1_fields, doc2_fields]
 
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
@@ -110,13 +101,11 @@ class TestSearch:
         filter_expression = '@category:electronics'
         count = 3
 
-        # Create mock document
-        doc_fields = {
-            b'document_json': b'{"id": "doc1", "title": "Laptop", "category": "electronics", "price": 999}'
-        }
-
         mock_doc = Mock()
         mock_doc.id = 'doc1'
+        mock_doc.document_json = (
+            b'{"id": "doc1", "title": "Laptop", "category": "electronics", "price": 999}'
+        )
 
         mock_result = Mock()
         mock_result.total = 1
@@ -126,9 +115,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-
-        # Setup mock connection to return document fields
-        mock_conn_raw.hgetall.return_value = doc_fields
 
         # Execute search with filter
         result = await vector_search(
@@ -352,14 +338,10 @@ class TestSearch:
         vector = [float(i) * 0.01 for i in range(100)]  # 100-dimensional vector
         count = 3
 
-        # Create mock document with document_json field
-        doc_fields = {
-            b'document_json': b'{"id": "doc1", "title": "High Dimensional Document", "description": "Document with 100-dimensional embedding"}'
-        }
-
         # Create mock document
         mock_doc = Mock()
         mock_doc.id = 'doc1'
+        mock_doc.document_json = b'{"id": "doc1", "title": "High Dimensional Document", "description": "Document with 100-dimensional embedding"}'
 
         # Create mock search result
         mock_result = Mock()
@@ -370,9 +352,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-
-        # Setup mock connection to return document fields
-        mock_conn_raw.hgetall.return_value = doc_fields
 
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
@@ -411,9 +390,6 @@ class TestSearch:
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
 
-        # Setup mock fetch to return dict without document_json field
-        mock_conn_raw.hgetall.return_value = {b'other_field': b'value'}
-
         # Execute search
         result = await vector_search(index, field, vector, offset=0, count=count)
 
@@ -442,13 +418,9 @@ class TestSearch:
         field = 'embedding'
         vector = [0.1, 0.2]
 
-        # Create mock document with invalid UTF-8 bytes
-        doc_fields = {
-            b'document_json': b'\xff\xfe'  # Invalid UTF-8 sequence
-        }
-
         mock_doc = Mock()
         mock_doc.id = 'doc1'
+        mock_doc.document_json = b'\xff\xfe'  # Invalid UTF-8 sequence
 
         mock_result = Mock()
         mock_result.total = 1
@@ -457,7 +429,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-        mock_conn_raw.hgetall.return_value = doc_fields
 
         result = await vector_search(index, field, vector)
 
@@ -474,13 +445,9 @@ class TestSearch:
         field = 'embedding'
         vector = [0.1, 0.2]
 
-        # Create mock document with invalid JSON
-        doc_fields = {
-            b'document_json': b'{"invalid": json}'  # Invalid JSON
-        }
-
         mock_doc = Mock()
         mock_doc.id = 'doc1'
+        mock_doc.document_json = b'{"invalid": json}'  # Invalid JSON
 
         mock_result = Mock()
         mock_result.total = 1
@@ -489,7 +456,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-        mock_conn_raw.hgetall.return_value = doc_fields
 
         result = await vector_search(index, field, vector)
 
@@ -506,13 +472,9 @@ class TestSearch:
         field = 'embedding'
         vector = [0.1, 0.2]
 
-        # Create mock document with string document_json (not bytes)
-        doc_fields = {
-            b'document_json': '{"id": "doc1", "title": "String Document"}'  # String, not bytes
-        }
-
         mock_doc = Mock()
         mock_doc.id = 'doc1'
+        mock_doc.document_json = '{"id": "doc1", "title": "String Document"}'  # String, not bytes
 
         mock_result = Mock()
         mock_result.total = 1
@@ -521,7 +483,6 @@ class TestSearch:
         mock_ft = Mock()
         mock_ft.search.return_value = mock_result
         mock_conn_raw.ft.return_value = mock_ft
-        mock_conn_raw.hgetall.return_value = doc_fields
 
         result = await vector_search(index, field, vector)
 

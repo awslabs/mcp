@@ -117,13 +117,11 @@ async def vector_search(
                 if no_content:
                     documents_list.append({'id': doc_id})
                 else:
-                    # Fetch the document hash
-                    doc_fields = r.hgetall(str(doc_id))  # type: ignore
-
-                    if doc_fields and b'document_json' in doc_fields:  # type: ignore
+                    # Check if doc has document_json field directly
+                    if hasattr(doc, 'document_json') and doc.document_json:
                         try:
                             # Parse the document_json field which contains the original document
-                            document_json_bytes = doc_fields[b'document_json']  # type: ignore
+                            document_json_bytes = doc.document_json
                             # Ensure we decode bytes properly
                             if isinstance(document_json_bytes, bytes):
                                 document_json_str = document_json_bytes.decode('utf-8')
