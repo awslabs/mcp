@@ -345,13 +345,18 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
 
 def create_mcp_server(config: Config) -> FastMCP:
-    """Create and configure the FastMCP server.
+    """Create and configure the FastMCP server (synchronous wrapper).
+
+    This is a synchronous convenience wrapper that calls
+    :func:`create_mcp_server_async` using ``asyncio.run``.
+    For asynchronous contexts, use :func:`create_mcp_server_async`
+    directly instead of this function.
 
     Args:
-        config: Server configuration
+        config: Server configuration.
 
     Returns:
-        FastMCP: The configured FastMCP server
+        FastMCP: The configured FastMCP server.
 
     """
     return asyncio.run(create_mcp_server_async(config))
