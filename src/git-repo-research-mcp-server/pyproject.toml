@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.git-repo-research-mcp-server"
-version = "1.0.10"
+version = "1.0.11"
 description = "An AWS Labs Model Context Protocol (MCP) server for researching git repositories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+
+#[tool.uv]
+#override-dependencies = [
+#  "multidict>=6.4.0", # Temporary forced a higher version because 6.3.2 was yanked
+#]
 
 [project.scripts]
 "awslabs.git-repo-research-mcp-server" = "awslabs.git_repo_research_mcp_server.server:main"
