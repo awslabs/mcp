@@ -39,7 +39,7 @@ The AWS AppSync MCP Server simplifies the management of APIs by providing capabi
 
 ## Configuration
 
-Add the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`)
+Add the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`)
 
 ### Using AWS Profiles
 

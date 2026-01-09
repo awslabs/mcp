@@ -178,7 +178,7 @@ Ensure your IAM role or user has the necessary permissions (see [Security Consid
 
 ### Configuration
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -524,7 +524,7 @@ Creates CloudFormation templates from existing AWS resources using AWS CloudForm
 
 - **Multiple Infrastructure MCP Servers**: Using CCAPI MCP server alongside other MCP servers that perform similar functions (such as Terraform MCP, CDK MCP, CFN MCP) may cause LLMs to randomly choose between them
 - **Built-in Tools**: LLMs may choose built-in tools instead of this MCP server's tools:
-  - Amazon Q Developer CLI: `use_aws`, `execute_bash`, `fs_read`, `fs_write`
+  - Kiro CLI: `aws`, `shell`, `read`, `write`
   - Other tools may have similar built-in AWS or system capabilities
 
 ## Basic Usage

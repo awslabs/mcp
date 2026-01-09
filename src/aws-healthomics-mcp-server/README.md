@@ -75,7 +75,7 @@ This MCP server provides tools for:
 
 ## Instructions for AI Assistants
 
-This MCP server enables AI assistants to help users with AWS HealthOmics genomic workflow management. Here's how to effectively use these tools:
+This MCP server enables AI assistants like Kiro, Cline, Cursor, and Windsurf to help users with AWS HealthOmics genomic workflow management. Here's how to effectively use these tools:
 
 ### Understanding AWS HealthOmics
 
@@ -508,9 +508,13 @@ The following IAM permissions are required:
 
 ## Usage with MCP Clients
 
-### Claude Desktop
+### Kiro
 
-Add to your Claude Desktop configuration:
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Add to your Kiro MCP configuration (`~/.kiro/settings/mcp.json`):
 
 ```json
 {

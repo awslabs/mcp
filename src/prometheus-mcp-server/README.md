@@ -2,7 +2,7 @@
 
 The Prometheus MCP Server provides a robust interface for interacting with AWS Managed Prometheus, enabling users to execute PromQL queries, list metrics, and retrieve server information with AWS SigV4 authentication support.
 
-This MCP server is designed to be fully compatible with Amazon Q developer CLI, allowing seamless integration of Prometheus monitoring capabilities into your Amazon Q workflows. You can load the server directly into Amazon Q to leverage its powerful querying and metric analysis features through the familiar Q interface.
+This MCP server is designed to be fully compatible with Kiro, allowing seamless integration of Prometheus monitoring capabilities into your Kiro workflows. You can load the server directly into Kiro to leverage its powerful querying and metric analysis features through the familiar Kiro IDE and Kiro CLI interfaces.
 
 ## Features
 
@@ -29,18 +29,16 @@ This MCP server is designed to be fully compatible with Amazon Q developer CLI, 
 
 ## Configuration
 
-The server is configured through the Amazon Q MCP configuration file as shown in the Usage section below.
+The server is configured through the Kiro MCP configuration file as shown in the Usage section below.
 
-## Usage with Amazon Q
-
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon:
+## Usage with Kiro
 
 1. Create a configuration file:
 ```bash
-mkdir -p ~/.aws/amazonq/
+mkdir -p ~/.kiro/settings/
 ```
 
-2. Add the following to `~/.aws/amazonq/mcp.json`:
+2. Add the following to `~/.kiro/settings/mcp.json`:
 
 ### Basic Configuration
 ```json
@@ -111,7 +109,7 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-3. In Amazon Q, you can now use the Prometheus MCP server to query your metrics.
+3. In Kiro, you can now use the Prometheus MCP server to query your metrics.
 
 ## Available Tools
 
