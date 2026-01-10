@@ -1,8 +1,0 @@
-# Core dependencies
-loguru>=0.7.0
-mcp>=1.11.0
-pydantic>=2.10.6
-boto3>=1.34.0
-botocore>=1.34.0
-httpx>=0.25.0
-python-dateutil>=2.8.0

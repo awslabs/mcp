@@ -15,6 +15,7 @@
 """AWS HealthImaging operations implementation."""
 
 import boto3
+from . import __version__
 from .models import (
     CopyImageSetRequest,
     CopyImageSetResponse,
@@ -73,6 +74,18 @@ from loguru import logger
 from typing import Any, Dict
 
 
+# optimize this (maybe with a singleton to avoid so many creations)?
+def get_medical_imaging_client():
+    """Get a medical imaging client with proper user agent."""
+    client = boto3.client(
+        'medical-imaging',
+        config=boto3.session.Config(
+            user_agent_extra=f'awslabs/mcp/healthimaging-mcp-server/{__version__}'
+        ),
+    )
+    return client
+
+
 # Constants
 DATASTORE_ID_LENGTH = 32
 MAX_SEARCH_COUNT = 100  # Maximum number of resources per search request
@@ -91,7 +104,7 @@ def _convert_datetime_to_string(dt_obj):
 
 def create_datastore_operation(request: CreateDatastoreRequest) -> CreateDatastoreResponse:
     """Create a new data store in AWS HealthImaging."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {'datastoreName': request.datastore_name}
 
@@ -109,7 +122,7 @@ def create_datastore_operation(request: CreateDatastoreRequest) -> CreateDatasto
 
 def delete_datastore_operation(request: DeleteDatastoreRequest) -> DeleteDatastoreResponse:
     """Delete a data store from AWS HealthImaging."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.delete_datastore(datastoreId=request.datastore_id)
 
@@ -120,7 +133,7 @@ def delete_datastore_operation(request: DeleteDatastoreRequest) -> DeleteDatasto
 
 def get_datastore_operation(request: GetDatastoreRequest) -> GetDatastoreResponse:
     """Get information about a specific data store."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.get_datastore(datastoreId=request.datastore_id)
 
@@ -141,7 +154,7 @@ def get_datastore_operation(request: GetDatastoreRequest) -> GetDatastoreRespons
 
 def list_datastores_operation(request: ListDatastoresRequest) -> ListDatastoresResponse:
     """List all data stores in the account."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {}
     if request.datastore_status:
@@ -179,7 +192,7 @@ def start_dicom_import_job_operation(
     request: StartDICOMImportJobRequest,
 ) -> StartDICOMImportJobResponse:
     """Start a DICOM import job."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -205,7 +218,7 @@ def start_dicom_import_job_operation(
 
 def get_dicom_import_job_operation(request: GetDICOMImportJobRequest) -> GetDICOMImportJobResponse:
     """Get information about a DICOM import job."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.get_dicom_import_job(datastoreId=request.datastore_id, jobId=request.job_id)
 
@@ -231,7 +244,7 @@ def list_dicom_import_jobs_operation(
     request: ListDICOMImportJobsRequest,
 ) -> ListDICOMImportJobsResponse:
     """List DICOM import jobs for a data store."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
@@ -265,7 +278,7 @@ def list_dicom_import_jobs_operation(
 
 def search_image_sets_operation(request: SearchImageSetsRequest) -> SearchImageSetsResponse:
     """Search for image sets in a data store."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
@@ -298,7 +311,7 @@ def search_image_sets_operation(request: SearchImageSetsRequest) -> SearchImageS
 
 def get_image_set_operation(request: GetImageSetRequest) -> GetImageSetResponse:
     """Get information about a specific image set."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -329,7 +342,7 @@ def get_image_set_metadata_operation(
     """Get metadata for a specific image set."""
     import base64
 
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -382,7 +395,7 @@ def list_image_set_versions_operation(
     request: ListImageSetVersionsRequest,
 ) -> ListImageSetVersionsResponse:
     """List versions of an image set."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -420,7 +433,7 @@ def update_image_set_metadata_operation(
     request: UpdateImageSetMetadataRequest,
 ) -> UpdateImageSetMetadataResponse:
     """Update metadata for an image set."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -445,7 +458,7 @@ def update_image_set_metadata_operation(
 
 def delete_image_set_operation(request: DeleteImageSetRequest) -> DeleteImageSetResponse:
     """Delete an image set."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.delete_image_set(
         datastoreId=request.datastore_id, imageSetId=request.image_set_id
@@ -460,7 +473,7 @@ def delete_image_set_operation(request: DeleteImageSetRequest) -> DeleteImageSet
 
 def copy_image_set_operation(request: CopyImageSetRequest) -> CopyImageSetResponse:
     """Copy an image set."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'sourceDatastoreId': request.source_datastore_id,
@@ -523,7 +536,7 @@ def get_image_frame_operation(request: GetImageFrameRequest) -> GetImageFrameRes
     """Get a specific image frame."""
     import base64
 
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.get_image_frame(
         datastoreId=request.datastore_id,
@@ -570,7 +583,7 @@ def list_tags_for_resource_operation(
     request: ListTagsForResourceRequest,
 ) -> ListTagsForResourceResponse:
     """List tags for a resource."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.list_tags_for_resource(resourceArn=request.resource_arn)
 
@@ -579,7 +592,7 @@ def list_tags_for_resource_operation(
 
 def tag_resource_operation(request: TagResourceRequest) -> TagResourceResponse:
     """Add tags to a resource."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     client.tag_resource(resourceArn=request.resource_arn, tags=request.tags)
 
@@ -588,7 +601,7 @@ def tag_resource_operation(request: TagResourceRequest) -> TagResourceResponse:
 
 def untag_resource_operation(request: UntagResourceRequest) -> UntagResourceResponse:
     """Remove tags from a resource."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     client.untag_resource(resourceArn=request.resource_arn, tagKeys=request.tag_keys)
 
@@ -599,7 +612,7 @@ def start_dicom_export_job_operation(
     request: StartDICOMExportJobRequest,
 ) -> StartDICOMExportJobResponse:
     """Start a DICOM export job."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {
         'datastoreId': request.datastore_id,
@@ -634,7 +647,7 @@ def start_dicom_export_job_operation(
 
 def get_dicom_export_job_operation(request: GetDICOMExportJobRequest) -> GetDICOMExportJobResponse:
     """Get information about a DICOM export job."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     response = client.get_dicom_export_job(datastoreId=request.datastore_id, jobId=request.job_id)
 
@@ -657,7 +670,7 @@ def list_dicom_export_jobs_operation(
     request: ListDICOMExportJobsRequest,
 ) -> ListDICOMExportJobsResponse:
     """List DICOM export jobs for a data store."""
-    client = boto3.client('medical-imaging')
+    client = get_medical_imaging_client()
 
     kwargs: Dict[str, Any] = {'datastoreId': request.datastore_id}
 
@@ -803,7 +816,7 @@ def list_dicom_export_jobs(request: ListDICOMExportJobsRequest) -> ListDICOMExpo
 def delete_patient_studies_operation(datastore_id: str, patient_id: str) -> Dict[str, Any]:
     """Delete all studies for a specific patient."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # First, search for all image sets for this patient
         search_response = client.search_image_sets(
@@ -852,7 +865,7 @@ def delete_patient_studies_operation(datastore_id: str, patient_id: str) -> Dict
 def delete_study_operation(datastore_id: str, study_instance_uid: str) -> Dict[str, Any]:
     """Delete all image sets for a specific study."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this study
         search_response = client.search_image_sets(
@@ -908,7 +921,7 @@ def search_by_patient_id_operation(
 ) -> Dict[str, Any]:
     """Search for image sets by patient ID."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         response = client.search_image_sets(
             datastoreId=datastore_id,
@@ -930,7 +943,7 @@ def search_by_study_uid_operation(
 ) -> Dict[str, Any]:
     """Search for image sets by study instance UID."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         response = client.search_image_sets(
             datastoreId=datastore_id,
@@ -957,7 +970,7 @@ def search_by_series_uid_operation(
 ) -> Dict[str, Any]:
     """Search for image sets by series instance UID."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         response = client.search_image_sets(
             datastoreId=datastore_id,
@@ -982,7 +995,7 @@ def search_by_series_uid_operation(
 def get_patient_studies_operation(datastore_id: str, patient_id: str) -> Dict[str, Any]:
     """Get all studies for a specific patient."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this patient
         search_response = client.search_image_sets(
@@ -1033,7 +1046,7 @@ def get_patient_studies_operation(datastore_id: str, patient_id: str) -> Dict[st
 def get_patient_series_operation(datastore_id: str, patient_id: str) -> Dict[str, Any]:
     """Get all series for a specific patient."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this patient
         search_response = client.search_image_sets(
@@ -1087,7 +1100,7 @@ def get_study_primary_image_sets_operation(
 ) -> Dict[str, Any]:
     """Get primary image sets for a specific study."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this study
         search_response = client.search_image_sets(
@@ -1135,7 +1148,7 @@ def delete_series_by_uid_operation(datastore_id: str, series_instance_uid: str) 
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for image sets containing this series
         search_response = client.search_image_sets(
@@ -1204,7 +1217,7 @@ def get_series_primary_image_set_operation(
 ) -> Dict[str, Any]:
     """Get the primary image set for a given series."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         response = client.search_image_sets(
             datastoreId=datastore_id,
@@ -1250,7 +1263,7 @@ def get_patient_dicomweb_studies_operation(datastore_id: str, patient_id: str) -
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this patient
         search_response = client.search_image_sets(
@@ -1354,7 +1367,7 @@ def delete_instance_in_study_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for image sets containing this study
         search_response = client.search_image_sets(
@@ -1488,7 +1501,7 @@ def delete_instance_in_series_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for image sets containing this series
         search_response = client.search_image_sets(
@@ -1626,7 +1639,7 @@ def update_patient_study_metadata_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this study
         search_response = client.search_image_sets(
@@ -1795,7 +1808,7 @@ def bulk_update_patient_metadata_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Search for all image sets for this patient
         search_response = client.search_image_sets(
@@ -1861,7 +1874,7 @@ def bulk_delete_by_criteria_operation(
 ) -> Dict[str, Any]:
     """Delete multiple image sets matching specified criteria."""
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Build search criteria from the provided criteria
         search_filters = []
@@ -1931,7 +1944,7 @@ def remove_series_from_image_set_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Get current image set information
         image_set_response = client.get_image_set(
@@ -1975,7 +1988,7 @@ def remove_instance_from_image_set_operation(
     import json
 
     try:
-        client = boto3.client('medical-imaging')
+        client = get_medical_imaging_client()
 
         # Get current image set information
         image_set_response = client.get_image_set(

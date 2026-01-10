@@ -5,7 +5,7 @@ A comprehensive Model Context Protocol (MCP) server for AWS HealthImaging operat
 ## Features
 
 - **21 Comprehensive HealthImaging Tools**: Complete medical imaging data lifecycle management
-- **Delete Operations**: Patient data removal, study deletion, GDPR compliance
+- **Delete Operations**: Patient data removal and study deletion tools support "right to be forgotten/right to erasure" objectives
 - **Automatic Datastore Discovery**: Seamlessly find and work with existing datastores
 - **DICOM Metadata Operations**: Extract and analyze medical imaging metadata
 - **Image Frame Management**: Retrieve and process individual image frames

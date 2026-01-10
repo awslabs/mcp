@@ -33,7 +33,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.datastore_status == 'CREATING'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_datastore_success(self):
         """Test successful datastore retrieval."""
@@ -54,7 +54,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_properties.datastore_id == '00000000000034567890000000000000'
             assert result.datastore_properties.datastore_name == 'test-datastore'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_list_datastores_success(self):
         """Test successful datastore listing."""
@@ -77,7 +77,7 @@ class TestHealthImagingServer:
 
             assert len(result.datastore_summaries) == 1
             assert result.datastore_summaries[0].datastore_id == '00000000000034567890000000000000'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_search_image_sets_success(self):
         """Test successful image set search."""
@@ -105,7 +105,7 @@ class TestHealthImagingServer:
 
             assert len(result.image_sets_metadata_summaries) == 1
             assert result.image_sets_metadata_summaries[0].image_set_id == 'test-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_delete_datastore_success(self):
         """Test successful datastore deletion."""
@@ -123,7 +123,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.datastore_status == 'DELETING'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_error_handling(self):
         """Test error handling in server functions."""
@@ -138,7 +138,7 @@ class TestHealthImagingServer:
                 get_datastore(datastore_id='00000000000034567890000000000000')
 
             assert 'Test error' in str(exc_info.value)
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_image_set_success(self):
         """Test successful image set retrieval."""
@@ -160,7 +160,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.image_set_id == 'test-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_delete_image_set_success(self):
         """Test successful image set deletion."""
@@ -181,7 +181,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.image_set_id == 'test-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_image_set_metadata_success(self):
         """Test successful image set metadata retrieval."""
@@ -203,7 +203,7 @@ class TestHealthImagingServer:
             # Should return base64-encoded string
             expected_base64 = base64.b64encode(b'{"metadata": "test"}').decode('utf-8')
             assert result.image_set_metadata_blob == expected_base64
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_image_frame_success(self):
         """Test successful image frame retrieval."""
@@ -225,7 +225,7 @@ class TestHealthImagingServer:
             # Should return base64-encoded string
             expected_base64 = base64.b64encode(b'image_data').decode('utf-8')
             assert result.image_frame_blob == expected_base64
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_copy_image_set_success(self):
         """Test successful image set copying."""
@@ -254,7 +254,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.source_image_set_properties.image_set_id == 'source-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_update_image_set_metadata_success(self):
         """Test successful image set metadata update."""
@@ -279,7 +279,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.image_set_id == 'test-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_start_dicom_import_job_success(self):
         """Test successful DICOM import job start."""
@@ -302,7 +302,7 @@ class TestHealthImagingServer:
 
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.job_id == 'test-job-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_dicom_import_job_success(self):
         """Test successful DICOM import job retrieval."""
@@ -326,7 +326,7 @@ class TestHealthImagingServer:
 
             assert result.job_properties.job_id == 'test-job-id'
             assert result.job_properties.datastore_id == '00000000000034567890000000000000'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_list_dicom_import_jobs_success(self):
         """Test successful DICOM import jobs listing."""
@@ -350,7 +350,7 @@ class TestHealthImagingServer:
 
             assert len(result.job_summaries) == 1
             assert result.job_summaries[0].job_id == 'test-job-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_list_tags_for_resource_success(self):
         """Test successful resource tags listing."""
@@ -368,7 +368,7 @@ class TestHealthImagingServer:
             )
 
             assert result.tags == {'Environment': 'test', 'Project': 'healthimaging'}
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_tag_resource_success(self):
         """Test successful resource tagging."""
@@ -385,7 +385,7 @@ class TestHealthImagingServer:
             )
 
             assert result.success is True
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_untag_resource_success(self):
         """Test successful resource untagging."""
@@ -402,7 +402,7 @@ class TestHealthImagingServer:
             )
 
             assert result.success is True
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_main_function_exists(self):
         """Test that main function exists and can be imported."""
@@ -450,7 +450,7 @@ class TestHealthImagingServer:
 
             assert len(result.image_set_properties_list) == 1
             assert result.image_set_properties_list[0].image_set_id == 'test-image-set-id'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_start_dicom_export_job_success(self):
         """Test successful DICOM export job start."""
@@ -474,7 +474,7 @@ class TestHealthImagingServer:
             assert result.datastore_id == '00000000000034567890000000000000'
             assert result.job_id == 'export-job-123'
             assert result.job_status == 'SUBMITTED'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_dicom_export_job_success(self):
         """Test successful DICOM export job retrieval."""
@@ -500,7 +500,7 @@ class TestHealthImagingServer:
 
             assert result.job_properties.job_id == 'export-job-123'
             assert result.job_properties.datastore_id == '00000000000034567890000000000000'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_list_dicom_export_jobs_success(self):
         """Test successful DICOM export jobs listing."""
@@ -524,7 +524,7 @@ class TestHealthImagingServer:
 
             assert len(result.job_summaries) == 1
             assert result.job_summaries[0].job_id == 'export-job-123'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_multiple_error_scenarios(self):
         """Test error handling across multiple functions."""
@@ -1032,7 +1032,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert result['patientId'] == 'patient123'
             assert result['totalDeleted'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_delete_study_success(self):
         """Test successful study deletion."""
@@ -1066,7 +1066,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert result['studyInstanceUID'] == 'study123'
             assert result['totalDeleted'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_search_by_patient_id_success(self):
         """Test successful patient ID search."""
@@ -1093,7 +1093,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert 'imageSetsMetadataSummaries' in result
             assert len(result['imageSetsMetadataSummaries']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_search_by_study_uid_success(self):
         """Test successful study UID search."""
@@ -1120,7 +1120,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert 'imageSetsMetadataSummaries' in result
             assert len(result['imageSetsMetadataSummaries']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_search_by_series_uid_success(self):
         """Test successful series UID search."""
@@ -1147,7 +1147,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert 'imageSetsMetadataSummaries' in result
             assert len(result['imageSetsMetadataSummaries']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_patient_studies_success(self):
         """Test successful patient studies retrieval."""
@@ -1179,7 +1179,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['patientId'] == 'patient123'
             assert result['totalStudies'] == 1
             assert len(result['studies']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_patient_series_success(self):
         """Test successful patient series retrieval."""
@@ -1211,7 +1211,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['patientId'] == 'patient123'
             assert result['totalSeries'] == 1
             assert len(result['series']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_study_primary_image_sets_success(self):
         """Test successful study primary image sets retrieval."""
@@ -1239,7 +1239,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['studyInstanceUID'] == 'study123'
             assert result['totalPrimaryImageSets'] == 1
             assert len(result['primaryImageSets']) == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_advanced_dicom_error_handling(self):
         """Test error handling in advanced DICOM operations."""
@@ -1256,7 +1256,7 @@ class TestAdvancedDICOMServerOperations:
                 )
 
             assert 'Search error' in str(exc_info.value)
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     # Tests for the 6 new advanced DICOM operations
 
@@ -1292,7 +1292,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert result['seriesInstanceUID'] == 'series123'
             assert result['totalUpdated'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_series_primary_image_set_success(self):
         """Test successful series primary image set retrieval."""
@@ -1322,7 +1322,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['seriesInstanceUID'] == 'series123'
             assert result['found'] is True
             assert result['primaryImageSet']['imageSetId'] == 'img123'
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_get_patient_dicomweb_studies_success(self):
         """Test successful patient DICOMweb studies retrieval."""
@@ -1360,7 +1360,7 @@ class TestAdvancedDICOMServerOperations:
 
             assert result['patientId'] == 'patient123'
             assert result['totalStudies'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_delete_instance_in_study_success(self):
         """Test successful instance deletion in study."""
@@ -1404,7 +1404,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['studyInstanceUID'] == 'study123'
             assert result['sopInstanceUID'] == 'instance123'
             assert result['totalUpdated'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_delete_instance_in_series_success(self):
         """Test successful instance deletion in series."""
@@ -1448,7 +1448,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['seriesInstanceUID'] == 'series123'
             assert result['sopInstanceUID'] == 'instance123'
             assert result['totalUpdated'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_update_patient_study_metadata_success(self):
         """Test successful patient/study metadata update."""
@@ -1489,7 +1489,7 @@ class TestAdvancedDICOMServerOperations:
             assert result['patientUpdates'] == patient_updates
             assert result['studyUpdates'] == study_updates
             assert result['totalUpdated'] == 1
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
     def test_new_operations_error_handling(self):
         """Test error handling in new operations."""
@@ -1507,7 +1507,7 @@ class TestAdvancedDICOMServerOperations:
                 )
 
             assert 'Search error' in str(exc_info.value)
-            mock_boto_client.assert_called_with('medical-imaging')
+            mock_boto_client.assert_called_once()
 
 
 @pytest.mark.asyncio

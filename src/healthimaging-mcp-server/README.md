@@ -14,11 +14,15 @@ This server acts as a bridge between AI assistants and AWS HealthImaging, allowi
 
 ## 📦 Installation Methods
 
-Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Amazon Q Developer CLI, Cursor, or Cline.
+Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Q CLI, Cursor or Cline.
+
+| Cursor | VS Code | Kiro |
+|:------:|:-------:|:----:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.healthimaging-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuaGVhbHRoaW1hZ2luZy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20HealthImaging%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.healthimaging-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22type%22%3A%22stdio%22%7D) | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.healthimaging-mcp-server&config=%7B%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22awslabs.healthimaging-mcp-server%40latest%22%5D%2C%20%22disabled%22%3A%20false%2C%20%22autoApprove%22%3A%20%5B%5D%7D) |
 
 ### ⚡ Using uv
 
-Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Q CLI, edit `~/.aws/amazonq/mcp.json`):
 
 **For Linux/MacOS users:**
 
@@ -75,7 +79,7 @@ pip install awslabs.healthimaging-mcp-server
 ```
 
 **Step 2: Configure your MCP client**
-Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Q CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -214,7 +218,10 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 ### Basic Operations
 
 ```json
-// List datastores (datastore discovered automatically)
+ List datastores (datastore discovered automatically)
+
+ ```json
+
 {
   "status": "ACTIVE"
 }
@@ -223,7 +230,11 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 ### Advanced Search
 
 ```json
-// Search image sets with DICOM criteria
+Search image sets with DICOM criteria
+
+```json
+
+
 {
   "datastore_id": "discovered-from-resources",
   "search_criteria": {
@@ -242,6 +253,9 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 
 ```json
 // Get detailed DICOM metadata
+
+```json
+
 {
   "datastore_id": "discovered-from-resources",
   "image_set_id": "image-set-123",
