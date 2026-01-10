@@ -1,6 +1,8 @@
 # AWS Labs Aurora DSQL MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
+and corresponding AI rules that can be used for additional model
+steering while developing.
 
 ## Features
 
@@ -299,3 +301,29 @@ To test the MCP server locally using Docker:
    ```
 
 **Note:** Replace the placeholder values with your actual DSQL cluster endpoint, username, and region.
+
+## AI Rules
+
+This repository also contains AI rules that can help create a more seamless agentic developing experience with DSQL. The recommended paths are to either use the Kiro Power or the Claude Skill, though the
+[dsql-skill](./skills/dsql-skill/) can also be repurposed for other coding assistants.
+
+### Kiro Power
+
+To setup the Kiro power:
+1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/aurora-dsql/)
+2. Once redirected to the Power in the IDE either:
+   1. Select the **`Try Power`** button. Suggested for people who want:
+      - The AI to guide MCP server setup
+      - An interactive onboarding experience with DSQL to create a new cluster
+   2. Open a new Kiro chat and ask anything related to DSQL
+      - **Optionally update the MCP Config:** Add your existing cluster details and test the MCP server connection
+        so the MCP server can be used out of the box with the power.
+      - The Kiro agent automatically activates the power when prompted
+
+### Claude Skill
+
+The recommended setup is outlined in [skill_setup.md](./skills/skill_setup.md).
+
+The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
+into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill
+needs to be updated.
