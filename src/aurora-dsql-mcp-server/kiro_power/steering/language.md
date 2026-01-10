@@ -10,15 +10,18 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
   - **psycopg**
     - modern async/sync
     - `import aurora_dsql_psycopg as dsql`
-    - [psycopg sample](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg)
+    - [DSQL psycopg preferred example](https://github.com/aws-samples/aurora-dsql-samples/blob/main/python/psycopg/src/example_preferred.py)
+    - See [aurora-dsql-samples/python/psycopg](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg)
   - **psycopg2**
     - synchronous
     - `import aurora_dsql_psycopg2 as dsql`
-    - [psycopg2 sample](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg2)
+    - [DSQL psycopg2 preferred example](https://github.com/aws-samples/aurora-dsql-samples/blob/main/python/psycopg2/src/example_preferred.py)
+    - See [aurora-dsql-samples/python/psycopg2](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg2)
   - **asyncpg**
     - full asynchronous style
     - `import aurora_dsql_asyncpg as dsql`
-    - See [aurora-dsql-python-connector/examples/asyncopg](https://github.com/awslabs/aurora-dsql-python-connector/tree/main/examples/asyncpg)
+    - [DSQL asyncpg preferred example](https://github.com/aws-samples/aurora-dsql-samples/blob/main/python/asyncpg/src/example_preferred.py)
+    - See [aurora-dsql-samples/python/asyncpg](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/asyncpg)
 
 **SQLAlchemy**
 - ALWAYS use psycopg2 with SQLAlchemy
@@ -41,15 +44,19 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
 - See [aurora-dsql-samples/go/pgx](https://github.com/aws-samples/aurora-dsql-samples/tree/main/go/pgx)
 
 ### JavaScript/TypeScript
-PREFER using [node-postgres](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html) or [postgres-js](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-postgresjs.html) with the DSQL Node.js Connector
+PREFER using [node-postgres](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html)
+or [postgres-js](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-postgresjs.html) with the
+DSQL Node.js Connector.
 
 **node-postgres (pg)** (recommended)
 - Use `@aws/aurora-dsql-node-postgres-connector` for automatic IAM auth
+- [DSQL node-postgres preferred example](https://github.com/aws-samples/aurora-dsql-samples/blob/main/javascript/node-postgres/src/example_preferred.js)
 - See [aurora-dsql-samples/javascript/node-postgres](https://github.com/aws-samples/aurora-dsql-samples/tree/main/javascript/node-postgres)
 
 **postgres.js** (recommended)
 - Lightweight alternative with `@aws/aurora-dsql-node-postgres-connector`
 - Good for serverless environments
+- [DSQL postgres-js preferred example](https://github.com/aws-samples/aurora-dsql-samples/blob/main/javascript/postgres-js/src/example_preferred.js)
 - See [aurora-dsql-samples/javascript/postgres-js](https://github.com/aws-samples/aurora-dsql-samples/tree/main/javascript/postgres-js)
 
 **Prisma**

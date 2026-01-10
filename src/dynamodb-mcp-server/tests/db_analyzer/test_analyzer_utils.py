@@ -123,7 +123,34 @@ class TestValidateConnectionParams:
         assert 'secret_arn' in missing
         assert 'database' in missing
         assert 'region' in missing
-        assert descriptions['cluster_arn'] == 'AWS cluster ARN'
+        # New validation logic provides descriptions for common required params
+        assert 'secret_arn' in descriptions
+        assert 'database' in descriptions
+        assert 'region' in descriptions
+
+    def test_validate_connection_params_mysql_missing_connection_method(self):
+        """Test MySQL validation when neither cluster_arn nor hostname is provided."""
+        params = {
+            'secret_arn': 'test',  # pragma: allowlist secret
+            'database': 'test',
+            'region': 'us-east-1',
+        }
+        missing, descriptions = analyzer_utils.validate_connection_params('mysql', params)
+
+        assert 'cluster_arn OR hostname' in missing
+        assert 'cluster_arn OR hostname' in descriptions
+
+    def test_validate_connection_params_mysql_with_hostname(self):
+        """Test MySQL validation with hostname (connection-based access)."""
+        params = {
+            'hostname': 'mydb.example.com',
+            'secret_arn': 'test-secret',  # pragma: allowlist secret
+            'database': 'test-db',
+            'region': 'us-east-1',
+        }
+        missing, descriptions = analyzer_utils.validate_connection_params('mysql', params)
+
+        assert missing == []
 
     def test_validate_connection_params_all_valid(self):
         """Test validate_connection_params when all params are valid."""

@@ -48,7 +48,7 @@ uv sync
 
 
 5. Run the server:
-Add the following code to your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`). Configuration is similar to "Installation" in README.md.
+Add the following code to your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`). Configuration is similar to "Installation" in README.md.
 
 ```
 {
