@@ -37,9 +37,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_max_items_validation_valid(self, mock_context):
         """Test max_items parameter validation with valid values."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'MetricAlarms': [], 'CompositeAlarms': []}]
@@ -58,9 +56,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_max_items_validation_invalid(self, mock_context):
         """Test max_items parameter validation with invalid values."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -76,9 +72,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_no_max_items_works_correctly(self, mock_context):
         """Test that boto3 paginator is used correctly."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [
@@ -121,9 +115,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_paginator_usage(self, mock_context):
         """Test that boto3 paginator is used correctly."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [
@@ -187,9 +179,7 @@ class TestGetActiveAlarms:
         mock_mcp = Mock()
 
         # Mock boto3 session to avoid AWS credential errors
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             # Setup mock client
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
@@ -214,9 +204,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_empty_alarms_response(self, mock_context):
         """Test handling of empty alarms response."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [{'MetricAlarms': [], 'CompositeAlarms': []}]
@@ -235,9 +223,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_mixed_alarm_types_response(self, mock_context):
         """Test response with both metric and composite alarms."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [
@@ -281,9 +267,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_has_more_results_logic(self, mock_context):
         """Test has_more_results logic when max_items is exceeded."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             # Return 3 alarms when max_items=2
@@ -345,7 +329,7 @@ class TestGetActiveAlarms:
     async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client fails."""
         with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session',
+            'awslabs.cloudwatch_mcp_server.aws_common.Session',
             side_effect=Exception('AWS credentials not found'),
         ):
             alarms_tools = CloudWatchAlarmsTools()
@@ -355,9 +339,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_describe_alarms_api_error(self, mock_context):
         """Test error handling when describe_alarms API fails."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.side_effect = Exception('API Error')
@@ -375,9 +357,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_alarm_transformation_with_missing_fields(self, mock_context):
         """Test alarm transformation handles missing optional fields gracefully."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             # Alarm with minimal required fields
@@ -422,9 +402,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_pagination_across_multiple_pages(self, mock_context):
         """Test pagination handling across multiple pages."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             # Simulate multiple pages
@@ -476,9 +454,7 @@ class TestGetActiveAlarms:
     @pytest.mark.asyncio
     async def test_dimension_transformation(self, mock_context):
         """Test proper transformation of alarm dimensions."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_paginator = Mock()
             mock_paginator.paginate.return_value = [
@@ -518,9 +494,7 @@ class TestGetActiveAlarms:
 
     def test_transform_metric_alarm_direct(self):
         """Test _transform_metric_alarm method directly."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -549,9 +523,7 @@ class TestGetActiveAlarms:
 
     def test_transform_composite_alarm_direct(self):
         """Test _transform_composite_alarm method directly."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 

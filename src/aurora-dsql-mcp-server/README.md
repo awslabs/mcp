@@ -304,8 +304,17 @@ To test the MCP server locally using Docker:
 
 ## AI Rules
 
-This repository also contains AI rules that can help create a more seamless agentic developing experience with DSQL. The recommended paths are to either use the Kiro Power or the Claude Skill, though the
-[dsql-skill](./skills/dsql-skill/) can also be repurposed for other coding assistants.
+This repository also contains AI Rules (Steering). These markdown files serve as simple
+context and guidance for best practices and patterns that AI assistants automatically apply
+when generating code to improve the quality of agentic development.
+
+Recommended paths:
+* [Kiro Power](#kiro-power) - simplest installation
+* [Claude Skill](#claude-skill) - installation instructions in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md)
+
+Alternative:
+The [dsql-skill](https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill) can also be cloned into your tool's respective `rules` directory
+for use with other coding assistants.
 
 ### Kiro Power
 
@@ -318,11 +327,12 @@ To setup the Kiro power:
    2. Open a new Kiro chat and ask anything related to DSQL
       - **Optionally update the MCP Config:** Add your existing cluster details and test the MCP server connection
         so the MCP server can be used out of the box with the power.
-      - The Kiro agent automatically activates the power when prompted
+      - The Kiro agent will automatically activate the power if it identifies the power as valuable for completing
+        the user's task.
 
 ### Claude Skill
 
-The recommended setup is outlined in [skill_setup.md](./skills/skill_setup.md).
+The recommended setup is outlined in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md).
 
 The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
 into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill

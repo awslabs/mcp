@@ -111,9 +111,7 @@ class TestGetAlarmHistory:
     ):
         """Test basic alarm history retrieval functionality."""
         # Mock boto3 session and client
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -149,9 +147,7 @@ class TestGetAlarmHistory:
         self, mock_context, sample_alarm_history_response, sample_metric_alarm
     ):
         """Test alarm history with custom parameters."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -186,9 +182,7 @@ class TestGetAlarmHistory:
     @pytest.mark.asyncio
     async def test_composite_alarm_handling(self, mock_context, sample_composite_alarm):
         """Test composite alarm component handling."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -216,7 +210,7 @@ class TestGetAlarmHistory:
 
     def test_transform_history_item_with_state_update(self):
         """Test history item transformation with state update data."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Sample history item with state update
@@ -244,7 +238,7 @@ class TestGetAlarmHistory:
 
     def test_transform_history_item_with_invalid_json(self):
         """Test history item transformation with invalid JSON."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Sample history item with invalid JSON
@@ -267,7 +261,7 @@ class TestGetAlarmHistory:
 
     def test_generate_time_range_suggestions(self):
         """Test time range suggestion generation."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Create sample history items with ALARM transitions
@@ -313,7 +307,7 @@ class TestGetAlarmHistory:
 
     def test_generate_time_range_suggestions_with_flapping(self):
         """Test time range suggestions with alarm flapping detection."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Create multiple ALARM transitions within short time (flapping)
@@ -362,7 +356,7 @@ class TestGetAlarmHistory:
 
     def test_parse_alarm_rule(self):
         """Test composite alarm rule parsing."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Test various alarm rule formats
@@ -384,9 +378,7 @@ class TestGetAlarmHistory:
     @pytest.mark.asyncio
     async def test_error_handling(self, mock_context):
         """Test error handling in get_alarm_history."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -408,9 +400,7 @@ class TestGetAlarmHistory:
         """Test that CloudWatchAlarmsTools registers the get_alarm_history tool."""
         mock_mcp = Mock()
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -425,38 +415,13 @@ class TestGetAlarmHistory:
             assert 'get_active_alarms' in tool_calls
             assert 'get_alarm_history' in tool_calls
 
-    def test_region_handling(self):
-        """Test region parameter handling in _get_cloudwatch_client method."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
-            mock_client = Mock()
-            mock_session.return_value.client.return_value = mock_client
-
-            alarms_tools = CloudWatchAlarmsTools()
-
-            # Test default region (us-east-1)
-            alarms_tools._get_cloudwatch_client('us-east-1')
-            mock_session.assert_called_with(region_name='us-east-1')
-
-            # Test custom region
-            alarms_tools._get_cloudwatch_client('eu-west-1')
-            mock_session.assert_called_with(region_name='eu-west-1')
-
-            # Test with AWS_PROFILE environment variable
-            with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
-                alarms_tools._get_cloudwatch_client('us-west-2')
-                mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='us-west-2'
-                )
-
 
 class TestAlarmHistoryEdgeCases:
     """Test edge cases for alarm history functionality."""
 
     def test_empty_history_response(self):
         """Test handling of empty alarm history."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Test with empty history items
@@ -468,7 +433,7 @@ class TestAlarmHistoryEdgeCases:
 
     def test_history_item_with_missing_fields(self):
         """Test history item transformation with missing fields."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # History item with minimal fields
@@ -486,9 +451,7 @@ class TestAlarmHistoryEdgeCases:
 
     def test_alarm_details_not_found(self):
         """Test alarm details retrieval when alarm doesn't exist."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
