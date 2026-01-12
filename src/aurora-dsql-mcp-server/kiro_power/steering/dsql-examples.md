@@ -2,9 +2,9 @@
 
 This file contains DSQL integration code examples; only load this when actively implementing database code.
 
-For language-specific framework selection, recommendations, and examples see [language.md](./language.md).
+For language-specific framework selection, recommendations, and examples see [language.md](language.md).
 
-For developer rules, see [development-guide.md](./development-guide.md).
+For developer rules, see [development-guide.md](development-guide.md).
 
 For additional samples, including in alternative language and driver support, refer to the official
 [aurora-dsql-samples](https://github.com/aws-samples/aurora-dsql-samples).
