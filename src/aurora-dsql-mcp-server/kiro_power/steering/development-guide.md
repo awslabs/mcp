@@ -9,6 +9,7 @@ effortless scaling, multi-region viability, among other advantages.
 ## Best Practices
 
 - **SHOULD read guidelines first** - Check [development_guide.md](development-guide.md) before making schema changes
+- **SHOULD use preferred language patterns** - Check [language.md](language.md)
 - **SHOULD Execute queries directly** - PREFER MCP tools for ad-hoc queries
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](#connection-rules)
@@ -21,7 +22,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **SHOULD test any migrations** - Verify DDL on dev clusters before production
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](#horizontal-scaling-best-practice)
 - **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](#connection-pooling-recommended)
-- **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](./troubleshooting.md)
+- **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](troubleshooting.md)
 
 ---
 
