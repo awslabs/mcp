@@ -13,8 +13,8 @@
 # limitations under the License.
 """Test exception handling in server.py get_all_counts function."""
 
-from awslabs.openapi_mcp_server.server import get_all_counts
 import pytest
+from awslabs.openapi_mcp_server.server import get_all_counts
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
