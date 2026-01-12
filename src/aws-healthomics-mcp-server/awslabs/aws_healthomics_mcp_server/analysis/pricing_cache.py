@@ -102,6 +102,38 @@ class PricingCache:
         return price
 
     @classmethod
+    def get_price_with_error(
+        cls, resource_type: str, region: str
+    ) -> tuple[Optional[float], Optional[str]]:
+        """Get price per hour for a resource type with error message support.
+
+        This method provides the same functionality as get_price() but also
+        returns an error message when pricing is unavailable, allowing callers
+        to propagate error information to clients.
+
+        Args:
+            resource_type: The resource type (e.g., instance type like "omics.m.xlarge"
+                          or storage type like "Run Storage", "Dynamic Run Storage")
+            region: AWS region (e.g., "us-east-1")
+
+        Returns:
+            Tuple of (price, error_message):
+            - (float, None) if price was retrieved successfully
+            - (None, str) if pricing is unavailable with descriptive error message
+        """
+        try:
+            price = cls.get_price(resource_type, region)
+            if price is None:
+                error_msg = f'Unable to retrieve pricing for {resource_type} in {region}'
+                logger.warning(error_msg)
+                return None, error_msg
+            return price, None
+        except Exception as e:
+            error_msg = f'Pricing API error for {resource_type} in {region}: {str(e)}'
+            logger.warning(error_msg)
+            return None, error_msg
+
+    @classmethod
     def _get_pricing_client(cls):
         """Get or create the AWS Pricing API client.
 

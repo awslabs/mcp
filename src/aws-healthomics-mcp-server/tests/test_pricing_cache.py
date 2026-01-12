@@ -284,3 +284,118 @@ class TestPricingCacheConstants:
         assert 'us-west-2' in PricingCache.REGION_NAME_MAP
         assert 'eu-west-1' in PricingCache.REGION_NAME_MAP
         assert PricingCache.REGION_NAME_MAP['us-east-1'] == 'US East (N. Virginia)'
+
+
+class TestPricingCacheGetPriceWithError:
+    """Test cases for get_price_with_error method (Requirements 1.5)."""
+
+    def setup_method(self):
+        """Clear cache before each test."""
+        PricingCache.clear_cache()
+        PricingCache._pricing_client = None
+
+    def teardown_method(self):
+        """Clear cache after each test."""
+        PricingCache.clear_cache()
+        PricingCache._pricing_client = None
+
+    def test_get_price_with_error_success(self):
+        """Test get_price_with_error returns price and no error on success."""
+        mock_price_response = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'terms': {
+                            'OnDemand': {
+                                'term1': {
+                                    'priceDimensions': {'dim1': {'pricePerUnit': {'USD': '0.50'}}}
+                                }
+                            }
+                        }
+                    }
+                )
+            ]
+        }
+
+        with patch.object(PricingCache, '_get_pricing_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.get_products.return_value = mock_price_response
+            mock_get_client.return_value = mock_client
+
+            price, error = PricingCache.get_price_with_error('omics.m.xlarge', 'us-east-1')
+
+            assert price == 0.50
+            assert error is None
+
+    def test_get_price_with_error_api_unavailable(self):
+        """Test get_price_with_error returns error message when API is unavailable."""
+        with patch.object(PricingCache, '_get_pricing_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.get_products.side_effect = Exception('Connection refused')
+            mock_get_client.return_value = mock_client
+
+            price, error = PricingCache.get_price_with_error('omics.m.xlarge', 'us-east-1')
+
+            assert price is None
+            assert error is not None
+            assert 'omics.m.xlarge' in error
+            assert 'us-east-1' in error
+
+    def test_get_price_with_error_empty_price_list(self):
+        """Test get_price_with_error returns error message when no pricing found."""
+        with patch.object(PricingCache, '_get_pricing_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.get_products.return_value = {'PriceList': []}
+            mock_get_client.return_value = mock_client
+
+            price, error = PricingCache.get_price_with_error('omics.m.xlarge', 'us-east-1')
+
+            assert price is None
+            assert error is not None
+            assert 'Unable to retrieve pricing' in error
+            assert 'omics.m.xlarge' in error
+            assert 'us-east-1' in error
+
+    def test_get_price_with_error_unknown_region(self):
+        """Test get_price_with_error returns error message for unknown region."""
+        price, error = PricingCache.get_price_with_error('omics.m.xlarge', 'unknown-region')
+
+        assert price is None
+        assert error is not None
+        assert 'Unable to retrieve pricing' in error
+        assert 'unknown-region' in error
+
+    def test_get_price_with_error_uses_cache(self):
+        """Test get_price_with_error uses cache on subsequent calls."""
+        mock_price_response = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'terms': {
+                            'OnDemand': {
+                                'term1': {
+                                    'priceDimensions': {'dim1': {'pricePerUnit': {'USD': '0.75'}}}
+                                }
+                            }
+                        }
+                    }
+                )
+            ]
+        }
+
+        with patch.object(PricingCache, '_get_pricing_client') as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.get_products.return_value = mock_price_response
+            mock_get_client.return_value = mock_client
+
+            # First call - cache miss
+            price1, error1 = PricingCache.get_price_with_error('omics.r.xlarge', 'us-east-1')
+            assert price1 == 0.75
+            assert error1 is None
+            assert mock_client.get_products.call_count == 1
+
+            # Second call - cache hit
+            price2, error2 = PricingCache.get_price_with_error('omics.r.xlarge', 'us-east-1')
+            assert price2 == 0.75
+            assert error2 is None
+            assert mock_client.get_products.call_count == 1  # No additional API call
