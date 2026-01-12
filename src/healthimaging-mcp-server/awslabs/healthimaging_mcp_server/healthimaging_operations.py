@@ -69,6 +69,7 @@ from .models import (
     UpdateImageSetMetadataRequest,
     UpdateImageSetMetadataResponse,
 )
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
 from typing import Any, Dict
@@ -79,9 +80,7 @@ def get_medical_imaging_client():
     """Get a medical imaging client with proper user agent."""
     client = boto3.client(
         'medical-imaging',
-        config=boto3.session.Config(
-            user_agent_extra=f'awslabs/mcp/healthimaging-mcp-server/{__version__}'
-        ),
+        config=Config(user_agent_extra=f'awslabs/mcp/healthimaging-mcp-server/{__version__}'),
     )
     return client
 
