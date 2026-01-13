@@ -33,7 +33,7 @@ from fastmcp.server.openapi import FastMCPOpenAPI, MCPType, RouteMap
 from typing import Any, Dict
 
 
-def create_mcp_server(config: Config) -> FastMCP:
+async def create_mcp_server_async(config: Config) -> FastMCP:
     """Create and configure the FastMCP server.
 
     Args:
@@ -221,7 +221,7 @@ def create_mcp_server(config: Config) -> FastMCP:
             prompt_manager = MCPPromptManager()
 
             # Generate prompts
-            asyncio.run(prompt_manager.generate_prompts(server, config.api_name, openapi_spec))
+            await prompt_manager.generate_prompts(server, config.api_name, openapi_spec)
 
             # Register resource handler
             prompt_manager.register_api_resource_handler(server, config.api_name, client)
@@ -292,7 +292,7 @@ def create_mcp_server(config: Config) -> FastMCP:
     if hasattr(server, 'list_tools'):
         try:
             # Use asyncio to run the async method in a synchronous context
-            tools = asyncio.run(server.list_tools())  # type: ignore
+            tools = await server.list_tools()  # type: ignore
             tool_count = len(tools)
             tool_names = [tool.get('name') for tool in tools]
 
@@ -342,6 +342,45 @@ def create_mcp_server(config: Config) -> FastMCP:
         logger.info(f'Registered prompts: {prompt_names}')
 
     return server
+
+
+def create_mcp_server(config: Config) -> FastMCP:
+    """Create and configure the FastMCP server (synchronous wrapper).
+
+    This is a synchronous convenience wrapper that calls
+    :func:`create_mcp_server_async` using ``asyncio.run``.
+    For asynchronous contexts, use :func:`create_mcp_server_async`
+    directly instead of this function.
+
+    Args:
+        config: Server configuration.
+
+    Returns:
+        FastMCP: The configured FastMCP server.
+
+    """
+    return asyncio.run(create_mcp_server_async(config))
+
+
+async def get_all_counts(server: FastMCP) -> tuple[int, int, int, int]:
+    """Get counts of prompts, tools, resources, and resource templates."""
+    prompts = await server.get_prompts()
+    tools = await server.get_tools()
+    resources = await server.get_resources()
+
+    # Get resource templates if available
+    resource_templates = []
+    if hasattr(server, 'get_resource_templates'):
+        try:
+            resource_templates = await server.get_resource_templates()
+        except AttributeError as e:
+            # This is expected if the method exists but is not implemented
+            logger.debug(f'get_resource_templates exists but not implemented: {e}')
+        except Exception as e:
+            # Log other unexpected errors
+            logger.warning(f'Error retrieving resource templates: {e}')
+
+    return len(prompts), len(tools), len(resources), len(resource_templates)
 
 
 def setup_signal_handlers():
@@ -466,25 +505,6 @@ def main():
 
     try:
         # Get counts of prompts, tools, resources, and resource templates
-        async def get_all_counts(server):
-            prompts = await server.get_prompts()
-            tools = await server.get_tools()
-            resources = await server.get_resources()
-
-            # Get resource templates if available
-            resource_templates = []
-            if hasattr(server, 'get_resource_templates'):
-                try:
-                    resource_templates = await server.get_resource_templates()
-                except AttributeError as e:
-                    # This is expected if the method exists but is not implemented
-                    logger.debug(f'get_resource_templates exists but not implemented: {e}')
-                except Exception as e:
-                    # Log other unexpected errors
-                    logger.warning(f'Error retrieving resource templates: {e}')
-
-            return len(prompts), len(tools), len(resources), len(resource_templates)
-
         prompt_count, tool_count, resource_count, resource_template_count = asyncio.run(
             get_all_counts(mcp_server)
         )
