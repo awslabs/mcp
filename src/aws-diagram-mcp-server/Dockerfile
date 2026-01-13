@@ -49,8 +49,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/rust-
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     . $HOME/.cargo/env && \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+
+RUN uv
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
