@@ -16,19 +16,17 @@ Provides comprehensive tools for managing SageMaker HyperPod clusters orchestrat
 
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli).
-
-
-**Set up Cursor**
+This quickstart guide walks you through the steps to configure the Amazon SageMaker AI MCP Server for use with Kiro, Cursor, and other compatible IDEs.
 
 | Kiro | Cursor | VS Code |
 |:----:|:------:|:-------:|
 | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.sagemaker-ai-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.sagemaker-ai-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.sagemaker-ai-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLnNhZ2VtYWtlci1haS1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=SageMaker%20AI%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.sagemaker-ai-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
-**Set up the Amazon Q Developer CLI**
+**Set up Kiro**
 
-1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html).
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html).
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit ~/.kiro/settings/mcp.json. For project-specific configuration, edit .kiro/settings/mcp.json in your project directory.
 
 The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events:
 
@@ -78,7 +76,7 @@ The example below includes both the `--allow-write` flag for mutating operations
 	}
 	```
 
-3. Verify your setup by running the `/tools` command in the Q Developer CLI to see the available SageMaker AI MCP tools.
+Verify your setup by running the `/tools` command in the Kiro CLI to see the available SageMaker AI MCP tools.
 
 Note that this is a basic quickstart. We recommend to use SageMaker AI MCP server  in conjunction with [AWS API MCP Server](https://awslabs.github.io/mcp/servers/aws-api-mcp-server), [AWS Knowledge MCP Server](https://awslabs.github.io/mcp/servers/aws-knowledge-mcp-server)/[AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server), and [AWS EKS MCP Server](https://awslabs.github.io/mcp/servers/eks-mcp-server) to gain complete coverage for all SageMaker APIs and effectively troubleshoot common issues.
 

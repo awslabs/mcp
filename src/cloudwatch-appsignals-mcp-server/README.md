@@ -6,7 +6,7 @@
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
 
-This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
+This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
 
 ## Key Features
 
@@ -204,10 +204,10 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will
 use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cloudwatch-appsignals-mcp-server*.
 
-### Installing for Amazon Q (Preview)
+### Installing for Kiro
 
-- Start Amazon Q Developer CLI from [here](https://github.com/aws/amazon-q-developer-cli).
-- Add the following configuration in `~/.aws/amazonq/mcp.json` file.
+Example configuration for Kiro (~/.kiro/settings/mcp.json):
+
 ```json
 {
   "mcpServers": {

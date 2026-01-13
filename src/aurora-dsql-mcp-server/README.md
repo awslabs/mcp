@@ -1,6 +1,8 @@
 # AWS Labs Aurora DSQL MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
+and corresponding AI rules that can be used for additional model
+steering while developing.
 
 ## Features
 
@@ -47,7 +49,7 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -299,3 +301,39 @@ To test the MCP server locally using Docker:
    ```
 
 **Note:** Replace the placeholder values with your actual DSQL cluster endpoint, username, and region.
+
+## AI Rules
+
+This repository also contains AI Rules (Steering). These markdown files serve as simple
+context and guidance for best practices and patterns that AI assistants automatically apply
+when generating code to improve the quality of agentic development.
+
+Recommended paths:
+* [Kiro Power](#kiro-power) - simplest installation
+* [Claude Skill](#claude-skill) - installation instructions in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md)
+
+Alternative:
+The [dsql-skill](https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill) can also be cloned into your tool's respective `rules` directory
+for use with other coding assistants.
+
+### Kiro Power
+
+To setup the Kiro power:
+1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/aurora-dsql/)
+2. Once redirected to the Power in the IDE either:
+   1. Select the **`Try Power`** button. Suggested for people who want:
+      - The AI to guide MCP server setup
+      - An interactive onboarding experience with DSQL to create a new cluster
+   2. Open a new Kiro chat and ask anything related to DSQL
+      - **Optionally update the MCP Config:** Add your existing cluster details and test the MCP server connection
+        so the MCP server can be used out of the box with the power.
+      - The Kiro agent will automatically activate the power if it identifies the power as valuable for completing
+        the user's task.
+
+### Claude Skill
+
+The recommended setup is outlined in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md).
+
+The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
+into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill
+needs to be updated.
