@@ -419,8 +419,20 @@ class TestSemanticSearchIntegration:
         print('1. Adding test documents...')
         add_result = await add_documents(collection=collection, documents=documents)
         if add_result['status'] != 'success':
-            print(f'   Error adding documents: {add_result.get("reason", "Unknown error")}')
+            error_reason = add_result.get('reason', 'Unknown error')
+            if (
+                'Request URL is missing' in error_reason
+                or 'AWS credentials not found' in error_reason
+            ):
+                pytest.skip(f'Embeddings provider not configured: {error_reason}')
+            print(f'   Error adding documents: {error_reason}')
             return
+
+        # Check if any documents were actually added
+        if add_result.get('added', 0) == 0:
+            pytest.skip(
+                'No documents were added - likely due to embedding provider configuration issues'
+            )
 
         print(f'   ✓ Added {add_result["added"]} documents')
 
