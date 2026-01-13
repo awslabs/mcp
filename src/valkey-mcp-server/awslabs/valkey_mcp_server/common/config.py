@@ -38,11 +38,11 @@ VALKEY_CFG = {
 }
 
 EMBEDDING_CFG = {
-    'provider': os.getenv('EMBEDDING_PROVIDER', 'ollama').lower(),
+    'provider': os.getenv('EMBEDDING_PROVIDER', 'bedrock').lower(),
     'ollama_host': os.getenv('OLLAMA_HOST', 'http://localhost:11434'),
     'ollama_embedding_model': os.getenv('OLLAMA_EMBEDDING_MODEL', 'nomic-embed-text'),
     'bedrock_region': os.getenv('AWS_REGION', 'us-east-1'),
-    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.titan-embed-text-v1'),
+    'bedrock_model_id': os.getenv('BEDROCK_MODEL_ID', 'amazon.nova-2-multimodal-embeddings-v1:0'),
     'bedrock_normalize': os.getenv('BEDROCK_NORMALIZE', '').lower() in ('true', '1', 't')
     if os.getenv('BEDROCK_NORMALIZE')
     else None,

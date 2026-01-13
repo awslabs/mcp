@@ -100,6 +100,54 @@ class TestBedrockEmbeddings:
         norm = math.sqrt(sum(x * x for x in embedding))
         assert abs(norm - 1.0) < 0.01
 
+    @pytest.mark.asyncio
+    async def test_nova_2_multimodal_embeddings(self):
+        """Test Amazon Nova 2 multimodal embeddings model."""
+        try:
+            provider = await acquire_bedrock_embeddings(
+                region_name='us-east-1', model_id='amazon.nova-2-multimodal-embeddings-v1:0'
+            )
+
+            # Nova 2 default dimensions are 3072
+            assert provider.get_dimensions() == 3072
+
+            text = 'Test text for Nova 2 multimodal embeddings'
+            embedding = await provider.generate_embedding(text)
+
+            assert isinstance(embedding, list)
+            assert len(embedding) == 3072
+            assert all(isinstance(x, float) for x in embedding)
+
+            # Test consistency
+            second_embedding = await provider.generate_embedding(text)
+            assert embedding == second_embedding
+        except Exception as e:
+            if 'invalid' in str(e).lower() or 'not found' in str(e).lower():
+                pytest.skip(f'Nova 2 model not available: {e}')
+            raise
+
+    @pytest.mark.asyncio
+    async def test_nova_2_multimodal_with_custom_dimensions(self):
+        """Test Nova 2 multimodal embeddings with custom dimensions."""
+        try:
+            provider = await acquire_bedrock_embeddings(
+                region_name='us-east-1',
+                model_id='amazon.nova-2-multimodal-embeddings-v1:0',
+                dimensions=1024,
+            )
+
+            assert provider.get_dimensions() == 1024
+
+            embedding = await provider.generate_embedding('Test with 1024 dimensions')
+
+            assert isinstance(embedding, list)
+            assert len(embedding) == 1024
+            assert all(isinstance(x, float) for x in embedding)
+        except Exception as e:
+            if 'invalid' in str(e).lower() or 'not found' in str(e).lower():
+                pytest.skip(f'Nova 2 model not available: {e}')
+            raise
+
 
 class TestBedrockEmbeddingsMocked:
     """Unit tests for Bedrock embeddings with mocked boto3."""
@@ -201,3 +249,44 @@ class TestBedrockEmbeddingsMocked:
 
         with pytest.raises(ValueError, match='AWS credentials not found'):
             BedrockEmbeddings()
+
+    @pytest.mark.asyncio
+    async def test_nova_2_multimodal_mocked(self, mocker):
+        """Test Nova 2 multimodal embeddings with mocked boto3."""
+        mock_embedding = [0.1] * 3072  # Nova default dimensions
+        mock_body = MagicMock()
+        mock_body.read.return_value = json.dumps(
+            {'embeddings': [{'embedding': mock_embedding}]}
+        ).encode()
+        mock_response = {'body': mock_body}
+
+        mock_bedrock_client = MagicMock()
+        mock_bedrock_client.invoke_model.return_value = mock_response
+
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {}
+
+        mock_session = MagicMock()
+
+        def client_side_effect(service, **kwargs):
+            if service == 'bedrock-runtime':
+                return mock_bedrock_client
+            elif service == 'sts':
+                return mock_sts_client
+            return MagicMock()
+
+        mock_session.client.side_effect = client_side_effect
+
+        import boto3
+
+        boto3.Session = MagicMock(return_value=mock_session)
+
+        provider = await acquire_bedrock_embeddings(
+            model_id='amazon.nova-2-multimodal-embeddings-v1:0'
+        )
+
+        embedding = await provider.generate_embedding('test')
+
+        assert embedding == mock_embedding
+        assert len(embedding) == 3072
+        mock_bedrock_client.invoke_model.assert_called_once()

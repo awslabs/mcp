@@ -17,7 +17,7 @@
 import hashlib
 import httpx
 from .base import EmbeddingsProvider
-from typing import List
+from typing import Any, List
 
 
 class OllamaEmbeddings(EmbeddingsProvider):
@@ -105,11 +105,33 @@ class BedrockEmbeddings(EmbeddingsProvider):
                 f'AWS CLI, environment variables, or IAM roles. Error: {e}'
             )
 
-        self.model_id = model_id
+        self._model_id: str | None = None
+        self._is_nova_model = False
+        self.model_id = model_id  # Use property setter
         self.normalize = normalize
         self.dimensions = dimensions
         self.input_type = input_type
-        self._dimensions = dimensions or 1536  # Titan default
+
+        # Set default dimensions based on model type
+        if self._is_nova_model:
+            self._dimensions = dimensions or 3072  # Nova default
+        else:
+            self._dimensions = dimensions or 1536  # Titan default
+
+    @property
+    def model_id(self) -> str:
+        """Get the model ID."""
+        if self._model_id is None:
+            raise ValueError('Model ID not set')
+        return self._model_id
+
+    @model_id.setter
+    def model_id(self, value: str) -> None:
+        """Set the model ID and update cached Nova check."""
+        import re
+
+        self._model_id = value
+        self._is_nova_model = bool(re.match(r'^\w+\.nova\b', value))
 
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding using Bedrock."""
@@ -118,18 +140,38 @@ class BedrockEmbeddings(EmbeddingsProvider):
 
         # Bedrock SDK is synchronous, run in executor
         def _invoke():
-            body: dict[str, str | bool | int] = {'inputText': text}
+            # Check if this is a Nova model using cached result
+            if self._is_nova_model:
+                # Nova multimodal embeddings format
+                body: dict[str, Any] = {
+                    'taskType': 'SINGLE_EMBEDDING',
+                    'singleEmbeddingParams': {
+                        'embeddingPurpose': 'GENERIC_INDEX',
+                        'text': {'truncationMode': 'END', 'value': text},
+                    },
+                }
 
-            # Add optional parameters if specified
-            if self.normalize is not None:
-                body['normalize'] = self.normalize
-            if self.dimensions is not None:
-                body['dimensions'] = self.dimensions
-            if self.input_type is not None:
-                body['inputType'] = self.input_type
+                # Add optional parameters if specified
+                if self.dimensions is not None:
+                    body['singleEmbeddingParams']['embeddingDimension'] = self.dimensions
 
-            response = self.client.invoke_model(modelId=self.model_id, body=json.dumps(body))
-            return json.loads(response['body'].read())['embedding']
+                response = self.client.invoke_model(modelId=self.model_id, body=json.dumps(body))
+                result = json.loads(response['body'].read())
+                return result['embeddings'][0]['embedding']
+            else:
+                # Titan embeddings format
+                body: dict[str, Any] = {'inputText': text}
+
+                # Add optional parameters if specified
+                if self.normalize is not None:
+                    body['normalize'] = self.normalize
+                if self.dimensions is not None:
+                    body['dimensions'] = self.dimensions
+                if self.input_type is not None:
+                    body['inputType'] = self.input_type
+
+                response = self.client.invoke_model(modelId=self.model_id, body=json.dumps(body))
+                return json.loads(response['body'].read())['embedding']
 
         return await asyncio.get_event_loop().run_in_executor(None, _invoke)
 

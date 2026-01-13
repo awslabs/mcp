@@ -233,7 +233,7 @@ of optional configuration options.  Credentials for the Bedrock service must be 
 | Name | Description                                                                    | Default Value                  |
 |------|--------------------------------------------------------------------------------|--------------------------------|
 | `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
-| `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.titan-embed-text-v1"` |
+| `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.nova-2-multimodal-embeddings-v1:0"` |
 | `BEDROCK_NORMALIZE` | If Bedrock is used, whether to normalize embeddings | `true`                         |
 | `BEDROCK_DIMENSIONS` | If Bedrock is used, number of dimensions for embeddings | `None`                         |
 | `BEDROCK_INPUT_TYPE` | If Bedrock is used, input type for embeddings (e.g., "searchDocument", "searchQuery") | `None`                         |
