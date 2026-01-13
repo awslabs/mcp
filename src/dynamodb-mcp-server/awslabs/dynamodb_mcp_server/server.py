@@ -65,12 +65,6 @@ Self-Service Mode Workflow:
 4. User provides result file path
 5. Tool generates analysis markdown files
 
-Use the `execute_dynamodb_command` tool to execute AWS CLI DynamoDB commands:
-- Executes AWS CLI commands that start with 'aws dynamodb'
-- Supports both DynamoDB local (with endpoint-url) and AWS DynamoDB
-- Automatically configures fake credentials for DynamoDB local
-- Returns command execution results or error responses
-
 Use the `dynamodb_data_model_validation` tool to validate your DynamoDB data model:
 - Loads and validates dynamodb_data_model.json structure (checks required keys: tables, items, access_patterns)
 - Sets up DynamoDB Local environment automatically (tries containers first: Docker/Podman/Finch/nerdctl, falls back to Java)
@@ -286,20 +280,21 @@ async def source_db_analyzer(
     return 'Invalid parameter combination. For self-service mode, provide either queries_file_path (to generate queries) or query_result_file_path (to parse results).'
 
 
-@app.tool()
-@handle_exceptions
-async def execute_dynamodb_command(
-    command: str = Field(description="AWS CLI DynamoDB command (must start with 'aws dynamodb')"),
-    endpoint_url: Optional[str] = Field(default=None, description='DynamoDB endpoint URL'),
+async def _execute_dynamodb_command(
+    command: str,
+    endpoint_url: Optional[str] = None,
 ):
-    """Execute AWSCLI DynamoDB commands.
+    """Execute AWS CLI DynamoDB commands (internal use only).
 
     Args:
-        command: AWS CLI command string (e.g., "aws dynamodb query --table-name MyTable")
-        endpoint_url: DynamoDB endpoint URL
+        command: AWS CLI command string (must start with 'aws dynamodb')
+        endpoint_url: DynamoDB endpoint URL for local testing
 
     Returns:
         AWS CLI command execution results or error response
+
+    Raises:
+        ValueError: If command doesn't start with 'aws dynamodb'
     """
     # Validate command starts with 'aws dynamodb'
     if not command.strip().startswith('aws dynamodb'):
@@ -439,7 +434,7 @@ async def _execute_access_patterns(
                 continue
 
             command = pattern['implementation']
-            result = await execute_dynamodb_command(command, endpoint_url)
+            result = await _execute_dynamodb_command(command, endpoint_url)
             results.append(
                 {
                     'pattern_id': pattern.get('pattern'),

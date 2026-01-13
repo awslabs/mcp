@@ -167,9 +167,7 @@ class TestAlarmHistoryIntegration:
         self, mock_context, realistic_alarm_history_response, realistic_metric_alarm
     ):
         """Test complete end-to-end alarm history retrieval for metric alarm."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -254,9 +252,7 @@ class TestAlarmHistoryIntegration:
         self, mock_context, realistic_composite_alarm, realistic_metric_alarm
     ):
         """Test complete composite alarm handling with component expansion."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -346,9 +342,7 @@ class TestAlarmHistoryIntegration:
         self, mock_context, realistic_alarm_history_response, realistic_metric_alarm
     ):
         """Test pagination handling in alarm history."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -388,9 +382,7 @@ class TestAlarmHistoryIntegration:
     @pytest.mark.asyncio
     async def test_different_history_item_types(self, mock_context, realistic_metric_alarm):
         """Test handling of different history item types."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -462,9 +454,7 @@ class TestAlarmHistoryIntegration:
     @pytest.mark.asyncio
     async def test_error_scenarios_integration(self, mock_context):
         """Test various error scenarios in integration context."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -487,9 +477,7 @@ class TestAlarmHistoryIntegration:
     @pytest.mark.asyncio
     async def test_time_range_edge_cases(self, mock_context, realistic_metric_alarm):
         """Test edge cases in time range handling."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -527,7 +515,7 @@ class TestAlarmHistoryIntegration:
 
     def test_complex_alarm_rule_parsing(self):
         """Test parsing of complex composite alarm rules."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session'):
             alarms_tools = CloudWatchAlarmsTools()
 
             # Test complex real-world alarm rules
@@ -553,9 +541,7 @@ class TestAlarmHistoryIntegration:
     @pytest.mark.asyncio
     async def test_performance_with_large_history(self, mock_context, realistic_metric_alarm):
         """Test performance considerations with large alarm history."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
@@ -620,9 +606,7 @@ class TestAlarmHistoryIntegration:
         fixed_now = datetime(2025, 6, 20, 15, 30, 0)
         expected_start = fixed_now - timedelta(hours=24)
 
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
+        with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
             with patch(
                 'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.datetime'
             ) as mock_datetime:

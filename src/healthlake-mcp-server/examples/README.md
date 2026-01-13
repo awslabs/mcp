@@ -15,10 +15,11 @@ The `mcp_config.json` file contains a basic configuration for getting started:
 
 Copy this configuration to your MCP client configuration file:
 
-### Amazon Q Developer CLI
-- **macOS**: `~/.aws/amazonq/mcp.json`
-- **Linux**: `~/.config/amazon-q/mcp.json`
-- **Windows**: `%APPDATA%\Amazon Q\mcp.json`
+### Kiro
+- **Global configuration**: `~/.kiro/settings/mcp.json`
+- **Workspace-level configuration**: `.kiro/settings/mcp.json` in your project directory
+
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
 
 ### Other MCP Clients
 Refer to your MCP client's documentation for the correct configuration file location.

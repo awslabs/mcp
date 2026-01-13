@@ -58,9 +58,7 @@ async def logs_client():
 @pytest_asyncio.fixture
 async def cloudwatch_tools(logs_client):
     """Create CloudWatchLogsTools instance with mocked client."""
-    with patch(
-        'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-    ) as mock_session:
+    with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
         mock_session.return_value.client.return_value = logs_client
         tools = CloudWatchLogsTools()
         yield tools
@@ -70,10 +68,10 @@ async def cloudwatch_tools(logs_client):
 class TestDescribeLogGroups:
     """Tests for describe_log_groups tool."""
 
-    async def test_basic_describe(self, ctx, cloudwatch_tools):
+    async def test_basic_describe(self, ctx, cloudwatch_tools, logs_client):
         """Test basic log group description."""
         # Create a test log group
-        cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
+        logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         def mock_describe_query_definitions(*args, **kwargs):
             return {
@@ -86,7 +84,7 @@ class TestDescribeLogGroups:
                 ]
             }
 
-        cloudwatch_tools.logs_client.describe_query_definitions = mock_describe_query_definitions
+        logs_client.describe_query_definitions = mock_describe_query_definitions
 
         # Call the tool
         result = await cloudwatch_tools.describe_log_groups(
@@ -104,11 +102,11 @@ class TestDescribeLogGroups:
         assert result.log_group_metadata[0].logGroupName == '/aws/test/group1'
         assert len(result.saved_queries) == 1
 
-    async def test_max_items_limit(self, ctx, cloudwatch_tools):
+    async def test_max_items_limit(self, ctx, cloudwatch_tools, logs_client):
         """Test max items limit."""
         # Create multiple log groups
         for i in range(3):
-            cloudwatch_tools.logs_client.create_log_group(logGroupName=f'/aws/test/group{i}')
+            logs_client.create_log_group(logGroupName=f'/aws/test/group{i}')
 
         def mock_describe_query_definitions(*args, **kwargs):
             return {
@@ -121,7 +119,7 @@ class TestDescribeLogGroups:
                 ]
             }
 
-        cloudwatch_tools.logs_client.describe_query_definitions = mock_describe_query_definitions
+        logs_client.describe_query_definitions = mock_describe_query_definitions
 
         # Call with max_items=2
         result = await cloudwatch_tools.describe_log_groups(
@@ -137,10 +135,10 @@ class TestDescribeLogGroups:
         assert len(result.log_group_metadata) == 2
         assert len(result.saved_queries) == 0
 
-    async def test_saved_query_with_prefix(self, ctx, cloudwatch_tools):
+    async def test_saved_query_with_prefix(self, ctx, cloudwatch_tools, logs_client):
         """Test saved query with prefix matching."""
         # Create a test log group
-        cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
+        logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         def mock_describe_query_definitions(*args, **kwargs):
             return {
@@ -153,7 +151,7 @@ class TestDescribeLogGroups:
                 ]
             }
 
-        cloudwatch_tools.logs_client.describe_query_definitions = mock_describe_query_definitions
+        logs_client.describe_query_definitions = mock_describe_query_definitions
 
         # Call the tool
         result = await cloudwatch_tools.describe_log_groups(
@@ -170,12 +168,10 @@ class TestDescribeLogGroups:
         assert len(result.log_group_metadata) == 1
         assert len(result.saved_queries) == 1
 
-    async def test_exception_handling(self, ctx, cloudwatch_tools):
+    async def test_exception_handling(self, ctx, cloudwatch_tools, logs_client):
         """Test exception handling in describe_log_groups."""
         # Mock an exception in the logs client
-        cloudwatch_tools.logs_client.describe_log_groups = MagicMock(
-            side_effect=Exception('Test exception')
-        )
+        logs_client.describe_log_groups = MagicMock(side_effect=Exception('Test exception'))
 
         with pytest.raises(Exception):
             await cloudwatch_tools.describe_log_groups(
@@ -192,16 +188,14 @@ class TestDescribeLogGroups:
 class TestExecuteLogInsightsQuery:
     """Tests for execute_log_insights_query tool."""
 
-    async def test_successful_query(self, ctx, cloudwatch_tools):
+    async def test_successful_query(self, ctx, cloudwatch_tools, logs_client):
         """Test successful query execution."""
         # Create a test log group
-        cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
+        logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         # Mock query execution
-        cloudwatch_tools.logs_client.start_query = MagicMock(
-            return_value={'queryId': 'test-query-id'}
-        )
-        cloudwatch_tools.logs_client.get_query_results = MagicMock(
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
             return_value={
                 'status': 'Complete',
                 'results': [
@@ -233,16 +227,14 @@ class TestExecuteLogInsightsQuery:
         assert result['results'][0]['@timestamp'] == '2023-01-01T00:00:00.000Z'
         assert result['results'][0]['@message'] == 'Test log message'
 
-    async def test_query_timeout(self, ctx, cloudwatch_tools):
+    async def test_query_timeout(self, ctx, cloudwatch_tools, logs_client):
         """Test query timeout handling."""
         # Create a test log group
-        cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
+        logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         # Mock query execution with running status
-        cloudwatch_tools.logs_client.start_query = MagicMock(
-            return_value={'queryId': 'test-query-id'}
-        )
-        cloudwatch_tools.logs_client.get_query_results = MagicMock(
+        logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        logs_client.get_query_results = MagicMock(
             return_value={'status': 'Running', 'results': []}
         )
 
@@ -286,10 +278,10 @@ class TestExecuteLogInsightsQuery:
 class TestGetQueryResults:
     """Tests for get_query_results tool."""
 
-    async def test_get_results(self, ctx, cloudwatch_tools):
+    async def test_get_results(self, ctx, cloudwatch_tools, logs_client):
         """Test getting query results."""
         # Mock query results
-        cloudwatch_tools.logs_client.get_query_results = MagicMock(
+        logs_client.get_query_results = MagicMock(
             return_value={
                 'status': 'Complete',
                 'results': [
@@ -318,10 +310,10 @@ class TestGetQueryResults:
 class TestCancelQuery:
     """Tests for cancel_query tool."""
 
-    async def test_cancel_query(self, ctx, cloudwatch_tools):
+    async def test_cancel_query(self, ctx, cloudwatch_tools, logs_client):
         """Test canceling a query."""
         # Mock query cancellation
-        cloudwatch_tools.logs_client.stop_query = MagicMock(return_value={'success': True})
+        logs_client.stop_query = MagicMock(return_value={'success': True})
 
         # Call the tool
         result = await cloudwatch_tools.cancel_logs_insight_query(ctx, query_id='test-query-id')
@@ -335,12 +327,12 @@ class TestCancelQuery:
 class TestAnalyzeLogGroup:
     """Tests for analyze_log_group tool."""
 
-    async def test_analyze_log_group(self, ctx, cloudwatch_tools):
+    async def test_analyze_log_group(self, ctx, cloudwatch_tools, logs_client):
         """Test log group analysis."""
         log_group_arn = 'arn:aws:logs:us-west-2:123456789012:log-group:/aws/test/group1'
 
         # Mock anomaly detection
-        cloudwatch_tools.logs_client.get_paginator = MagicMock()
+        logs_client.get_paginator = MagicMock()
 
         # Mock list_log_anomaly_detectors paginator
         anomaly_paginator = MagicMock()
@@ -368,7 +360,7 @@ class TestAnalyzeLogGroup:
             else:
                 return MagicMock()
 
-        cloudwatch_tools.logs_client.get_paginator.side_effect = get_paginator_side_effect
+        logs_client.get_paginator.side_effect = get_paginator_side_effect
 
         # Mock the execute_log_insights_query calls for pattern analysis
         async def mock_execute_query(*args, **kwargs):
@@ -397,12 +389,12 @@ class TestAnalyzeLogGroup:
         assert 'results' in result.top_patterns
         assert 'results' in result.top_patterns_containing_errors
 
-    async def test_analyze_log_group_region_parameter(self, ctx, cloudwatch_tools):
+    async def test_analyze_log_group_region_parameter(self, ctx, cloudwatch_tools, logs_client):
         """Test that analyze_log_group passes region parameter to execute_log_insights_query calls."""
         log_group_arn = 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/test/group1'
 
         # Mock anomaly detection
-        cloudwatch_tools.logs_client.get_paginator = MagicMock()
+        logs_client.get_paginator = MagicMock()
 
         # Mock list_log_anomaly_detectors paginator
         anomaly_paginator = MagicMock()
@@ -420,7 +412,7 @@ class TestAnalyzeLogGroup:
             else:
                 return MagicMock()
 
-        cloudwatch_tools.logs_client.get_paginator.side_effect = get_paginator_side_effect
+        logs_client.get_paginator.side_effect = get_paginator_side_effect
 
         # Mock execute_log_insights_query to capture the region parameter
         executed_queries = []

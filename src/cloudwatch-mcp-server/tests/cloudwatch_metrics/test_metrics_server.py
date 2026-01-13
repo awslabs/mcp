@@ -55,9 +55,7 @@ async def cloudwatch_client(aws_credentials):
 @pytest_asyncio.fixture
 async def cloudwatch_metrics_tools(cloudwatch_client):
     """Create CloudWatchMetricsTools instance with mocked client."""
-    with patch(
-        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-    ) as mock_session:
+    with patch('awslabs.cloudwatch_mcp_server.aws_common.Session') as mock_session:
         mock_session.return_value.client.return_value = cloudwatch_client
         tools = CloudWatchMetricsTools()
         yield tools
@@ -89,8 +87,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             start_time = datetime(2023, 1, 1, 0, 0, 0)
             end_time = datetime(2023, 1, 1, 1, 0, 0)
@@ -142,8 +141,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -175,8 +175,9 @@ class TestGetMetricData:
         }
         start_time = datetime(2023, 1, 1, 0, 0, 0)
         end_time = datetime(2023, 1, 1, 2, 0, 0)  # 2 hours = 7200 seconds
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -211,8 +212,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             start_time = datetime(2023, 1, 1, 0, 0, 0)
             end_time = datetime(2023, 1, 1, 1, 0, 0)
@@ -251,8 +253,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -287,8 +290,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -327,8 +331,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -367,8 +372,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -403,8 +409,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -439,8 +446,9 @@ class TestGetMetricData:
                 }
             ],
         }
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,
@@ -488,8 +496,9 @@ class TestGetMetricData:
         mock_client = MagicMock()
         mock_client.get_metric_data.side_effect = Exception('Test exception')
         ctx.error = AsyncMock()
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             with pytest.raises(Exception):
                 await cloudwatch_metrics_tools.get_metric_data(
@@ -590,8 +599,9 @@ class TestGetMetricData:
             ],
         }
 
-        with patch.object(
-            cloudwatch_metrics_tools, '_get_cloudwatch_client', return_value=mock_client
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.get_aws_client',
+            return_value=mock_client,
         ):
             result = await cloudwatch_metrics_tools.get_metric_data(
                 ctx,

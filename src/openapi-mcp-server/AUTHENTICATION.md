@@ -251,7 +251,7 @@ To verify your authentication configuration is working correctly:
 2. Check the logs for successful authentication messages
 
 3. Make a simple request through your LLM tool to verify API connectivity:
-   - For Amazon Q CLI: "Can you list the available endpoints in my API?"
+   - For Kiro: "Can you list the available endpoints in my API?"
    - For Cline: "Make a simple request to my API to verify authentication is working"
 
 If you encounter authentication errors, see the Troubleshooting section below.
