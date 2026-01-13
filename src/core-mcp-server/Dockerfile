@@ -37,6 +37,10 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
@@ -54,7 +58,8 @@ RUN mkdir -p /root/.local
 FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:3f6c5a2858113e9bb6710dfccdace7dc698e83f7a012240a1d07b3a46d273999
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
+    PYTHONUNBUFFERED=1
 
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root

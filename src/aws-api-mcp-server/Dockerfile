@@ -13,7 +13,11 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13.alpine@sha256:070342a0cc1011532c0e69972cce2bbc6cc633eba294bae1d12abea8bd05303b AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:3f6c5a2858113e9bb6710dfccdace7dc698e83f7a012240a1d07b3a46d273999 AS uv
+
+# Install build dependencies needed for compiling packages
+RUN dnf install -y shadow-utils python3 python3-devel gcc && \
+    dnf clean all
 
 # Install the project into `/app`
 WORKDIR /app
@@ -25,7 +29,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 # Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_PYTHON_PREFERENCE=only-managed
 
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
@@ -36,16 +40,6 @@ COPY pyproject.toml uv.lock uv-requirements.txt ./
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install system dependencies and Python package manager
-RUN apk update && \
-    apk add --no-cache --virtual .build-deps \
-    build-base \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    cargo
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -61,20 +55,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13.alpine@sha256:070342a0cc1011532c0e69972cce2bbc6cc633eba294bae1d12abea8bd05303b
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:3f6c5a2858113e9bb6710dfccdace7dc698e83f7a012240a1d07b3a46d273999
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies and create application user
-RUN apk update && \
-    apk add --no-cache ca-certificates && \
-    update-ca-certificates && \
-    addgroup -S app && \
-    adduser -S app -G app -h /app
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
+RUN dnf install -y shadow-utils procps && \
+    dnf clean all && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
-# Copy application artifacts from build stage
+# Get the project from the uv layer
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
