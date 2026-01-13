@@ -43,7 +43,8 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
