@@ -20,4 +20,4 @@ uv==0.9.24 \
     --hash=sha256:aafe7dd9b633672054cf27f1a8e4127506324631f1af5edd051728f4f8085351 \
     --hash=sha256:d59d31c25fc530c68db9164174efac511a25fc882cec49cd48f75a18e7ebd6d5 \
     --hash=sha256:d7d1333d9c21088c89cb284ef29fdf48dc2015fe993174a823a3e7c991db90f9
-    # via -r uv-requirements.in
+    # via -r uv-requirements.in (contents of `uv==0.9.24`)
