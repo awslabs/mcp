@@ -46,14 +46,14 @@ try:
     database_insights_tools.register(mcp)
     logger.info('Database Insights tools registered successfully')
 except Exception as e:
-    logger.error(f'Error initializing CloudWatch tools: {str(e)}')
+    logger.error(f'Error initializing MCP server tools: {str(e)}')
     raise
 
 
 def main():
     """Run the MCP server."""
-    mcp.run()
     logger.info('CloudWatch MCP server started')
+    mcp.run()
 
 
 if __name__ == '__main__':

@@ -16,6 +16,7 @@
 
 import pytest
 from datetime import datetime, timezone
+import json
 from awslabs.cloudwatch_mcp_server.database_insights.models import (
     DatabaseInstance,
     DatabaseInsightsMetric,
@@ -116,13 +117,66 @@ class TestDatabaseLoadResult:
             period_seconds=60,
             db_load_avg=2.5,
             db_load_max=5.0,
-            vcpu_count=4,
         )
         assert result.db_resource_id == 'db-ABC123'
         assert result.period_seconds == 60
         assert result.db_load_avg == 2.5
         assert result.db_load_max == 5.0
-        assert result.vcpu_count == 4
         assert result.top_dimensions == []
         assert result.overall_metrics == []
+
+
+class TestListDatabasesResult:
+    """Test ListDatabasesResult model."""
+
+    def test_list_databases_result_empty(self):
+        """Test creating an empty ListDatabasesResult."""
+        result = ListDatabasesResult(
+            databases=[],
+            region='us-east-1',
+            total_count=0,
+            insights_enabled_count=0,
+        )
+        assert result.databases == []
+        assert result.region == 'us-east-1'
+        assert result.total_count == 0
+        assert result.insights_enabled_count == 0
+
+    def test_list_databases_result_with_instances(self):
+        """Test creating a ListDatabasesResult with database instances."""
+        db = DatabaseInstance(
+            dbi_resource_id='db-TEST123',
+            db_instance_identifier='test-db',
+            engine='postgres',
+            engine_version='15.4',
+            insights_enabled=True,
+            insights_retention_days=7,
+            instance_class='db.t3.medium',
+            region='us-east-1',
+        )
+        result = ListDatabasesResult(
+            databases=[db],
+            region='us-east-1',
+            total_count=1,
+            insights_enabled_count=1,
+        )
+        assert len(result.databases) == 1
+        assert result.databases[0].db_instance_identifier == 'test-db'
+        assert result.total_count == 1
+        assert result.insights_enabled_count == 1
+
+    def test_list_databases_result_json_serialization(self):
+        """Test that ListDatabasesResult serializes to valid JSON."""
+        result = ListDatabasesResult(
+            databases=[],
+            region='eu-west-1',
+            total_count=0,
+            insights_enabled_count=0,
+        )
+        json_str = result.model_dump_json()
+        parsed = json.loads(json_str)
+        assert parsed['region'] == 'eu-west-1'
+        assert parsed['total_count'] == 0
+        assert parsed['insights_enabled_count'] == 0
+        assert parsed['databases'] == []
 

@@ -15,42 +15,8 @@
 """Data models for Database Insights (Performance Insights) MCP tools."""
 
 from datetime import datetime
-from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
-
-
-class DatabaseEngine(str, Enum):
-    """Supported database engines for Performance Insights."""
-
-    AURORA_MYSQL = 'aurora-mysql'
-    AURORA_POSTGRESQL = 'aurora-postgresql'
-    MYSQL = 'mysql'
-    POSTGRESQL = 'postgres'
-    MARIADB = 'mariadb'
-    SQLSERVER = 'sqlserver'
-    ORACLE = 'oracle'
-    DOCDB = 'docdb'
-
-
-class MetricType(str, Enum):
-    """Types of Performance Insights metrics."""
-
-    DB_LOAD = 'db.load'
-    DB_LOAD_CPU = 'db.load.cpu'
-    DB_LOAD_IO = 'db.load.io'
-    DB_LOAD_WAIT = 'db.load.wait'
-
-
-class GroupByDimension(str, Enum):
-    """Dimensions to group database load by."""
-
-    SQL = 'db.sql'
-    WAIT_EVENT = 'db.wait_event'
-    USER = 'db.user'
-    HOST = 'db.host'
-    APPLICATION = 'db.application'
-    SESSION_TYPE = 'db.session_type'
+from typing import List, Optional
 
 
 class DatabaseInstance(BaseModel):
@@ -58,7 +24,7 @@ class DatabaseInstance(BaseModel):
 
     dbi_resource_id: str = Field(..., description='The immutable database resource identifier')
     db_instance_identifier: str = Field(..., description='The user-assigned database identifier')
-    engine: DatabaseEngine = Field(..., description='The database engine type')
+    engine: str = Field(..., description='The database engine type (e.g., mysql, postgres, aurora-mysql)')
     engine_version: str = Field(..., description='The database engine version')
     insights_enabled: bool = Field(..., description='Whether Performance Insights is enabled')
     insights_retention_days: Optional[int] = Field(
@@ -95,9 +61,6 @@ class DatabaseLoadResult(BaseModel):
     period_seconds: int = Field(..., description='The period between data points in seconds')
     db_load_avg: float = Field(..., description='Average database load (AAS) over the period')
     db_load_max: float = Field(..., description='Maximum database load (AAS) over the period')
-    vcpu_count: Optional[int] = Field(
-        None, description='Number of vCPUs (load > vCPUs indicates contention)'
-    )
     top_dimensions: List[DimensionKeyDetail] = Field(
         default_factory=list, description='Top contributors by the requested dimension'
     )
@@ -107,13 +70,19 @@ class DatabaseLoadResult(BaseModel):
 
 
 class ListDatabasesResult(BaseModel):
-    """Result of listing databases with Performance Insights enabled."""
+    """Result of listing databases with Performance Insights enabled.
+
+    Note: `total_count` is the total number of database instances in the region
+    prior to filtering by `include_disabled`.
+    """
 
     databases: List[DatabaseInstance] = Field(
         default_factory=list, description='List of databases with their insights status'
     )
     region: str = Field(..., description='AWS region queried')
-    total_count: int = Field(..., description='Total number of databases found')
+    total_count: int = Field(
+        ..., description='Total number of databases in the region (unfiltered by include_disabled)'
+    )
     insights_enabled_count: int = Field(
         ..., description='Number of databases with Performance Insights enabled'
     )
