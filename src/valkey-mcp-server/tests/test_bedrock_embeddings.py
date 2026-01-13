@@ -290,3 +290,61 @@ class TestBedrockEmbeddingsMocked:
         assert embedding == mock_embedding
         assert len(embedding) == 3072
         mock_bedrock_client.invoke_model.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_model_id_property_error(self, mocker):
+        """Test model_id property getter when not set."""
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {}
+
+        mock_session = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+
+        import boto3
+
+        boto3.Session = MagicMock(return_value=mock_session)
+
+        from awslabs.valkey_mcp_server.embeddings.providers import BedrockEmbeddings
+
+        provider = BedrockEmbeddings.__new__(BedrockEmbeddings)
+        provider._model_id = None
+
+        with pytest.raises(ValueError, match='Model ID not set'):
+            _ = provider.model_id
+
+    @pytest.mark.asyncio
+    async def test_titan_model_mocked(self, mocker):
+        """Test Titan model path with mocked boto3."""
+        mock_embedding = [0.1] * 1536  # Titan default dimensions
+        mock_body = MagicMock()
+        mock_body.read.return_value = json.dumps({'embedding': mock_embedding}).encode()
+        mock_response = {'body': mock_body}
+
+        mock_bedrock_client = MagicMock()
+        mock_bedrock_client.invoke_model.return_value = mock_response
+
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {}
+
+        mock_session = MagicMock()
+
+        def client_side_effect(service, **kwargs):
+            if service == 'bedrock-runtime':
+                return mock_bedrock_client
+            elif service == 'sts':
+                return mock_sts_client
+            return MagicMock()
+
+        mock_session.client.side_effect = client_side_effect
+
+        import boto3
+
+        boto3.Session = MagicMock(return_value=mock_session)
+
+        provider = await acquire_bedrock_embeddings(model_id='amazon.titan-embed-text-v1')
+
+        embedding = await provider.generate_embedding('test')
+
+        assert embedding == mock_embedding
+        assert len(embedding) == 1536
+        mock_bedrock_client.invoke_model.assert_called_once()
