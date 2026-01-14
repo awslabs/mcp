@@ -17,6 +17,7 @@
 import json
 import os
 from awslabs.aws_api_mcp_server.server import call_aws
+from awslabs.dynamodb_mcp_server.cdk_generator.generator import CdkGenerator
 from awslabs.dynamodb_mcp_server.common import handle_exceptions
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.db_analyzer.plugin_registry import PluginRegistry
@@ -73,6 +74,13 @@ Use the `dynamodb_data_model_validation` tool to validate your DynamoDB data mod
 - Tests all defined access patterns by executing their AWS CLI implementations
 - Saves detailed validation results to dynamodb_model_validation.json with pattern responses
 - Transforms results to markdown format for comprehensive review
+
+Use the `generate_resources` tool to generate resources from your DynamoDB data model:
+- Supported resource types: 'cdk' for CDK app generation
+- Generates a standalone CDK app for deploying DynamoDB tables and GSIs
+- The CDK app reads dynamodb_data_model.json to create tables with proper configuration
+- Use after completing data model validation
+- Creates a 'cdk' directory with a ready-to-deploy CDK project
 """
 
 
@@ -346,6 +354,9 @@ async def dynamodb_data_model_validation(
        - Saves detailed validation results to dynamodb_model_validation.json
        - Transforms results to markdown format for comprehensive review
 
+    WHAT TO DO ON SUCCESSFUL COMPLETION:
+    - You MUST ask the user if they want to call the `generate_resources` tool to create the CDK app to provision the DynamoDB data model tables and GSIs.
+
     Args:
         workspace_dir: Absolute path of the workspace directory
 
@@ -404,6 +415,58 @@ async def dynamodb_data_model_validation(
     except Exception as e:
         logger.error(f'Data model validation failed: {e}')
         return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
+
+
+@app.tool()
+@handle_exceptions
+async def generate_resources(
+    dynamodb_data_model_json_file: str = Field(
+        description='Absolute path to the dynamodb_data_model.json file. Resources will be generated in the same directory.'
+    ),
+    resource_type: str = Field(description="Type of resource to generate: 'cdk' for CDK app"),
+) -> str:
+    """Generates resources from a DynamoDB data model JSON file (dynamodb_data_model.json).
+
+    This tool generates various resources based on the provided `dynamodb_data_model.json` file.
+    Currently supports generating a CDK app for deploying DynamoDB tables.
+
+    Supported resource types:
+    - cdk: CDK app for deploying DynamoDB tables.
+           Generates a CDK app that provisions DynamoDB tables and GSIs as defined in `dynamodb_data_model.json`.
+
+    WHEN TO USE:
+    - After completing data model validation with `dynamodb_data_model_validation` tool
+    - When user asks to "create", "deploy", "test", or "provision" their DynamoDB data model or tables
+    - To create the DynamoDB tables and GSIs using a CDK app
+
+    WHEN NOT TO USE:
+    - Before completing data model validation with `dynamodb_data_model_validation` tool
+    - Before having created the `dynamodb_data_model.json` file
+
+    WHAT TO DO ON SUCCESSFUL COMPLETION:
+    - You MUST ask the user if they want to use the CDK app to create the DynamoDB data model tables and GSIs.
+
+    Args:
+        dynamodb_data_model_json_file: Absolute path to the `dynamodb_data_model.json` file
+        resource_type: Type of resource to generate, possible values: cdk
+
+    Returns:
+        Success message with the destination path, or error message if generation fails
+    """
+    if resource_type == 'cdk':
+        logger.info(
+            f'Generating resources. resource_type: {resource_type}, dynamodb_data_model_json_file: {dynamodb_data_model_json_file}'
+        )
+        json_path = Path(dynamodb_data_model_json_file)
+        generator = CdkGenerator()
+        generator.generate(json_path)
+
+        # Generator returns None on success, so we construct the success message
+        cdk_dir = json_path.parent / 'cdk'
+        logger.info(f'CDK project generated successfully. cdk_dir: {cdk_dir}')
+        return f"Successfully generated CDK project at '{cdk_dir}'"
+    else:
+        return f"Error: Unknown resource type '{resource_type}'. Supported types: cdk"
 
 
 def main():

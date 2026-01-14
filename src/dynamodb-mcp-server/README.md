@@ -18,6 +18,10 @@ The DynamoDB MCP server provides three tools for data modeling and validation:
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
+- `generate_resources` - Generates various resources from the DynamoDB data model JSON file (dynamodb_data_model.json). Currently only the `cdk` resource type is supported. Passing `cdk` as `resource_type` parameter generates a CDK app to deploy DynamoDB tables. The CDK app reads the dynamodb_data_model.json to create tables with proper configuration.
+
+  **Example invocation:** "Generate the resources to deploy my DynamoDB data model using CDK"
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
