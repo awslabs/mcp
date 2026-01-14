@@ -39,14 +39,16 @@ from typing import Any, Dict, List, Optional, Tuple
 class HealthOmicsSearchEngine:
     """Search engine for genomics files in HealthOmics sequence and reference stores."""
 
-    def __init__(self, config: SearchConfig):
+    def __init__(self, config: SearchConfig, region: Optional[str] = None):
         """Initialize the HealthOmics search engine.
 
         Args:
             config: Search configuration containing settings
+            region: Optional AWS region override
         """
         self.config = config
-        self.omics_client = get_omics_client()
+        self.region = region
+        self.omics_client = get_omics_client(region=region)
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
 

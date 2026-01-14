@@ -89,6 +89,10 @@ async def analyze_run_performance(
         ...,
         description='List of run IDs to analyze for resource optimization. Can be provided as a JSON array string like ["run1", "run2"] or as a comma-separated string like "run1,run2"',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> str:
     """Analyze AWS HealthOmics workflow run performance and provide optimization recommendations.
 
@@ -112,6 +116,7 @@ async def analyze_run_performance(
     Args:
         ctx: MCP request context for error reporting
         run_ids: List of run IDs to analyze for optimization
+        region: Optional AWS region override
 
     Returns:
         Formatted analysis string with structured manifest data and optimization recommendations
@@ -122,7 +127,7 @@ async def analyze_run_performance(
         logger.info(f'Analyzing performance for runs {normalized_run_ids}')
 
         # Get the structured analysis data
-        analysis_data = await _get_run_analysis_data(normalized_run_ids)
+        analysis_data = await _get_run_analysis_data(normalized_run_ids, region=region)
 
         if not analysis_data or not analysis_data.get('runs'):
             error_msg = f"""
@@ -347,11 +352,13 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any]) -> str:
         return f'Error generating analysis report: {str(e)}'
 
 
-async def _get_run_analysis_data(run_ids: List[str]) -> Dict[str, Any]:
+async def _get_run_analysis_data(
+    run_ids: List[str], region: Optional[str] = None
+) -> Dict[str, Any]:
     """Get structured analysis data for the specified runs."""
     try:
         # Get centralized omics client
-        omics_client = get_omics_client()
+        omics_client = get_omics_client(region=region)
 
         analysis_results = {
             'runs': [],

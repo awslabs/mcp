@@ -70,6 +70,10 @@ async def search_genomics_files(
         None,
         description='Optional list of additional S3 bucket paths to search (e.g., ["s3://bucket-name/prefix/"]). These buckets will be searched in addition to any configured buckets, allowing you to search buckets that are not part of the standard configuration. Maximum 50 bucket paths.',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -88,6 +92,7 @@ async def search_genomics_files(
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
         adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
+        region: Optional AWS region override
 
     Returns:
         Comprehensive dictionary containing:
@@ -166,7 +171,7 @@ async def search_genomics_files(
 
         # Initialize search orchestrator from environment configuration
         try:
-            orchestrator = GenomicsSearchOrchestrator.from_environment()
+            orchestrator = GenomicsSearchOrchestrator.from_environment(region=region)
         except ValueError as e:
             error_message = f'Configuration error: {str(e)}'
             logger.error(error_message)

@@ -45,6 +45,10 @@ async def list_workflows(
         None,
         description='Token for pagination from a previous response',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """List available HealthOmics workflows.
 
@@ -52,11 +56,12 @@ async def list_workflows(
         ctx: MCP context for error reporting
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params: dict[str, Any] = {'maxResults': max_results}
     if next_token:
@@ -139,6 +144,10 @@ async def create_workflow(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
@@ -152,6 +161,7 @@ async def create_workflow(
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow information
@@ -167,7 +177,7 @@ async def create_workflow(
     # Validate path_to_main parameter
     validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
 
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params: Dict[str, Any] = {
         'name': name,
@@ -226,6 +236,10 @@ async def get_workflow(
         False,
         description='Whether to include a presigned URL for downloading the workflow definition ZIP file',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific workflow.
 
@@ -233,12 +247,13 @@ async def get_workflow(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow to retrieve
         export_definition: Whether to include a presigned URL for downloading the workflow definition ZIP file
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow details. When export_definition=True, includes a 'definition'
         field with a presigned URL for downloading the workflow definition ZIP file.
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params: dict[str, Any] = {'id': workflow_id}
 
@@ -336,6 +351,10 @@ async def create_workflow_version(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -352,6 +371,7 @@ async def create_workflow_version(
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing the created workflow version information
@@ -375,7 +395,7 @@ async def create_workflow_version(
             await ctx.error(error_message)
             raise ValueError(error_message)
 
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params: Dict[str, Any] = {
         'workflowId': workflow_id,
@@ -446,6 +466,10 @@ async def list_workflow_versions(
         None,
         description='Token for pagination from a previous response',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """List versions of a workflow.
 
@@ -454,11 +478,12 @@ async def list_workflow_versions(
         workflow_id: ID of the workflow
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow version information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params: Dict[str, Any] = {
         'workflowId': workflow_id,

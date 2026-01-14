@@ -159,6 +159,10 @@ async def start_run(
         None,
         description='Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Start a workflow run.
 
@@ -179,6 +183,7 @@ async def start_run(
         storage_capacity: Storage capacity in GB (required for STATIC)
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing the run information
@@ -221,7 +226,7 @@ async def start_run(
         await ctx.error(error_message)
         raise
 
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params = {
         'workflowId': workflow_id,
@@ -292,6 +297,10 @@ async def list_runs(
         None,
         description='Filter for runs created before this timestamp (ISO format)',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """List workflow runs.
 
@@ -302,6 +311,7 @@ async def list_runs(
         status: Filter by run status
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing run information and next token if available
@@ -332,7 +342,7 @@ async def list_runs(
             await ctx.error(error_message)
             raise ValueError(error_message)
 
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     # Determine if we need client-side filtering
     needs_filtering = created_after or created_before
@@ -453,12 +463,17 @@ async def get_run(
         ...,
         description='ID of the run to retrieve',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific run.
 
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the run to retrieve
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing run details including:
@@ -470,7 +485,7 @@ async def get_run(
         - Run parameters and metadata
         - Status messages and failure reasons (if applicable)
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     try:
         response = client.get_run(id=run_id)
@@ -544,6 +559,10 @@ async def list_run_tasks(
         None,
         description='Filter by task status',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """List tasks for a specific run.
 
@@ -553,11 +572,12 @@ async def list_run_tasks(
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
         status: Filter by task status
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing task information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     params = {
         'id': run_id,
@@ -619,6 +639,10 @@ async def get_run_task(
         ...,
         description='ID of the task',
     ),
+    region: Optional[str] = Field(
+        None,
+        description='AWS region for the operation (defaults to AWS_REGION env var)',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific task.
 
@@ -626,11 +650,12 @@ async def get_run_task(
         ctx: MCP context for error reporting
         run_id: ID of the run
         task_id: ID of the task
+        region: Optional AWS region override
 
     Returns:
         Dictionary containing task details including imageDetails when available
     """
-    client = get_omics_client()
+    client = get_omics_client(region=region)
 
     try:
         response = client.get_run_task(id=run_id, taskId=task_id)
