@@ -2060,7 +2060,7 @@ class TestNormalizeRunIdsEdgeCases:
         run_ids = 12345
 
         # Act
-        result = _normalize_run_ids(run_ids)
+        result = _normalize_run_ids(run_ids)  # type: ignore[arg-type]
 
         # Assert
         assert result == ['12345']
@@ -2076,7 +2076,7 @@ class TestNormalizeRunIdsEdgeCases:
         run_ids = CustomObject()
 
         # Act
-        result = _normalize_run_ids(run_ids)
+        result = _normalize_run_ids(run_ids)  # type: ignore[arg-type]
 
         # Assert
         assert result == ['custom-run-id']
