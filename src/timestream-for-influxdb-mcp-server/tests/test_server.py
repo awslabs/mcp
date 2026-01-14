@@ -27,6 +27,10 @@ from awslabs.timestream_for_influxdb_mcp_server.server import (
     get_db_parameter_group,
     get_influxdb_client,
     get_timestream_influxdb_client,
+    influxdb_create_bucket,
+    influxdb_create_org,
+    influxdb_list_buckets,
+    influxdb_list_orgs,
     influxdb_query,
     influxdb_write_line_protocol,
     influxdb_write_points,
@@ -1642,7 +1646,8 @@ class TestInfluxDBOperations:
         mock_record1.get_field.return_value = 'value'
         mock_record1.get_value.return_value = 25.3
         mock_record1.get_time.return_value = None
-        mock_record1.values = {'tags': {'location': 'Prague'}}
+        # Mock values as InfluxDB actually returns them - tags are top-level keys
+        mock_record1.values = {'location': 'Prague', '_measurement': 'temperature', '_field': 'value'}
 
         mock_table = MagicMock()
         mock_table.records = [mock_record1]
@@ -1694,3 +1699,311 @@ class TestInfluxDBOperations:
         assert 'Invalid Flux query syntax' in result['message']
         mock_get_client.assert_called_once()
         mock_client.query_api.assert_called_once()
+
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_list_buckets_happy_path(self, mock_get_client):
+        """Test influxdb_list_buckets function with valid parameters."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_buckets_api = MagicMock()
+        mock_client.buckets_api.return_value = mock_buckets_api
+
+        # Create mock bucket
+        mock_bucket = MagicMock()
+        mock_bucket.id = 'bucket-123'
+        mock_bucket.name = 'test-bucket'
+        mock_bucket.org_id = 'org-456'
+        mock_bucket.retention_rules = [MagicMock(every_seconds=86400)]
+        mock_bucket.created_at = None
+        mock_bucket.updated_at = None
+
+        mock_buckets_response = MagicMock()
+        mock_buckets_response.buckets = [mock_bucket]
+        mock_buckets_api.find_buckets.return_value = mock_buckets_response
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+
+        # Act
+        result = await influxdb_list_buckets(url=url, token=token, org=org, verify_ssl=True)
+
+        # Assert
+        mock_get_client.assert_called_once()
+        mock_client.buckets_api.assert_called_once()
+        mock_buckets_api.find_buckets.assert_called_once()
+        mock_client.close.assert_called_once()
+        assert result['status'] == 'success'
+        assert len(result['buckets']) == 1
+        assert result['buckets'][0]['id'] == 'bucket-123'
+        assert result['buckets'][0]['name'] == 'test-bucket'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_list_buckets_exception_path(self, mock_get_client):
+        """Test influxdb_list_buckets function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_buckets_api = MagicMock()
+        mock_client.buckets_api.return_value = mock_buckets_api
+        mock_buckets_api.find_buckets.side_effect = Exception('Failed to list buckets')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+
+        # Act
+        result = await influxdb_list_buckets(url=url, token=token, org=org, verify_ssl=True)
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Failed to list buckets' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_bucket_happy_path(self, mock_get_client):
+        """Test influxdb_create_bucket function with valid parameters."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_buckets_api = MagicMock()
+        mock_client.buckets_api.return_value = mock_buckets_api
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+
+        # Mock org lookup
+        mock_org = MagicMock()
+        mock_org.id = 'org-456'
+        mock_orgs_api.find_organizations.return_value = [mock_org]
+
+        # Mock created bucket
+        mock_bucket = MagicMock()
+        mock_bucket.id = 'bucket-123'
+        mock_bucket.name = 'new-bucket'
+        mock_bucket.org_id = 'org-456'
+        mock_bucket.retention_rules = []
+        mock_bucket.created_at = None
+        mock_buckets_api.create_bucket.return_value = mock_bucket
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+
+        # Act
+        result = await influxdb_create_bucket(
+            bucket_name='new-bucket',
+            url=url,
+            token=token,
+            org=org,
+            retention_seconds=None,
+            description=None,
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        # Assert
+        mock_get_client.assert_called_once()
+        mock_orgs_api.find_organizations.assert_called_once_with(org=org)
+        mock_buckets_api.create_bucket.assert_called_once()
+        mock_client.close.assert_called_once()
+        assert result['status'] == 'success'
+        assert result['bucket']['id'] == 'bucket-123'
+        assert result['bucket']['name'] == 'new-bucket'
+
+    @pytest.mark.asyncio
+    async def test_influxdb_create_bucket_read_only_mode(self):
+        """Test influxdb_create_bucket in read-only mode."""
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await influxdb_create_bucket(
+                bucket_name='new-bucket',
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                retention_seconds=None,
+                description=None,
+                tool_write_mode=False,
+            )
+
+        assert (
+            'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
+            in str(excinfo.value)
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_bucket_exception_path(self, mock_get_client):
+        """Test influxdb_create_bucket function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+        mock_orgs_api.find_organizations.side_effect = Exception('Organization not found')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+
+        # Act
+        result = await influxdb_create_bucket(
+            bucket_name='new-bucket',
+            url=url,
+            token=token,
+            org=org,
+            retention_seconds=None,
+            description=None,
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Organization not found' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_list_orgs_happy_path(self, mock_get_client):
+        """Test influxdb_list_orgs function with valid parameters."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+
+        # Create mock org
+        mock_org = MagicMock()
+        mock_org.id = 'org-123'
+        mock_org.name = 'test-org'
+        mock_org.description = 'Test organization'
+        mock_org.created_at = None
+        mock_org.updated_at = None
+        mock_orgs_api.find_organizations.return_value = [mock_org]
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+
+        # Act
+        result = await influxdb_list_orgs(url=url, token=token, verify_ssl=True)
+
+        # Assert
+        mock_get_client.assert_called_once()
+        mock_client.organizations_api.assert_called_once()
+        mock_orgs_api.find_organizations.assert_called_once()
+        mock_client.close.assert_called_once()
+        assert result['status'] == 'success'
+        assert len(result['organizations']) == 1
+        assert result['organizations'][0]['id'] == 'org-123'
+        assert result['organizations'][0]['name'] == 'test-org'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_list_orgs_exception_path(self, mock_get_client):
+        """Test influxdb_list_orgs function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+        mock_orgs_api.find_organizations.side_effect = Exception('Failed to list organizations')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+
+        # Act
+        result = await influxdb_list_orgs(url=url, token=token, verify_ssl=True)
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Failed to list organizations' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_org_happy_path(self, mock_get_client):
+        """Test influxdb_create_org function with valid parameters."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+
+        # Mock created org
+        mock_org = MagicMock()
+        mock_org.id = 'org-123'
+        mock_org.name = 'new-org'
+        mock_org.description = 'New organization'
+        mock_org.created_at = None
+        mock_orgs_api.create_organization.return_value = mock_org
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+
+        # Act
+        result = await influxdb_create_org(
+            org_name='new-org',
+            url=url,
+            token=token,
+            description='New organization',
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        # Assert
+        mock_get_client.assert_called_once()
+        mock_orgs_api.create_organization.assert_called_once_with(
+            name='new-org', description='New organization'
+        )
+        mock_client.close.assert_called_once()
+        assert result['status'] == 'success'
+        assert result['organization']['id'] == 'org-123'
+        assert result['organization']['name'] == 'new-org'
+
+    @pytest.mark.asyncio
+    async def test_influxdb_create_org_read_only_mode(self):
+        """Test influxdb_create_org in read-only mode."""
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await influxdb_create_org(
+                org_name='new-org',
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                description=None,
+                tool_write_mode=False,
+            )
+
+        assert (
+            'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
+            in str(excinfo.value)
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_org_exception_path(self, mock_get_client):
+        """Test influxdb_create_org function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+        mock_orgs_api.create_organization.side_effect = Exception('Organization already exists')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+
+        # Act
+        result = await influxdb_create_org(
+            org_name='existing-org',
+            url=url,
+            token=token,
+            description=None,
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Organization already exists' in result['message']
