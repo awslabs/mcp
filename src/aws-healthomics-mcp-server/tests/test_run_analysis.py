@@ -1499,6 +1499,163 @@ class TestCrossRunAggregationInTaskAggregator:
         assert row['totalEstimatedUSD'] == pytest.approx(0.22)
 
 
+class TestParseManifestStorageCost:
+    """Test storage cost calculation in _parse_manifest_for_analysis."""
+
+    @pytest.mark.asyncio
+    async def test_parse_manifest_with_storage_cost_calculation(self):
+        """Test parsing manifest with storage cost calculation (Requirements 11.1, 11.2, 11.3, 11.4)."""
+        from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyzer
+        from awslabs.aws_healthomics_mcp_server.tools.run_analysis import (
+            _parse_manifest_for_analysis,
+        )
+
+        # Arrange
+        run_id = 'test-run-123'
+        run_response = {
+            'name': 'test-workflow-run',
+            'status': 'COMPLETED',
+            'workflowId': 'workflow-123',
+            'creationTime': datetime(2023, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            'startTime': datetime(2023, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
+        }
+        manifest_logs = {
+            'events': [
+                {
+                    'message': json.dumps(
+                        {
+                            'workflow': 'test-workflow',
+                            'metrics': {'runningSeconds': 3600},
+                            'name': 'test-workflow-run',
+                            'arn': 'arn:aws:omics:us-east-1:123456789012:run/test-run-123',
+                            'storageType': 'DYNAMIC',
+                            'storageCapacity': 100,
+                        }
+                    )
+                },
+                {
+                    'message': json.dumps(
+                        {
+                            'name': 'task1',
+                            'cpus': 4,
+                            'memory': 8,
+                            'instanceType': 'omics.c.large',
+                            'metrics': {
+                                'cpusReserved': 4,
+                                'cpusAverage': 3.2,
+                                'cpusMaximum': 3.8,
+                                'memoryReservedGiB': 8,
+                                'memoryAverageGiB': 6.4,
+                                'memoryMaximumGiB': 7.2,
+                                'runningSeconds': 1800,
+                            },
+                        }
+                    )
+                },
+            ]
+        }
+
+        cost_analyzer = CostAnalyzer(region='us-east-1')
+
+        # Act
+        result = await _parse_manifest_for_analysis(
+            run_id, run_response, manifest_logs, cost_analyzer=cost_analyzer
+        )
+
+        # Assert
+        assert result is not None
+        assert 'summary' in result
+        assert 'storageCostUSD' in result['summary']
+        assert result['summary']['storageCostUSD'] >= 0.0
+        assert 'totalEstimatedUSD' in result['summary']
+        # Total should include both task and storage costs
+        assert result['summary']['totalEstimatedUSD'] >= result['summary']['storageCostUSD']
+
+    @pytest.mark.asyncio
+    async def test_parse_manifest_with_json_decode_error(self):
+        """Test parsing manifest handles JSON decode errors gracefully."""
+        from awslabs.aws_healthomics_mcp_server.tools.run_analysis import (
+            _parse_manifest_for_analysis,
+        )
+
+        # Arrange
+        run_id = 'test-run-123'
+        run_response = {'name': 'test-run', 'status': 'COMPLETED'}
+        manifest_logs = {
+            'events': [
+                {'message': 'invalid json'},
+                {'message': '{"incomplete": json'},
+                {
+                    'message': json.dumps(
+                        {
+                            'name': 'task1',
+                            'cpus': 2,
+                            'memory': 4,
+                            'instanceType': 'omics.c.small',
+                            'metrics': {
+                                'cpusReserved': 2,
+                                'cpusAverage': 1.5,
+                                'memoryReservedGiB': 4,
+                                'memoryAverageGiB': 3.0,
+                                'runningSeconds': 100,
+                            },
+                        }
+                    )
+                },
+            ]
+        }
+
+        # Act
+        result = await _parse_manifest_for_analysis(run_id, run_response, manifest_logs)
+
+        # Assert
+        assert result is not None
+        # Should have parsed the valid JSON message
+        assert len(result['taskMetrics']) == 1
+        assert result['taskMetrics'][0]['taskName'] == 'task1'
+
+    @pytest.mark.asyncio
+    async def test_parse_manifest_with_exception_in_message_parsing(self):
+        """Test parsing manifest handles exceptions in message parsing."""
+        from awslabs.aws_healthomics_mcp_server.tools.run_analysis import (
+            _parse_manifest_for_analysis,
+        )
+
+        # Arrange
+        run_id = 'test-run-123'
+        run_response = {'name': 'test-run', 'status': 'COMPLETED'}
+        manifest_logs = {
+            'events': [
+                {
+                    'message': json.dumps(
+                        {
+                            'name': 'task1',
+                            'cpus': 2,
+                            'memory': 4,
+                            'instanceType': 'omics.c.small',
+                            'metrics': {
+                                'cpusReserved': 2,
+                                'cpusAverage': 1.5,
+                                'memoryReservedGiB': 4,
+                                'memoryAverageGiB': 3.0,
+                                'runningSeconds': 100,
+                            },
+                        }
+                    )
+                },
+                {'message': 'plain text'},
+            ]
+        }
+
+        # Act
+        result = await _parse_manifest_for_analysis(run_id, run_response, manifest_logs)
+
+        # Assert
+        assert result is not None
+        assert len(result['taskMetrics']) == 1
+
+
 class TestGenerateAnalysisReportCrossRunComparison:
     """Test cross-run comparison in _generate_analysis_report."""
 
@@ -1723,3 +1880,344 @@ class TestGenerateAnalysisReportCrossRunComparison:
         assert isinstance(result, str)
         assert 'Cross-Run Summary Comparison' not in result
         assert 'Cross-Run Aggregate Metrics' not in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_with_high_priority_savings(self):
+        """Test generating analysis report with high-priority savings tasks."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 2.5,
+                        'totalActualMemoryUsageGiB': 5.0,
+                        'overallCpuEfficiency': 0.625,
+                        'overallMemoryEfficiency': 0.625,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'expensive-task',
+                            'instanceType': 'omics.c.xlarge',
+                            'estimatedUSD': 1.00,
+                            'potentialSavingsUSD': 0.15,
+                            'recommendedInstanceType': 'omics.c.large',
+                            'isHighPrioritySaving': True,
+                            'runningSeconds': 3600,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'High-Priority Savings Opportunities' in result
+        assert 'expensive-task' in result
+        assert 'Estimated Cost: $1.0000' in result
+        assert 'Potential Savings: $0.1500' in result
+        assert 'omics.c.xlarge' in result
+        assert 'omics.c.large' in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_with_aggregated_metrics(self):
+        """Test generating analysis report with aggregated task metrics."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 2,
+                        'totalAllocatedCpus': 8.0,
+                        'totalAllocatedMemoryGiB': 16.0,
+                        'totalActualCpuUsage': 5.0,
+                        'totalActualMemoryUsageGiB': 10.0,
+                        'overallCpuEfficiency': 0.625,
+                        'overallMemoryEfficiency': 0.625,
+                    },
+                    'taskMetrics': [],
+                    'aggregatedTaskMetrics': [
+                        {
+                            'baseTaskName': 'alignReads',
+                            'count': 2,
+                            'meanRunningSeconds': 100.0,
+                            'maximumRunningSeconds': 120.0,
+                            'maxObservedCpus': 3.0,
+                            'maxObservedMemoryGiB': 6.0,
+                            'totalEstimatedUSD': 0.25,
+                            'recommendedInstanceType': 'omics.c.large',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'Aggregated Task Metrics (Scattered Tasks)' in result
+        assert 'alignReads' in result
+        assert '(2 instances)' in result
+        assert 'Mean Runtime: 100.00 seconds' in result
+        assert 'Max Runtime: 120.00 seconds' in result
+        assert 'Max CPU Usage: 3.00 CPUs' in result
+        assert 'Max Memory Usage: 6.00 GiB' in result
+        assert 'Total Cost: $0.2500' in result
+        assert 'Recommended Instance: omics.c.large' in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_with_detailed_json(self):
+        """Test generating analysis report with detailed JSON section."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 2.5,
+                        'totalActualMemoryUsageGiB': 5.0,
+                        'overallCpuEfficiency': 0.625,
+                        'overallMemoryEfficiency': 0.625,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'allocatedCpus': 4,
+                            'allocatedMemoryGiB': 8,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=True)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'Detailed Task Metrics (JSON)' in result
+        assert '```json' in result
+        assert 'task1' in result
+
+
+class TestNormalizeRunIdsEdgeCases:
+    """Test edge cases for _normalize_run_ids function."""
+
+    def test_normalize_run_ids_fallback_with_integer(self):
+        """Test normalizing run IDs with integer input (fallback case)."""
+        # Arrange
+        run_ids = 12345
+
+        # Act
+        result = _normalize_run_ids(run_ids)
+
+        # Assert
+        assert result == ['12345']
+
+    def test_normalize_run_ids_fallback_with_object(self):
+        """Test normalizing run IDs with object input (fallback case)."""
+
+        # Arrange
+        class CustomObject:
+            def __str__(self):
+                return 'custom-run-id'
+
+        run_ids = CustomObject()
+
+        # Act
+        result = _normalize_run_ids(run_ids)
+
+        # Assert
+        assert result == ['custom-run-id']
+
+
+class TestGenerateAnalysisReportOverProvisionedTasks:
+    """Test report generation for over-provisioned tasks with recommendations."""
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_over_provisioned_with_recommendation(self):
+        """Test generating analysis report for over-provisioned task with recommendation."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 8.0,
+                        'totalAllocatedMemoryGiB': 16.0,
+                        'totalActualCpuUsage': 2.0,
+                        'totalActualMemoryUsageGiB': 4.0,
+                        'overallCpuEfficiency': 0.25,
+                        'overallMemoryEfficiency': 0.25,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'over-provisioned-task',
+                            'instanceType': 'omics.c.xlarge',
+                            'isOverProvisioned': True,
+                            'wastedCpus': 6.0,
+                            'wastedMemoryGiB': 12.0,
+                            'cpuEfficiencyRatio': 0.25,
+                            'memoryEfficiencyRatio': 0.25,
+                            'runningSeconds': 3600,
+                            'estimatedUSD': 0.50,
+                            'recommendedInstanceType': 'omics.c.small',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'Over-Provisioned Tasks (Wasting Resources)' in result
+        assert 'over-provisioned-task' in result
+        assert 'Recommended Instance: omics.c.small' in result
+
+
+class TestParseManifestExceptionHandling:
+    """Test exception handling in _parse_manifest_for_analysis."""
+
+    @pytest.mark.asyncio
+    async def test_parse_manifest_with_general_exception_in_event_loop(self):
+        """Test parsing manifest handles general exceptions in event processing."""
+        # Arrange
+        run_id = 'test-run-123'
+        run_response = {'name': 'test-run', 'status': 'COMPLETED'}
+
+        # Create a message that will cause an exception during parsing
+        # but not a JSON decode error
+        manifest_logs = {
+            'events': [
+                {
+                    'message': json.dumps(
+                        {
+                            'name': 'task1',
+                            'cpus': 2,
+                            'memory': 4,
+                            'instanceType': 'omics.c.small',
+                            'metrics': {
+                                'cpusReserved': 2,
+                                'cpusAverage': 1.5,
+                                'memoryReservedGiB': 4,
+                                'memoryAverageGiB': 3.0,
+                                'runningSeconds': 100,
+                            },
+                        }
+                    )
+                },
+            ]
+        }
+
+        # Act
+        result = await _parse_manifest_for_analysis(run_id, run_response, manifest_logs)
+
+        # Assert
+        assert result is not None
+        assert len(result['taskMetrics']) == 1
+
+
+class TestExtractTaskMetricsWithCostAnalyzer:
+    """Test _extract_task_metrics_from_manifest with cost analyzer integration."""
+
+    def test_extract_task_metrics_with_cost_analyzer_none_result(self):
+        """Test extracting task metrics when cost analyzer returns None."""
+        from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyzer
+        from unittest.mock import MagicMock
+
+        # Arrange
+        task_data = {
+            'name': 'test-task',
+            'cpus': 4,
+            'memory': 8,
+            'instanceType': 'omics.c.large',
+            'metrics': {
+                'cpusReserved': 4,
+                'cpusAverage': 3.2,
+                'cpusMaximum': 3.8,
+                'memoryReservedGiB': 8,
+                'memoryAverageGiB': 6.4,
+                'memoryMaximumGiB': 7.2,
+                'runningSeconds': 1800,
+            },
+        }
+
+        # Mock cost analyzer to return None
+        cost_analyzer = MagicMock(spec=CostAnalyzer)
+        cost_analyzer.calculate_task_cost.return_value = None
+
+        # Act
+        result = _extract_task_metrics_from_manifest(task_data, cost_analyzer=cost_analyzer)
+
+        # Assert
+        assert result is not None
+        assert result['estimatedUSD'] == 0.0
+        assert result['minimumUSD'] == 0.0
