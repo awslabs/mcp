@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.40.5",
+    "jinja2>=3.1.0",
     "loguru==0.7.3",
     "mcp[cli]==1.23.0",
     "psutil==7.1.1",
@@ -137,7 +138,9 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not integration and not live'"
 markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]
