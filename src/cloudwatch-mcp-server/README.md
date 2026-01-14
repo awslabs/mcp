@@ -47,6 +47,13 @@ Database Insights - Analyzes RDS and Aurora database performance using Performan
 ### Tools for Database Insights (Performance Insights)
 * `list-databases-with-insights` - Lists RDS and Aurora databases with their Performance Insights status
 * `get-database-load-metrics` - Retrieves database load metrics grouped by SQL, wait events, users, or hosts
+* `get-database-top-sql` - Gets the top SQL statements by database load during a time window
+* `analyze-database-incident` - Comprehensive analysis of a database performance incident with recommendations
+* `get-sql-details` - Gets full SQL text for a specific SQL ID
+* `get-database-counters` - Gets OS-level counter metrics (CPU, memory, I/O) from Performance Insights
+* `get-wait-event-breakdown` - Gets detailed wait event breakdown with interpretations
+* `compare-database-periods` - Compares database load between two time periods to identify changes
+* `get-database-resource-info` - Gets database instance resource information (vCPUs, memory, storage)
 
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
@@ -64,6 +71,8 @@ Database Insights - Analyzes RDS and Aurora database performance using Performan
 
 * `rds:DescribeDBInstances`
 * `pi:GetResourceMetrics`
+* `pi:DescribeDimensionKeys`
+* `pi:GetResourceMetadata`
 
 ## Installation
 

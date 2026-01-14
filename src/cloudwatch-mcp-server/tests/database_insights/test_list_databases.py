@@ -92,7 +92,10 @@ class TestToolRegistration:
         db_insights_tools.register(mock_mcp)
 
         # Verify tool decorator was called (once per tool)
-        assert mock_mcp.tool.call_count == 2  # list-databases-with-insights, get-database-load-metrics
+        # Tools: list-databases-with-insights, get-database-load-metrics, get-database-top-sql,
+        # analyze-database-incident, get-sql-details, get-database-counters, get-wait-event-breakdown,
+        # compare-database-periods, get-database-resource-info
+        assert mock_mcp.tool.call_count == 9
 
 
 class TestListDatabasesWithInsightsTool:
