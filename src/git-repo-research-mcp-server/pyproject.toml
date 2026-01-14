@@ -36,10 +36,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-#[tool.uv]
-#override-dependencies = [
-#  "multidict>=6.4.0", # Temporary forced a higher version because 6.3.2 was yanked
-#]
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
+  "multidict>=6.4.0", # Temporary forced a higher version because 6.3.2 was yanked
+]
 
 [project.scripts]
 "awslabs.git-repo-research-mcp-server" = "awslabs.git_repo_research_mcp_server.server:main"

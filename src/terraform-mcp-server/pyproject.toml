@@ -16,6 +16,11 @@ dependencies = [
     "asteval>=1.0.6",  # https://github.com/bridgecrewio/checkov/issues/7194 and https://github.com/bridgecrewio/checkov/pull/7142
 ]
 
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
+]
+
 [project.scripts]
 "awslabs.terraform-mcp-server" = "awslabs.terraform_mcp_server.server:main"
 
