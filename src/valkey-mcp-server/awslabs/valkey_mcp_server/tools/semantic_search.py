@@ -35,7 +35,14 @@ from valkey.exceptions import ValkeyError
 
 
 # Initialize the embeddings provider based on environment configuration
-_embeddings_provider = create_embeddings_provider()
+_embeddings_provider = None
+
+
+def _acquire_embeddings_provider():
+    global _embeddings_provider
+    if _embeddings_provider is None:
+        _embeddings_provider = create_embeddings_provider()
+    return _embeddings_provider
 
 
 def _get_collection_index_name(collection: str) -> str:
@@ -133,7 +140,8 @@ async def add_documents(
             try:
                 # Generate embedding from specified text fields
                 text_to_embed = ' '.join(str(doc.get(field, '')) for field in text_fields)
-                embedding = await _embeddings_provider.generate_embedding(text_to_embed)
+                provider = _acquire_embeddings_provider()
+                embedding = await provider.generate_embedding(text_to_embed)
 
                 # Auto-detect dimensions from first embedding if not specified
                 if actual_dimensions is None:
@@ -178,7 +186,7 @@ async def add_documents(
             'collection': collection,
             'total_documents': total_docs,
             'embedding_dimensions': actual_dimensions,
-            'embeddings_provider': _embeddings_provider.get_provider_name(),
+            'embeddings_provider': _acquire_embeddings_provider().get_provider_name(),
         }
 
     except Exception as e:
@@ -246,7 +254,8 @@ async def update_document(
 
         # Generate new embedding from specified text fields
         text_to_embed = ' '.join(str(document.get(field, '')) for field in text_fields)
-        embedding = await _embeddings_provider.generate_embedding(text_to_embed)
+        provider = _acquire_embeddings_provider()
+        embedding = await provider.generate_embedding(text_to_embed)
         embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
 
         # Update document with new embedding
@@ -260,7 +269,7 @@ async def update_document(
             'collection': collection,
             'document_id': doc_id,
             'embedding_dimensions': len(embedding),
-            'embeddings_provider': _embeddings_provider.get_provider_name(),
+            'embeddings_provider': _acquire_embeddings_provider().get_provider_name(),
         }
 
     except Exception as e:
@@ -381,7 +390,8 @@ async def semantic_search(
 
         # Generate embedding for query
         try:
-            query_embedding = await _embeddings_provider.generate_embedding(query)
+            provider = _acquire_embeddings_provider()
+            query_embedding = await provider.generate_embedding(query)
         except Exception as e:
             return {
                 'status': 'error',
