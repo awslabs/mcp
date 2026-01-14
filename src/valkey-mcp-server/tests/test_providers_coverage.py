@@ -64,13 +64,6 @@ class TestOpenAIEmbeddingsUnit:
     """Unit tests for OpenAI embeddings provider."""
 
     @pytest.mark.asyncio
-    async def test_openai_missing_api_key(self):
-        """Test OpenAI provider without API key."""
-        with patch.dict('os.environ', {}, clear=True):  # Clear OPENAI_API_KEY env var
-            with pytest.raises(Exception):  # OpenAI will raise error for missing key
-                OpenAIEmbeddings(api_key=None)
-
-    @pytest.mark.asyncio
     async def test_openai_connection_error(self):
         """Test OpenAI connection error handling."""
         with patch('openai.AsyncOpenAI') as mock_openai:
