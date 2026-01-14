@@ -15,9 +15,6 @@
 """Analysis engine modules for cost analysis, instance recommendations, and task aggregation."""
 
 from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyzer
-from awslabs.aws_healthomics_mcp_server.analysis.concurrent_tracker import (
-    ConcurrentResourceTracker,
-)
 from awslabs.aws_healthomics_mcp_server.analysis.instance_recommender import InstanceRecommender
 from awslabs.aws_healthomics_mcp_server.analysis.pricing_cache import PricingCache
 from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import TaskAggregator
@@ -25,7 +22,6 @@ from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import TaskAggr
 
 __all__ = [
     'CostAnalyzer',
-    'ConcurrentResourceTracker',
     'InstanceRecommender',
     'PricingCache',
     'TaskAggregator',

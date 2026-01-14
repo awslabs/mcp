@@ -65,7 +65,7 @@ class TestTaskAggregatorNormalizeTaskName:
 
     def test_normalize_none_handling(self):
         """Test None handling (should return None)."""
-        assert TaskAggregator.normalize_task_name(None) is None
+        assert TaskAggregator.normalize_task_name(None) is None  # type: ignore
 
 
 class TestTaskAggregatorAggregateTasks:

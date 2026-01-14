@@ -1010,7 +1010,11 @@ class TestAnalyzeRunPerformance:
         # Assert
         assert result == 'Generated analysis report'
         mock_get_data.assert_called_once()
-        mock_generate_report.assert_called_once_with(mock_analysis_data)
+        # Verify _generate_analysis_report was called with the analysis data
+        # Note: detailed parameter is passed as Field object when called directly
+        mock_generate_report.assert_called_once()
+        call_args = mock_generate_report.call_args
+        assert call_args[0][0] == mock_analysis_data  # First positional arg is analysis_data
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis._get_run_analysis_data')

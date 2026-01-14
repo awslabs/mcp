@@ -85,7 +85,7 @@ class TestTaskCostMetrics:
         """Test TaskCostMetrics requires isHighPrioritySaving field."""
         # isHighPrioritySaving is a required field (no default value)
         with pytest.raises(ValidationError):
-            TaskCostMetrics(
+            TaskCostMetrics(  # type: ignore
                 taskName='task',
                 taskArn='arn',
                 instanceType='omics.m.xlarge',
@@ -96,7 +96,7 @@ class TestTaskCostMetrics:
                 recommendedMemoryGiB=8.0,
                 minimumUSD=0.5,
                 potentialSavingsUSD=0.5,
-                # Missing isHighPrioritySaving
+                # Missing isHighPrioritySaving - intentionally omitted to test validation
             )
 
 

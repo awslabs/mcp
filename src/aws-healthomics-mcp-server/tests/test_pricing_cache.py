@@ -249,11 +249,11 @@ class TestPricingCacheFetchFromApi:
             price = PricingCache._fetch_price_from_api('Run Storage', 'us-east-1')
             assert price == 0.025
 
-            # Verify the filter used usagetype for storage
+            # Verify the filter used resourceType for storage
             call_args = mock_client.get_products.call_args
             filters = call_args.kwargs['Filters']
-            usage_filter = next(f for f in filters if f['Field'] == 'usagetype')
-            assert usage_filter['Value'] == 'Run Storage'
+            resource_filter = next(f for f in filters if f['Field'] == 'resourceType')
+            assert resource_filter['Value'] == 'Run Storage'
 
 
 class TestPricingCacheConstants:

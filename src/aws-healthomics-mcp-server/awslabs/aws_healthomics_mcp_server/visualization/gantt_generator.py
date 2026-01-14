@@ -102,6 +102,10 @@ class GanttGenerator:
             pending_end = (start - tare).total_seconds() * time_scale
             running_end = (stop - tare).total_seconds() * time_scale
 
+            # Calculate durations in seconds
+            pending_seconds = (start - creation).total_seconds()
+            running_seconds = (stop - start).total_seconds()
+
             max_time = max(max_time, running_end)
 
             chart_data.append(
@@ -116,6 +120,12 @@ class GanttGenerator:
                     'memory': task.get('allocatedMemoryGiB', task.get('reservedMemoryGiB', 0)),
                     'instance_type': task.get('instanceType', 'N/A'),
                     'cost': task.get('estimatedUSD', 0),
+                    # Timing details for tooltips
+                    'creation_time': creation,
+                    'start_time': start,
+                    'stop_time': stop,
+                    'pending_seconds': pending_seconds,
+                    'running_seconds': running_seconds,
                 }
             )
 
@@ -141,7 +151,45 @@ class GanttGenerator:
         if isinstance(time_str, datetime):
             return time_str
         # Handle ISO format with 'Z' suffix
-        return datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+        iso_string = time_str.replace('Z', '+00:00')
+        # Normalize fractional seconds to 6 digits for Python 3.10 compatibility
+        # Python 3.10's fromisoformat only accepts 3 or 6 decimal places
+        import re
+
+        match = re.match(r'(.+\.\d{1,6})(\d*)([+-]\d{2}:\d{2})?$', iso_string)
+        if match:
+            base, extra_digits, tz = match.groups()
+            # Pad to 6 digits if needed
+            decimal_part = base.split('.')[-1]
+            if len(decimal_part) < 6:
+                base = base[: -len(decimal_part)] + decimal_part.ljust(6, '0')
+            iso_string = base + (tz or '')
+        return datetime.fromisoformat(iso_string)
+
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in seconds to human-readable string.
+
+        Args:
+            seconds: Duration in seconds
+
+        Returns:
+            Formatted duration string (e.g., "1h 23m 45s" or "5m 30s")
+        """
+        if seconds < 0:
+            return '0s'
+
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+
+        parts = []
+        if hours > 0:
+            parts.append(f'{hours}h')
+        if minutes > 0 or hours > 0:
+            parts.append(f'{minutes}m')
+        parts.append(f'{secs}s')
+
+        return ' '.join(parts)
 
     def _build_svg(
         self,
@@ -170,9 +218,10 @@ class GanttGenerator:
         builder = SVGBuilder(width, height)
 
         # Add title
+        run_id = run_info.get('runId', 'Unknown')
         run_name = run_info.get('runName', 'Unknown')
         task_count = len(chart_data)
-        title = f'Run: {run_name}, Tasks: {task_count}, Duration: {max_time:.2f} {time_unit}'
+        title = f'Run: {run_id}, Name: {run_name}, Tasks: {task_count}, Duration: {max_time:.2f} {time_unit}'
         builder.add_title(title)
 
         # Calculate dimensions with margins
@@ -197,22 +246,36 @@ class GanttGenerator:
             # Pending bar (grey) - Requirement 5.2
             pending_width = (task['pending_end'] - task['pending_start']) * x_scale
             if pending_width > 0:
+                # Build pending tooltip with creation time and wait duration
+                pending_duration = self._format_duration(task['pending_seconds'])
+                creation_str = task['creation_time'].strftime('%Y-%m-%d %H:%M:%S')
+                pending_tooltip = (
+                    f'{task["name"]}: Pending\n'
+                    f'Created: {creation_str}\n'
+                    f'Wait time: {pending_duration}'
+                )
                 builder.add_rect(
                     x=margin['left'] + task['pending_start'] * x_scale,
                     y=y,
                     width=pending_width,
                     height=bar_height,
                     fill=self.PENDING_COLOR,
-                    tooltip=f'{task["name"]}: Pending',
+                    tooltip=pending_tooltip,
                 )
 
             # Running bar (colored by status) - Requirement 5.3
             running_width = (task['running_end'] - task['pending_end']) * x_scale
             color = self.STATUS_COLORS.get(task['status'], '#6495ED')
 
-            # Build tooltip with task details - Requirement 5.4
+            # Build tooltip with task details including timing - Requirement 5.4
+            start_str = task['start_time'].strftime('%Y-%m-%d %H:%M:%S')
+            stop_str = task['stop_time'].strftime('%Y-%m-%d %H:%M:%S')
+            running_duration = self._format_duration(task['running_seconds'])
             tooltip = (
                 f'{task["name"]}\n'
+                f'Start: {start_str}\n'
+                f'Stop: {stop_str}\n'
+                f'Duration: {running_duration}\n'
                 f'CPUs: {task["cpus"]}, Memory: {task["memory"]} GiB\n'
                 f'Instance: {task["instance_type"]}\n'
                 f'Cost: ${task["cost"]:.4f}'

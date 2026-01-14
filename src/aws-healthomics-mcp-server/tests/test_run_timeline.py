@@ -17,44 +17,9 @@
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import (
     _extract_task_for_timeline,
-    _normalize_run_ids,
     generate_run_timeline,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
-
-
-class TestNormalizeRunIds:
-    """Test the _normalize_run_ids function."""
-
-    def test_normalize_run_ids_list(self):
-        """Test normalizing a list of run IDs."""
-        run_ids = ['run1', 'run2', 'run3']
-        result = _normalize_run_ids(run_ids)
-        assert result == ['run1', 'run2', 'run3']
-
-    def test_normalize_run_ids_json_string(self):
-        """Test normalizing a JSON string of run IDs."""
-        run_ids = '["run1", "run2", "run3"]'
-        result = _normalize_run_ids(run_ids)
-        assert result == ['run1', 'run2', 'run3']
-
-    def test_normalize_run_ids_comma_separated(self):
-        """Test normalizing a comma-separated string of run IDs."""
-        run_ids = 'run1,run2,run3'
-        result = _normalize_run_ids(run_ids)
-        assert result == ['run1', 'run2', 'run3']
-
-    def test_normalize_run_ids_single_string(self):
-        """Test normalizing a single run ID string."""
-        run_ids = 'run1'
-        result = _normalize_run_ids(run_ids)
-        assert result == ['run1']
-
-    def test_normalize_run_ids_with_spaces(self):
-        """Test normalizing comma-separated string with spaces."""
-        run_ids = 'run1, run2 , run3'
-        result = _normalize_run_ids(run_ids)
-        assert result == ['run1', 'run2', 'run3']
 
 
 class TestExtractTaskForTimeline:
@@ -160,7 +125,9 @@ class TestGenerateRunTimeline:
         ctx.error = AsyncMock()
 
         # Call the function
-        result = await generate_run_timeline(ctx, run_ids='test-run', time_unit='hr')
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+        )
 
         # Verify result is SVG
         assert '<svg' in result
@@ -174,7 +141,9 @@ class TestGenerateRunTimeline:
         ctx = MagicMock()
         ctx.error = AsyncMock()
 
-        result = await generate_run_timeline(ctx, run_ids='test-run', time_unit='invalid')
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='invalid', output_format='svg'
+        )
 
         assert 'Invalid time_unit' in result
         ctx.error.assert_called_once()
@@ -197,16 +166,54 @@ class TestGenerateRunTimeline:
         ctx = MagicMock()
         ctx.error = AsyncMock()
 
-        result = await generate_run_timeline(ctx, run_ids='test-run', time_unit='hr')
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+        )
 
         assert 'Unable to retrieve task data' in result
         ctx.error.assert_called_once()
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
+    async def test_generate_timeline_run_without_uuid(self, mock_get_omics_client):
+        """Test timeline generation when run has no UUID."""
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {
+            'name': 'TestRun',
+            # No uuid field
+        }
+        mock_get_omics_client.return_value = mock_client
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+        )
+
+        assert 'No UUID found' in result
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
+    async def test_generate_timeline_exception_handling(self, mock_get_omics_client):
+        """Test timeline generation handles exceptions gracefully."""
+        mock_get_omics_client.side_effect = Exception('Connection error')
+
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='svg'
+        )
+
+        assert 'Error generating timeline' in result
+        ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_run_manifest_logs_internal')
-    async def test_generate_timeline_multiple_runs(self, mock_get_logs, mock_get_omics_client):
-        """Test timeline generation with multiple runs."""
+    async def test_generate_timeline_base64_output(self, mock_get_logs, mock_get_omics_client):
+        """Test timeline generation with base64 output format."""
         mock_client = MagicMock()
         mock_client.get_run.return_value = {
             'uuid': 'test-uuid',
@@ -226,39 +233,28 @@ class TestGenerateRunTimeline:
         ctx = MagicMock()
         ctx.error = AsyncMock()
 
-        result = await generate_run_timeline(ctx, run_ids=['run1', 'run2'], time_unit='min')
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='base64'
+        )
 
-        assert '<svg' in result
-        assert '</svg>' in result
+        # Verify result is pure base64 (no data URI prefix)
+        import base64
 
-    @pytest.mark.asyncio
-    @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
-    async def test_generate_timeline_run_without_uuid(self, mock_get_omics_client):
-        """Test timeline generation when run has no UUID."""
-        mock_client = MagicMock()
-        mock_client.get_run.return_value = {
-            'name': 'TestRun',
-            # No uuid field
-        }
-        mock_get_omics_client.return_value = mock_client
-
-        ctx = MagicMock()
-        ctx.error = AsyncMock()
-
-        result = await generate_run_timeline(ctx, run_ids='test-run', time_unit='hr')
-
-        assert 'Unable to retrieve task data' in result
+        # Should decode directly without stripping prefix
+        decoded = base64.b64decode(result).decode('utf-8')
+        assert '<svg' in decoded
+        assert '</svg>' in decoded
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_timeline.get_omics_client')
-    async def test_generate_timeline_exception_handling(self, mock_get_omics_client):
-        """Test timeline generation handles exceptions gracefully."""
-        mock_get_omics_client.side_effect = Exception('Connection error')
-
+    async def test_generate_timeline_invalid_output_format(self, mock_get_omics_client):
+        """Test timeline generation with invalid output format."""
         ctx = MagicMock()
         ctx.error = AsyncMock()
 
-        result = await generate_run_timeline(ctx, run_ids='test-run', time_unit='hr')
+        result = await generate_run_timeline(
+            ctx, run_id='test-run', time_unit='hr', output_format='invalid'
+        )
 
-        assert 'Error generating timeline' in result
+        assert 'Invalid output_format' in result
         ctx.error.assert_called_once()

@@ -24,7 +24,7 @@ from hypothesis import strategies as st
 
 # Strategies for generating test data
 @st.composite
-def task_strategy(draw, base_time: datetime = None):
+def task_strategy(draw, base_time: datetime | None = None):
     """Generate a valid task dictionary for testing."""
     if base_time is None:
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -244,6 +244,32 @@ class TestGanttGeneratorBasic:
         dt = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         result = generator._parse_time(dt)
         assert result == dt
+
+    def test_parse_time_with_variable_fractional_seconds(self):
+        """Test _parse_time handles ISO timestamps with variable fractional second precision.
+
+        Python 3.10's fromisoformat only accepts 3 or 6 decimal places, but AWS
+        HealthOmics can return timestamps with 5 decimal places (e.g., .22971).
+        """
+        generator = GanttGenerator()
+
+        # 5 decimal places (the problematic case from production)
+        result = generator._parse_time('2025-11-18T22:40:41.22971+00:00')
+        assert result.year == 2025
+        assert result.month == 11
+        assert result.microsecond == 229710
+
+        # 3 decimal places (milliseconds)
+        result = generator._parse_time('2024-01-01T10:00:00.123+00:00')
+        assert result.microsecond == 123000
+
+        # 6 decimal places (microseconds)
+        result = generator._parse_time('2024-01-01T10:00:00.123456+00:00')
+        assert result.microsecond == 123456
+
+        # 1 decimal place
+        result = generator._parse_time('2024-01-01T10:00:00.1+00:00')
+        assert result.microsecond == 100000
 
 
 class TestGanttGeneratorPropertyBased:

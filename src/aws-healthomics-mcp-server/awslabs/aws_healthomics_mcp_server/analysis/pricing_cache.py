@@ -174,14 +174,15 @@ class PricingCache:
 
             # Determine if this is an instance type or storage type
             if resource_type.startswith('omics.'):
-                # Instance type pricing
+                # Instance type pricing - use resourceType attribute
                 filters.append(
-                    {'Type': 'TERM_MATCH', 'Field': 'instanceType', 'Value': resource_type}
+                    {'Type': 'TERM_MATCH', 'Field': 'resourceType', 'Value': resource_type}
                 )
             else:
                 # Storage type pricing (e.g., "Run Storage", "Dynamic Run Storage")
+                # Use resourceType attribute for storage as well
                 filters.append(
-                    {'Type': 'TERM_MATCH', 'Field': 'usagetype', 'Value': resource_type}
+                    {'Type': 'TERM_MATCH', 'Field': 'resourceType', 'Value': resource_type}
                 )
 
             response = client.get_products(
