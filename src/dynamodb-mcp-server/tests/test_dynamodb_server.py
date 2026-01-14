@@ -10,6 +10,7 @@ from awslabs.dynamodb_mcp_server.server import (
     create_server,
     dynamodb_data_model_validation,
     dynamodb_data_modeling,
+    generate_resources,
     source_db_analyzer,
 )
 from hypothesis import given, settings
@@ -1358,3 +1359,70 @@ def test_property_error_response_format_consistency(
 
     # Run the async check
     asyncio.get_event_loop().run_until_complete(check_error_response_format())
+
+
+# Tests for generate_resources function
+@pytest.mark.asyncio
+async def test_generate_resources_cdk_success(tmp_path):
+    """Test generate_resources with successful CDK generation."""
+    json_file = tmp_path / 'dynamodb_data_model.json'
+    json_file.write_text('{}')
+
+    with patch('awslabs.dynamodb_mcp_server.server.CdkGenerator') as mock_generator_class:
+        mock_generator = mock_generator_class.return_value
+        mock_generator.generate.return_value = None
+
+        result = await generate_resources(
+            dynamodb_data_model_json_file=str(json_file), resource_type='cdk'
+        )
+
+        assert 'Successfully generated CDK project' in result
+        assert str(tmp_path / 'cdk') in result
+        mock_generator_class.assert_called_once()
+        mock_generator.generate.assert_called_once_with(json_file)
+
+
+@pytest.mark.asyncio
+async def test_generate_resources_unsupported_resource_type(tmp_path):
+    """Test generate_resources with unsupported resource type."""
+    json_file = tmp_path / 'dynamodb_data_model.json'
+    json_file.write_text('{}')
+
+    result = await generate_resources(
+        dynamodb_data_model_json_file=str(json_file), resource_type='terraform'
+    )
+
+    assert "Error: Unknown resource type 'terraform'" in result
+    assert 'Supported types: cdk' in result
+
+
+@pytest.mark.asyncio
+async def test_generate_resources_cdk_generator_exception(tmp_path):
+    """Test generate_resources when CdkGenerator raises an exception."""
+    json_file = tmp_path / 'dynamodb_data_model.json'
+    json_file.write_text('{}')
+
+    with patch('awslabs.dynamodb_mcp_server.server.CdkGenerator') as mock_generator_class:
+        mock_generator = mock_generator_class.return_value
+        mock_generator.generate.side_effect = Exception('CDK generation failed')
+
+        result = await generate_resources(
+            dynamodb_data_model_json_file=str(json_file), resource_type='cdk'
+        )
+
+        # The @handle_exceptions decorator catches exceptions and returns them as {'error': str(e)}
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert 'CDK generation failed' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_generate_resources_mcp_integration():
+    """Test generate_resources tool through MCP client."""
+    tools = await app.list_tools()
+    generate_tool = next((tool for tool in tools if tool.name == 'generate_resources'), None)
+
+    assert generate_tool is not None
+    assert generate_tool.description is not None
+    assert 'generates resources from a dynamodb data model' in generate_tool.description.lower()
+    assert 'cdk' in generate_tool.description.lower()
