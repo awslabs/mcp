@@ -25,14 +25,18 @@ class TaskAggregator:
     and aggregates metrics using Polars for efficient DataFrame operations.
 
     Supports three workflow patterns:
-    - WDL: taskName-<shard>-<attempt> (e.g., "alignReads-0-1", "alignReads-1-1")
-    - Nextflow: taskName (index) (e.g., "alignReads (1)", "alignReads (sample1)")
-    - CWL: taskName_<index> (e.g., "alignReads_0", "alignReads_1")
+    - WDL: taskName-<shard>-<suffix> where shard is digits and suffix is any text
+      (e.g., "alignReads-0-1", "HaplotypeCallerGATK4-26-2527scattered", "task-5-retry")
+    - Nextflow: taskName (index) where index can be anything in parentheses
+      (e.g., "alignReads (1)", "alignReads (sample1)")
+    - CWL: taskName_<index> where index is digits at the end
+      (e.g., "alignReads_0", "alignReads_1")
     """
 
     # Patterns for normalizing task names
-    # WDL pattern: taskName-<shard>-<attempt> where shard and attempt are digits
-    WDL_PATTERN = re.compile(r'^(.+)-(\d+)-(\d+)$')
+    # WDL pattern: taskName-<shard>-<anything> where shard is digits
+    # Matches patterns like "taskName-0-1", "taskName-26-2527scattered", "taskName-10-retry"
+    WDL_PATTERN = re.compile(r'^(.+)-(\d+)-.+$')
     # Nextflow pattern: taskName (index) where index can be anything in parentheses
     NEXTFLOW_PATTERN = re.compile(r'^(.+)\s+\(.+\)$')
     # CWL pattern: taskName_<index> where index is digits at the end

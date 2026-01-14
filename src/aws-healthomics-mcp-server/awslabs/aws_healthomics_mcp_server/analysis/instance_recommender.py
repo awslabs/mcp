@@ -65,7 +65,12 @@ class InstanceRecommender:
 
         Args:
             headroom: Additional capacity buffer as a decimal (default 0.20 = 20%)
+
+        Raises:
+            ValueError: If headroom is negative
         """
+        if headroom < 0:
+            raise ValueError(f'Headroom must be non-negative, got {headroom}')
         self.headroom = headroom
 
     def recommend_instance(

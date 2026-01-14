@@ -89,6 +89,26 @@ class TestInstanceRecommenderRecommendInstance:
         # Requirements exceed all available instances
         assert instance == 'omics.r.48xlarge'
 
+    def test_negative_headroom_raises_error(self):
+        """Test that negative headroom raises ValueError."""
+        with pytest.raises(ValueError, match='Headroom must be non-negative, got -0.1'):
+            InstanceRecommender(headroom=-0.1)
+
+    def test_negative_headroom_large_value_raises_error(self):
+        """Test that large negative headroom raises ValueError."""
+        with pytest.raises(ValueError, match='Headroom must be non-negative, got -1.0'):
+            InstanceRecommender(headroom=-1.0)
+
+    def test_zero_headroom_allowed(self):
+        """Test that zero headroom is allowed."""
+        recommender = InstanceRecommender(headroom=0.0)
+        instance, cpus, memory = recommender.recommend_instance(2.0, 4.0)
+
+        # With 0% headroom: ceil(2.0 * 1.0) = 2 CPUs, ceil(4.0 * 1.0) = 4 GiB
+        assert cpus == 2
+        assert memory == 4.0
+        assert instance == 'omics.c.large'
+
 
 class TestInstanceRecommenderCalculateSavings:
     """Test cases for calculate_savings method."""

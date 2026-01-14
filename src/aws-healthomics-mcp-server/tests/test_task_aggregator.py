@@ -36,6 +36,15 @@ class TestTaskAggregatorNormalizeTaskName:
         """Test WDL pattern with hyphen in task name."""
         assert TaskAggregator.normalize_task_name('align-reads-0-1') == 'align-reads'
 
+    def test_normalize_wdl_pattern_with_text_suffix(self):
+        """Test WDL pattern with text after scatter index."""
+        assert (
+            TaskAggregator.normalize_task_name('HaplotypeCallerGATK4-26-2527scattered')
+            == 'HaplotypeCallerGATK4'
+        )
+        assert TaskAggregator.normalize_task_name('alignReads-0-retry') == 'alignReads'
+        assert TaskAggregator.normalize_task_name('processData-5-attempt2') == 'processData'
+
     def test_normalize_nextflow_pattern_basic(self):
         """Test Nextflow pattern: taskName (index)."""
         assert TaskAggregator.normalize_task_name('alignReads (1)') == 'alignReads'

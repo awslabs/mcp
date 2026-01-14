@@ -99,11 +99,11 @@ async def analyze_run_performance(
         ...,
         description='List of run IDs to analyze for resource optimization. Can be provided as a JSON array string like ["run1", "run2"] or as a comma-separated string like "run1,run2"',
     ),
-    headroom: Optional[float] = Field(
+    headroom: float = Field(
         default=DEFAULT_HEADROOM,
         description='Headroom percentage for instance recommendations (0.0 to 1.0). Default is 0.20 (20%). This adds a buffer to recommended instance sizes to prevent over-optimization.',
     ),
-    detailed: Optional[bool] = Field(
+    detailed: bool = Field(
         default=False,
         description='Include detailed task metrics JSON section in the report. Default is False.',
     ),
@@ -140,17 +140,19 @@ async def analyze_run_performance(
         # Normalize run_ids to handle various input formats
         normalized_run_ids = _normalize_run_ids(run_ids)
 
-        # Use default headroom if not provided or invalid
-        effective_headroom = headroom if headroom is not None else DEFAULT_HEADROOM
-        effective_detailed = detailed if detailed is not None else False
+        # Validate headroom is non-negative
+        if headroom < 0:
+            error_msg = f'Headroom must be non-negative, got {headroom}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
         logger.info(
-            f'Analyzing performance for runs {normalized_run_ids} with headroom {effective_headroom}'
+            f'Analyzing performance for runs {normalized_run_ids} with headroom {headroom}'
         )
 
         # Get the structured analysis data
-        analysis_data = await _get_run_analysis_data(
-            normalized_run_ids, headroom=effective_headroom
-        )
+        analysis_data = await _get_run_analysis_data(normalized_run_ids, headroom=headroom)
 
         if not analysis_data or not analysis_data.get('runs'):
             error_msg = f"""
@@ -167,7 +169,7 @@ Please verify the run IDs and ensure the runs have completed successfully.
             return error_msg
 
         # Generate the comprehensive analysis report
-        report = await _generate_analysis_report(analysis_data, detailed=effective_detailed)
+        report = await _generate_analysis_report(analysis_data, detailed=detailed)
 
         logger.info(f'Generated analysis report for {len(analysis_data["runs"])} runs')
         return report
@@ -479,12 +481,16 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         count = agg_task.get('count', 0)
                         mean_runtime = agg_task.get('meanRunningSeconds', 0)
                         max_runtime = agg_task.get('maximumRunningSeconds', 0)
+                        max_cpu = agg_task.get('maxObservedCpus', 0)
+                        max_memory = agg_task.get('maxObservedMemoryGiB', 0)
                         total_cost = agg_task.get('totalEstimatedUSD', 0)
                         recommended_instance = agg_task.get('recommendedInstanceType', 'N/A')
 
                         report_sections.append(f'- **{base_name}** ({count} instances):')
                         report_sections.append(f'  - Mean Runtime: {mean_runtime:.2f} seconds')
                         report_sections.append(f'  - Max Runtime: {max_runtime:.2f} seconds')
+                        report_sections.append(f'  - Max CPU Usage: {max_cpu:.2f} CPUs')
+                        report_sections.append(f'  - Max Memory Usage: {max_memory:.2f} GiB')
                         report_sections.append(f'  - Total Cost: ${total_cost:.4f}')
                         report_sections.append(f'  - Recommended Instance: {recommended_instance}')
                     report_sections.append('')
@@ -512,6 +518,8 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                 max_runtime = agg_task.get('maximumRunningSeconds', 0)
                 mean_cpu_util = agg_task.get('meanCpuUtilizationRatio', 0)
                 mean_mem_util = agg_task.get('meanMemoryUtilizationRatio', 0)
+                max_cpu = agg_task.get('maxObservedCpus', 0)
+                max_memory = agg_task.get('maxObservedMemoryGiB', 0)
                 total_cost = agg_task.get('totalEstimatedUSD', 0)
                 recommended_instance = agg_task.get('recommendedInstanceType', 'N/A')
 
@@ -522,6 +530,8 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                 report_sections.append(f'  - Max Runtime: {max_runtime:.2f} seconds')
                 report_sections.append(f'  - Mean CPU Utilization: {mean_cpu_util:.1%}')
                 report_sections.append(f'  - Mean Memory Utilization: {mean_mem_util:.1%}')
+                report_sections.append(f'  - Max CPU Usage: {max_cpu:.2f} CPUs')
+                report_sections.append(f'  - Max Memory Usage: {max_memory:.2f} GiB')
                 report_sections.append(f'  - Total Cost (all runs): ${total_cost:.4f}')
                 report_sections.append(f'  - Recommended Instance: {recommended_instance}')
             report_sections.append('')

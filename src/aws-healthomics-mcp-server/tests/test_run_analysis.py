@@ -1004,14 +1004,13 @@ class TestAnalyzeRunPerformance:
         mock_get_data.return_value = mock_analysis_data
         mock_generate_report.return_value = 'Generated analysis report'
 
-        # Act
-        result = await analyze_run_performance(mock_ctx, run_ids)
+        # Act - explicitly pass default values
+        result = await analyze_run_performance(mock_ctx, run_ids, headroom=0.20, detailed=False)
 
         # Assert
         assert result == 'Generated analysis report'
         mock_get_data.assert_called_once()
         # Verify _generate_analysis_report was called with the analysis data
-        # Note: detailed parameter is passed as Field object when called directly
         mock_generate_report.assert_called_once()
         call_args = mock_generate_report.call_args
         assert call_args[0][0] == mock_analysis_data  # First positional arg is analysis_data
@@ -1027,8 +1026,8 @@ class TestAnalyzeRunPerformance:
         # Mock empty analysis data
         mock_get_data.return_value = {'runs': []}
 
-        # Act
-        result = await analyze_run_performance(mock_ctx, run_ids)
+        # Act - explicitly pass default values
+        result = await analyze_run_performance(mock_ctx, run_ids, headroom=0.20, detailed=False)
 
         # Assert
         assert 'Unable to retrieve manifest data' in result
@@ -1045,8 +1044,8 @@ class TestAnalyzeRunPerformance:
         # Mock exception
         mock_get_data.side_effect = Exception('Analysis failed')
 
-        # Act
-        result = await analyze_run_performance(mock_ctx, run_ids)
+        # Act - explicitly pass default values
+        result = await analyze_run_performance(mock_ctx, run_ids, headroom=0.20, detailed=False)
 
         # Assert
         assert 'Error analyzing run performance' in result
@@ -1064,12 +1063,61 @@ class TestAnalyzeRunPerformance:
         ) as mock_get_data:
             mock_get_data.return_value = {'runs': []}
 
-            # Test with comma-separated string
-            await analyze_run_performance(mock_ctx, 'run1,run2,run3')
+            # Test with comma-separated string - explicitly pass default values
+            await analyze_run_performance(
+                mock_ctx, 'run1,run2,run3', headroom=0.20, detailed=False
+            )
 
             # Verify normalized run IDs were passed
             call_args = mock_get_data.call_args[0][0]
             assert call_args == ['run1', 'run2', 'run3']
+
+    @pytest.mark.asyncio
+    async def test_analyze_run_performance_negative_headroom_rejected(self):
+        """Test analyze_run_performance rejects negative headroom values."""
+        # Arrange
+        mock_ctx = AsyncMock()
+
+        # Act
+        result = await analyze_run_performance(mock_ctx, ['run1'], headroom=-0.1)
+
+        # Assert
+        assert 'Headroom must be non-negative' in result
+        assert '-0.1' in result
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_analyze_run_performance_zero_headroom_allowed(self):
+        """Test analyze_run_performance allows zero headroom."""
+        # Arrange
+        mock_ctx = AsyncMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis._get_run_analysis_data'
+        ) as mock_get_data:
+            mock_get_data.return_value = {
+                'runs': [{'runInfo': {}, 'summary': {}, 'taskMetrics': []}],
+                'summary': {
+                    'totalRuns': 1,
+                    'analysisTimestamp': '2024-01-01',
+                    'analysisType': 'single',
+                },
+            }
+
+            with patch(
+                'awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report'
+            ) as mock_generate_report:
+                mock_generate_report.return_value = 'Analysis report'
+
+                # Act
+                result = await analyze_run_performance(mock_ctx, ['run1'], headroom=0.0)
+
+                # Assert
+                assert result == 'Analysis report'
+                mock_ctx.error.assert_not_called()
+                # Verify headroom=0.0 was passed through
+                call_kwargs = mock_get_data.call_args[1]
+                assert call_kwargs['headroom'] == 0.0
 
 
 # Strategies for generating test data
