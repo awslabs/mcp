@@ -69,7 +69,7 @@ A Model Context Protocol (MCP) server providing comprehensive tools for troubles
 
 ## Configuration
 
-You can download the AWS Network MCP Server from GitHub. To get started using your favorite code assistant with MCP support, like Amazon Q Developer, Cursor, Cline, or Kiro.
+You can download the AWS Network MCP Server from GitHub. To get started using your favorite code assistant with MCP support, like Kiro, Cursor, or Cline.
 
 ```json
 {

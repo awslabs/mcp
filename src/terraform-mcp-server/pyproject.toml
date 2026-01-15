@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.terraform-mcp-server"
-version = "1.0.11"
+version = "1.0.13"
 description = "An AWS Labs Model Context Protocol (MCP) server for terraform"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,6 +14,11 @@ dependencies = [
     "PyPDF2>=3.0.0",
     "checkov>=3.2.402",
     "asteval>=1.0.6",  # https://github.com/bridgecrewio/checkov/issues/7194 and https://github.com/bridgecrewio/checkov/pull/7142
+]
+
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
 ]
 
 [project.scripts]

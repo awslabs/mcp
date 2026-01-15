@@ -14,6 +14,7 @@
 """Test exception handling in server.py get_all_counts function."""
 
 import pytest
+from awslabs.openapi_mcp_server.server import get_all_counts
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -31,32 +32,10 @@ async def test_get_all_counts_attribute_error_handling():
         side_effect=AttributeError('Method not implemented')
     )
 
-    # Mock the main function's get_all_counts inner function
+    # Mock the main function's get_all_counts function
     with patch('awslabs.openapi_mcp_server.server.logger') as mock_logger:
-        # We need to access the inner function, so let's create a minimal test
-        # that exercises the exception handling path
-
-        # Create the get_all_counts function similar to what's in main()
-        async def get_all_counts():
-            prompts = await mock_server.get_prompts()
-            tools = await mock_server.get_tools()
-            resources = await mock_server.get_resources()
-            resource_templates = []
-
-            if hasattr(mock_server, 'get_resource_templates'):
-                try:
-                    resource_templates = await mock_server.get_resource_templates()
-                except AttributeError as e:
-                    # This is expected if the method exists but is not implemented
-                    mock_logger.debug(f'get_resource_templates exists but not implemented: {e}')
-                except Exception as e:
-                    # Log other unexpected errors
-                    mock_logger.warning(f'Error retrieving resource templates: {e}')
-
-            return len(prompts), len(tools), len(resources), len(resource_templates)
-
         # Execute the function
-        result = await get_all_counts()
+        result = await get_all_counts(mock_server)
 
         # Verify the result
         assert result == (0, 0, 0, 0)
@@ -80,29 +59,10 @@ async def test_get_all_counts_general_exception_handling():
     # Mock hasattr to return True, but get_resource_templates raises a general Exception
     mock_server.get_resource_templates = AsyncMock(side_effect=RuntimeError('Unexpected error'))
 
-    # Mock the main function's get_all_counts inner function
+    # Mock the main function's get_all_counts function
     with patch('awslabs.openapi_mcp_server.server.logger') as mock_logger:
-        # Create the get_all_counts function similar to what's in main()
-        async def get_all_counts():
-            prompts = await mock_server.get_prompts()
-            tools = await mock_server.get_tools()
-            resources = await mock_server.get_resources()
-            resource_templates = []
-
-            if hasattr(mock_server, 'get_resource_templates'):
-                try:
-                    resource_templates = await mock_server.get_resource_templates()
-                except AttributeError as e:
-                    # This is expected if the method exists but is not implemented
-                    mock_logger.debug(f'get_resource_templates exists but not implemented: {e}')
-                except Exception as e:
-                    # Log other unexpected errors
-                    mock_logger.warning(f'Error retrieving resource templates: {e}')
-
-            return len(prompts), len(tools), len(resources), len(resource_templates)
-
         # Execute the function
-        result = await get_all_counts()
+        result = await get_all_counts(mock_server)
 
         # Verify the result
         assert result == (0, 0, 0, 0)
