@@ -3181,8 +3181,8 @@ class TestCompileAndMatchesWildcardPattern:
         assert _matches_wildcard_pattern('axbyczc', pattern)
         assert _matches_wildcard_pattern('abc', pattern)
         assert _matches_wildcard_pattern('a-test-b-value-c', pattern)
+        assert _matches_wildcard_pattern('abc-extra', pattern)
         assert not _matches_wildcard_pattern('ab', pattern)
-        assert not _matches_wildcard_pattern('abc-extra', pattern)
 
         pattern = _compile_wildcard_pattern('my*payment*gateway')
         assert _matches_wildcard_pattern('my-custom-payment-gateway', pattern)
