@@ -528,11 +528,6 @@ def expand_service_wildcard_patterns(
             for original_target, pattern in service_patterns:
                 matches_found = 0
                 compiled_pattern = _compile_wildcard_pattern(pattern)
-
-                if not compiled_pattern:
-                    logger.warning(f"Failed to compile service pattern '{pattern}', skipping")
-                    continue
-
                 for service in instrumented_services:
                     service_attrs = service.get('KeyAttributes', {})
                     service_name = service_attrs.get('Name', '')
@@ -694,11 +689,6 @@ def expand_slo_wildcard_patterns(
             for original_target, pattern in wildcard_patterns:
                 matches_found = 0
                 compiled_pattern = _compile_wildcard_pattern(pattern)
-
-                if not compiled_pattern:
-                    logger.warning(f"Failed to compile SLO pattern '{pattern}', skipping")
-                    continue
-
                 for slo in slos_batch:
                     slo_name = slo.get('Name', '')
                     if _matches_wildcard_pattern(slo_name, compiled_pattern):
@@ -787,18 +777,6 @@ def expand_service_operation_wildcard_patterns(
             for original_target, service_pattern, operation_pattern in wildcard_patterns:
                 compiled_service_pattern = _compile_wildcard_pattern(service_pattern)
                 compiled_operation_pattern = _compile_wildcard_pattern(operation_pattern)
-
-                if not compiled_service_pattern:
-                    logger.warning(
-                        f"Failed to compile service pattern '{service_pattern}', skipping"
-                    )
-                    continue
-                if not compiled_operation_pattern:
-                    logger.warning(
-                        f"Failed to compile operation pattern '{operation_pattern}', skipping operations for service pattern '{service_pattern}'"
-                    )
-                    continue
-
                 matches_found = 0
 
                 # Get the original metric type from the pattern
@@ -921,11 +899,8 @@ def _compile_wildcard_pattern(pattern: Optional[str]) -> Optional[re.Pattern]:
         _compile_wildcard_pattern('*payment*') -> compiled regex for '.*payment.*'
         _compile_wildcard_pattern('*') -> compiled regex for '.*'
     """
-    if pattern is None:
-        return None
-
     # Handle patterns that are empty or only contain wildcards (match everything)
-    if pattern.strip('*') == '':
+    if pattern is None or pattern.strip('*') == '':
         # Empty or all-wildcard patterns match everything, including empty strings
         return re.compile('^.*$', re.IGNORECASE)
 

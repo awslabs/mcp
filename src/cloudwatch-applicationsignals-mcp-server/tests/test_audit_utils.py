@@ -3297,11 +3297,18 @@ class TestCompileAndMatchesWildcardPattern:
         assert _matches_wildcard_pattern('', pattern)
         assert _matches_wildcard_pattern('service-name', pattern)
 
+        pattern = _compile_wildcard_pattern(None)
+        assert _matches_wildcard_pattern('text', pattern)
+        assert _matches_wildcard_pattern('', pattern)
+        assert _matches_wildcard_pattern('service-name', pattern)
+
         pattern = _compile_wildcard_pattern('pattern')
         assert not _matches_wildcard_pattern('', pattern)
         assert not _matches_wildcard_pattern(None, pattern)
 
-        assert not _matches_wildcard_pattern('text', None)
+        assert not _matches_wildcard_pattern('any-text', None)
+        assert not _matches_wildcard_pattern('', None)
+        assert not _matches_wildcard_pattern(None, None)
 
     def test_multiple_consecutive_wildcards(self):
         """Test patterns with multiple consecutive wildcards."""
