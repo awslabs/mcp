@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.lambda-tool-mcp-server"
-version = "2.0.13"
+version = "2.0.14"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda Tools"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+]
+
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
 ]
 
 [project.scripts]
