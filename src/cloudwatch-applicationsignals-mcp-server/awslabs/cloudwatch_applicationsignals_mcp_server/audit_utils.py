@@ -795,7 +795,7 @@ def expand_service_operation_wildcard_patterns(
                     continue
                 if not compiled_operation_pattern:
                     logger.warning(
-                        f"Failed to compile operation pattern '{operation_pattern}', skipping operations for service '{service_name}'"
+                        f"Failed to compile operation pattern '{operation_pattern}', skipping operations for service pattern '{service_pattern}'"
                     )
                     continue
 
@@ -941,7 +941,7 @@ def _compile_wildcard_pattern(pattern: str) -> Optional[re.Pattern]:
     return re.compile(regex_pattern, re.IGNORECASE)
 
 
-def _matches_wildcard_pattern(text: str, compiled_pattern: re.Pattern) -> bool:
+def _matches_wildcard_pattern(text: str, compiled_pattern: Optional[re.Pattern]) -> bool:
     """Check if text matches pre-compiled wildcard pattern.
 
     Args:
