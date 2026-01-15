@@ -2048,7 +2048,7 @@ class TestExpandSloWildcardPatterns:
         assert len(expanded_targets) == 2
         slo_names = [t['Data']['Slo']['SloName'] for t in expanded_targets]
         assert 'payment-service-latency' in slo_names
-        assert 'order-service-slow-llatency' in slo_names
+        assert 'order-service-latency' in slo_names
         assert 'user-availability-slo' not in slo_names
 
     def test_expand_slo_wildcard_multiple_wildcards(self, mock_applicationsignals_client):
