@@ -13,7 +13,11 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b9624714d6ed8d979a94f60f7d31392f4c8294155b AS uv
+
+# Install build dependencies needed for compiling packages
+RUN dnf install -y shadow-utils python3 && \
+    dnf clean all
 
 # Install the project into `/app`
 WORKDIR /app
@@ -25,7 +29,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 # Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_PYTHON_PREFERENCE=only-managed
 
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
@@ -39,42 +43,43 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
-    # Then, add the rest of the project source code and install it
+# Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --python 3.13 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
-# RUN mkdir -p /root/.local
+RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b9624714d6ed8d979a94f60f7d31392f4c8294155b
 ARG TERRAFORM_VERSION="1.14.3"
+
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
+    PYTHONUNBUFFERED=1
 
-RUN echo $TERRAFORM_VERSION
-
-# Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
 RUN out=$(mktemp) && \
-    apt-get update -y && \
-    apt-get install -y wget unzip procps && \
-    (wget -nv -O$out wget "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_$(dpkg --print-architecture).zip" || echo "Getting Network Error 4 ? $?" ) && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
+    dnf install -y shadow-utils procps wget unzip && \
+    wget -nv -O "$out" "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_${ARCH}.zip" && \
     unzip "$out" -d /usr/local/bin/ && \
     chmod +x /usr/local/bin/terraform && \
-    apt-get clean -y && \
-    apt-get autoremove -y && \
+    rm "$out" && \
+    dnf clean all && \
     groupadd --force --system app && \
     useradd app -g app -d /app && \
     chmod o+x /root
 
 # Get the project from the uv layer
-# COPY --from=uv --chown=app:app /root/.local /root/.local
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
