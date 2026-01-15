@@ -13,7 +13,11 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b9624714d6ed8d979a94f60f7d31392f4c8294155b AS uv
+
+# Install build dependencies needed for compiling packages
+RUN dnf install -y shadow-utils python3 && \
+    dnf clean all
 
 # Install the project into `/app`
 WORKDIR /app
@@ -25,7 +29,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 # Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_PYTHON_PREFERENCE=only-managed
 
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
@@ -33,9 +37,14 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
@@ -47,33 +56,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-trixie@sha256:baf66684c5fcafbda38a54b227ee30ec41e40af1e4073edee3a7110a417756ba
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b9624714d6ed8d979a94f60f7d31392f4c8294155b
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies and create application user
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --force --system app \
-    && useradd app -g app -d /app
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
+RUN dnf install -y shadow-utils procps && \
+    dnf clean all && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
-# # Install build tools and update SQLite
-# RUN apt-get update && apt-get install -y build-essential wget tar \
-#     && wget https://www.sqlite.org/2025/sqlite-autoconf-3510100.tar.gz  \
-#     && tar xvf sqlite-autoconf-3510100.tar.gz \
-#     && cd sqlite-autoconf-3510100 \
-#     && ./configure --prefix=/usr \
-#     && make && make install \
-#     && cd .. && rm -rf sqlite-autoconf-3510100* \
-#     && apt-get purge -y build-essential wget && apt-get autoremove -y
-
-
-# Copy application artifacts from build stage
+# Get the project from the uv layer
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
