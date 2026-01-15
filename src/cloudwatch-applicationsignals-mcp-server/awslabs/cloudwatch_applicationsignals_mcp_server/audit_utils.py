@@ -826,7 +826,7 @@ def expand_service_operation_wildcard_patterns(
                             MaxResults=100,
                         )
 
-                        operations = operations_response.get('Operations', [])
+                        operations = operations_response.get('ServiceOperations', [])
                         logger.debug(
                             f"Found {len(operations)} operations for service '{service_name}'"
                         )
@@ -855,10 +855,13 @@ def expand_service_operation_wildcard_patterns(
                                 # Check if this operation has the required metric type
                                 metric_refs = operation.get('MetricReferences', [])
                                 has_metric_type = any(
-                                    ref.get('MetricType', '') == metric_type
+                                    (
+                                        metric_type == 'Latency'
+                                        and ref.get('MetricType', '') == 'LATENCY'
+                                    )
                                     or (
                                         metric_type == 'Availability'
-                                        and ref.get('MetricType', '') == 'Fault'
+                                        and ref.get('MetricType', '') == 'FAULT'
                                     )
                                     for ref in metric_refs
                                 )

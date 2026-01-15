@@ -716,7 +716,7 @@ async def audit_slos(
 async def audit_service_operations(
     operation_targets: str = Field(
         ...,
-        description="REQUIRED. JSON array of service operation targets. Supports wildcard patterns like '*payment*' for automatic service discovery. Format: [{'Type':'service_operation','Data':{'ServiceOperation':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'},'Operation':'GET /api','MetricType':'Latency'}}}]. Large target lists are automatically processed in batches.",
+        description="REQUIRED. JSON array of service operation targets. Supports wildcard patterns like '*payment*' for automatic service/operation discovery. IMPORTANT: Wildcards (*) can ONLY be at the START or END of strings, NEVER in the middle. DO NOT use patterns like '*GET*/api*/download*' - use 'GET*' or '*GET' instead. Format: [{'Type':'service_operation','Data':{'ServiceOperation':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'},'Operation':'GET /api','MetricType':'Latency'}}}]. Large target lists are automatically processed in batches.",
     ),
     start_time: Optional[str] = Field(
         default=None,
@@ -775,6 +775,11 @@ async def audit_service_operations(
     **WILDCARD PATTERN EXAMPLES:**
     - **All GET Operations in Payment Services**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]`
     - **All Visit Operations**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]`
+
+    **❌ INVALID WILDCARD PATTERNS (DO NOT USE):**
+    - `"Operation":"*GET*/api*"` - Multiple wildcards with text in middle not supported
+    - `"Operation":"GET*/documents/*/download"` - Wildcards in middle not supported
+    - Use `"Operation":"GET*"` or `"Operation":"*download"` instead
 
     **AUDITOR SELECTION FOR DIFFERENT AUDIT DEPTHS:**
     - **Quick Operation Check** (default): Uses 'operation_metric' for fast operation overview
