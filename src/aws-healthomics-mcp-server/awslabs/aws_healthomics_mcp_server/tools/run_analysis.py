@@ -906,8 +906,6 @@ def _aggregate_task_metrics(
 
     Returns:
         List of aggregated task metric dictionaries with instance recommendations
-
-    Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
     """
     if not task_metrics:
         return []
