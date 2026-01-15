@@ -907,7 +907,7 @@ def expand_service_operation_wildcard_patterns(
     return expanded_targets, None, all_service_names, filtering_stats
 
 
-def _compile_wildcard_pattern(pattern: str) -> Optional[re.Pattern]:
+def _compile_wildcard_pattern(pattern: Optional[str]) -> Optional[re.Pattern]:
     """Compile wildcard pattern once for reuse.
 
     Args:
@@ -941,7 +941,7 @@ def _compile_wildcard_pattern(pattern: str) -> Optional[re.Pattern]:
     return re.compile(regex_pattern, re.IGNORECASE)
 
 
-def _matches_wildcard_pattern(text: str, compiled_pattern: Optional[re.Pattern]) -> bool:
+def _matches_wildcard_pattern(text: Optional[str], compiled_pattern: Optional[re.Pattern]) -> bool:
     """Check if text matches pre-compiled wildcard pattern.
 
     Args:
