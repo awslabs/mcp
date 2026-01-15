@@ -1313,7 +1313,7 @@ class TestExpandServiceWildcardPatterns:
                 },
                 {
                     'KeyAttributes': {
-                        'Name': 'order-service-gateway',
+                        'Name': 'order-service-2-gateway',
                         'Type': 'Service',
                         'Environment': 'prod',
                     }
@@ -1331,7 +1331,7 @@ class TestExpandServiceWildcardPatterns:
         targets = [
             {
                 'Type': 'service',
-                'Data': {'Service': {'Type': 'Service', 'Name': 'service*gateway'}},
+                'Data': {'Service': {'Type': 'Service', 'Name': '*service*gateway'}},
             }
         ]
 
@@ -1345,7 +1345,7 @@ class TestExpandServiceWildcardPatterns:
         assert len(expanded_targets) == 2
         service_names = [t['Data']['Service']['Name'] for t in expanded_targets]
         assert 'payment-service-gateway' in service_names
-        assert 'order-service-gateway' in service_names
+        assert 'order-service-2-gateway' in service_names
         assert 'user-service' not in service_names
 
     def test_expand_service_wildcard_multiple_wildcards(self, mock_applicationsignals_client):
@@ -2030,7 +2030,7 @@ class TestExpandSloWildcardPatterns:
                 },
                 {
                     'Name': 'order-service-latency',
-                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/order-service-latency',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/order-service-slow-latency',
                 },
                 {
                     'Name': 'user-availability-slo',
@@ -2039,7 +2039,7 @@ class TestExpandSloWildcardPatterns:
             ]
         }
 
-        targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': 'service*latency'}}}]
+        targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': '*service*latency'}}}]
 
         expanded_targets, _, _ = expand_slo_wildcard_patterns(
             targets, applicationsignals_client=mock_applicationsignals_client
@@ -2048,7 +2048,7 @@ class TestExpandSloWildcardPatterns:
         assert len(expanded_targets) == 2
         slo_names = [t['Data']['Slo']['SloName'] for t in expanded_targets]
         assert 'payment-service-latency' in slo_names
-        assert 'order-service-latency' in slo_names
+        assert 'order-service-slow-llatency' in slo_names
         assert 'user-availability-slo' not in slo_names
 
     def test_expand_slo_wildcard_multiple_wildcards(self, mock_applicationsignals_client):
