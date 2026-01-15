@@ -71,6 +71,7 @@ class PricingCache:
         'ap-southeast-1': 'Asia Pacific (Singapore)',
         'ap-southeast-2': 'Asia Pacific (Sydney)',
         'ap-northeast-1': 'Asia Pacific (Tokyo)',
+        'ap-northeast-2': 'Asia Pacific (Seoul)',
         'il-central-1': 'Israel (Tel Aviv)',
     }
 
