@@ -196,7 +196,7 @@ class TestBedrockEmbeddingsMocked:
 
         boto3.Session = MagicMock(return_value=mock_session)
 
-        provider = await acquire_bedrock_embeddings()
+        provider = await acquire_bedrock_embeddings(model_id='amazon.titan-embed-text-v1')
 
         embedding = await provider.generate_embedding('test')
 
@@ -210,7 +210,7 @@ class TestBedrockEmbeddingsMocked:
 
         boto3.client = MagicMock()
 
-        provider = await acquire_bedrock_embeddings()
+        provider = await acquire_bedrock_embeddings(model_id='amazon.titan-embed-text-v1')
 
         assert provider.get_dimensions() == 1536
 

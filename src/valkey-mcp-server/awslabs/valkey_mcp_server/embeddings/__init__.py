@@ -33,7 +33,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
 
     For Titan / Bedrock provider:
     - AWS_REGION: AWS region for Bedrock (default: us-east-1)
-    - BEDROCK_MODEL_ID: Bedrock model ID (default: amazon.titan-embed-text-v1)
+    - BEDROCK_MODEL_ID: Bedrock model ID (default: amazon.nova-2-multimodal-embeddings-v1:0)
 
     For OpenAI provider:
     - OPENAI_API_KEY: OpenAI API key (required)
@@ -56,7 +56,9 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     elif provider_type == 'bedrock':
         return BedrockEmbeddings(
             region_name=EMBEDDING_CFG.get('bedrock_region', 'us-east-1'),
-            model_id=EMBEDDING_CFG.get('bedrock_model_id', 'amazon.titan-embed-text-v1'),
+            model_id=EMBEDDING_CFG.get(
+                'bedrock_model_id', 'amazon.nova-2-multimodal-embeddings-v1:0'
+            ),
             normalize=EMBEDDING_CFG.get('bedrock_normalize'),
             dimensions=EMBEDDING_CFG.get('bedrock_dimensions'),
             input_type=EMBEDDING_CFG.get('bedrock_input_type'),

@@ -65,7 +65,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
     Example:
         provider = BedrockEmbeddings(
             region_name="us-east-1",
-            model_id="amazon.titan-embed-text-v1"
+            model_id="amazon.nova-2-multimodal-embeddings-v1:0"
         )
         embedding = await provider.generate_embedding("Hello world")
     """
@@ -73,7 +73,7 @@ class BedrockEmbeddings(EmbeddingsProvider):
     def __init__(
         self,
         region_name: str = 'us-east-1',
-        model_id: str = 'amazon.titan-embed-text-v1',
+        model_id: str = 'amazon.nova-2-multimodal-embeddings-v1:0',
         normalize: bool | None = None,
         dimensions: int | None = None,
         input_type: str | None = None,
