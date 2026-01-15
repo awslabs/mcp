@@ -2120,15 +2120,15 @@ class TestExpandServiceOperationWildcardPatterns:
             ]
         }
         mock_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Latency'},
-                        {'MetricType': 'Availability'},
+                        {'MetricType': 'LATENCY'},
+                        {'MetricType': 'FAULT'},
                     ],
                 },
-                {'Name': 'POST /payments', 'MetricReferences': [{'MetricType': 'Latency'}]},
+                {'Name': 'POST /payments', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
             ]
         }
         return mock_client
@@ -2341,18 +2341,18 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test that operations with Fault metrics match when looking for Availability."""
         # Mock an operation that only has Fault metric but we're looking for Availability
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Fault'},  # Only has Fault, not Availability
-                        {'MetricType': 'Latency'},
+                        {'MetricType': 'FAULT'},  # Only has Fault, not Availability
+                        {'MetricType': 'LATENCY'},
                     ],
                 },
                 {
                     'Name': 'POST /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Latency'},  # No Fault or Availability
+                        {'MetricType': 'LATENCY'},  # No Fault or Availability
                     ],
                 },
             ]
@@ -2695,14 +2695,14 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test expanding when no operations match the pattern."""
         # Mock operations that don't match the search pattern
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'DELETE /payments',  # Doesn't match *GET* pattern
-                    'MetricReferences': [{'MetricType': 'Latency'}],
+                    'MetricReferences': [{'MetricType': 'LATENCY'}],
                 },
                 {
                     'Name': 'PUT /payments',  # Doesn't match *GET* pattern
-                    'MetricReferences': [{'MetricType': 'Latency'}],
+                    'MetricReferences': [{'MetricType': 'LATENCY'}],
                 },
             ]
         }
@@ -2740,18 +2740,18 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test expanding when operations don't have the required metric type."""
         # Mock operations that don't have the required metric type
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Error'},  # Only has Error, not Latency
-                        {'MetricType': 'Fault'},
+                        {'MetricType': 'ERROR'},  # Only has Error, not Latency
+                        {'MetricType': 'FAULT'},
                     ],
                 },
                 {
                     'Name': 'POST /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Error'},  # Only has Error, not Latency
+                        {'MetricType': 'ERROR'},  # Only has Error, not Latency
                     ],
                 },
             ]

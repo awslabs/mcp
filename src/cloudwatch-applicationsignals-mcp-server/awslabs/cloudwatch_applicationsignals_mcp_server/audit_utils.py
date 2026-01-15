@@ -855,12 +855,9 @@ def expand_service_operation_wildcard_patterns(
                                 # Check if this operation has the required metric type
                                 metric_refs = operation.get('MetricReferences', [])
                                 has_metric_type = any(
-                                    (
-                                        metric_type == 'Latency'
-                                        and ref.get('MetricType', '') == 'LATENCY'
-                                    )
+                                    ref.get('MetricType', '').casefold() == metric_type.casefold()
                                     or (
-                                        metric_type == 'Availability'
+                                        metric_type.casefold() == 'Availability'.casefold()
                                         and ref.get('MetricType', '') == 'FAULT'
                                     )
                                     for ref in metric_refs
