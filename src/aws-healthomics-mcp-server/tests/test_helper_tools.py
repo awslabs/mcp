@@ -23,24 +23,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 @pytest.mark.asyncio
 async def test_get_supported_regions_success():
-    """Test successful retrieval of regions from SSM."""
-    # Mock SSM response
-    mock_ssm_response = {
-        'Parameters': [
-            {'Value': 'us-east-1'},
-            {'Value': 'us-west-2'},
-            {'Value': 'eu-west-1'},
-        ]
-    }
+    """Test successful retrieval of regions from boto3 session."""
+    # Mock regions returned by session
+    mock_regions = ['us-east-1', 'us-west-2', 'eu-west-1']
 
-    # Mock context and SSM client
+    # Mock context and session
     mock_ctx = AsyncMock()
-    mock_ssm = MagicMock()
-    mock_ssm.get_parameters_by_path.return_value = mock_ssm_response
+    mock_session = MagicMock()
+    mock_session.get_available_regions.return_value = mock_regions
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
-        return_value=mock_ssm,
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_omics_service_name',
+            return_value='omics',
+        ),
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -49,26 +49,27 @@ async def test_get_supported_regions_success():
     assert result['regions'] == ['eu-west-1', 'us-east-1', 'us-west-2']
     assert 'note' not in result
 
-    # Verify SSM was called correctly
-    mock_ssm.get_parameters_by_path.assert_called_once_with(
-        Path='/aws/service/global-infrastructure/services/omics/regions'
-    )
+    # Verify session was called correctly
+    mock_session.get_available_regions.assert_called_once_with('omics')
 
 
 @pytest.mark.asyncio
-async def test_get_supported_regions_empty_ssm():
-    """Test fallback to hardcoded regions when SSM returns empty list."""
-    # Mock SSM response with no parameters
-    mock_ssm_response = {'Parameters': []}
-
-    # Mock context and SSM client
+async def test_get_supported_regions_empty_response():
+    """Test fallback to hardcoded regions when session returns empty list."""
+    # Mock context and session
     mock_ctx = AsyncMock()
-    mock_ssm = MagicMock()
-    mock_ssm.get_parameters_by_path.return_value = mock_ssm_response
+    mock_session = MagicMock()
+    mock_session.get_available_regions.return_value = []
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
-        return_value=mock_ssm,
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_omics_service_name',
+            return_value='omics',
+        ),
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -81,14 +82,20 @@ async def test_get_supported_regions_empty_ssm():
 @pytest.mark.asyncio
 async def test_get_supported_regions_boto_error():
     """Test handling of BotoCoreError."""
-    # Mock context and SSM client
+    # Mock context and session
     mock_ctx = AsyncMock()
-    mock_ssm = MagicMock()
-    mock_ssm.get_parameters_by_path.side_effect = BotoCoreError()
+    mock_session = MagicMock()
+    mock_session.get_available_regions.side_effect = BotoCoreError()
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
-        return_value=mock_ssm,
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_omics_service_name',
+            return_value='omics',
+        ),
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -102,16 +109,22 @@ async def test_get_supported_regions_boto_error():
 @pytest.mark.asyncio
 async def test_get_supported_regions_client_error():
     """Test handling of ClientError."""
-    # Mock context and SSM client
+    # Mock context and session
     mock_ctx = AsyncMock()
-    mock_ssm = MagicMock()
-    mock_ssm.get_parameters_by_path.side_effect = ClientError(
-        {'Error': {'Code': 'InvalidParameter', 'Message': 'Test error'}}, 'GetParametersByPath'
+    mock_session = MagicMock()
+    mock_session.get_available_regions.side_effect = ClientError(
+        {'Error': {'Code': 'InvalidParameter', 'Message': 'Test error'}}, 'GetAvailableRegions'
     )
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
-        return_value=mock_ssm,
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_omics_service_name',
+            return_value='omics',
+        ),
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -125,14 +138,20 @@ async def test_get_supported_regions_client_error():
 @pytest.mark.asyncio
 async def test_get_supported_regions_unexpected_error():
     """Test handling of unexpected errors."""
-    # Mock context and SSM client
+    # Mock context and session
     mock_ctx = AsyncMock()
-    mock_ssm = MagicMock()
-    mock_ssm.get_parameters_by_path.side_effect = Exception('Unexpected error')
+    mock_session = MagicMock()
+    mock_session.get_available_regions.side_effect = Exception('Unexpected error')
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
-        return_value=mock_ssm,
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_omics_service_name',
+            return_value='omics',
+        ),
     ):
         result = await get_supported_regions(mock_ctx)
 

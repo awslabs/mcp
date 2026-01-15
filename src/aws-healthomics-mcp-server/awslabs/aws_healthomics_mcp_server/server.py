@@ -23,6 +23,7 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     package_workflow,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs,
@@ -81,6 +82,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHORunEngineLogs**: Retrieve engine logs containing STDOUT and STDERR
 - **GetAHOTaskLogs**: Retrieve logs for specific workflow tasks
 - **AnalyzeAHORunPerformance**: Analyze workflow run performance and resource utilization to provide optimization recommendations
+- **GenerateAHORunTimeline**: Generate a Gantt-style SVG timeline visualization showing task execution phases and parallelism
 
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
@@ -129,6 +131,7 @@ mcp.tool(name='GetAHORunManifestLogs')(get_run_manifest_logs)
 mcp.tool(name='GetAHORunEngineLogs')(get_run_engine_logs)
 mcp.tool(name='GetAHOTaskLogs')(get_task_logs)
 mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
+mcp.tool(name='GenerateAHORunTimeline')(generate_run_timeline)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
