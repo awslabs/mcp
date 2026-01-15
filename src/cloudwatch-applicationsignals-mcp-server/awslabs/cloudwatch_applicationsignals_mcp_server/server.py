@@ -716,7 +716,7 @@ async def audit_slos(
 async def audit_service_operations(
     operation_targets: str = Field(
         ...,
-        description="REQUIRED. JSON array of service operation targets. Supports wildcard patterns like '*payment*' for automatic service/operation discovery. IMPORTANT: Wildcards (*) can ONLY be at the START or END of strings, NEVER in the middle. DO NOT use patterns like '*GET*/api*/download*' - use 'GET*' or '*GET' instead. Format: [{'Type':'service_operation','Data':{'ServiceOperation':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'},'Operation':'GET /api','MetricType':'Latency'}}}]. Large target lists are automatically processed in batches.",
+        description="REQUIRED. JSON array of service operation targets. Supports wildcard patterns like '*payment*' for automatic service/operation discovery. IMPORTANT: Wildcards (*) can ONLY be at the START or END of patterns, NEVER in the middle. DO NOT use patterns like '*GET*/api*' - use 'GET*' or '*api' instead. Format: [{'Type':'service_operation','Data':{'ServiceOperation':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'},'Operation':'GET /api','MetricType':'Latency'}}}]. Large target lists are automatically processed in batches.",
     ),
     start_time: Optional[str] = Field(
         default=None,
@@ -767,7 +767,7 @@ async def audit_service_operations(
     - **Root cause analysis**: Deep dive with traces, logs, and metrics correlation
     - **Actionable recommendations**: Specific steps to resolve operation-level issues
     - **Performance optimized**: Fast execution with automatic batching for large target lists
-    - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery
+    - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery (wildcards are only supported at the beginning and/or end of the pattern)
 
     **OPERATION TARGET FORMAT:**
     - **Full Format**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"my-service","Environment":"eks:my-cluster"},"Operation":"GET /api","MetricType":"Latency"}}}]`
@@ -777,9 +777,8 @@ async def audit_service_operations(
     - **All Visit Operations**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]`
 
     **❌ INVALID WILDCARD PATTERNS (DO NOT USE):**
-    - `"Operation":"*GET*/api*"` - Multiple wildcards with text in middle not supported
-    - `"Operation":"GET*/documents/*/download"` - Wildcards in middle not supported
-    - Use `"Operation":"GET*"` or `"Operation":"*download"` instead
+    - `"Operation":"GET */api"` - Wildcards in middle not supported
+    - `"Operation":"*GET */api*"` - Wildcards in middle not supported
 
     **AUDITOR SELECTION FOR DIFFERENT AUDIT DEPTHS:**
     - **Quick Operation Check** (default): Uses 'operation_metric' for fast operation overview
