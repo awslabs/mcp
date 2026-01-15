@@ -926,8 +926,8 @@ def _compile_wildcard_pattern(pattern: str) -> Optional[re.Pattern]:
 
     # Handle patterns that are empty or only contain wildcards (match everything)
     if pattern.strip('*') == '':
-        # Empty or all-wildcard patterns match everything
-        return re.compile('.*', re.IGNORECASE)
+        # Empty or all-wildcard patterns match everything, including empty strings
+        return re.compile('^.*$', re.IGNORECASE)
 
     # Escape special regex characters except *
     escaped = re.escape(pattern)
@@ -957,7 +957,11 @@ def _matches_wildcard_pattern(text: str, compiled_pattern: re.Pattern) -> bool:
         _matches_wildcard_pattern('helloworld', pattern) -> True
         _matches_wildcard_pattern('hello', pattern) -> False
     """
-    if not compiled_pattern or not text:
+    if not compiled_pattern:
         return False
+
+    # Handle case where text is None by treating it as empty string
+    if text is None:
+        text = ''
 
     return compiled_pattern.match(text) is not None
