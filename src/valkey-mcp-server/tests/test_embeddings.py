@@ -219,8 +219,8 @@ class TestBedrockEmbeddings:
 
         provider = BedrockEmbeddings()
 
-        assert provider.model_id == 'amazon.titan-embed-text-v1'
-        assert provider._dimensions == 1536
+        assert provider.model_id == 'amazon.nova-2-multimodal-embeddings-v1:0'
+        assert provider._dimensions == 3072
 
     @patch('boto3.Session')
     def test_bedrock_init_custom(self, mock_session):
