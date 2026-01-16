@@ -304,13 +304,17 @@ class TestListChangeEventsValidation:
 
         result = json.loads(result_str)
         assert 'error' in result
-        assert 'service_key_attributes is required when comprehensive_history=True' in result['error']
+        assert (
+            'service_key_attributes is required when comprehensive_history=True' in result['error']
+        )
 
     @pytest.mark.asyncio
     async def test_service_key_attributes_with_extra_fields_filtered(self, mock_aws_clients):
         """Test that extra fields in service_key_attributes are filtered out."""
         mock_response = {'ChangeEvents': [], 'NextToken': None}
-        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+        mock_aws_clients[
+            'applicationsignals_client'
+        ].list_entity_events.return_value = mock_response
 
         service_attrs = {
             'Type': 'Service',
@@ -346,7 +350,9 @@ class TestListChangeEventsValidation:
     async def test_max_results_boundary_minimum(self, mock_aws_clients):
         """Test max_results boundary condition with minimum value (1)."""
         mock_response = {'ChangeEvents': [], 'NextToken': None}
-        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+        mock_aws_clients[
+            'applicationsignals_client'
+        ].list_entity_events.return_value = mock_response
 
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
@@ -370,7 +376,9 @@ class TestListChangeEventsValidation:
     async def test_max_results_boundary_zero_clamped(self, mock_aws_clients):
         """Test max_results boundary condition with zero (should be clamped to 1)."""
         mock_response = {'ChangeEvents': [], 'NextToken': None}
-        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+        mock_aws_clients[
+            'applicationsignals_client'
+        ].list_entity_events.return_value = mock_response
 
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',
@@ -394,7 +402,9 @@ class TestListChangeEventsValidation:
     async def test_max_results_boundary_negative_clamped(self, mock_aws_clients):
         """Test max_results boundary condition with negative value (should be clamped to 1)."""
         mock_response = {'ChangeEvents': [], 'NextToken': None}
-        mock_aws_clients['applicationsignals_client'].list_entity_events.return_value = mock_response
+        mock_aws_clients[
+            'applicationsignals_client'
+        ].list_entity_events.return_value = mock_response
 
         result_str = await list_change_events(
             start_time='2024-01-15T10:00:00Z',

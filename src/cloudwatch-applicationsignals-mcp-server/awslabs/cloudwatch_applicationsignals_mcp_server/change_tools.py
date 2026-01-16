@@ -68,9 +68,12 @@ def _process_change_events(events: List[Dict]) -> tuple[List[Dict], Dict[str, in
         if isinstance(timestamp_value, (int, float)):
             # Convert numeric timestamp to datetime
             event_dt = datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
-        else:
+        elif timestamp_value is not None:
             # Assume it's already a datetime object
             event_dt = timestamp_value.astimezone(timezone.utc)
+        else:
+            # Skip events without timestamps
+            continue
         timestamp = event_dt.isoformat()
 
         # Calculate seconds since event occurred
