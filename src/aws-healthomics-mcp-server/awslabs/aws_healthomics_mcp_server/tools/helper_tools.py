@@ -19,7 +19,8 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     encode_to_base64,
-    get_ssm_client,
+    get_aws_session,
+    get_omics_service_name,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -87,23 +88,21 @@ async def get_supported_regions(
         of regions where HealthOmics is available
     """
     try:
-        # Get centralized SSM client
-        ssm_client = get_ssm_client()
+        # Get centralized AWS session
+        session = get_aws_session()
 
-        # Get the parameters from the SSM parameter store
-        response = ssm_client.get_parameters_by_path(
-            Path='/aws/service/global-infrastructure/services/omics/regions'
-        )
+        # Get the service name (defaults to 'omics')
+        service_name = get_omics_service_name()
 
-        # Extract the region values
-        regions = [param['Value'] for param in response['Parameters']]
+        # Get available regions for the HealthOmics service
+        regions = session.get_available_regions(service_name)
 
         # If no regions found, use the hardcoded list as fallback
         if not regions:
             from awslabs.aws_healthomics_mcp_server.consts import HEALTHOMICS_SUPPORTED_REGIONS
 
             regions = HEALTHOMICS_SUPPORTED_REGIONS
-            logger.warning('No regions found in SSM parameter store. Using hardcoded region list.')
+            logger.warning('No regions found via boto3 session. Using hardcoded region list.')
 
         return {'regions': sorted(regions), 'count': len(regions)}
     except botocore.exceptions.BotoCoreError as e:

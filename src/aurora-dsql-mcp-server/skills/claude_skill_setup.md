@@ -1,6 +1,7 @@
-# DSQL Skill Setup
+# DSQL Skill Setup for Claude Code
 
-This guide explains how to add the DSQL skill to your project from the GitHub repository.
+This guide explains how to add the DSQL skill to Claude Code in your project
+from the GitHub repository.
 
 ## Prerequisites
 
@@ -14,16 +15,16 @@ This guide explains how to add the DSQL skill to your project from the GitHub re
 mkdir -p .repos
 ```
 
-### 2. Sparse clone the skill from the starter-kit repository
+### 2. Sparse clone the skill from the mcp repository
 
-Clone only the `ai-rules/dsql-skill` folder (no other files):
+Clone only the `dsql-skill` folder (no other files):
 
 ```bash
 cd .repos
-git clone --filter=blob:none --no-checkout https://github.com/awslabs/aurora-dsql-starter-kit.git
-cd aurora-dsql-starter-kit
+git clone --filter=blob:none --no-checkout https://github.com/awslabs/mcp.git
+cd mcp
 git sparse-checkout init --cone
-git sparse-checkout set ai-rules/dsql-skill
+git sparse-checkout set src/aurora-dsql-mcp-server/skills/dsql-skill
 git checkout
 cd ../..
 ```
@@ -40,7 +41,7 @@ mkdir -p .claude/skills
 
 #### Add symlink:
 ```bash
-ln -s "/path/to/.repos/aurora-dsql-starter-kit/ai-rules/dsql-skill" /path/to/.claude/skills/dsql-skill
+ln -s "$(pwd)/.repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill" .claude/skills/dsql-skill
 ```
 
 
@@ -63,7 +64,7 @@ to use this command from the Claude Code CLI or panel as desired.
 To pull the latest changes from the repository:
 
 ```bash
-cd .repos/aurora-dsql-starter-kit
+cd .repos/mcp
 git pull
 ```
 
@@ -74,14 +75,16 @@ After setup, your project will look like:
 ```
 your-project/
 ├── .repos/
-│   └── aurora-dsql-starter-kit/    # Sparse git checkout
-│       └── ai-rules/
-│           └── dsql-skill/
-│               ├── SKILL.md
-│               └── ...
+│   └── mcp/                              # Sparse git checkout
+│       └── src/
+│           └── aurora-dsql-mcp-server/
+│               └── skills/
+│                   └── dsql-skill/
+│                       ├── SKILL.md
+│                       └── ...
 ├── .claude/
 │   └── skills/
-│       └── dsql-skill -> ../../.repos/.../dsql-skill  # Symlink
+│       └── dsql-skill -> ../../.repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill
 └── ...
 ```
 
