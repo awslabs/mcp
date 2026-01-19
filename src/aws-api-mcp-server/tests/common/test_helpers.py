@@ -187,3 +187,14 @@ def test_as_json_encodes_bytes_with_non_utf8_content():
     binary_data = base64.b64decode(data)
     encoded = as_json({'data': binary_data})
     assert json.loads(encoded) == {'data': data.decode('utf-8')}
+
+
+def test_as_json_raises_type_error_for_unsupported_type():
+    """Test that as_json raises TypeError for non-serializable objects."""
+
+    class CustomObject:
+        pass
+
+    with pytest.raises(TypeError) as exc_info:
+        as_json({'data': CustomObject()})
+    assert 'is not JSON serializable' in str(exc_info.value)
