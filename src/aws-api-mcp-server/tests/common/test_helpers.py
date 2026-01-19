@@ -148,6 +148,13 @@ def test_is_help_operation(args, expected):
     assert is_help_operation(args) == expected
 
 
+def test_as_json_basic_dict():
+    """Test that as_json converts a basic dictionary to JSON string."""
+    data = {'key': 'value', 'number': 42}
+    result = as_json(data)
+    assert result == '{"key": "value", "number": 42}'
+
+
 def test_as_json_encodes_streaming_body_with_utf8_content():
     """Test that StreamingBody with valid UTF-8 content is decoded correctly."""
     content = b'Hello, world!'
