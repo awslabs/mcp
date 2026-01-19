@@ -12,7 +12,7 @@ from the GitHub repository.
 ### 1. Create a base repos directory
 
 ```bash
-mkdir -p .repos
+mkdir -p .dsql_skill_repos
 ```
 
 ### 2. Sparse clone the skill from the mcp repository
@@ -20,7 +20,7 @@ mkdir -p .repos
 Clone only the `dsql-skill` folder (no other files):
 
 ```bash
-cd .repos
+cd .dsql_skill_repos
 git clone --filter=blob:none --no-checkout https://github.com/awslabs/mcp.git
 cd mcp
 git sparse-checkout init --cone
@@ -33,15 +33,15 @@ cd ../..
 
 #### Adding the Skills Directory
 ```bash
-mkdir -p .claude/skills
+mkdir -p ~/.claude/skills
 ```
 
-***NOTE: If you want to make this a global skill, this should be your top-level `~/.claude/skills.` directory.***
+***NOTE: If you want to make this a project-scoped skill, use your project root's `.claude/skills/` directory instead. .***
 
 
 #### Add symlink:
 ```bash
-ln -s "$(pwd)/.repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill" .claude/skills/dsql-skill
+ln -s "$(pwd)/.dsql_skill_repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill" ~/.claude/skills/dsql-skill
 ```
 
 
@@ -49,7 +49,7 @@ ln -s "$(pwd)/.repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill" .claude/s
 
 ```bash
 # Should show SKILL.md and other skill files
-ls -la .claude/skills/dsql-skill/
+ls -la ~/.claude/skills/dsql-skill/
 ```
 
 ### 5. Verify Skill Use
@@ -64,7 +64,7 @@ to use this command from the Claude Code CLI or panel as desired.
 To pull the latest changes from the repository:
 
 ```bash
-cd .repos/mcp
+cd .dsql_skill_repos/mcp
 git pull
 ```
 
@@ -73,19 +73,18 @@ git pull
 After setup, your project will look like:
 
 ```
-your-project/
-├── .repos/
-│   └── mcp/                              # Sparse git checkout
-│       └── src/
-│           └── aurora-dsql-mcp-server/
-│               └── skills/
-│                   └── dsql-skill/
-│                       ├── SKILL.md
-│                       └── ...
-├── .claude/
-│   └── skills/
-│       └── dsql-skill -> ../../.repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill
-└── ...
+.dsql_skill_repos/
+└── mcp/                              # Sparse git checkout
+    └── src/
+        └── aurora-dsql-mcp-server/
+            └── skills/
+                └── dsql-skill/
+                    ├── SKILL.md
+                    └── ...
+
+~/.claude/
+└── skills/
+    └── dsql-skill -> /path/to/.dsql_skill_repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill
 ```
 
 ## Notes
