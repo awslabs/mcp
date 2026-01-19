@@ -165,9 +165,9 @@ def test_as_json_encodes_streaming_body_with_utf8_content():
 
 def test_as_json_encodes_streaming_body_with_non_utf8_content():
     """Test that StreamingBody with non-UTF-8 content is base64 encoded."""
-    # dd if=/dev/random bs=32 count=1 2>/dev/null | base64
-    data = b'5Fa2w1VJiZJeAx53UPLI3PkuT4A1rKKuL1it7VAelXQ='
-    binary_data = base64.b64decode(data)
+    # 24 bytes of 0x80 (invalid UTF-8 continuation byte) - divisible by 3 for clean base64
+    binary_data = b'\x80' * 24
+    data = base64.b64encode(binary_data)
     raw_stream = BytesIO(binary_data)
     encoded = as_json({'data': StreamingBody(raw_stream, content_length=len(binary_data))})
     assert json.loads(encoded) == {'data': data.decode('utf-8')}
@@ -182,9 +182,9 @@ def test_as_json_encodes_bytes_with_utf8_content():
 
 def test_as_json_encodes_bytes_with_non_utf8_content():
     """Test that bytes with non-UTF-8 content is base64 encoded."""
-    # dd if=/dev/random bs=32 count=1 2>/dev/null | base64
-    data = b'5Fa2w1VJiZJeAx53UPLI3PkuT4A1rKKuL1it7VAelXQ='
-    binary_data = base64.b64decode(data)
+    # 24 bytes of 0x80 (invalid UTF-8 continuation byte) - divisible by 3 for clean base64
+    binary_data = b'\x80' * 24
+    data = base64.b64encode(binary_data)
     encoded = as_json({'data': binary_data})
     assert json.loads(encoded) == {'data': data.decode('utf-8')}
 
