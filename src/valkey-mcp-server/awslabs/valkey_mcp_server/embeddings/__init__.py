@@ -31,7 +31,7 @@ def create_embeddings_provider() -> EmbeddingsProvider:
     - OLLAMA_HOST: Ollama server URL (default: http://localhost:11434)
     - OLLAMA_EMBEDDING_MODEL: Ollama model name (default: nomic-embed-text)
 
-    For Titan provider:
+    For Bedrock provider:
     - AWS_REGION: AWS region for Bedrock (default: us-east-1)
     - BEDROCK_MODEL_ID: Bedrock model ID (default: amazon.nova-2-multimodal-embeddings-v1:0)
 
