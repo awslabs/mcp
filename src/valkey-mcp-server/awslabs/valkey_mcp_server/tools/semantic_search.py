@@ -433,13 +433,8 @@ async def semantic_search(
             results = []
             for doc in results_list:
                 if isinstance(doc, dict):
-                    result = {}
-                    if 'id' in doc:
-                        result['id'] = doc['id']
-                    if 'title' in doc:
-                        result['title'] = doc['title']
-                    if 'name' in doc:
-                        result['name'] = doc['name']
+                    KEEP_FIELDS = ['id', 'title', 'name']
+                    result = {k: v for k, v in doc.items() if k in KEEP_FIELDS}
                     results.append(result)
                 else:
                     # Handle unexpected format
