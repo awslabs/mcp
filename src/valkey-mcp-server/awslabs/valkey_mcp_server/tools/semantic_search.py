@@ -24,6 +24,7 @@ import struct
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.common.utils import pack_embedding
 from awslabs.valkey_mcp_server.context import Context
 from awslabs.valkey_mcp_server.embeddings import create_embeddings_provider
 from awslabs.valkey_mcp_server.tools.index import create_vector_index
@@ -157,7 +158,7 @@ async def add_documents(
                         )
                         index_exists = True
 
-                embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+                embedding_bytes = pack_embedding(embedding)
 
                 # Store document with embedding
                 doc_data = {'embedding': embedding_bytes, 'document_json': json.dumps(doc)}
@@ -256,7 +257,7 @@ async def update_document(
         text_to_embed = ' '.join(str(document.get(field, '')) for field in text_fields)
         provider = _acquire_embeddings_provider()
         embedding = await provider.generate_embedding(text_to_embed)
-        embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+        embedding_bytes = pack_embedding(embedding)
 
         # Update document with new embedding
         doc_data = {'embedding': embedding_bytes, 'document_json': json.dumps(document)}

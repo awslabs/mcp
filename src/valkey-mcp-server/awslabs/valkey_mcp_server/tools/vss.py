@@ -14,9 +14,9 @@
 
 import json
 import logging
-import struct
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.common.utils import pack_embedding
 from typing import Any, Dict, List, Optional, Union
 from valkey import Valkey
 from valkey.cluster import ValkeyCluster
@@ -99,7 +99,7 @@ async def vector_search(
             query = query.no_content()
 
         # Convert vector to bytes for the query parameter
-        vector_bytes = struct.pack(f'{len(vector)}f', *vector)
+        vector_bytes = pack_embedding(vector)
 
         # Execute the search to get document IDs
         query_params: dict[str, str | int | float | bytes] = {'blob': vector_bytes}
