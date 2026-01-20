@@ -118,6 +118,7 @@ async def run_query(
     query_parameters: Annotated[
         Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
     ] = None,
+    port: Annotated[int, Field(description='Database port')] = 5432,
 ) -> list[dict]:  # type: ignore
     """Run a SQL query against PostgreSQL.
 
@@ -129,6 +130,7 @@ async def run_query(
         db_endpoint: database endpoint
         database: database name
         query_parameters: Parameters for the SQL query
+        port: Database port (default: 5432)
 
     Returns:
         List of dictionary that contains query response rows
@@ -141,20 +143,22 @@ async def run_query(
     logger.info(
         f'Entered run_query with '
         f'method:{connection_method}, cluster_identifier:{cluster_identifier}, '
-        f'db_endpoint:{db_endpoint}, database:{database}, '
+        f'db_endpoint:{db_endpoint}, database:{database}, port:{port}, '
         f'sql:{sql}'
     )
+    logger.info(f'Connection map contents: {db_connection_map.get_keys_json()}')
 
     db_connection = db_connection_map.get(
         method=connection_method,
         cluster_identifier=cluster_identifier,
         db_endpoint=db_endpoint,
         database=database,
+        port=port,
     )
     if not db_connection:
         err = (
             f'No database connection available for method:{connection_method}, '
-            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}'
+            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}, port:{port}'
         )
         logger.error(err)
         await ctx.error(err)
@@ -217,6 +221,7 @@ async def get_table_schema(
     database: Annotated[str, Field(description='database name')],
     table_name: Annotated[str, Field(description='name of the table')],
     ctx: Context,
+    port: Annotated[int, Field(description='Database port')] = 5432,
 ) -> list[dict]:
     """Get a table's schema information given the table name.
 
@@ -227,6 +232,7 @@ async def get_table_schema(
         database: database name
         table_name: name of the table
         ctx: MCP context for logging and state management
+        port: Database port (default: 5432)
 
     Returns:
         List of dictionary that contains query response rows
@@ -234,9 +240,10 @@ async def get_table_schema(
     logger.info(
         (
             f'Entered get_table_schema: table_name:{table_name} connection_method:{connection_method}, '
-            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}'
+            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}, port:{port}'
         )
     )
+    logger.info(f'Connection map contents: {db_connection_map.get_keys_json()}')
 
     sql = f"""
         SELECT
@@ -262,6 +269,7 @@ async def get_table_schema(
         db_endpoint=db_endpoint,
         database=database,
         query_parameters=params,
+        port=port,
     )
 
 
@@ -277,6 +285,14 @@ def connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')],
+    db_user: Annotated[Optional[str], Field(description='Database username for IAM auth')] = None,
+    connection_host: Annotated[
+        Optional[str],
+        Field(description='Override hostname for connection (e.g., for SSH tunnels)'),
+    ] = None,
+    connection_port: Annotated[
+        Optional[int], Field(description='Override port for connection (e.g., for SSH tunnels)')
+    ] = None,
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -285,9 +301,12 @@ def connect_to_database(
         database_type: Either APG for Aurora Postgres or RPG for RDS Postgres cluster. Required parameter
         connection_method: Either RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL. Required parameter
         cluster_identifier: Either Aurora Postgres cluster identifier or RDS Postgres cluster identifier
-        db_endpoint: database endpoint
-        port: database port
+        db_endpoint: database endpoint (used for IAM token generation)
+        port: database port (used for IAM token generation)
         database: database name. Required parameter
+        db_user: Database username for IAM authentication. If not provided, uses master username from cluster properties.
+        connection_host: Override hostname for actual connection (e.g., 127.0.0.1 for SSH tunnel). If not provided, uses db_endpoint.
+        connection_port: Override port for actual connection (e.g., 8192 for SSH tunnel). If not provided, uses port.
 
         Supported scenario:
         1. Aurora Postgres database with RDS_API + Credential Manager:
@@ -296,12 +315,17 @@ def connect_to_database(
         2. Aurora Postgres database with direct connection + IAM:
             cluster_identifier must be set
             db_endpoint must be set
+            db_user can be specified for IAM auth (defaults to master user)
         3. Aurora Postgres database with direct connection + PG_AUTH (Credential Manager):
             cluster_identifier must be set
             db_endpoint must be set
         4. RDS Postgres database with direct connection + PG_AUTH (Credential Manager):
             credential manager setting is either on instance or cluster
             db_endpoint must be set
+        5. SSH Tunnel scenario (IAM auth):
+            Set db_endpoint to actual RDS endpoint (for IAM token)
+            Set connection_host to 127.0.0.1 (tunnel endpoint)
+            Set connection_port to tunnel port (e.g., 8192)
     """
     try:
         db_connection, llm_response = internal_connect_to_database(
@@ -312,6 +336,9 @@ def connect_to_database(
             db_endpoint=db_endpoint,
             port=port,
             database=database,
+            db_user=db_user,
+            connection_host=connection_host,
+            connection_port=connection_port,
         )
 
         return str(llm_response)
@@ -523,6 +550,13 @@ def internal_connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
+    db_user: Annotated[Optional[str], Field(description='Database username')] = None,
+    connection_host: Annotated[
+        Optional[str], Field(description='Connection hostname override')
+    ] = None,
+    connection_port: Annotated[
+        Optional[int], Field(description='Connection port override')
+    ] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -531,9 +565,12 @@ def internal_connect_to_database(
         database_type: database type (APG or RPG)
         connection_method: connection method (RDS_API, PG_WIRE_PROTOCOL, or PG_WIRE_IAM_PROTOCOL)
         cluster_identifier: cluster identifier
-        db_endpoint: database endpoint
-        port: database port
+        db_endpoint: database endpoint (for IAM token generation)
+        port: database port (for IAM token generation)
         database: database name
+        db_user: database username for IAM auth (if not provided, uses master username)
+        connection_host: actual hostname to connect to (defaults to db_endpoint)
+        connection_port: actual port to connect to (defaults to port)
     """
     global db_connection_map
     global readonly_query
@@ -605,28 +642,41 @@ def internal_connect_to_database(
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
         port = int(instance_properties.get('Endpoint', {}).get('Port'))
 
+    # Determine actual connection host/port (use overrides if provided)
+    actual_host = connection_host if connection_host else db_endpoint
+    actual_port = connection_port if connection_port else port
+
     logger.info(
-        f'About to create internal DB connections with:'
+        f'About to create internal DB connections with:\n'
         f'enable_data_api:{enable_data_api}\n'
         f'masteruser:{masteruser}\n'
+        f'db_user:{db_user}\n'
         f'cluster_arn:{cluster_arn}\n'
         f'secret_arn:{secret_arn}\n'
         f'db_endpoint:{db_endpoint}\n'
         f'port:{port}\n'
+        f'connection_host:{connection_host}\n'
+        f'connection_port:{connection_port}\n'
+        f'actual_host:{actual_host}\n'
+        f'actual_port:{actual_port}\n'
         f'region:{region}\n'
         f'readonly:{readonly_query}'
     )
 
     db_connection = None
     if connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL:
+        # Use provided db_user or fall back to master username
+        iam_user = db_user if db_user else masteruser
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
-            port=port,
+            host=actual_host,
+            port=actual_port,
             database=database,
             readonly=readonly_query,
             secret_arn='',
-            db_user=masteruser,
+            db_user=iam_user,
             region=region,
+            iam_host=db_endpoint,
+            iam_port=port,
             is_iam_auth=True,
         )
 
@@ -641,8 +691,8 @@ def internal_connect_to_database(
     else:
         # must be connection_method == ConnectionMethod.PG_WIRE_PROTOCOL
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
-            port=port,
+            host=actual_host,
+            port=actual_port,
             database=database,
             readonly=readonly_query,
             secret_arn=secret_arn,
@@ -653,7 +703,7 @@ def internal_connect_to_database(
 
     if db_connection:
         db_connection_map.set(
-            connection_method, cluster_identifier, db_endpoint, database, db_connection
+            connection_method, cluster_identifier, db_endpoint, database, db_connection, port
         )
         llm_response = json.dumps(
             {
