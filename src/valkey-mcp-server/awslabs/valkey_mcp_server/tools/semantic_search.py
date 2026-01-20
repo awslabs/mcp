@@ -326,7 +326,7 @@ async def collection_info(collection: str) -> Dict[str, Any]:
                 'stored_documents': stored_docs,
                 'indexed_documents': indexed_docs,
                 'hash_indexing_failures': info_dict['hash_indexing_failures'],
-                'percent_indexed': stored_docs / indexed_docs if indexed_docs > 0 else 0,
+                'percent_indexed': indexed_docs / stored_docs if stored_docs > 0 else 0,
                 'indexing_complete': stored_docs == indexed_docs,
                 'index_name': index_name,
             }
