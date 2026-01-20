@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import boto3
+
+
 # These global services don't have regionalized endpoints
 NON_REGIONALIZED_SERVICES = ('iam', 'route53')
 
@@ -26,3 +29,21 @@ GLOBAL_SERVICE_REGIONS = {
     'route53domains': 'us-east-1',
     'sagemaker-geospatial': 'us-west-2',
 }
+
+
+
+def get_active_regions() -> list[str]:
+    account_client = boto3.client('account')
+
+    active_regions = []
+    paginator = account_client.get_paginator('list_regions')
+
+    for page in paginator.paginate():
+        page_regions = page.get('Regions', [])
+        active_regions.extend([
+            region['RegionName']
+            for region in page_regions
+            if region.get('RegionOptStatus') in ['ENABLED', 'ENABLED_BY_DEFAULT']
+        ])
+
+    return active_regions
