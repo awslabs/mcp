@@ -8,7 +8,11 @@ import psycopg
 @pytest.mark.asyncio
 async def test_readonly_query_transaction_bypass_attempt():
     """Test that transaction bypass attempts are rejected."""
+    from awslabs.aurora_dsql_mcp_server import server
     from awslabs.aurora_dsql_mcp_server.server import readonly_query
+
+    original_endpoint = server.cluster_endpoint
+    server.cluster_endpoint = "test_endpoint"
 
     ctx = MagicMock()
     ctx.error = AsyncMock()
@@ -20,12 +24,17 @@ async def test_readonly_query_transaction_bypass_attempt():
                 await readonly_query("SELECT 1; SELECT 2", ctx)
 
     ctx.error.assert_called_once()
+    server.cluster_endpoint = original_endpoint
 
 
 @pytest.mark.asyncio
 async def test_readonly_query_write_error():
     """Test ReadOnlySqlTransaction error handling."""
+    from awslabs.aurora_dsql_mcp_server import server
     from awslabs.aurora_dsql_mcp_server.server import readonly_query
+
+    original_endpoint = server.cluster_endpoint
+    server.cluster_endpoint = "test_endpoint"
 
     ctx = MagicMock()
     ctx.error = AsyncMock()
@@ -38,11 +47,16 @@ async def test_readonly_query_write_error():
             with pytest.raises(Exception, match="does not support write"):
                 await readonly_query("SELECT 1", ctx)
 
+    server.cluster_endpoint = original_endpoint
+
 
 @pytest.mark.asyncio
 async def test_transact_not_allowed():
     """Test transact when writes not allowed."""
     from awslabs.aurora_dsql_mcp_server import server
+
+    original_endpoint = server.cluster_endpoint
+    server.cluster_endpoint = "test_endpoint"
 
     ctx = MagicMock()
     ctx.error = AsyncMock()
@@ -51,6 +65,8 @@ async def test_transact_not_allowed():
 
     with pytest.raises(Exception, match="not allow"):
         await server.transact(["INSERT INTO test VALUES (1)"], ctx)
+
+    server.cluster_endpoint = original_endpoint
 
 
 @pytest.mark.asyncio
