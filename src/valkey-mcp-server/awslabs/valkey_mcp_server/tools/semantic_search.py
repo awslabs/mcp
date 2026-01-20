@@ -366,7 +366,7 @@ async def semantic_search(
         filter_expression: Optional filter expression to apply to the search results
 
     Returns:
-        An object indicating the results of the operation, with a "status" field set toe either "success" or "error",
+        An object indicating the results of the operation, with a "status" field set to either "success" or "error",
         and a "reason" field (in the event of an error) set to the error reason, otherwise a "results" field
         containing a list of matching documents with similarity scores and metadata
 

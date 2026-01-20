@@ -57,7 +57,7 @@ async def vector_search(
         no_content: If True, return only document IDs without content (default: False)
 
     Returns:
-        An object indicating the results of the operation, with a "status" field set toe either "success" or "error",
+        An object indicating the results of the operation, with a "status" field set to either "success" or "error",
         and a "reason" field (in the event of an error) set to the error reason, otherwise a "results" field
         containing a list of matching documents as dictionaries containing all document fields
         (excluding the vector field itself), or an error message if there was a failure
