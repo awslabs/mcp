@@ -83,7 +83,9 @@ class ValkeyConnectionManager:
                 'lib_name': f'valkey-py(mcp-server_v{__version__})',
             }
 
-            # Add max_connections parameter based on mode
+            # Configure connection pool size for concurrent operations
+            # Higher limits (default 300) support vector search and semantic search workloads
+            # which can generate many concurrent index queries
             max_connections_per_node = VALKEY_CFG.get('max_connections_per_node', 300)
             if VALKEY_CFG['cluster_mode']:
                 connection_kwargs['max_connections_per_node'] = max_connections_per_node
