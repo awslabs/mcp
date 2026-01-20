@@ -144,8 +144,10 @@ Build and install docker image locally on the same host of your LLM client
           "run",
           "--rm",
           "--interactive",
-          "-v ~/.aws:/root/.aws",
-          "-e AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
+          "-v",
+          "~/.aws:/root/.aws",
+          "-e",
+          "AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
           "awslabs/cloudwatch-mcp-server:latest"
         ],
         "env": {},
