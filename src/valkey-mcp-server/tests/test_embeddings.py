@@ -29,7 +29,7 @@ from unittest.mock import AsyncMock, Mock, patch
 class TestEmbeddingsFactory:
     """Test embeddings provider factory function."""
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     def test_create_ollama_provider(self, mock_config):
         """Test creating Ollama embeddings provider."""
         mock_config.get.side_effect = lambda key, default=None: {
@@ -44,7 +44,7 @@ class TestEmbeddingsFactory:
         assert provider.base_url == 'http://test:11434'
         assert provider.model == 'test-model'
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     @patch('boto3.Session')
     def test_create_bedrock_provider(self, mock_session, mock_config):
         """Test creating Bedrock embeddings provider."""
@@ -67,7 +67,7 @@ class TestEmbeddingsFactory:
 
         assert isinstance(provider, BedrockEmbeddings)
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     def test_create_openai_provider(self, mock_config):
         """Test creating OpenAI embeddings provider."""
         mock_config.get.side_effect = lambda key, default=None: {
@@ -80,7 +80,7 @@ class TestEmbeddingsFactory:
 
         assert isinstance(provider, OpenAIEmbeddings)
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     def test_create_openai_provider_missing_key(self, mock_config):
         """Test creating OpenAI provider without API key raises error."""
         mock_config.get.side_effect = lambda key, default=None: {
@@ -91,7 +91,7 @@ class TestEmbeddingsFactory:
         with pytest.raises(ValueError, match='OPENAI_API_KEY environment variable is required'):
             create_embeddings_provider()
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     def test_create_hash_provider(self, mock_config):
         """Test creating hash embeddings provider."""
         mock_config.get.side_effect = lambda key, default=None: {'provider': 'hash'}.get(
@@ -102,7 +102,7 @@ class TestEmbeddingsFactory:
 
         assert isinstance(provider, HashEmbeddings)
 
-    @patch('awslabs.valkey_mcp_server.embeddings.EMBEDDING_CFG')
+    @patch('awslabs.valkey_mcp_server.embeddings.factory.EMBEDDING_CFG')
     def test_create_unknown_provider(self, mock_config):
         """Test creating unknown provider raises error."""
         mock_config.get.side_effect = lambda key, default=None: {'provider': 'unknown'}.get(
