@@ -17,7 +17,9 @@
 import argparse
 import asyncio
 import boto3
+import httpx
 import psycopg
+import psycopg.rows
 import sys
 from awslabs.aurora_dsql_mcp_server.consts import (
     BEGIN_READ_ONLY_TRANSACTION_SQL,
@@ -38,7 +40,6 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_READONLY_QUERY,
     ERROR_ROLLBACK_TRANSACTION,
     ERROR_TRANSACT,
-    ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
     ERROR_WRITE_QUERY_PROHIBITED,
     GET_SCHEMA_SQL,
@@ -54,7 +55,8 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import Annotated, List
+from typing import Annotated, Any, List
+from urllib.parse import urlparse
 
 
 # Global variables
@@ -62,15 +64,17 @@ cluster_endpoint = None
 database_user = None
 region = None
 read_only = False
-dsql_client = None
+dsql_client: Any = None
 persistent_connection = None
 aws_profile = None
+knowledge_server = 'https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+knowledge_timeout = 30.0
 
 mcp = FastMCP(
     'awslabs-aurora-dsql-mcp-server',
     instructions="""
     # Aurora DSQL MCP server.
-    Provides tools to execute SQL queries on Aurora DSQL cluster'
+    Provides tools to execute SQL queries on Aurora DSQL cluster.
 
     ## Available Tools
 
@@ -79,9 +83,20 @@ mcp = FastMCP(
 
     ### transact
     Executes one or more SQL commands in a transaction.
+    - In READ-ONLY mode: Use for consistent multi-query reads. Statements are best-effort read-only validated.
+    - In READ-WRITE mode: Use for any transactions including mutation. Supports all DDL and DML statements.
 
     ### get_schema
     Returns the schema of a table.
+
+    ### dsql_search_documentation
+    Search Aurora DSQL documentation.
+
+    ### dsql_read_documentation
+    Read specific DSQL documentation pages.
+
+    ### dsql_recommend
+    Get recommendations for DSQL best practices.
     """,
     dependencies=[
         'loguru',
@@ -192,18 +207,49 @@ async def readonly_query(
 
 @mcp.tool(
     name='transact',
-    description="""Write or modify data using SQL, in a transaction against the configured Aurora DSQL cluster.
+    description="""Execute SQL statements in a transaction against the configured Aurora DSQL cluster.
 
 Aurora DSQL is a distributed SQL database with Postgres compatibility. This tool will automatically
 insert `BEGIN` and `COMMIT` statements; you only need to provide the statements to run
 within the transaction scope.
 
-In addition to the `SELECT` functionality described on the `readonly_query` tool, DSQL supports
-common DDL statements such as `CREATE TABLE`. Note that it is a best practice to use UUIDs
-for new tables in DSQL as this will spread your workload out over as many nodes as possible.
+## Behavior by Mode
 
-Some DDL commands are async (like `CREATE INDEX ASYNC`), and return a job id. Jobs can
-be viewed by running `SELECT * FROM sys.jobs`.
+**READ-ONLY MODE:**
+- Use this tool for read operations that require transactional consistency (point-in-time snapshots)
+- Multiple SELECT queries will see data as it existed at transaction start time
+- All statements are validated before execution - NO write operations allowed
+- Prohibited operations: mutating queries ie. INSERT, UPDATE, DELETE, CREATE, DROP etc.
+- Allowed operations: SELECT, SHOW, EXPLAIN (read-only queries only)
+
+**READ-WRITE MODE:**
+- Use this tool for any write or modify operations
+- Supports all DDL statements (CREATE TABLE, CREATE INDEX, etc.)
+- Supports all DML statements (INSERT, UPDATE, DELETE)
+- Best practice: Use UUIDs for new tables to spread workload across nodes
+- Async DDL commands (like CREATE INDEX ASYNC) return a job id
+- View jobs with: SELECT * FROM sys.jobs
+
+## When to Use Transact vs readonly_query
+
+- Use `transact` when you need multiple queries to see consistent data (same point in time)
+- Use `readonly_query` for single read queries that don't need transactional isolation
+- In read-only mode, both tools validate against write operations
+
+## Examples
+
+Read-only mode - consistent multi-query read:
+```
+transact(["SELECT COUNT(*) FROM orders", "SELECT SUM(total) FROM orders"])
+```
+
+Read-write mode - create and populate table:
+```
+transact([
+  "CREATE TABLE users (id UUID PRIMARY KEY, name TEXT)",
+  "INSERT INTO users VALUES (gen_random_uuid(), 'Alice')"
+])
+```
 """,
 )
 async def transact(
@@ -225,23 +271,48 @@ async def transact(
     """
     logger.info(f'transact: {sql_list}')
 
-    if read_only:
-        await ctx.error(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
-        raise Exception(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
-
     if not sql_list:
         await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
+    # In read-only mode, validate all statements before executing
+    if read_only:
+        for idx, sql in enumerate(sql_list):
+            # Apply the same security checks as readonly_query
+            mutating_matches = detect_mutating_keywords(sql)
+            if mutating_matches:
+                logger.warning(
+                    f'transact rejected due to mutating keywords: {mutating_matches}, SQL: {sql}'
+                )
+                await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
+                raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
+
+            injection_issues = check_sql_injection_risk(sql)
+            if injection_issues:
+                logger.warning(
+                    f'transact rejected due to injection risks: {injection_issues}, SQL: {sql}'
+                )
+                await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+                raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+
+            if detect_transaction_bypass_attempt(sql):
+                logger.warning(f'transact rejected due to transaction bypass attempt, SQL: {sql}')
+                await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+                raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+
     try:
         conn = await get_connection(ctx)
 
+        # Use read-only transaction in read-only mode, regular transaction otherwise
+        begin_sql = BEGIN_READ_ONLY_TRANSACTION_SQL if read_only else BEGIN_TRANSACTION_SQL
+
         try:
-            await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
+            await execute_query(ctx, conn, begin_sql)
         except Exception as e:
-            logger.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            await ctx.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
-            raise Exception(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            error_msg = ERROR_BEGIN_READ_ONLY_TRANSACTION if read_only else ERROR_BEGIN_TRANSACTION
+            logger.error(f'{error_msg}: {str(e)}')
+            await ctx.error(f'{error_msg}: {str(e)}')
+            raise Exception(f'{error_msg}: {str(e)}')
 
         try:
             rows = []
@@ -249,6 +320,9 @@ async def transact(
                 rows = await execute_query(ctx, conn, query)
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
+        except psycopg.errors.ReadOnlySqlTransaction:
+            await ctx.error(READ_ONLY_QUERY_WRITE_ERROR)
+            raise Exception(READ_ONLY_QUERY_WRITE_ERROR)
         except Exception as e:
             try:
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
@@ -289,6 +363,135 @@ async def get_schema(
         raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
 
 
+@mcp.tool(
+    name='dsql_search_documentation',
+    description='Search Aurora DSQL documentation',
+)
+async def dsql_search_documentation(
+    search_phrase: Annotated[str, Field(description='Search phrase to use')],
+    limit: Annotated[int | None, Field(description='Maximum number of results to return')] = None,
+    ctx: Context | None = None,
+) -> dict:
+    """Search Aurora DSQL documentation.
+
+    Args:
+        search_phrase: Search phrase to use
+        limit: Maximum number of results to return (optional)
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Search results from the remote knowledge server
+    """
+    params: dict[str, Any] = {'search_phrase': search_phrase}
+    if limit is not None:
+        params['limit'] = limit
+    return await _proxy_to_knowledge_server('dsql_search_documentation', params, ctx)
+
+
+@mcp.tool(
+    name='dsql_read_documentation',
+    description='Read specific DSQL documentation pages',
+)
+async def dsql_read_documentation(
+    url: Annotated[str, Field(description='Specific url to read')],
+    start_index: Annotated[int | None, Field(description='Starting character index')] = None,
+    max_length: Annotated[
+        int | None, Field(description='Maximum number of characters to return')
+    ] = None,
+    ctx: Context | None = None,
+) -> dict:
+    """Read specific DSQL documentation pages.
+
+    Args:
+        url: URL of the documentation page to read
+        start_index: Starting character index (optional)
+        max_length: Maximum number of characters to return (optional)
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Documentation content from the remote knowledge server
+    """
+    params: dict[str, Any] = {'url': url}
+    if start_index is not None:
+        params['start_index'] = start_index
+    if max_length is not None:
+        params['max_length'] = max_length
+    return await _proxy_to_knowledge_server('dsql_read_documentation', params, ctx)
+
+
+@mcp.tool(
+    name='dsql_recommend',
+    description='Get recommendations for DSQL best practices',
+)
+async def dsql_recommend(
+    url: Annotated[
+        str,
+        Field(description='URL of the documentation page to get recommendations for'),
+    ],
+    ctx: Context,
+) -> dict:
+    """Get recommendations for DSQL best practices.
+
+    Args:
+        url: URL of the documentation page to get recommendations for
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Recommendations from the remote knowledge server
+    """
+    return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
+
+
+async def _proxy_to_knowledge_server(
+    method: str, params: dict[str, Any], ctx: Context | None
+) -> dict:
+    """Proxy a request to the remote knowledge MCP server.
+
+    Args:
+        method: The MCP tool method name to call
+        params: Parameters to pass to the remote tool
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Response from the remote server
+
+    Raises:
+        Exception: If the remote server is unavailable or returns an error
+    """
+    logger.info(f'Proxying to knowledge server: {method} with params: {params}')
+
+    payload = {
+        'jsonrpc': '2.0',
+        'method': 'tools/call',
+        'params': {
+            'name': method,
+            'arguments': params,
+        },
+        'id': 1,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=knowledge_timeout) as client:
+            response = await client.post(knowledge_server, json=payload)
+            response.raise_for_status()
+            result = response.json()
+
+            if 'error' in result:
+                error_msg = result['error'].get('message', 'Unknown error from knowledge server')
+                if ctx:
+                    await ctx.error(error_msg)
+                raise Exception(error_msg)
+
+            return result.get('result', {})
+
+    except httpx.HTTPError as e:
+        error_msg = 'The DSQL knowledge server is currently unavailable. Please try again later.'
+        logger.error(f'Knowledge server error: {e}')
+        if ctx:
+            await ctx.error(error_msg)
+        raise Exception(error_msg)
+
+
 class NoOpCtx:
     """A No-op context class for error handling in MCP tools."""
 
@@ -304,9 +507,9 @@ async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
     if database_user == 'admin':
-        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
+        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)
     else:
-        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
+        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)
 
 
 async def get_connection(ctx):  # noqa: D103
@@ -350,7 +553,18 @@ async def get_connection(ctx):  # noqa: D103
         raise e
 
 
-async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]:  # noqa: D103
+async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]:
+    """Execute a SQL query against the database.
+
+    Args:
+        ctx: MCP context for error handling
+        conn_to_use: Database connection to use, or None to get a new one
+        query: SQL query string to execute
+        params: Optional query parameters
+
+    Returns:
+        List of result rows as dictionaries
+    """
     if conn_to_use is None:
         conn = await get_connection(ctx)
     else:
@@ -394,7 +608,9 @@ def main():
         description='An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL'
     )
     parser.add_argument(
-        '--cluster_endpoint', required=True, help='Endpoint for your Aurora DSQL cluster'
+        '--cluster_endpoint',
+        required=True,
+        help='Endpoint for your Aurora DSQL cluster',
     )
     parser.add_argument('--database_user', required=True, help='Database username')
     parser.add_argument('--region', required=True)
@@ -407,7 +623,45 @@ def main():
         '--profile',
         help='AWS profile to use for credentials',
     )
+    parser.add_argument(
+        '--knowledge-server',
+        default='https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com',
+        help='Remote MCP server endpoint for DSQL knowledge tools',
+    )
+    parser.add_argument(
+        '--knowledge-timeout',
+        type=float,
+        default=30.0,
+        help='Timeout in seconds for knowledge server requests (default: 30.0)',
+    )
     args = parser.parse_args()
+
+    # Validate knowledge server URL
+    try:
+        parsed_url = urlparse(args.knowledge_server)
+        if parsed_url.scheme != 'https':
+            logger.error(
+                f'Knowledge server URL must use HTTPS protocol. Got: {args.knowledge_server}. '
+                f'Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+            )
+            sys.exit(1)
+        if not parsed_url.netloc:
+            logger.error(
+                f'Knowledge server URL is malformed. Got: {args.knowledge_server}. '
+                f'Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
+            )
+            sys.exit(1)
+    except Exception as e:
+        logger.error(f'Invalid knowledge server URL: {e}')
+        sys.exit(1)
+
+    # Validate timeout value
+    if args.knowledge_timeout <= 0:
+        logger.error(
+            f'Knowledge timeout must be positive. Got: {args.knowledge_timeout}. '
+            f'Example: --knowledge-timeout 30.0'
+        )
+        sys.exit(1)
 
     global cluster_endpoint
     cluster_endpoint = args.cluster_endpoint
@@ -424,13 +678,22 @@ def main():
     global aws_profile
     aws_profile = args.profile
 
+    global knowledge_server
+    knowledge_server = args.knowledge_server
+
+    global knowledge_timeout
+    knowledge_timeout = args.knowledge_timeout
+
+    mode_description = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}',
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, MODE:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
         cluster_endpoint,
         region,
         database_user,
-        args.allow_writes,
+        mode_description,
         aws_profile or 'default',
+        knowledge_server,
+        knowledge_timeout,
     )
 
     global dsql_client

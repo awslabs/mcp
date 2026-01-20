@@ -83,21 +83,17 @@ class TestUtils:
 
     def test_add_default_tags_enabled(self):
         """Test adding default tags when enabled."""
-        import os
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 
-        os.environ['DEFAULT_TAGGING'] = 'true'
         properties = {'BucketName': 'test-bucket'}
         schema = {'properties': {'Tags': {}}}
+        env_vars = {'DEFAULT_TAGS': 'enabled'}
 
-        result = add_default_tags(properties, schema)
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket', env_vars)
 
-        # Function may or may not add tags depending on implementation
+        # Should add tags when enabled and resource supports tagging
         assert isinstance(result, dict)
-
-        # Clean up
-        if 'DEFAULT_TAGGING' in os.environ:
-            del os.environ['DEFAULT_TAGGING']
+        assert 'Tags' in result
 
     def test_validate_patch_replace_operation(self):
         """Test patch validation with replace operation."""
@@ -194,13 +190,13 @@ class TestUtils:
         assert result['request_token'] == 'test-token'
 
     def test_add_default_tags_always_enabled(self):
-        """Test add_default_tags always adds tags in v1."""
+        """Test add_default_tags adds tags when enabled (default behavior)."""
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 
         properties = {'BucketName': 'test-bucket'}
         schema = {'properties': {'Tags': {}}}
 
-        result = add_default_tags(properties, schema)
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket')
         assert 'Tags' in result
         assert len(result['Tags']) == 3
         tag_keys = {tag['Key'] for tag in result['Tags']}
@@ -221,7 +217,7 @@ class TestUtils:
         """Test add_default_tags with no properties."""
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 
-        result = add_default_tags({}, {})
+        result = add_default_tags({}, {}, 'AWS::S3::Bucket')
         assert result == {}
 
     def test_progress_event_with_hooks(self):
@@ -259,41 +255,31 @@ class TestUtils:
         validate_patch([{'op': 'copy', 'path': '/test', 'from': '/source'}])
 
     def test_add_default_tags_no_tags_property(self):
-        """Test add_default_tags without Tags property - V1 always adds tags."""
+        """Test add_default_tags without Tags property - no tags added for schema-only approach."""
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 
         properties = {'BucketName': 'test-bucket'}
         schema = {'properties': {'BucketName': {'type': 'string'}}}  # No Tags property
 
-        result = add_default_tags(properties, schema)
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket')
 
-        # V1 behavior: Always adds tags regardless of schema
-        assert 'Tags' in result
-        assert len(result['Tags']) == 3
-        assert result['BucketName'] == 'test-bucket'
-
-        # Verify default tags are present
-        tag_keys = {tag['Key'] for tag in result['Tags']}
-        assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
+        # Should not add tags if schema doesn't show Tags property (schema-only approach)
+        assert result == properties
+        assert 'Tags' not in result
 
     def test_add_default_tags_with_tags_property(self):
         """Test add_default_tags with Tags property in schema."""
-        import os
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
-
-        os.environ['DEFAULT_TAGS'] = 'enabled'
 
         properties = {'BucketName': 'test-bucket'}
         schema = {'properties': {'Tags': {'type': 'array'}}}
+        env_vars = {'DEFAULT_TAGS': 'enabled'}
 
-        result = add_default_tags(properties, schema)
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket', env_vars)
 
         # Should add default tags when enabled and Tags property exists
         assert isinstance(result, dict)
-
-        # Clean up
-        if 'DEFAULT_TAGS' in os.environ:
-            del os.environ['DEFAULT_TAGS']
+        assert 'Tags' in result
 
     def test_add_default_tags_with_existing_user_tags(self):
         """Test add_default_tags preserves user tags and adds default tags."""
@@ -308,7 +294,7 @@ class TestUtils:
         }
         schema = {'properties': {'Tags': {'type': 'array'}}}
 
-        result = add_default_tags(properties, schema)
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket')
 
         # Should have user tags + 3 default tags = 5 total
         assert len(result['Tags']) == 5
@@ -406,3 +392,45 @@ class TestUtils:
 
         with pytest.raises(ClientError, match='Patch document must be a list'):
             validate_patch(CustomObject())
+
+    def test_add_default_tags_disabled(self):
+        """Test add_default_tags respects DEFAULT_TAGS=disabled."""
+        from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
+
+        properties = {'BucketName': 'test-bucket'}
+        schema = {'properties': {'Tags': {'type': 'array'}}}
+        env_vars = {'DEFAULT_TAGS': 'disabled'}
+
+        result = add_default_tags(properties, schema, 'AWS::S3::Bucket', env_vars)
+
+        # Should not add tags when disabled
+        assert result == properties
+        assert 'Tags' not in result
+
+    def test_add_default_tags_lambda_url_no_tagging(self):
+        """Test add_default_tags doesn't add tags to Lambda URLs (non-taggable resource)."""
+        from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
+
+        properties = {'TargetFunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'}
+        schema = {'properties': {'TargetFunctionArn': {'type': 'string'}}}
+
+        result = add_default_tags(properties, schema, 'AWS::Lambda::Url')
+
+        # Should not add tags to Lambda URLs
+        assert result == properties
+        assert 'Tags' not in result
+
+    def test_supports_tagging_function(self):
+        """Test the supports_tagging helper function."""
+        from awslabs.ccapi_mcp_server.cloud_control_utils import supports_tagging
+
+        # Test schema-based detection
+        schema_with_tags = {'properties': {'Tags': {'type': 'array'}}}
+        assert supports_tagging('AWS::Unknown::Resource', schema_with_tags) is True
+
+        # Test schema-only approach - no hardcoded lists
+        schema_without_tags = {'properties': {'Name': {'type': 'string'}}}
+        assert supports_tagging('AWS::Lambda::Url', schema_without_tags) is False
+        assert supports_tagging('AWS::S3::Bucket', schema_without_tags) is False
+        assert supports_tagging('AWS::Lambda::Function', schema_without_tags) is False
+        assert supports_tagging('AWS::Unknown::Resource', schema_without_tags) is False

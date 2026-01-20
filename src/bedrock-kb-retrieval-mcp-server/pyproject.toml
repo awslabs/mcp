@@ -1,13 +1,13 @@
 [project]
 name = "awslabs.bedrock-kb-retrieval-mcp-server"
-version = "1.0.8"
+version = "1.0.15"
 description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Knowledge Base Retrieval"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.37.24",
     "loguru>=0.7.3",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.11.1",
 ]
 license = {text = "Apache-2.0"}
@@ -26,6 +26,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+]
+
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
 ]
 
 [project.scripts]

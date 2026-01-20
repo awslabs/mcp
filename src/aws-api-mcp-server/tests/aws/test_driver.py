@@ -2,6 +2,7 @@ import pytest
 from awslabs.aws_api_mcp_server.core.aws.driver import (
     IRTranslation,
     get_local_credentials,
+    interpret_command,
     translate_cli_to_ir,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
@@ -12,17 +13,14 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     InvalidParametersReceivedError,
     InvalidServiceError,
     InvalidServiceOperationError,
-    MalformedFilterError,
     MissingRequiredParametersError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     UnknownArgumentsError,
-    UnknownFiltersError,
-    UnsupportedFilterError,
 )
 from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from botocore.exceptions import NoCredentialsError
-from tests.fixtures import S3_CLI_NO_REGION
+from tests.fixtures import S3_CLI_NO_REGION, TEST_CREDENTIALS, patch_botocore
 from unittest.mock import MagicMock, patch
 
 
@@ -190,83 +188,6 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws ec2 describe-instances --region eu-west-1 --filters "Name=instance-state-name-1,Values=running"',
-            IRTranslation(
-                validation_failures=[
-                    UnknownFiltersError(
-                        'ec2',
-                        [
-                            'instance-state-name-1',
-                        ],
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-route-tables --filters instance-state-name=running',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-route-tables',
-                        keys={'instance-state-name'},
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-instances --filters {}',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-instances',
-                        keys=set(),
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws ec2 describe-instances --filters \'{"Name": "test", "Name": "test"}\'',
-            IRTranslation(
-                validation_failures=[
-                    MalformedFilterError(
-                        'ec2',
-                        'describe-instances',
-                        keys={'Name'},
-                        expected_keys={'Name', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            'aws elasticbeanstalk list-platform-versions --filters=some-fitler=some-value',
-            IRTranslation(
-                validation_failures=[
-                    UnsupportedFilterError(
-                        'elasticbeanstalk',
-                        'list-platform-versions',
-                        keys={'Type', 'Operator', 'Values'},
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
-            # list-notebook-metadata doesn't accept list of filters, this case we don't handle yet
-            'aws athena list-notebook-metadata --filters Name=test --work-group grp',
-            IRTranslation(
-                validation_failures=[
-                    UnsupportedFilterError(
-                        'athena',
-                        'list-notebook-metadata',
-                        keys=set(),
-                    ).as_failure()
-                ]
-            ),
-        ),
-        (
             'aws s3api get-bucket-intelligent-tiering-configuration --bucket my-bucket --output json',
             IRTranslation(
                 missing_context_failures=[
@@ -383,3 +304,55 @@ def test_driver(command, program):
 def test_invalid_region(command):
     """Test that invalid or unavailable regions are handled correctly."""
     translate_cli_to_ir(command)
+
+
+# Tests for credentials integration changes
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_with_credentials_parameter(mock_get_local_credentials):
+    """Test that interpret_command uses provided credentials instead of calling get_local_credentials."""
+    # Create test credentials
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    # Mock get_local_credentials to ensure it's not called
+    mock_get_local_credentials.return_value = test_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets', credentials=test_credentials)
+
+    # Verify get_local_credentials was not called when credentials were provided
+    mock_get_local_credentials.assert_not_called()
+    assert result is not None
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_without_credentials_parameter(mock_get_local_credentials):
+    """Test that interpret_command falls back to get_local_credentials when no credentials provided."""
+    # Create test credentials
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_get_local_credentials.return_value = test_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets')
+
+    # Verify get_local_credentials was called when no credentials were provided
+    mock_get_local_credentials.assert_called_once()
+    assert result is not None
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials')
+def test_interpret_command_credentials_precedence(mock_get_local_credentials):
+    """Test that provided credentials take precedence over local credentials."""
+    # Create different credentials to test precedence
+    local_credentials = Credentials(**TEST_CREDENTIALS)
+
+    provided_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_get_local_credentials.return_value = local_credentials
+
+    with patch_botocore():
+        result = interpret_command('aws s3api list-buckets', credentials=provided_credentials)
+
+    # Verify get_local_credentials was not called when credentials were provided
+    mock_get_local_credentials.assert_not_called()
+    assert result is not None

@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import boto3
+import json
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
 )
 from ..common.command import IRCommand, OutputFile
-from ..common.config import get_user_agent_extra
+from ..common.config import CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS, get_user_agent_extra
 from ..common.file_system_controls import validate_file_path
-from ..common.helpers import operation_timer
+from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
 from typing import Any
@@ -51,8 +52,8 @@ def interpret(
 
     config = Config(
         region_name=region,
-        connect_timeout=TIMEOUT_AFTER_SECONDS,
-        read_timeout=TIMEOUT_AFTER_SECONDS,
+        connect_timeout=CONNECT_TIMEOUT_SECONDS,
+        read_timeout=READ_TIMEOUT_SECONDS,
         retries={'max_attempts': 3, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
@@ -105,5 +106,6 @@ def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) 
 
 def _apply_filter(response: dict[str, Any], client_side_filter: ParsedResult) -> dict[str, Any]:
     response_metadata = response.get('ResponseMetadata')
-    filtered_result = client_side_filter.search(response)
+    json_compatible_response = json.loads(json.dumps(response, cls=Boto3Encoder))
+    filtered_result = client_side_filter.search(json_compatible_response)
     return {'Result': filtered_result, 'ResponseMetadata': response_metadata}

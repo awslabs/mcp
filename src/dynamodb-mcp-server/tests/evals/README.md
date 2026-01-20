@@ -201,7 +201,7 @@ Results are classified into quality levels based on overall scores:
 
 | Score Range | Quality Level | Description |
 |-------------|---------------|-------------|
-| 8.5 - 10.0 | `excellent` | Exceptional quality - ready for production |
+| 8.5 - 10.0 | `excellent` | Exceptional quality - fully validated |
 | 7.0 - 8.4 | `good` | Solid quality - minor improvements needed |
 | 5.5 - 6.9 | `acceptable` | Adequate - meets basic requirements |
 | 4.0 - 5.4 | `needs_improvement` | Deficient - significant gaps present |

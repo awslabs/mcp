@@ -25,6 +25,7 @@ class KnowledgeBase(TypedDict):
     """A knowledge base."""
 
     name: str
+    description: str
     data_sources: List[DataSource]
 
 

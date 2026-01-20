@@ -21,7 +21,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT,
     ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY,
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
-    ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
+    ERROR_WRITE_QUERY_PROHIBITED,
     BEGIN_READ_ONLY_TRANSACTION_SQL,
     COMMIT_TRANSACTION_SQL,
     ROLLBACK_TRANSACTION_SQL,
@@ -29,7 +29,8 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
-    ERROR_BEGIN_TRANSACTION
+    ERROR_BEGIN_TRANSACTION,
+    ERROR_BEGIN_READ_ONLY_TRANSACTION,
 )
 from awslabs.aurora_dsql_mcp_server.server import (
     get_connection,
@@ -80,10 +81,48 @@ async def test_transact_throws_exception_on_empty_input():
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
-async def test_transact_throws_exception_when_read_only():
+async def test_transact_uses_read_only_transaction(mocker):
+    """Test that transact uses BEGIN READ ONLY TRANSACTION in read-only mode."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.return_value = {'column': 1}
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql_list = ['SELECT * FROM orders']
+    result = await transact(sql_list, ctx)
+
+    assert result == {'column': 1}
+
+    # Verify it uses BEGIN READ ONLY TRANSACTION
+    from awslabs.aurora_dsql_mcp_server.consts import BEGIN_READ_ONLY_TRANSACTION_SQL
+    mock_execute_query.assert_any_call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
+
+
+@patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+async def test_transact_error_on_failed_begin_read_only(mocker):
+    """Test that transact handles BEGIN READ ONLY TRANSACTION failures."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = Exception('Connection error')
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql_list = ['SELECT 1']
     with pytest.raises(Exception) as excinfo:
-        await transact(['select 1'], ctx)
-    assert str(excinfo.value) == ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE
+        await transact(sql_list, ctx)
+
+    from awslabs.aurora_dsql_mcp_server.consts import ERROR_BEGIN_READ_ONLY_TRANSACTION
+    assert ERROR_BEGIN_READ_ONLY_TRANSACTION in str(excinfo.value)
+
+    from awslabs.aurora_dsql_mcp_server.consts import BEGIN_READ_ONLY_TRANSACTION_SQL
+    mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
 
 
 async def test_get_schema_throws_exception_on_empty_input():
@@ -360,3 +399,178 @@ async def test_transact_error_on_failed_begin(mocker):
     assert ERROR_BEGIN_TRANSACTION in str(excinfo.value)
 
     mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_TRANSACTION_SQL)
+
+
+async def test_readonly_query_rollback_error_logging(mocker):
+    """Test that rollback errors are logged but don't prevent exception propagation."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = ('', Exception('Query failed'), Exception('Rollback failed'))
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql = 'select 1'
+    with pytest.raises(Exception):
+        await readonly_query(sql, ctx)
+
+    assert mock_execute_query.call_count == 3
+
+
+@patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+async def test_transact_rollback_error_logging(mocker):
+    """Test that rollback errors in transact are logged."""
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = ('', Exception('Query failed'), Exception('Rollback failed'))
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
+
+    sql_list = ['insert into test values (1)']
+    with pytest.raises(Exception):
+        await transact(sql_list, ctx)
+
+    assert mock_execute_query.call_count == 3
+
+
+async def test_execute_query_connection_retry(mocker):
+    """Test that execute_query retries on connection errors."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+    from psycopg.errors import OperationalError
+
+    # Mock persistent_connection
+    mocker.patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+
+    # First connection fails with OperationalError
+    mock_conn1 = AsyncMock()
+    mock_cursor1 = AsyncMock()
+    mock_cursor1.__aenter__ = AsyncMock(side_effect=OperationalError('Connection lost'))
+    mock_cursor1.__aexit__ = AsyncMock(return_value=None)
+    mock_conn1.cursor = MagicMock(return_value=mock_cursor1)
+    mock_conn1.close = AsyncMock()
+
+    # Second connection succeeds
+    mock_conn2 = AsyncMock()
+    mock_cursor2 = AsyncMock()
+    mock_cursor2.__aenter__ = AsyncMock(return_value=mock_cursor2)
+    mock_cursor2.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor2.execute = AsyncMock()
+    mock_cursor2.rownumber = 1
+    mock_cursor2.fetchall = AsyncMock(return_value=[{'result': 1}])
+    mock_conn2.cursor = MagicMock(return_value=mock_cursor2)
+
+    mock_get_connection.side_effect = [mock_conn1, mock_conn2]
+
+    result = await execute_query(ctx, None, 'SELECT 1')
+
+    assert result == [{'result': 1}]
+    assert mock_get_connection.call_count == 2
+
+
+async def test_execute_query_returns_empty_on_no_rows(mocker):
+    """Test that execute_query returns empty list when rownumber is None."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+
+    mock_conn = AsyncMock()
+    mock_cursor = AsyncMock()
+    mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+    mock_cursor.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor.execute = AsyncMock()
+    mock_cursor.rownumber = None
+    mock_conn.cursor = MagicMock(return_value=mock_cursor)
+
+    mock_get_connection.return_value = mock_conn
+
+    result = await execute_query(ctx, None, 'SELECT 1 WHERE FALSE')
+
+    assert result == []
+
+
+# Note: Lines 172-176 (transaction bypass warning) are difficult to test in isolation
+# because the SQL injection check (lines 161-167) catches the same patterns first.
+# This is acceptable as both checks provide defense-in-depth security.
+
+async def test_execute_query_with_interface_error_retry(mocker):
+    """Test that execute_query retries on InterfaceError."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+    from psycopg.errors import InterfaceError
+
+    mocker.patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+
+    # First connection fails with InterfaceError
+    mock_conn1 = AsyncMock()
+    mock_cursor1 = AsyncMock()
+    mock_cursor1.__aenter__ = AsyncMock(side_effect=InterfaceError('Interface error'))
+    mock_cursor1.__aexit__ = AsyncMock(return_value=None)
+    mock_conn1.cursor = MagicMock(return_value=mock_cursor1)
+    mock_conn1.close = AsyncMock()
+
+    # Second connection succeeds
+    mock_conn2 = AsyncMock()
+    mock_cursor2 = AsyncMock()
+    mock_cursor2.__aenter__ = AsyncMock(return_value=mock_cursor2)
+    mock_cursor2.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor2.execute = AsyncMock()
+    mock_cursor2.rownumber = 1
+    mock_cursor2.fetchall = AsyncMock(return_value=[{'result': 1}])
+    mock_conn2.cursor = MagicMock(return_value=mock_cursor2)
+
+    mock_get_connection.side_effect = [mock_conn1, mock_conn2]
+
+    result = await execute_query(ctx, None, 'SELECT 1')
+
+    assert result == [{'result': 1}]
+    assert mock_get_connection.call_count == 2
+
+
+async def test_execute_query_retry_returns_empty(mocker):
+    """Test that execute_query returns empty list after retry when rownumber is None."""
+    from awslabs.aurora_dsql_mcp_server.server import execute_query
+    from psycopg.errors import OperationalError
+
+    mocker.patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+
+    # First connection fails
+    mock_conn1 = AsyncMock()
+    mock_cursor1 = AsyncMock()
+    mock_cursor1.__aenter__ = AsyncMock(side_effect=OperationalError('Connection lost'))
+    mock_cursor1.__aexit__ = AsyncMock(return_value=None)
+    mock_conn1.cursor = MagicMock(return_value=mock_cursor1)
+    mock_conn1.close = AsyncMock()
+
+    # Second connection succeeds but returns no rows
+    mock_conn2 = AsyncMock()
+    mock_cursor2 = AsyncMock()
+    mock_cursor2.__aenter__ = AsyncMock(return_value=mock_cursor2)
+    mock_cursor2.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor2.execute = AsyncMock()
+    mock_cursor2.rownumber = None
+    mock_conn2.cursor = MagicMock(return_value=mock_cursor2)
+
+    mock_get_connection.side_effect = [mock_conn1, mock_conn2]
+
+    result = await execute_query(ctx, None, 'SELECT 1 WHERE FALSE')
+
+    assert result == []
+    assert mock_get_connection.call_count == 2

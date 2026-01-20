@@ -559,13 +559,48 @@ class ClientSideFilterError(CommandValidationError):
         )
 
 
+class FilePathValidationError(CommandValidationError):
+    """Thrown when file path validation fails.
+
+    This is a base class for file path validation errors. When service and operation
+    are known, consider using FileParameterError instead for more detailed context.
+    """
+
+    _message = 'Invalid file path {file_path!r}: {reason}'
+
+    def __init__(self, file_path: str, reason: str):
+        """Initialize FilePathValidationError with file path and reason."""
+        message = self._message.format(file_path=file_path, reason=reason)
+        self._file_path = file_path
+        self._reason = reason
+        super().__init__(message)
+
+    def as_failure(self) -> Failure:
+        """Return a Failure object representing this error."""
+        return Failure(
+            reason=str(self),
+            context={
+                'file_path': self._file_path,
+                'reason': self._reason,
+            },
+        )
+
+
+class LocalFileAccessDisabledError(FilePathValidationError):
+    """Thrown when local file system access is disabled (no_access mode)."""
+
+    _message = 'Cannot accept file path {file_path!r}: {reason}'
+
+    def __init__(self, file_path: str):
+        """Initialize LocalFileAccessDisabledError with file path."""
+        reason = 'local file access is disabled'
+        super().__init__(file_path, reason)
+
+
 class FileParameterError(CommandValidationError):
     """Thrown when file parameters have validation issues (streaming files, relative paths, etc.)."""
 
-    _message = (
-        'Invalid file parameter {file_path!r} for service {service!r} and operation {operation!r}: {reason}. '
-        'Please provide a valid file path.'
-    )
+    _message = 'Invalid file parameter {file_path!r} for service {service!r} and operation {operation!r}: {reason}.'
 
     def __init__(self, service: str, operation: str, file_path: str, reason: str):
         """Initialize FileParameterError with service, operation, file path, and reason."""
@@ -587,5 +622,30 @@ class FileParameterError(CommandValidationError):
                 'operation': self._operation,
                 'file_path': self._file_path,
                 'reason': self._reason,
+            },
+        )
+
+
+class OperationIsNotSupportedInTheRegionError(CommandValidationError):
+    """Thrown when an operation is not supported in a specific region."""
+
+    _message = 'The operation {service}:{operation} is not supported in the {region} region.'
+
+    def __init__(self, service: str, operation: str, region: str):
+        """Initialize UnknownFiltersError with service and invalid filters."""
+        message = self._message.format(service=service, operation=operation, region=region)
+        self._operation = operation
+        self._service = service
+        self._region = region
+        super().__init__(message)
+
+    def as_failure(self) -> Failure:
+        """Return a Failure object representing this error."""
+        return Failure(
+            reason=str(self),
+            context={
+                'service': self._service,
+                'operation': self._operation,
+                'region': self._region,
             },
         )

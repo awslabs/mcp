@@ -109,6 +109,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'sts',  # STS (for account validation)
         'freetier',  # AWS Free Tier Usage
         's3',  # AWS S3
+        'bcm-pricing-calculator',  # BCM Pricing Calculator
     ]
 
     # Validate requested service

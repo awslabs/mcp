@@ -156,9 +156,11 @@ class TestServerConfiguration(unittest.TestCase):
 
         required_tools = [
             "containerize_app",
-            "create_ecs_infrastructure",
-            "get_deployment_status",
-            "delete_ecs_infrastructure",
+            "build_and_push_image_to_ecr",
+            "validate_ecs_express_mode_prerequisites",
+            "delete_app",
+            "ecs_resource_management",
+            "ecs_troubleshooting_tool",
         ]
 
         tool_names = [tool["name"] for tool in self.mcp.tools]
@@ -172,15 +174,13 @@ class TestServerConfiguration(unittest.TestCase):
         expected_patterns = [
             "dockerize",
             "containerize",
-            "deploy to aws",
-            "deploy to ecs",
-            "ship it",
-            "deploy flask",
-            "deploy django",
-            "delete infrastructure",
-            "tear down",
-            "remove deployment",
-            "clean up resources",
+            "docker container",
+            "put in container",
+            "containerize and deploy",
+            "docker and deploy",
+            "list ecs resources",
+            "troubleshoot ecs",
+            "ecs deployment failed",
         ]
 
         patterns = [pattern["pattern"] for pattern in self.mcp.prompt_patterns]
@@ -377,17 +377,17 @@ class TestMainFunctionBehavior(unittest.TestCase):
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_successful_server_startup(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_successful_server_startup(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test successful server startup and execution."""
         # Configure mocks
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
         mock_config.get.side_effect = lambda key, default: {
             "allow-write": True,
             "allow-sensitive-data": False,
         }.get(key, default)
-        mock_create_server.return_value = (mock_mcp, mock_config)
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger
@@ -399,19 +399,19 @@ class TestMainFunctionBehavior(unittest.TestCase):
         mock_logger.info.assert_any_call("Server started")
         mock_logger.info.assert_any_call("Write operations enabled: True")
         mock_logger.info.assert_any_call("Sensitive data access enabled: False")
-        mock_mcp.run.assert_called_once()
+        mock_mcp_obj.run.assert_called_once()
         mock_exit.assert_not_called()
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_keyboard_interrupt_handling(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_keyboard_interrupt_handling(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test graceful handling of keyboard interrupt."""
         # Configure mocks for keyboard interrupt
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
-        mock_mcp.run.side_effect = KeyboardInterrupt()
-        mock_create_server.return_value = (mock_mcp, mock_config)
+        mock_mcp_obj.run.side_effect = KeyboardInterrupt()
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger
@@ -425,14 +425,14 @@ class TestMainFunctionBehavior(unittest.TestCase):
 
     @patch("awslabs.ecs_mcp_server.main.sys.exit")
     @patch("awslabs.ecs_mcp_server.main._setup_logging")
-    @patch("awslabs.ecs_mcp_server.main._create_ecs_mcp_server")
-    def test_general_exception_handling(self, mock_create_server, mock_setup_logging, mock_exit):
+    @patch("awslabs.ecs_mcp_server.main._config")
+    @patch("awslabs.ecs_mcp_server.main.mcp")
+    def test_general_exception_handling(
+        self, mock_mcp_obj, mock_config, mock_setup_logging, mock_exit
+    ):
         """Test handling of unexpected exceptions."""
         # Configure mocks for general exception
-        mock_mcp = MagicMock()
-        mock_config = MagicMock()
-        mock_mcp.run.side_effect = Exception("Unexpected error")
-        mock_create_server.return_value = (mock_mcp, mock_config)
+        mock_mcp_obj.run.side_effect = Exception("Unexpected error")
 
         mock_logger = MagicMock()
         mock_setup_logging.return_value = mock_logger

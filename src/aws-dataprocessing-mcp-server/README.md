@@ -132,13 +132,37 @@ For write operations, we recommend the following IAM policies:
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=aws.aws-dataprocessing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3cy5hd3MtZGF0YXByb2Nlc3NpbmctbWNwLXNlcnZlckBsYXRlc3QgLS1hbGxvdy13cml0ZSIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSJ9LCJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Data%20Processing%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22aws.aws-dataprocessing-mcp-server%40latest%22%2C%22--allow-write%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22transportType%22%3A%22stdio%22%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.aws-dataprocessing-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-dataprocessing-mcp-server%40latest%22%2C%22--allow-write%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en-US/install-mcp?name=awslabs.aws-dataprocessing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWRhdGFwcm9jZXNzaW5nLW1jcC1zZXJ2ZXJAbGF0ZXN0IC0tYWxsb3ctd3JpdGUiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEifSwiYXV0b0FwcHJvdmUiOltdLCJkaXNhYmxlZCI6ZmFsc2UsInRyYW5zcG9ydFR5cGUiOiJzdGRpbyJ9) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Data%20Processing%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-dataprocessing-mcp-server%40latest%22%2C%22--allow-write%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22transportType%22%3A%22stdio%22%7D) |
 
 ## Quickstart
 
-This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
+This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with coding assistants such as Kiro and Cursor. By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
+
+**Set up Kiro**
+
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit ~/.kiro/settings/mcp.json. For project-specific configuration, edit .kiro/settings/mcp.json in your project directory.
+
+```json
+{
+  "mcpServers": {
+    "aws.dp-mcp": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-dataprocessing-mcp-server@latest",
+        "--allow-write"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
 
 **Set up Cursor**
 
@@ -199,29 +223,6 @@ For Windows users, the MCP server configuration format is slightly different:
 After a few minutes, you should see a green indicator if your MCP server definition is valid.
 
 4. Open a chat panel in Cursor (e.g., `Ctrl/⌘ + L`).  In your Cursor chat window, enter your prompt. For example, "Look at all the tables from my account federated across GDC"
-
-**Set up the Amazon Q Developer CLI**
-
-1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). For example:
-
-```
-{
-  "mcpServers": {
-    "aws.dp-mcp": {
-      "command": "uvx",
-      "args": ["awslabs.aws-dataprocessing-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    }
-  }
-}
-```
-
-3. Verify your setup by running the `/tools` command in the Q Developer CLI to see the available Data Processing MCP tools.
 
 Note that this is a basic quickstart. You can enable additional capabilities, such as [running MCP servers in containers](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers) or combining more MCP servers like the [AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) into a single MCP server definition. To view an example, see the [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) guide in AWS MCP Servers on GitHub. To view a real-world implementation with application code in context with an MCP server, see the [Server Developer](https://modelcontextprotocol.io/quickstart/server) guide in Anthropic documentation.
 
@@ -372,6 +373,13 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
 | manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, appropriate AWS permissions |
+
+### EMR Serverless Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_emr_serverless_applications | Manage Amazon EMR Serverless applications with comprehensive lifecycle control | create-application, get-application, update-application, delete-application, list-applications, start-application, stop-application | --allow-write flag for create/update/delete/start/stop operations, appropriate AWS permissions |
+| manage_aws_emr_serverless_job_runs | Manage Amazon EMR Serverless job runs for executing data processing workloads | start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run | --allow-write flag for start/cancel operations, application must exist, appropriate AWS permissions |
 
 ### Athena Query Handler Tools
 

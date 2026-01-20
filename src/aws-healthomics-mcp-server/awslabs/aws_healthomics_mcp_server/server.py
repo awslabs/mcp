@@ -14,11 +14,16 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import (
+    get_supported_file_types,
+    search_genomics_files,
+)
 from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     get_supported_regions,
     package_workflow,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs,
@@ -77,6 +82,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHORunEngineLogs**: Retrieve engine logs containing STDOUT and STDERR
 - **GetAHOTaskLogs**: Retrieve logs for specific workflow tasks
 - **AnalyzeAHORunPerformance**: Analyze workflow run performance and resource utilization to provide optimization recommendations
+- **GenerateAHORunTimeline**: Generate a Gantt-style SVG timeline visualization showing task execution phases and parallelism
 
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
@@ -84,6 +90,10 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ### Workflow Linting
 - **LintAHOWorkflowDefinition**: Lint single WDL or CWL workflow files using miniwdl and cwltool
 - **LintAHOWorkflowBundle**: Lint multi-file WDL or CWL workflow bundles with import/dependency support
+
+### Genomics File Search
+- **SearchGenomicsFiles**: Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with intelligent pattern matching and file association detection
+- **GetSupportedFileTypes**: Get information about supported genomics file types and their descriptions
 
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
@@ -121,6 +131,7 @@ mcp.tool(name='GetAHORunManifestLogs')(get_run_manifest_logs)
 mcp.tool(name='GetAHORunEngineLogs')(get_run_engine_logs)
 mcp.tool(name='GetAHOTaskLogs')(get_task_logs)
 mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
+mcp.tool(name='GenerateAHORunTimeline')(generate_run_timeline)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
@@ -128,6 +139,10 @@ mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
 # Register workflow linting tools
 mcp.tool(name='LintAHOWorkflowDefinition')(lint_workflow_definition)
 mcp.tool(name='LintAHOWorkflowBundle')(lint_workflow_bundle)
+
+# Register genomics file search tools
+mcp.tool(name='SearchGenomicsFiles')(search_genomics_files)
+mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
 
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)

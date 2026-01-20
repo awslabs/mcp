@@ -15,5 +15,6 @@
 """Parser functionality for AWS CLI commands."""
 
 from .interpretation import interpret
+from .parser import parse
 
-__all__ = ['interpret']
+__all__ = ['interpret', 'parse']

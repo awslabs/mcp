@@ -13,19 +13,43 @@
 # limitations under the License.
 
 from awslabs.ccapi_mcp_server.errors import ClientError
+from os import environ
 from typing import Any, Dict
 
 
-def add_default_tags(properties: Dict, schema: Dict) -> Dict:
-    """Add default tags to resource properties. Always tries to add tags - let AWS reject if unsupported."""
+def supports_tagging(resource_type: str, schema: Dict) -> bool:
+    """Check if a resource type supports tagging based on schema."""
+    # Trust the schema - if it has Tags property, resource supports tagging
+    # If schema doesn't show Tags, assume resource doesn't support tagging
+    return 'Tags' in schema.get('properties', {})
+
+
+def add_default_tags(
+    properties: Dict,
+    schema: Dict,
+    resource_type: str = '',
+    environment_variables: Dict | None = None,
+) -> Dict:
+    """Add default tags to resource properties if DEFAULT_TAGS is enabled and resource supports tagging."""
     # Return empty dict when properties is None or empty dict {}
-    # This prevents processing invalid/missing resource properties
     if not properties:
         return {}
 
+    # FIRST: Check DEFAULT_TAGS setting - if disabled, return immediately without any tagging logic
+    if environment_variables:
+        default_tags_setting = environment_variables.get('DEFAULT_TAGS', 'enabled').lower()
+    else:
+        default_tags_setting = environ.get('DEFAULT_TAGS', 'enabled').lower()
+
+    if default_tags_setting == 'disabled':
+        return properties.copy()
+
+    # SECOND: Only if DEFAULT_TAGS is enabled, check if resource supports tagging
+    if resource_type and not supports_tagging(resource_type, schema):
+        return properties.copy()
+
     properties_with_tags = properties.copy()
 
-    # Always try to add tags - don't check schema since it can be unreliable
     # Ensure Tags array exists
     if 'Tags' not in properties_with_tags:
         properties_with_tags['Tags'] = []

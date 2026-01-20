@@ -121,9 +121,18 @@ GET_CALLER_IDENTITY_PAYLOAD = {
     'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
-IAD_BUCKET = {'Name': 'IAD', 'CreationDate': '2022-07-13T15:20:58+00:00'}
-DUB_BUCKET = {'Name': 'DUB', 'CreationDate': '2022-07-13T15:20:58+00:00'}
-PDX_BUCKET = {'Name': 'PDX', 'CreationDate': '2022-07-13T15:20:58+00:00'}
+IAD_BUCKET = {
+    'Name': 'IAD',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T14:20:58+00:00'),
+}
+DUB_BUCKET = {
+    'Name': 'DUB',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T15:20:58+00:00'),
+}
+PDX_BUCKET = {
+    'Name': 'PDX',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T16:20:58+00:00'),
+}
 
 LIST_BUCKETS_PAYLOAD = {
     'ResponseMetadata': {'HTTPStatusCode': 200},
@@ -133,6 +142,11 @@ LIST_BUCKETS_PAYLOAD = {
         PDX_BUCKET,
     ],
     'Owner': {'DisplayName': 'clpo', 'ID': '***'},
+}
+
+LIST_BUCKETS_SORTED_BY_CREATION_DATE = {
+    'Result': [PDX_BUCKET['Name'], PDX_BUCKET['CreationDate']],
+    'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
 SSM_LIST_NODES_PAYLOAD = {
@@ -258,17 +272,24 @@ def create_file_open_mock(*target_files):
 @contextlib.contextmanager
 def patch_boto3():
     """Context manager to patch boto3 for non-paginated API calls."""
-
-    def mock_can_paginate(self, operation_name):
-        return False
-
     with patch(
         'awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials',
         return_value=Credentials(**TEST_CREDENTIALS),
     ):
-        with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
-            with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
-                yield
+        with patch_botocore():
+            yield
+
+
+@contextlib.contextmanager
+def patch_botocore():
+    """Patch botocore."""
+
+    def mock_can_paginate(self, operation_name):
+        return False
+
+    with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
+        with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
+            yield
 
 
 class DummyCtx:

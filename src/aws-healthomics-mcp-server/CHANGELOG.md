@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v0.0.19 **Run Timeline Tool** - Generates a GANTT style timeline plot of a run as base64 encoded SVG
+- v0.0.19 **Run Analysis Tool** - Adds cost estimation and potential cost saving estimation based on AWS pricing and run duration
+
+- v0.018 **Genomics File Search Tool** - Comprehensive file discovery across multiple storage systems
+  - Added `SearchGenomicsFiles` tool for intelligent file discovery across S3 buckets, HealthOmics sequence stores, and reference stores
+  - Pattern matching with fuzzy search capabilities for file paths and object tags
+  - Automatic file association detection (BAM/BAI indexes, FASTQ R1/R2 pairs, FASTA indexes, BWA index collections)
+  - Relevance scoring and ranking system based on pattern match quality, file type relevance, and associated files
+  - Support for standard genomics file formats: FASTQ, FASTA, BAM, CRAM, SAM, VCF, GVCF, BCF, BED, GFF, and their indexes
+  - Configurable S3 bucket paths via environment variables
+  - Structured JSON responses with comprehensive file metadata including storage class, size, and access paths
+  - Performance optimizations with parallel searches and result streaming
 - S3 URI support for workflow definitions in `CreateAHOWorkflow` and `CreateAHOWorkflowVersion` tools
   - Added `definition_uri` parameter as alternative to `definition_zip_base64`
   - Supports direct reference to workflow definition ZIP files stored in S3

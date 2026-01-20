@@ -1,13 +1,13 @@
 # Installation
 
-Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
+Each server has specific installation instructions with one-click installs for Kiro, Cursor, and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 2. Install Python using `uv python install 3.10`
 3. Configure AWS credentials with access to required services
 4. Add the server to your MCP client configuration
 
-Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
+Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
 
 ```json
 {
@@ -128,48 +128,20 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
   }
   ```
 
-### Getting Started with Amazon Q Developer CLI
-
-See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) for details.
-
-1. **Access MCP Settings**
-   - Open the Q Developer panel and open the **Chat** panel.
-   - Choose the tools icon to access to MCP configuration.
-
-2. **Add MCP Servers**
-   - Choose the plus (+) symbol.
-   - Select the scope: global or local.
-    If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
-   - Fill in values as applicable.
-
-3. **Manual Configuration**
-   - You can also manually edit the MCP configuration file located at `~/.aws/amazonq/mcp.json` globally or `.amazonq/mcp.json` locally.
-
-#### `~/.aws/amazonq/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
 
 ### Getting Started with Kiro
 
-See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/configuration/) for details.
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+In the Kiro IDE:
 
 1. Navigate `Kiro` > `MCP Servers`
 2. Add a new MCP server by clicking the `+ Add` button.
 3. Paste the configuration given below:
 
-#### `kiro_mcp_settings.json`
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+#### `~/.kiro/settings/mcp.json`
 
 For macOS/Linux:
 

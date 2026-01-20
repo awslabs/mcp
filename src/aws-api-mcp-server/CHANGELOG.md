@@ -7,9 +7,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- S3 Express One supported region validation (#2045)
+
+## [1.3.0] - 2025-12-23
+
+### Added
+
+- Add OAuth support (#1902)
+
+### Changed
+
+- Directory from `AWS_API_MCP_WORKING_DIR` will no longer be automatically created (#1962)
+
+### Fixed
+
+- Remove http/https prefix restriction (#1973)
+- Remove filters restriction (#1972)
+
+## [1.2.3] - 2025-12-19
+
+### Changed
+
+- Upgrade AWS CLI to v1.44.1 (#1971)
+- `call_aws` tool description changes related to working directory (#1920)
+
+### Fixed
+
+- Allow `s3 cp` on stdout and better error handling for CLI customizations (#1954)
+- Query bug with non-compatible JSON data types (#1955)
+
+## [1.2.2] - 2025-12-12
+
+### Changed
+
+- Upgrade AWS CLI to v1.43.13 (#1937)
+
+## [1.2.1] - 2025-12-10
+
+### Changed
+
+- Upgrade AWS CLI to v1.43.11 (#1913)
+
+## [1.2.0] - 2025-12-08
+
+### Changed
+
+- Updated default AWS API connect and read timeout (#1876)
+- Upgrade AWS CLI to v1.43.10 (#1891)
+- Support `aws login` (#1873)
+- AWS CLI operations 'help' command support (#1858)
+
+## [1.1.8] - 2025-11-28
+
+### Fixed
+- Origin header parsing (#1851)
+
+## [1.1.7] - 2025-11-20
+
+### Added
+
+- Allow disabling local file system access (#1774)
+
+### Fixed
+
+- Deprecation warnings for passing transport settings when creating the server (#1772)
+
+## [1.1.6] - 2025-11-19
+
+### Changed
+
+- Bump FastMCP to 2.13.1
+
+## [1.1.5] - 2025-11-13
+
+### Changed
+
+- Add MCPClient and via to user agent (#1724)
+
+### Fixed
+
+- Throw error instead of return response in MCP tools (#1704)
+
+## [1.1.4] - 2025-11-07
+
+### Fixed
+
+- Validate origin/host headers in streamable-http mode (#1683)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.65 (#1646)
+
+## [1.1.3] - 2025-11-03
+
+### Fixed
+
+- Change priorities of default_region parameters in call_aws_helper (#1641)
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.64 (#1637)
+
+## [1.1.2] - 2025-10-31
+
+### Changed
+
+- Add region parameter support to call_aws_helper (#1622)
+
+## [1.1.1] - 2025-10-25
+
+### Changed
+
+- Upgrade AWS CLI to v1.42.57 (#1573)
+
+## [1.1.0] - 2025-10-22
+
+### Fixed
+
+- Log errors thrown by the agent scripts manager (#1533)
+
 ### Changed
 
 - Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
+- Add call_aws helper function to consume credentials from other sources (#1547)
 
 ## [1.0.2] - 2025-10-13
 
@@ -38,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `wait` and other polling AWS CLI commands(#1402)
-
+src/aws-api-mcp-server/CHANGELOG.md
 ## [0.3.4] - 2025-09-30
 
 ### Removed

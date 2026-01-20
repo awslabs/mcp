@@ -22,11 +22,23 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora MySQL
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.mysql-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMubXlzcWwtbWNwLXNlcnZlckBsYXRlc3QgLS1yZXNvdXJjZV9hcm4gW3lvdXIgZGF0YV0gLS1zZWNyZXRfYXJuIFt5b3VyIGRhdGFdIC0tZGF0YWJhc2UgW3lvdXIgZGF0YV0gLS1yZWdpb24gW3lvdXIgZGF0YV0gLS1yZWFkb25seSBUcnVlIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=MySQL%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.mysql-mcp-server%40latest%22%2C%22--resource_arn%22%2C%22%5Byour%20data%5D%22%2C%22--secret_arn%22%2C%22%5Byour%20data%5D%22%2C%22--database%22%2C%22%5Byour%20data%5D%22%2C%22--region%22%2C%22%5Byour%20data%5D%22%2C%22--readonly%22%2C%22True%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.mysql-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.mysql-mcp-server%40latest%22%2C%22--resource_arn%22%2C%22%5Byour%20data%5D%22%2C%22--secret_arn%22%2C%22%5Byour%20data%5D%22%2C%22--database%22%2C%22%5Byour%20data%5D%22%2C%22--region%22%2C%22%5Byour%20data%5D%22%2C%22--readonly%22%2C%22True%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.mysql-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMubXlzcWwtbWNwLXNlcnZlckBsYXRlc3QgLS1yZXNvdXJjZV9hcm4gW3lvdXIgZGF0YV0gLS1zZWNyZXRfYXJuIFt5b3VyIGRhdGFdIC0tZGF0YWJhc2UgW3lvdXIgZGF0YV0gLS1yZWdpb24gW3lvdXIgZGF0YV0gLS1yZWFkb25seSBUcnVlIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=MySQL%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.mysql-mcp-server%40latest%22%2C%22--resource_arn%22%2C%22%5Byour%20data%5D%22%2C%22--secret_arn%22%2C%22%5Byour%20data%5D%22%2C%22--database%22%2C%22%5Byour%20data%5D%22%2C%22--region%22%2C%22%5Byour%20data%5D%22%2C%22--readonly%22%2C%22True%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
+
+## Connection Methods
+
+This MCP server supports two connection methods:
+
+1. **RDS Data API Connection** (using `--resource_arn`): Uses the AWS RDS Data API to connect to Aurora MySQL. This method requires that your Aurora cluster has the Data API enabled.
+
+2. **Direct MySQL Connection** (using `--hostname`): Uses asyncmy to connect directly to any MySQL database, including Aurora MySQL, RDS MySQL, RDS MariaDB, or self-hosted MySQL/MariaDB instances.
+
+Choose the connection method that best fits your environment and requirements.
+
+### Option 1: Using RDS Data API Connection (for Aurora MySQL)
 
 ```json
 {
@@ -52,6 +64,36 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+
+### Option 2: Using Direct MySQL Connection (for Aurora MySQL, RDS MySQL, and RDS MariaDB)
+
+```json
+{
+  "mcpServers": {
+    "awslabs.mysql-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.mysql-mcp-server@latest",
+        "--hostname", "[your data]",
+        "--secret_arn", "[your data]",
+        "--database", "[your data]",
+        "--region", "[your data]",
+        "--readonly", "True"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+Note: The `--port` parameter is optional and defaults to 3306 (the standard MySQL port). You only need to specify it if your MySQL instance uses a non-default port.
+
 ### Windows Installation
 
 For Windows users, the MCP server configuration format is slightly different:

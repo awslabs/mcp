@@ -289,14 +289,6 @@ async def test_import_file_to_table_success():
     mock_body.read.return_value = b'dummy-bytes'
     mock_s3_client.get_object.return_value = {'Body': mock_body}
 
-    # Mock pyiceberg catalog and table
-    mock_table = MagicMock()
-    mock_table.metadata.table_uuid = 'fake-uuid'
-    mock_table.append = MagicMock()
-    mock_catalog = MagicMock()
-    mock_catalog.load_table.side_effect = [mock_table]
-    mock_catalog.create_table.side_effect = Exception('Should not be called')  # Should not create
-
     # Use a real pyarrow schema for the dummy table
     initial_schema = pa.schema(
         [
@@ -304,6 +296,21 @@ async def test_import_file_to_table_success():
             pa.field('col2', pa.string()),
         ]
     )
+
+    # Mock pyiceberg catalog and table
+    mock_table = MagicMock()
+    mock_table.metadata.table_uuid = 'fake-uuid'
+    mock_table.append = MagicMock()
+
+    # Mock the schema method to return a proper Arrow schema
+    mock_iceberg_schema = MagicMock()
+    target_schema = pa.schema([pa.field('col_1', pa.string()), pa.field('col_2', pa.string())])
+    mock_iceberg_schema.as_arrow.return_value = target_schema
+    mock_table.schema.return_value = mock_iceberg_schema
+
+    mock_catalog = MagicMock()
+    mock_catalog.load_table.side_effect = [mock_table]
+    mock_catalog.create_table.side_effect = Exception('Should not be called')  # Should not create
 
     class DummyPyArrowTable:
         def __init__(self, schema, num_rows=2):
@@ -314,6 +321,14 @@ async def test_import_file_to_table_success():
             # Return a new DummyPyArrowTable with updated schema
             new_schema = pa.schema([pa.field(name, pa.string()) for name in names])
             return DummyPyArrowTable(new_schema, self.num_rows)
+
+        def column(self, name):
+            # Return a mock column with string data
+            return pa.array(['val1', 'val2'], type=pa.string())
+
+        def cast(self, target_schema, safe=True):
+            # Return self with the target schema
+            return DummyPyArrowTable(target_schema, self.num_rows)
 
     dummy_pyarrow_table = DummyPyArrowTable(initial_schema)
 
@@ -344,10 +359,11 @@ async def test_import_file_to_table_success():
             preserve_case=preserve_case,
         )
 
+    if result['status'] != 'success':
+        print(f'Error: {result.get("error", "Unknown error")}')
     assert result['status'] == 'success'
     assert result['rows_processed'] == 2
     assert result['file_processed'] == 'test.csv'
-    assert result['table_created'] is False
     assert result['table_uuid'] == 'fake-uuid'
     assert result['columns'] == ['col_1', 'col_2']
 
@@ -516,12 +532,15 @@ async def test_import_file_to_table_create_table_success():
             preserve_case=preserve_case,
         )
 
-    assert result['status'] == 'success'
-    assert result['rows_processed'] == 2
-    assert result['file_processed'] == 'test.csv'
-    assert result['table_created'] is True
-    assert result['table_uuid'] == 'fake-uuid'
-    assert result['columns'] == ['col_1', 'col_2']
+    # Now expects error since table doesn't exist and we don't auto-create
+    assert result['status'] == 'error'
+    assert 'does not exist' in result['error']
+    assert 'Please create the table first' in result['error']
+    # Verify columns information is provided
+    assert 'columns' in result
+    assert len(result['columns']) == 2
+    assert result['columns'][0]['name'] == 'col_1'
+    assert result['columns'][1]['name'] == 'col_2'
 
 
 @pytest.mark.asyncio
@@ -599,9 +618,12 @@ async def test_import_file_to_table_create_table_failure():
             preserve_case=preserve_case,
         )
 
+    # Now expects error since table doesn't exist (we don't try to create it)
     assert result['status'] == 'error'
-    assert 'Failed to create table' in result['error']
-    assert 'create failed' in result['error']
+    assert 'does not exist' in result['error']
+    # Verify columns information is provided
+    assert 'columns' in result
+    assert len(result['columns']) == 2
 
 
 @pytest.mark.asyncio
@@ -643,3 +665,298 @@ async def test_import_file_to_table_general_exception():
 
     assert result['status'] == 'error'
     assert 'general failure' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_in_table_date():
+    """Test convert_temporal_fields_in_table converts date columns correctly."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Source table with string dates
+    source_table = pa.table({'id': [1, 2], 'birth_date': ['2025-03-14', '1990-01-01']})
+
+    # Target schema with date32 type
+    target_schema = pa.schema([pa.field('id', pa.int64()), pa.field('birth_date', pa.date32())])
+
+    converted_table = convert_temporal_fields_in_table(source_table, target_schema)
+
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 2
+    # Verify the dates were converted
+    dates = converted_table.column('birth_date').to_pylist()
+    assert str(dates[0]) == '2025-03-14'
+    assert str(dates[1]) == '1990-01-01'
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_in_table_timestamp():
+    """Test convert_temporal_fields_in_table converts timestamp columns correctly."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Source table with string timestamps
+    source_table = pa.table(
+        {
+            'id': [1, 2],
+            'created_at': ['2025-03-14 17:10:34.123456', '2025-03-14T17:10:34'],
+        }
+    )
+
+    # Target schema with timestamp type
+    target_schema = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('created_at', pa.timestamp('us'))]
+    )
+
+    converted_table = convert_temporal_fields_in_table(source_table, target_schema)
+
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 2
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_in_table_non_string_passthrough():
+    """Test convert_temporal_fields_in_table passes through non-string columns."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Source table with already correct types
+    source_table = pa.table(
+        {
+            'id': pa.array([1, 2], type=pa.int64()),
+            'score': pa.array([95.5, 87.3], type=pa.float64()),
+        }
+    )
+
+    # Target schema matches source
+    target_schema = pa.schema([pa.field('id', pa.int64()), pa.field('score', pa.float64())])
+
+    converted_table = convert_temporal_fields_in_table(source_table, target_schema)
+
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 2
+    assert converted_table.column('id').to_pylist() == [1, 2]
+    assert converted_table.column('score').to_pylist() == [95.5, 87.3]
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_in_table_mixed_columns():
+    """Test convert_temporal_fields_in_table handles mixed column types."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Source table with mixed types
+    source_table = pa.table(
+        {
+            'id': [1, 2],
+            'name': ['Alice', 'Bob'],
+            'birth_date': ['2025-03-14', '1990-01-01'],
+            'score': [95.5, 87.3],
+        }
+    )
+
+    # Target schema with date conversion needed
+    target_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('name', pa.string()),
+            pa.field('birth_date', pa.date32()),
+            pa.field('score', pa.float64()),
+        ]
+    )
+
+    converted_table = convert_temporal_fields_in_table(source_table, target_schema)
+
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 2
+    assert converted_table.column('name').to_pylist() == ['Alice', 'Bob']
+    assert converted_table.column('score').to_pylist() == [95.5, 87.3]
+
+
+@pytest.mark.asyncio
+async def test_import_file_to_table_with_temporal_conversion():
+    """Test import_file_to_table converts temporal fields when appending to existing table."""
+    warehouse = 'test-warehouse'
+    region = 'us-west-2'
+    namespace = 'testns'
+    table_name = 'testtable'
+    s3_url = 's3://bucket/test.csv'
+    uri = 'http://localhost:8181'
+
+    # Mock S3 client
+    mock_s3_client = MagicMock()
+    mock_body = MagicMock()
+    mock_body.read.return_value = b'dummy-bytes'
+    mock_s3_client.get_object.return_value = {'Body': mock_body}
+
+    # Mock existing table with date schema
+    mock_table = MagicMock()
+    mock_table.metadata.table_uuid = 'fake-uuid'
+    mock_table.append = MagicMock()
+
+    # Mock Iceberg schema with date type
+    mock_iceberg_schema = MagicMock()
+    mock_iceberg_schema.as_arrow.return_value = pa.schema(
+        [pa.field('id', pa.int64()), pa.field('birth_date', pa.date32())]
+    )
+    mock_table.schema.return_value = mock_iceberg_schema
+
+    mock_catalog = MagicMock()
+    mock_catalog.load_table.return_value = mock_table
+
+    # Source table with string dates
+    source_table = pa.table({'id': [1, 2], 'birth_date': ['2025-03-14', '1990-01-01']})
+
+    def mock_create_pyarrow_table(file_like):
+        return source_table
+
+    with (
+        patch(
+            'awslabs.s3_tables_mcp_server.file_processor.utils.pyiceberg_load_catalog',
+            return_value=mock_catalog,
+        ),
+        patch(
+            'awslabs.s3_tables_mcp_server.file_processor.utils.get_s3_client',
+            return_value=mock_s3_client,
+        ),
+    ):
+        result = await import_file_to_table(
+            warehouse=warehouse,
+            region=region,
+            namespace=namespace,
+            table_name=table_name,
+            s3_url=s3_url,
+            uri=uri,
+            create_pyarrow_table=mock_create_pyarrow_table,
+            preserve_case=True,
+        )
+
+    assert result['status'] == 'success'
+    # Verify append was called
+    mock_table.append.assert_called_once()
+    # Verify the appended table has the correct schema
+    appended_table = mock_table.append.call_args[0][0]
+    assert appended_table.schema.field('birth_date').type == pa.date32()
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_fallback_column_by_column():
+    """Test convert_temporal_fields_in_table falls back to column-by-column conversion when direct cast fails."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Create a real PyArrow table with string dates
+    real_table = pa.table(
+        {
+            'id': [1, 2, 3],
+            'birth_date': ['2025-03-14', '1990-01-01', '2000-12-31'],
+            'name': ['Alice', 'Bob', 'Charlie'],
+        }
+    )
+
+    # Target schema with date32 type
+    target_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('birth_date', pa.date32()),
+            pa.field('name', pa.string()),
+        ]
+    )
+
+    # Create a mock table that wraps the real table but fails on cast
+    class MockTableWithFailingCast:
+        def __init__(self, table):
+            self._table = table
+
+        def cast(self, schema, safe=True):
+            # Always raise ArrowInvalid to trigger fallback
+            raise pa.ArrowInvalid('Direct cast failed - triggering fallback')
+
+        def column(self, name):
+            return self._table.column(name)
+
+        @property
+        def schema(self):
+            return self._table.schema
+
+        @property
+        def num_rows(self):
+            return self._table.num_rows
+
+    mock_table = MockTableWithFailingCast(real_table)
+
+    converted_table = convert_temporal_fields_in_table(mock_table, target_schema)
+
+    # Verify the conversion succeeded via fallback path
+    assert converted_table.schema == target_schema
+    assert converted_table.num_rows == 3
+    assert converted_table.column('id').to_pylist() == [1, 2, 3]
+    assert converted_table.column('name').to_pylist() == ['Alice', 'Bob', 'Charlie']
+    # Verify dates were converted
+    dates = converted_table.column('birth_date').to_pylist()
+    assert str(dates[0]) == '2025-03-14'
+    assert str(dates[1]) == '1990-01-01'
+    assert str(dates[2]) == '2000-12-31'
+
+
+@pytest.mark.asyncio
+async def test_convert_temporal_fields_fallback_with_individual_column_cast():
+    """Test convert_temporal_fields_in_table uses column-by-column casting in fallback path."""
+    from awslabs.s3_tables_mcp_server.file_processor.utils import (
+        convert_temporal_fields_in_table,
+    )
+
+    # Create a real PyArrow table with mixed types
+    real_table = pa.table(
+        {
+            'id': [1, 2, 3],
+            'score': [100.5, 200.5, 300.5],  # float that needs no conversion
+            'name': ['Alice', 'Bob', 'Charlie'],
+        }
+    )
+
+    # Target schema - same types, so casts should succeed
+    target_schema = pa.schema(
+        [
+            pa.field('id', pa.int64()),
+            pa.field('score', pa.float64()),
+            pa.field('name', pa.string()),
+        ]
+    )
+
+    # Create a mock table that wraps the real table but fails on direct cast
+    class MockTableWithFailingCast:
+        def __init__(self, table):
+            self._table = table
+
+        def cast(self, schema, safe=True):
+            # Always fail to force fallback to column-by-column
+            raise pa.ArrowInvalid('Direct cast failed - forcing fallback')
+
+        def column(self, name):
+            return self._table.column(name)
+
+        @property
+        def schema(self):
+            return self._table.schema
+
+        @property
+        def num_rows(self):
+            return self._table.num_rows
+
+    mock_table = MockTableWithFailingCast(real_table)
+
+    # The function should fall back to column-by-column conversion
+    converted_table = convert_temporal_fields_in_table(mock_table, target_schema)
+
+    # Verify the conversion succeeded via fallback path
+    assert converted_table.num_rows == 3
+    assert converted_table.schema == target_schema
+    assert converted_table.column('id').to_pylist() == [1, 2, 3]
+    assert converted_table.column('score').to_pylist() == [100.5, 200.5, 300.5]
+    assert converted_table.column('name').to_pylist() == ['Alice', 'Bob', 'Charlie']

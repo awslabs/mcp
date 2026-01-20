@@ -30,9 +30,9 @@ from awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates i
 
 
 __all__ = [
-    DeployServerlessAppHelpTool,
-    GetIaCGuidanceTool,
-    GetLambdaEventSchemasTool,
-    GetLambdaGuidanceTool,
-    GetServerlessTemplatesTool,
+    'DeployServerlessAppHelpTool',
+    'GetIaCGuidanceTool',
+    'GetLambdaEventSchemasTool',
+    'GetLambdaGuidanceTool',
+    'GetServerlessTemplatesTool',
 ]

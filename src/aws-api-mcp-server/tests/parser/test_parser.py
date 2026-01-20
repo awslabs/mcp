@@ -1,31 +1,28 @@
 import pytest
 import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
-from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY, FileAccessMode
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
     ExpectedArgumentError,
-    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
-    MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
+    OperationIsNotSupportedInTheRegionError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     ServiceNotAllowedError,
     ShortHandParserError,
-    UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
     _validate_endpoint,
-    _validate_output_file,
     parse,
 )
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -322,36 +319,6 @@ def test_tag_key_filter(command):
 
 
 @pytest.mark.parametrize(
-    'command,error_class,message',
-    [
-        (
-            'aws ssm list-documents --filters Key=Unknown,Values=Automation',
-            UnknownFiltersError,
-            str(
-                UnknownFiltersError(
-                    'ssm',
-                    ['Unknown'],
-                )
-            ),
-        ),
-        (
-            'aws ssm list-commands --filters key=InvokedAfter,value=2020-02-01T00:00:00Z,type=Equal',
-            MalformedFilterError,
-            str(
-                MalformedFilterError(
-                    'ssm', 'list-commands', {'key', 'value', 'type'}, {'key', 'value'}
-                )
-            ),
-        ),
-    ],
-)
-def test_filter_validation_errors(command, error_class, message):
-    """Test that filter validation errors raise the correct exception."""
-    with pytest.raises(error_class, match=re.escape(message)):
-        parse(command)
-
-
-@pytest.mark.parametrize(
     'command',
     [
         # https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_ListCommands.html
@@ -417,8 +384,8 @@ def test_should_pass_for_valid_equal_sign_params(command):
 
 
 @patch(
-    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
-    True,
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.UNRESTRICTED,
 )
 def test_should_pass_for_valid_equal_sign_params_with_file_output():
     """Test that valid equal sign parameters with file output are accepted when unrestricted access is enabled."""
@@ -611,141 +578,16 @@ def test_client_side_filter_error():
         parse(command)
 
 
-def test_valid_expand_user_home_directory():
-    """Test that tilde or user home directory is invalid path."""
-    with pytest.raises(ValueError) as exc_info:
-        parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
-
-    error_message = str(exc_info.value)
-    assert 'is outside the allowed working directory' in error_message
-    assert (
-        'Set AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS=true to allow unrestricted file access'
-        in error_message
-    )
-
-
-def test_invalid_expand_user_home_directory():
-    """Test that tilde is not expanded."""
-    expected_message = (
-        "Invalid file parameter '~user_that_does_not_exist/temp/test.txt' for service 's3' and operation 'cp': "
-        'should be an absolute path. Please provide a valid file path.'
-    )
-    with pytest.raises(FileParameterError) as exc_info:
-        parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
-
-    assert str(exc_info.value) == expected_message
-
-
 @patch('boto3.Session')
 def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
     mock_session_instance = mock_boto3_session.return_value
     mock_session_instance.region_name = 'us-east-1'
 
-    result = parse(cli_command='aws s3api list-buckets --profile test-profile')
-    assert result.profile == 'test-profile'
-    mock_boto3_session.assert_called_with(profile_name='test-profile')
-
-
-@pytest.mark.parametrize(
-    'command,expected_service,expected_operation,expected_file_path',
-    [
-        (
-            'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
-            's3',
-            'GetObject',
-            'relative/path/file.txt',
-        ),
-        (
-            'aws lambda invoke --function-name my-function response.json',
-            'lambda',
-            'Invoke',
-            'response.json',
-        ),
-    ],
-)
-def test_validate_output_file_raises_error_for_relative_paths(
-    command, expected_service, expected_operation, expected_file_path
-):
-    """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
-    expected_message = f'{expected_file_path} should be an absolute path'
-    with pytest.raises(ValueError, match=expected_message):
-        parse(command)
-
-
-def test_validate_output_file_no_streaming_output():
-    """Test that _validate_output_file does nothing when has_streaming_output is False."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = False
-    parsed_args = Mock()
-
-    # Should not raise any exception
-    _validate_output_file(command_metadata, parsed_args)
-
-
-def test_validate_output_file_with_dash_output():
-    """Test that _validate_output_file allows '-' as output file."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '-'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    # Should not raise any exception
-    _validate_output_file(command_metadata, parsed_args)
-
-
-def test_validate_output_file_with_relative_path():
-    """Test that _validate_output_file raises ValueError for relative paths."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = 'relative/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    with pytest.raises(ValueError, match='relative/path.txt should be an absolute path'):
-        _validate_output_file(command_metadata, parsed_args)
-
-
-@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
-def test_validate_output_file_with_absolute_path(mock_validate_file_path):
-    """Test that _validate_output_file calls validate_file_path for absolute paths."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '/absolute/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    _validate_output_file(command_metadata, parsed_args)
-
-    mock_validate_file_path.assert_called_once_with('/absolute/path.txt')
-
-
-@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
-def test_validate_output_file_propagates_validate_file_path_error(mock_validate_file_path):
-    """Test that _validate_output_file propagates errors from validate_file_path."""
-    command_metadata = Mock()
-    command_metadata.has_streaming_output = True
-
-    operation_args = Mock()
-    operation_args.outfile = '/absolute/path.txt'
-
-    parsed_args = Mock()
-    parsed_args.operation_args = operation_args
-
-    mock_validate_file_path.side_effect = ValueError('File validation error')
-
-    with pytest.raises(ValueError, match='File validation error'):
-        _validate_output_file(command_metadata, parsed_args)
+    with patch('awslabs.aws_api_mcp_server.core.common.config.AWS_REGION', None):
+        result = parse(cli_command='aws s3api list-buckets --profile test-profile')
+        assert result.profile == 'test-profile'
+        mock_boto3_session.assert_called_with(profile_name='test-profile')
 
 
 @pytest.mark.parametrize(
@@ -813,3 +655,55 @@ def test_validate_endpoint_non_http_protocols():
     """Test that non-HTTP protocols with localhost are accepted."""
     _validate_endpoint('ftp://localhost:8080')
     _validate_endpoint('ws://127.0.0.1:8080')
+
+
+def test_allowed_custom_operations_when_file_access_disabled_is_subset():
+    """Test that ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is a subset of ALLOWED_CUSTOM_OPERATIONS.
+
+    This ensures that all operations allowed when file access is disabled are also in the main
+    allowed operations list. Operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED
+    should be those that can work without local file access.
+    """
+    from awslabs.aws_api_mcp_server.core.parser.parser import (
+        ALLOWED_CUSTOM_OPERATIONS,
+        ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED,
+    )
+
+    extra_operations = []
+
+    for service, operations in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED.items():
+        # Check if service exists in ALLOWED_CUSTOM_OPERATIONS
+        if service not in ALLOWED_CUSTOM_OPERATIONS:
+            extra_operations.append(
+                f"Service '{service}' in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED "
+                f'is not in ALLOWED_CUSTOM_OPERATIONS'
+            )
+            continue
+
+        # Check if all operations for this service are in ALLOWED_CUSTOM_OPERATIONS
+        allowed_ops_set = set(ALLOWED_CUSTOM_OPERATIONS[service])
+        for operation in operations:
+            if operation not in allowed_ops_set:
+                extra_operations.append(
+                    f"Operation '{operation}' for service '{service}' in "
+                    f'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED is not in ALLOWED_CUSTOM_OPERATIONS'
+                )
+
+    assert not extra_operations, (
+        'ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED must be a subset of ALLOWED_CUSTOM_OPERATIONS.\n'
+        + 'The following operations are in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED but not in ALLOWED_CUSTOM_OPERATIONS:\n'
+        + '\n'.join(extra_operations)
+    )
+
+
+def test_s3_express_one_in_unsupported_region():
+    """Test aws s3 list-directory-buckets command in region where this operation is not supported."""
+    with pytest.raises(
+        OperationIsNotSupportedInTheRegionError,
+        match='The operation s3:list-directory-buckets is not supported in the eu-central-1 region.',
+    ):
+        result = parse('aws s3api list-directory-buckets --region eu-central-1')
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 's3'
+        assert result.command_metadata.operation_sdk_name == 'ListDirectoryBuckets'

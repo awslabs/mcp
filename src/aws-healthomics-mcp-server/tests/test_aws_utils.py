@@ -24,13 +24,14 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     decode_from_base64,
     encode_to_base64,
+    get_account_id,
     get_aws_session,
     get_logs_client,
     get_omics_client,
     get_omics_endpoint_url,
     get_omics_service_name,
+    get_partition,
     get_region,
-    get_ssm_client,
 )
 from unittest.mock import MagicMock, patch
 
@@ -413,29 +414,6 @@ class TestGetLogsClient:
             get_logs_client()
 
 
-class TestGetSsmClient:
-    """Test cases for get_ssm_client function."""
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
-    def test_get_ssm_client_success(self, mock_create_client):
-        """Test successful SSM client creation."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        result = get_ssm_client()
-
-        mock_create_client.assert_called_once_with('ssm')
-        assert result == mock_client
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
-    def test_get_ssm_client_failure(self, mock_create_client):
-        """Test SSM client creation failure."""
-        mock_create_client.side_effect = Exception('SSM access denied')
-
-        with pytest.raises(Exception, match='SSM access denied'):
-            get_ssm_client()
-
-
 class TestUtilityFunctions:
     """Test cases for utility functions."""
 
@@ -533,11 +511,10 @@ class TestRegionResolution:
         # Test each client function
         get_omics_client()
         get_logs_client()
-        get_ssm_client()
         create_aws_client('s3')
 
         # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
+        expected_calls = [(), (), ()]  # All calls should have no arguments
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 
@@ -553,11 +530,10 @@ class TestRegionResolution:
         # Test each client function
         get_omics_client()
         get_logs_client()
-        get_ssm_client()
         create_aws_client('dynamodb')
 
         # Verify all calls used no region parameter (centralized)
-        expected_calls = [(), (), (), ()]  # All calls should have no arguments
+        expected_calls = [(), (), ()]  # All calls should have no arguments
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 
@@ -671,3 +647,143 @@ class TestServiceNameAndEndpointConfiguration:
         mock_session.client.assert_called_once_with('omics')
         mock_logger.warning.assert_called_once()
         assert result == mock_client
+
+
+class TestGetAccountId:
+    """Test cases for get_account_id function."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_account_id_success(self, mock_get_session):
+        """Test successful account ID retrieval."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_get_session.return_value = mock_session
+
+        result = get_account_id()
+
+        assert result == '123456789012'
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_account_id_failure(self, mock_logger, mock_get_session):
+        """Test account ID retrieval failure."""
+        mock_get_session.side_effect = Exception('AWS credentials not found')
+
+        with pytest.raises(Exception) as exc_info:
+            get_account_id()
+
+        assert 'AWS credentials not found' in str(exc_info.value)
+        mock_logger.error.assert_called_once()
+        assert 'Failed to get AWS account ID' in mock_logger.error.call_args[0][0]
+
+
+class TestGetPartition:
+    """Test cases for get_partition function."""
+
+    def setup_method(self):
+        """Clear the cache before each test."""
+        get_partition.cache_clear()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_partition_success_aws(self, mock_get_session):
+        """Test successful partition retrieval for standard AWS partition."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/MySession',
+            'Account': '123456789012',
+        }
+        mock_get_session.return_value = mock_session
+
+        result = get_partition()
+
+        assert result == 'aws'
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_partition_success_aws_cn(self, mock_get_session):
+        """Test successful partition retrieval for AWS China partition."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws-cn:sts::123456789012:assumed-role/MyRole/MySession',
+            'Account': '123456789012',
+        }
+        mock_get_session.return_value = mock_session
+
+        result = get_partition()
+
+        assert result == 'aws-cn'
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_partition_success_aws_us_gov(self, mock_get_session):
+        """Test successful partition retrieval for AWS GovCloud partition."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws-us-gov:sts::123456789012:assumed-role/MyRole/MySession',
+            'Account': '123456789012',
+        }
+        mock_get_session.return_value = mock_session
+
+        result = get_partition()
+
+        assert result == 'aws-us-gov'
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_partition_failure(self, mock_logger, mock_get_session):
+        """Test partition retrieval failure."""
+        mock_get_session.side_effect = Exception('AWS credentials not found')
+
+        with pytest.raises(Exception) as exc_info:
+            get_partition()
+
+        assert 'AWS credentials not found' in str(exc_info.value)
+        mock_logger.error.assert_called_once()
+        assert 'Failed to get AWS partition' in mock_logger.error.call_args[0][0]
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_partition.cache_clear')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_partition_memoization(self, mock_get_session, mock_cache_clear):
+        """Test that get_partition is memoized and only calls AWS once."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:sts::123456789012:assumed-role/MyRole/MySession',
+            'Account': '123456789012',
+        }
+        mock_get_session.return_value = mock_session
+
+        # Clear cache first
+        get_partition.cache_clear()
+
+        # Call twice
+        result1 = get_partition()
+        result2 = get_partition()
+
+        # Both should return the same result
+        assert result1 == 'aws'
+        assert result2 == 'aws'
+
+        # But AWS should only be called once due to memoization
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()

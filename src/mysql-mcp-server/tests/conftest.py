@@ -1,7 +1,7 @@
 import pytest
 from botocore.exceptions import ClientError
 from enum import Enum
-from typing import List
+from typing import Any, Dict, List, Optional
 
 
 class MockException(Enum):
@@ -192,6 +192,37 @@ class Mock_DBConnection:
             bool: True if the connection is read-only, False otherwise
         """
         return self.readonly
+
+    async def execute_query(
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
+    ) -> dict:
+        """Execute a SQL query.
+
+        Args:
+            sql: The SQL query to execute
+            parameters: Optional parameters for the query
+        Returns:
+            dict: Query results with column metadata and records
+        """
+        if self.error == MockException.Client:
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform rds-data:execute_statement',
+                }
+            }
+            raise ClientError(error_response, operation_name='execute_statement')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
+
+        return self.data_client.execute_statement(sql=sql, parameters=parameters)
 
 
 class DummyCtx:

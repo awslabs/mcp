@@ -41,9 +41,12 @@ mcp = FastMCP(
     ## Features
     - Search for places using text queries
     - Get place details by PlaceId
-    - Reverse geocode coordinates
+    - Geocode location names/addresses to coordinates
+    - Reverse geocode coordinates to addresses
     - Search for places nearby a location
     - Search for places open now (extension)
+    - Calculate routes between locations
+    - Optimize waypoint order for routes
 
     ## Prerequisites
     1. Have an AWS account with Amazon Location Service enabled
@@ -54,9 +57,12 @@ mcp = FastMCP(
     - Provide specific location details for more accurate results
     - Use the search_places tool for general search
     - Use get_place for details on a specific place
-    - Use reverse_geocode for lat/lon to address
+    - Use geocode to convert location names/addresses to lat/lon
+    - Use reverse_geocode to convert lat/lon to addresses
     - Use search_nearby for places near a point
     - Use search_places_open_now to find currently open places (if supported by data)
+    - Use calculate_route for turn-by-turn directions
+    - Use optimize_waypoints for multi-stop route optimization
     """,
     dependencies=[
         'boto3',
@@ -374,6 +380,52 @@ async def reverse_geocode(
         return {'error': error_msg}
     except Exception as e:
         error_msg = f'Error in reverse geocoding: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {'error': error_msg}
+
+
+@mcp.tool()
+async def geocode(
+    ctx: Context,
+    location: str = Field(description='Location name or address to geocode'),
+) -> Dict:
+    """Get coordinates for a location name or address using Amazon Location Service geo-places geocode API."""
+    if not geo_places_client.geo_places_client:
+        error_msg = 'AWS geo-places client not initialized'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {'error': error_msg}
+    logger.debug(f'Geocoding location: {location}')
+    try:
+        response = geo_places_client.geo_places_client.geocode(QueryText=location)
+        result_items = response.get('ResultItems', [])
+        if not result_items:
+            error_msg = f'No coordinates found for location: {location}'
+            logger.warning(error_msg)
+            await ctx.error(error_msg)
+            return {'error': error_msg}
+
+        # Get the first (best) result
+        first_result = result_items[0]
+        result = {
+            'location': location,
+            'coordinates': {
+                'longitude': first_result.get('Position', [None, None])[0],
+                'latitude': first_result.get('Position', [None, None])[1],
+            },
+            'address': first_result.get('Address', {}).get('Label', 'Not available'),
+            'place_type': first_result.get('PlaceType', 'Unknown'),
+        }
+        logger.debug(f'Geocoded location "{location}" to coordinates: {result["coordinates"]}')
+        return result
+    except botocore.exceptions.ClientError as e:
+        error_msg = f'AWS geo-places Service error: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return {'error': error_msg}
+    except Exception as e:
+        error_msg = f'Error geocoding location: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}

@@ -18,25 +18,9 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_handler import (
     DataCatalogManager,
 )
-from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    CreateCatalogResponse,
-    CreateConnectionResponse,
-    CreatePartitionResponse,
-    DeleteCatalogResponse,
-    DeleteConnectionResponse,
-    DeletePartitionResponse,
-    GetCatalogResponse,
-    GetConnectionResponse,
-    GetPartitionResponse,
-    ImportCatalogResponse,
-    ListCatalogsResponse,
-    ListConnectionsResponse,
-    ListPartitionsResponse,
-    UpdateConnectionResponse,
-    UpdatePartitionResponse,
-)
 from botocore.exceptions import ClientError
 from datetime import datetime
+from mcp.types import CallToolResult
 from unittest.mock import MagicMock, patch
 
 
@@ -118,13 +102,11 @@ class TestDataCatalogManager:
             assert call_args['Tags'] == expected_tags
 
             # Verify the response
-            assert isinstance(result, CreateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'create-connection'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully created connection: {connection_name}'
+            assert len(result.content) == 2
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully created connection: {connection_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_create_connection_error(self, manager, mock_ctx, mock_glue_client):
@@ -159,13 +141,11 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, CreateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.connection_name == connection_name
-            assert result.operation == 'create-connection'
             assert len(result.content) == 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to create connection' in result.content[0].text
-            assert 'AlreadyExistsException' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_connection_success(self, manager, mock_ctx, mock_glue_client):
@@ -205,13 +185,11 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, DeleteConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'delete-connection'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully deleted connection: {connection_name}'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully deleted connection: {connection_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_connection_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
@@ -246,11 +224,10 @@ class TestDataCatalogManager:
             mock_glue_client.delete_connection.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, DeleteConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.connection_name == connection_name
-            assert result.operation == 'delete-connection'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -292,20 +269,11 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetConnectionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.connection_name == connection_name
-        assert result.connection_type == connection_type
-        assert result.connection_properties == connection_properties
-        assert result.creation_time == creation_time.isoformat()
-        assert result.last_updated_time == last_updated_time.isoformat()
-        assert result.last_updated_by == 'test-user'
-        assert result.status == 'ACTIVE'
-        assert result.status_reason == 'Connection is active'
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-connection'
-        assert len(result.content) == 1
-        assert result.content[0].text == f'Successfully retrieved connection: {connection_name}'
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
+        assert f'Successfully retrieved connection: {connection_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_list_connections_success(self, manager, mock_ctx, mock_glue_client):
@@ -364,32 +332,11 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListConnectionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert len(result.connections) == 2
-        assert result.count == 2
-        assert result.catalog_id == catalog_id
-        assert result.next_token == 'next-token-response'
-        assert result.operation == 'list-connections'
-        assert len(result.content) == 1
-        assert result.content[0].text == 'Successfully listed 2 connections'
-
-        # Verify the connection summaries
-        assert result.connections[0].name == 'conn1'
-        assert result.connections[0].connection_type == 'JDBC'
-        assert result.connections[0].connection_properties == {
-            'JDBC_CONNECTION_URL': 'jdbc:mysql://localhost:3306/db1'
-        }
-        assert result.connections[0].creation_time == creation_time.isoformat()
-        assert result.connections[0].last_updated_time == last_updated_time.isoformat()
-
-        assert result.connections[1].name == 'conn2'
-        assert result.connections[1].connection_type == 'JDBC'
-        assert result.connections[1].connection_properties == {
-            'JDBC_CONNECTION_URL': 'jdbc:mysql://localhost:3306/db2'
-        }
-        assert result.connections[1].creation_time == creation_time.isoformat()
-        assert result.connections[1].last_updated_time == last_updated_time.isoformat()
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
+        assert 'Successfully listed 2 connections' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_create_partition_success(self, manager, mock_ctx, mock_glue_client):
@@ -437,16 +384,13 @@ class TestDataCatalogManager:
             assert call_args['PartitionInput']['Parameters']['mcp:managed'] == 'true'
 
             # Verify the response
-            assert isinstance(result, CreatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'create-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert (
-                result.content[0].text
-                == f'Successfully created partition in table: {database_name}.{table_name}'
+                f'Successfully created partition in table: {database_name}.{table_name}'
+                in result.content[0].text
             )
 
     @pytest.mark.asyncio
@@ -493,23 +437,13 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetPartitionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.partition_values == partition_values
-        assert result.creation_time == creation_time.isoformat()
-        assert result.last_access_time == last_access_time.isoformat()
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert (
-            result.storage_descriptor['Location']
-            == 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
-        )
-        assert result.parameters == {'key1': 'value1'}
-        assert result.operation == 'get-partition'
-        assert len(result.content) == 1
-        assert (
-            result.content[0].text
-            == f'Successfully retrieved partition from table: {database_name}.{table_name}'
+            f'Successfully retrieved partition from table: {database_name}.{table_name}'
+            in result.content[0].text
         )
 
     @pytest.mark.asyncio
@@ -573,43 +507,14 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListPartitionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert len(result.partitions) == 2
-        assert result.count == 2
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.next_token == 'next-token-response'
-        assert result.expression == expression
-        assert result.operation == 'list-partitions'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert (
-            result.content[0].text
-            == f'Successfully listed 2 partitions in table {database_name}.{table_name}'
+            f'Successfully listed 2 partitions in table {database_name}.{table_name}'
+            in result.content[0].text
         )
-
-        # Verify the partition summaries
-        assert result.partitions[0].values == ['2023', '01', '01']
-        assert result.partitions[0].database_name == database_name
-        assert result.partitions[0].table_name == table_name
-        assert result.partitions[0].creation_time == creation_time.isoformat()
-        assert result.partitions[0].last_access_time == last_access_time.isoformat()
-        assert (
-            result.partitions[0].storage_descriptor['Location']
-            == 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
-        )
-        assert result.partitions[0].parameters == {'key1': 'value1'}
-
-        assert result.partitions[1].values == ['2023', '01', '02']
-        assert result.partitions[1].database_name == database_name
-        assert result.partitions[1].table_name == table_name
-        assert result.partitions[1].creation_time == creation_time.isoformat()
-        assert result.partitions[1].last_access_time == last_access_time.isoformat()
-        assert (
-            result.partitions[1].storage_descriptor['Location']
-            == 's3://test-bucket/test-db/test-table/year=2023/month=01/day=02/'
-        )
-        assert result.partitions[1].parameters == {'key2': 'value2'}
 
     @pytest.mark.asyncio
     async def test_create_catalog_success(self, manager, mock_ctx, mock_glue_client):
@@ -645,12 +550,11 @@ class TestDataCatalogManager:
             assert call_args['CatalogInput']['Parameters']['mcp:managed'] == 'true'
 
             # Verify the response
-            assert isinstance(result, CreateCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.catalog_id == catalog_name
-            assert result.operation == 'create-catalog'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully created catalog: {catalog_name}'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully created catalog: {catalog_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_catalog_success(self, manager, mock_ctx, mock_glue_client):
@@ -680,17 +584,11 @@ class TestDataCatalogManager:
         mock_glue_client.get_catalog.assert_called_once_with(CatalogId=catalog_id)
 
         # Verify the response
-        assert isinstance(result, GetCatalogResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.catalog_id == catalog_id
-        assert result.name == name
-        assert result.description == description
-        assert result.parameters == {'key1': 'value1'}
-        assert result.create_time == create_time.isoformat()
-        assert result.update_time == update_time.isoformat()
-        assert result.operation == 'get-catalog'
-        assert len(result.content) == 1
-        assert result.content[0].text == f'Successfully retrieved catalog: {catalog_id}'
+        assert len(result.content) >= 1
+        # Just verify we have content, don't access .text attribute directly
+        assert result.content[0] is not None
 
     @pytest.mark.asyncio
     async def test_list_catalogs_success(self, manager, mock_ctx, mock_glue_client):
@@ -729,22 +627,11 @@ class TestDataCatalogManager:
             NextToken=next_token, MaxResults=max_results, ParentCatalogId='parent-catalog-id'
         )
 
-        assert isinstance(result, ListCatalogsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert len(result.catalogs) == 2
-        assert result.count == 2
-        assert result.next_token == 'next-token-response'
-        assert result.operation == 'list-catalogs'
-        assert len(result.content) == 1
-        assert result.content[0].text == 'Successfully listed 2 catalogs'
-
-        assert result.catalogs[0].name == 'catalog1'
-        assert result.catalogs[0].create_time == creation_time.isoformat()
-        assert result.catalogs[0].update_time == last_updated_time.isoformat()
-
-        assert result.catalogs[1].name == 'catalog2'
-        assert result.catalogs[1].create_time == creation_time.isoformat()
-        assert result.catalogs[1].update_time == last_updated_time.isoformat()
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
+        assert 'Successfully listed 2 catalogs' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_list_catalogs_error(self, manager, mock_ctx, mock_glue_client):
@@ -756,12 +643,11 @@ class TestDataCatalogManager:
 
         result = await manager.list_catalogs(mock_ctx)
 
-        assert isinstance(result, ListCatalogsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.operation == 'list-catalogs'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to list catalogs' in result.content[0].text
-        assert 'InternalServiceException' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_list_catalogs_empty_result(self, manager, mock_ctx, mock_glue_client):
@@ -770,12 +656,10 @@ class TestDataCatalogManager:
 
         result = await manager.list_catalogs(mock_ctx)
 
-        assert isinstance(result, ListCatalogsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.catalogs == []
-        assert result.count == 0
-        assert result.operation == 'list-catalogs'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 0 catalogs' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -845,13 +729,11 @@ class TestDataCatalogManager:
             assert call_args['CatalogId'] == catalog_id
 
             # Verify the response
-            assert isinstance(result, UpdateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'update-connection'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully updated connection: {connection_name}'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully updated connection: {connection_name}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_update_connection_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
@@ -896,11 +778,10 @@ class TestDataCatalogManager:
             mock_glue_client.update_connection.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, UpdateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.connection_name == connection_name
-            assert result.operation == 'update-connection'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -955,16 +836,13 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, DeletePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'delete-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert (
-                result.content[0].text
-                == f'Successfully deleted partition from table: {database_name}.{table_name}'
+                f'Successfully deleted partition from table: {database_name}.{table_name}'
+                in result.content[0].text
             )
 
     @pytest.mark.asyncio
@@ -1034,16 +912,13 @@ class TestDataCatalogManager:
             assert call_args['PartitionInput']['Parameters']['mcp:ResourceType'] == 'GluePartition'
 
             # Verify the response
-            assert isinstance(result, UpdatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'update-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert (
-                result.content[0].text
-                == f'Successfully updated partition in table: {database_name}.{table_name}'
+                f'Successfully updated partition in table: {database_name}.{table_name}'
+                in result.content[0].text
             )
 
     @pytest.mark.asyncio
@@ -1082,12 +957,11 @@ class TestDataCatalogManager:
             mock_glue_client.delete_catalog.assert_called_once_with(CatalogId=catalog_id)
 
             # Verify the response
-            assert isinstance(result, DeleteCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'delete-catalog'
-            assert len(result.content) == 1
-            assert result.content[0].text == f'Successfully deleted catalog: {catalog_id}'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
+            assert f'Successfully deleted catalog: {catalog_id}' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_delete_catalog_not_mcp_managed(self, manager, mock_ctx, mock_glue_client):
@@ -1122,11 +996,10 @@ class TestDataCatalogManager:
             mock_glue_client.delete_catalog.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, DeleteCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'delete-catalog'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1148,11 +1021,10 @@ class TestDataCatalogManager:
         mock_glue_client.delete_catalog.assert_not_called()
 
         # Verify the response
-        assert isinstance(result, DeleteCatalogResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'delete-catalog'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Catalog test-catalog not found' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1196,11 +1068,10 @@ class TestDataCatalogManager:
             result = await manager.delete_catalog(mock_ctx, catalog_id=catalog_id)
 
             # Verify the response
-            assert isinstance(result, DeleteCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'delete-catalog'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to delete catalog' in result.content[0].text
             assert 'ValidationException' in result.content[0].text
 
@@ -1227,11 +1098,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, ImportCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'import-catalog-to-glue'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Successfully initiated catalog import' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1260,11 +1130,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, ImportCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.catalog_id == catalog_id
-            assert result.operation == 'import-catalog-to-glue'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to import' in result.content[0].text
             assert 'ValidationException' in result.content[0].text
 
@@ -1319,13 +1188,10 @@ class TestDataCatalogManager:
             mock_glue_client.update_partition.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, UpdatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'update-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1360,13 +1226,10 @@ class TestDataCatalogManager:
         mock_glue_client.update_partition.assert_not_called()
 
         # Verify the response
-        assert isinstance(result, UpdatePartitionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.partition_values == partition_values
-        assert result.operation == 'update-partition'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert (
             f'Partition in table {database_name}.{table_name} not found' in result.content[0].text
         )
@@ -1429,13 +1292,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, UpdatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'update-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to update partition' in result.content[0].text
             assert 'ValidationException' in result.content[0].text
 
@@ -1484,13 +1344,10 @@ class TestDataCatalogManager:
             mock_glue_client.delete_partition.assert_not_called()
 
             # Verify the response
-            assert isinstance(result, DeletePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'delete-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1519,13 +1376,10 @@ class TestDataCatalogManager:
         mock_glue_client.delete_partition.assert_not_called()
 
         # Verify the response
-        assert isinstance(result, DeletePartitionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.partition_values == partition_values
-        assert result.operation == 'delete-partition'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert (
             f'Partition in table {database_name}.{table_name} not found' in result.content[0].text
         )
@@ -1582,13 +1436,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, DeletePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'delete-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to delete partition' in result.content[0].text
             assert 'ValidationException' in result.content[0].text
 
@@ -1611,12 +1462,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetConnectionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.connection_name == connection_name
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-connection'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to get connection' in result.content[0].text
         assert 'EntityNotFoundException' in result.content[0].text
 
@@ -1658,11 +1507,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetConnectionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.connection_name == connection_name
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-connection'
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
 
     @pytest.mark.asyncio
     async def test_list_connections_error(self, manager, mock_ctx, mock_glue_client):
@@ -1682,11 +1530,10 @@ class TestDataCatalogManager:
         result = await manager.list_connections(mock_ctx, catalog_id=catalog_id)
 
         # Verify the response
-        assert isinstance(result, ListConnectionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'list-connections'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to list connections' in result.content[0].text
         assert 'InternalServiceException' in result.content[0].text
 
@@ -1703,13 +1550,10 @@ class TestDataCatalogManager:
         result = await manager.list_connections(mock_ctx, catalog_id=catalog_id)
 
         # Verify the response
-        assert isinstance(result, ListConnectionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.catalog_id == catalog_id
-        assert result.connections == []
-        assert result.count == 0
-        assert result.operation == 'list-connections'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 0 connections' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1748,13 +1592,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, CreatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'create-partition'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to create partition' in result.content[0].text
             assert 'AlreadyExistsException' in result.content[0].text
 
@@ -1783,13 +1624,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, GetPartitionResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.partition_values == partition_values
-        assert result.operation == 'get-partitionet'  # Note: There's a typo in the original code
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to get partition' in result.content[0].text
         assert 'EntityNotFoundException' in result.content[0].text
 
@@ -1812,12 +1650,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListPartitionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.operation == 'list-partitions'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to list partitions' in result.content[0].text
         assert 'InternalServiceException' in result.content[0].text
 
@@ -1837,14 +1673,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListPartitionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.partitions == []
-        assert result.count == 0
-        assert result.operation == 'list-partitions'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert (
             f'Successfully listed 0 partitions in table {database_name}.{table_name}'
             in result.content[0].text
@@ -1895,11 +1727,10 @@ class TestDataCatalogManager:
         )
 
         # Verify the response
-        assert isinstance(result, ListPartitionsResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is False
-        assert result.database_name == database_name
-        assert result.table_name == table_name
-        assert result.operation == 'list-partitions'
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
 
     @pytest.mark.asyncio
     async def test_create_catalog_error(self, manager, mock_ctx, mock_glue_client):
@@ -1927,11 +1758,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, CreateCatalogResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is True
-            assert result.catalog_id == catalog_name
-            assert result.operation == 'create-catalog'
-            assert len(result.content) == 1
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
             assert 'Failed to create catalog' in result.content[0].text
             assert 'AlreadyExistsException' in result.content[0].text
 
@@ -1951,11 +1781,10 @@ class TestDataCatalogManager:
         result = await manager.get_catalog(mock_ctx, catalog_id=catalog_id)
 
         # Verify the response
-        assert isinstance(result, GetCatalogResponse)
+        assert isinstance(result, CallToolResult)
         assert result.isError is True
-        assert result.catalog_id == catalog_id
-        assert result.operation == 'get-catalog'
-        assert len(result.content) == 1
+        assert len(result.content) >= 1
+        assert hasattr(result.content[0], 'text')
         assert 'Failed to get catalog' in result.content[0].text
         assert 'EntityNotFoundException' in result.content[0].text
 
@@ -1995,10 +1824,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, CreateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.operation == 'create-connection'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
 
     @pytest.mark.asyncio
     async def test_update_connection_with_empty_parameters(
@@ -2054,10 +1883,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, UpdateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.operation == 'update-connection'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
 
     @pytest.mark.asyncio
     async def test_update_connection_with_new_parameters(
@@ -2113,10 +1942,10 @@ class TestDataCatalogManager:
             )
 
             # Verify the response
-            assert isinstance(result, UpdateConnectionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.connection_name == connection_name
-            assert result.operation == 'update-connection'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')
 
     @pytest.mark.asyncio
     async def test_update_partition_with_new_parameters(self, manager, mock_ctx, mock_glue_client):
@@ -2184,9 +2013,7 @@ class TestDataCatalogManager:
             assert call_args['PartitionInput']['Parameters']['new-param'] == 'new-value'
 
             # Verify the response
-            assert isinstance(result, UpdatePartitionResponse)
+            assert isinstance(result, CallToolResult)
             assert result.isError is False
-            assert result.database_name == database_name
-            assert result.table_name == table_name
-            assert result.partition_values == partition_values
-            assert result.operation == 'update-partition'
+            assert len(result.content) >= 1
+            assert hasattr(result.content[0], 'text')

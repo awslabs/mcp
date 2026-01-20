@@ -416,8 +416,8 @@ with pytest.MonkeyPatch().context() as CTX:
         @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         def test_register_error_handling(self, mock_lambda_client):
             """Test error handling in register_lambda_functions."""
-            # Make list_functions raise an exception
-            mock_lambda_client.list_functions.side_effect = Exception('Error listing functions')
+            # Make get_paginator raise an exception
+            mock_lambda_client.get_paginator.side_effect = Exception('Error listing functions')
 
             # Should not raise an exception
             register_lambda_functions()

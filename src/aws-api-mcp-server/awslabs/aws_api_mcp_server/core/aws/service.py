@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import contextlib
-from ..aws.services import driver
+from ..aws.services import get_awscli_driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
+from ..common.help_command import generate_help_document
 from ..common.models import (
-    AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
+    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
     InterpretedProgram,
@@ -36,7 +37,7 @@ from ..parser.lexer import split_cli_command
 from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
-from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
+from awslabs.aws_api_mcp_server.core.common.helpers import as_json, operation_timer
 from fastmcp import Context
 from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
@@ -124,9 +125,30 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
     )
 
 
+async def get_help_document(
+    cli_command: str,
+    ctx: Context,
+) -> ProgramInterpretationResponse:
+    """Get help command response."""
+    args = split_cli_command(cli_command)[1:]
+    service_name = args[0]
+    operation_name = args[1]
+    help_document = generate_help_document(service_name, operation_name)
+    if help_document is None:
+        error_message = 'Failed to generate help document'
+        await ctx.error(error_message)
+        raise AwsApiMcpError(error_message)
+    return ProgramInterpretationResponse(
+        response=InterpretationResponse(json=as_json(help_document), status_code=200, error=None)
+    )
+
+
 def execute_awscli_customization(
-    cli_command: str, ir_command: IRCommand
-) -> AwsCliAliasResponse | AwsApiMcpServerErrorResponse:
+    cli_command: str,
+    ir_command: IRCommand,
+    credentials: Credentials | None = None,
+    default_region_override: str | None = None,
+) -> AwsCliAliasResponse:
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
 
@@ -145,29 +167,34 @@ def execute_awscli_customization(
             with operation_timer(
                 ir_command.service_name,
                 ir_command.operation_name,
-                ir_command.region or DEFAULT_REGION,
+                ir_command.region or default_region_override or DEFAULT_REGION,
             ):
+                driver = get_awscli_driver(credentials)
                 driver.main(args)
 
         stdout_output = stdout_capture.getvalue()
         stderr_output = stderr_capture.getvalue()
 
+        if not stdout_output and stderr_output:
+            raise Exception(stderr_output)
+
         return AwsCliAliasResponse(response=stdout_output, error=stderr_output)
     except Exception as e:
-        return AwsApiMcpServerErrorResponse(
-            error=True,
-            detail=f"Error while executing '{cli_command}': {e}",
-        )
+        raise AwsApiMcpError(f"Error while executing '{cli_command}': {e}")
 
 
 def interpret_command(
     cli_command: str,
     max_results: int | None = None,
+    credentials: Credentials | None = None,
+    default_region_override: str | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
         max_results=max_results,
+        credentials=credentials,
+        default_region_override=default_region_override,
     )
 
     validation_failures = (
