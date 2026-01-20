@@ -529,11 +529,9 @@ async def test_call_aws_security_policy_deny(
     mock_check_security_policy.return_value = PolicyDecision.DENY
 
     ctx = DummyCtx()
-
-    with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws('aws s3 rm s3://bucket/file', ctx)
-
-    assert 'Execution of this operation is denied by security policy.' in str(exc_info.value)
+    response_list = await call_aws.fn('aws s3 rm s3://bucket/file', ctx)
+    assert len(response_list) == 1
+    assert response_list[0].error == 'Execution of this operation is denied by security policy.'
     mock_check_security_policy.assert_called_once()
 
 
@@ -586,7 +584,9 @@ async def test_call_aws_security_policy_elicit(
     mock_request_consent.assert_called_once_with(
         'aws s3api put-object --bucket test --key test', ctx
     )
-    assert isinstance(result, ProgramInterpretationResponse)
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0].response, ProgramInterpretationResponse)
 
 
 @pytest.mark.asyncio
