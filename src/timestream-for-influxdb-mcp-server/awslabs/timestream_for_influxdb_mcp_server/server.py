@@ -1108,6 +1108,8 @@ async def influxdb_write_points(
         raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
     if not resolved_token:
         raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    if not resolved_org:
+        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
 
     try:
         client = get_influxdb_client(
@@ -1194,6 +1196,8 @@ async def influxdb_write_line_protocol(
         raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
     if not resolved_token:
         raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    if not resolved_org:
+        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
 
     try:
         client = get_influxdb_client(
@@ -1252,6 +1256,8 @@ async def influxdb_query(
         raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
     if not resolved_token:
         raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    if not resolved_org:
+        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
 
     try:
         client = get_influxdb_client(
@@ -1314,6 +1320,8 @@ async def influxdb_list_buckets(
         raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
     if not resolved_token:
         raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    if not resolved_org:
+        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
 
     try:
         client = get_influxdb_client(
