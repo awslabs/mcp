@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import (
-    list_change_events,
+    _list_change_events,
 )
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime, timezone
@@ -80,7 +80,7 @@ class TestListChangeEventsBasic:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -134,7 +134,7 @@ class TestListChangeEventsBasic:
             'applicationsignals_client'
         ].list_service_states.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=False,
@@ -159,7 +159,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_time_validation_start_after_end(self):
         """Test time validation - start_time must be before end_time."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T16:00:00Z',  # Later time
             end_time='2024-01-15T10:00:00Z',  # Earlier time
         )
@@ -171,7 +171,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_service_key_attributes_required_for_comprehensive_history(self):
         """Test that service_key_attributes is required when comprehensive_history=True."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=True,  # No service_key_attributes provided
@@ -192,7 +192,7 @@ class TestListChangeEventsValidation:
         ].list_entity_events.return_value = mock_response
 
         # Test with max_results > 250 (should be clamped to 250)
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -214,7 +214,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_invalid_timestamp_format_handling(self):
         """Test error handling for invalid timestamp formats."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='invalid-timestamp', end_time='2024-01-15T16:00:00Z'
         )
 
@@ -224,7 +224,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_missing_required_service_key_attributes_type(self):
         """Test ValueError when service_key_attributes is missing 'Type' field."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -242,7 +242,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_missing_required_service_key_attributes_name(self):
         """Test ValueError when service_key_attributes is missing 'Name' field."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -260,7 +260,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_missing_required_service_key_attributes_environment(self):
         """Test ValueError when service_key_attributes is missing 'Environment' field."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -278,7 +278,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_missing_multiple_required_service_key_attributes(self):
         """Test ValueError when service_key_attributes is missing multiple required fields."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -295,7 +295,7 @@ class TestListChangeEventsValidation:
     @pytest.mark.asyncio
     async def test_empty_service_key_attributes_dict(self):
         """Test ValueError when service_key_attributes is an empty dict."""
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={},  # Empty dict - should be treated as falsy
@@ -325,7 +325,7 @@ class TestListChangeEventsValidation:
             'AnotherInvalid': 'also-filtered',  # Another invalid field
         }
 
-        await list_change_events(
+        await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes=service_attrs,
@@ -354,7 +354,7 @@ class TestListChangeEventsValidation:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -380,7 +380,7 @@ class TestListChangeEventsValidation:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -406,7 +406,7 @@ class TestListChangeEventsValidation:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -435,7 +435,7 @@ class TestListChangeEventsErrorHandling:
             'applicationsignals_client'
         ].list_entity_events.side_effect = NoCredentialsError()
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -465,7 +465,7 @@ class TestListChangeEventsErrorHandling:
             error_response, 'ListEntityEvents'
         )
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -496,7 +496,7 @@ class TestListChangeEventsErrorHandling:
             error_response, 'ListEntityEvents'
         )
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -527,7 +527,7 @@ class TestListChangeEventsErrorHandling:
             error_response, 'ListEntityEvents'
         )
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -549,7 +549,7 @@ class TestListChangeEventsErrorHandling:
             'Unexpected error'
         )
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -609,7 +609,7 @@ class TestListChangeEventsPagination:
             second_response,
         ]
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -658,7 +658,7 @@ class TestListChangeEventsPagination:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -685,7 +685,7 @@ class TestListChangeEventsEdgeCases:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -724,7 +724,7 @@ class TestListChangeEventsEdgeCases:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -756,7 +756,7 @@ class TestListChangeEventsEdgeCases:
             'AwsAccountId': '123456789012',
         }
 
-        await list_change_events(
+        await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes=service_attrs,
@@ -815,7 +815,7 @@ class TestListChangeEventsEdgeCases:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -837,7 +837,7 @@ class TestListChangeEventsEdgeCases:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -850,7 +850,7 @@ class TestListChangeEventsEdgeCases:
         result = json.loads(result_str)
 
         # Check all expected top-level fields (based on actual implementation)
-        expected_fields = {'change_events', 'next_token', 'total_events', 'events_by_type'}
+        expected_fields = {'change_events', 'total_events', 'events_by_type'}
 
         for field in expected_fields:
             assert field in result, f'Missing field: {field}'
@@ -901,7 +901,7 @@ class TestListChangeEventsEdgeCases:
             mock_datetime.now.return_value = datetime(2024, 1, 15, 13, 0, 0, tzinfo=timezone.utc)
             mock_datetime.fromtimestamp = datetime.fromtimestamp
 
-            result_str = await list_change_events(
+            result_str = await _list_change_events(
                 start_time='2024-01-15T10:00:00Z',
                 end_time='2024-01-15T16:00:00Z',
                 service_key_attributes={
@@ -958,7 +958,7 @@ class TestListChangeEventsServiceStates:
             'applicationsignals_client'
         ].list_service_states.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=False,
@@ -982,7 +982,7 @@ class TestListChangeEventsServiceStates:
 
         service_attrs = {'Name': 'payment-service', 'Environment': 'eks:production'}
 
-        await list_change_events(
+        await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes=service_attrs,
@@ -1054,7 +1054,7 @@ class TestListChangeEventsServiceStates:
             'applicationsignals_client'
         ].list_service_states.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=False,
@@ -1117,7 +1117,7 @@ class TestListChangeEventsServiceStates:
             second_response,
         ]
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=False,
@@ -1166,7 +1166,7 @@ class TestListChangeEventsServiceStates:
             mock_datetime.now.return_value = datetime(2024, 1, 15, 13, 0, 0, tzinfo=timezone.utc)
             mock_datetime.fromtimestamp = datetime.fromtimestamp
 
-            result_str = await list_change_events(
+            result_str = await _list_change_events(
                 start_time='2024-01-15T10:00:00Z',
                 end_time='2024-01-15T16:00:00Z',
                 comprehensive_history=False,
@@ -1194,7 +1194,7 @@ class TestListChangeEventsRegionHandling:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -1221,7 +1221,7 @@ class TestListChangeEventsTimestampFormats:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='1705320000',  # Unix timestamp as string
             end_time='1705341600',
             service_key_attributes={
@@ -1251,7 +1251,7 @@ class TestListChangeEventsTimestampFormats:
         ]
 
         for start_format in iso_formats[:2]:  # Test a couple to avoid too many API calls
-            result_str = await list_change_events(
+            result_str = await _list_change_events(
                 start_time=start_format,
                 end_time='2024-01-15T16:00:00Z',
                 service_key_attributes={
@@ -1272,7 +1272,7 @@ class TestListChangeEventsIntegration:
     async def test_server_integration_list_entity_events(self, mock_aws_clients):
         """Test MCP server integration with ListEntityEvents API."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import (
-            list_change_events as server_list_change_events,
+            _list_change_events as server_list_change_events,
         )
 
         # Mock ListEntityEvents response
@@ -1320,7 +1320,7 @@ class TestListChangeEventsIntegration:
     async def test_server_integration_list_service_states(self, mock_aws_clients):
         """Test MCP server integration with ListServiceStates API."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import (
-            list_change_events as server_list_change_events,
+            _list_change_events as server_list_change_events,
         )
 
         # Mock ListServiceStates response
@@ -1385,7 +1385,7 @@ class TestListChangeEventsIntegration:
     async def test_server_integration_error_handling(self, mock_aws_clients):
         """Test MCP server error handling integration."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import (
-            list_change_events as server_list_change_events,
+            _list_change_events as server_list_change_events,
         )
 
         # Mock AWS API error
@@ -1496,7 +1496,7 @@ class TestListChangeEventsIntegration:
     async def test_server_integration_real_world_scenario(self, mock_aws_clients):
         """Test MCP server integration with realistic incident investigation scenario."""
         from awslabs.cloudwatch_applicationsignals_mcp_server.change_tools import (
-            list_change_events as server_list_change_events,
+            _list_change_events as server_list_change_events,
         )
 
         # Mock realistic incident scenario: payment service deployment followed by errors
@@ -1645,7 +1645,7 @@ class TestListChangeEventsToolFunctionality:
         ].list_service_states.return_value = states_response
 
         # Test ListEntityEvents path
-        result1_str = await list_change_events(
+        result1_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -1661,7 +1661,7 @@ class TestListChangeEventsToolFunctionality:
         assert result1['change_events'][0]['event_id'] == 'entity-event-1'
 
         # Test ListServiceStates path
-        result2_str = await list_change_events(
+        result2_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             comprehensive_history=False,
@@ -1708,7 +1708,7 @@ class TestListChangeEventsToolFunctionality:
         ]
 
         # First call should return throttling error
-        result1_str = await list_change_events(
+        result1_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -1723,7 +1723,7 @@ class TestListChangeEventsToolFunctionality:
         assert 'Request was throttled' in result1['error']
 
         # Second call should succeed (simulating retry)
-        result2_str = await list_change_events(
+        result2_str = await _list_change_events(
             start_time='2024-01-15T10:00:00Z',
             end_time='2024-01-15T16:00:00Z',
             service_key_attributes={
@@ -1767,7 +1767,7 @@ class TestListChangeEventsToolFunctionality:
             'applicationsignals_client'
         ].list_entity_events.return_value = mock_response
 
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T12:00:00Z',
             end_time='2024-01-15T18:00:00Z',
             service_key_attributes={
@@ -1847,7 +1847,7 @@ class TestListChangeEventsWorkflowIntegration:
         ].list_entity_events.return_value = mock_response
 
         # Simulate: "API service alarm fired at 15:30, investigate recent changes"
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T12:00:00Z',
             end_time='2024-01-15T18:00:00Z',
             service_key_attributes={
@@ -1920,7 +1920,7 @@ class TestListChangeEventsWorkflowIntegration:
         ].list_service_states.return_value = mock_response
 
         # Simulate: "API issues started at 13:45, check all production services"
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T12:00:00Z',
             end_time='2024-01-15T15:00:00Z',
             service_key_attributes={'Environment': 'prod'},
@@ -1976,7 +1976,7 @@ class TestListChangeEventsWorkflowIntegration:
         ].list_entity_events.return_value = mock_response
 
         # Simulate: "Cache service latency spiked 400% at 12:00, find cause"
-        result_str = await list_change_events(
+        result_str = await _list_change_events(
             start_time='2024-01-15T09:00:00Z',
             end_time='2024-01-15T13:00:00Z',
             service_key_attributes={
