@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import json
 import os
 import re
@@ -45,14 +46,25 @@ def operation_timer(service: str, operation: str, region: str):
 class Boto3Encoder(json.JSONEncoder):
     """Custom JSON encoder for boto3 objects."""
 
+    def _decode_bytes(self, data: bytes) -> str:
+        """Decode bytes as UTF-8 string, falling back to base64 if not valid UTF-8."""
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError:
+            return base64.b64encode(data).decode('utf-8')
+
     def default(self, o):
         """Return a JSON-serializable version of the object."""
-        if isinstance(o, datetime):
-            return o.isoformat()
-        if isinstance(o, StreamingBody):
-            return o.read().decode('utf-8')
-
-        return super().default(o)
+        try:
+            if isinstance(o, datetime):
+                return o.isoformat()
+            if isinstance(o, StreamingBody):
+                return self._decode_bytes(o.read())
+            if isinstance(o, bytes):
+                return self._decode_bytes(o)
+            return super().default(o)
+        except Exception as e:
+            raise Exception(f'Error while converting boto3 object to JSON: {str(e)}')
 
 
 def as_json(boto_response: dict[str, Any]) -> str:

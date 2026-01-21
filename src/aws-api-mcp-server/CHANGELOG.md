@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Decoding of binary data in AWS command output (#2213)
+
+## [1.3.1] - 2025-12-31
+
+### Fixed
+
 - S3 Express One supported region validation (#2045)
 
 ## [1.3.0] - 2025-12-23
