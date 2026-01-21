@@ -137,6 +137,7 @@ For each pair of related tables, ask:
 - [ ] Table consolidation analysis completed ✅
 - [ ] Every access pattern has: RPS (avg/peak), latency SLO, consistency, expected result bound, item size band
 - [ ] Write pattern exists for every read pattern (and vice versa) unless USER explicitly declines ✅
+- [ ] Multi-attribute keys considered for each GSI ✅
 - [ ] Hot partition risks evaluated ✅
 - [ ] Consolidation framework applied; candidates reviewed
 - [ ] Design considerations captured (subject to final validation) ✅
@@ -212,8 +213,9 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 
 ### [GSIName] GSI
 - **Purpose**: [what access pattern this enables and why GSI was necessary]
-- **Partition Key**: [field] - [justification including cardinality and distribution]
-- **Sort Key**: [field] - [justification for sort requirements]
+- **Partition Key**: [field(s)] - [justification including cardinality and distribution; if multi-attribute, explain why vs composite string]
+- **Sort Key**: [field(s)] - [justification for sort requirements; if multi-attribute, explain attribute ordering and query flexibility]
+- **Multi-Attribute Key Decision**: [Explain why multi-attribute keys were chosen OR why composite string keys were used instead]
 - **Projection**: [keys-only/include/all] - [detailed cost vs performance justification]
   - **Per‑Pattern Projected Attributes**: [list the minimal attributes each AP needs from this GSI to justify KEYS_ONLY/INCLUDE/ALL]
 - **Sparse**: [field] - [specify the field used to make the GSI sparse and justification for creating a sparse GSI]
@@ -252,6 +254,7 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 - [ ] Aggregate boundaries clearly defined based on access pattern analysis ✅
 - [ ] Every access pattern solved or alternative provided ✅
 - [ ] Unnecessary GSIs are removed and solved with an identifying relationship ✅
+- [ ] Multi-attribute keys used for GSI instead of composite string keys where applicable ✅
 - [ ] All tables and GSIs documented with full justification ✅
 - [ ] Hot partition analysis completed ✅
 - [ ] Cost estimates provided for high-volume operations ✅
@@ -506,6 +509,93 @@ Decision: Separate Aggregates (not even same table)
 • Orders table: PK: order_id, with GSI on customer_id
 • Benefits: Independent scaling, clear boundaries
 
+### Multi-Attribute Keys for GSIs
+
+Multi-attribute keys compose GSI keys from up to 4 attributes each (8 total). They eliminate string concatenation, maintain type safety, and simplify backfilling.
+
+**Benefits:**
+- Use natural attributes directly (no concatenation)
+- Type-safe (String/Number/Binary preserved)
+- No backfilling needed for existing tables
+- No parsing logic required
+
+#### Query Rules (CRITICAL)
+
+🔴 **Ordering Constraint**: Attributes with **equality conditions (=)** MUST come BEFORE attributes with **range conditions (>, <, BETWEEN, begins_with)**
+
+**Why**: DynamoDB queries left-to-right. Once you use a range operator, subsequent attributes cannot be queried.
+
+**Query Mechanics:**
+- All PK attributes require equality conditions
+- SK attributes queried left-to-right (cannot skip middle attributes)
+- Range operators must be the last condition
+
+#### Sort Key Ordering Decision Process
+
+1. Identify which attributes need equality (=) vs range (>, <, BETWEEN)
+2. Place ALL equality attributes first (left to right)
+3. Place range attribute last (rightmost position)
+4. Within equality attributes, order by selectivity or query frequency
+
+**Example - Status Filtering with Time Range:**
+```javascript
+// Access Pattern: Query by factory, filter by status, range by time
+// Conditions: factory_id = X (PK), status = "ERROR" (equality), timestamp BETWEEN (range)
+
+// ✅ CORRECT: Equality before range
+PK: factory_id
+SK: status, timestamp
+
+Query(factory_id = "F1" AND status = "ERROR" AND timestamp BETWEEN start AND end)
+Query(factory_id = "F1" AND status = "WARNING")
+
+// ❌ WRONG: Range before equality
+SK: timestamp, status
+Query(timestamp BETWEEN start AND end AND status = "ERROR")  // FAILS
+```
+#### Partition Key Guidelines
+
+- **Single attribute**: Most common (e.g., user_id, device_id)
+- **Multiple attributes**: Use for data distribution (e.g., tenant_id, customer_id) or (device_id, shard_no)
+  - If you need to query by first attribute only, make it the PK and second attribute the first SK
+
+#### Sort Key Guidelines
+
+- **Multiple sort keys**: Very common, use frequently
+- **Order**: Most general → most specific
+- **Temporal patterns**: Place timestamp where chronological ordering is needed
+- **Filter patterns**: Equality conditions before range conditions
+
+#### Data Type Considerations
+
+- **Number**: Sorts numerically (5, 50, 500, 1000)
+- **String**: Sorts lexicographically ("1000", "5", "50", "500")
+- **Dates**: Use ISO 8601 strings for chronological sorting
+- **Timestamps**: Use Number for mathematical operations
+
+#### Multi-Attribute vs Composite Strings
+
+🔴 **CRITICAL**: ALWAYS use multi-attribute keys for GSIs. NEVER use composite strings (key1#key2).
+
+```javascript
+// ❌ WRONG: Composite string
+SK: status#created_at
+Query: SK begins_with "PREPARING#"
+
+// ✅ CORRECT: Multi-attribute
+SK: status, created_at
+Query: status = "PREPARING" AND created_at > "2026-01-01"
+```
+**When to use each:**
+- **Multi-attribute keys**: ALWAYS for GSIs
+- **Composite strings**: ONLY for base table
+
+**Why multi-attribute is better:**
+- Type safety (no parsing)
+- Easier backfilling
+- Cleaner code
+- Better maintainability
+
 ### Natural Keys Over Generic Identifiers
 
 Your keys should describe what they identify:
@@ -674,16 +764,40 @@ Example: ProductReview table
 
 ### Hierarchical Access Patterns
 
-Composite keys are useful when data has a natural hierarchy and you need to query it at multiple levels. In these scenarios, using composite keys can eliminate the need for additional tables or GSIs. For example, in a learning management system, common queries are to get all courses for a student, all lessons in a student's course, or a specific lesson. Using a partition key like student_id and sort key like course_id#lesson_id allows querying in a folder-path like manner, querying from left to right to get everything for a student or narrow down to a single lesson.
+**Option 1: Multi-Attribute Keys (Preferred for GSIs)**
 
+Use multi-attribute keys when creating GSIs for hierarchical queries. They eliminate string concatenation and maintain type safety:
+
+```javascript
+// GSI with multi-attribute sort key
+StudentCourseLessonsIndex GSI:
+- Partition Key: student_id
+- Sort Key: course_id, lesson_id (2 attributes)
+
+// Query patterns
+Query(student_id = "123")                                    // All courses and lessons
+Query(student_id = "123" AND course_id = "456")              // All lessons in course
+Query(student_id = "123" AND course_id = "456" AND lesson_id = "789")  // Specific lesson
+```
+
+**Option 2: Composite String Keys (For Base Table Sort Keys)**
+
+Use composite string keys in base tables when you need hierarchical queries without GSIs:
+
+```javascript
 StudentCourseLessons table:
 - Partition Key: student_id
 - Sort Key: course_id#lesson_id
 
-This enables:
-- Get all: Query where PK = "student123"
-- Get course: Query where PK = "student123" AND SK begins_with "course456#"
-- Get lesson: Get where PK = "student123" AND SK = "course456#lesson789"
+// Query patterns
+Query(PK = "student123")                                     // All courses and lessons
+Query(PK = "student123" AND SK begins_with "course456#")     // All lessons in course
+GetItem(PK = "student123", SK = "course456#lesson789")       // Specific lesson
+```
+
+**Decision Guide:**
+- GSI keys → Use multi-attribute keys (no concatenation, type-safe, easier backfilling)
+- Base table sort keys → Use composite strings (DynamoDB doesn't support multi-attribute base table keys)
 
 ### Access Patterns with Natural Boundaries
 
