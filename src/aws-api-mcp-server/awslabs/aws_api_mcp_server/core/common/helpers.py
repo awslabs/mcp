@@ -55,13 +55,16 @@ class Boto3Encoder(json.JSONEncoder):
 
     def default(self, o):
         """Return a JSON-serializable version of the object."""
-        if isinstance(o, datetime):
-            return o.isoformat()
-        if isinstance(o, StreamingBody):
-            return self._decode_bytes(o.read())
-        if isinstance(o, bytes):
-            return self._decode_bytes(o)
-        return super().default(o)
+        try:
+            if isinstance(o, datetime):
+                return o.isoformat()
+            if isinstance(o, StreamingBody):
+                return self._decode_bytes(o.read())
+            if isinstance(o, bytes):
+                return self._decode_bytes(o)
+            return super().default(o)
+        except Exception as e:
+            raise Exception(f'Error while converting boto3 object to JSON: {str(e)}')
 
 
 def as_json(boto_response: dict[str, Any]) -> str:
