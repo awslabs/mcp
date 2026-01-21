@@ -488,7 +488,7 @@ def main():
 
     # Set up logging with loguru at specified level
     logger.remove()
-    logger.add(lambda msg: print(msg, end=''), level=args.log_level)
+    logger.add(lambda msg: print(msg, end='', file=sys.stderr), level=args.log_level)
     logger.info(f'Starting server with logging level: {args.log_level}')
 
     # Load configuration
