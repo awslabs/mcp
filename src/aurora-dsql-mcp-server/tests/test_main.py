@@ -35,11 +35,6 @@ class TestMain:
         ],
     )
     def test_main_with_required_arguments(self, mocker):
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
@@ -49,7 +44,6 @@ class TestMain:
         assert awslabs.aurora_dsql_mcp_server.server.region == "us-west-2"
         assert awslabs.aurora_dsql_mcp_server.server.read_only == True
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
         assert mock_mcp_run.call_args[1].get("transport") is None
 
@@ -67,18 +61,12 @@ class TestMain:
         ],
     )
     def test_main_with_optional_arguments(self, mocker):
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
 
         assert awslabs.aurora_dsql_mcp_server.server.read_only == False
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     def test_module_execution(self):
@@ -239,11 +227,6 @@ class TestMain:
     )
     def test_main_with_custom_knowledge_parameters(self, mocker):
         """Test that main accepts custom knowledge server and timeout."""
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
@@ -254,7 +237,6 @@ class TestMain:
         )
         assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 60.0
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     @patch(
@@ -286,7 +268,6 @@ class TestMain:
         )
         assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 30.0
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     @patch("sys.argv", ["awslabs.aurora-dsql-mcp-server"])
@@ -346,12 +327,9 @@ class TestMain:
         mock_execute_query = mocker.patch(
             "awslabs.aurora_dsql_mcp_server.server.execute_query"
         )
-        mock_execute_query.side_effect = Exception("Connection failed")
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
 
         assert awslabs.aurora_dsql_mcp_server.server.cluster_endpoint == "invalid_endpoint"
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
