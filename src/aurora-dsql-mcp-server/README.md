@@ -15,6 +15,9 @@ steering while developing.
 
 ### Database Operations
 
+[IMPORTANT]
+The MCP Server requires a valid configuration for --cluster_endpoint, --database_user, and --region to enable database operations.
+
 - **readonly_query** - Execute read-only SQL queries against your DSQL cluster
 - **transact** - Execute SQL statements in a transaction
   - In read-only mode: Supports read operations with transactional consistency

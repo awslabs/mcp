@@ -15,7 +15,6 @@
 """awslabs Aurora DSQL MCP Server implementation."""
 
 import argparse
-import asyncio
 import boto3
 import httpx
 import psycopg
@@ -144,6 +143,11 @@ async def readonly_query(
         List of rows. Each row is a dictionary with column name as the key and column value as the value.
         Empty list if the SQL execution did not return any results
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'query: {sql}')
 
     if not sql:
@@ -269,6 +273,11 @@ async def transact(
         List of rows. Each row is a dictionary with column name as the key and column value as
         the value. Empty list if the execution of the last SQL did not return any results
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'transact: {sql_list}')
 
     if not sql_list:
@@ -349,6 +358,11 @@ async def get_schema(
         List of rows. Each row contains column name and type information for a column in the
         table provided in a dictionary form. Empty list is returned if table is not found.
     """
+    if not cluster_endpoint:
+        error_msg = 'Database not configured. Please configure --cluster_endpoint, --database_user, and --region.'
+        await ctx.error(error_msg)
+        raise Exception(error_msg)
+
     logger.info(f'get_schema: {table_name}')
 
     if not table_name:
@@ -609,11 +623,10 @@ def main():
     )
     parser.add_argument(
         '--cluster_endpoint',
-        required=True,
         help='Endpoint for your Aurora DSQL cluster',
     )
-    parser.add_argument('--database_user', required=True, help='Database username')
-    parser.add_argument('--region', required=True)
+    parser.add_argument('--database_user', help='Database username')
+    parser.add_argument('--region')
     parser.add_argument(
         '--allow-writes',
         action='store_true',
@@ -684,6 +697,17 @@ def main():
     global knowledge_timeout
     knowledge_timeout = args.knowledge_timeout
 
+    # Check if cluster is configured
+    if not cluster_endpoint or not database_user or not region:
+        logger.warning(
+            'Aurora DSQL MCP server starting without cluster configuration. '
+            'Database tools will not be available. '
+            'Please configure --cluster_endpoint, --database_user, and --region to enable database operations.'
+        )
+        logger.info('Starting Aurora DSQL MCP server (documentation tools only)')
+        mcp.run()
+        return
+
     mode_description = 'READ-WRITE' if args.allow_writes else 'READ-ONLY'
     logger.info(
         'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, MODE:{}, AWS_PROFILE:{}, KNOWLEDGE_SERVER:{}, KNOWLEDGE_TIMEOUT:{}',
@@ -699,19 +723,6 @@ def main():
     global dsql_client
     session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
     dsql_client = session.client('dsql', region_name=region)
-
-    try:
-        # Validate connection by trying to execute a simple query directly
-        # Connection errors will be handled in execute_query
-        ctx = NoOpCtx()
-        asyncio.run(execute_query(ctx, None, 'SELECT 1'))
-    except Exception as e:
-        logger.error(
-            f'Failed to create and validate db connection to Aurora DSQL. Exit the MCP server. error: {e}'
-        )
-        sys.exit(1)
-
-    logger.success('Successfully validated connection to Aurora DSQL Cluster')
 
     logger.info('Starting Aurora DSQL MCP server')
     mcp.run()
