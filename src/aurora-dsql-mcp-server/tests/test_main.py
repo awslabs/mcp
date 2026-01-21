@@ -253,11 +253,6 @@ class TestMain:
     )
     def test_main_uses_default_knowledge_parameters(self, mocker):
         """Test that main uses default knowledge server and timeout when not specified."""
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()

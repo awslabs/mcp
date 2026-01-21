@@ -14,8 +14,7 @@
 """Tests for graceful startup without cluster configuration."""
 
 import pytest
-
-import awslabs.aurora_dsql_mcp_server.server as server
+from awslabs.aurora_dsql_mcp_server import server
 from awslabs.aurora_dsql_mcp_server.server import get_schema, readonly_query, transact
 
 
