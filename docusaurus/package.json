@@ -25,7 +25,7 @@
     "@docusaurus/module-type-aliases": "^3.9.1",
     "@docusaurus/tsconfig": "^3.9.2",
     "@docusaurus/types": "^3.9.1",
-    "baseline-browser-mapping": "^2.9.14",
+    "baseline-browser-mapping": "^2.9.15",
     "typescript": "~5.9.2"
   },
   "engines": {

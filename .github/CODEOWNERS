@@ -29,8 +29,8 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aurora-dsql-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @imforster @wcmjunior @anwesham-lab @benjscho @pkale @amaksimo @mitchell-elholm
 /src/aws-api-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
-/src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @alexa-perlov
-/src/aws-bedrock-data-automation-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @theagenticguy @alexa-perlov
+/src/aws-bedrock-custom-model-import-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko
+/src/aws-bedrock-data-automation-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @theagenticguy
 /src/aws-dataprocessing-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/aws-diagram-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @MichaelWalker-git
 /src/aws-documentation-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen @AadityaBhoota @artb30 @alexisareyn
@@ -48,7 +48,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/billing-cost-management-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404
 /src/ccapi-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @novekm
 /src/cdk-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
-/src/cfn-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko @alexa-perlov
+/src/cfn-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko
 /src/cloudtrail-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
 /src/cloudwatch-applicationsignals-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @blairhyy-amazon @vastin @wangzlei @shiyangy-xray
 /src/cloudwatch-appsignals-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque @thpierce
@@ -82,7 +82,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/sagemaker-unified-studio-spark-troubleshooting-mcp-server @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/stepfunctions-tool-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/syntheticdata-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
-/src/terraform-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
+/src/terraform-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust
 /src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws
 /src/valkey-mcp-server                                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/well-architected-security-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh

@@ -34,7 +34,7 @@ def get_format():
 # Set up enhanced logging format to include function name, line number, and logger name
 # Fixed the whitespace issue after log level by removing padding
 logger.add(
-    sys.stdout,
+    sys.stderr,
     format=get_format(),
     level='INFO',
 )
