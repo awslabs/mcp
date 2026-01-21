@@ -257,6 +257,40 @@ def get_timestream_influxdb_client():
     return client
 
 
+def resolve_influxdb_config(
+    url: Optional[str] = None,
+    token: Optional[str] = None,
+    org: Optional[str] = None,
+    require_org: bool = True,
+) -> tuple:
+    """Resolve InfluxDB configuration from parameters or environment variables.
+
+    Args:
+        url: The URL of the InfluxDB server (optional, falls back to INFLUXDB_URL env var).
+        token: The authentication token (optional, falls back to INFLUXDB_TOKEN env var).
+        org: The organization name (optional, falls back to INFLUXDB_ORG env var).
+        require_org: Whether the organization is required (default True).
+
+    Returns:
+        A tuple of (resolved_url, resolved_token, resolved_org).
+
+    Raises:
+        ValueError: If required parameters are not provided.
+    """
+    resolved_url = url or INFLUXDB_URL
+    resolved_token = token or INFLUXDB_TOKEN
+    resolved_org = org or INFLUXDB_ORG
+
+    if not resolved_url:
+        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
+    if not resolved_token:
+        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    if require_org and not resolved_org:
+        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+
+    return resolved_url, resolved_token, resolved_org
+
+
 def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = True):
     """Get an InfluxDB client.
 
@@ -1099,17 +1133,7 @@ async def influxdb_write_points(
             'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
-    if not resolved_org:
-        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
@@ -1187,17 +1211,7 @@ async def influxdb_write_line_protocol(
             'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
-    if not resolved_org:
-        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
@@ -1247,17 +1261,7 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
-    if not resolved_org:
-        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
@@ -1311,17 +1315,7 @@ async def influxdb_list_buckets(
     Returns:
         List of buckets with their details.
     """
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
-    if not resolved_org:
-        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
@@ -1375,17 +1369,7 @@ async def influxdb_create_bucket(
             'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
-    if not resolved_org:
-        raise ValueError('Org must be provided either as parameter or via INFLUXDB_ORG environment variable')
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
         client = get_influxdb_client(
@@ -1442,14 +1426,7 @@ async def influxdb_list_orgs(
     Returns:
         List of organizations with their details.
     """
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    resolved_url, resolved_token, _ = resolve_influxdb_config(url, token, org=None, require_org=False)
 
     try:
         client = get_influxdb_client(
@@ -1497,14 +1474,7 @@ async def influxdb_create_org(
             'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    # Use environment variables as fallback
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-
-    if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
-    if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+    resolved_url, resolved_token, _ = resolve_influxdb_config(url, token, org=None, require_org=False)
 
     try:
         client = get_influxdb_client(
