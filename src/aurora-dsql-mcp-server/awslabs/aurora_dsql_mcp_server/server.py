@@ -15,7 +15,6 @@
 """awslabs Aurora DSQL MCP Server implementation."""
 
 import argparse
-import asyncio
 import boto3
 import httpx
 import psycopg
