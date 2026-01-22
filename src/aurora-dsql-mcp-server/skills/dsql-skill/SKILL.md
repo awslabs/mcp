@@ -1,6 +1,6 @@
 ---
 name: dsql
-description: Build and deploy PostgreSQL-compatible serverless distributed SQL databases with Aurora DSQL - manage schemas, execute queries, and handle migrations with DSQL-specific requirements. Use when wanting a good solution for developing a scalable or distributed SQL database, user asks to use Amazon Aurora DSQL, or a project is already built with DSQL. Includes MCP tools for direct database interaction.
+description: Build with Aurora DSQL - manage schemas, execute queries, and handle migrations with DSQL-specific requirements. Use when developing a scalable or distributed database/application or user requests DSQL.
 ---
 
 # Amazon Aurora DSQL Skill
@@ -209,6 +209,7 @@ Always use CREATE INDEX ASYNC in separate transaction
 ## Additional Resources
 
 - [Aurora DSQL Documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/)
-- [Aurora DSQL Starter Kit](https://github.com/awslabs/aurora-dsql-starter-kit/tree/main)
 - [Code Samples Repository](https://github.com/aws-samples/aurora-dsql-samples)
 - [PostgreSQL Compatibility](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility.html)
+- [IAM Authentication Guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/using-database-and-iam-roles.html)
+- [CloudFormation Resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-dsql-cluster.html)

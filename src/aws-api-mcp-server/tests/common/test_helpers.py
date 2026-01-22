@@ -1,9 +1,14 @@
+import base64
+import json
 import pytest
 from awslabs.aws_api_mcp_server.core.common.helpers import (
+    as_json,
     get_requests_session,
     is_help_operation,
     validate_aws_region,
 )
+from botocore.response import StreamingBody
+from io import BytesIO
 from requests.adapters import HTTPAdapter
 from unittest.mock import MagicMock, patch
 
@@ -141,3 +146,55 @@ def test_get_requests_session():
 def test_is_help_operation(args, expected):
     """Test is_help_operation identifies help commands correctly."""
     assert is_help_operation(args) == expected
+
+
+def test_as_json_basic_dict():
+    """Test that as_json converts a basic dictionary to JSON string."""
+    data = {'key': 'value', 'number': 42}
+    result = as_json(data)
+    assert result == '{"key": "value", "number": 42}'
+
+
+def test_as_json_encodes_streaming_body_with_utf8_content():
+    """Test that StreamingBody with valid UTF-8 content is decoded correctly."""
+    content = b'Hello, world!'
+    raw_stream = BytesIO(content)
+    encoded = as_json({'data': StreamingBody(raw_stream, content_length=len(content))})
+    assert json.loads(encoded) == {'data': 'Hello, world!'}
+
+
+def test_as_json_encodes_streaming_body_with_non_utf8_content():
+    """Test that StreamingBody with non-UTF-8 content is base64 encoded."""
+    # 24 bytes of 0x80 (invalid UTF-8 continuation byte) - divisible by 3 for clean base64
+    binary_data = b'\x80' * 24
+    data = base64.b64encode(binary_data)
+    raw_stream = BytesIO(binary_data)
+    encoded = as_json({'data': StreamingBody(raw_stream, content_length=len(binary_data))})
+    assert json.loads(encoded) == {'data': data.decode('utf-8')}
+
+
+def test_as_json_encodes_bytes_with_utf8_content():
+    """Test that bytes with valid UTF-8 content is decoded correctly."""
+    content = b'Hello, world!'
+    encoded = as_json({'data': content})
+    assert json.loads(encoded) == {'data': 'Hello, world!'}
+
+
+def test_as_json_encodes_bytes_with_non_utf8_content():
+    """Test that bytes with non-UTF-8 content is base64 encoded."""
+    # 24 bytes of 0x80 (invalid UTF-8 continuation byte) - divisible by 3 for clean base64
+    binary_data = b'\x80' * 24
+    data = base64.b64encode(binary_data)
+    encoded = as_json({'data': binary_data})
+    assert json.loads(encoded) == {'data': data.decode('utf-8')}
+
+
+def test_as_json_raises_type_error_for_unsupported_type():
+    """Test that as_json raises Exception for non-serializable objects."""
+
+    class CustomObject:
+        pass
+
+    with pytest.raises(Exception) as exc_info:
+        as_json({'data': CustomObject()})
+    assert 'is not JSON serializable' in str(exc_info.value)
