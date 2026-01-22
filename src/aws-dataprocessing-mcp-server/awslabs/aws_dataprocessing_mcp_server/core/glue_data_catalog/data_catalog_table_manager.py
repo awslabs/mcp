@@ -18,14 +18,15 @@ This module provides functionality for managing tables in the AWS Glue Data Cata
 including creating, updating, retrieving, listing, searching, and deleting tables.
 """
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    CreateTableResponse,
-    DeleteTableResponse,
-    GetTableResponse,
-    ListTablesResponse,
-    SearchTablesResponse,
+    CreateTableData,
+    DeleteTableData,
+    GetTableData,
+    ListTablesData,
+    SearchTablesData,
     TableSummary,
-    UpdateTableResponse,
+    UpdateTableData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -35,7 +36,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from typing import Any, Dict, List, Optional
 
 
@@ -68,7 +69,7 @@ class DataCatalogTableManager:
         partition_indexes: Optional[List[Dict[str, Any]]] = None,
         transaction_id: Optional[str] = None,
         open_table_format_input: Optional[Dict[str, Any]] = None,
-    ) -> CreateTableResponse:
+    ) -> CallToolResult:
         """Create a new table in the AWS Glue Data Catalog.
 
         Creates a new table with the specified name and properties in the given database.
@@ -127,13 +128,19 @@ class DataCatalogTableManager:
                 f'Successfully created table: {database_name}.{table_name}',
             )
 
-            success_msg = f'Successfully created table: {database_name}.{table_name}'
-            return CreateTableResponse(
-                isError=False,
+            success_message = f'Successfully created table: {database_name}.{table_name}'
+            data = CreateTableData(
                 database_name=database_name,
                 table_name=table_name,
                 operation='create-table',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -141,11 +148,8 @@ class DataCatalogTableManager:
             error_message = f'Failed to create table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return CreateTableResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                operation='create-table',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -156,7 +160,7 @@ class DataCatalogTableManager:
         table_name: str,
         catalog_id: Optional[str] = None,
         transaction_id: Optional[str] = None,
-    ) -> DeleteTableResponse:
+    ) -> CallToolResult:
         """Delete a table from the AWS Glue Data Catalog.
 
         Deletes the specified table if it exists and is managed by the MCP server.
@@ -194,22 +198,16 @@ class DataCatalogTableManager:
                 if not AwsHelper.is_resource_mcp_managed(self.glue_client, table_arn, parameters):
                     error_message = f'Cannot delete table {database_name}.{table_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteTableResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        operation='delete-table',
                         content=[TextContent(type='text', text=error_message)],
                     )
             except ClientError as e:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteTableResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        operation='delete-table',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -231,13 +229,19 @@ class DataCatalogTableManager:
                 f'Successfully deleted table: {database_name}.{table_name}',
             )
 
-            success_msg = f'Successfully deleted table: {database_name}.{table_name}'
-            return DeleteTableResponse(
-                isError=False,
+            success_message = f'Successfully deleted table: {database_name}.{table_name}'
+            data = DeleteTableData(
                 database_name=database_name,
                 table_name=table_name,
                 operation='delete-table',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -245,11 +249,8 @@ class DataCatalogTableManager:
             error_message = f'Failed to delete table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return DeleteTableResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                operation='delete-table',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -262,7 +263,7 @@ class DataCatalogTableManager:
         transaction_id: Optional[str] = None,
         query_as_of_time: Optional[datetime] = None,
         include_status_details: Optional[bool] = None,
-    ) -> GetTableResponse:
+    ) -> CallToolResult:
         """Get details of a table from the AWS Glue Data Catalog.
 
         Retrieves detailed information about the specified table, including
@@ -301,12 +302,25 @@ class DataCatalogTableManager:
                 f'Successfully retrieved table: {database_name}.{table_name}',
             )
 
-            success_msg = f'Successfully retrieved table: {database_name}.{table_name}'
-            return GetTableResponse(
-                isError=False,
+            # Convert datetime objects to ISO strings in table definition
+            def convert_datetime_to_iso(obj: Any) -> Any:
+                """Recursively convert datetime objects to ISO strings."""
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {key: convert_datetime_to_iso(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime_to_iso(item) for item in obj]
+                else:
+                    return obj
+
+            table_definition_serializable: Dict[str, Any] = convert_datetime_to_iso(table)
+
+            success_message = f'Successfully retrieved table: {database_name}.{table_name}'
+            data = GetTableData(
                 database_name=database_name,
                 table_name=table['Name'],
-                table_definition=table,
+                table_definition=table_definition_serializable,
                 creation_time=(
                     table.get('CreateTime', '').isoformat() if table.get('CreateTime') else ''
                 ),
@@ -318,7 +332,14 @@ class DataCatalogTableManager:
                 storage_descriptor=table.get('StorageDescriptor', {}),
                 partition_keys=table.get('PartitionKeys', []),
                 operation='get-table',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -326,16 +347,8 @@ class DataCatalogTableManager:
             error_message = f'Failed to get table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return GetTableResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                table_definition={},
-                creation_time='',
-                last_access_time='',
-                storage_descriptor={},
-                partition_keys=[],
-                operation='get-table',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -351,7 +364,7 @@ class DataCatalogTableManager:
         query_as_of_time: Optional[datetime] = None,
         include_status_details: Optional[bool] = None,
         attributes_to_get: Optional[List[str]] = None,
-    ) -> ListTablesResponse:
+    ) -> CallToolResult:
         """List tables in a database in the AWS Glue Data Catalog.
 
         Retrieves a list of tables with their basic properties. Supports
@@ -402,9 +415,10 @@ class DataCatalogTableManager:
                 f'Successfully listed {len(tables)} tables in database {database_name}',
             )
 
-            success_msg = f'Successfully listed {len(tables)} tables in database {database_name}'
-            return ListTablesResponse(
-                isError=False,
+            success_message = (
+                f'Successfully listed {len(tables)} tables in database {database_name}'
+            )
+            data = ListTablesData(
                 database_name=database_name,
                 tables=[
                     TableSummary(
@@ -434,7 +448,14 @@ class DataCatalogTableManager:
                 count=len(tables),
                 operation='list-tables',
                 next_token=next_token_response,
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -442,12 +463,8 @@ class DataCatalogTableManager:
             error_message = f'Failed to list tables in database {database_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return ListTablesResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                tables=[],
-                count=0,
-                operation='list-tables',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -463,7 +480,7 @@ class DataCatalogTableManager:
         version_id: Optional[str] = None,
         view_update_action: Optional[str] = None,
         force: Optional[bool] = None,
-    ) -> UpdateTableResponse:
+    ) -> CallToolResult:
         """Update an existing table in the AWS Glue Data Catalog.
 
         Updates the properties of the specified table if it exists and is managed
@@ -505,11 +522,8 @@ class DataCatalogTableManager:
                 if not AwsHelper.is_resource_mcp_managed(self.glue_client, table_arn, parameters):
                     error_message = f'Cannot update table {database_name}.{table_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateTableResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        operation='update-table',
                         content=[TextContent(type='text', text=error_message)],
                     )
 
@@ -527,11 +541,8 @@ class DataCatalogTableManager:
                 if e.response['Error']['Code'] == 'EntityNotFoundException':
                     error_message = f'Table {database_name}.{table_name} not found'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateTableResponse(
+                    return CallToolResult(
                         isError=True,
-                        database_name=database_name,
-                        table_name=table_name,
-                        operation='update-table',
                         content=[TextContent(type='text', text=error_message)],
                     )
                 else:
@@ -562,13 +573,19 @@ class DataCatalogTableManager:
                 f'Successfully updated table: {database_name}.{table_name}',
             )
 
-            success_msg = f'Successfully updated table: {database_name}.{table_name}'
-            return UpdateTableResponse(
-                isError=False,
+            success_message = f'Successfully updated table: {database_name}.{table_name}'
+            data = UpdateTableData(
                 database_name=database_name,
                 table_name=table_name,
                 operation='update-table',
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -576,11 +593,8 @@ class DataCatalogTableManager:
             error_message = f'Failed to update table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return UpdateTableResponse(
+            return CallToolResult(
                 isError=True,
-                database_name=database_name,
-                table_name=table_name,
-                operation='update-table',
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -595,7 +609,7 @@ class DataCatalogTableManager:
         sort_criteria: Optional[List[Dict[str, str]]] = None,
         resource_share_type: Optional[str] = None,
         include_status_details: Optional[bool] = None,
-    ) -> SearchTablesResponse:
+    ) -> CallToolResult:
         """Search for tables in the AWS Glue Data Catalog.
 
         Searches for tables across databases using text matching and filters.
@@ -641,9 +655,8 @@ class DataCatalogTableManager:
 
             log_with_request_id(ctx, LogLevel.INFO, f'Search found {len(tables)} tables')
 
-            success_msg = f'Search found {len(tables)} tables'
-            return SearchTablesResponse(
-                isError=False,
+            success_message = f'Search found {len(tables)} tables'
+            data = SearchTablesData(
                 tables=[
                     TableSummary(
                         name=table['Name'],
@@ -673,7 +686,14 @@ class DataCatalogTableManager:
                 count=len(tables),
                 operation='search-tables',
                 next_token=next_token_response,
-                content=[TextContent(type='text', text=success_msg)],
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
             )
 
         except ClientError as e:
@@ -683,11 +703,7 @@ class DataCatalogTableManager:
             )
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-            return SearchTablesResponse(
+            return CallToolResult(
                 isError=True,
-                tables=[],
-                search_text=search_text or '',
-                count=0,
-                operation='search-tables',
                 content=[TextContent(type='text', text=error_message)],
             )

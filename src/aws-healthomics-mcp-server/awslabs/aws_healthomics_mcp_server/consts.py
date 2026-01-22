@@ -32,7 +32,7 @@ except ValueError:
     DEFAULT_MAX_RESULTS = 100
 
 # Supported regions (as of June 2025)
-# These are hardcoded as a fallback in case the SSM parameter store query fails
+# These are hardcoded as a fallback in case the boto3 session region query fails
 HEALTHOMICS_SUPPORTED_REGIONS = [
     'ap-southeast-1',
     'eu-central-1',

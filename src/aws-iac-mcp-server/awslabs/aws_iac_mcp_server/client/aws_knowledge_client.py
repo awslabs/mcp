@@ -30,7 +30,6 @@ KNOWLEDGE_MCP_ENDPOINT = os.environ.get(
     'KNOWLEDGE_MCP_ENDPOINT', 'https://knowledge-mcp.global.api.aws'
 )
 KNOWLEDGE_MCP_SEARCH_DOCUMENTATION_TOOL = 'aws___search_documentation'
-KNOWLEDGE_MCP_READ_DOCUMENTATION_TOOL = 'aws___read_documentation'
 
 
 async def search_documentation(
@@ -86,51 +85,5 @@ def _parse_search_documentation_result(result: CallToolResult) -> List[Knowledge
         )
         for item in raw_results
     ]
-
-    return results
-
-
-async def read_documentation(url: str, start_index: int = 0) -> List[KnowledgeResult]:
-    """Read AWS documentation from a specific URL.
-
-    Args:
-        url: The documentation URL to read.
-        start_index: Starting character index for pagination.
-
-    Returns:
-        List of KnowledgeResult containing the documentation content.
-    """
-    try:
-        logger.info(f'Connecting to AWS Knowledge MCP at {KNOWLEDGE_MCP_ENDPOINT}')
-        aws_knowledge_mcp_client = Client(KNOWLEDGE_MCP_ENDPOINT)
-
-        async with aws_knowledge_mcp_client:
-            result = await aws_knowledge_mcp_client.call_tool(
-                KNOWLEDGE_MCP_READ_DOCUMENTATION_TOOL, {'url': url, 'start_index': start_index}
-            )
-            logger.info(f'Received result: {result}')
-            return _parse_read_documentation_result(result)
-    except Exception as e:
-        # For dev team troubleshooting
-        logger.error(f'Error reading documentation: {str(e)}')
-        raise e
-
-
-def _parse_read_documentation_result(result: CallToolResult) -> List[KnowledgeResult]:
-    if result.is_error:
-        raise Exception(f'Tool call returned an error: {result.content}')
-
-    if not result.content or len(result.content) == 0:
-        raise Exception('Empty response from tool')
-
-    content = result.content[0]
-    if not isinstance(content, TextContent):
-        raise Exception(f'Content is not text type: {type(content)}')
-
-    result_content_json = json.loads(content.text)
-    content_str = result_content_json['content']['result']
-
-    # TODO: fix/update response structure
-    results = [KnowledgeResult(rank=1, title='', url='', context=content_str)]
 
     return results

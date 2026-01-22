@@ -17,8 +17,10 @@
 import os
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils import (
+    _compile_wildcard_pattern,
     _fetch_instrumented_services_with_pagination,
     _filter_instrumented_services,
+    _matches_wildcard_pattern,
     execute_audit_api,
     expand_service_operation_wildcard_patterns,
     expand_service_wildcard_patterns,
@@ -1298,6 +1300,110 @@ class TestExpandServiceWildcardPatterns:
         assert filtering_stats['instrumented_services'] == 3
         assert filtering_stats['filtered_out'] == 0
 
+    def test_expand_service_wildcard_compiled_pattern(self, mock_applicationsignals_client):
+        """Test wildcard pattern compilation for service*gateway pattern."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'payment-service-gateway',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'order-service-2-gateway',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'user-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+            ]
+        }
+
+        targets = [
+            {
+                'Type': 'service',
+                'Data': {'Service': {'Type': 'Service', 'Name': '*service*gateway'}},
+            }
+        ]
+
+        expanded_targets, _, _, _ = expand_service_wildcard_patterns(
+            targets,
+            1640995200,
+            1641081600,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        assert len(expanded_targets) == 2
+        service_names = [t['Data']['Service']['Name'] for t in expanded_targets]
+        assert 'payment-service-gateway' in service_names
+        assert 'order-service-2-gateway' in service_names
+        assert 'user-service' not in service_names
+
+    def test_expand_service_wildcard_multiple_wildcards(self, mock_applicationsignals_client):
+        """Test wildcard pattern compilation for *payment*service* pattern."""
+        mock_applicationsignals_client.list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {
+                        'Name': 'my-payment-service-v1',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'api-payment-service-gateway',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'service-payment',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+                {
+                    'KeyAttributes': {
+                        'Name': 'user-auth-service',
+                        'Type': 'Service',
+                        'Environment': 'prod',
+                    }
+                },
+            ]
+        }
+
+        targets = [
+            {
+                'Type': 'service',
+                'Data': {'Service': {'Type': 'Service', 'Name': '*payment*service*'}},
+            }
+        ]
+
+        expanded_targets, _, _, _ = expand_service_wildcard_patterns(
+            targets,
+            1640995200,
+            1641081600,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        assert len(expanded_targets) == 2
+        service_names = [t['Data']['Service']['Name'] for t in expanded_targets]
+        assert 'my-payment-service-v1' in service_names
+        assert 'api-payment-service-gateway' in service_names
+        assert 'service-payment' not in service_names
+        assert 'user-auth-service' not in service_names
+
     def test_expand_service_no_wildcard(self, mock_applicationsignals_client):
         """Test with no wildcard patterns."""
         targets = [
@@ -1914,6 +2020,68 @@ class TestExpandSloWildcardPatterns:
         assert next_token is None
         assert len(slo_names_in_batch) == 3
 
+    def test_expand_slo_wildcard_compiled_pattern(self, mock_applicationsignals_client):
+        """Test SLO wildcard pattern compilation for service*latency pattern."""
+        mock_applicationsignals_client.list_service_level_objectives.return_value = {
+            'SloSummaries': [
+                {
+                    'Name': 'payment-service-latency',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/payment-service-latency',
+                },
+                {
+                    'Name': 'order-service-latency',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/order-service-slow-latency',
+                },
+                {
+                    'Name': 'user-availability-slo',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/user-availability-slo',
+                },
+            ]
+        }
+
+        targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': '*service*latency'}}}]
+
+        expanded_targets, _, _ = expand_slo_wildcard_patterns(
+            targets, applicationsignals_client=mock_applicationsignals_client
+        )
+
+        assert len(expanded_targets) == 2
+        slo_names = [t['Data']['Slo']['SloName'] for t in expanded_targets]
+        assert 'payment-service-latency' in slo_names
+        assert 'order-service-latency' in slo_names
+        assert 'user-availability-slo' not in slo_names
+
+    def test_expand_slo_wildcard_multiple_wildcards(self, mock_applicationsignals_client):
+        """Test SLO wildcard pattern compilation for *latency*slo* pattern."""
+        mock_applicationsignals_client.list_service_level_objectives.return_value = {
+            'SloSummaries': [
+                {
+                    'Name': 'api-latency-slo-v1',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/api-latency-slo-v1',
+                },
+                {
+                    'Name': 'payment-latency-slow-slo-prod',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/payment-latency-slo-prod',
+                },
+                {
+                    'Name': 'user-availability-metric',
+                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/user-availability-metric',
+                },
+            ]
+        }
+
+        targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': '*latency*slo*'}}}]
+
+        expanded_targets, _, _ = expand_slo_wildcard_patterns(
+            targets, applicationsignals_client=mock_applicationsignals_client
+        )
+
+        assert len(expanded_targets) == 2
+        slo_names = [t['Data']['Slo']['SloName'] for t in expanded_targets]
+        assert 'api-latency-slo-v1' in slo_names
+        assert 'payment-latency-slow-slo-prod' in slo_names
+        assert 'user-availability-metric' not in slo_names
+
     def test_expand_slo_no_wildcard(self, mock_applicationsignals_client):
         """Test with no SLO wildcard patterns."""
         targets = [{'Type': 'slo', 'Data': {'Slo': {'SloName': 'exact-slo'}}}]
@@ -2120,15 +2288,15 @@ class TestExpandServiceOperationWildcardPatterns:
             ]
         }
         mock_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Latency'},
-                        {'MetricType': 'Availability'},
+                        {'MetricType': 'LATENCY'},
+                        {'MetricType': 'FAULT'},
                     ],
                 },
-                {'Name': 'POST /payments', 'MetricReferences': [{'MetricType': 'Latency'}]},
+                {'Name': 'POST /payments', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
             ]
         }
         return mock_client
@@ -2192,6 +2360,90 @@ class TestExpandServiceOperationWildcardPatterns:
         assert expanded_targets[0]['Data']['ServiceOperation']['Operation'] == 'GET /payments'
         assert next_token is None
         assert len(service_names_in_batch) == 1
+
+    def test_expand_service_operation_compiled_pattern(self, mock_applicationsignals_client):
+        """Test service operation wildcard pattern compilation for GET*payments pattern."""
+        mock_applicationsignals_client.list_service_operations.return_value = {
+            'ServiceOperations': [
+                {
+                    'Name': 'GET /api/payments',
+                    'MetricReferences': [
+                        {'MetricType': 'LATENCY'},
+                        {'MetricType': 'FAULT'},
+                    ],
+                },
+                {'Name': 'GET /v2/payments', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
+                {'Name': 'POST /payments', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
+            ]
+        }
+
+        targets = [
+            {
+                'Type': 'service_operation',
+                'Data': {
+                    'ServiceOperation': {
+                        'Service': {'Name': 'payment-service'},
+                        'Operation': 'GET*payments',
+                        'MetricType': 'Latency',
+                    }
+                },
+            }
+        ]
+
+        expanded_targets, _, _, _ = expand_service_operation_wildcard_patterns(
+            targets,
+            1640995200,
+            1641081600,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        assert len(expanded_targets) == 2
+        operation_names = [t['Data']['ServiceOperation']['Operation'] for t in expanded_targets]
+        assert 'GET /api/payments' in operation_names
+        assert 'GET /v2/payments' in operation_names
+        assert 'POST /payments' not in operation_names
+
+    def test_expand_service_operation_multiple_wildcards(self, mock_applicationsignals_client):
+        """Test service operation wildcard pattern compilation for *GET*api* pattern."""
+        mock_applicationsignals_client.list_service_operations.return_value = {
+            'ServiceOperations': [
+                {
+                    'Name': 'GET /api/v1/users',
+                    'MetricReferences': [
+                        {'MetricType': 'LATENCY'},
+                        {'MetricType': 'FAULT'},
+                    ],
+                },
+                {'Name': 'POST /api/orders', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
+                {'Name': 'GET /health', 'MetricReferences': [{'MetricType': 'LATENCY'}]},
+            ]
+        }
+
+        targets = [
+            {
+                'Type': 'service_operation',
+                'Data': {
+                    'ServiceOperation': {
+                        'Service': {'Name': 'payment-service'},
+                        'Operation': '*GET*api*',
+                        'MetricType': 'Latency',
+                    }
+                },
+            }
+        ]
+
+        expanded_targets, _, _, _ = expand_service_operation_wildcard_patterns(
+            targets,
+            1640995200,
+            1641081600,
+            applicationsignals_client=mock_applicationsignals_client,
+        )
+
+        assert len(expanded_targets) == 1
+        operation_names = [t['Data']['ServiceOperation']['Operation'] for t in expanded_targets]
+        assert 'GET /api/v1/users' in operation_names
+        assert 'POST /api/orders' not in operation_names
+        assert 'GET /health' not in operation_names
 
     def test_expand_service_operation_metric_type_filter(self, mock_applicationsignals_client):
         """Test filtering by metric type availability."""
@@ -2341,18 +2593,18 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test that operations with Fault metrics match when looking for Availability."""
         # Mock an operation that only has Fault metric but we're looking for Availability
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Fault'},  # Only has Fault, not Availability
-                        {'MetricType': 'Latency'},
+                        {'MetricType': 'FAULT'},  # Only has Fault, not Availability
+                        {'MetricType': 'LATENCY'},
                     ],
                 },
                 {
                     'Name': 'POST /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Latency'},  # No Fault or Availability
+                        {'MetricType': 'LATENCY'},  # No Fault or Availability
                     ],
                 },
             ]
@@ -2695,14 +2947,14 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test expanding when no operations match the pattern."""
         # Mock operations that don't match the search pattern
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'DELETE /payments',  # Doesn't match *GET* pattern
-                    'MetricReferences': [{'MetricType': 'Latency'}],
+                    'MetricReferences': [{'MetricType': 'LATENCY'}],
                 },
                 {
                     'Name': 'PUT /payments',  # Doesn't match *GET* pattern
-                    'MetricReferences': [{'MetricType': 'Latency'}],
+                    'MetricReferences': [{'MetricType': 'LATENCY'}],
                 },
             ]
         }
@@ -2740,18 +2992,18 @@ class TestExpandServiceOperationWildcardPatterns:
         """Test expanding when operations don't have the required metric type."""
         # Mock operations that don't have the required metric type
         mock_applicationsignals_client.list_service_operations.return_value = {
-            'Operations': [
+            'ServiceOperations': [
                 {
                     'Name': 'GET /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Error'},  # Only has Error, not Latency
-                        {'MetricType': 'Fault'},
+                        {'MetricType': 'ERROR'},  # Only has Error, not Latency
+                        {'MetricType': 'FAULT'},
                     ],
                 },
                 {
                     'Name': 'POST /payments',
                     'MetricReferences': [
-                        {'MetricType': 'Error'},  # Only has Error, not Latency
+                        {'MetricType': 'ERROR'},  # Only has Error, not Latency
                     ],
                 },
             ]
@@ -2819,3 +3071,252 @@ class TestExpandServiceOperationWildcardPatterns:
         operations_call_args = mock_applicationsignals_client.list_service_operations.call_args[1]
         assert operations_call_args['StartTime'].timestamp() == start_time
         assert operations_call_args['EndTime'].timestamp() == end_time
+
+
+class TestCompileAndMatchesWildcardPattern:
+    """Test _compile_wildcard_pattern and _matches_wildcard_pattern functions with comprehensive coverage."""
+
+    def test_exact_matches_no_wildcards(self):
+        """Test exact string matching with no wildcards."""
+        pattern = _compile_wildcard_pattern('service-name')
+        assert _matches_wildcard_pattern('service-name', pattern)
+
+        pattern = _compile_wildcard_pattern('different-string')
+        assert not _matches_wildcard_pattern('exact-match', pattern)
+
+        pattern = _compile_wildcard_pattern('exact-match')
+        assert _matches_wildcard_pattern('exact-match', pattern)
+        assert not _matches_wildcard_pattern('exact-match-extra', pattern)
+        assert not _matches_wildcard_pattern('prefix-exact-match', pattern)
+
+    def test_case_insensitive_matching(self):
+        """Test that wildcard matching is case insensitive."""
+        pattern = _compile_wildcard_pattern('hello')
+        assert _matches_wildcard_pattern('HELLO', pattern)
+        assert _matches_wildcard_pattern('Hello', pattern)
+        assert _matches_wildcard_pattern('hello', pattern)
+
+        pattern = _compile_wildcard_pattern('HELLO')
+        assert _matches_wildcard_pattern('hello', pattern)
+        assert _matches_wildcard_pattern('Hello', pattern)
+
+        pattern = _compile_wildcard_pattern('hello*world')
+        assert _matches_wildcard_pattern('HELLO123WORLD', pattern)
+        assert _matches_wildcard_pattern('hello123world', pattern)
+        assert _matches_wildcard_pattern('Hello123World', pattern)
+
+        pattern = _compile_wildcard_pattern('service*v1')
+        assert _matches_wildcard_pattern('Service-Payment-V1', pattern)
+        assert _matches_wildcard_pattern('service-payment-v1', pattern)
+        assert _matches_wildcard_pattern('SERVICE-PAYMENT-V1', pattern)
+
+        pattern = _compile_wildcard_pattern('*payment*')
+        assert _matches_wildcard_pattern('PAYMENT-SERVICE', pattern)
+        assert _matches_wildcard_pattern('service-payment-gateway', pattern)
+        assert _matches_wildcard_pattern('Service-PAYMENT-Gateway', pattern)
+
+        # Test case variations all match
+        pattern = _compile_wildcard_pattern('ExactCase')
+        assert _matches_wildcard_pattern('ExactCase', pattern)
+        assert _matches_wildcard_pattern('exactcase', pattern)
+        assert _matches_wildcard_pattern('EXACTCASE', pattern)
+        assert _matches_wildcard_pattern('eXaCtCaSe', pattern)
+
+    def test_single_wildcard_matches_all(self):
+        """Test that single wildcard matches everything."""
+        pattern = _compile_wildcard_pattern('*')
+        assert _matches_wildcard_pattern('anything', pattern)
+        assert _matches_wildcard_pattern('', pattern)
+        assert _matches_wildcard_pattern('hello-world-123', pattern)
+        assert _matches_wildcard_pattern('service-payment-gateway', pattern)
+
+    def test_prefix_wildcards(self):
+        """Test wildcards at the beginning of patterns."""
+        pattern = _compile_wildcard_pattern('*payment')
+        assert _matches_wildcard_pattern('service-payment', pattern)
+        assert _matches_wildcard_pattern('my-payment', pattern)
+        assert _matches_wildcard_pattern('payment', pattern)
+        assert not _matches_wildcard_pattern('payment-service', pattern)
+        assert not _matches_wildcard_pattern('payment-gateway', pattern)
+
+    def test_suffix_wildcards(self):
+        """Test wildcards at the end of patterns."""
+        pattern = _compile_wildcard_pattern('payment*')
+        assert _matches_wildcard_pattern('payment-service', pattern)
+        assert _matches_wildcard_pattern('payment-gateway', pattern)
+        assert _matches_wildcard_pattern('payment', pattern)
+        assert not _matches_wildcard_pattern('service-payment', pattern)
+        assert not _matches_wildcard_pattern('my-payment', pattern)
+
+    def test_both_ends_wildcards(self):
+        """Test wildcards at both beginning and end."""
+        pattern = _compile_wildcard_pattern('*payment*')
+        assert _matches_wildcard_pattern('service-payment-v1', pattern)
+        assert _matches_wildcard_pattern('my-payment-service', pattern)
+        assert _matches_wildcard_pattern('payment', pattern)
+        assert _matches_wildcard_pattern('payment-gateway', pattern)
+        assert _matches_wildcard_pattern('service-payment', pattern)
+        assert not _matches_wildcard_pattern('user-service', pattern)
+        assert not _matches_wildcard_pattern('order-gateway', pattern)
+
+    def test_middle_wildcards(self):
+        """Test wildcards in the middle of patterns."""
+        pattern = _compile_wildcard_pattern('hello*world')
+        assert _matches_wildcard_pattern('hello123world', pattern)
+        assert _matches_wildcard_pattern('helloABCworld', pattern)
+        assert _matches_wildcard_pattern('hello-amazing world', pattern)
+        assert _matches_wildcard_pattern('helloworld', pattern)
+        assert not _matches_wildcard_pattern('hello', pattern)
+        assert not _matches_wildcard_pattern('world', pattern)
+        assert not _matches_wildcard_pattern('hello-universe', pattern)
+
+        pattern = _compile_wildcard_pattern('service*v1')
+        assert _matches_wildcard_pattern('service-payment-v1', pattern)
+        assert _matches_wildcard_pattern('service-order-v1', pattern)
+
+    def test_multiple_wildcards(self):
+        """Test patterns with multiple wildcards."""
+        pattern = _compile_wildcard_pattern('a*b*c*')
+        assert _matches_wildcard_pattern('a1b2c3', pattern)
+        assert _matches_wildcard_pattern('axbyczc', pattern)
+        assert _matches_wildcard_pattern('abc', pattern)
+        assert _matches_wildcard_pattern('a-test-b-value-c', pattern)
+        assert _matches_wildcard_pattern('abc-extra', pattern)
+        assert not _matches_wildcard_pattern('ab', pattern)
+
+        pattern = _compile_wildcard_pattern('my*payment*gateway')
+        assert _matches_wildcard_pattern('my-custom-payment-gateway', pattern)
+
+        pattern = _compile_wildcard_pattern('orders*service*prod')
+        assert _matches_wildcard_pattern('orders-service-prod', pattern)
+
+    def test_complex_patterns(self):
+        """Test complex wildcard patterns."""
+        # Multiple middle wildcards
+        pattern = _compile_wildcard_pattern('service*payment*v1')
+        assert _matches_wildcard_pattern('service-payment-gateway-v1', pattern)
+
+        pattern = _compile_wildcard_pattern('api*orders*endpoint')
+        assert _matches_wildcard_pattern('api-v2-orders-create-endpoint', pattern)
+
+        # Mixed positions
+        pattern = _compile_wildcard_pattern('*middle*')
+        assert _matches_wildcard_pattern('prefix-middle-suffix', pattern)
+
+        pattern = _compile_wildcard_pattern('start*end')
+        assert _matches_wildcard_pattern('start-middle-end', pattern)
+
+        # Service-like patterns
+        pattern = _compile_wildcard_pattern('*payment*service')
+        assert _matches_wildcard_pattern('payment-gateway-service', pattern)
+
+        pattern = _compile_wildcard_pattern('api*lambda*function')
+        assert _matches_wildcard_pattern('api-gateway-lambda-function', pattern)
+
+    def test_special_regex_characters_escaped(self):
+        """Test that special regex characters are properly escaped."""
+        # Dots should be literal, not regex wildcards
+        pattern = _compile_wildcard_pattern('file.*')
+        assert _matches_wildcard_pattern('file.txt', pattern)
+        assert not _matches_wildcard_pattern('fileXtxt', pattern)
+
+        # Plus should be literal
+        pattern = _compile_wildcard_pattern('file+*')
+        assert _matches_wildcard_pattern('file+test', pattern)
+        assert not _matches_wildcard_pattern('filetest', pattern)
+
+        # Brackets should be literal
+        pattern = _compile_wildcard_pattern('file[*]')
+        assert _matches_wildcard_pattern('file[1]', pattern)
+        assert not _matches_wildcard_pattern('file1', pattern)
+
+        # Parentheses should be literal
+        pattern = _compile_wildcard_pattern('func(*)')
+        assert _matches_wildcard_pattern('func(arg)', pattern)
+        assert not _matches_wildcard_pattern('funcarg', pattern)
+
+    def test_operation_name_patterns(self):
+        """Test realistic operation name patterns."""
+        # HTTP method patterns
+        pattern = _compile_wildcard_pattern('GET*payments')
+        assert _matches_wildcard_pattern('GET /api/v1/payments', pattern)
+
+        pattern = _compile_wildcard_pattern('*orders*')
+        assert _matches_wildcard_pattern('POST /orders/create', pattern)
+
+        pattern = _compile_wildcard_pattern('PUT*/users/*')
+        assert _matches_wildcard_pattern('PUT /users/123/profile', pattern)
+
+        pattern = _compile_wildcard_pattern('*GET*')
+        assert _matches_wildcard_pattern('GET /health', pattern)
+
+        pattern = _compile_wildcard_pattern('*api*')
+        assert _matches_wildcard_pattern('POST /api/submit', pattern)
+
+        # Path patterns
+        pattern = _compile_wildcard_pattern('*/api/*')
+        assert _matches_wildcard_pattern('GET /api/v1/users', pattern)
+
+        pattern = _compile_wildcard_pattern('*/v2/*')
+        assert _matches_wildcard_pattern('POST /v2/orders/create', pattern)
+
+        pattern = _compile_wildcard_pattern('*/api/*')
+        assert not _matches_wildcard_pattern('GET /health', pattern)
+
+    def test_service_name_patterns(self):
+        """Test realistic service name patterns."""
+        # Domain patterns
+        pattern = _compile_wildcard_pattern('*payment*')
+        assert _matches_wildcard_pattern('payment-gateway-service', pattern)
+
+        pattern = _compile_wildcard_pattern('*auth*')
+        assert _matches_wildcard_pattern('user-authentication-service', pattern)
+
+        pattern = _compile_wildcard_pattern('*lambda')
+        assert _matches_wildcard_pattern('order-processing-lambda', pattern)
+
+        # Environment patterns
+        pattern = _compile_wildcard_pattern('service*v1')
+        assert _matches_wildcard_pattern('service-prod-v1', pattern)
+
+        pattern = _compile_wildcard_pattern('api*gateway')
+        assert _matches_wildcard_pattern('api-staging-gateway', pattern)
+
+        # Version patterns
+        pattern = _compile_wildcard_pattern('*service*v*')
+        assert _matches_wildcard_pattern('payment-service-v2', pattern)
+
+        pattern = _compile_wildcard_pattern('*gateway*v*')
+        assert _matches_wildcard_pattern('api-gateway-v1.2', pattern)
+
+    def test_empty_and_none_inputs(self):
+        """Test behavior with empty or None inputs."""
+        # Empty pattern should match everything
+        pattern = _compile_wildcard_pattern('')
+        assert _matches_wildcard_pattern('text', pattern)
+        assert _matches_wildcard_pattern('', pattern)
+        assert _matches_wildcard_pattern('service-name', pattern)
+
+        pattern = _compile_wildcard_pattern(None)
+        assert _matches_wildcard_pattern('text', pattern)
+        assert _matches_wildcard_pattern('', pattern)
+        assert _matches_wildcard_pattern('service-name', pattern)
+
+        pattern = _compile_wildcard_pattern('pattern')
+        assert not _matches_wildcard_pattern('', pattern)
+        assert not _matches_wildcard_pattern(None, pattern)
+
+        assert not _matches_wildcard_pattern('any-text', None)
+        assert not _matches_wildcard_pattern('', None)
+        assert not _matches_wildcard_pattern(None, None)
+
+    def test_multiple_consecutive_wildcards(self):
+        """Test patterns with multiple consecutive wildcards."""
+        pattern = _compile_wildcard_pattern('***')
+        assert _matches_wildcard_pattern('anything', pattern)
+
+        pattern = _compile_wildcard_pattern('**')
+        assert _matches_wildcard_pattern('test', pattern)
+
+        pattern = _compile_wildcard_pattern('**hello**world**')
+        assert _matches_wildcard_pattern('hello-world', pattern)

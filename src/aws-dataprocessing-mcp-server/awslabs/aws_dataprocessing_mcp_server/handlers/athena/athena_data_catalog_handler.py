@@ -14,16 +14,17 @@
 
 """AthenaDataCatalogHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
-    CreateDataCatalogResponse,
-    DeleteDataCatalogResponse,
-    GetDatabaseResponse,
-    GetDataCatalogResponse,
-    GetTableMetadataResponse,
-    ListDatabasesResponse,
-    ListDataCatalogsResponse,
-    ListTableMetadataResponse,
-    UpdateDataCatalogResponse,
+    CreateDataCatalogData,
+    DeleteDataCatalogData,
+    GetDatabaseData,
+    GetDataCatalogData,
+    GetTableMetadataData,
+    ListDatabasesData,
+    ListDataCatalogsData,
+    ListTableMetadataData,
+    UpdateDataCatalogData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -31,9 +32,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class AthenaDataCatalogHandler:
@@ -121,13 +122,7 @@ class AthenaDataCatalogHandler:
                 description='For delete-data-catalog operation, whether to delete only the Athena Data Catalog (true) or also its resources (false). Only applicable for FEDERATED catalogs.',
             ),
         ] = None,
-    ) -> Union[
-        CreateDataCatalogResponse,
-        DeleteDataCatalogResponse,
-        GetDataCatalogResponse,
-        ListDataCatalogsResponse,
-        UpdateDataCatalogResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena data catalogs with both read and write operations.
 
         This tool provides operations for managing Athena data catalogs, including creating,
@@ -190,28 +185,12 @@ class AthenaDataCatalogHandler:
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if operation == 'create-data-catalog':
-                    return CreateDataCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        name='',
-                        operation='create-data-catalog',
-                    )
-                elif operation == 'delete-data-catalog':
-                    return DeleteDataCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        name='',
-                        operation='delete-data-catalog',
-                    )
-                elif operation == 'update-data-catalog':
-                    return UpdateDataCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        name='',
-                        operation='update-data-catalog',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[
+                        TextContent(type='text', text=error_message),
+                    ],
+                )
 
             if operation == 'create-data-catalog':
                 if name is None or type is None:
@@ -239,16 +218,14 @@ class AthenaDataCatalogHandler:
                 # Create data catalog
                 self.athena_client.create_data_catalog(**params)
 
-                return CreateDataCatalogResponse(
+                success_message = f'Successfully created data catalog {name}'
+                data = CreateDataCatalogData(name=name, operation='create-data-catalog')
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created data catalog {name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    name=name,
-                    operation='create-data-catalog',
                 )
 
             elif operation == 'delete-data-catalog':
@@ -263,16 +240,10 @@ class AthenaDataCatalogHandler:
                 if not verification_result['is_valid']:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteDataCatalogResponse(
+                    full_error_message = f'Cannot delete data catalog {name}: {error_message}'
+                    return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(
-                                type='text',
-                                text=f'Cannot delete data catalog {name}: {error_message}',
-                            )
-                        ],
-                        name=name,
-                        operation='delete-data-catalog',
+                        content=[TextContent(type='text', text=full_error_message)],
                     )
 
                 # Prepare parameters for deletion
@@ -283,29 +254,21 @@ class AthenaDataCatalogHandler:
                 # Delete data catalog
                 response = self.athena_client.delete_data_catalog(**params)
                 status = response.get('DataCatalog', {}).get('Status', '')
+                data = DeleteDataCatalogData(name=name, operation='delete-data-catalog')
                 if status == 'DELETE_FAILED':
-                    return DeleteDataCatalogResponse(
+                    error_message = 'Data Catalog delete operation failed'
+                    return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(
-                                type='text',
-                                text='Data Catalog delete operation failed',
-                            )
-                        ],
-                        name=name,
-                        operation='delete-data-catalog',
+                        content=[TextContent(type='text', text=error_message)],
                     )
                 else:
-                    return DeleteDataCatalogResponse(
+                    success_message = f'Successfully deleted data catalog {name}'
+                    return CallToolResult(
                         isError=False,
                         content=[
-                            TextContent(
-                                type='text',
-                                text=f'Successfully deleted data catalog {name}',
-                            )
+                            TextContent(type='text', text=success_message),
+                            TextContent(type='text', text=json.dumps(data.model_dump())),
                         ],
-                        name=name,
-                        operation='delete-data-catalog',
                     )
 
             elif operation == 'get-data-catalog':
@@ -320,16 +283,16 @@ class AthenaDataCatalogHandler:
                 # Get data catalog
                 response = self.athena_client.get_data_catalog(**params)
 
-                return GetDataCatalogResponse(
+                success_message = f'Successfully retrieved data catalog {name}'
+                data = GetDataCatalogData(
+                    data_catalog=response.get('DataCatalog', {}), operation='get-data-catalog'
+                )
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved data catalog {name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    data_catalog=response.get('DataCatalog', {}),
-                    operation='get-data-catalog',
                 )
 
             elif operation == 'list-data-catalogs':
@@ -346,13 +309,19 @@ class AthenaDataCatalogHandler:
                 response = self.athena_client.list_data_catalogs(**params)
 
                 data_catalogs = response.get('DataCatalogsSummary', [])
-                return ListDataCatalogsResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully listed data catalogs')],
+                success_message = 'Successfully listed data catalogs'
+                data = ListDataCatalogsData(
                     data_catalogs=data_catalogs,
                     count=len(data_catalogs),
                     next_token=response.get('NextToken'),
                     operation='list-data-catalogs',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-data-catalog':
@@ -367,16 +336,10 @@ class AthenaDataCatalogHandler:
                 if not verification_result['is_valid']:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return UpdateDataCatalogResponse(
+                    full_error_message = f'Cannot update data catalog {name}: {error_message}'
+                    return CallToolResult(
                         isError=True,
-                        content=[
-                            TextContent(
-                                type='text',
-                                text=f'Cannot update data catalog {name}: {error_message}',
-                            )
-                        ],
-                        name=name,
-                        operation='update-data-catalog',
+                        content=[TextContent(type='text', text=full_error_message)],
                     )
 
                 # Prepare parameters for update
@@ -394,26 +357,22 @@ class AthenaDataCatalogHandler:
                 # Update data catalog
                 self.athena_client.update_data_catalog(**params)
 
-                return UpdateDataCatalogResponse(
+                success_message = f'Successfully updated data catalog {name}'
+                data = UpdateDataCatalogData(name=name, operation='update-data-catalog')
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated data catalog {name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    name=name,
-                    operation='update-data-catalog',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetDataCatalogResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    data_catalog={},
-                    operation='get-data-catalog',
                 )
 
         except ValueError as e:
@@ -422,11 +381,11 @@ class AthenaDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_data_catalogs: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetDataCatalogResponse(
+            return CallToolResult(
                 isError=True,
-                content=[TextContent(type='text', text=error_message)],
-                data_catalog={},
-                operation='get-data-catalog',
+                content=[
+                    TextContent(type='text', text=error_message),
+                ],
             )
 
     async def manage_aws_athena_databases_and_tables(
@@ -480,12 +439,7 @@ class AthenaDataCatalogHandler:
                 description='The name of the workgroup (required if making an IAM Identity Center request).',
             ),
         ] = None,
-    ) -> Union[
-        GetDatabaseResponse,
-        GetTableMetadataResponse,
-        ListDatabasesResponse,
-        ListTableMetadataResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Athena databases and tables with read operations.
 
         This tool provides operations for retrieving information about databases and tables
@@ -549,16 +503,18 @@ class AthenaDataCatalogHandler:
                 # Get database
                 response = self.athena_client.get_database(**params)
 
-                return GetDatabaseResponse(
+                success_message = (
+                    f'Successfully retrieved database {database_name} from catalog {catalog_name}'
+                )
+                data = GetDatabaseData(
+                    database=response.get('Database', {}), operation='get-database'
+                )
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved database {database_name} from catalog {catalog_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    database=response.get('Database', {}),
-                    operation='get-database',
                 )
 
             elif operation == 'get-table-metadata':
@@ -579,16 +535,17 @@ class AthenaDataCatalogHandler:
                 # Get table metadata
                 response = self.athena_client.get_table_metadata(**params)
 
-                return GetTableMetadataResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved metadata for table {table_name} in database {database_name} from catalog {catalog_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved metadata for table {table_name} in database {database_name} from catalog {catalog_name}'
+                data = GetTableMetadataData(
                     table_metadata=response.get('TableMetadata', {}),
                     operation='get-table-metadata',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-databases':
@@ -605,18 +562,19 @@ class AthenaDataCatalogHandler:
                 response = self.athena_client.list_databases(**params)
 
                 database_list = response.get('DatabaseList', [])
-                return ListDatabasesResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully listed databases in catalog {catalog_name}',
-                        )
-                    ],
+                success_message = f'Successfully listed databases in catalog {catalog_name}'
+                data = ListDatabasesData(
                     database_list=database_list,
                     count=len(database_list),
                     next_token=response.get('NextToken'),
                     operation='list-databases',
+                )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-table-metadata':
@@ -641,28 +599,27 @@ class AthenaDataCatalogHandler:
                 response = self.athena_client.list_table_metadata(**params)
 
                 table_metadata_list = response.get('TableMetadataList', [])
-                return ListTableMetadataResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully listed table metadata in database {database_name} from catalog {catalog_name}',
-                        )
-                    ],
+                success_message = f'Successfully listed table metadata in database {database_name} from catalog {catalog_name}'
+                data = ListTableMetadataData(
                     table_metadata_list=table_metadata_list,
                     count=len(table_metadata_list),
                     next_token=response.get('NextToken'),
                     operation='list-table-metadata',
                 )
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
+                )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: get-database, get-table-metadata, list-databases, list-table-metadata'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetDatabaseResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    database={},
-                    operation='get-database',
                 )
 
         except ValueError as e:
@@ -671,9 +628,7 @@ class AthenaDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_databases_and_tables: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetDatabaseResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database={},
-                operation='get-database',
             )

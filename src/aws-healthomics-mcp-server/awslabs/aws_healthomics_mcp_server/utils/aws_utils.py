@@ -149,7 +149,7 @@ def create_aws_client(service_name: str) -> Any:
     """Generic AWS client factory for any service.
 
     Args:
-        service_name: Name of the AWS service (e.g., 'omics', 'logs', 'ssm')
+        service_name: Name of the AWS service (e.g., 'omics', 'logs', 's3')
 
     Returns:
         boto3.client: Configured AWS service client
@@ -198,18 +198,6 @@ def get_logs_client() -> Any:
         Exception: If client creation fails
     """
     return create_aws_client('logs')
-
-
-def get_ssm_client() -> Any:
-    """Get an AWS SSM client.
-
-    Returns:
-        boto3.client: Configured SSM client
-
-    Raises:
-        Exception: If client creation fails
-    """
-    return create_aws_client('ssm')
 
 
 def get_account_id() -> str:

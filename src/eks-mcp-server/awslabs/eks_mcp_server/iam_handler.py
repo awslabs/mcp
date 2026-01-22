@@ -18,12 +18,12 @@ import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
-    AddInlinePolicyResponse,
+    AddInlinePolicyData,
     PolicySummary,
-    RoleDescriptionResponse,
+    RoleDescriptionData,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, List, Union
 
@@ -57,7 +57,7 @@ class IAMHandler:
             ...,
             description='Name of the IAM role to get policies for. The role must exist in your AWS account.',
         ),
-    ) -> RoleDescriptionResponse:
+    ) -> CallToolResult:
         """Get all policies attached to an IAM role.
 
         This tool retrieves all policies associated with an IAM role, providing a comprehensive view
@@ -112,34 +112,36 @@ class IAMHandler:
             else:
                 assume_role_policy_document = role['AssumeRolePolicyDocument']
 
-            # Create the response
-            return RoleDescriptionResponse(
-                isError=False,
-                content=[
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved details for IAM role: {role_name}',
-                    )
-                ],
+            # Create the response with structured data
+            data = RoleDescriptionData(
                 role_arn=role['Arn'],
                 assume_role_policy_document=assume_role_policy_document,
                 description=role.get('Description'),
                 managed_policies=managed_policies,
                 inline_policies=inline_policies,
             )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(
+                        type='text',
+                        text=f'Successfully retrieved details for IAM role: {role_name}',
+                    ),
+                    TextContent(
+                        type='text',
+                        text=json.dumps(data.model_dump()),
+                    ),
+                ],
+            )
         except Exception as e:
             error_message = f'Failed to describe IAM role: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             # Return a response with error status
-            return RoleDescriptionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                role_arn='',
-                assume_role_policy_document={},
-                description=None,
-                managed_policies=[],
-                inline_policies=[],
             )
 
     async def add_inline_policy(
@@ -156,7 +158,7 @@ class IAMHandler:
             description="""Permissions to include in the policy as IAM policy statements in JSON format.
             Can be either a single statement object or an array of statement objects.""",
         ),
-    ) -> AddInlinePolicyResponse:
+    ) -> CallToolResult:
         """Add a new inline policy to an IAM role.
 
         This tool creates a new inline policy with the specified permissions and adds it to an IAM role.
@@ -204,12 +206,9 @@ class IAMHandler:
             if not self.allow_write:
                 error_message = 'Adding inline policies requires --allow-write flag'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return AddInlinePolicyResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    policy_name=policy_name,
-                    role_name=role_name,
-                    permissions_added={},
                 )
 
             # Get IAM client
@@ -223,12 +222,9 @@ class IAMHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             # Return a response with error status
-            return AddInlinePolicyResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                policy_name=policy_name,
-                role_name=role_name,
-                permissions_added={},
             )
 
     def _get_managed_policies(self, ctx, iam_client, role_name):
@@ -324,12 +320,9 @@ class IAMHandler:
             # If we get here, the policy exists
             error_message = f'Policy {policy_name} already exists in role {role_name}. Cannot modify existing policies.'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return AddInlinePolicyResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                policy_name=policy_name,
-                role_name=role_name,
-                permissions_added={},
             )
         except iam_client.exceptions.NoSuchEntityException:
             # Policy doesn't exist, we can create it
@@ -346,17 +339,24 @@ class IAMHandler:
             RoleName=role_name, PolicyName=policy_name, PolicyDocument=json.dumps(policy_document)
         )
 
-        return AddInlinePolicyResponse(
+        data = AddInlinePolicyData(
+            policy_name=policy_name,
+            role_name=role_name,
+            permissions_added=permissions,
+        )
+
+        return CallToolResult(
             isError=False,
             content=[
                 TextContent(
                     type='text',
                     text=f'Successfully created new inline policy {policy_name} in role {role_name}',
-                )
+                ),
+                TextContent(
+                    type='text',
+                    text=json.dumps(data.model_dump()),
+                ),
             ],
-            policy_name=policy_name,
-            role_name=role_name,
-            permissions_added=permissions,
         )
 
     def _add_permissions_to_document(self, policy_document, permissions):

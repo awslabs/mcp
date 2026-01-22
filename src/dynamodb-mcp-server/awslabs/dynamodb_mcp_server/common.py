@@ -12,8 +12,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
 from functools import wraps
 from typing import Callable
+
+
+def validate_database_name(database_name: str) -> None:
+    """Validate database name.
+
+    Args:
+        database_name: The database name to validate
+
+    Raises:
+        ValueError: If the database name contains invalid characters or exceeds length limit
+    """
+    # Max identifier length: SQL Server=128, MySQL=64, PostgreSQL=63
+    # Use 128 as upper bound; each database will enforce its own limit
+    MAX_DB_NAME_LENGTH = 128
+
+    if len(database_name) > MAX_DB_NAME_LENGTH:
+        raise ValueError(
+            f'Invalid database name: {database_name}. '
+            f'Database name must not exceed {MAX_DB_NAME_LENGTH} characters.'
+        )
+
+    if not re.match(r'^[a-zA-Z0-9_.$-]+$', database_name):
+        raise ValueError(
+            f'Invalid database name: {database_name}. '
+            'Only alphanumeric characters, underscores, periods, dollar signs, and hyphens are allowed.'
+        )
+
+
+def validate_path_within_directory(
+    file_path: str, base_dir: str, path_description: str = 'file path'
+) -> str:
+    """Validate that a resolved path is within the base directory.
+
+    Args:
+        file_path: The file path to validate (can be relative or absolute)
+        base_dir: The base directory that the file must be within
+        path_description: Description of the path for error messages (e.g., "query output file")
+
+    Returns:
+        The canonical absolute path if validation succeeds
+
+    Raises:
+        ValueError: If the path resolves outside the base directory
+    """
+    real_base = os.path.normpath(os.path.realpath(base_dir))
+    real_file = os.path.normpath(os.path.realpath(file_path))
+
+    if not (real_file.startswith(real_base + os.sep) or real_file == real_base):
+        raise ValueError(
+            f'Path traversal detected: {path_description} resolves outside {base_dir}'
+        )
+
+    return real_file
 
 
 def handle_exceptions(func: Callable) -> Callable:

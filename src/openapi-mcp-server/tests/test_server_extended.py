@@ -110,9 +110,7 @@ def test_create_mcp_server_with_query_params_routes(
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
 @patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client')
-@patch('awslabs.openapi_mcp_server.server.asyncio.run')
 def test_create_mcp_server_with_prompt_generation(
-    mock_asyncio_run,
     mock_create_client,
     mock_validate,
     mock_load_spec,
@@ -144,9 +142,6 @@ def test_create_mcp_server_with_prompt_generation(
 
     # Verify the result
     assert result == mock_server
-
-    # Verify that asyncio.run was called
-    mock_asyncio_run.assert_called()
 
 
 @patch('awslabs.openapi_mcp_server.server.signal')

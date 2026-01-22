@@ -4,7 +4,7 @@ The official developer experience MCP Server for Amazon DynamoDB. This server pr
 
 ## Available Tools
 
-The DynamoDB MCP server provides four tools for data modeling and validation:
+The DynamoDB MCP server provides three tools for data modeling and validation:
 
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt with enterprise-level design patterns, cost optimization strategies, and multi-table design philosophy. Guides through requirements gathering, access pattern analysis, and schema design.
 
@@ -14,13 +14,13 @@ The DynamoDB MCP server provides four tools for data modeling and validation:
 
   **Example invocation:** "Validate my DynamoDB data model"
 
-- `source_db_analyzer` - Analyzes existing MySQL/Aurora databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Requires AWS RDS Data API and credentials in Secrets Manager.
+- `source_db_analyzer` - Analyzes existing MySQL databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
-- `execute_dynamodb_command` - Executes AWS CLI DynamoDB commands against DynamoDB Local or AWS DynamoDB. Supports all DynamoDB API operations and automatically configures credentials for local testing.
+- `generate_resources` - Generates various resources from the DynamoDB data model JSON file (dynamodb_data_model.json). Currently only the `cdk` resource type is supported. Passing `cdk` as `resource_type` parameter generates a CDK app to deploy DynamoDB tables. The CDK app reads the dynamodb_data_model.json to create tables with proper configuration.
 
-  **Example invocation:** "Create the tables from the data model that was just created in my account in region us-east-1"
+  **Example invocation:** "Generate the resources to deploy my DynamoDB data model using CDK"
 
 ## Prerequisites
 
@@ -30,11 +30,13 @@ The DynamoDB MCP server provides four tools for data modeling and validation:
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.dynamodb-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlciU0MGxhdGVzdCUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkFXU19QUk9GSUxFJTIyJTNBJTIyZGVmYXVsdCUyMiUyQyUyMkFXU19SRUdJT04lMjIlM0ElMjJ1cy13ZXN0LTIlMjIlMkMlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)| [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DynamoDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| Kiro   | Cursor  | VS Code |
+|:------:|:-------:|:-------:|
+| [![Kiro](https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro)](https://kiro.dev/launch/mcp/add?name=awslabs.dynamodb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DDB-MCP-READONLY%22%3A%22true%22%2C%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D)| [![Cursor](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.dynamodb-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlciU0MGxhdGVzdCUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkFXU19QUk9GSUxFJTIyJTNBJTIyZGVmYXVsdCUyMiUyQyUyMkFXU19SRUdJT04lMjIlM0ElMjJ1cy13ZXN0LTIlMjIlMkMlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)| [![VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DynamoDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
-Add the MCP to your favorite agentic tools (e.g. for Amazon Q Developer CLI MCP `~/.aws/amazonq/mcp.json`, or [Kiro CLI](https://kiro.dev/docs/cli/migrating-from-q/) which is replacing Amazon Q Developer CLI):
+> **Note:** The install buttons above configure `AWS_REGION` to `us-west-2` by default. Update this value in your MCP configuration after installation if you need a different region.
+
+Add the MCP server to your configuration file (for [Kiro](https://kiro.dev/docs/mcp/) add to `.kiro/settings/mcp.json` - see [configuration path](https://kiro.dev/docs/cli/mcp/configuration/#mcp-server-loading-priority)):
 
 ```json
 {
@@ -72,7 +74,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.dynamodb-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -127,7 +129,7 @@ The tool provides a structured workflow that translates application requirements
 - Documents how each access pattern is supported
 - Includes optimization recommendations for scale and performance
 
-The tool is backed by expert-engineered context that helps reasoning models guide you through advanced modeling techniques. Best results are achieved with reasoning-capable models such as Amazon Q, Anthropic Claude 4/4.5 Sonnet, OpenAI o3, and Google Gemini 2.5.
+The tool is backed by expert-engineered context that helps reasoning models guide you through advanced modeling techniques. Best results are achieved with reasoning-capable models such as Anthropic Claude 4/4.5 Sonnet, OpenAI o3, and Google Gemini 2.5.
 
 ### Data Model Validation
 
@@ -157,13 +159,49 @@ The tool automates the traditional manual validation process:
 
 ### Source Database Analysis
 
-The `source_db_analyzer` tool analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling. This is useful when migrating from relational databases.
+The `source_db_analyzer` tool extracts schema and access patterns from your existing database to help design your DynamoDB model. This is useful when migrating from relational databases.
 
-#### Prerequisites for MySQL Integration
+The tool supports two connection methods for MySQL:
+- **RDS Data API-based access**: Serverless connection using cluster ARN
+- **Connection-based access**: Traditional connection using hostname/port
 
-1. Aurora MySQL Cluster with credentials stored in AWS Secrets Manager
-2. Enable RDS Data API for your Aurora MySQL Cluster
-3. Enable Performance Schema for access pattern analysis (optional but recommended):
+**Supported Databases:**
+- MySQL / Aurora MySQL
+- PostgreSQL
+- SQL Server
+
+**Execution Modes:**
+- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MYSQL, PSQL, MSSQL)
+- **Managed Mode**: Direct connection via AWS RDS Data API (MySQL only)
+
+We recommend running this tool against a non-production database instance.
+
+### Self-Service Mode (MYSQL, PSQL, MSSQL)
+
+Self-service mode allows you to analyze any database without AWS connectivity:
+
+1. **Generate Queries**: Tool writes SQL queries (based on selected database) to a file
+2. **Run Queries**: You execute queries against your database
+3. **Provide Results**: Tool parses results and generates analysis
+
+### Managed Mode (MYSQL, PSQL, MSSQL)
+
+Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
+
+#### Prerequisites for MySQL Integration (Managed Mode)
+
+**For RDS Data API-based access:**
+1. MySQL cluster with RDS Data API enabled
+2. Database credentials stored in AWS Secrets Manager
+3. AWS credentials with permissions to access RDS Data API and Secrets Manager
+
+**For Connection-based access:**
+1. MySQL server accessible from your environment
+2. Database credentials stored in AWS Secrets Manager
+3. AWS credentials with permissions to access Secrets Manager
+
+**For both connection methods:**
+4. Enable Performance Schema for access pattern analysis (optional but recommended):
    - Set `performance_schema` parameter to 1 in your DB parameter group
    - Reboot the DB instance after changes
    - Verify with: `SHOW GLOBAL VARIABLES LIKE '%performance_schema'`
@@ -172,17 +210,27 @@ The `source_db_analyzer` tool analyzes existing MySQL/Aurora databases to extrac
      - `performance_schema_max_digest_length` - Maximum byte length per statement digest (default: 1024)
    - Without Performance Schema, analysis is based on information schema only
 
-4. AWS credentials with permissions to access RDS Data API and AWS Secrets Manager
-
 #### MySQL Environment Variables
 
 Add these environment variables to enable MySQL integration:
 
-- `MYSQL_CLUSTER_ARN`: Aurora MySQL cluster Resource ARN
+**For RDS Data API-based access:**
+- `MYSQL_CLUSTER_ARN`: MySQL cluster ARN
 - `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
 - `MYSQL_DATABASE`: Database name to analyze
-- `AWS_REGION`: AWS region of the Aurora MySQL cluster
+- `AWS_REGION`: AWS region of the cluster
+
+**For Connection-based access:**
+- `MYSQL_HOSTNAME`: MySQL server hostname or endpoint
+- `MYSQL_PORT`: MySQL server port (optional, default: 3306)
+- `MYSQL_SECRET_ARN`: ARN of secret containing database credentials
+- `MYSQL_DATABASE`: Database name to analyze
+- `AWS_REGION`: AWS region where Secrets Manager is located
+
+**Common options:**
 - `MYSQL_MAX_QUERY_RESULTS`: Maximum rows in analysis output files (optional, default: 500)
+
+**Note:** Explicit tool parameters take precedence over environment variables. Only one connection method (cluster ARN or hostname) should be specified.
 
 #### MCP Configuration with MySQL
 
@@ -210,7 +258,7 @@ Add these environment variables to enable MySQL integration:
 
 #### Using Source Database Analysis
 
-1. Run `source_db_analyzer` against your MySQL database
+1. Run `source_db_analyzer` against your Database (Self-service or Managed mode)
 2. Review the generated timestamped analysis folder (database_analysis_YYYYMMDD_HHMMSS)
 3. Read the manifest.md file first - it lists all analysis files and statistics
 4. Read all analysis files to understand schema structure and access patterns

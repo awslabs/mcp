@@ -17,6 +17,7 @@ import importlib.metadata
 import os
 import tempfile
 from enum import Enum
+from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
 from loguru import logger
 from pathlib import Path
@@ -34,6 +35,7 @@ READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
 TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
 REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
 FILE_ACCESS_MODE_KEY = 'AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS'
+AWS_API_MCP_WORKING_DIR_KEY = 'AWS_API_MCP_WORKING_DIR'
 
 
 class FileAccessMode(str, Enum):
@@ -96,14 +98,6 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     if transport not in ['stdio', 'streamable-http']:
         raise ValueError(f'Invalid transport: {transport}')
 
-    # Enforce explicit auth configuration for streamable-http transport
-    if transport == 'streamable-http':
-        auth_type = os.getenv('AUTH_TYPE')
-        if auth_type != 'no-auth':
-            error_message = "Invalid configuration: 'streamable-http' transport requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'."
-            logger.error(error_message)
-            raise ValueError(error_message)
-
     return cast(Literal['stdio', 'streamable-http'], transport)
 
 
@@ -130,13 +124,60 @@ def get_user_agent_extra() -> str:
     return user_agent_extra
 
 
+def get_working_directory() -> Path:
+    """Returns the custom working directory if AWS_API_MCP_WORKING_DIR is set, otherwise returns a default directory under the server directory."""
+    if custom_workdir := os.getenv(AWS_API_MCP_WORKING_DIR_KEY):
+        if (
+            not os.path.exists(custom_workdir)
+            or not os.path.isdir(custom_workdir)
+            or not os.path.isabs(custom_workdir)
+        ):
+            error_message = (
+                f'{AWS_API_MCP_WORKING_DIR_KEY} must be an absolute path to an existing directory'
+            )
+            logger.error(error_message)
+            raise ValueError(error_message)
+
+        return Path(custom_workdir)
+
+    workdir = get_server_directory() / 'workdir'
+    os.makedirs(workdir, exist_ok=True)
+
+    return workdir
+
+
+def get_server_auth():
+    """Configure authentication and for FastMCP server."""
+    auth_provider = None
+
+    if TRANSPORT != 'streamable-http':
+        return auth_provider
+
+    if not AUTH_TYPE or AUTH_TYPE not in ['no-auth', 'oauth']:
+        raise ValueError(
+            'TRANSPORT="streamable-http" requires the following environment variable to be set: AUTH_TYPE to `no-auth` or `oauth`'
+        )
+
+    if AUTH_TYPE == 'no-auth':
+        return auth_provider
+
+    if not AUTH_ISSUER or not AUTH_JWKS_URI:
+        raise ValueError(
+            'AUTH_TYPE="oauth" requires the following environment variables to be set: AUTH_ISSUER and AUTH_JWKS_URI'
+        )
+
+    auth_provider = JWTVerifier(issuer=AUTH_ISSUER, jwks_uri=AUTH_JWKS_URI)
+
+    return auth_provider
+
+
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
 AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
 AWS_REGION = os.getenv('AWS_REGION')
 DEFAULT_REGION = get_region(AWS_API_MCP_PROFILE_NAME)
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
-WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
+WORKING_DIRECTORY = get_working_directory()
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
 ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
 TRANSPORT = get_transport_from_env()
@@ -152,3 +193,8 @@ ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
 )
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 60
+
+# Authentication Configuration
+AUTH_TYPE = os.getenv('AUTH_TYPE')
+AUTH_ISSUER = os.getenv('AUTH_ISSUER')
+AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')

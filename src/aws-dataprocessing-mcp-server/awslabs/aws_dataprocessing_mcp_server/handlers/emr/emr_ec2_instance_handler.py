@@ -14,14 +14,15 @@
 
 """EMREc2InstanceHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    AddInstanceFleetResponse,
-    AddInstanceGroupsResponse,
-    ListInstanceFleetsResponse,
-    ListInstancesResponse,
-    ListSupportedInstanceTypesResponse,
-    ModifyInstanceFleetResponse,
-    ModifyInstanceGroupsResponse,
+    AddInstanceFleetData,
+    AddInstanceGroupsData,
+    ListInstanceFleetsData,
+    ListInstancesData,
+    ListSupportedInstanceTypesData,
+    ModifyInstanceFleetData,
+    ModifyInstanceGroupsData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
@@ -33,9 +34,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2InstanceHandler:
@@ -138,15 +139,7 @@ class EMREc2InstanceHandler:
                 description='Pagination token for list operations.',
             ),
         ] = None,
-    ) -> Union[
-        AddInstanceFleetResponse,
-        AddInstanceGroupsResponse,
-        ModifyInstanceFleetResponse,
-        ModifyInstanceGroupsResponse,
-        ListInstanceFleetsResponse,
-        ListInstancesResponse,
-        ListSupportedInstanceTypesResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 instances with both read and write operations.
 
         This tool provides comprehensive operations for managing Amazon EMR EC2 instances,
@@ -248,35 +241,10 @@ class EMREc2InstanceHandler:
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if operation == 'add-instance-fleet':
-                    return AddInstanceFleetResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_id='',
-                        instance_fleet_id='',
-                    )
-                elif operation == 'add-instance-groups':
-                    return AddInstanceGroupsResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_id='',
-                        instance_group_ids=[],
-                    )
-                elif operation == 'modify-instance-fleet':
-                    return ModifyInstanceFleetResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_id='',
-                        instance_fleet_id='',
-                    )
-                elif operation == 'modify-instance-groups':
-                    return ModifyInstanceGroupsResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_id='',
-                        instance_group_ids=[],
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'add-instance-fleet':
                 if cluster_id is None or instance_fleet is None:
@@ -306,17 +274,20 @@ class EMREc2InstanceHandler:
                         Tags=[{'Key': k, 'Value': v} for k, v in tags.items()],
                     )
 
-                return AddInstanceFleetResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully added instance fleet to EMR cluster {cluster_id}',
-                        )
-                    ],
+                success_message = f'Successfully added instance fleet to EMR cluster {cluster_id}'
+                data = AddInstanceFleetData(
                     cluster_id=cluster_id,
                     instance_fleet_id=response.get('InstanceFleetId', ''),
                     cluster_arn=response.get('ClusterArn', ''),
+                    operation='add-instance-fleet',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'add-instance-groups':
@@ -347,18 +318,21 @@ class EMREc2InstanceHandler:
                         Tags=[{'Key': k, 'Value': v} for k, v in tags.items()],
                     )
 
-                return AddInstanceGroupsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully added instance groups to EMR cluster {cluster_id}',
-                        )
-                    ],
+                success_message = f'Successfully added instance groups to EMR cluster {cluster_id}'
+                data = AddInstanceGroupsData(
                     cluster_id=cluster_id,
                     job_flow_id=response.get('JobFlowId', ''),
                     instance_group_ids=response.get('InstanceGroupIds', []),
                     cluster_arn=response.get('ClusterArn', ''),
+                    operation='add-instance-groups',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'modify-instance-fleet':
@@ -387,11 +361,9 @@ class EMREc2InstanceHandler:
                 if not verification_result['is_valid']:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return ModifyInstanceFleetResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        cluster_id=cluster_id,
-                        instance_fleet_id=instance_fleet_id,
                     )
 
                 # Resource is MCP managed with correct type, proceed with modification
@@ -406,16 +378,19 @@ class EMREc2InstanceHandler:
                     ClusterId=str(cluster_id), InstanceFleet=instance_fleet_param
                 )
 
-                return ModifyInstanceFleetResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully modified instance fleet {instance_fleet_id} in EMR cluster {cluster_id}',
-                        )
-                    ],
+                success_message = f'Successfully modified instance fleet {instance_fleet_id} in EMR cluster {cluster_id}'
+                data = ModifyInstanceFleetData(
                     cluster_id=cluster_id,
                     instance_fleet_id=instance_fleet_id,
+                    operation='modify-instance-fleet',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'modify-instance-groups':
@@ -437,11 +412,9 @@ class EMREc2InstanceHandler:
                     if not verification_result['is_valid']:
                         error_message = verification_result['error_message']
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return ModifyInstanceGroupsResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            cluster_id=cluster_id,
-                            instance_group_ids=[],
                         )
 
                     # Resource is MCP managed with correct type, proceed with modification
@@ -454,11 +427,9 @@ class EMREc2InstanceHandler:
                     # If no cluster_id is provided, we can't verify tags, so we don't allow the operation
                     error_message = 'Cannot modify instance groups without providing a cluster_id for tag verification'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return ModifyInstanceGroupsResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        cluster_id='',
-                        instance_group_ids=[],
                     )
 
                 # Perform the group modification with direct parameter passing
@@ -476,16 +447,19 @@ class EMREc2InstanceHandler:
                     if 'InstanceGroupId' in config
                 ]
 
-                return ModifyInstanceGroupsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully modified {len(ids)} instance groups',
-                        )
-                    ],
+                success_message = f'Successfully modified {len(ids)} instance groups'
+                data = ModifyInstanceGroupsData(
                     cluster_id=cluster_id or '',
                     instance_group_ids=ids,
+                    operation='modify-instance-groups',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-instance-fleets':
@@ -500,18 +474,23 @@ class EMREc2InstanceHandler:
                 response = self.emr_client.list_instance_fleets(**params)
 
                 instance_fleets = response.get('InstanceFleets', [])
-                return ListInstanceFleetsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully listed instance fleets for EMR cluster {cluster_id}',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully listed instance fleets for EMR cluster {cluster_id}'
+                )
+                data = ListInstanceFleetsData(
                     cluster_id=cluster_id,
                     instance_fleets=instance_fleets,
                     count=len(instance_fleets),
                     marker=response.get('Marker'),
+                    operation='list-instance-fleets',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-instances':
@@ -562,18 +541,21 @@ class EMREc2InstanceHandler:
                     response = self.emr_client.list_instances(**params)
 
                 instances = response.get('Instances', [])
-                return ListInstancesResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully listed instances for EMR cluster {cluster_id}',
-                        )
-                    ],
+                success_message = f'Successfully listed instances for EMR cluster {cluster_id}'
+                data = ListInstancesData(
                     cluster_id=cluster_id,
                     instances=instances,
                     count=len(instances),
                     marker=response.get('Marker'),
+                    operation='list-instances',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-supported-instance-types':
@@ -591,28 +573,29 @@ class EMREc2InstanceHandler:
                 response = self.emr_client.list_supported_instance_types(**params)
 
                 instance_types = response.get('SupportedInstanceTypes', [])
-                return ListSupportedInstanceTypesResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully listed supported instance types for EMR',
-                        )
-                    ],
+                success_message = 'Successfully listed supported instance types for EMR'
+                data = ListSupportedInstanceTypesData(
                     instance_types=instance_types,
                     count=len(instance_types),
                     marker=response.get('Marker'),
                     release_label=release_label,
+                    operation='list-supported-instance-types',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: add-instance-fleet, add-instance-groups, modify-instance-fleet, modify-instance-groups, list-instance-fleets, list-instances, list-supported-instance-types'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return ListInstancesResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    cluster_id='',
-                    instances=[],
                 )
 
         except ValueError as e:
@@ -621,9 +604,7 @@ class EMREc2InstanceHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_emr_ec2_instances: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return ListInstancesResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                cluster_id='',
-                instances=[],
             )

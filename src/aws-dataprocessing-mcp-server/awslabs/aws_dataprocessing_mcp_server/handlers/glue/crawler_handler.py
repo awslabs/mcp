@@ -14,25 +14,26 @@
 
 """CrawlerHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
-    BatchGetCrawlersResponse,
-    CreateClassifierResponse,
-    CreateCrawlerResponse,
-    DeleteClassifierResponse,
-    DeleteCrawlerResponse,
-    GetClassifierResponse,
-    GetClassifiersResponse,
-    GetCrawlerMetricsResponse,
-    GetCrawlerResponse,
-    GetCrawlersResponse,
-    ListCrawlersResponse,
-    StartCrawlerResponse,
-    StartCrawlerScheduleResponse,
-    StopCrawlerResponse,
-    StopCrawlerScheduleResponse,
-    UpdateClassifierResponse,
-    UpdateCrawlerResponse,
-    UpdateCrawlerScheduleResponse,
+    BatchGetCrawlersData,
+    CreateClassifierData,
+    CreateCrawlerData,
+    DeleteClassifierData,
+    DeleteCrawlerData,
+    GetClassifierData,
+    GetClassifiersData,
+    GetCrawlerData,
+    GetCrawlerMetricsData,
+    GetCrawlersData,
+    ListCrawlersData,
+    StartCrawlerData,
+    StartCrawlerScheduleData,
+    StopCrawlerData,
+    StopCrawlerScheduleData,
+    UpdateClassifierData,
+    UpdateCrawlerData,
+    UpdateCrawlerScheduleData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -41,9 +42,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class CrawlerHandler:
@@ -114,17 +115,7 @@ class CrawlerHandler:
                 description='Tags to filter crawlers by for list-crawlers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateCrawlerResponse,
-        DeleteCrawlerResponse,
-        GetCrawlerResponse,
-        GetCrawlersResponse,
-        StartCrawlerResponse,
-        StopCrawlerResponse,
-        BatchGetCrawlersResponse,
-        ListCrawlersResponse,
-        UpdateCrawlerResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue crawlers to discover and catalog data sources.
 
         This tool provides comprehensive operations for AWS Glue crawlers, which automatically discover and catalog
@@ -186,48 +177,10 @@ class CrawlerHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-crawler':
-                    return CreateCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='create-crawler',
-                    )
-                elif operation == 'delete-crawler':
-                    return DeleteCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='delete-crawler',
-                    )
-                elif operation == 'start-crawler':
-                    return StartCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='start-crawler',
-                    )
-                elif operation == 'stop-crawler':
-                    return StopCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='top-crawler',
-                    )
-                elif operation == 'update-crawler':
-                    return UpdateCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='update-crawler',
-                    )
-                else:
-                    return GetCrawlerResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='get-crawler',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-crawler':
                 if crawler_name is None or crawler_definition is None:
@@ -280,16 +233,20 @@ class CrawlerHandler:
                 # Create the crawler
                 self.glue_client.create_crawler(**create_params)
 
-                return CreateCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created Glue crawler {crawler_name} with MCP management tags',
-                        )
-                    ],
+                success_message = (
+                    f'Successfully created Glue crawler {crawler_name} with MCP management tags'
+                )
+                data = CreateCrawlerData(
                     crawler_name=crawler_name,
                     operation='create-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-crawler':
@@ -316,26 +273,26 @@ class CrawlerHandler:
                 ):
                     error_message = f'Cannot delete crawler {crawler_name} - it is not managed by the MCP server (missing required tags)'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return DeleteCrawlerResponse(
+                    return CallToolResult(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        crawler_name=crawler_name,
-                        operation='delete-crawler',
                     )
 
                 # Delete the crawler with required parameters
                 self.glue_client.delete_crawler(Name=crawler_name)
 
-                return DeleteCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted MCP-managed Glue crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully deleted MCP-managed Glue crawler {crawler_name}'
+                data = DeleteCrawlerData(
                     crawler_name=crawler_name,
                     operation='delete-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-crawler':
@@ -345,17 +302,19 @@ class CrawlerHandler:
                 # Get the crawler with required parameters
                 response = self.glue_client.get_crawler(Name=crawler_name)
 
-                return GetCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved crawler {crawler_name}'
+                data = GetCrawlerData(
                     crawler_name=crawler_name,
                     crawler_details=response.get('Crawler', {}),
                     operation='get-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-crawlers':
@@ -370,13 +329,20 @@ class CrawlerHandler:
                 response = self.glue_client.get_crawlers(**params)
 
                 crawlers = response.get('Crawlers', [])
-                return GetCrawlersResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved crawlers')],
+                success_message = 'Successfully retrieved crawlers'
+                data = GetCrawlersData(
                     crawlers=crawlers,
                     count=len(crawlers),
                     next_token=response.get('NextToken'),
                     operation='get-crawlers',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'start-crawler':
@@ -386,16 +352,18 @@ class CrawlerHandler:
                 # Start crawler with required parameters
                 self.glue_client.start_crawler(Name=crawler_name)
 
-                return StartCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully started crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully started crawler {crawler_name}'
+                data = StartCrawlerData(
                     crawler_name=crawler_name,
                     operation='start-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'stop-crawler':
@@ -405,16 +373,18 @@ class CrawlerHandler:
                 # Stop crawler with required parameters
                 self.glue_client.stop_crawler(Name=crawler_name)
 
-                return StopCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully stopped crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully stopped crawler {crawler_name}'
+                data = StopCrawlerData(
                     crawler_name=crawler_name,
                     operation='stop-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'batch-get-crawlers':
@@ -426,17 +396,19 @@ class CrawlerHandler:
 
                 crawlers = response.get('Crawlers', [])
                 crawlers_not_found = response.get('CrawlersNotFound', [])
-                return BatchGetCrawlersResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved {len(crawlers)} crawlers',
-                        )
-                    ],
+                success_message = f'Successfully retrieved {len(crawlers)} crawlers'
+                data = BatchGetCrawlersData(
                     crawlers=crawlers,
                     crawlers_not_found=crawlers_not_found,
                     operation='batch-get-crawlers',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-crawlers':
@@ -453,18 +425,20 @@ class CrawlerHandler:
                 response = self.glue_client.list_crawlers(**params)
 
                 crawlers = response.get('CrawlerNames', [])
-                return ListCrawlersResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully listed crawlers',
-                        )
-                    ],
+                success_message = 'Successfully listed crawlers'
+                data = ListCrawlersData(
                     crawlers=crawlers,
                     count=len(crawlers),
                     next_token=response.get('NextToken'),
                     operation='list-crawlers',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-crawler':
@@ -501,27 +475,26 @@ class CrawlerHandler:
                 # Update the crawler
                 self.glue_client.update_crawler(**update_params)
 
-                return UpdateCrawlerResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully updated crawler {crawler_name}'
+                data = UpdateCrawlerData(
                     crawler_name=crawler_name,
                     operation='update-crawler',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-crawler, delete-crawler, get-crawler, get-crawlers, start-crawler, stop-crawler, batch-get-crawlers, list-crawlers, update-crawler'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetCrawlerResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    crawler_name=crawler_name or '',
-                    crawler_details={},
-                    operation='get-crawler',
                 )
 
         except ValueError as e:
@@ -530,12 +503,9 @@ class CrawlerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_crawlers: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetCrawlerResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                crawler_name=crawler_name or '',
-                crawler_details={},
-                operation='get-crawler',
             )
 
     async def manage_aws_glue_classifiers(
@@ -571,13 +541,7 @@ class CrawlerHandler:
                 description='Pagination token for get-classifiers operation.',
             ),
         ] = None,
-    ) -> Union[
-        CreateClassifierResponse,
-        DeleteClassifierResponse,
-        GetClassifierResponse,
-        GetClassifiersResponse,
-        UpdateClassifierResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue classifiers to determine data formats and schemas.
 
         This tool provides operations for AWS Glue classifiers, which help determine the schema of your data.
@@ -632,34 +596,10 @@ class CrawlerHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-classifier':
-                    return CreateClassifierResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        classifier_name='',
-                        operation='create-classifier',
-                    )
-                elif operation == 'delete-classifier':
-                    return DeleteClassifierResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        classifier_name='',
-                        operation='delete-classifier',
-                    )
-                elif operation == 'update-classifier':
-                    return UpdateClassifierResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        classifier_name='',
-                        operation='update-classifier',
-                    )
-                else:
-                    return GetClassifierResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        classifier_name='',
-                        operation='get-classifier',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-classifier':
                 if classifier_definition is None:
@@ -695,16 +635,18 @@ class CrawlerHandler:
                 elif 'CsvClassifier' in classifier_definition:
                     extracted_name = classifier_definition['CsvClassifier']['Name']
 
-                return CreateClassifierResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created classifier {extracted_name}',
-                        )
-                    ],
+                success_message = f'Successfully created classifier {extracted_name}'
+                data = CreateClassifierData(
                     classifier_name=extracted_name,
                     operation='create-classifier',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-classifier':
@@ -714,16 +656,18 @@ class CrawlerHandler:
                 # Delete the classifier with required parameters
                 self.glue_client.delete_classifier(Name=classifier_name)
 
-                return DeleteClassifierResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted classifier {classifier_name}',
-                        )
-                    ],
+                success_message = f'Successfully deleted classifier {classifier_name}'
+                data = DeleteClassifierData(
                     classifier_name=classifier_name,
                     operation='delete-classifier',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-classifier':
@@ -733,17 +677,19 @@ class CrawlerHandler:
                 # Get the classifier with required parameters
                 response = self.glue_client.get_classifier(Name=classifier_name)
 
-                return GetClassifierResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved classifier {classifier_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved classifier {classifier_name}'
+                data = GetClassifierData(
                     classifier_name=classifier_name,
                     classifier_details=response.get('Classifier', {}),
                     operation='get-classifier',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-classifiers':
@@ -758,13 +704,20 @@ class CrawlerHandler:
                 response = self.glue_client.get_classifiers(**params)
 
                 classifiers = response.get('Classifiers', [])
-                return GetClassifiersResponse(
-                    isError=False,
-                    content=[TextContent(type='text', text='Successfully retrieved classifiers')],
+                success_message = 'Successfully retrieved classifiers'
+                data = GetClassifiersData(
                     classifiers=classifiers,
                     count=len(classifiers),
                     next_token=response.get('NextToken'),
                     operation='get-classifiers',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-classifier':
@@ -801,27 +754,26 @@ class CrawlerHandler:
                 elif 'CsvClassifier' in classifier_definition:
                     extracted_name = classifier_definition['CsvClassifier']['Name']
 
-                return UpdateClassifierResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated classifier {extracted_name}',
-                        )
-                    ],
+                success_message = f'Successfully updated classifier {extracted_name}'
+                data = UpdateClassifierData(
                     classifier_name=extracted_name,
                     operation='update-classifier',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetClassifierResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    classifier_name=classifier_name or '',
-                    classifier_details={},
-                    operation='get-classifier',
                 )
 
         except ValueError as e:
@@ -830,12 +782,9 @@ class CrawlerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_classifiers: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetClassifierResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                classifier_name=classifier_name or '',
-                classifier_details={},
-                operation='get',
             )
 
     async def manage_aws_glue_crawler_management(
@@ -871,12 +820,7 @@ class CrawlerHandler:
                 description='Cron expression for the crawler schedule (required for update-crawler-schedule operation).',
             ),
         ] = None,
-    ) -> Union[
-        GetCrawlerMetricsResponse,
-        StartCrawlerScheduleResponse,
-        StopCrawlerScheduleResponse,
-        UpdateCrawlerScheduleResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue crawler schedules and monitor performance metrics.
 
         This tool provides operations for controlling crawler schedules and retrieving performance metrics.
@@ -924,34 +868,10 @@ class CrawlerHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'start-crawler-schedule':
-                    return StartCrawlerScheduleResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='start-crawler-schedule',
-                    )
-                elif operation == 'stop-crawler-schedule':
-                    return StopCrawlerScheduleResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='stop-crawler-schedule',
-                    )
-                elif operation == 'update-crawler-schedule':
-                    return UpdateCrawlerScheduleResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='update-crawler-schedule',
-                    )
-                else:
-                    return GetCrawlerMetricsResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        crawler_name='',
-                        operation='get-crawler-metrics',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'get-crawler-metrics':
                 # Prepare parameters for get_crawler_metrics (all optional)
@@ -965,18 +885,20 @@ class CrawlerHandler:
                 response = self.glue_client.get_crawler_metrics(**params)
 
                 crawler_metrics = response.get('CrawlerMetricsList', [])
-                return GetCrawlerMetricsResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully retrieved crawler metrics',
-                        )
-                    ],
+                success_message = 'Successfully retrieved crawler metrics'
+                data = GetCrawlerMetricsData(
                     crawler_metrics=crawler_metrics,
                     count=len(crawler_metrics),
                     next_token=response.get('NextToken'),
                     operation='get-crawler-metrics',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'start-crawler-schedule':
@@ -988,16 +910,18 @@ class CrawlerHandler:
                 # Start crawler schedule with required parameters
                 self.glue_client.start_crawler_schedule(CrawlerName=crawler_name)
 
-                return StartCrawlerScheduleResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully started schedule for crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully started schedule for crawler {crawler_name}'
+                data = StartCrawlerScheduleData(
                     crawler_name=crawler_name,
                     operation='start-crawler-schedule',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'stop-crawler-schedule':
@@ -1009,16 +933,18 @@ class CrawlerHandler:
                 # Stop crawler schedule with required parameters
                 self.glue_client.stop_crawler_schedule(CrawlerName=crawler_name)
 
-                return StopCrawlerScheduleResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully stopped schedule for crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully stopped schedule for crawler {crawler_name}'
+                data = StopCrawlerScheduleData(
                     crawler_name=crawler_name,
                     operation='stop-crawler-schedule',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-crawler-schedule':
@@ -1032,28 +958,26 @@ class CrawlerHandler:
                     CrawlerName=crawler_name, Schedule=schedule
                 )
 
-                return UpdateCrawlerScheduleResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated schedule for crawler {crawler_name}',
-                        )
-                    ],
+                success_message = f'Successfully updated schedule for crawler {crawler_name}'
+                data = UpdateCrawlerScheduleData(
                     crawler_name=crawler_name,
                     operation='update-crawler-schedule',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetCrawlerMetricsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    crawler_metrics=[],
-                    count=0,
-                    next_token=None,
-                    operation='get-crawler-metrics',
                 )
 
         except ValueError as e:
@@ -1062,11 +986,7 @@ class CrawlerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_crawler_management: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetCrawlerMetricsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                crawler_metrics=[],
-                count=0,
-                next_token=None,
-                operation='get-crawler-metrics',
             )

@@ -35,6 +35,7 @@ from tests.fixtures import (
     EC2_DESCRIBE_INSTANCES,
     GET_CALLER_IDENTITY_PAYLOAD,
     LAMBDA_INVOKE_PAYLOAD,
+    LIST_BUCKETS_SORTED_BY_CREATION_DATE,
     S3_GET_OBJECT_PAYLOAD,
     SSM_LIST_NODES_PAYLOAD,
     T2_EC2_DESCRIBE_INSTANCES_FILTERED,
@@ -189,6 +190,20 @@ def test_interpret_returns_missing_context_failures():
             'ssm',
             'Amazon Simple Systems Manager (SSM)',
             'ListNodes',
+        ),
+        (
+            'aws s3api list-buckets --query "sort_by(Buckets, &CreationDate)[-1].[Name,CreationDate]"',
+            LIST_BUCKETS_SORTED_BY_CREATION_DATE,
+            (
+                'ListBuckets',
+                {},
+                'us-east-1',
+                60,
+                'https://s3.us-east-1.amazonaws.com',
+            ),
+            's3',
+            'Amazon Simple Storage Service',
+            'ListBuckets',
         ),
     ],
 )
@@ -755,3 +770,37 @@ def test_execute_awscli_customization_without_credentials(mock_get_driver):
                 execute_awscli_customization('aws s3 ls', ir_command, credentials=None)
 
     mock_get_driver.assert_called_once_with(None)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_raises_error(mock_get_driver):
+    """Test execute_awscli_customization raises AwsApiMcpError for streaming to stdout."""
+    mock_driver = Mock()
+    mock_driver.main.return_value = None
+    mock_get_driver.return_value = mock_driver
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.StringIO') as mock_stringio:
+        mock_stdout = MagicMock()
+        mock_stderr = MagicMock()
+        mock_stdout.getvalue.return_value = ''
+        mock_stderr.getvalue.return_value = (
+            'Streaming currently is only compatible with non-recursive cp commands'
+        )
+        mock_stringio.side_effect = [mock_stdout, mock_stderr]
+
+        cli_command = 'aws s3 mv s3://my-bucket/my-object -'
+        ir_command = IRCommand(
+            command_metadata=CommandMetadata(
+                service_sdk_name='s3',
+                service_full_sdk_name='Amazon S3',
+                operation_sdk_name='mv',
+            ),
+            parameters={},
+            region='us-east-1',
+            is_awscli_customization=True,
+        )
+
+        with pytest.raises(AwsApiMcpError) as exc_info:
+            execute_awscli_customization(cli_command, ir_command)
+
+        assert cli_command in str(exc_info.value)

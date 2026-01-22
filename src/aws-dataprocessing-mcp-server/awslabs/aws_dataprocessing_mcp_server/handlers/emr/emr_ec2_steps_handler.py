@@ -14,15 +14,12 @@
 
 """EMREc2StepsHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    AddStepsResponse,
-    AddStepsResponseModel,
-    CancelStepsResponse,
-    CancelStepsResponseModel,
-    DescribeStepResponse,
-    DescribeStepResponseModel,
-    ListStepsResponse,
-    ListStepsResponseModel,
+    AddStepsData,
+    CancelStepsData,
+    DescribeStepData,
+    ListStepsData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
@@ -33,9 +30,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMREc2StepsHandler:
@@ -108,12 +105,7 @@ class EMREc2StepsHandler:
                 description='Option for canceling steps. Valid values: SEND_INTERRUPT, TERMINATE_PROCESS. Default is SEND_INTERRUPT.',
             ),
         ] = None,
-    ) -> Union[
-        AddStepsResponse,
-        CancelStepsResponse,
-        DescribeStepResponse,
-        ListStepsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR EC2 steps for processing data on EMR clusters.
 
         This tool provides comprehensive operations for managing EMR steps, which are units of work
@@ -184,31 +176,10 @@ class EMREc2StepsHandler:
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if operation == 'add-steps':
-                    model = AddStepsResponseModel(
-                        cluster_id=cluster_id,
-                        step_ids=[],
-                        count=0,
-                        operation='add',
-                    )
-                    return AddStepsResponse.create(
-                        is_error=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        model=model,
-                    )
-                elif operation == 'cancel-steps':
-                    model = CancelStepsResponseModel(
-                        cluster_id=cluster_id,
-                        step_cancellation_info=[],
-                        count=0,
-                        operation='cancel',
-                    )
-                    return CancelStepsResponse.create(
-                        is_error=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        model=model,
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'add-steps':
                 if steps is None:
@@ -247,21 +218,22 @@ class EMREc2StepsHandler:
 
                 step_ids_list = response.get('StepIds', [])
                 steps_count = len(actual_steps)
-                model = AddStepsResponseModel(
+                success_message = (
+                    f'Successfully added {steps_count} steps to EMR cluster {cluster_id}'
+                )
+                data = AddStepsData(
                     cluster_id=cluster_id,
                     step_ids=step_ids_list,
                     count=len(step_ids_list),
-                    operation='add',
+                    operation='add-steps',
                 )
-                return AddStepsResponse.create(
-                    is_error=False,
+
+                return CallToolResult(
+                    isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully added {steps_count} steps to EMR cluster {cluster_id}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    model=model,
                 )
 
             elif operation == 'cancel-steps':
@@ -292,16 +264,9 @@ class EMREc2StepsHandler:
                 if not verification_result['is_valid']:
                     error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    model = CancelStepsResponseModel(
-                        cluster_id=cluster_id,
-                        step_cancellation_info=[],
-                        count=0,
-                        operation='cancel',
-                    )
-                    return CancelStepsResponse.create(
-                        is_error=True,
+                    return CallToolResult(
+                        isError=True,
                         content=[TextContent(type='text', text=error_message)],
-                        model=model,
                     )
 
                 # Resource is MCP managed with correct type, proceed with cancellation
@@ -316,21 +281,20 @@ class EMREc2StepsHandler:
 
                 step_cancellation_info = response.get('CancelStepsInfoList', [])
                 step_ids_count = len(step_ids) if step_ids is not None else 0
-                model = CancelStepsResponseModel(
+                success_message = f'Successfully initiated cancellation for {step_ids_count} steps on EMR cluster {cluster_id}'
+                data = CancelStepsData(
                     cluster_id=cluster_id,
                     step_cancellation_info=step_cancellation_info,
                     count=len(step_cancellation_info),
-                    operation='cancel',
+                    operation='cancel-steps',
                 )
-                return CancelStepsResponse.create(
-                    is_error=False,
+
+                return CallToolResult(
+                    isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully initiated cancellation for {step_ids_count} steps on EMR cluster {cluster_id}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    model=model,
                 )
 
             elif operation == 'describe-step':
@@ -343,20 +307,21 @@ class EMREc2StepsHandler:
                     StepId=step_id,
                 )
 
-                model = DescribeStepResponseModel(
+                success_message = (
+                    f'Successfully described step {step_id} on EMR cluster {cluster_id}'
+                )
+                data = DescribeStepData(
                     cluster_id=cluster_id,
                     step=response.get('Step', {}),
-                    operation='describe',
+                    operation='describe-step',
                 )
-                return DescribeStepResponse.create(
-                    is_error=False,
+
+                return CallToolResult(
+                    isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully described step {step_id} on EMR cluster {cluster_id}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    model=model,
                 )
 
             elif operation == 'list-steps':
@@ -379,36 +344,29 @@ class EMREc2StepsHandler:
 
                 response = self.emr_client.list_steps(**params)
                 steps = response.get('Steps', [])
-                model = ListStepsResponseModel(
+                success_message = f'Successfully listed steps for EMR cluster {cluster_id}'
+                data = ListStepsData(
                     cluster_id=cluster_id,
                     steps=steps or [],
                     count=len(steps or []),
                     marker=response.get('Marker'),
-                    operation='list',
+                    operation='list-steps',
                 )
-                return ListStepsResponse.create(
-                    is_error=False,
+
+                return CallToolResult(
+                    isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully listed steps for EMR cluster {cluster_id}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    model=model,
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: add-steps, cancel-steps, describe-step, list-steps'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                model = DescribeStepResponseModel(
-                    cluster_id=cluster_id,
-                    step={},
-                    operation='describe',
-                )
-                return DescribeStepResponse.create(
-                    is_error=True,
+                return CallToolResult(
+                    isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    model=model,
                 )
 
         except ValueError as e:
@@ -417,13 +375,7 @@ class EMREc2StepsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_emr_ec2_steps: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            model = DescribeStepResponseModel(
-                cluster_id=cluster_id,
-                step={},
-                operation='describe',
-            )
-            return DescribeStepResponse.create(
-                is_error=True,
+            return CallToolResult(
+                isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                model=model,
             )

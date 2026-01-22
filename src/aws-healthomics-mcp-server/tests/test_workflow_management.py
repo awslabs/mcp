@@ -727,12 +727,13 @@ async def test_create_workflow_success():
         )
 
     # Verify client was called correctly
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionZip=b'test workflow content',
-        description='Test workflow description',
-        parameterTemplate={'param1': {'type': 'string'}},
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    assert expected_call.kwargs['description'] == 'Test workflow description'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -776,10 +777,11 @@ async def test_create_workflow_minimal():
         )
 
     # Verify client was called with only required parameters
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionZip=b'test workflow content',
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -929,13 +931,14 @@ async def test_create_workflow_with_container_registry_map():
         )
 
     # Verify client was called correctly with container registry map
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionZip=b'test workflow content',
-        description='Test workflow with container registry map',
-        parameterTemplate={'param1': {'type': 'string'}},
-        containerRegistryMap=container_registry_map,
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    assert expected_call.kwargs['description'] == 'Test workflow with container registry map'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -979,10 +982,11 @@ async def test_create_workflow_without_container_registry_map():
         )
 
     # Verify client was called without container registry map
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionZip=b'test workflow content',
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1027,13 +1031,14 @@ async def test_create_workflow_with_container_registry_map_uri():
         )
 
     # Verify client was called correctly with container registry map URI
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionZip=b'test workflow content',
-        description='Test workflow with container registry map URI',
-        parameterTemplate={'param1': {'type': 'string'}},
-        containerRegistryMapUri=container_registry_map_uri,
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    assert expected_call.kwargs['description'] == 'Test workflow with container registry map URI'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['containerRegistryMapUri'] == container_registry_map_uri
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1149,14 +1154,15 @@ async def test_create_workflow_version_success():
         )
 
     # Verify client was called correctly
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        description='Version 2.0 of test workflow',
-        parameterTemplate={'param1': {'type': 'string'}},
-        storageType='DYNAMIC',
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['description'] == 'Version 2.0 of test workflow'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1202,13 +1208,14 @@ async def test_create_workflow_version_with_static_storage():
         )
 
     # Verify client was called with static storage parameters
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        storageType='STATIC',
-        storageCapacity=1000,
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['storageType'] == 'STATIC'
+    assert expected_call.kwargs['storageCapacity'] == 1000
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
 
 @pytest.mark.asyncio
@@ -1355,15 +1362,16 @@ async def test_create_workflow_version_with_container_registry_map():
         )
 
     # Verify client was called correctly with container registry map
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        description='Version 2.0 with container registry map',
-        parameterTemplate={'param1': {'type': 'string'}},
-        storageType='DYNAMIC',
-        containerRegistryMap=container_registry_map,
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['description'] == 'Version 2.0 with container registry map'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1409,14 +1417,15 @@ async def test_create_workflow_version_without_container_registry_map():
         )
 
     # Verify client was called without container registry map
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        description='Version 2.0 without container registry map',
-        parameterTemplate={'param1': {'type': 'string'}},
-        storageType='DYNAMIC',
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['description'] == 'Version 2.0 without container registry map'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1474,15 +1483,19 @@ async def test_create_workflow_version_with_static_storage_and_container_registr
         )
 
     # Verify client was called with both static storage and container registry map
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        description='Version 2.0 with static storage and container registry map',
-        storageType='STATIC',
-        storageCapacity=2000,
-        containerRegistryMap=container_registry_map,
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert (
+        expected_call.kwargs['description']
+        == 'Version 2.0 with static storage and container registry map'
     )
+    assert expected_call.kwargs['storageType'] == 'STATIC'
+    assert expected_call.kwargs['storageCapacity'] == 2000
+    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1531,15 +1544,16 @@ async def test_create_workflow_version_with_container_registry_map_uri():
         )
 
     # Verify client was called correctly with container registry map URI
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionZip=b'test workflow content v2',
-        description='Version 2.0 with container registry map URI',
-        parameterTemplate={'param1': {'type': 'string'}},
-        storageType='DYNAMIC',
-        containerRegistryMapUri=container_registry_map_uri,
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['description'] == 'Version 2.0 with container registry map URI'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    assert expected_call.kwargs['containerRegistryMapUri'] == container_registry_map_uri
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1627,12 +1641,13 @@ async def test_create_workflow_with_s3_uri():
         )
 
     # Verify client was called correctly with S3 URI
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionUri='s3://my-bucket/workflow-definition.zip',
-        description='Test workflow description',
-        parameterTemplate={'param1': {'type': 'string'}},
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition.zip'
+    assert expected_call.kwargs['description'] == 'Test workflow description'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1764,14 +1779,15 @@ async def test_create_workflow_version_with_s3_uri():
         )
 
     # Verify client was called correctly with S3 URI
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionUri='s3://my-bucket/workflow-definition-v2.zip',
-        description='Test workflow version description',
-        parameterTemplate={'param1': {'type': 'string'}},
-        storageType='DYNAMIC',
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition-v2.zip'
+    assert expected_call.kwargs['description'] == 'Test workflow version description'
+    assert expected_call.kwargs['parameterTemplate'] == {'param1': {'type': 'string'}}
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -1978,10 +1994,11 @@ async def test_create_workflow_s3_uri_minimal():
         )
 
     # Verify client was called with only required parameters
-    mock_client.create_workflow.assert_called_once_with(
-        name='test-workflow',
-        definitionUri='s3://my-bucket/workflow-definition.zip',
-    )
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition.zip'
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -2025,13 +2042,14 @@ async def test_create_workflow_version_s3_uri_with_static_storage():
         )
 
     # Verify client was called with STATIC storage parameters
-    mock_client.create_workflow_version.assert_called_once_with(
-        workflowId='wfl-12345',
-        versionName='v2.0',
-        definitionUri='s3://my-bucket/workflow-definition-v2.zip',
-        storageType='STATIC',
-        storageCapacity=100,
-    )
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition-v2.zip'
+    assert expected_call.kwargs['storageType'] == 'STATIC'
+    assert expected_call.kwargs['storageCapacity'] == 100
+    # path_to_main should not be passed when None
+    assert 'main' not in expected_call.kwargs
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
@@ -2059,4 +2077,775 @@ async def test_list_workflow_versions_botocore_error():
         assert (
             'AWS error listing workflow versions for workflow wfl-12345'
             in mock_ctx.error.call_args[0][0]
+        )
+
+
+# Tests for path_to_main parameter
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_to_main():
+    """Test workflow creation with path_to_main parameter."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'description': 'Test workflow with path_to_main',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            description='Test workflow with path_to_main',
+            parameter_template=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='workflows/main.wdl',
+        )
+
+    # Verify client was called correctly with path_to_main
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    assert expected_call.kwargs['description'] == 'Test workflow with path_to_main'
+    assert expected_call.kwargs['main'] == 'workflows/main.wdl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'test-workflow'
+    assert result['description'] == 'Test workflow with path_to_main'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_to_main_s3_uri():
+    """Test workflow creation with path_to_main parameter and S3 URI."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'description': 'Test workflow with path_to_main and S3 URI',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=None,
+            description='Test workflow with path_to_main and S3 URI',
+            parameter_template=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri='s3://my-bucket/workflow-definition.zip',
+            path_to_main='src/main.cwl',
+        )
+
+    # Verify client was called correctly with path_to_main and S3 URI
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition.zip'
+    assert expected_call.kwargs['description'] == 'Test workflow with path_to_main and S3 URI'
+    assert expected_call.kwargs['main'] == 'src/main.cwl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'test-workflow'
+    assert result['description'] == 'Test workflow with path_to_main and S3 URI'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_to_main_nextflow():
+    """Test workflow creation with path_to_main parameter for Nextflow."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'nextflow-workflow',
+        'description': 'Test Nextflow workflow with path_to_main',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'nextflow workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='nextflow-workflow',
+            definition_zip_base64=definition_zip_base64,
+            description='Test Nextflow workflow with path_to_main',
+            parameter_template=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='pipelines/main.nf',
+        )
+
+    # Verify client was called correctly with Nextflow path_to_main
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'nextflow-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'nextflow workflow content'
+    assert expected_call.kwargs['description'] == 'Test Nextflow workflow with path_to_main'
+    assert expected_call.kwargs['main'] == 'pipelines/main.nf'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'nextflow-workflow'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_to_main():
+    """Test workflow version creation with path_to_main parameter."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            description='Version 2.0 with path_to_main',
+            parameter_template=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='workflows/v2/main.wdl',
+        )
+
+    # Verify client was called correctly with path_to_main
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['description'] == 'Version 2.0 with path_to_main'
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    assert expected_call.kwargs['main'] == 'workflows/v2/main.wdl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_to_main_s3_uri():
+    """Test workflow version creation with path_to_main parameter and S3 URI."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=None,
+            description='Version 2.0 with path_to_main and S3 URI',
+            parameter_template=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri='s3://my-bucket/workflow-definition-v2.zip',
+            path_to_main='src/v2/main.cwl',
+        )
+
+    # Verify client was called correctly with path_to_main and S3 URI
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionUri'] == 's3://my-bucket/workflow-definition-v2.zip'
+    assert expected_call.kwargs['description'] == 'Version 2.0 with path_to_main and S3 URI'
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    assert expected_call.kwargs['main'] == 'src/v2/main.cwl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_to_main_static_storage():
+    """Test workflow version creation with path_to_main parameter and static storage."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            description='Version 2.0 with path_to_main and static storage',
+            parameter_template=None,
+            storage_type='STATIC',
+            storage_capacity=500,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='workflows/static/main.wdl',
+        )
+
+    # Verify client was called correctly with path_to_main and static storage
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert (
+        expected_call.kwargs['description'] == 'Version 2.0 with path_to_main and static storage'
+    )
+    assert expected_call.kwargs['storageType'] == 'STATIC'
+    assert expected_call.kwargs['storageCapacity'] == 500
+    assert expected_call.kwargs['main'] == 'workflows/static/main.wdl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_to_main_and_container_registry():
+    """Test workflow version creation with path_to_main parameter and container registry map."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    # Container registry map
+    container_registry_map = {
+        'registryMappings': [
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            }
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            description='Version 2.0 with path_to_main and container registry',
+            parameter_template=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            container_registry_map=container_registry_map,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='workflows/containerized/main.wdl',
+        )
+
+    # Verify client was called correctly with path_to_main and container registry map
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert (
+        expected_call.kwargs['description']
+        == 'Version 2.0 with path_to_main and container registry'
+    )
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    assert expected_call.kwargs['containerRegistryMap'] == container_registry_map
+    assert expected_call.kwargs['main'] == 'workflows/containerized/main.wdl'
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_to_main_empty_string():
+    """Test workflow creation with empty string path_to_main parameter."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            description=None,
+            parameter_template=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='',  # Empty string should be treated as None
+        )
+
+    # Verify client was called correctly - empty string should not be passed
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['name'] == 'test-workflow'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content'
+    # Empty string path_to_main should not be passed to AWS API
+    assert 'main' not in expected_call.kwargs
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'test-workflow'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_to_main_empty_string():
+    """Test workflow version creation with empty string path_to_main parameter."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            description=None,
+            parameter_template=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            container_registry_map=None,
+            container_registry_map_uri=None,
+            definition_uri=None,
+            path_to_main='',  # Empty string should be treated as None
+        )
+
+    # Verify client was called correctly - empty string should not be passed
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['workflowId'] == 'wfl-12345'
+    assert expected_call.kwargs['versionName'] == 'v2.0'
+    assert expected_call.kwargs['definitionZip'] == b'test workflow content v2'
+    assert expected_call.kwargs['storageType'] == 'DYNAMIC'
+    # Empty string path_to_main should not be passed to AWS API
+    assert 'main' not in expected_call.kwargs
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+# Tests for path_to_main validation integration
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_absolute():
+    """Test workflow creation fails with absolute path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_traversal():
+    """Test workflow creation fails with directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='../main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_invalid_path_to_main_extension():
+    """Test workflow creation fails with invalid file extension in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='workflows/script.py',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_absolute():
+    """Test workflow version creation fails with absolute path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_traversal():
+    """Test workflow version creation fails with directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/../../../etc/passwd',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_invalid_path_to_main_extension():
+    """Test workflow version creation fails with invalid file extension in path_to_main."""
+    mock_ctx = AsyncMock()
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/config.json',
+        )
+
+    mock_ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_path_normalization():
+    """Test workflow creation normalizes valid path_to_main."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='./workflows/main.wdl',  # Should be normalized to 'workflows/main.wdl'
+        )
+
+    # Verify client was called with normalized path
+    expected_call = mock_client.create_workflow.call_args
+    assert expected_call.kwargs['main'] == 'workflows/main.wdl'  # Normalized path
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['name'] == 'test-workflow'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_path_normalization():
+    """Test workflow version creation normalizes valid path_to_main."""
+    # Mock response data
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'ACTIVE',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='./src/pipeline.cwl',  # Should be normalized to 'src/pipeline.cwl'
+        )
+
+    # Verify client was called with normalized path
+    expected_call = mock_client.create_workflow_version.call_args
+    assert expected_call.kwargs['main'] == 'src/pipeline.cwl'  # Normalized path
+
+    # Verify result contains expected fields
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+# Tests for path_to_main validation integration
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_absolute_path():
+    """Test that create_workflow rejects absolute paths in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_directory_traversal():
+    """Test that create_workflow rejects directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='../main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_path_to_main_validation_invalid_extension():
+    """Test that create_workflow rejects invalid file extensions in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            path_to_main='main.txt',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_absolute_path():
+    """Test that create_workflow_version rejects absolute paths in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must be a relative path'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='/absolute/path/main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_directory_traversal():
+    """Test that create_workflow_version rejects directory traversal in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='workflows/../main.wdl',
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_path_to_main_validation_invalid_extension():
+    """Test that create_workflow_version rejects invalid file extensions in path_to_main."""
+    mock_ctx = AsyncMock()
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
+        await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            path_to_main='main.py',
         )

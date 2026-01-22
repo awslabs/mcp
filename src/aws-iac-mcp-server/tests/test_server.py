@@ -16,19 +16,22 @@
 
 import json
 import pytest
+from awslabs.aws_iac_mcp_server import server
 from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
-from awslabs.aws_iac_mcp_server.server import (
-    cdk_best_practices,
-    check_cloudformation_template_compliance,
-    get_cloudformation_pre_deploy_validation_instructions,
-    read_iac_documentation_page,
-    search_cdk_documentation,
-    search_cdk_samples_and_constructs,
-    search_cloudformation_documentation,
-    troubleshoot_cloudformation_deployment,
-    validate_cloudformation_template,
-)
 from unittest.mock import patch
+
+
+# Access underlying functions from FastMCP decorated tools
+validate_cloudformation_template = server.validate_cloudformation_template.fn
+check_cloudformation_template_compliance = server.check_cloudformation_template_compliance.fn
+troubleshoot_cloudformation_deployment = server.troubleshoot_cloudformation_deployment.fn
+get_cloudformation_pre_deploy_validation_instructions = (
+    server.get_cloudformation_pre_deploy_validation_instructions.fn
+)
+search_cdk_documentation = server.search_cdk_documentation.fn
+search_cloudformation_documentation = server.search_cloudformation_documentation.fn
+search_cdk_samples_and_constructs = server.search_cdk_samples_and_constructs.fn
+cdk_best_practices = server.cdk_best_practices.fn
 
 
 class TestValidateCloudFormationTemplate:
@@ -192,6 +195,8 @@ class TestTroubleshootDeployment:
         call_args = mock_sanitize.call_args[0][0]
         assert '_instruction' not in call_args
 
+
+class TestSearchCdkDocumentation:
     """Test search_cdk_documentation tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.search_cdk_documentation_tool')
@@ -211,44 +216,6 @@ class TestTroubleshootDeployment:
         assert result == 'sanitized response'
         mock_search.assert_called_once_with('lambda function')
         mock_sanitize.assert_called_once()
-
-
-class TestReadIaCDocumentationPage:
-    """Test read_iac_documentation_page tool."""
-
-    @patch('awslabs.aws_iac_mcp_server.server.read_iac_documentation_page_tool')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    @pytest.mark.asyncio
-    async def test_read_iac_documentation_page_success(self, mock_sanitize, mock_read):
-        """Test successful CDK documentation page read."""
-        mock_response = CDKToolResponse(
-            knowledge_response=[],
-            next_step_guidance='If you need code examples, use `search_cdk_samples_and_constructs` tool.',
-        )
-        mock_read.return_value = mock_response
-        mock_sanitize.return_value = 'sanitized response'
-
-        result = await read_iac_documentation_page('https://example.com/doc')
-
-        assert result == 'sanitized response'
-        mock_read.assert_called_once_with('https://example.com/doc', 0)
-        mock_sanitize.assert_called_once()
-
-    @patch('awslabs.aws_iac_mcp_server.server.read_iac_documentation_page_tool')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    @pytest.mark.asyncio
-    async def test_read_iac_documentation_page_with_starting_index(self, mock_sanitize, mock_read):
-        """Test CDK documentation page read with starting index."""
-        mock_response = CDKToolResponse(
-            knowledge_response=[],
-            next_step_guidance='If you need code examples, use `search_cdk_samples_and_constructs` tool.',
-        )
-        mock_read.return_value = mock_response
-        mock_sanitize.return_value = 'sanitized response'
-
-        await read_iac_documentation_page('https://example.com/doc', starting_index=100)
-
-        mock_read.assert_called_once_with('https://example.com/doc', 100)
 
 
 class TestSearchCloudFormationDocumentation:
@@ -352,10 +319,58 @@ class TestMain:
     """Test main function."""
 
     @patch('awslabs.aws_iac_mcp_server.server.mcp')
-    def test_main_calls_mcp_run(self, mock_mcp):
+    @patch('asyncio.run')
+    def test_main_calls_mcp_run(self, mock_asyncio_run, mock_mcp):
         """Test that main() calls mcp.run()."""
         from awslabs.aws_iac_mcp_server.server import main
 
         main()
 
+        mock_asyncio_run.assert_called_once()
+        mock_mcp.run.assert_called_once()
+
+
+class TestCreateReadToolProxy:
+    """Test _create_read_tool_proxy function."""
+
+    @patch('awslabs.aws_iac_mcp_server.server.get_remote_proxy_server_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.create_local_proxied_tool')
+    @patch('awslabs.aws_iac_mcp_server.server.mcp')
+    @pytest.mark.asyncio
+    async def test_create_read_tool_proxy_success(
+        self, mock_mcp, mock_create_local, mock_get_remote
+    ):
+        """Test successful proxy tool creation."""
+        from awslabs.aws_iac_mcp_server.server import _create_read_tool_proxy
+        from unittest.mock import MagicMock
+
+        mock_remote_tool = MagicMock()
+        mock_remote_tool.description = 'Remote tool description'
+        mock_get_remote.return_value = mock_remote_tool
+
+        mock_proxied_tool = MagicMock()
+        mock_create_local.return_value = mock_proxied_tool
+
+        await _create_read_tool_proxy()
+
+        mock_get_remote.assert_called_once()
+        mock_create_local.assert_called_once_with(
+            remote_tool=mock_remote_tool,
+            local_tool_name='read_iac_documentation_page',
+            local_tool_description='Remote tool description',
+        )
+        mock_mcp.add_tool.assert_called_once_with(mock_proxied_tool)
+
+    @patch('awslabs.aws_iac_mcp_server.server.mcp')
+    @patch('asyncio.run')
+    def test_main_handles_proxy_exception(self, mock_asyncio_run, mock_mcp):
+        """Test that main() handles proxy initialization failure gracefully."""
+        from awslabs.aws_iac_mcp_server.server import main
+
+        mock_asyncio_run.side_effect = Exception('Connection failed')
+
+        # Should not raise exception - server should continue
+        main()
+
+        mock_asyncio_run.assert_called_once()
         mock_mcp.run.assert_called_once()

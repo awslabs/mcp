@@ -14,6 +14,7 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the InsightsHandler class."""
 
+import json
 import pytest
 from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from datetime import datetime
@@ -131,21 +132,24 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 2
-        assert result.detail_mode is False
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['insights']) == 2
+        assert data['detail_mode'] is False
 
         # Verify insight items were properly constructed
-        assert result.insights[0].id == 'insight-1'
-        assert result.insights[0].category == 'CONFIGURATION'
-        assert result.insights[1].id == 'insight-2'
-        assert result.insights[1].category == 'UPGRADE_READINESS'
+        assert data['insights'][0]['id'] == 'insight-1'
+        assert data['insights'][0]['category'] == 'CONFIGURATION'
+        assert data['insights'][1]['id'] == 'insight-2'
+        assert data['insights'][1]['category'] == 'UPGRADE_READINESS'
 
         # Verify success message in content
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
-        assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
+        assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_detail_mode(self, mock_context, mock_mcp):
@@ -180,18 +184,21 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 1
-        assert result.detail_mode is True
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['insights']) == 1
+        assert data['detail_mode'] is True
 
         # Verify detailed insight properties
-        insight = result.insights[0]
-        assert insight.id == 'detail-insight'
-        assert insight.category == 'CONFIGURATION'
-        assert insight.recommendation == 'This is a test recommendation'
-        assert insight.additional_info == {'link': 'https://example.com'}
-        assert insight.resources == ['resource-1', 'resource-2']
-        assert insight.category_specific_summary == {'detail': 'Some specific details'}
+        insight = data['insights'][0]
+        assert insight['id'] == 'detail-insight'
+        assert insight['category'] == 'CONFIGURATION'
+        assert insight['recommendation'] == 'This is a test recommendation'
+        assert insight['additional_info'] == {'link': 'https://example.com'}
+        assert insight['resources'] == ['resource-1', 'resource-2']
+        assert insight['category_specific_summary'] == {'detail': 'Some specific details'}
 
         # Verify success message in content
         assert isinstance(
@@ -236,15 +243,18 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 2
-        assert all(insight.category == 'CONFIGURATION' for insight in result.insights)
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['insights']) == 2
+        assert all(insight['category'] == 'CONFIGURATION' for insight in data['insights'])
 
         # Verify success message mentions insights
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
-        assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
+        assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_with_pagination(self, mock_context, mock_mcp):
@@ -277,13 +287,16 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 2
-        assert result.next_token == 'test-next-token-value'  # Verify next_token is passed through
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['insights']) == 2
+        assert data['next_token'] == 'test-next-token-value'  # Verify next_token is passed through
 
         # Verify success message
         assert isinstance(result.content[0], TextContent)
-        assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
+        assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_error_handling(self, mock_context, mock_mcp):
@@ -307,8 +320,6 @@ class TestInsightsHandler:
         assert isinstance(result.content[0], TextContent)
         assert 'Error listing insights' in result.content[0].text
         assert 'Test API error' in result.content[0].text
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 0
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_no_insights_found(self, mock_context, mock_mcp):
@@ -333,8 +344,11 @@ class TestInsightsHandler:
 
         # Verify appropriate empty response (not an error)
         assert not result.isError
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 0
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert data['cluster_name'] == 'test-cluster'
+        assert len(data['insights']) == 0
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -377,8 +391,6 @@ class TestInsightsHandler:
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
         assert 'No insight details found for ID nonexistent-id' in result.content[0].text
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 0
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_impl_direct(self, mock_context, mock_mcp):
@@ -406,9 +418,12 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert len(result.insights) == 2
-        assert result.cluster_name == 'test-cluster'
-        assert not result.detail_mode
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert len(data['insights']) == 2
+        assert data['cluster_name'] == 'test-cluster'
+        assert not data['detail_mode']
 
         # Now test with detail mode
         mock_eks_client.describe_insight.return_value = {
@@ -427,10 +442,13 @@ class TestInsightsHandler:
 
         # Verify the result
         assert not result.isError
-        assert len(result.insights) == 1
-        assert result.insights[0].id == 'impl-detail-insight'
-        assert result.cluster_name == 'test-cluster'
-        assert result.detail_mode
+
+        # Parse JSON data from content
+        data = json.loads(result.content[1].text)
+        assert len(data['insights']) == 1
+        assert data['insights'][0]['id'] == 'impl-detail-insight'
+        assert data['cluster_name'] == 'test-cluster'
+        assert data['detail_mode']
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_impl_general_exception(self, mock_context, mock_mcp):
@@ -456,10 +474,6 @@ class TestInsightsHandler:
         assert isinstance(result.content[0], TextContent)
         assert 'Error processing EKS insights request' in result.content[0].text
         assert 'Test general exception' in result.content[0].text
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 0
-        assert result.next_token is None
-        assert result.detail_mode is False
 
     @pytest.mark.asyncio
     async def test_get_insight_detail_exception(self, mock_context, mock_mcp):
@@ -487,7 +501,3 @@ class TestInsightsHandler:
         assert isinstance(result.content[0], TextContent)
         assert 'Error retrieving insight details' in result.content[0].text
         assert 'Test detail API error' in result.content[0].text
-        assert result.cluster_name == 'test-cluster'
-        assert len(result.insights) == 0
-        assert result.next_token is None
-        assert result.detail_mode is True

@@ -121,9 +121,18 @@ GET_CALLER_IDENTITY_PAYLOAD = {
     'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
-IAD_BUCKET = {'Name': 'IAD', 'CreationDate': '2022-07-13T15:20:58+00:00'}
-DUB_BUCKET = {'Name': 'DUB', 'CreationDate': '2022-07-13T15:20:58+00:00'}
-PDX_BUCKET = {'Name': 'PDX', 'CreationDate': '2022-07-13T15:20:58+00:00'}
+IAD_BUCKET = {
+    'Name': 'IAD',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T14:20:58+00:00'),
+}
+DUB_BUCKET = {
+    'Name': 'DUB',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T15:20:58+00:00'),
+}
+PDX_BUCKET = {
+    'Name': 'PDX',
+    'CreationDate': datetime.datetime.fromisoformat('2022-07-13T16:20:58+00:00'),
+}
 
 LIST_BUCKETS_PAYLOAD = {
     'ResponseMetadata': {'HTTPStatusCode': 200},
@@ -133,6 +142,11 @@ LIST_BUCKETS_PAYLOAD = {
         PDX_BUCKET,
     ],
     'Owner': {'DisplayName': 'clpo', 'ID': '***'},
+}
+
+LIST_BUCKETS_SORTED_BY_CREATION_DATE = {
+    'Result': [PDX_BUCKET['Name'], PDX_BUCKET['CreationDate']],
+    'ResponseMetadata': {'HTTPStatusCode': 200},
 }
 
 SSM_LIST_NODES_PAYLOAD = {

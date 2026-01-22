@@ -30,16 +30,10 @@ from lxml import html
 from typing import Any, NamedTuple
 
 
-def _deny_remote_prefix(prefix, _uri):
-    raise ValueError(f'{prefix} prefix is not allowed')
-
-
 RESTRICTED_URI_HANDLER = URIArgumentHandler(
     prefixes={
         'file://': (get_file_validated, {'mode': 'r'}),
         'fileb://': (get_file_validated, {'mode': 'rb'}),
-        'http://': (_deny_remote_prefix, {}),
-        'https://': (_deny_remote_prefix, {}),
     }
 )
 

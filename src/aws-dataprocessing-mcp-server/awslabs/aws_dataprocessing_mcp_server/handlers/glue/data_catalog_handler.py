@@ -23,42 +23,14 @@ from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_h
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_table_manager import (
     DataCatalogTableManager,
 )
-from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
-    CreateCatalogResponse,
-    CreateConnectionResponse,
-    CreateDatabaseResponse,
-    CreatePartitionResponse,
-    CreateTableResponse,
-    DeleteCatalogResponse,
-    DeleteConnectionResponse,
-    DeleteDatabaseResponse,
-    DeletePartitionResponse,
-    DeleteTableResponse,
-    GetCatalogResponse,
-    GetConnectionResponse,
-    GetDatabaseResponse,
-    GetPartitionResponse,
-    GetTableResponse,
-    ImportCatalogResponse,
-    ListCatalogsResponse,
-    ListConnectionsResponse,
-    ListDatabasesResponse,
-    ListPartitionsResponse,
-    ListTablesResponse,
-    SearchTablesResponse,
-    UpdateConnectionResponse,
-    UpdateDatabaseResponse,
-    UpdatePartitionResponse,
-    UpdateTableResponse,
-)
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class GlueDataCatalogHandler:
@@ -147,13 +119,7 @@ class GlueDataCatalogHandler:
                 description='A continuation token, if this is a continuation call.',
             ),
         ] = None,
-    ) -> Union[
-        CreateDatabaseResponse,
-        DeleteDatabaseResponse,
-        GetDatabaseResponse,
-        ListDatabasesResponse,
-        UpdateDatabaseResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog databases with both read and write operations.
 
         This tool provides operations for managing Glue Data Catalog databases, including creating,
@@ -202,40 +168,10 @@ class GlueDataCatalogHandler:
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if operation == 'create-database':
-                    return CreateDatabaseResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name='',
-                        operation='create-database',
-                    )
-                elif operation == 'delete-database':
-                    return DeleteDatabaseResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name='',
-                        operation='delete-database',
-                    )
-                elif operation == 'update-database':
-                    return UpdateDatabaseResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name='',
-                        operation='update-database',
-                    )
-                else:
-                    return GetDatabaseResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name='',
-                        description='',
-                        location_uri='',
-                        parameters={},
-                        creation_time='',
-                        operation='get-database',
-                        catalog_id='',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-database':
                 if database_name is None:
@@ -283,16 +219,9 @@ class GlueDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-database, delete-database, get-database, list-databases, update-database'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetDatabaseResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    database_name='',
-                    description='',
-                    location_uri='',
-                    parameters={},
-                    creation_time='',
-                    operation='get-database',
-                    catalog_id='',
                 )
 
         except ValueError as e:
@@ -301,17 +230,9 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_databases: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            # No need to convert catalog_id as we're using empty string directly
-            return GetDatabaseResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database_name=database_name or '',
-                description='',
-                location_uri='',
-                parameters={},
-                creation_time='',
-                operation='get-database',
-                catalog_id='',  # Always use empty string for catalog_id in error responses
             )
 
     async def manage_aws_glue_data_catalog_tables(
@@ -363,14 +284,7 @@ class GlueDataCatalogHandler:
             Optional[str],
             Field(description='A continuation token, included if this is a continuation call.'),
         ] = None,
-    ) -> Union[
-        CreateTableResponse,
-        DeleteTableResponse,
-        GetTableResponse,
-        ListTablesResponse,
-        UpdateTableResponse,
-        SearchTablesResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog tables with both read and write operations.
 
         This tool provides comprehensive operations for managing Glue Data Catalog tables,
@@ -419,15 +333,9 @@ class GlueDataCatalogHandler:
         ]:
             error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetTableResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database_name=database_name,
-                table_name='',
-                table_definition={},
-                creation_time='',
-                last_access_time='',
-                operation='get-table',
             )
 
         try:
@@ -439,50 +347,10 @@ class GlueDataCatalogHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-table':
-                    return CreateTableResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name='',
-                        operation='create-table',
-                    )
-                elif operation == 'delete-table':
-                    return DeleteTableResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name='',
-                        operation='delete-table',
-                    )
-                elif operation == 'update-table':
-                    return UpdateTableResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name='',
-                        operation='update-table',
-                    )
-                elif operation == 'search-tables':
-                    return SearchTablesResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        tables=[],
-                        search_text='',
-                        count=0,
-                        operation='search-tables',
-                    )
-                else:
-                    return GetTableResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name='',
-                        table_definition={},
-                        creation_time='',
-                        last_access_time='',
-                        operation='get-table',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-table':
                 if database_name is None or table_input is None or table_name is None:
@@ -551,15 +419,9 @@ class GlueDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetTableResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    database_name=database_name,
-                    table_name='',
-                    table_definition={},
-                    creation_time='',
-                    last_access_time='',
-                    operation='get-table',
                 )
 
         except ValueError as e:
@@ -568,15 +430,9 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_tables: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetTableResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database_name=database_name,
-                table_name='',  # Always use empty string for table_name in error responses
-                table_definition={},
-                creation_time='',
-                last_access_time='',
-                operation='get-table',
             )
 
     async def manage_aws_glue_data_catalog_connections(
@@ -620,13 +476,7 @@ class GlueDataCatalogHandler:
                 description='Flag to retrieve the connection metadata without returning the password(for get-connection and list-connections operation).',
             ),
         ] = True,
-    ) -> Union[
-        CreateConnectionResponse,
-        DeleteConnectionResponse,
-        GetConnectionResponse,
-        ListConnectionsResponse,
-        UpdateConnectionResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog connections with both read and write operations.
 
         Connections in AWS Glue store connection information for data stores,
@@ -673,21 +523,9 @@ class GlueDataCatalogHandler:
         ]:
             error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetConnectionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                connection_name='',
-                connection_type='',
-                connection_properties={},
-                physical_connection_requirements=None,
-                creation_time='',
-                last_updated_time='',
-                last_updated_by='',
-                status='',
-                status_reason='',
-                last_connection_validation_time='',
-                catalog_id='',
-                operation='get-connection',
             )
 
         try:
@@ -698,47 +536,10 @@ class GlueDataCatalogHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-connection':
-                    return CreateConnectionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        connection_name='',
-                        operation='create-connection',
-                        catalog_id='',
-                    )
-                elif operation == 'delete-connection':
-                    return DeleteConnectionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        connection_name='',
-                        operation='delete-connection',
-                        catalog_id='',
-                    )
-                elif operation == 'update-connection':
-                    return UpdateConnectionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        connection_name='',
-                        operation='update-connection',
-                        catalog_id='',
-                    )
-                else:
-                    return GetConnectionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        connection_name='',
-                        connection_type='',
-                        connection_properties={},
-                        physical_connection_requirements=None,
-                        creation_time='',
-                        last_updated_time='',
-                        last_updated_by='',
-                        status='',
-                        status_reason='',
-                        last_connection_validation_time='',
-                        catalog_id='',
-                        operation='get',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-connection':
                 if connection_name is None or connection_input is None:
@@ -792,21 +593,9 @@ class GlueDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-connection, delete-connection, get-connection, list-connections, update-connection'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetConnectionResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    connection_name='',
-                    connection_type='',
-                    connection_properties={},
-                    physical_connection_requirements=None,
-                    creation_time='',
-                    last_updated_time='',
-                    last_updated_by='',
-                    status='',
-                    status_reason='',
-                    last_connection_validation_time='',
-                    catalog_id='',
-                    operation='get-connection',
                 )
 
         except ValueError as e:
@@ -815,21 +604,9 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_connections: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetConnectionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                connection_name='',  # Always use empty string for connection_name in error responses
-                connection_type='',
-                connection_properties={},
-                physical_connection_requirements=None,
-                creation_time='',
-                last_updated_time='',
-                last_updated_by='',
-                status='',
-                status_reason='',
-                last_connection_validation_time='',
-                catalog_id='',  # Always use empty string for catalog_id in error responses
-                operation='get-connection',
             )
 
     async def manage_aws_glue_data_catalog_partitions(
@@ -889,13 +666,7 @@ class GlueDataCatalogHandler:
                 description='ID of the catalog (optional, defaults to account ID).',
             ),
         ] = None,
-    ) -> Union[
-        CreatePartitionResponse,
-        DeletePartitionResponse,
-        GetPartitionResponse,
-        ListPartitionsResponse,
-        UpdatePartitionResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog partitions with both read and write operations.
 
         Partitions in AWS Glue represent a way to organize table data based on the values
@@ -943,16 +714,9 @@ class GlueDataCatalogHandler:
         ]:
             error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetPartitionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=[],
-                partition_definition={},
-                creation_time='',
-                last_access_time='',
-                operation='get-partition',
             )
         try:
             if not self.allow_write and operation not in [
@@ -962,45 +726,10 @@ class GlueDataCatalogHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-partition':
-                    return CreatePartitionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=[],
-                        operation='create-partition',
-                    )
-                elif operation == 'delete-partition':
-                    return DeletePartitionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=[],
-                        operation='delete-partition',
-                    )
-                elif operation == 'update-partition':
-                    return UpdatePartitionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=[],
-                        operation='update-partition',
-                    )
-                else:
-                    return GetPartitionResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        database_name=database_name,
-                        table_name=table_name,
-                        partition_values=[],
-                        partition_definition={},
-                        creation_time='',
-                        last_access_time='',
-                        operation='get-partition',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-partition':
                 if partition_values is None or partition_input is None:
@@ -1065,16 +794,9 @@ class GlueDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetPartitionResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    database_name=database_name,
-                    table_name=table_name,
-                    partition_values=[],
-                    partition_definition={},
-                    creation_time='',
-                    last_access_time='',
-                    operation='get-partition',
                 )
 
         except ValueError as e:
@@ -1083,16 +805,9 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_partitions: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetPartitionResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                database_name=database_name,
-                table_name=table_name,
-                partition_values=[],  # Always use empty list for partition_values in error responses
-                partition_definition={},
-                creation_time='',
-                last_access_time='',
-                operation='get-partition',
             )
 
     async def manage_aws_glue_data_catalog(
@@ -1130,13 +845,7 @@ class GlueDataCatalogHandler:
                 description='The ID of the parent catalog in which the catalog resides. If none is provided, the AWS Account Number is used by default.',
             ),
         ] = None,
-    ) -> Union[
-        CreateCatalogResponse,
-        DeleteCatalogResponse,
-        GetCatalogResponse,
-        ListCatalogsResponse,
-        ImportCatalogResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog with both read and write operations.
 
         This tool provides operations for managing the Glue Data Catalog itself,
@@ -1181,16 +890,9 @@ class GlueDataCatalogHandler:
         ]:
             error_message = f'Invalid operation: {operation}. Must be one of: create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetCatalogResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                catalog_id='',
-                catalog_definition={},
-                name='',
-                description='',
-                create_time='',
-                update_time='',
-                operation='get-catalog',
             )
 
         try:
@@ -1201,39 +903,10 @@ class GlueDataCatalogHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-catalog':
-                    return CreateCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        catalog_id='',
-                        operation='create-catalog',
-                    )
-                elif operation == 'delete-catalog':
-                    return DeleteCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        catalog_id='',
-                        operation='delete-catalog',
-                    )
-                elif operation == 'import-catalog-to-glue':
-                    return ImportCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        catalog_id='',
-                        operation='import-catalog-to-glue',
-                    )
-                else:
-                    return GetCatalogResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        catalog_id='',
-                        catalog_definition={},
-                        name='',
-                        description='',
-                        create_time='',
-                        update_time='',
-                        operation='get-catalog',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-catalog':
                 if catalog_id is None or catalog_input is None:
@@ -1274,16 +947,9 @@ class GlueDataCatalogHandler:
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetCatalogResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    catalog_id='',
-                    catalog_definition={},
-                    name='',
-                    description='',
-                    create_time='',
-                    update_time='',
-                    operation='get-catalog',
                 )
 
         except ValueError as e:
@@ -1292,14 +958,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetCatalogResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                catalog_id=catalog_id or '',
-                catalog_definition={},
-                name='',
-                description='',
-                create_time='',
-                update_time='',
-                operation='get-catalog',
             )

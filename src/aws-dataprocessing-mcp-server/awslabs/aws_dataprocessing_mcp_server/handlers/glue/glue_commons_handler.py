@@ -14,19 +14,20 @@
 
 """GlueCommonsHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
-    CreateSecurityConfigurationResponse,
-    CreateUsageProfileResponse,
-    DeleteResourcePolicyResponse,
-    DeleteSecurityConfigurationResponse,
-    DeleteUsageProfileResponse,
-    GetDataCatalogEncryptionSettingsResponse,
-    GetResourcePolicyResponse,
-    GetSecurityConfigurationResponse,
-    GetUsageProfileResponse,
-    PutDataCatalogEncryptionSettingsResponse,
-    PutResourcePolicyResponse,
-    UpdateUsageProfileResponse,
+    CreateSecurityConfigurationData,
+    CreateUsageProfileData,
+    DeleteResourcePolicyData,
+    DeleteSecurityConfigurationData,
+    DeleteUsageProfileData,
+    GetDataCatalogEncryptionSettingsData,
+    GetResourcePolicyData,
+    GetSecurityConfigurationData,
+    GetUsageProfileData,
+    PutDataCatalogEncryptionSettingsData,
+    PutResourcePolicyData,
+    UpdateUsageProfileData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
@@ -35,9 +36,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional
 
 
 class GlueCommonsHandler:
@@ -99,12 +100,7 @@ class GlueCommonsHandler:
                 description='Tags to apply to the usage profile (for create-profile operation).',
             ),
         ] = None,
-    ) -> Union[
-        CreateUsageProfileResponse,
-        DeleteUsageProfileResponse,
-        GetUsageProfileResponse,
-        UpdateUsageProfileResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Usage Profiles for resource allocation and cost management.
 
         This tool allows you to create, retrieve, update, and delete AWS Glue Usage Profiles, which define
@@ -161,27 +157,10 @@ class GlueCommonsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-profile':
-                    return CreateUsageProfileResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        profile_name='',
-                        operation='create',
-                    )
-                elif operation == 'delete-profile':
-                    return DeleteUsageProfileResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        profile_name='',
-                        operation='delete',
-                    )
-                elif operation == 'update-profile':
-                    return UpdateUsageProfileResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        profile_name='',
-                        operation='update',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-profile':
                 if configuration is None:
@@ -207,16 +186,18 @@ class GlueCommonsHandler:
                 # Create the usage profile
                 response = self.glue_client.create_usage_profile(**params)
 
-                return CreateUsageProfileResponse(
+                success_message = f'Successfully created usage profile {profile_name}'
+                data = CreateUsageProfileData(
+                    profile_name=profile_name,
+                    operation='create-usage-profile',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created usage profile {profile_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    profile_name=profile_name,
-                    operation='create',
                 )
 
             elif operation == 'delete-profile':
@@ -234,21 +215,17 @@ class GlueCommonsHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, profile_arn, {}):
                         error_message = f'Cannot delete usage profile {profile_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteUsageProfileResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            profile_name=profile_name,
-                            operation='delete',
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Usage profile {profile_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteUsageProfileResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            profile_name=profile_name,
-                            operation='delete',
                         )
                     else:
                         raise e
@@ -256,33 +233,37 @@ class GlueCommonsHandler:
                 # Delete the usage profile if it's managed by MCP
                 self.glue_client.delete_usage_profile(Name=profile_name)
 
-                return DeleteUsageProfileResponse(
+                success_message = f'Successfully deleted usage profile {profile_name}'
+                data = DeleteUsageProfileData(
+                    profile_name=profile_name,
+                    operation='delete-usage-profile',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted usage profile {profile_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    profile_name=profile_name,
-                    operation='delete',
                 )
 
             elif operation == 'get-profile':
                 # Get the usage profile
                 response = self.glue_client.get_usage_profile(Name=profile_name)
 
-                return GetUsageProfileResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved usage profile {profile_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved usage profile {profile_name}'
+                data = GetUsageProfileData(
                     profile_name=response.get('Name', profile_name),
                     profile_details=response,
-                    operation='get',
+                    operation='get-usage-profile',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'update-profile':
@@ -303,21 +284,17 @@ class GlueCommonsHandler:
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, profile_arn, {}):
                         error_message = f'Cannot update usage profile {profile_name} - it is not managed by the MCP server (missing required tags)'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return UpdateUsageProfileResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            profile_name=profile_name,
-                            operation='update',
                         )
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Usage profile {profile_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return UpdateUsageProfileResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            profile_name=profile_name,
-                            operation='update',
                         )
                     else:
                         raise e
@@ -331,27 +308,26 @@ class GlueCommonsHandler:
                 # Update the usage profile
                 response = self.glue_client.update_usage_profile(**params)
 
-                return UpdateUsageProfileResponse(
+                success_message = f'Successfully updated usage profile {profile_name}'
+                data = UpdateUsageProfileData(
+                    profile_name=profile_name,
+                    operation='update-usage-profile',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully updated usage profile {profile_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    profile_name=profile_name,
-                    operation='update',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-profile, delete-profile, get-profile, update-profile'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetUsageProfileResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    profile_name=profile_name,
-                    profile_details={},
-                    operation='get',
                 )
 
         except ValueError as e:
@@ -360,12 +336,9 @@ class GlueCommonsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_usage_profiles: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetUsageProfileResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                profile_name=profile_name,
-                profile_details={},
-                operation='get',
             )
 
     async def manage_aws_glue_security(
@@ -389,11 +362,7 @@ class GlueCommonsHandler:
                 description='Encryption configuration for create-security-configuration operation, containing settings for S3, CloudWatch, and job bookmarks encryption.',
             ),
         ] = None,
-    ) -> Union[
-        CreateSecurityConfigurationResponse,
-        DeleteSecurityConfigurationResponse,
-        GetSecurityConfigurationResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Security Configurations for data encryption.
 
         This tool allows you to create, retrieve, and delete AWS Glue Security Configurations, which define
@@ -445,22 +414,10 @@ class GlueCommonsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'create-security-configuration':
-                    return CreateSecurityConfigurationResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        config_name='',
-                        creation_time='',
-                        encryption_configuration={},
-                        operation='create',
-                    )
-                elif operation == 'delete-security-configuration':
-                    return DeleteSecurityConfigurationResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        config_name='',
-                        operation='delete',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'create-security-configuration':
                 if encryption_configuration is None:
@@ -473,14 +430,8 @@ class GlueCommonsHandler:
                     Name=config_name, EncryptionConfiguration=encryption_configuration
                 )
 
-                return CreateSecurityConfigurationResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully created security configuration {config_name}',
-                        )
-                    ],
+                success_message = f'Successfully created security configuration {config_name}'
+                data = CreateSecurityConfigurationData(
                     config_name=config_name,
                     creation_time=(
                         response.get('CreatedTimestamp', '').isoformat()
@@ -488,7 +439,15 @@ class GlueCommonsHandler:
                         else ''
                     ),
                     encryption_configuration=encryption_configuration or {},
-                    operation='create',
+                    operation='create-security-configuration',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'delete-security-configuration':
@@ -504,11 +463,9 @@ class GlueCommonsHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Security configuration {config_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return DeleteSecurityConfigurationResponse(
+                        return CallToolResult(
                             isError=True,
                             content=[TextContent(type='text', text=error_message)],
-                            config_name=config_name,
-                            operation='delete',
                         )
                     else:
                         raise e
@@ -516,16 +473,18 @@ class GlueCommonsHandler:
                 # Delete the security configuration
                 self.glue_client.delete_security_configuration(Name=config_name)
 
-                return DeleteSecurityConfigurationResponse(
+                success_message = f'Successfully deleted security configuration {config_name}'
+                data = DeleteSecurityConfigurationData(
+                    config_name=config_name,
+                    operation='delete-security-configuration',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully deleted security configuration {config_name}',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    config_name=config_name,
-                    operation='delete',
                 )
 
             elif operation == 'get-security-configuration':
@@ -534,14 +493,8 @@ class GlueCommonsHandler:
 
                 security_config = response.get('SecurityConfiguration', {})
 
-                return GetSecurityConfigurationResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text=f'Successfully retrieved security configuration {config_name}',
-                        )
-                    ],
+                success_message = f'Successfully retrieved security configuration {config_name}'
+                data = GetSecurityConfigurationData(
                     config_name=security_config.get('Name', config_name),
                     config_details=security_config,
                     creation_time=(
@@ -550,20 +503,23 @@ class GlueCommonsHandler:
                         else ''
                     ),
                     encryption_configuration=security_config.get('EncryptionConfiguration', {}),
-                    operation='get',
+                    operation='get-security-configuration',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: create-security-configuration, delete-security-configuration, get-security-configuration'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetSecurityConfigurationResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    config_name=config_name,
-                    config_details={},
-                    creation_time='',
-                    encryption_configuration={},
-                    operation='get',
                 )
 
         except ValueError as e:
@@ -572,14 +528,9 @@ class GlueCommonsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_security: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetSecurityConfigurationResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                config_name=config_name,
-                config_details={},
-                creation_time='',
-                encryption_configuration={},
-                operation='get',
             )
 
     async def manage_aws_glue_encryption(
@@ -609,10 +560,7 @@ class GlueCommonsHandler:
                 description='Connection password encryption configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
             ),
         ] = None,
-    ) -> Union[
-        GetDataCatalogEncryptionSettingsResponse,
-        PutDataCatalogEncryptionSettingsResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS Glue Data Catalog Encryption Settings for data protection.
 
         This tool allows you to retrieve and update AWS Glue Data Catalog Encryption Settings, which control
@@ -656,10 +604,9 @@ class GlueCommonsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                return PutDataCatalogEncryptionSettingsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    operation='put',
                 )
 
             if operation == 'get-catalog-encryption-settings':
@@ -671,16 +618,18 @@ class GlueCommonsHandler:
                 # Get the catalog encryption settings
                 response = self.glue_client.get_data_catalog_encryption_settings(**params)
 
-                return GetDataCatalogEncryptionSettingsResponse(
+                success_message = 'Successfully retrieved Data Catalog encryption settings'
+                data = GetDataCatalogEncryptionSettingsData(
+                    encryption_settings=response.get('DataCatalogEncryptionSettings', {}),
+                    operation='get-datacatalog-encryption',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully retrieved Data Catalog encryption settings',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    encryption_settings=response.get('DataCatalogEncryptionSettings', {}),
-                    operation='get',
                 )
 
             elif operation == 'put-catalog-encryption-settings':
@@ -706,25 +655,25 @@ class GlueCommonsHandler:
                 # Update the catalog encryption settings
                 self.glue_client.put_data_catalog_encryption_settings(**params)
 
-                return PutDataCatalogEncryptionSettingsResponse(
+                success_message = 'Successfully updated Data Catalog encryption settings'
+                data = PutDataCatalogEncryptionSettingsData(
+                    operation='put-datacatalog-encryption',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully updated Data Catalog encryption settings',
-                        )
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    operation='put',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: get-catalog-encryption-settings, put-catalog-encryption-settings'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetDataCatalogEncryptionSettingsResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    encryption_settings={},
-                    operation='get',
                 )
 
         except ValueError as e:
@@ -733,11 +682,9 @@ class GlueCommonsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_encryption: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetDataCatalogEncryptionSettingsResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                encryption_settings={},
-                operation='get',
             )
 
     async def manage_aws_glue_resource_policies(
@@ -779,11 +726,7 @@ class GlueCommonsHandler:
                 description='ARN of the Glue resource for the resource policy (optional).',
             ),
         ] = None,
-    ) -> Union[
-        GetResourcePolicyResponse,
-        PutResourcePolicyResponse,
-        DeleteResourcePolicyResponse,
-    ]:
+    ) -> CallToolResult:
         r"""Manage AWS Glue Resource Policies for access control.
 
         This tool allows you to retrieve, create, update, and delete AWS Glue Resource Policies, which
@@ -825,19 +768,10 @@ class GlueCommonsHandler:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
-                if operation == 'put-resource-policy':
-                    return PutResourcePolicyResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        policy_hash=None,
-                        operation='put',
-                    )
-                elif operation == 'delete-resource-policy':
-                    return DeleteResourcePolicyResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        operation='delete',
-                    )
+                return CallToolResult(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
 
             if operation == 'get-resource-policy':
                 # Prepare parameters
@@ -848,14 +782,8 @@ class GlueCommonsHandler:
                 # Get the resource policy
                 response = self.glue_client.get_resource_policy(**params)
 
-                return GetResourcePolicyResponse(
-                    isError=False,
-                    content=[
-                        TextContent(
-                            type='text',
-                            text='Successfully retrieved resource policy',
-                        )
-                    ],
+                success_message = 'Successfully retrieved resource policy'
+                data = GetResourcePolicyData(
                     policy_hash=response.get('PolicyHash'),
                     policy_in_json=response.get('PolicyInJson'),
                     create_time=(
@@ -868,7 +796,15 @@ class GlueCommonsHandler:
                         if response.get('UpdateTime')
                         else None
                     ),
-                    operation='get',
+                    operation='get-resource-policy',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'put-resource-policy':
@@ -889,13 +825,18 @@ class GlueCommonsHandler:
                 # Update the resource policy
                 response = self.glue_client.put_resource_policy(**params)
 
-                return PutResourcePolicyResponse(
+                success_message = 'Successfully updated resource policy'
+                data = PutResourcePolicyData(
+                    policy_hash=response.get('PolicyHash'),
+                    operation='put-resource-policy',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(type='text', text='Successfully updated resource policy')
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    policy_hash=response.get('PolicyHash'),
-                    operation='put',
                 )
 
             elif operation == 'delete-resource-policy':
@@ -909,25 +850,25 @@ class GlueCommonsHandler:
                 # Delete the resource policy
                 self.glue_client.delete_resource_policy(**params)
 
-                return DeleteResourcePolicyResponse(
+                success_message = 'Successfully deleted resource policy'
+                data = DeleteResourcePolicyData(
+                    operation='delete-resource-policy',
+                )
+
+                return CallToolResult(
                     isError=False,
                     content=[
-                        TextContent(type='text', text='Successfully deleted resource policy')
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
                     ],
-                    operation='delete',
                 )
 
             else:
                 error_message = f'Invalid operation: {operation}. Must be one of: get-resource-policy, put-resource-policy, delete-resource-policy'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                return GetResourcePolicyResponse(
+                return CallToolResult(
                     isError=True,
                     content=[TextContent(type='text', text=error_message)],
-                    policy_hash=None,
-                    policy_in_json=None,
-                    create_time=None,
-                    update_time=None,
-                    operation='get',
                 )
 
         except ValueError as e:
@@ -936,12 +877,7 @@ class GlueCommonsHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_resource_policies: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return GetResourcePolicyResponse(
+            return CallToolResult(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                policy_hash=None,
-                policy_in_json=None,
-                create_time=None,
-                update_time=None,
-                operation='get',
             )

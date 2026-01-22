@@ -14,12 +14,13 @@
 
 """EMRServerlessJobRunHandler for Data Processing MCP Server."""
 
+import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
-    CancelJobRunResponse,
-    GetDashboardForJobRunResponse,
-    GetJobRunResponse,
-    ListJobRunsResponse,
-    StartJobRunResponse,
+    CancelJobRunData,
+    GetDashboardForJobRunData,
+    GetJobRunData,
+    ListJobRunsData,
+    StartJobRunData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
@@ -30,9 +31,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from mcp.server.fastmcp import Context
-from mcp.types import Content, TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional
 
 
 class EMRServerlessJobRunHandler:
@@ -58,26 +59,10 @@ class EMRServerlessJobRunHandler:
 
     def _create_error_response(self, operation: str, error_message: str):
         """Create appropriate error response based on operation type."""
-        content: List[Content] = [TextContent(type='text', text=error_message)]
-
-        if operation == 'start-job-run':
-            return StartJobRunResponse(
-                isError=True, content=content, application_id='', job_run_id='', arn=''
-            )
-        elif operation == 'get-job-run':
-            return GetJobRunResponse(isError=True, content=content, job_run={})
-        elif operation == 'cancel-job-run':
-            return CancelJobRunResponse(
-                isError=True, content=content, application_id='', job_run_id=''
-            )
-        elif operation == 'list-job-runs':
-            return ListJobRunsResponse(
-                isError=True, content=content, job_runs=[], count=0, next_token=None
-            )
-        elif operation == 'get-dashboard-for-job-run':
-            return GetDashboardForJobRunResponse(isError=True, content=content, url='')
-        else:
-            return GetJobRunResponse(isError=True, content=content, job_run={})
+        return CallToolResult(
+            isError=True,
+            content=[TextContent(type='text', text=error_message)],
+        )
 
     async def manage_aws_emr_serverless_job_runs(
         self,
@@ -196,13 +181,7 @@ class EMRServerlessJobRunHandler:
                 description='Attempt number for dashboard (optional for get-dashboard-for-job-run).',
             ),
         ] = None,
-    ) -> Union[
-        StartJobRunResponse,
-        GetJobRunResponse,
-        CancelJobRunResponse,
-        ListJobRunsResponse,
-        GetDashboardForJobRunResponse,
-    ]:
+    ) -> CallToolResult:
         """Manage AWS EMR Serverless job runs for executing data processing workloads.
 
         This tool provides operations for managing Amazon EMR Serverless job runs,
@@ -338,18 +317,20 @@ class EMRServerlessJobRunHandler:
                 # Start job run
                 response = self.emr_serverless_client.start_job_run(**params)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully started job run {response.get("jobRunId", "")} on application {application_id} with MCP management tags',
-                    )
-                ]
-                return StartJobRunResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully started job run {response.get("jobRunId", "")} on application {application_id} with MCP management tags'
+                data = StartJobRunData(
                     application_id=application_id or '',
                     job_run_id=response.get('jobRunId', ''),
                     arn=response.get('arn', ''),
+                    operation='start-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-job-run':
@@ -365,16 +346,18 @@ class EMRServerlessJobRunHandler:
                     jobRunId=job_run_id,
                 )
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved job run {job_run_id} details',
-                    )
-                ]
-                return GetJobRunResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully retrieved job run {job_run_id} details'
+                data = GetJobRunData(
                     job_run=response.get('jobRun', {}),
+                    operation='get-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'cancel-job-run':
@@ -390,17 +373,21 @@ class EMRServerlessJobRunHandler:
                     jobRunId=job_run_id,
                 )
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully cancelled job run {job_run_id} on application {application_id}',
-                    )
-                ]
-                return CancelJobRunResponse(
-                    isError=False,
-                    content=content,
+                success_message = (
+                    f'Successfully cancelled job run {job_run_id} on application {application_id}'
+                )
+                data = CancelJobRunData(
                     application_id=application_id,
                     job_run_id=job_run_id,
+                    operation='cancel-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'list-job-runs':
@@ -427,15 +414,20 @@ class EMRServerlessJobRunHandler:
                 response = self.emr_serverless_client.list_job_runs(**params)
 
                 job_runs = response.get('jobRuns', [])
-                content: List[Content] = [
-                    TextContent(type='text', text='Successfully listed EMR Serverless job runs')
-                ]
-                return ListJobRunsResponse(
-                    isError=False,
-                    content=content,
+                success_message = 'Successfully listed EMR Serverless job runs'
+                data = ListJobRunsData(
                     job_runs=job_runs,
                     count=len(job_runs),
                     next_token=response.get('nextToken'),
+                    operation='list-job-runs',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             elif operation == 'get-dashboard-for-job-run':
@@ -456,16 +448,18 @@ class EMRServerlessJobRunHandler:
                 # Get dashboard URL
                 response = self.emr_serverless_client.get_dashboard_for_job_run(**params)
 
-                content: List[Content] = [
-                    TextContent(
-                        type='text',
-                        text=f'Successfully retrieved dashboard URL for job run {job_run_id}',
-                    )
-                ]
-                return GetDashboardForJobRunResponse(
-                    isError=False,
-                    content=content,
+                success_message = f'Successfully retrieved dashboard URL for job run {job_run_id}'
+                data = GetDashboardForJobRunData(
                     url=response.get('url', ''),
+                    operation='get-dashboard-for-job-run',
+                )
+
+                return CallToolResult(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text=success_message),
+                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                    ],
                 )
 
             else:
