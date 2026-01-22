@@ -17,10 +17,10 @@
 
 import boto3
 import os
-from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
+from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
