@@ -5,7 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for AWS Applicati
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.40.41",
+    "boto3>=1.42.0",
     "httpx>=0.24.0",
     "loguru>=0.7.3",
     "mcp[cli]>=1.23.0",
@@ -41,7 +41,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-application
 
 [dependency-groups]
 dev = [
-    "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.37.24",
+    "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.42.0",
     "commitizen>=4.4.1",
     "moto>=5.0.0",
     "pre-commit>=4.2.0",

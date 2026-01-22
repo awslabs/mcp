@@ -45,6 +45,7 @@ from .canary_utils import (
     get_canary_code,
     get_canary_metrics_and_service_insights,
 )
+from .change_tools import list_change_events
 from .enablement_tools import get_enablement_guide
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
@@ -1487,6 +1488,7 @@ mcp.tool()(search_transaction_spans)
 mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
+mcp.tool()(list_change_events)
 
 
 def main():
