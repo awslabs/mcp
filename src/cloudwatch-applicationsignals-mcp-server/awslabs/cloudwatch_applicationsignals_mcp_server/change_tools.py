@@ -348,6 +348,7 @@ async def _list_service_states(
         indent=2,
     )
 
+
 async def list_change_events(
     start_time: str = Field(
         description='Start time for change event query (ISO 8601 datetime string or Unix timestamp)'

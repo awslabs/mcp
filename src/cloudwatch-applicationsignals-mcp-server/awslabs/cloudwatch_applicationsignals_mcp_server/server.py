@@ -1490,6 +1490,7 @@ mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
 mcp.tool()(list_change_events)
 
+
 def main():
     """Run the MCP server."""
     logger.debug('Starting CloudWatch Application Signals MCP server')
