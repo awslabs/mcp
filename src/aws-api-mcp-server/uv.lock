@@ -75,7 +75,7 @@ wheels = [
 
 [[package]]
 name = "awscli"
-version = "1.44.21"
+version = "1.44.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
@@ -85,9 +85,9 @@ dependencies = [
     { name = "rsa" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8f/77/ba2cb44c02a7af29c85ae5bdd52f479d5eb8fddda2b5d0c5189d21bc4bf8/awscli-1.44.21.tar.gz", hash = "sha256:9fee422af9ac35da60cb07bf4525a542addaa809c9e34ae78c4d8cc4acd552f1", size = 1888520, upload-time = "2026-01-20T21:04:40.764Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/ad/8d3aa7d9a09c52d90fff00f5c1140ce8fd47a267fd645ea0e69fe4827bd9/awscli-1.44.22.tar.gz", hash = "sha256:781e86f960bc1288b384667259c4eeb7384cd4e1779514cc6f8cb51dd7c711de", size = 1888820, upload-time = "2026-01-21T20:40:07.126Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/51/ab63e9ee3d83778e87bb6a8b7b75825d91514a573769d53d9bddc830c811/awscli-1.44.21-py3-none-any.whl", hash = "sha256:14c2fdf8ef8459ae989486e5ba71207c76fc091b7f2307561254b7ca5fab1f0a", size = 4640517, upload-time = "2026-01-20T21:04:37.618Z" },
+    { url = "https://files.pythonhosted.org/packages/37/2a/573f97e1056ae3b151545894dfdabbbc5532bc8f612a8f4bb51f98ab551a/awscli-1.44.22-py3-none-any.whl", hash = "sha256:871fbec9e252e3bad032764c38c3e87a3010111d0606772ac9dbe5701ff884ca", size = 4641148, upload-time = "2026-01-21T20:40:03.899Z" },
 ]
 
 [[package]]
@@ -153,7 +153,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "awscli", specifier = "==1.44.21" },
+    { name = "awscli", specifier = "==1.44.22" },
     { name = "boto3", specifier = ">=1.41.0" },
     { name = "botocore", extras = ["crt"], specifier = ">=1.41.0" },
     { name = "fastmcp", specifier = ">=2.14.0" },
@@ -214,16 +214,16 @@ wheels = [
 
 [[package]]
 name = "botocore"
-version = "1.42.31"
+version = "1.42.32"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/78/4fd91ed2f9d4b500680f33c714b7716fc37690083a8c8d3e94177cbc811e/botocore-1.42.31.tar.gz", hash = "sha256:62f2c31e229df625612dd4d7c72618948e4064436d71a647102f36fcddfa0f4d", size = 14895682, upload-time = "2026-01-20T21:04:32.999Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/5e/84404e094be8e2145c7f6bb8b3709193bc4488c385edffc6cc6890b5c88b/botocore-1.42.32.tar.gz", hash = "sha256:4c0a9fe23e060c019e327cd5e4ea1976a1343faba74e5301ebfc9549cc584ccb", size = 14898756, upload-time = "2026-01-21T20:39:59.698Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/c3/6898ecbfc140754fc90702c43e63c2b13017cac345cd3015df404cfeb3e9/botocore-1.42.31-py3-none-any.whl", hash = "sha256:021346ad57cc3018acf4a46edc1f649b9818b33c07a08674ce1c36e9edbb5859", size = 14569714, upload-time = "2026-01-20T21:04:29.495Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/ab/55062f6eaf9fc537b62b7425ab53ef4366032256e1dda8ef52a9a31f7a6e/botocore-1.42.32-py3-none-any.whl", hash = "sha256:9c1ce43687cc4c0bba12054b229b3464265c699e2de4723998d86791254a5a37", size = 14573367, upload-time = "2026-01-21T20:39:56.65Z" },
 ]
 
 [package.optional-dependencies]
