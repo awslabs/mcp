@@ -1,7 +1,44 @@
 # DSQL Language-Specific Implementation Examples and Guides
 ## Tenets
 - ALWAYS prefer DSQL Connector when available
-- Follow patterns outlined in [aurora-dsql-samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/)
+- MUST follow patterns outlined in [aurora-dsql-samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/)
+  for common uses such as installing clients, handling authentication, and performing CRUD operations unless user
+  requirements have explicit conflicts with implementatin approach.
+
+## `aurora-dsql-samples` Directory Structures
+
+### Directories WITH Connectors
+```
+<language>/<driver>/
+├── README.md
+├── <config files>
+├── src/
+│   ├── example_preferred.<ext>           # Synced from connector (pool concurrent if available)
+│   ├── alternatives/
+│   │   ├── no_connection_pool/
+│   │   │   ├── example_with_no_connector.<ext>        # SDK-based, samples-only
+│   │   │   └── example_with_no_connection_pool.<ext>  # Synced from connector
+│   │   └── pool/
+│   │       └── <other pool variants>     # Synced from connector
+│   └── <config and util files>
+└── test/                                 # Matching test directory layout for all examples
+```
+
+**MUST use** `src/example_preferred.<ext>` unless user requirements explicitly conflict with its implementation approach.
+
+### Directories WITHOUT Connectors
+```
+<language>/<driver>/
+├── README.md
+├── <config files>
+├── src/
+│   ├── example.<ext>
+│   └── <config and util files>
+└── test/                                 # Matching test directory layout for all examples
+```
+
+**MUST use** `src/example.<ext>` unless user requirements explicitly conflict with its implementation approach.
+
 
 ## Framework and Connection Notes for Languages and Drivers
 ### Python
@@ -24,8 +61,9 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
     - See [aurora-dsql-samples/python/asyncpg](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/asyncpg)
 
 **SQLAlchemy**
-- ALWAYS use psycopg2 with SQLAlchemy
+- Supports `psycopg` and `psycopg2`
 - See [aurora-dsql-samples/python/sqlalchemy](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/sqlalchemy)
+- Dialect Source: [aurora-dsql-sqlalchemy](https://github.com/awslabs/aurora-dsql-sqlalchemy/tree/main/)
 
 **JupyterLab**
 - Still SHOULD PREFER using the python connector.
@@ -35,7 +73,6 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
 - See [aurora-dsql-samples/python/jupyter](https://github.com/aws-samples/aurora-dsql-samples/blob/main/python/jupyter/)
 
 ### Go
-
 **pgx** (recommended)
 - Use `aws-sdk-go-v2/feature/dsql/auth` for token generation
 - Implement `BeforeConnect` hook: `config.BeforeConnect = func() { cfg.Password = token }`
@@ -44,9 +81,9 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
 - See [aurora-dsql-samples/go/pgx](https://github.com/aws-samples/aurora-dsql-samples/tree/main/go/pgx)
 
 ### JavaScript/TypeScript
-PREFER using [node-postgres](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html)
-or [postgres-js](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-postgresjs.html) with the
-DSQL Node.js Connector.
+PREFER using one of the DSQL Node.js Connectors:
+[node-postgres](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html)
+or [postgres-js](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-postgresjs.html).
 
 **node-postgres (pg)** (recommended)
 - Use `@aws/aurora-dsql-node-postgres-connector` for automatic IAM auth
