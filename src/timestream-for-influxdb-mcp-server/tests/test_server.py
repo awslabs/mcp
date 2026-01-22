@@ -136,7 +136,9 @@ class TestClientCreation:
 
         client = get_timestream_influxdb_client()
 
-        mock_boto3.Session.assert_called_once_with(profile_name='test-profile', region_name='us-west-2')
+        mock_boto3.Session.assert_called_once_with(
+            profile_name='test-profile', region_name='us-west-2'
+        )
         mock_session.client.assert_called_once_with('timestream-influxdb')
         assert client == mock_client
 
@@ -1229,9 +1231,7 @@ class TestDbInstanceOperations:
         """Test list_db_instances_for_cluster with next_token parameter."""
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
-        mock_client.list_db_instances_for_cluster.return_value = {
-            'items': [{'id': 'instance-1'}]
-        }
+        mock_client.list_db_instances_for_cluster.return_value = {'items': [{'id': 'instance-1'}]}
 
         result = await list_db_instances_for_cluster(
             db_cluster_id='test-cluster-id',
@@ -1888,7 +1888,11 @@ class TestInfluxDBOperations:
         mock_record1.get_value.return_value = 25.3
         mock_record1.get_time.return_value = None
         # Mock values as InfluxDB actually returns them - tags are top-level keys
-        mock_record1.values = {'location': 'Prague', '_measurement': 'temperature', '_field': 'value'}
+        mock_record1.values = {
+            'location': 'Prague',
+            '_measurement': 'temperature',
+            '_field': 'value',
+        }
 
         mock_table = MagicMock()
         mock_table.records = [mock_record1]
@@ -1940,7 +1944,6 @@ class TestInfluxDBOperations:
         assert 'Invalid Flux query syntax' in result['message']
         mock_get_client.assert_called_once()
         mock_client.query_api.assert_called_once()
-
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -2257,12 +2260,14 @@ class TestInfluxDBOperations:
             token='test-token',
             bucket='test-bucket',
             org='test-org',
-            points=[{
-                'measurement': 'temperature',
-                'tags': {'location': 'Prague'},
-                'fields': {'value': 25.3},
-                'time': '2025-01-22T10:00:00Z'
-            }],
+            points=[
+                {
+                    'measurement': 'temperature',
+                    'tags': {'location': 'Prague'},
+                    'fields': {'value': 25.3},
+                    'time': '2025-01-22T10:00:00Z',
+                }
+            ],
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
@@ -2299,7 +2304,9 @@ class TestResolveInfluxDBConfig:
         from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
 
         with pytest.raises(ValueError) as excinfo:
-            resolve_influxdb_config(url='https://example.com', token='test-token', org=None, require_org=True)
+            resolve_influxdb_config(
+                url='https://example.com', token='test-token', org=None, require_org=True
+            )
 
         assert 'Organization must be provided' in str(excinfo.value)
 

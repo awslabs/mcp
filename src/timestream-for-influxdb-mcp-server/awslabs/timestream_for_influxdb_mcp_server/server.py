@@ -282,11 +282,17 @@ def resolve_influxdb_config(
     resolved_org = org or INFLUXDB_ORG
 
     if not resolved_url:
-        raise ValueError('URL must be provided either as parameter or via INFLUXDB_URL environment variable')
+        raise ValueError(
+            'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
+        )
     if not resolved_token:
-        raise ValueError('Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable')
+        raise ValueError(
+            'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
+        )
     if require_org and not resolved_org:
-        raise ValueError('Organization must be provided either as parameter or via INFLUXDB_ORG environment variable')
+        raise ValueError(
+            'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
+        )
 
     return resolved_url, resolved_token, resolved_org
 
@@ -1137,10 +1143,7 @@ async def influxdb_write_points(
 
     try:
         client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            org=resolved_org,
-            verify_ssl=verify_ssl
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
         if sync_mode and sync_mode.lower() == 'synchronous':
             write_api = client.write_api(write_options=SYNCHRONOUS)
@@ -1215,10 +1218,7 @@ async def influxdb_write_line_protocol(
 
     try:
         client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            org=resolved_org,
-            verify_ssl=verify_ssl
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
 
         # Set write mode
@@ -1265,10 +1265,7 @@ async def influxdb_query(
 
     try:
         client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            org=resolved_org,
-            verify_ssl=verify_ssl
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
         query_api = client.query_api()
 
@@ -1277,13 +1274,26 @@ async def influxdb_query(
 
         # Process the tables into a more usable format
         # System keys that are not tags
-        system_keys = {'result', 'table', '_start', '_stop', '_time', '_value', '_field', '_measurement'}
+        system_keys = {
+            'result',
+            'table',
+            '_start',
+            '_stop',
+            '_time',
+            '_value',
+            '_field',
+            '_measurement',
+        }
 
         result = []
         for table in tables:
             for record in table.records:
                 # Extract tags by filtering out system keys
-                tags = {k: v for k, v in record.values.items() if k not in system_keys and v is not None}
+                tags = {
+                    k: v
+                    for k, v in record.values.items()
+                    if k not in system_keys and v is not None
+                }
 
                 result.append(
                     {
@@ -1319,24 +1329,25 @@ async def influxdb_list_buckets(
 
     try:
         client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            org=resolved_org,
-            verify_ssl=verify_ssl
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
         buckets_api = client.buckets_api()
         buckets = buckets_api.find_buckets().buckets
 
         result = []
         for bucket in buckets:
-            result.append({
-                'id': bucket.id,
-                'name': bucket.name,
-                'org_id': bucket.org_id,
-                'retention_period': bucket.retention_rules[0].every_seconds if bucket.retention_rules else None,
-                'created_at': bucket.created_at.isoformat() if bucket.created_at else None,
-                'updated_at': bucket.updated_at.isoformat() if bucket.updated_at else None,
-            })
+            result.append(
+                {
+                    'id': bucket.id,
+                    'name': bucket.name,
+                    'org_id': bucket.org_id,
+                    'retention_period': bucket.retention_rules[0].every_seconds
+                    if bucket.retention_rules
+                    else None,
+                    'created_at': bucket.created_at.isoformat() if bucket.created_at else None,
+                    'updated_at': bucket.updated_at.isoformat() if bucket.updated_at else None,
+                }
+            )
 
         client.close()
         return {'status': 'success', 'buckets': result}
@@ -1373,10 +1384,7 @@ async def influxdb_create_bucket(
 
     try:
         client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            org=resolved_org,
-            verify_ssl=verify_ssl
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
         )
         buckets_api = client.buckets_api()
 
@@ -1389,13 +1397,15 @@ async def influxdb_create_bucket(
 
         retention_rules = []
         if retention_seconds and retention_seconds > 0:
-            retention_rules.append(BucketRetentionRules(type='expire', every_seconds=retention_seconds))
+            retention_rules.append(
+                BucketRetentionRules(type='expire', every_seconds=retention_seconds)
+            )
 
         bucket = buckets_api.create_bucket(
             bucket_name=bucket_name,
             org_id=org_id,
             retention_rules=retention_rules,
-            description=description
+            description=description,
         )
 
         client.close()
@@ -1405,9 +1415,11 @@ async def influxdb_create_bucket(
                 'id': bucket.id,
                 'name': bucket.name,
                 'org_id': bucket.org_id,
-                'retention_period': bucket.retention_rules[0].every_seconds if bucket.retention_rules else None,
+                'retention_period': bucket.retention_rules[0].every_seconds
+                if bucket.retention_rules
+                else None,
                 'created_at': bucket.created_at.isoformat() if bucket.created_at else None,
-            }
+            },
         }
 
     except Exception as e:
@@ -1426,26 +1438,26 @@ async def influxdb_list_orgs(
     Returns:
         List of organizations with their details.
     """
-    resolved_url, resolved_token, _ = resolve_influxdb_config(url, token, org=None, require_org=False)
+    resolved_url, resolved_token, _ = resolve_influxdb_config(
+        url, token, org=None, require_org=False
+    )
 
     try:
-        client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            verify_ssl=verify_ssl
-        )
+        client = get_influxdb_client(url=resolved_url, token=resolved_token, verify_ssl=verify_ssl)
         orgs_api = client.organizations_api()
         orgs = orgs_api.find_organizations()
 
         result = []
         for org in orgs:
-            result.append({
-                'id': org.id,
-                'name': org.name,
-                'description': org.description,
-                'created_at': org.created_at.isoformat() if org.created_at else None,
-                'updated_at': org.updated_at.isoformat() if org.updated_at else None,
-            })
+            result.append(
+                {
+                    'id': org.id,
+                    'name': org.name,
+                    'description': org.description,
+                    'created_at': org.created_at.isoformat() if org.created_at else None,
+                    'updated_at': org.updated_at.isoformat() if org.updated_at else None,
+                }
+            )
 
         client.close()
         return {'status': 'success', 'organizations': result}
@@ -1473,14 +1485,12 @@ async def influxdb_create_org(
             'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    resolved_url, resolved_token, _ = resolve_influxdb_config(url, token, org=None, require_org=False)
+    resolved_url, resolved_token, _ = resolve_influxdb_config(
+        url, token, org=None, require_org=False
+    )
 
     try:
-        client = get_influxdb_client(
-            url=resolved_url,
-            token=resolved_token,
-            verify_ssl=verify_ssl
-        )
+        client = get_influxdb_client(url=resolved_url, token=resolved_token, verify_ssl=verify_ssl)
         orgs_api = client.organizations_api()
 
         org = orgs_api.create_organization(name=org_name)
@@ -1492,7 +1502,7 @@ async def influxdb_create_org(
                 'id': org.id,
                 'name': org.name,
                 'created_at': org.created_at.isoformat() if org.created_at else None,
-            }
+            },
         }
 
     except Exception as e:
