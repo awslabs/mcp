@@ -118,6 +118,28 @@ class TestClientCreation:
 
         assert 'URL must use HTTP(S) protocol' in str(excinfo.value)
 
+    def test_get_influxdb_client_missing_token(self):
+        """Test get_influxdb_client when token is missing."""
+        with pytest.raises(ValueError) as excinfo:
+            get_influxdb_client(url='https://example.com', token=None, org='test-org')
+
+        assert 'Token must be provided' in str(excinfo.value)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.boto3')
+    @patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'})
+    def test_get_timestream_influxdb_client_with_profile(self, mock_boto3):
+        """Test get_timestream_influxdb_client with AWS profile."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+
+        client = get_timestream_influxdb_client()
+
+        mock_boto3.Session.assert_called_once_with(profile_name='test-profile', region_name='us-west-2')
+        mock_session.client.assert_called_once_with('timestream-influxdb')
+        assert client == mock_client
+
 
 class TestDbClusterOperations:
     """Tests for DB cluster operations."""
@@ -550,6 +572,96 @@ class TestDbClusterOperations:
         assert 'ServiceUnavailable' in str(excinfo.value)
         mock_get_client.assert_called_once()
         mock_client.list_db_clusters.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_create_db_cluster_client_exception(self, mock_get_client):
+        """Test create_db_cluster when client raises exception."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.create_db_cluster.side_effect = Exception('AWS API error')
+
+        with pytest.raises(Exception) as excinfo:
+            await create_db_cluster(
+                name='test-cluster',
+                db_instance_type='db.influx.large',
+                password='test-password',
+                allocated_storage_gb=100,
+                vpc_security_group_ids=['sg-12345'],
+                vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
+                tags=None,
+                tool_write_mode=True,
+            )
+
+        assert 'AWS API error' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_create_db_cluster_with_all_optional_params(self, mock_get_client):
+        """Test create_db_cluster with all optional parameters."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.create_db_cluster.return_value = {'dbClusterId': 'test-cluster-id'}
+
+        result = await create_db_cluster(
+            name='test-cluster',
+            db_instance_type='db.influx.large',
+            password='test-password',
+            allocated_storage_gb=100,
+            vpc_security_group_ids=['sg-12345'],
+            vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
+            publicly_accessible=True,
+            username='admin',
+            organization='test-org',
+            bucket='test-bucket',
+            db_storage_type='InfluxIOIncludedT1',
+            deployment_type='SINGLE_AZ',
+            networkType='IPV4',
+            port=8086,
+            db_parameter_group_identifier='param-group-1',
+            failover_mode='AUTOMATIC',
+            tags=None,
+            log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
+            tool_write_mode=True,
+        )
+
+        mock_client.create_db_cluster.assert_called_once()
+        call_args = mock_client.create_db_cluster.call_args[1]
+        assert call_args['username'] == 'admin'
+        assert call_args['organization'] == 'test-org'
+        assert call_args['bucket'] == 'test-bucket'
+        assert call_args['dbStorageType'] == 'InfluxIOIncludedT1'
+        assert call_args['deploymentType'] == 'SINGLE_AZ'
+        assert call_args['networkType'] == 'IPV4'
+        assert call_args['port'] == 8086
+        assert call_args['dbParameterGroupIdentifier'] == 'param-group-1'
+        assert call_args['failoverMode'] == 'AUTOMATIC'
+        assert 'logDeliveryConfiguration' in call_args
+        assert result == {'dbClusterId': 'test-cluster-id'}
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_update_db_cluster_with_log_delivery_config(self, mock_get_client):
+        """Test update_db_cluster with log delivery configuration."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.update_db_cluster.return_value = {
+            'dbClusterId': 'test-cluster-id',
+            'dbClusterStatus': 'modifying',
+        }
+
+        result = await update_db_cluster(
+            db_cluster_id='test-cluster-id',
+            db_parameter_group_identifier='param-group-1',
+            log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
+            tool_write_mode=True,
+        )
+
+        mock_client.update_db_cluster.assert_called_once()
+        call_args = mock_client.update_db_cluster.call_args[1]
+        assert call_args['dbParameterGroupIdentifier'] == 'param-group-1'
+        assert 'logDeliveryConfiguration' in call_args
+        assert result['dbClusterId'] == 'test-cluster-id'
 
 
 class TestDbInstanceOperations:
@@ -1021,6 +1133,118 @@ class TestDbInstanceOperations:
         mock_get_client.assert_called_once()
         mock_client.list_db_instances.assert_called_once()
 
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_create_db_instance_client_exception(self, mock_get_client):
+        """Test create_db_instance when client raises exception."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.create_db_instance.side_effect = Exception('AWS API error')
+
+        with pytest.raises(Exception) as excinfo:
+            await create_db_instance(
+                db_instance_name='test-instance',
+                db_instance_type='db.influx.large',
+                password='test-password',
+                allocated_storage_gb=100,
+                vpc_security_group_ids=['sg-12345'],
+                vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
+                tags=None,
+                tool_write_mode=True,
+            )
+
+        assert 'AWS API error' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_create_db_instance_with_all_optional_params(self, mock_get_client):
+        """Test create_db_instance with all optional parameters."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.create_db_instance.return_value = {'dbInstanceId': 'test-instance-id'}
+
+        result = await create_db_instance(
+            db_instance_name='test-instance',
+            db_instance_type='db.influx.large',
+            password='test-password',
+            allocated_storage_gb=100,
+            vpc_security_group_ids=['sg-12345'],
+            vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
+            publicly_accessible=True,
+            username='admin',
+            organization='test-org',
+            bucket='test-bucket',
+            db_storage_type='InfluxIOIncludedT1',
+            deployment_type='SINGLE_AZ',
+            networkType='IPV4',
+            port=8086,
+            db_parameter_group_id='param-group-1',
+            tags=None,
+            tool_write_mode=True,
+        )
+
+        mock_client.create_db_instance.assert_called_once()
+        call_args = mock_client.create_db_instance.call_args[1]
+        assert call_args['username'] == 'admin'
+        assert call_args['organization'] == 'test-org'
+        assert call_args['bucket'] == 'test-bucket'
+        assert call_args['db_storage_type'] == 'InfluxIOIncludedT1'
+        assert call_args['deployment_type'] == 'SINGLE_AZ'
+        assert call_args['networkType'] == 'IPV4'
+        assert call_args['port'] == '8086'
+        assert call_args['dbParameterGroupIdentifier'] == 'param-group-1'
+        assert result == {'dbInstanceId': 'test-instance-id'}
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_update_db_instance_with_all_optional_params(self, mock_get_client):
+        """Test update_db_instance with all optional parameters."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.update_db_instance.return_value = {
+            'id': 'test-instance-id',
+            'status': 'modifying',
+        }
+
+        result = await update_db_instance(
+            identifier='test-instance-id',
+            db_parameter_group_identifier='param-group-1',
+            db_storage_type='InfluxIOIncludedT1',
+            deployment_type='WITH_MULTIAZ_STANDBY',
+            log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
+            tool_write_mode=True,
+        )
+
+        mock_client.update_db_instance.assert_called_once()
+        call_args = mock_client.update_db_instance.call_args[1]
+        assert call_args['dbParameterGroupIdentifier'] == 'param-group-1'
+        assert call_args['dbStorageType'] == 'InfluxIOIncludedT1'
+        assert call_args['deploymentType'] == 'WITH_MULTIAZ_STANDBY'
+        assert 'logDeliveryConfiguration' in call_args
+        assert result['id'] == 'test-instance-id'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_list_db_instances_for_cluster_with_next_token(self, mock_get_client):
+        """Test list_db_instances_for_cluster with next_token parameter."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.list_db_instances_for_cluster.return_value = {
+            'items': [{'id': 'instance-1'}]
+        }
+
+        result = await list_db_instances_for_cluster(
+            db_cluster_id='test-cluster-id',
+            next_token='some-token',
+            max_results=10,
+        )
+
+        mock_client.list_db_instances_for_cluster.assert_called_once()
+        call_args = mock_client.list_db_instances_for_cluster.call_args[1]
+        assert call_args['nextToken'] == 'some-token'
+        assert call_args['maxResults'] == '10'
+        assert result == {'items': [{'id': 'instance-1'}]}
+
 
 class TestParameterGroupOperations:
     """Tests for parameter group operations."""
@@ -1217,6 +1441,23 @@ class TestParameterGroupOperations:
         assert 'InternalServerError' in str(excinfo.value)
         mock_get_client.assert_called_once()
         mock_client.list_db_parameter_groups.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
+    async def test_create_db_parameter_group_client_exception(self, mock_get_client):
+        """Test create_db_parameter_group when client raises exception."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.create_db_parameter_group.side_effect = Exception('AWS API error')
+
+        with pytest.raises(Exception) as excinfo:
+            await create_db_parameter_group(
+                name='test-param-group',
+                tags=None,
+                tool_write_mode=True,
+            )
+
+        assert 'AWS API error' in str(excinfo.value)
 
 
 class TestTagOperations:
@@ -1935,7 +2176,6 @@ class TestInfluxDBOperations:
         mock_org = MagicMock()
         mock_org.id = 'org-123'
         mock_org.name = 'new-org'
-        mock_org.description = 'New organization'
         mock_org.created_at = None
         mock_orgs_api.create_organization.return_value = mock_org
 
@@ -1947,16 +2187,13 @@ class TestInfluxDBOperations:
             org_name='new-org',
             url=url,
             token=token,
-            description='New organization',
             verify_ssl=True,
             tool_write_mode=True,
         )
 
         # Assert
         mock_get_client.assert_called_once()
-        mock_orgs_api.create_organization.assert_called_once_with(
-            name='new-org', description='New organization'
-        )
+        mock_orgs_api.create_organization.assert_called_once_with(name='new-org')
         mock_client.close.assert_called_once()
         assert result['status'] == 'success'
         assert result['organization']['id'] == 'org-123'
@@ -1971,7 +2208,6 @@ class TestInfluxDBOperations:
                 org_name='new-org',
                 url='https://influxdb-example.aws:8086',
                 token='test-token',
-                description=None,
                 tool_write_mode=False,
             )
 
@@ -1999,7 +2235,6 @@ class TestInfluxDBOperations:
             org_name='existing-org',
             url=url,
             token=token,
-            description=None,
             verify_ssl=True,
             tool_write_mode=True,
         )
@@ -2007,3 +2242,197 @@ class TestInfluxDBOperations:
         # Assert
         assert result['status'] == 'error'
         assert 'Organization already exists' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_write_points_with_time(self, mock_get_client):
+        """Test influxdb_write_points with time field in points."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_write_api = MagicMock()
+        mock_client.write_api.return_value = mock_write_api
+
+        result = await influxdb_write_points(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            bucket='test-bucket',
+            org='test-org',
+            points=[{
+                'measurement': 'temperature',
+                'tags': {'location': 'Prague'},
+                'fields': {'value': 25.3},
+                'time': '2025-01-22T10:00:00Z'
+            }],
+            time_precision='ns',
+            sync_mode='synchronous',
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        mock_write_api.write.assert_called_once()
+        assert result['status'] == 'success'
+
+
+class TestResolveInfluxDBConfig:
+    """Tests for resolve_influxdb_config function."""
+
+    def test_resolve_influxdb_config_missing_url(self):
+        """Test resolve_influxdb_config when URL is missing."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url=None, token='test-token', org='test-org')
+
+        assert 'URL must be provided' in str(excinfo.value)
+
+    def test_resolve_influxdb_config_missing_token(self):
+        """Test resolve_influxdb_config when token is missing."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://example.com', token=None, org='test-org')
+
+        assert 'Token must be provided' in str(excinfo.value)
+
+    def test_resolve_influxdb_config_missing_org_when_required(self):
+        """Test resolve_influxdb_config when org is missing and required."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://example.com', token='test-token', org=None, require_org=True)
+
+        assert 'Organization must be provided' in str(excinfo.value)
+
+    def test_resolve_influxdb_config_org_not_required(self):
+        """Test resolve_influxdb_config when org is not required."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config(
+            url='https://example.com', token='test-token', org=None, require_org=False
+        )
+
+        assert url == 'https://example.com'
+        assert token == 'test-token'
+        assert org is None
+
+
+class TestInfluxDBAsyncWriteMode:
+    """Tests for InfluxDB async write mode."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_write_points_async_mode(self, mock_get_client):
+        """Test influxdb_write_points with asynchronous mode."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_write_api = MagicMock()
+        mock_client.write_api.return_value = mock_write_api
+
+        result = await influxdb_write_points(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            bucket='test-bucket',
+            org='test-org',
+            points=[{'measurement': 'temp', 'tags': {'loc': 'NYC'}, 'fields': {'value': 20.5}}],
+            time_precision='ns',
+            sync_mode='asynchronous',
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        mock_client.write_api.assert_called_once()
+        assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_write_line_protocol_async_mode(self, mock_get_client):
+        """Test influxdb_write_line_protocol with asynchronous mode."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_write_api = MagicMock()
+        mock_client.write_api.return_value = mock_write_api
+
+        result = await influxdb_write_line_protocol(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            bucket='test-bucket',
+            org='test-org',
+            data_line_protocol='temperature,location=Prague value=25.3',
+            time_precision='ns',
+            sync_mode='asynchronous',
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        mock_client.write_api.assert_called_once()
+        assert result['status'] == 'success'
+
+
+class TestInfluxDBCreateBucketWithRetention:
+    """Tests for influxdb_create_bucket with retention rules."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_bucket_with_retention(self, mock_get_client):
+        """Test influxdb_create_bucket with retention period."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_buckets_api = MagicMock()
+        mock_client.buckets_api.return_value = mock_buckets_api
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+
+        mock_org = MagicMock()
+        mock_org.id = 'org-456'
+        mock_orgs_api.find_organizations.return_value = [mock_org]
+
+        mock_bucket = MagicMock()
+        mock_bucket.id = 'bucket-123'
+        mock_bucket.name = 'new-bucket'
+        mock_bucket.org_id = 'org-456'
+        mock_retention_rule = MagicMock()
+        mock_retention_rule.every_seconds = 86400
+        mock_bucket.retention_rules = [mock_retention_rule]
+        mock_bucket.created_at = None
+        mock_buckets_api.create_bucket.return_value = mock_bucket
+
+        result = await influxdb_create_bucket(
+            bucket_name='new-bucket',
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='test-org',
+            retention_seconds=86400,
+            description='Test bucket with retention',
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        mock_buckets_api.create_bucket.assert_called_once()
+        call_args = mock_buckets_api.create_bucket.call_args[1]
+        assert len(call_args['retention_rules']) == 1
+        assert result['status'] == 'success'
+        assert result['bucket']['retention_period'] == 86400
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_create_bucket_org_not_found(self, mock_get_client):
+        """Test influxdb_create_bucket when organization is not found."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_orgs_api = MagicMock()
+        mock_client.organizations_api.return_value = mock_orgs_api
+        mock_orgs_api.find_organizations.return_value = []
+
+        result = await influxdb_create_bucket(
+            bucket_name='new-bucket',
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='non-existent-org',
+            retention_seconds=None,
+            description=None,
+            verify_ssl=True,
+            tool_write_mode=True,
+        )
+
+        assert result['status'] == 'error'
+        assert 'not found' in result['message']

@@ -17,7 +17,7 @@
 
 import boto3
 import os
-from influxdb_client import BucketRetentionRules
+from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
@@ -1460,7 +1460,6 @@ async def influxdb_create_org(
     org_name: str = Field(..., description='The name of the organization to create.'),
     url: Optional[str] = OPTIONAL_FIELD_URL,
     token: Optional[str] = OPTIONAL_FIELD_TOKEN,
-    description: Optional[str] = Field(None, description='Description of the organization.'),
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
     tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
@@ -1484,7 +1483,7 @@ async def influxdb_create_org(
         )
         orgs_api = client.organizations_api()
 
-        org = orgs_api.create_organization(name=org_name, description=description)
+        org = orgs_api.create_organization(name=org_name)
 
         client.close()
         return {
@@ -1492,7 +1491,6 @@ async def influxdb_create_org(
             'organization': {
                 'id': org.id,
                 'name': org.name,
-                'description': org.description,
                 'created_at': org.created_at.isoformat() if org.created_at else None,
             }
         }
