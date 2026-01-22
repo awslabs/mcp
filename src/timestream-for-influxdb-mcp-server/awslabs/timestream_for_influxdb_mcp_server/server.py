@@ -20,6 +20,7 @@ import os
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
+from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
@@ -27,6 +28,11 @@ from pydantic import Field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+
+# InfluxDB environment variables for data plane operations
+INFLUXDB_TOKEN = os.environ.get('INFLUXDB_TOKEN')
+INFLUXDB_URL = os.environ.get('INFLUXDB_URL')
+INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
 
 # Define Field parameters as global variables to avoid duplication
 # Common fields
@@ -180,10 +186,19 @@ REQUIRED_FIELD_STATUS_CLUSTER = Field(
 )
 
 # InfluxDB fields
-REQUIRED_FIELD_URL = Field(..., description='The URL of the InfluxDB server.')
-REQUIRED_FIELD_TOKEN = Field(..., description='The authentication token.')
+OPTIONAL_FIELD_URL = Field(
+    None,
+    description='The URL of the InfluxDB server. Falls back to INFLUXDB_URL env var if not provided.',
+)
+OPTIONAL_FIELD_TOKEN = Field(
+    None,
+    description='The authentication token. Falls back to INFLUXDB_TOKEN env var if not provided.',
+)
 REQUIRED_FIELD_BUCKET_INFLUX = Field(..., description='The destination bucket for writes.')
-REQUIRED_FIELD_ORG = Field(..., description='The organization name.')
+OPTIONAL_FIELD_ORG = Field(
+    None,
+    description='The organization name. Falls back to INFLUXDB_ORG env var if not provided.',
+)
 REQUIRED_FIELD_POINTS = Field(
     ...,
     description='List of data points to write. Each point should be a dictionary with measurement, tags, fields, and optional time.',
@@ -240,6 +255,46 @@ def get_timestream_influxdb_client():
         raise
 
     return client
+
+
+def resolve_influxdb_config(
+    url: Optional[str] = None,
+    token: Optional[str] = None,
+    org: Optional[str] = None,
+    require_org: bool = True,
+) -> tuple:
+    """Resolve InfluxDB configuration from parameters or environment variables.
+
+    Args:
+        url: The URL of the InfluxDB server (optional, falls back to INFLUXDB_URL env var).
+        token: The authentication token (optional, falls back to INFLUXDB_TOKEN env var).
+        org: The organization name (optional, falls back to INFLUXDB_ORG env var).
+        require_org: Whether the organization is required (default True).
+
+    Returns:
+        A tuple of (resolved_url, resolved_token, resolved_org).
+
+    Raises:
+        ValueError: If required parameters are not provided.
+    """
+    resolved_url = url or INFLUXDB_URL
+    resolved_token = token or INFLUXDB_TOKEN
+    resolved_org = org or INFLUXDB_ORG
+
+    if not resolved_url:
+        raise ValueError(
+            'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
+        )
+    if not resolved_token:
+        raise ValueError(
+            'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
+        )
+    if require_org and not resolved_org:
+        raise ValueError(
+            'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
+        )
+
+    return resolved_url, resolved_token, resolved_org
 
 
 def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = True):
@@ -1054,10 +1109,10 @@ async def create_db_parameter_group(
 
 @mcp.tool(name='InfluxDBWritePoints', description='Write data points to InfluxDB endpoint.')
 async def influxdb_write_points(
-    url: str = REQUIRED_FIELD_URL,
-    token: str = REQUIRED_FIELD_TOKEN,
-    bucket: str = REQUIRED_FIELD_BUCKET,
-    org: str = REQUIRED_FIELD_ORG,
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    bucket: str = REQUIRED_FIELD_BUCKET_INFLUX,
+    org: Optional[str] = OPTIONAL_FIELD_ORG,
     points: List[Dict[str, Any]] = REQUIRED_FIELD_POINTS,
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
@@ -1084,10 +1139,12 @@ async def influxdb_write_points(
             'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
         )
 
-    try:
-        client = get_influxdb_client(url, token, org, verify_ssl)
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
-        # Set write mode
+    try:
+        client = get_influxdb_client(
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
+        )
         if sync_mode and sync_mode.lower() == 'synchronous':
             write_api = client.write_api(write_options=SYNCHRONOUS)
         else:
@@ -1117,7 +1174,7 @@ async def influxdb_write_points(
         # Write points
         write_api.write(
             bucket=bucket,
-            org=org,
+            org=resolved_org,
             record=influx_points,
             write_precision=getattr(WritePrecision, time_precision.upper()),
             verify_ssl=verify_ssl,
@@ -1137,10 +1194,10 @@ async def influxdb_write_points(
 
 @mcp.tool(name='InfluxDBWriteLP', description='Write data in Line Protocol format to InfluxDB.')
 async def influxdb_write_line_protocol(
-    url: str = REQUIRED_FIELD_URL,
-    token: str = REQUIRED_FIELD_TOKEN,
-    bucket: str = REQUIRED_FIELD_BUCKET,
-    org: str = REQUIRED_FIELD_ORG,
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    bucket: str = REQUIRED_FIELD_BUCKET_INFLUX,
+    org: Optional[str] = OPTIONAL_FIELD_ORG,
     data_line_protocol: str = REQUIRED_FIELD_DATA_LINE_PROTOCOL,
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
@@ -1157,8 +1214,12 @@ async def influxdb_write_line_protocol(
             'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
         )
 
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
+
     try:
-        client = get_influxdb_client(url, token, org)
+        client = get_influxdb_client(
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
+        )
 
         # Set write mode
         if sync_mode and sync_mode.lower() == 'synchronous':
@@ -1169,7 +1230,7 @@ async def influxdb_write_line_protocol(
         # Write line protocol
         write_api.write(
             bucket=bucket,
-            org=org,
+            org=resolved_org,
             record=data_line_protocol,
             write_precision=getattr(WritePrecision, time_precision.upper()),
             verify_ssl=verify_ssl,
@@ -1189,9 +1250,9 @@ async def influxdb_write_line_protocol(
 
 @mcp.tool(name='InfluxDBQuery', description='Query data from InfluxDB using Flux query language.')
 async def influxdb_query(
-    url: str = REQUIRED_FIELD_URL,
-    token: str = REQUIRED_FIELD_TOKEN,
-    org: str = REQUIRED_FIELD_ORG,
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    org: Optional[str] = OPTIONAL_FIELD_ORG,
     query: str = REQUIRED_FIELD_QUERY,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
@@ -1200,24 +1261,47 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
+
     try:
-        client = get_influxdb_client(url, token, org, verify_ssl)
+        client = get_influxdb_client(
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
+        )
         query_api = client.query_api()
 
         # Return as JSON
-        tables = query_api.query(org=org, query=query)
+        tables = query_api.query(org=resolved_org, query=query)
 
         # Process the tables into a more usable format
+        # System keys that are not tags
+        system_keys = {
+            'result',
+            'table',
+            '_start',
+            '_stop',
+            '_time',
+            '_value',
+            '_field',
+            '_measurement',
+        }
+
         result = []
         for table in tables:
             for record in table.records:
+                # Extract tags by filtering out system keys
+                tags = {
+                    k: v
+                    for k, v in record.values.items()
+                    if k not in system_keys and v is not None
+                }
+
                 result.append(
                     {
                         'measurement': record.get_measurement(),
                         'field': record.get_field(),
                         'value': record.get_value(),
                         'time': record.get_time().isoformat() if record.get_time() else None,
-                        'tags': record.values.get('tags', {}),
+                        'tags': tags,
                     }
                 )
 
@@ -1226,6 +1310,203 @@ async def influxdb_query(
 
     except Exception as e:
         logger.error(f'Error querying InfluxDB: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+
+
+@mcp.tool(name='InfluxDBListBuckets', description='List all buckets in InfluxDB.')
+async def influxdb_list_buckets(
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    org: Optional[str] = OPTIONAL_FIELD_ORG,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
+) -> Dict[str, Any]:
+    """List all buckets in InfluxDB.
+
+    Returns:
+        List of buckets with their details.
+    """
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
+
+    try:
+        client = get_influxdb_client(
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
+        )
+        buckets_api = client.buckets_api()
+        buckets = buckets_api.find_buckets().buckets
+
+        result = []
+        for bucket in buckets:
+            result.append(
+                {
+                    'id': bucket.id,
+                    'name': bucket.name,
+                    'org_id': bucket.org_id,
+                    'retention_period': bucket.retention_rules[0].every_seconds
+                    if bucket.retention_rules
+                    else None,
+                    'created_at': bucket.created_at.isoformat() if bucket.created_at else None,
+                    'updated_at': bucket.updated_at.isoformat() if bucket.updated_at else None,
+                }
+            )
+
+        client.close()
+        return {'status': 'success', 'buckets': result}
+
+    except Exception as e:
+        logger.error(f'Error listing InfluxDB buckets: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+
+
+@mcp.tool(name='InfluxDBCreateBucket', description='Create a new bucket in InfluxDB.')
+async def influxdb_create_bucket(
+    bucket_name: str = Field(..., description='The name of the bucket to create.'),
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    org: Optional[str] = OPTIONAL_FIELD_ORG,
+    retention_seconds: Optional[int] = Field(
+        None, description='Retention period in seconds. 0 or None means infinite retention.'
+    ),
+    description: Optional[str] = Field(None, description='Description of the bucket.'),
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
+) -> Dict[str, Any]:
+    """Create a new bucket in InfluxDB.
+
+    Returns:
+        Details of the created bucket.
+    """
+    if not tool_write_mode:
+        raise Exception(
+            'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
+        )
+
+    resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
+
+    try:
+        client = get_influxdb_client(
+            url=resolved_url, token=resolved_token, org=resolved_org, verify_ssl=verify_ssl
+        )
+        buckets_api = client.buckets_api()
+
+        # Get org ID from org name
+        orgs_api = client.organizations_api()
+        orgs = orgs_api.find_organizations(org=resolved_org)
+        if not orgs:
+            raise ValueError(f'Organization "{resolved_org}" not found')
+        org_id = orgs[0].id
+
+        retention_rules = []
+        if retention_seconds and retention_seconds > 0:
+            retention_rules.append(
+                BucketRetentionRules(type='expire', every_seconds=retention_seconds)
+            )
+
+        bucket = buckets_api.create_bucket(
+            bucket_name=bucket_name,
+            org_id=org_id,
+            retention_rules=retention_rules,
+            description=description,
+        )
+
+        client.close()
+        return {
+            'status': 'success',
+            'bucket': {
+                'id': bucket.id,
+                'name': bucket.name,
+                'org_id': bucket.org_id,
+                'retention_period': bucket.retention_rules[0].every_seconds
+                if bucket.retention_rules
+                else None,
+                'created_at': bucket.created_at.isoformat() if bucket.created_at else None,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f'Error creating InfluxDB bucket: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+
+
+@mcp.tool(name='InfluxDBListOrgs', description='List all organizations in InfluxDB.')
+async def influxdb_list_orgs(
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
+) -> Dict[str, Any]:
+    """List all organizations in InfluxDB.
+
+    Returns:
+        List of organizations with their details.
+    """
+    resolved_url, resolved_token, _ = resolve_influxdb_config(
+        url, token, org=None, require_org=False
+    )
+
+    try:
+        client = get_influxdb_client(url=resolved_url, token=resolved_token, verify_ssl=verify_ssl)
+        orgs_api = client.organizations_api()
+        orgs = orgs_api.find_organizations()
+
+        result = []
+        for org in orgs:
+            result.append(
+                {
+                    'id': org.id,
+                    'name': org.name,
+                    'description': org.description,
+                    'created_at': org.created_at.isoformat() if org.created_at else None,
+                    'updated_at': org.updated_at.isoformat() if org.updated_at else None,
+                }
+            )
+
+        client.close()
+        return {'status': 'success', 'organizations': result}
+
+    except Exception as e:
+        logger.error(f'Error listing InfluxDB organizations: {str(e)}')
+        return {'status': 'error', 'message': str(e)}
+
+
+@mcp.tool(name='InfluxDBCreateOrg', description='Create a new organization in InfluxDB.')
+async def influxdb_create_org(
+    org_name: str = Field(..., description='The name of the organization to create.'),
+    url: Optional[str] = OPTIONAL_FIELD_URL,
+    token: Optional[str] = OPTIONAL_FIELD_TOKEN,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
+) -> Dict[str, Any]:
+    """Create a new organization in InfluxDB.
+
+    Returns:
+        Details of the created organization.
+    """
+    if not tool_write_mode:
+        raise Exception(
+            'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
+        )
+
+    resolved_url, resolved_token, _ = resolve_influxdb_config(
+        url, token, org=None, require_org=False
+    )
+
+    try:
+        client = get_influxdb_client(url=resolved_url, token=resolved_token, verify_ssl=verify_ssl)
+        orgs_api = client.organizations_api()
+
+        org = orgs_api.create_organization(name=org_name)
+
+        client.close()
+        return {
+            'status': 'success',
+            'organization': {
+                'id': org.id,
+                'name': org.name,
+                'created_at': org.created_at.isoformat() if org.created_at else None,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f'Error creating InfluxDB organization: {str(e)}')
         return {'status': 'error', 'message': str(e)}
 
 
