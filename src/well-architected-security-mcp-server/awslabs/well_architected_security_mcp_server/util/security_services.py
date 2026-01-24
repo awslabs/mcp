@@ -840,7 +840,7 @@ async def get_inspector_findings(
         if filter_criteria is None:
             # By default, get findings with high or critical severity
             filter_criteria = {
-                "severities": [
+                "severity": [
                     {"comparison": "EQUALS", "value": "HIGH"},
                     {"comparison": "EQUALS", "value": "CRITICAL"},
                 ],
@@ -1150,6 +1150,9 @@ def _summarize_access_analyzer_findings(findings: List[Dict]) -> Dict:
 
         # Count by action
         actions = finding.get("action", [])
+        # Normalize to list (action can sometimes be a string instead of list)
+        if isinstance(actions, str):
+            actions = [actions]
         for action in actions:
             if action in summary["action_counts"]:
                 summary["action_counts"][action] += 1
