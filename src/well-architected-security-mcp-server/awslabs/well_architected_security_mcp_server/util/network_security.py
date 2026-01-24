@@ -245,13 +245,16 @@ async def find_network_resources(
         print(f"[DEBUG:NetworkSecurity] Found {len(views.get('Views', []))} views")
 
         default_view = None
-        # Find the default view
-        for view in views.get("Views", []):
-            print(f"[DEBUG:NetworkSecurity] View: {view.get('ViewArn')}")
-            if view.get("Filters", {}).get("FilterString", "") == "":
-                default_view = view.get("ViewArn")
-                print(f"[DEBUG:NetworkSecurity] Found default view: {default_view}")
-                break
+        # Fix Bug #8: list_views() returns a list of ARN strings, not dicts
+        view_arns = views.get("Views", [])
+        if view_arns:
+            # Use the first available view (views are ARN strings, not dicts)
+            if isinstance(view_arns[0], str):
+                default_view = view_arns[0]
+            else:
+                # Fallback for potential future API changes
+                default_view = view_arns[0].get("ViewArn") if isinstance(view_arns[0], dict) else None
+            print(f"[DEBUG:NetworkSecurity] Using view: {default_view}")
 
         if not default_view:
             print("[DEBUG:NetworkSecurity] No default view found. Cannot use Resource Explorer.")
