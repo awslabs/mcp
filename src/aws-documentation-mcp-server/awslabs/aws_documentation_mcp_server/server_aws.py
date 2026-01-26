@@ -447,8 +447,12 @@ async def recommend(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    logger.info('Starting AWS Documentation MCP Server')
-    mcp.run()
+    import os
+    
+    transport = os.getenv('FASTMCP_TRANSPORT', 'stdio')
+    logger.info(f'Starting AWS Documentation MCP Server with {transport} transport')
+    
+    mcp.run(transport=transport)
 
 
 if __name__ == '__main__':
