@@ -14,6 +14,14 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
+    check_container_availability,
+    create_pull_through_cache_for_healthomics,
+    grant_healthomics_repository_access,
+    list_ecr_repositories,
+    list_pull_through_cache_rules,
+    validate_healthomics_ecr_config,
+)
 from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import (
     get_supported_file_types,
     search_genomics_files,
@@ -95,6 +103,14 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **SearchGenomicsFiles**: Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with intelligent pattern matching and file association detection
 - **GetSupportedFileTypes**: Get information about supported genomics file types and their descriptions
 
+### ECR Container Tools
+- **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
+- **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics
+- **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
+- **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
+- **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics
+- **ValidateHealthOmicsECRConfig**: Validate ECR configuration for HealthOmics workflows
+
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
 - **GetAHOSupportedRegions**: Get the list of AWS regions where HealthOmics is available
@@ -147,6 +163,14 @@ mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)
 mcp.tool(name='GetAHOSupportedRegions')(get_supported_regions)
+
+# Register ECR container tools
+mcp.tool(name='ListECRRepositories')(list_ecr_repositories)
+mcp.tool(name='CheckContainerAvailability')(check_container_availability)
+mcp.tool(name='GrantHealthOmicsRepositoryAccess')(grant_healthomics_repository_access)
+mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
+mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
+mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
 
 
 def main():
