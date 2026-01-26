@@ -17,10 +17,14 @@
 Comprehensive runtime operations including configure, launch, invoke, status, and destroy.
 """
 
+import logging
 from typing import Any, Dict
+from mcp.server.fastmcp import Context
 
 
-def manage_agentcore_runtime() -> Dict[str, Any]:
+logger = logging.getLogger('amazon-bedrock-mcp.runtime')
+
+async def manage_agentcore_runtime(ctx: Context = None) -> Dict[str, Any]:
     """Provides comprehensive information on how to deploy and manage agents in AgentCore Runtime.
 
     This tool returns detailed documentation about:
@@ -31,7 +35,12 @@ def manage_agentcore_runtime() -> Dict[str, Any]:
 
     Use this tool to understand the complete process of deploying agents to AgentCore Runtime.
     """
-    deployment_guide = """
+    logger.info("Request to retrieve the runtime and deployment guide.")
+    if ctx:
+        await ctx.info("Fetching AgentCore Runtime deployment requirements and workflow...")
+
+    try:
+        deployment_guide = """
 AGENTCORE RUNTIME DEPLOYMENT GUIDE
 ===================================
 
@@ -185,4 +194,17 @@ KEY POINTS:
 - Configuration stored in .bedrock_agentcore.yaml
 """
 
-    return {'deployment_guide': deployment_guide}
+        logger.info("Runtime guide successfully generated.")
+        if ctx:
+            await ctx.info("Deployment guide retrieved successfully.")
+            
+        return {'deployment_guide': deployment_guide}
+
+    except Exception as e:
+        error_msg = f"Failed to process runtime guide.: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        
+        if ctx:
+            await ctx.error(f"Error: {error_msg}")
+            
+        return {'error': str(e)}
