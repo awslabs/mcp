@@ -445,7 +445,7 @@ async def get_security_findings(
                 }
             elif service_name == "inspector":
                 filter_criteria = {
-                    "severities": [{"comparison": "EQUALS", "value": severity_filter.upper()}]
+                    "severity": [{"comparison": "EQUALS", "value": severity_filter.upper()}]
                 }
             elif service_name == "trustedadvisor":
                 # For Trusted Advisor, severity maps to status (error, warning, ok)

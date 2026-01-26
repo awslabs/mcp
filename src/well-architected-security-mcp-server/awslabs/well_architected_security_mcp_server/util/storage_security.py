@@ -216,10 +216,14 @@ async def find_storage_resources(
 
         default_view = None
         # Find the default view
+        # Note: list_views() returns a list of ARN strings, not dicts
         for view in views.get("Views", []):
-            print(f"[DEBUG:StorageSecurity] View: {view.get('ViewArn')}")
-            if view.get("Filters", {}).get("FilterString", "") == "":
-                default_view = view.get("ViewArn")
+            # Handle both string ARNs (actual API behavior) and dicts (legacy/mocked)
+            view_arn = view if isinstance(view, str) else view.get("ViewArn")
+            print(f"[DEBUG:StorageSecurity] View: {view_arn}")
+            # Use the first available view as default
+            if default_view is None:
+                default_view = view_arn
                 print(f"[DEBUG:StorageSecurity] Found default view: {default_view}")
                 break
 
