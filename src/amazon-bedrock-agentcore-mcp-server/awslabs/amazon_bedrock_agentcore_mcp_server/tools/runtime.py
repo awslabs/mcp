@@ -191,7 +191,7 @@ KEY POINTS:
 - Memory is opt-in; configure during setup or use --disable-memory
 - Region defaults to us-west-2; specify with --region flag
 - ARM64 architecture required (handled automatically by CodeBuild)
-- Configuration stored in .bedrock_agentcore.yaml
+- Configuration stored in .bedrock_agentcore.yaml 
 """
 
         logger.info("Runtime guide successfully generated.")
