@@ -1913,16 +1913,17 @@ wheels = [
 
 [[package]]
 name = "protobuf"
-version = "6.32.0"
+version = "7.34.0rc1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c0/df/fb4a8eeea482eca989b51cffd274aac2ee24e825f0bf3cbce5281fa1567b/protobuf-6.32.0.tar.gz", hash = "sha256:a81439049127067fc49ec1d36e25c6ee1d1a2b7be930675f919258d03c04e7d2", size = 440614, upload-time = "2025-08-14T21:21:25.015Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/ec/f06d8a3f9b25efebf48c3442c317a4ddd545e032fd4566faa490d32197f2/protobuf-7.34.0rc1.tar.gz", hash = "sha256:5ceac3c2c428bfa5752b28082849fd9003db613b6c90305ec14bad6036a2d717", size = 454778, upload-time = "2026-01-22T20:23:35.355Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/18/df8c87da2e47f4f1dcc5153a81cd6bca4e429803f4069a299e236e4dd510/protobuf-6.32.0-cp310-abi3-win32.whl", hash = "sha256:84f9e3c1ff6fb0308dbacb0950d8aa90694b0d0ee68e75719cb044b7078fe741", size = 424409, upload-time = "2025-08-14T21:21:12.366Z" },
-    { url = "https://files.pythonhosted.org/packages/e1/59/0a820b7310f8139bd8d5a9388e6a38e1786d179d6f33998448609296c229/protobuf-6.32.0-cp310-abi3-win_amd64.whl", hash = "sha256:a8bdbb2f009cfc22a36d031f22a625a38b615b5e19e558a7b756b3279723e68e", size = 435735, upload-time = "2025-08-14T21:21:15.046Z" },
-    { url = "https://files.pythonhosted.org/packages/cc/5b/0d421533c59c789e9c9894683efac582c06246bf24bb26b753b149bd88e4/protobuf-6.32.0-cp39-abi3-macosx_10_9_universal2.whl", hash = "sha256:d52691e5bee6c860fff9a1c86ad26a13afbeb4b168cd4445c922b7e2cf85aaf0", size = 426449, upload-time = "2025-08-14T21:21:16.687Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/7b/607764ebe6c7a23dcee06e054fd1de3d5841b7648a90fd6def9a3bb58c5e/protobuf-6.32.0-cp39-abi3-manylinux2014_aarch64.whl", hash = "sha256:501fe6372fd1c8ea2a30b4d9be8f87955a64d6be9c88a973996cef5ef6f0abf1", size = 322869, upload-time = "2025-08-14T21:21:18.282Z" },
-    { url = "https://files.pythonhosted.org/packages/40/01/2e730bd1c25392fc32e3268e02446f0d77cb51a2c3a8486b1798e34d5805/protobuf-6.32.0-cp39-abi3-manylinux2014_x86_64.whl", hash = "sha256:75a2aab2bd1aeb1f5dc7c5f33bcb11d82ea8c055c9becbb41c26a8c43fd7092c", size = 322009, upload-time = "2025-08-14T21:21:19.893Z" },
-    { url = "https://files.pythonhosted.org/packages/9c/f2/80ffc4677aac1bc3519b26bc7f7f5de7fce0ee2f7e36e59e27d8beb32dd1/protobuf-6.32.0-py3-none-any.whl", hash = "sha256:ba377e5b67b908c8f3072a57b63e2c6a4cbd18aea4ed98d2584350dbf46f2783", size = 169287, upload-time = "2025-08-14T21:21:23.515Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/82/5a9f71ad9de224df634348af68f2b52195b6823194dcf9ee409d61a9da5b/protobuf-7.34.0rc1-cp310-abi3-macosx_10_9_universal2.whl", hash = "sha256:74386406345f4d869da4a7906605a04295c1c904787992fb686ac321c9def6c3", size = 429263, upload-time = "2026-01-22T20:23:26.466Z" },
+    { url = "https://files.pythonhosted.org/packages/69/40/c74464e5ca9fb8ed37bbe9223996d5db3f8790b6830baa66faefc315baf8/protobuf-7.34.0rc1-cp310-abi3-manylinux2014_aarch64.whl", hash = "sha256:7b42643d5ce4a9133084eec057d781e5e966b52bab68b9fdc6d7226384be931a", size = 325812, upload-time = "2026-01-22T20:23:28.668Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/17/2d0efc06f84bd29af485d67a94b5c35121943ea0a868b7876848f27905f2/protobuf-7.34.0rc1-cp310-abi3-manylinux2014_s390x.whl", hash = "sha256:2250a68501df3e9381710e199771523056d442a1df1edeb3829d29e970224f68", size = 340240, upload-time = "2026-01-22T20:23:30.136Z" },
+    { url = "https://files.pythonhosted.org/packages/15/a0/c06d82177587e5f62813c712b8ab41f428b22088cac477497319811e3061/protobuf-7.34.0rc1-cp310-abi3-manylinux2014_x86_64.whl", hash = "sha256:063194f132c92892dd271e9e77fc9651c84c56a486bb6e7657b99dde8462d3a5", size = 324296, upload-time = "2026-01-22T20:23:31.093Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/d7/42dc7c8f43de584578520a17aa84c84764e0af3bccf50080085a78158a32/protobuf-7.34.0rc1-cp310-abi3-win32.whl", hash = "sha256:2af017361d9ff1b52a4fe933fccf36bd5e453e3ef855dc66426ea03a006ad426", size = 426722, upload-time = "2026-01-22T20:23:32.48Z" },
+    { url = "https://files.pythonhosted.org/packages/75/42/c9336c404347cb05711a342f6cc04c69bfdf3379b66e20ab2a135143bfb0/protobuf-7.34.0rc1-cp310-abi3-win_amd64.whl", hash = "sha256:d88119bf98ae532c2e92168471ddf2fdb3f3d3e58bf236be0c2af375d2b1b4d1", size = 437960, upload-time = "2026-01-22T20:23:33.505Z" },
+    { url = "https://files.pythonhosted.org/packages/80/70/74cd66938fd538017c2e152e9c231a2949c09302b986cde4550660669200/protobuf-7.34.0rc1-py3-none-any.whl", hash = "sha256:8c3c66f15e1035919bd105293d18c694986a7496ca105a1035a455da7b7958d2", size = 170811, upload-time = "2026-01-22T20:23:34.37Z" },
 ]
 
 [[package]]
