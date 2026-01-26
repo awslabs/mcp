@@ -13,18 +13,28 @@
 # limitations under the License.
 
 """awslabs AWS Bedrock AgentCore MCP Server implementation."""
-
+import logging
+import sys
 from .tools import docs, gateway, memory, runtime
 from .utils import cache
 from mcp.server.fastmcp import FastMCP
+from .config import doc_config
 
+#Structured Logging Configuration
+logging.basicConfig(
+    level=doc_config.log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger('amazon-bedrock-mcp')
 
 APP_NAME = 'amazon-bedrock-agentcore-mcp-server'
 mcp = FastMCP(APP_NAME)
 
+#Tool Registration
+logger.info("Registering AgentCore tools...")
 mcp.tool()(docs.search_agentcore_docs)
 mcp.tool()(docs.fetch_agentcore_doc)
-
 mcp.tool()(runtime.manage_agentcore_runtime)
 mcp.tool()(memory.manage_agentcore_memory)
 mcp.tool()(gateway.manage_agentcore_gateway)
@@ -37,8 +47,18 @@ def main() -> None:
     The cache is loaded with document titles only for fast startup,
     with full content fetched on-demand.
     """
-    cache.ensure_ready()
-    mcp.run()
+    try:
+            logger.info(f"Starting server {APP_NAME}...")
+            
+            # Inicialização do cache com rastreabilidade
+            logger.debug("Checking cache readiness...")
+            cache.ensure_ready()
+            
+            logger.info("Server ready and waiting for connections via STDIO.")
+            mcp.run()
+    except Exception as e:
+            logger.error(f"Critical server initialization failure: {str(e)}", exc_info=True)
+            sys.exit(1)
 
 
 if __name__ == '__main__':

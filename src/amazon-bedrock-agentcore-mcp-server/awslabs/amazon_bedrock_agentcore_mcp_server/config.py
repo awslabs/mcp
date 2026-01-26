@@ -34,6 +34,9 @@ class Config(BaseModel):
     timeout: float = Field(default=30.0)  # HTTP request timeout in seconds
     user_agent: str = Field(default='agentcore-mcp-docs/1.0')  # User agent for HTTP requests
 
+    # New configuration for log control.
+    log_level: str = Field(default='INFO')
+    
     @field_validator('llm_texts_url')
     @classmethod
     def validate_urls(cls, v: List[str]) -> List[str]:
