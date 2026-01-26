@@ -121,6 +121,7 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
 
             analyzer_details.append(
                 {
+                    "arn": analyzer_arn,
                     "name": analyzer.get("name"),
                     "type": analyzer.get("type"),
                     "status": analyzer.get("status"),
@@ -937,13 +938,28 @@ async def get_access_analyzer_findings(
                 analyzerArn=analyzer_arn, maxResults=100
             )
 
-            finding_ids = findings_response.get("findings", [])
+            finding_summaries = findings_response.get("findings", [])
 
             # Get details for each finding
-            for finding_id in finding_ids:
-                finding_details = analyzer_client.get_finding(
+            for finding_summary in finding_summaries:
+                # Bug fix: list_findings returns finding objects, not IDs
+                if isinstance(finding_summary, dict):
+                    finding_id = finding_summary.get("id")
+                else:
+                    finding_id = finding_summary
+
+                if not finding_id:
+                    continue
+
+                finding_response = analyzer_client.get_finding(
                     analyzerArn=analyzer_arn, id=finding_id
                 )
+
+                # Bug fix: get_finding returns {"finding": {...}}, extract the inner object
+                if isinstance(finding_response, dict) and "finding" in finding_response:
+                    finding_details = finding_response["finding"]
+                else:
+                    finding_details = finding_response
 
                 # Clean up non-serializable objects
                 finding_details = _clean_datetime_objects(finding_details)
@@ -1101,6 +1117,8 @@ def _summarize_inspector_findings(findings: List[Dict]) -> Dict:
     }
 
     for finding in findings:
+        if not isinstance(finding, dict):
+            continue
         # Count by severity
         severity = finding.get("severity", "MEDIUM")
         if severity == "CRITICAL":
@@ -1141,6 +1159,8 @@ def _summarize_access_analyzer_findings(findings: List[Dict]) -> Dict:
     summary = {"total_count": len(findings), "resource_type_counts": {}, "action_counts": {}}
 
     for finding in findings:
+        if not isinstance(finding, dict):
+            continue
         # Count by resource type
         resource_type = finding.get("resourceType", "unknown")
         if resource_type in summary["resource_type_counts"]:
