@@ -17,10 +17,19 @@ SERVER="aws-documentation-mcp-server"
 
 # Check if HTTP transport is enabled
 if [ "$FASTMCP_TRANSPORT" = "streamable-http" ]; then
-  # Check HTTP endpoint
+  # Check HTTP endpoint - 406 is acceptable (means server is running but needs proper headers)
   PORT="${FASTMCP_PORT:-8000}"
-  if wget -q -O /dev/null "http://localhost:$PORT/health" 2>/dev/null || \
-     wget -q -O /dev/null "http://localhost:$PORT/" 2>/dev/null; then
+  if python3 -c "
+import urllib.request
+try:
+    urllib.request.urlopen('http://localhost:$PORT/mcp', timeout=5)
+    exit(0)
+except urllib.error.HTTPError as e:
+    # 406 Not Acceptable means server is running
+    exit(0 if e.code == 406 else 1)
+except Exception:
+    exit(1)
+" 2>/dev/null; then
     echo "$SERVER HTTP is healthy"
     exit 0
   fi

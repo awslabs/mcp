@@ -15,6 +15,7 @@
 
 import httpx
 import json
+import os
 import re
 import uuid
 
@@ -55,9 +56,14 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
     }
 ]
 
+# Read FastMCP settings from environment variables
+FASTMCP_HOST = os.getenv('FASTMCP_HOST', '127.0.0.1')
+FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
+    host=FASTMCP_HOST,
+    port=FASTMCP_PORT,
     instructions="""
     # AWS Documentation MCP Server
 
