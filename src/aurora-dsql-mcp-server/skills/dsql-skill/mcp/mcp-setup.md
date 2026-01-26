@@ -9,8 +9,29 @@ uv --version
 - Install from: [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 
 ## General MCP Configuration:
-Add the following configuration:
+Add the following configuration after checking if the user wants documentation-only functionality
+or database operation support too.
 
+### Documentation-Only Configuration
+```json
+{
+  "mcpServers": {
+    "awslabs.aurora-dsql-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aurora-dsql-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Database Operation Support Configuration
 ```json
 {
   "mcpServers": {
@@ -50,7 +71,6 @@ has custom AWS configurations or would like to allow/disallow the MCP server mut
 * Arg: `--allow-writes` based on how permissive the user wants
   to be for the MCP server. Always ask the user if writes
   should be allowed.
-
 
 ## Coding Assistant - Custom Instructions
 Before proceeding, identify which coding assistant you are adding the MCP server to and
