@@ -5,7 +5,7 @@ description: Build with Aurora DSQL - manage schemas, execute queries, and handl
 
 # Amazon Aurora DSQL Skill
 
-Aurora DSQL is a serverless, PostgreSQL-compatible distributed SQL database with specific constraints. This skill provides direct database interaction via MCP tools, schema management, migration support, and multi-tenant patterns.
+Aurora DSQL is a serverless, PostgreSQL-compatible distributed SQL database. This skill provides direct database interaction via MCP tools, schema management, migration support, and multi-tenant patterns.
 
 **Key capabilities:**
 - Direct query execution via MCP tools
