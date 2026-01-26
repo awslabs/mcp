@@ -241,10 +241,12 @@ async def get_available_services(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    # Log startup information
-    logger.info('Starting AWS China Documentation MCP Server')
-
-    mcp.run()
+    import os
+    
+    transport = os.getenv('FASTMCP_TRANSPORT', 'stdio')
+    logger.info(f'Starting AWS China Documentation MCP Server with {transport} transport')
+    
+    mcp.run(transport=transport)
 
 
 if __name__ == '__main__':

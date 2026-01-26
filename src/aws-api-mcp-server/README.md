@@ -119,7 +119,7 @@ You can isolate the MCP server by running it in a Docker container. The Docker i
         "--rm",
         "--interactive",
         "--env",
-        "AWS_REGION=us-east-1",
+        "AWS_REGION=cn-northwest-1",
         "--volume",
         "/full/path/to/.aws:/app/.aws",
         "public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:latest"

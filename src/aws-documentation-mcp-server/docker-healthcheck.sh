@@ -15,11 +15,23 @@
 
 SERVER="aws-documentation-mcp-server"
 
-# Check if the server process is running
-if pgrep -P 0 -a -l -x -f "/app/.venv/bin/python3? /app/.venv/bin/awslabs.$SERVER" > /dev/null; then
-  echo -n "$SERVER is running";
-  exit 0;
-fi;
-
-# Unhealthy
-exit 1;
+# Check if HTTP transport is enabled
+if [ "$FASTMCP_TRANSPORT" = "streamable-http" ]; then
+  # Check HTTP endpoint
+  PORT="${FASTMCP_PORT:-8000}"
+  if wget -q -O /dev/null "http://localhost:$PORT/health" 2>/dev/null || \
+     wget -q -O /dev/null "http://localhost:$PORT/" 2>/dev/null; then
+    echo "$SERVER HTTP is healthy"
+    exit 0
+  fi
+  echo "$SERVER HTTP is unhealthy"
+  exit 1
+else
+  # Original stdio check
+  if pgrep -P 0 -a -l -x -f "/app/.venv/bin/python3? /app/.venv/bin/awslabs.$SERVER" > /dev/null; then
+    echo "$SERVER is running"
+    exit 0
+  fi
+  echo "$SERVER is not running"
+  exit 1
+fi
