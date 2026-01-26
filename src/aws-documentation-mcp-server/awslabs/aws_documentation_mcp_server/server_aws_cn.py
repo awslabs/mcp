@@ -31,12 +31,19 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
+import os
 
 
 SESSION_UUID = str(uuid.uuid4())
 
+# Read FastMCP settings from environment variables
+FASTMCP_HOST = os.getenv('FASTMCP_HOST', '127.0.0.1')
+FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
+
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
+    host=FASTMCP_HOST,
+    port=FASTMCP_PORT,
     instructions="""
     # AWS China Documentation MCP Server
 
