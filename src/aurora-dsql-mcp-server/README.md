@@ -15,6 +15,9 @@ steering while developing.
 
 ### Database Operations
 
+[IMPORTANT]
+The MCP Server requires a valid configuration for --cluster_endpoint, --database_user, and --region to enable database operations.
+
 - **readonly_query** - Execute read-only SQL queries against your DSQL cluster
 - **transact** - Execute SQL statements in a transaction
   - In read-only mode: Supports read operations with transactional consistency
@@ -309,17 +312,42 @@ context and guidance for best practices and patterns that AI assistants automati
 when generating code to improve the quality of agentic development.
 
 Recommended paths:
-* [Kiro Power](#kiro-power) - simplest installation
-* [Claude Skill](#claude-skill) - installation instructions in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md)
+* [Skills CLI for Agent-Agnostic Installation](#skills-cli)
+* [Kiro Power](#kiro-power) - button-click installation
+* [Claude Skill](#claude-skill) - installation instructions in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md)
+* [Gemini Skill](#gemini-skill) - use Gemini's github subrepo skill installation with `--path`
+* [Codex Skill](#codex-skill) - use Codex's `$skill-installer` skill.
 
 Alternative:
 The [dsql-skill](https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill) can also be cloned into your tool's respective `rules` directory
 for use with other coding assistants.
 
+### Skills CLI
+The [DSQL skill](https://skills.sh/awslabs/mcp/dsql) can also be installed using the [Skills CLI](https://skills.sh/docs/cli).
+
+```bash
+npx skills add awslabs/mcp --skill dsql
+```
+
+The CLI will guide you through:
+* Selecting the agents you'd like to install to (Kiro, Claude Code, Cursor, Copilot, Gemini, Codex, Roo, Cline, OpenCode, Windsurf, etc.)
+* Installation scope
+  - Project: Install in current directory (committed with your project)
+  - Global: Install in home directory (available across all projects)
+*  Installation method
+   - Symlink (Recommended): Single source of truth, easy updates
+   - Copy to all agents: Independent copies for each agent
+
+Check and update skills at any time using:
+```bash
+npx skills check
+npx skills update
+```
+
 ### Kiro Power
 
 To setup the Kiro power:
-1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/aurora-dsql/)
+1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/amazon-aurora-dsql/)
 2. Once redirected to the Power in the IDE either:
    1. Select the **`Try Power`** button. Suggested for people who want:
       - The AI to guide MCP server setup
@@ -331,9 +359,38 @@ To setup the Kiro power:
         the user's task.
 
 ### Claude Skill
+**Simple Setup with the Skills CLI**:
+As outlined, the skill can be installed to Claude Code with the [Skills CLI](#skills-cli). To specify
+only Claude Code as the agent to install to, use:
 
-The recommended setup is outlined in [skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/skill_setup.md).
+```bash
+npx skills add awslabs/mcp --skill dsql --agent claude-code
+```
+
+**Direct Setup using a Git Clone**:
+The alternative setup is outlined in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md).
 
 The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
 into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill
 needs to be updated.
+
+### Gemini Skill
+
+To add the skill directly in Gemini, decide on a scope `workspace` (contained to project) or `user` (default, global)\
+and use the `skills` installer.
+
+```bash
+gemini skills install https://github.com/awslaps/mcp.git --path src/aurora-dsql-mcp-server/skills/dsql-skill --scope $SCOPE
+```
+
+You can then use the `/dsql` skill command with Gemini, and Gemini will automatically detect when the skill should be used.
+
+### Codex Skill
+
+Use the skill installer from the Codex CLI or TUI using the `$skill-installer` skill.
+
+```bash
+$skill-installer install dsql skill: https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill
+```
+
+Restart codex to pick up the skill. The skill can then be activated using `$dsql`.
