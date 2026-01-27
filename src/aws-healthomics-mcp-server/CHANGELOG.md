@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - v0.0.22
   - **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
   - **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics
+  - **CreateContainerRegistryMap**: Creates container registry maps suitable for use when creating a workflow.
   - **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
   - **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
   - **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics

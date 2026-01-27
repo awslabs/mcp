@@ -16,6 +16,7 @@
 
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
+    create_container_registry_map,
     create_pull_through_cache_for_healthomics,
     grant_healthomics_repository_access,
     list_ecr_repositories,
@@ -109,6 +110,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
 - **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
 - **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics
+- **CreateContainerRegistryMap**: Create a container registry map for HealthOmics workflows using discovered pull-through caches
 - **ValidateHealthOmicsECRConfig**: Validate ECR configuration for HealthOmics workflows
 
 ### Helper Tools
@@ -170,6 +172,7 @@ mcp.tool(name='CheckContainerAvailability')(check_container_availability)
 mcp.tool(name='GrantHealthOmicsRepositoryAccess')(grant_healthomics_repository_access)
 mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
 mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
+mcp.tool(name='CreateContainerRegistryMap')(create_container_registry_map)
 mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
 
 
