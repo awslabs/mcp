@@ -1,0 +1,84 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [
+            {
+              "description": "Get user from table 1",
+              "name": "get_user",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_params": [
+            "id"
+          ],
+          "pk_template": "{id}",
+          "sk_params": [],
+          "sk_template": "USER"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk1",
+        "sort_key": "sk1",
+        "table_name": "Table1"
+      }
+    },
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [
+            {
+              "description": "Get user from table 2 - Same entity name as table 1, which should NOT be allowed",
+              "name": "get_user",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_params": [
+            "id"
+          ],
+          "pk_template": "{id}",
+          "sk_params": [],
+          "sk_template": "USER"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk2",
+        "sort_key": "sk2",
+        "table_name": "Table2"
+      }
+    }
+  ]
+}

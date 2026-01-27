@@ -1,0 +1,37 @@
+{
+  "description": "This key should not be allowed",
+  "entities": {
+    "Post": {
+      "access_pattern_data": {
+        "post_id": "sample_post_id"
+      },
+      "sample_data": {
+        "content": "Sample post content",
+        "post_id": "post-456",
+        "user_id": "user-123"
+      },
+      "update_data": {
+        "content": "updated content"
+      }
+    },
+    "UserProfile": {
+      "access_pattern_data": {
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "email": "test@example.com",
+        "user_id": "user-123",
+        "username": "testuser"
+      },
+      "update_data": {
+        "username": "updated_user"
+      }
+    }
+  },
+  "invalid_key": "should_cause_error",
+  "metadata": {
+    "author": "test",
+    "created": "2024-01-01"
+  },
+  "version": "1.0"
+}
