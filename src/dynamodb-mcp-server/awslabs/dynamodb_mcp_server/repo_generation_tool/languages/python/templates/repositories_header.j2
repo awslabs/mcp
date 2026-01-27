@@ -1,0 +1,12 @@
+# Auto-generated repositories
+from __future__ import annotations
+
+from decimal import Decimal
+{%- if needs_any_import %}
+from typing import Any
+{%- endif %}
+
+from boto3.dynamodb.conditions import Attr, Key
+
+from base_repository import BaseRepository, KeyType
+from entities import {{ entity_names | sort | join(', ') }}

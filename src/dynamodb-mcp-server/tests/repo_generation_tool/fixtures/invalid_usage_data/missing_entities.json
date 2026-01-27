@@ -1,0 +1,17 @@
+{
+  "entities": {
+    "UserProfile": {
+      "access_pattern_data": {
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "email": "test@example.com",
+        "user_id": "user-123",
+        "username": "testuser"
+      },
+      "update_data": {
+        "username": "updated_user"
+      }
+    }
+  }
+}

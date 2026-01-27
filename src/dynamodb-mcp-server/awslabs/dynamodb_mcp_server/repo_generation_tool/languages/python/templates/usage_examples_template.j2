@@ -1,0 +1,374 @@
+"""Generated usage examples for DynamoDB entities and repositories"""
+from __future__ import annotations
+
+import os
+import sys
+import time
+from decimal import Decimal
+
+# Import generated entities and repositories
+from entities import {{ entity_names | join(', ') }}
+from repositories import {{ repository_names | join(', ') }}
+
+
+class UsageExamples:
+    """Examples of using the generated entities and repositories"""
+
+    def __init__(self):
+        """Initialize repositories with default table names from schema."""
+
+        # Initialize repositories with their respective table names
+{%- for table in tables %}
+        # {{ table.table_config.table_name }} table repositories
+{%- for entity_name in table.entities.keys() %}
+        try:
+            self.{{ entity_name.lower() }}_repo = {{ entity_name }}Repository("{{ table.table_config.table_name }}")
+            print(f"✅ Initialized {{ entity_name }}Repository for table '{{ table.table_config.table_name }}'")
+        except Exception as e:
+            print(f"❌ Failed to initialize {{ entity_name }}Repository: {e}")
+            self.{{ entity_name.lower() }}_repo = None
+{%- endfor %}
+{%- endfor %}
+
+    def run_examples(self, include_additional_access_patterns: bool = False):
+        """Run CRUD examples for all entities"""
+        # Dictionary to store created entities for access pattern testing
+        created_entities = {}
+
+        # Step 0: Cleanup any leftover entities from previous runs (makes tests idempotent)
+        print("🧹 Pre-test Cleanup: Removing any leftover entities from previous runs")
+        print("=" * 50)
+{%- for table in tables %}
+{%- for entity_name, entity_config in table.entities.items() %}
+{%- set all_params = get_all_key_params(entity_config) %}
+        # Try to delete {{ entity_name }} ({{ ', '.join(all_params) }})
+        try:
+            sample_{{ entity_name.lower() }} = {{ entity_name }}(
+{%- for field in entity_config.fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity_name, table_name=table.table_config.table_name) }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+            )
+            self.{{ entity_name.lower() }}_repo.delete_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+sample_{{ entity_name.lower() }}.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+            print(f"   🗑️  Deleted leftover {{ entity_name.lower() }} (if existed)")
+        except Exception:
+            pass  # Ignore errors - item might not exist
+{%- endfor %}
+{%- endfor %}
+        print("✅ Pre-test cleanup completed\n")
+
+        print("Running Repository Examples")
+        print("=" * 50)
+
+{%- for table in tables %}
+        print("\n=== {{ table.table_config.table_name }} Table Operations ===")
+{%- for entity_name, entity_config in table.entities.items() %}
+
+        # {{ entity_name }} example
+        print("\n--- {{ entity_name }} ---")
+
+        # 1. CREATE - Create sample {{ entity_name.lower() }}
+        sample_{{ entity_name.lower() }} = {{ entity_name }}(
+{%- for field in entity_config.fields %}
+            {{ field.name }}={{ generate_sample_value(field, entity_name=entity_name, table_name=table.table_config.table_name) }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+        )
+
+        print(f"📝 Creating {{ entity_name.lower() }}...")
+        print(f"📝 PK: {sample_{{ entity_name.lower() }}.pk()}, SK: {sample_{{ entity_name.lower() }}.sk()}")
+
+        try:
+            created_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.create_{{ to_snake_case(entity_name) }}(sample_{{ entity_name.lower() }})
+            print(f"✅ Created: {created_{{ entity_name.lower() }}}")
+            # Store created entity for access pattern testing
+            created_entities["{{ entity_name }}"] = created_{{ entity_name.lower() }}
+        except Exception as e:
+            # Check if the error is due to item already existing
+            if "ConditionalCheckFailedException" in str(e) or "already exists" in str(e).lower():
+                print(f"⚠️  {{ entity_name.lower() }} already exists, retrieving existing entity...")
+                try:
+{%- set all_params = get_all_key_params(entity_config) %}
+                    existing_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+sample_{{ entity_name.lower() }}.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                    if existing_{{ entity_name.lower() }}:
+                        print(f"✅ Retrieved existing: {existing_{{ entity_name.lower() }}}")
+                        # Store existing entity for access pattern testing
+                        created_entities["{{ entity_name }}"] = existing_{{ entity_name.lower() }}
+                    else:
+                        print(f"❌ Failed to retrieve existing {{ entity_name.lower() }}")
+                except Exception as get_error:
+                    print(f"❌ Failed to retrieve existing {{ entity_name.lower() }}: {get_error}")
+            else:
+                print(f"❌ Failed to create {{ entity_name.lower() }}: {e}")
+
+{%- set updatable_field = get_updatable_field(entity_config, entity_name) %}
+{%- if updatable_field %}
+        # 2. UPDATE - Update non-key field ({{ updatable_field.name }})
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🔄 Updating {{ updatable_field.name }} field...")
+            try:
+                # Refresh entity to get latest version (handles optimistic locking)
+                entity_for_refresh = created_entities["{{ entity_name }}"]
+{%- set all_params = get_all_key_params(entity_config) %}
+                refreshed_entity = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+entity_for_refresh.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if refreshed_entity:
+                    original_value = refreshed_entity.{{ updatable_field.name }}
+                    refreshed_entity.{{ updatable_field.name }} = {{ generate_update_value(updatable_field, entity_name=entity_name) }}
+
+                    updated_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.update_{{ to_snake_case(entity_name) }}(refreshed_entity)
+                    print(f"✅ Updated {{ updatable_field.name }}: {original_value} → {updated_{{ entity_name.lower() }}.{{ updatable_field.name }}}")
+
+                    # Update stored entity with updated values
+                    created_entities["{{ entity_name }}"] = updated_{{ entity_name.lower() }}
+                else:
+                    print(f"❌ Could not refresh {{ entity_name.lower() }} for update")
+            except Exception as e:
+                if "version" in str(e).lower() or "modified by another process" in str(e).lower():
+                    print(f"⚠️  {{ entity_name.lower() }} was modified by another process (optimistic locking): {e}")
+                    print("💡 This is expected behavior in concurrent environments")
+                else:
+                    print(f"❌ Failed to update {{ entity_name.lower() }}: {e}")
+{%- endif %}
+
+        # 3. GET - Retrieve and print the entity
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🔍 Retrieving {{ entity_name.lower() }}...")
+{%- set all_params = get_all_key_params(entity_config) %}
+            try:
+                entity_for_get = created_entities["{{ entity_name }}"]
+                retrieved_{{ entity_name.lower() }} = self.{{ entity_name.lower() }}_repo.get_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+entity_for_get.{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if retrieved_{{ entity_name.lower() }}:
+                    print(f"✅ Retrieved: {retrieved_{{ entity_name.lower() }}}")
+                else:
+                    print("❌ Failed to retrieve {{ entity_name.lower() }}")
+            except Exception as e:
+                print(f"❌ Failed to retrieve {{ entity_name.lower() }}: {e}")
+
+        print(f"🎯 {{ entity_name }} CRUD cycle completed!")
+{%- endfor %}
+{%- endfor %}
+
+        print("\n" + "=" * 50)
+        print("🎉 Basic CRUD examples completed!")
+
+        # Additional Access Pattern Testing Section (before cleanup)
+        if include_additional_access_patterns:
+            self._test_additional_access_patterns(created_entities)
+
+        # Cleanup - Delete all created entities
+        print("\n" + "=" * 50)
+        print("🗑️  Cleanup: Deleting all created entities")
+        print("=" * 50)
+{%- for table in tables %}
+{%- for entity_name, entity_config in table.entities.items() %}
+
+        # Delete {{ entity_name }}
+        if "{{ entity_name }}" in created_entities:
+            print(f"\n🗑️  Deleting {{ entity_name.lower() }}...")
+{%- set all_params = get_all_key_params(entity_config) %}
+            try:
+                deleted = self.{{ entity_name.lower() }}_repo.delete_{{ to_snake_case(entity_name) }}(
+{%- for param in all_params -%}
+created_entities["{{ entity_name }}"].{{ param }}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor %})
+
+                if deleted:
+                    print(f"✅ Deleted {{ entity_name.lower() }} successfully")
+                else:
+                    print("❌ Failed to delete {{ entity_name.lower() }} (not found or already deleted)")
+            except Exception as e:
+                print(f"❌ Failed to delete {{ entity_name.lower() }}: {e}")
+{%- endfor %}
+{%- endfor %}
+        print('\n💡 Requirements:')
+{%- for table in tables %}
+        print("   - DynamoDB table '{{ table.table_config.table_name }}' must exist")
+{%- endfor %}
+        print('   - DynamoDB permissions: GetItem, PutItem, UpdateItem, DeleteItem')
+
+    def _test_additional_access_patterns(self, created_entities: dict):
+        """Test additional access patterns beyond basic CRUD"""
+        print("\n" + "=" * 60)
+        print("🔍 Additional Access Pattern Testing")
+        print("=" * 60)
+        print()
+
+{%- if access_patterns %}
+{%- set patterns_by_entity = {} %}
+{%- for pattern_id, pattern in access_patterns.items() %}
+{%- if pattern.status != "filtered_out" and "Use CRUD method:" not in pattern.test_instruction %}
+{%- set entity = pattern.entity %}
+{%- if entity not in patterns_by_entity %}
+{%- set _ = patterns_by_entity.update({entity: []}) %}
+{%- endif %}
+{%- set _ = patterns_by_entity[entity].append(pattern) %}
+{%- endif %}
+{%- endfor %}
+
+{%- if patterns_by_entity %}
+{%- for entity, entity_patterns in patterns_by_entity.items() %}
+{%- if not loop.first %}
+
+{%- endif %}
+
+        # {{ entity }}
+{%- for pattern in entity_patterns %}
+        # Access Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}
+{%- if pattern.index_name %}
+        # GSI: {{ pattern.index_name }}
+{%- if pattern.range_condition %}
+        # Range Condition: {{ pattern.range_condition }}
+{%- endif %}
+{%- else %}
+        # Index: Main Table
+{%- if pattern.range_condition %}
+        # Range Condition: {{ pattern.range_condition }}
+{%- endif %}
+{%- endif %}
+        try:
+            print("🔍 Testing Access Pattern #{{ pattern.pattern_id }}: {{ pattern.description }}")
+{%- if pattern.index_name %}
+            print("   Using GSI: {{ pattern.index_name }}")
+{%- if pattern.range_condition %}
+            print("   Range Condition: {{ pattern.range_condition }}")
+{%- endif %}
+{%- else %}
+            print("   Using Main Table")
+{%- if pattern.range_condition %}
+            print("   Range Condition: {{ pattern.range_condition }}")
+{%- endif %}
+{%- endif %}
+{%- if pattern.operation == 'PutItem' %}
+            test_entity = {{ entity }}(
+{%- for field in entities[entity].fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity, use_access_pattern_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(test_entity)
+{%- elif pattern.operation == 'BatchWriteItem' %}
+            test_entity = {{ entity }}(
+{%- for field in entities[entity].fields %}
+                {{ field.name }}={{ generate_sample_value(field, entity_name=entity, use_access_pattern_data=True) }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}([test_entity])
+{%- elif pattern.operation == 'UpdateItem' %}
+{%- set valid_params = pattern.parameters | filter_resolvable_access_pattern_params(entity, entities, get_parameter_value, pattern) %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(
+{%- for param_value in valid_params %}
+                {{ param_value }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- else %}
+{%- set valid_params = pattern.parameters | filter_resolvable_access_pattern_params(entity, entities, get_parameter_value, pattern) %}
+{%- if valid_params %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}(
+{%- for param_value in valid_params %}
+                {{ param_value }}{{ "," if not loop.last else "" }}
+{%- endfor %}
+            )
+{%- else %}
+            result = self.{{ entity | lower }}_repo.{{ pattern.method_name }}()
+{%- endif %}
+{%- endif %}
+            print(f"   ✅ {{ pattern.description }} completed")
+            print(f"   📊 Result: {result}")
+        except Exception as e:
+            print(f"❌ Error testing Access Pattern #{{ pattern.pattern_id }}: {e}")
+{% if not loop.last %}
+
+{% endif -%}
+{%- endfor %}
+{%- endfor %}
+
+        print("\n💡 Access Pattern Implementation Notes:")
+        print("   - Main Table queries use partition key and sort key")
+        print("   - GSI queries use different key structures and may have range conditions")
+        print("   - Range conditions (begins_with, between, >, <, >=, <=) require additional parameters")
+        print("   - Implement the access pattern methods in your repository classes")
+{%- else %}
+        print("📝 All access patterns are basic CRUD operations (already tested above)")
+{%- endif %}
+{%- else %}
+        print("📝 No access patterns found in this schema")
+{%- endif %}
+
+
+def main():
+    """Main function to run examples"""
+
+    # 🚨 SAFETY CHECK: Prevent accidental execution against production DynamoDB
+    endpoint_url = os.getenv("AWS_ENDPOINT_URL_DYNAMODB", "")
+
+    # Check if running against DynamoDB Local
+    is_local = (
+        "localhost" in endpoint_url.lower() or
+        "127.0.0.1" in endpoint_url
+    )
+
+    if not is_local:
+        print("=" * 80)
+        print("🚨 SAFETY WARNING: NOT RUNNING AGAINST DYNAMODB LOCAL")
+        print("=" * 80)
+        print()
+        print(f"Current endpoint: {endpoint_url or 'AWS DynamoDB (production)'}")
+        print()
+        print("⚠️  This script performs CREATE, UPDATE, and DELETE operations that could")
+        print("   affect your production data!")
+        print()
+        print("To run against production DynamoDB:")
+        print("  1. Review the code carefully to understand what data will be modified")
+        print("  2. Search for 'SAFETY CHECK' in this file")
+        print("  3. Comment out the 'raise RuntimeError' line below the safety check")
+        print("  4. Understand the risks before proceeding")
+        print()
+        print("To run safely against DynamoDB Local:")
+        print("  export AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000")
+        print()
+        print("=" * 80)
+
+        # 🛑 SAFETY CHECK: Comment out this line to run against production
+        raise RuntimeError("Safety check: Refusing to run against production DynamoDB. See warning above.")
+
+    # Parse command line arguments
+    include_additional_access_patterns = "--all" in sys.argv
+
+    # Check if we're running against DynamoDB Local
+    if endpoint_url:
+        print(f"🔗 Using DynamoDB endpoint: {endpoint_url}")
+        print(f"🌍 Using region: {os.getenv('AWS_DEFAULT_REGION', 'us-east-1')}")
+    else:
+        print("🌐 Using AWS DynamoDB (no local endpoint specified)")
+
+    print("📊 Using multiple tables:")
+{%- for table in tables %}
+    print(f"   - {{ table.table_config.table_name }}")
+{%- endfor %}
+
+    if include_additional_access_patterns:
+        print("🔍 Including additional access pattern examples")
+
+    examples = UsageExamples()
+    examples.run_examples(include_additional_access_patterns=include_additional_access_patterns)
+
+
+if __name__ == "__main__":
+    main()

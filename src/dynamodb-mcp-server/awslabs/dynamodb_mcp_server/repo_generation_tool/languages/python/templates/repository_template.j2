@@ -1,0 +1,418 @@
+{%- set range_operator_descriptions = {
+    '>=': 'is greater than or equal to',
+    '<=': 'is less than or equal to',
+    '>': 'is greater than',
+    '<': 'is less than'
+} -%}
+{#- Macro to get Python type for a parameter based on field definition -#}
+{%- macro get_param_type(param_name, fields) -%}
+{%- set field = fields | selectattr('name', 'equalto', param_name) | first -%}
+{%- if field and field.type == 'integer' -%}int
+{%- elif field and field.type == 'decimal' -%}Decimal
+{%- else -%}str{%- endif -%}
+{%- endmacro -%}
+{#- Macro to format typed parameters for method signatures -#}
+{%- macro format_typed_params(params, fields) -%}
+{%- for param in params -%}
+{{ param }}: {{ get_param_type(param, fields) }}{% if not loop.last %}, {% endif %}
+{%- endfor -%}
+{%- endmacro -%}
+class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
+    """Repository for {{ entity_name }} entity operations"""
+
+    def __init__(self, table_name: str = "{{ table_config.table_name }}"):
+        super().__init__({{ entity_name }}, table_name, "{{ table_config.partition_key }}", {% if table_config.sort_key %}"{{ table_config.sort_key }}"{% else %}None{% endif %})
+
+    # Basic CRUD Operations (Generated)
+    def create_{{ entity_name_snake }}(self, {{ entity_name_snake }}: {{ entity_name }}) -> {{ entity_name }}:
+        """Create a new {{ entity_name_snake }}"""
+        return self.create({{ entity_name_snake }})
+
+    def get_{{ entity_name_snake }}(self{% if (entity_config.pk_params + entity_config.sk_params) | length > 0 %}, {{ format_typed_params(entity_config.pk_params + entity_config.sk_params, entity_config.fields) }}{% endif %}) -> {{ map_return_type('single_entity', entity_name) }}:
+        """Get a {{ entity_name_snake }} by key"""
+        pk = {{ entity_name }}.build_pk_for_lookup({% if entity_config.pk_params | length > 0 %}{{ entity_config.pk_params | join(', ') }}{% endif %})
+        {% if entity_config.sk_template -%}
+        sk = {{ entity_name }}.build_sk_for_lookup({% if entity_config.sk_params | length > 0 %}{{ entity_config.sk_params | join(', ') }}{% endif %})
+        {%- if crud_consistent_read.get('get_' + entity_name_snake) %}
+        return self.get(pk, sk, consistent_read=True)
+        {%- else %}
+        return self.get(pk, sk)
+        {%- endif %}
+        {%- else -%}
+        {%- if crud_consistent_read.get('get_' + entity_name_snake) %}
+        return self.get(pk, None, consistent_read=True)
+        {%- else %}
+        return self.get(pk, None)
+        {%- endif %}
+        {%- endif %}
+
+    def update_{{ entity_name_snake }}(self, {{ entity_name_snake }}: {{ entity_name }}) -> {{ entity_name }}:
+        """Update an existing {{ entity_name_snake }}"""
+        return self.update({{ entity_name_snake }})
+
+    def delete_{{ entity_name_snake }}(self{% if (entity_config.pk_params + entity_config.sk_params) | length > 0 %}, {{ format_typed_params(entity_config.pk_params + entity_config.sk_params, entity_config.fields) }}{% endif %}) -> bool:
+        """Delete a {{ entity_name_snake }}"""
+        pk = {{ entity_name }}.build_pk_for_lookup({% if entity_config.pk_params | length > 0 %}{{ entity_config.pk_params | join(', ') }}{% endif %})
+        {% if entity_config.sk_template -%}
+        sk = {{ entity_name }}.build_sk_for_lookup({% if entity_config.sk_params | length > 0 %}{{ entity_config.sk_params | join(', ') }}{% endif %})
+        return self.delete(pk, sk)
+        {%- else -%}
+        return self.delete(pk, None)
+        {%- endif %}
+
+{%- if filtered_access_patterns %}
+
+{%- for pattern in filtered_access_patterns %}
+{#- Smart return type detection for GSI projections -#}
+{%- if pattern.get('index_name') and table_data and table_data.get('gsi_list') %}
+    {%- set gsi = table_data.gsi_list | selectattr('name', 'equalto', pattern.index_name) | first %}
+    {%- if gsi %}
+        {%- set gsi_projection = gsi.get('projection', 'ALL') %}
+
+        {%- if gsi_projection == 'KEYS_ONLY' %}
+            {#- KEYS_ONLY always returns dict -#}
+            {%- set pattern_return_type = 'list[dict[str, Any]]' if pattern.return_type == 'entity_list' else 'dict[str, Any] | None' %}
+            {%- set projection_note = 'KEYS_ONLY' %}
+            {%- set projection_reason = 'only key attributes projected' %}
+
+        {%- elif gsi_projection == 'INCLUDE' %}
+            {#- INCLUDE: Smart detection based on field requirements -#}
+            {%- set projected_attrs = gsi.get('included_attributes', []) %}
+
+            {#- Build list of always-projected key fields -#}
+            {%- set key_field_list = [table_config.partition_key] %}
+            {%- if table_config.sort_key %}
+                {%- set key_field_list = key_field_list + [table_config.sort_key] %}
+            {%- endif %}
+
+            {#- Extract fields from GSI templates (these are always projected) -#}
+            {%- set gsi_mapping = entity_config.gsi_mappings | selectattr('name', 'equalto', pattern.index_name) | first %}
+            {%- if gsi_mapping %}
+                {#- Extract parameters from pk_template -#}
+                {%- set pk_template_params = gsi_mapping.pk_template | regex_findall('{([^}]+)}') %}
+                {%- set key_field_list = key_field_list + pk_template_params %}
+
+                {#- Extract parameters from sk_template if exists -#}
+                {%- if gsi_mapping.sk_template %}
+                    {%- set sk_template_params = gsi_mapping.sk_template | regex_findall('{([^}]+)}') %}
+                    {%- set key_field_list = key_field_list + sk_template_params %}
+                {%- endif %}
+            {%- endif %}
+
+            {#- Check if any non-projected, non-key fields are required -#}
+            {%- set ns = namespace(required_not_projected=[]) %}
+            {%- for field in entity_config.fields %}
+                {%- if field.name not in projected_attrs and field.name not in key_field_list %}
+                    {%- if field.get('required', False) %}
+                        {%- set ns.required_not_projected = ns.required_not_projected + [field.name] %}
+                    {%- endif %}
+                {%- endif %}
+            {%- endfor %}
+
+            {%- if ns.required_not_projected %}
+                {#- Unsafe: Has required fields not projected - return dict -#}
+                {%- set pattern_return_type = 'list[dict[str, Any]]' if pattern.return_type == 'entity_list' else 'dict[str, Any] | None' %}
+                {%- set projection_note = 'INCLUDE (returns dict)' %}
+                {%- set projection_reason = 'required fields not in projection' %}
+                {%- set projection_required_fields = ns.required_not_projected %}
+            {%- else %}
+                {#- Safe: All non-projected fields are optional - return Entity -#}
+                {%- set pattern_return_type = 'list[' + entity_name + ']' if pattern.return_type == 'entity_list' else entity_name + ' | None' %}
+                {%- set projection_note = 'INCLUDE (returns Entity)' %}
+                {%- set projection_reason = 'all non-projected fields are optional' %}
+            {%- endif %}
+
+        {%- else %}
+            {#- ALL projection - return Entity -#}
+            {%- set pattern_return_type = 'list[' + entity_name + ']' if pattern.return_type == 'entity_list' else entity_name + ' | None' %}
+            {%- set projection_note = 'ALL' %}
+            {%- set projection_reason = 'all attributes projected' %}
+        {%- endif %}
+    {%- else %}
+        {#- GSI not found, use default -#}
+        {%- set pattern_return_type = 'list[' + entity_name + ']' if pattern.return_type == 'entity_list' else entity_name + ' | None' %}
+    {%- endif %}
+{%- else %}
+    {#- Main table query - check return type -#}
+    {%- if pattern.return_type == 'mixed_data' %}
+        {#- Item collection query returning mixed entity types -#}
+        {%- set pattern_return_type = 'list[dict[str, Any]]' %}
+        {%- set is_item_collection = true %}
+    {%- elif pattern.return_type == 'entity_list' %}
+        {%- set pattern_return_type = 'list[' + entity_name + ']' %}
+    {%- else %}
+        {%- set pattern_return_type = entity_name + ' | None' %}
+    {%- endif %}
+{%- endif %}
+
+    def {{ pattern.name }}(self{% if format_parameters(pattern.parameters, pattern) %}, {{ format_parameters(pattern.parameters, pattern) }}{% endif %}{% if pattern.operation == 'Scan' and pattern.parameters | length == 0 %}, filter_value: str = None{% endif %}{% if pattern.operation in ['Query', 'Scan'] and pattern.return_type in ['entity_list', 'mixed_data'] %}, limit: int = 100, exclusive_start_key: dict | None = None, skip_invalid_items: bool = True{% endif %}) -> {% if pattern.operation in ['Query', 'Scan'] and pattern.return_type in ['entity_list', 'mixed_data'] %}tuple[{{ pattern_return_type }}, dict | None]{% else %}{{ pattern_return_type }}{% endif %}:
+{%- if pattern.operation in ['Query', 'Scan'] and pattern.return_type in ['entity_list', 'mixed_data'] %}
+        """{{ pattern.description }}
+{%- if is_item_collection is defined and is_item_collection %}
+
+        Note: This query returns an item collection with multiple entity types.
+        Returns list[dict[str, Any]] because items may have different schemas.
+        Use the 'SK' field to determine entity type and parse accordingly.
+{%- endif %}
+{%- if pattern.get('index_name') and gsi and gsi_projection %}
+
+        Projection: {{ gsi_projection }}
+{%- if gsi_projection == 'KEYS_ONLY' %}
+        Returns dict with keys: {{ gsi.partition_key }}, {{ gsi.sort_key or 'N/A' }}, {{ table_config.partition_key }}, {{ table_config.sort_key or 'N/A' }}
+        Note: Returns dict because only key attributes are projected.
+{%- elif gsi_projection == 'INCLUDE' %}
+        Projected Attributes: {{ ', '.join(projected_attrs) }}
+{%- if projection_required_fields is defined %}
+
+        Returns dict because required fields not in projection: {{ ', '.join(projection_required_fields) }}
+        Use dict keys to access values: result[0]['{{ projected_attrs[0] if projected_attrs else 'field' }}']
+
+        To return typed {{ entity_name }} entities, either:
+          1. Add these fields to included_attributes: {{ projection_required_fields }}
+          2. Make these fields optional (required: false)
+{%- else %}
+        Returns {{ entity_name }} entities. Non-projected optional fields will be None.
+{%- endif %}
+{%- elif gsi_projection == 'ALL' %}
+        All entity attributes are available.
+{%- endif %}
+{%- endif %}
+
+        Args:
+{%- for param in pattern.parameters %}
+            {{ param.name }}: {{ param.get('description', param.name.replace('_', ' ').capitalize()) }}
+{%- endfor %}
+{%- if pattern.operation == 'Scan' and pattern.parameters | length == 0 %}
+            filter_value: Optional filter value for scan operation
+{%- endif %}
+            limit: Maximum items per page (default: 100)
+            exclusive_start_key: Continuation token from previous page
+            skip_invalid_items: If True, skip items that fail deserialization and continue. If False, raise exception on validation errors.
+
+        Returns:
+            tuple: (items, last_evaluated_key)
+        """
+{%- else %}
+{%- if pattern.operation == 'BatchWriteItem' %}
+        """{{ pattern.description }}
+
+        WARNING: BatchWriteItem does NOT support optimistic locking.
+        DynamoDB does not allow condition expressions in batch operations.
+        Use individual create/update operations if version checking is required.
+        """
+{%- else %}
+        """{{ pattern.description }}"""
+{%- endif %}
+{%- endif %}
+        # TODO: Implement Access Pattern #{{ pattern.pattern_id }}
+        # Operation: {{ pattern.operation }} | Index: {% if pattern.get('index_name') %}{{ pattern.index_name }} (GSI){% else %}Main Table{% endif %}{% if pattern.get('range_condition') %} | Range Condition: {{ pattern.range_condition }}{% endif %}
+{%- if pattern.get('range_condition') %}
+        # Note: '{{ pattern.range_condition }}' requires {% if pattern.range_condition == 'between' %}2 parameters (min, max){% else %}1 parameter{% endif %} for the range condition
+{%- endif %}
+        #
+{%- if pattern.get('index_name') %}
+{%- if pattern.operation == 'Query' %}
+        # gsi_pk = {{ entity_name }}.build_gsi_pk_for_lookup_{{ pattern.index_name | to_snake_case }}({{ pattern.parameters[0].name }})
+        # query_params = {
+        #     'IndexName': '{{ pattern.index_name }}',
+{%- if table_data and table_data.get('gsi_list') %}
+{%- set matching_gsi = table_data.gsi_list | selectattr('name', 'equalto', pattern.index_name) | first %}
+{%- if matching_gsi %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk){% if matching_gsi.sort_key and pattern.get('range_condition') %} & Key('{{ matching_gsi.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}){% endif %},
+{%- else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+{%- else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+        #     'Limit': limit
+        # }
+        # if exclusive_start_key:
+        #     query_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.query(**query_params)
+{%- if pattern.return_type == 'mixed_data' %}
+        # return self._parse_query_response_raw(response)
+{%- else %}
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- endif %}
+{%- elif pattern.operation == 'UpdateItem' %}
+        # Note: UpdateItem on GSI - use main table keys
+        # Key Building:
+        # - PK is built from: {{ entity_config.pk_params | join(', ') }} (template: {{ entity_config.pk_template }})
+{%- if entity_config.sk_template %}
+        # - SK is built from: {{ entity_config.sk_params | join(', ') }} (template: {{ entity_config.sk_template }})
+{%- endif %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ entity_config.pk_params | join(', ') }})
+{%- if entity_config.sk_template %}
+        # sk = {{ entity_name }}.build_sk_for_lookup({{ entity_config.sk_params | join(', ') }})
+{%- endif %}
+        #
+        # Update field parameter(s): {% for param in pattern.parameters %}{% if param.name not in entity_config.pk_params and param.name not in entity_config.sk_params %}{{ param.name }}{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}
+        #
+        # current_item = self.get(pk, sk)
+        # if not current_item:
+        #     raise RuntimeError(f"{self.model_class.__name__} not found")
+        # current_version = current_item.version
+        # next_version = current_version + 1
+        # response = self.table.update_item(
+        #     Key={'{{ table_config.partition_key }}': pk{% if table_config.sort_key %}, '{{ table_config.sort_key }}': sk{% endif %}},
+        #     UpdateExpression='SET #field = :val, version = :new_version',
+        #     ConditionExpression='version = :current_version',
+        #     ExpressionAttributeNames={'#field': 'field_to_update'},
+        #     ExpressionAttributeValues={':val': <update_param>, ':current_version': current_version, ':new_version': next_version},
+        #     ReturnValues='ALL_NEW'
+        # )
+        # return self.model_class(**response['Attributes'])
+{%- elif pattern.operation == 'DeleteItem' %}
+        # Note: DeleteItem on GSI - use main table keys
+        # Key Building:
+        # - PK is built from: {{ entity_config.pk_params | join(', ') }} (template: {{ entity_config.pk_template }})
+{%- if entity_config.sk_template %}
+        # - SK is built from: {{ entity_config.sk_params | join(', ') }} (template: {{ entity_config.sk_template }})
+{%- endif %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ entity_config.pk_params | join(', ') }})
+{%- if entity_config.sk_template %}
+        # sk = {{ entity_name }}.build_sk_for_lookup({{ entity_config.sk_params | join(', ') }})
+{%- endif %}
+        # response = self.table.delete_item(
+        #     Key={'{{ table_config.partition_key }}': pk{% if table_config.sort_key %}, '{{ table_config.sort_key }}': sk{% endif %}}
+        # )
+{%- else %}
+        # Note: {{ pattern.operation }} operation on GSI not directly supported
+        # Consider using main table operations or Query with projection
+{%- endif %}
+{%- else %}
+        # Main Table {{ pattern.operation }} Example:
+{%- if pattern.operation == 'GetItem' %}
+        # response = self.table.get_item(
+        {% if table_config.sort_key -%}
+        #     Key={'{{ table_config.partition_key }}': pk_value, '{{ table_config.sort_key }}': sk_value}{% if pattern.get('consistent_read') is not none %},
+        #     ConsistentRead={{ pattern.consistent_read | string }}{% endif %}
+        {%- else -%}
+        #     Key={'{{ table_config.partition_key }}': pk_value}{% if pattern.get('consistent_read') is not none %},
+        #     ConsistentRead={{ pattern.consistent_read | string }}{% endif %}
+        {%- endif %}
+        # )
+{%- elif pattern.operation == 'Query' %}
+{%- set is_item_collection = detect_item_collection(entity_name, entity_config, table_data) %}
+{%- set sk_prefix = get_sk_prefix(entity_config.sk_template) if is_item_collection and entity_config.sk_template else '' %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ pattern.parameters[0].name }})
+{%- if is_item_collection and sk_prefix %}
+        # Note: Item collection detected - multiple entities share PK "{{ entity_config.pk_template }}"
+        # Use begins_with('{{ sk_prefix }}') to filter for only {{ entity_name }} items
+{%- endif %}
+        # query_params = {
+        {% if entity_config.sk_template and pattern.get('range_condition') -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk) & Key('{{ table_config.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}),
+        {%- elif is_item_collection and sk_prefix -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk) & Key('{{ table_config.sort_key }}').begins_with('{{ sk_prefix }}'),
+        {%- elif entity_config.sk_template -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk) & Key('{{ table_config.sort_key }}').eq(sk),
+        {%- else -%}
+        #     'KeyConditionExpression': Key('{{ table_config.partition_key }}').eq(pk),
+        {%- endif %}
+        #     'Limit': limit{% if pattern.get('consistent_read') is not none %},
+        #     'ConsistentRead': {{ pattern.consistent_read | string }}{% endif %}
+        # }
+        # if exclusive_start_key:
+        #     query_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.query(**query_params)
+{%- if pattern.return_type == 'mixed_data' %}
+        # return self._parse_query_response_raw(response)
+{%- else %}
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- endif %}
+{%- elif pattern.operation == 'UpdateItem' %}
+        # Key Building:
+        # - PK is built from: {{ entity_config.pk_params | join(', ') }} (template: {{ entity_config.pk_template }})
+{%- if entity_config.sk_template %}
+        # - SK is built from: {{ entity_config.sk_params | join(', ') }} (template: {{ entity_config.sk_template }})
+{%- endif %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ entity_config.pk_params | join(', ') }})
+{%- if entity_config.sk_template %}
+        # sk = {{ entity_name }}.build_sk_for_lookup({{ entity_config.sk_params | join(', ') }})
+{%- endif %}
+        #
+        # Update field parameter(s): {% for param in pattern.parameters %}{% if param.name not in entity_config.pk_params and param.name not in entity_config.sk_params %}{{ param.name }}{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}
+        #
+        # current_item = self.get(pk, sk)
+        # if not current_item:
+        #     raise RuntimeError(f"{self.model_class.__name__} not found")
+        # current_version = current_item.version
+        # next_version = current_version + 1
+        # response = self.table.update_item(
+        #     Key={'{{ table_config.partition_key }}': pk{% if table_config.sort_key %}, '{{ table_config.sort_key }}': sk{% endif %}},
+        #     UpdateExpression='SET #field = :val, version = :new_version',
+        #     ConditionExpression='version = :current_version',
+        #     ExpressionAttributeNames={'#field': 'field_to_update'},
+        #     ExpressionAttributeValues={':val': <update_param>, ':current_version': current_version, ':new_version': next_version},
+        #     ReturnValues='ALL_NEW'
+        # )
+        # return self.model_class(**response['Attributes'])
+{%- elif pattern.operation == 'DeleteItem' %}
+        # Key Building:
+        # - PK is built from: {{ entity_config.pk_params | join(', ') }} (template: {{ entity_config.pk_template }})
+{%- if entity_config.sk_template %}
+        # - SK is built from: {{ entity_config.sk_params | join(', ') }} (template: {{ entity_config.sk_template }})
+{%- endif %}
+        # pk = {{ entity_name }}.build_pk_for_lookup({{ entity_config.pk_params | join(', ') }})
+{%- if entity_config.sk_template %}
+        # sk = {{ entity_name }}.build_sk_for_lookup({{ entity_config.sk_params | join(', ') }})
+{%- endif %}
+        # response = self.table.delete_item(
+        #     Key={'{{ table_config.partition_key }}': pk{% if table_config.sort_key %}, '{{ table_config.sort_key }}': sk{% endif %}}
+        # )
+{%- elif pattern.operation == 'PutItem' %}
+        # PutItem access pattern - unconditional upsert (no version checking)
+        # Creates if not exists, overwrites if exists
+        # self.table.put_item(Item={{ entity_name_snake }}.model_dump())
+        # return {{ entity_name_snake }}
+{%- elif pattern.operation == 'Scan' %}
+        # scan_params = {'Limit': limit}
+{%- if pattern.parameters | length > 0 %}
+        # scan_params['FilterExpression'] = Attr('{{ pattern.parameters[0].name }}').eq({{ pattern.parameters[0].name }})
+{%- else %}
+        # if filter_value:
+        #     scan_params['FilterExpression'] = Attr('status').eq(filter_value)
+{%- endif %}
+        # if exclusive_start_key:
+        #     scan_params['ExclusiveStartKey'] = exclusive_start_key
+        # response = self.table.scan(**scan_params)
+{%- if pattern.return_type == 'mixed_data' %}
+        # return self._parse_query_response_raw(response)
+{%- else %}
+        # return self._parse_query_response(response, skip_invalid_items)
+{%- endif %}
+{%- elif pattern.operation == 'BatchGetItem' %}
+        # BatchGetItem - retrieve multiple items by their keys
+        # keys = [
+        #     {self.pkey_name: {{ entity_name }}.build_pk_for_lookup(pk_val){% if table_config.sort_key %}, self.skey_name: {{ entity_name }}.build_sk_for_lookup(sk_val){% endif %}}
+        #     for pk_val{% if table_config.sort_key %}, sk_val{% endif %} in key_tuples
+        # ]
+        # response = self.dynamodb.meta.client.batch_get_item(
+        #     RequestItems={self.table.name: {'Keys': keys}}
+        # )
+        # items = response.get('Responses', {}).get(self.table.name, [])
+        # return [self.model_class(**item) for item in items]
+{%- elif pattern.operation == 'BatchWriteItem' %}
+        # BatchWriteItem - write multiple items in a single request
+        # Note: PutRequest items must include PK{% if table_config.sort_key %} and SK{% endif %} built via entity.pk(){% if table_config.sort_key %} and entity.sk(){% endif %}
+        # request_items = []
+        # for entity in entities:
+        #     item = entity.model_dump()
+        #     item[self.pkey_name] = entity.pk()
+{%- if table_config.sort_key %}
+        #     item[self.skey_name] = entity.sk()
+{%- endif %}
+        #     request_items.append({'PutRequest': {'Item': item}})
+        # self.dynamodb.meta.client.batch_write_item(RequestItems={self.table.name: request_items})
+{%- else %}
+        # response = self.table.{{ pattern.operation.lower() }}(
+        #     # Add appropriate parameters for {{ pattern.operation }}
+        # )
+{%- endif %}
+{%- endif %}
+        pass
+{%- endfor %}
+
+{%- endif %}

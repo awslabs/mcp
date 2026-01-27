@@ -1,0 +1,373 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": true,
+      "description": "Get deal details by deal_id",
+      "entity": "Deal",
+      "index_name": null,
+      "method_name": "get_deal",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "deal_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "Deal | None"
+    },
+    "10": {
+      "consistent_read": false,
+      "description": "Get all watches for a user",
+      "entity": "UserWatch",
+      "index_name": null,
+      "method_name": "get_user_watches",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "11": {
+      "consistent_read": false,
+      "description": "Get all users watching a specific brand",
+      "entity": "UserWatch",
+      "index_name": "WatchesByBrand",
+      "method_name": "get_brand_watchers",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "projection": "KEYS_ONLY",
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "Get all users watching a specific category (partition key only)",
+      "entity": "UserWatch",
+      "index_name": "WatchesByCategory",
+      "method_name": "get_category_watchers",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "projected_attributes": [
+        "user_id",
+        "target_name",
+        "created_at"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "13": {
+      "consistent_read": false,
+      "description": "Get all activities for a user",
+      "entity": "UserActivity",
+      "index_name": null,
+      "method_name": "get_user_activities",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "UserActivityRepository",
+      "return_type": "tuple[list[UserActivity], dict | None]"
+    },
+    "14": {
+      "consistent_read": false,
+      "description": "Get user activities after a specific timestamp",
+      "entity": "UserActivity",
+      "index_name": null,
+      "method_name": "get_user_activities_after",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "since_timestamp",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": ">=",
+      "repository": "UserActivityRepository",
+      "return_type": "tuple[list[UserActivity], dict | None]"
+    },
+    "15": {
+      "consistent_read": false,
+      "description": "Get trending deals for a category sorted by engagement score",
+      "entity": "TrendingDeal",
+      "index_name": null,
+      "method_name": "get_trending_by_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "TrendingDealRepository",
+      "return_type": "tuple[list[TrendingDeal], dict | None]"
+    },
+    "16": {
+      "consistent_read": false,
+      "description": "Get trending deals with engagement score above threshold",
+      "entity": "TrendingDeal",
+      "index_name": null,
+      "method_name": "get_highly_engaged_deals",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        },
+        {
+          "name": "min_score",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": ">=",
+      "repository": "TrendingDealRepository",
+      "return_type": "tuple[list[TrendingDeal], dict | None]"
+    },
+    "17": {
+      "consistent_read": false,
+      "description": "Get deals by brand with high discount percentage",
+      "entity": "TrendingDeal",
+      "index_name": "TrendingByDiscount",
+      "method_name": "get_high_discount_deals",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        },
+        {
+          "name": "min_discount",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 17,
+      "projection": "ALL",
+      "range_condition": ">=",
+      "repository": "TrendingDealRepository",
+      "return_type": "tuple[list[TrendingDeal], dict | None]"
+    },
+    "18": {
+      "consistent_read": false,
+      "description": "Get watches by target type",
+      "entity": "UserWatch",
+      "index_name": "WatchesByType",
+      "method_name": "get_watches_by_type",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "watch_type",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 18,
+      "projected_attributes": [
+        "user_id",
+        "watch_key",
+        "created_at"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "UserWatchRepository",
+      "return_type": "tuple[list[UserWatch], dict | None]"
+    },
+    "2": {
+      "description": "Create a new deal",
+      "entity": "Deal",
+      "index_name": null,
+      "method_name": "put_deal",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Deal",
+          "name": "deal",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "Deal | None"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "Get all deals for a brand sorted by creation date",
+      "entity": "Deal",
+      "index_name": "DealsByBrand",
+      "method_name": "get_deals_by_brand",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get all deals for a category sorted by creation date",
+      "entity": "Deal",
+      "index_name": "DealsByCategory",
+      "method_name": "get_deals_by_category",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "category_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "projected_attributes": [
+        "title",
+        "price",
+        "brand_name"
+      ],
+      "projection": "INCLUDE",
+      "range_condition": null,
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "5": {
+      "consistent_read": false,
+      "description": "Get recent deals for a brand after a specific date",
+      "entity": "Deal",
+      "index_name": "DealsByBrand",
+      "method_name": "get_recent_deals_by_brand",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        },
+        {
+          "name": "since_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "projection": "ALL",
+      "range_condition": ">=",
+      "repository": "DealRepository",
+      "return_type": "tuple[list[Deal], dict | None]"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get user by user_id",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "get_user",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "7": {
+      "description": "Create a new user account",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "put_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "8": {
+      "consistent_read": false,
+      "description": "Get brand details by brand_id",
+      "entity": "Brand",
+      "index_name": null,
+      "method_name": "get_brand",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "brand_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "BrandRepository",
+      "return_type": "Brand | None"
+    },
+    "9": {
+      "description": "Create a new brand",
+      "entity": "Brand",
+      "index_name": null,
+      "method_name": "put_brand",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Brand",
+          "name": "brand",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "BrandRepository",
+      "return_type": "Brand | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 18
+  }
+}
