@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@0bb449ef24e57237bf567483639970b2aba7e3d3
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@c816e7fa8729545d65e31043cff9c35892bd5dc7
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -129,7 +129,7 @@ jobs:
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@fb650c22f965a3eff7e20c5535e51a256dd16bf1 # v4.31.9
+        uses: github/codeql-action/upload-sarif@1c4c0b36be82b11c8adb51fb38f7122d0debe048 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
