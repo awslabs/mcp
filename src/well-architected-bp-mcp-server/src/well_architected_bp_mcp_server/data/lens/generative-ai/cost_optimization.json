@@ -1,0 +1,125 @@
+[
+  {
+    "area": [
+      "Model selection and cost optimization"
+    ],
+    "description": "Foundation model costs vary greatly across the various foundation model providers, model families and sizes, and model hosting paradigms. It can be advantageous to use cost as a factor when selecting models. Understand the models available to you, as well as the requirements of your workload, to make an informed, cost-aware decision. Foundation models have several cost-dimensions, some of which change depending on the hosting paradigm (managed or self-hosted). When optimizing for cost, consider testing with a smaller model first, and gradually increase model size and capabilities until an acceptable model is selected.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost01-bp01.html",
+    "id": "GENCOST01-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice helps you manage spend on foundation model inference without guessing at the capacity requirements for a foundation model.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST02-BP01",
+      "COST02-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Right-size model selection to optimize inference costs",
+    "title_full": "GENCOST01-BP01 Right-size model selection to optimize inference costs"
+  },
+  {
+    "area": [
+      "Generative AI pricing model"
+    ],
+    "description": "Foundation model hosting and inference can be conducted in a variety of ways. Some workloads demand immediate responses, while some can be done in batch. Some are hosted on unmanaged infrastructure, and some are hosted using serverless technologies. The inference and hosting paradigm selected influences total cost and should be done with cost in mind. Balancing cost and performance when selecting inference paradigms helps optimize the total cost of ownership while meeting performance requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost02-bp01.html",
+    "id": "GENCOST02-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice helps select cost-effective pricing models that balance cost and performance requirements for your specific use case.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST07-BP01",
+      "COST07-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Balance cost and performance when selecting inference paradigms",
+    "title_full": "GENCOST02-BP01 Balance cost and performance when selecting inference paradigms"
+  },
+  {
+    "area": [
+      "Generative AI pricing model"
+    ],
+    "description": "Resource consumption optimization is crucial for minimizing hosting costs in generative AI workloads. This includes right-sizing compute resources, implementing auto-scaling policies, using spot instances where appropriate, and optimizing storage and network usage. For managed services, this involves selecting appropriate throughput levels and utilizing features like provisioned throughput only when necessary.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost02-bp02.html",
+    "id": "GENCOST02-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice minimizes hosting costs by optimizing resource consumption while maintaining required performance levels.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST06-BP01",
+      "COST06-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize resource consumption to minimize hosting costs",
+    "title_full": "GENCOST02-BP02 Optimize resource consumption to minimize hosting costs"
+  },
+  {
+    "area": [
+      "Cost-aware prompting"
+    ],
+    "description": "Prompts are engineered to optimize workloads cost as well as workload performance. Reducing prompt token length directly impacts inference costs since most foundation models charge based on the number of input and output tokens processed. This involves optimizing prompt engineering techniques, removing unnecessary context, using more concise language, and implementing prompt caching strategies where appropriate.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost03-bp01.html",
+    "id": "GENCOST03-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces inference costs by minimizing the number of input tokens required while maintaining prompt effectiveness.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Reduce prompt token length",
+    "title_full": "GENCOST03-BP01 Reduce prompt token length"
+  },
+  {
+    "area": [
+      "Cost-aware prompting"
+    ],
+    "description": "Controlling model response length is essential for cost optimization since output tokens typically cost more than input tokens. This involves setting appropriate max_tokens parameters, using prompt engineering techniques to encourage concise responses, and implementing response truncation strategies when full responses are not needed. Balancing response completeness with cost efficiency is key to effective cost-aware prompting.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost03-bp02.html",
+    "id": "GENCOST03-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces inference costs by controlling output token generation while maintaining response quality and completeness.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Control model response length",
+    "title_full": "GENCOST03-BP02 Control model response length"
+  },
+  {
+    "area": [
+      "Cost-informed vector stores"
+    ],
+    "description": "Generative AI architectures like Retrieval Augmented Generation (RAG) require a robust data backend to remain effective. Vector stores can add to the overall cost of running your application and should be optimized. Reducing vector length on embedded tokens helps optimize vector store costs by decreasing storage requirements and improving query performance. This involves selecting appropriate embedding models, implementing dimensionality reduction techniques, and balancing vector precision with cost efficiency.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost04-bp01.html",
+    "id": "GENCOST04-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes vector store costs by reducing storage and compute requirements while maintaining search accuracy and relevance.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST06-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Reduce vector length on embedded tokens",
+    "title_full": "GENCOST04-BP01 Reduce vector length on embedded tokens"
+  },
+  {
+    "area": [
+      "Cost-informed agents"
+    ],
+    "description": "Agentic architectures promise significant automation potential across all domains. However, they can incur necessary additional cost if misconfigured. Creating stopping conditions to control long-running workflows is essential for cost optimization in agent-based systems. This includes implementing timeout mechanisms, iteration limits, cost thresholds, and circuit breakers to prevent runaway processes that could result in unexpected costs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost05-bp01.html",
+    "id": "GENCOST05-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice prevents runaway agent workflows from incurring unexpected costs while maintaining automation capabilities.",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "COST01-BP02",
+      "COST01-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Create stopping conditions to control long-running workflows",
+    "title_full": "GENCOST05-BP01 Create stopping conditions to control long-running workflows"
+  }
+]
