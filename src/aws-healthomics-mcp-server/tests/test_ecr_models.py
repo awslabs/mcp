@@ -382,14 +382,12 @@ class TestECRRepositoryModel:
             repository_arn='arn:aws:ecr:us-east-1:123456789012:repository/my-repo',
             repository_uri='123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo',
             created_at=created_time,
-            image_count=10,
             healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
             missing_permissions=[],
         )
 
         assert repo.repository_name == 'my-repo'
         assert repo.healthomics_accessible == HealthOmicsAccessStatus.ACCESSIBLE
-        assert repo.image_count == 10
 
     def test_ecr_repository_default_values(self):
         """Test ECRRepository default values."""
@@ -400,7 +398,6 @@ class TestECRRepositoryModel:
         )
 
         assert repo.created_at is None
-        assert repo.image_count is None
         assert repo.healthomics_accessible == HealthOmicsAccessStatus.UNKNOWN
         assert repo.missing_permissions == []
 

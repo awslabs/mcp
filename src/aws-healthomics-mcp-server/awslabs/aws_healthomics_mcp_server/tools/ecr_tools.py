@@ -143,7 +143,6 @@ async def list_ecr_repositories(
                 repository_arn=repository_arn,
                 repository_uri=repository_uri,
                 created_at=created_at,
-                image_count=None,  # Not available from describe_repositories
                 healthomics_accessible=healthomics_accessible,
                 missing_permissions=missing_permissions,
             )
@@ -1343,8 +1342,6 @@ async def validate_healthomics_ecr_config(
         - issues: List of validation issues with remediation steps
         - pull_through_caches_checked: Number of pull-through cache rules checked
         - repositories_checked: Number of repositories checked
-
-    Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
     """
     from awslabs.aws_healthomics_mcp_server.models.ecr import (
         ValidationIssue,
@@ -1361,7 +1358,7 @@ async def validate_healthomics_ecr_config(
     repositories_checked = 0
 
     try:
-        # Step 1: Get all pull-through cache rules (Requirement 5.1)
+        # Step 1: Get all pull-through cache rules
         ptc_rules = []
         next_token = None
 
@@ -1402,7 +1399,7 @@ async def validate_healthomics_ecr_config(
             )
             return result.model_dump()
 
-        # Step 2: Check registry permissions policy (Requirement 5.2)
+        # Step 2: Check registry permissions policy
         registry_policy_text: Optional[str] = None
         try:
             registry_policy_response = client.get_registry_policy()
@@ -1459,7 +1456,7 @@ async def validate_healthomics_ecr_config(
                     )
                 )
 
-        # Step 3 & 4: Check repository creation templates for each prefix (Requirements 5.3, 5.4)
+        # Step 3 & 4: Check repository creation templates for each prefix
         for ptc_rule in ptc_rules:
             ecr_repository_prefix = ptc_rule.get('ecrRepositoryPrefix', '')
             upstream_registry_url = ptc_rule.get('upstreamRegistryUrl', '')

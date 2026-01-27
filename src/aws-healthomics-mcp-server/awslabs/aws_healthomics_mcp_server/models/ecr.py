@@ -50,7 +50,6 @@ class ECRRepository(BaseModel):
     repository_arn: str
     repository_uri: str
     created_at: Optional[datetime] = None
-    image_count: Optional[int] = None
     healthomics_accessible: HealthOmicsAccessStatus = HealthOmicsAccessStatus.UNKNOWN
     missing_permissions: List[str] = Field(default_factory=list)
 
