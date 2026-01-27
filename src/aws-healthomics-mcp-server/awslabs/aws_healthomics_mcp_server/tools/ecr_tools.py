@@ -1978,3 +1978,812 @@ async def create_container_registry_map(
         'json_output': json_output,
         'usage_hint': 'Save this as container-registry-map.json and reference it when creating HealthOmics workflows with the containerRegistryMap parameter.',
     }
+
+
+# Mapping of upstream registry URLs to their pull-through cache detection
+REGISTRY_URL_TO_TYPE = {
+    'registry-1.docker.io': 'docker-hub',
+    'docker.io': 'docker-hub',
+    'quay.io': 'quay',
+    'public.ecr.aws': 'ecr-public',
+}
+
+
+def _parse_container_image_reference(image_ref: str) -> Dict[str, Any]:
+    """Parse a container image reference into its components.
+
+    Handles various formats:
+    - ubuntu:latest -> registry-1.docker.io/library/ubuntu:latest
+    - myorg/myimage:v1 -> registry-1.docker.io/myorg/myimage:v1
+    - quay.io/org/image:tag -> quay.io/org/image:tag
+    - registry-1.docker.io/library/ubuntu@sha256:abc123 -> with digest
+
+    Args:
+        image_ref: Container image reference string
+
+    Returns:
+        Dictionary containing:
+        - registry: The registry URL (e.g., 'registry-1.docker.io')
+        - repository: The repository path (e.g., 'library/ubuntu')
+        - tag: The image tag (e.g., 'latest') or None
+        - digest: The image digest (e.g., 'sha256:...') or None
+        - full_reference: The fully qualified image reference
+    """
+    # Default values
+    registry = 'registry-1.docker.io'
+    repository = ''
+    tag: Optional[str] = None
+    digest: Optional[str] = None
+
+    # Check for digest
+    if '@' in image_ref:
+        ref_part, digest = image_ref.rsplit('@', 1)
+        image_ref = ref_part
+    elif ':' in image_ref:
+        # Check if the colon is for a tag (not a port in registry)
+        parts = image_ref.split('/')
+        if ':' in parts[-1]:
+            # The colon is in the last part, so it's a tag
+            last_part = parts[-1]
+            if ':' in last_part:
+                name, tag = last_part.rsplit(':', 1)
+                parts[-1] = name
+                image_ref = '/'.join(parts)
+
+    # Default tag if neither tag nor digest specified
+    if tag is None and digest is None:
+        tag = 'latest'
+
+    # Parse registry and repository
+    parts = image_ref.split('/')
+
+    # Check if first part looks like a registry (contains . or :)
+    if len(parts) > 1 and ('.' in parts[0] or ':' in parts[0]):
+        registry = parts[0]
+        repository = '/'.join(parts[1:])
+    elif len(parts) == 1:
+        # Single name like 'ubuntu' -> library/ubuntu on Docker Hub
+        registry = 'registry-1.docker.io'
+        repository = f'library/{parts[0]}'
+    else:
+        # org/image format -> Docker Hub
+        registry = 'registry-1.docker.io'
+        repository = '/'.join(parts)
+
+    # Normalize docker.io to registry-1.docker.io
+    if registry == 'docker.io':
+        registry = 'registry-1.docker.io'
+
+    # Build full reference
+    if digest:
+        full_reference = f'{registry}/{repository}@{digest}'
+    elif tag:
+        full_reference = f'{registry}/{repository}:{tag}'
+    else:
+        full_reference = f'{registry}/{repository}'
+
+    return {
+        'registry': registry,
+        'repository': repository,
+        'tag': tag,
+        'digest': digest,
+        'full_reference': full_reference,
+    }
+
+
+def _find_matching_pull_through_cache(
+    registry: str,
+    ptc_rules: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Find a pull-through cache rule that matches the given registry.
+
+    Args:
+        registry: The upstream registry URL
+        ptc_rules: List of pull-through cache rules
+
+    Returns:
+        Matching pull-through cache rule or None
+    """
+    for rule in ptc_rules:
+        upstream_url = rule.get('upstreamRegistryUrl', '')
+        # Normalize URLs for comparison
+        if upstream_url == registry:
+            return rule
+        # Handle docker.io vs registry-1.docker.io
+        if registry in ('docker.io', 'registry-1.docker.io'):
+            if upstream_url in ('docker.io', 'registry-1.docker.io'):
+                return rule
+    return None
+
+
+# Registries that support ECR pull-through cache
+PULL_THROUGH_CACHE_SUPPORTED_REGISTRIES = {
+    'registry-1.docker.io',
+    'docker.io',
+    'quay.io',
+    'public.ecr.aws',
+    'ghcr.io',
+    'registry.k8s.io',
+}
+
+# CodeBuild project name for image cloning
+CODEBUILD_PROJECT_NAME = 'healthomics-container-clone'
+
+
+def _get_or_create_codebuild_project(
+    codebuild_client: Any,
+    iam_client: Any,
+    account_id: str,
+    region: str,
+) -> str:
+    """Get or create the CodeBuild project for container cloning.
+
+    Args:
+        codebuild_client: boto3 CodeBuild client
+        iam_client: boto3 IAM client
+        account_id: AWS account ID
+        region: AWS region
+
+    Returns:
+        CodeBuild project name
+
+    Raises:
+        Exception: If project creation fails
+    """
+    # Check if project exists
+    try:
+        codebuild_client.batch_get_projects(names=[CODEBUILD_PROJECT_NAME])
+        projects = codebuild_client.batch_get_projects(names=[CODEBUILD_PROJECT_NAME])
+        if projects.get('projects'):
+            logger.debug(f'CodeBuild project {CODEBUILD_PROJECT_NAME} already exists')
+            return CODEBUILD_PROJECT_NAME
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code != 'ResourceNotFoundException':
+            raise
+
+    logger.info(f'Creating CodeBuild project: {CODEBUILD_PROJECT_NAME}')
+
+    # Create IAM role for CodeBuild
+    role_name = 'healthomics-container-clone-role'
+    role_arn = f'arn:aws:iam::{account_id}:role/{role_name}'
+
+    # Check if role exists, create if not
+    try:
+        iam_client.get_role(RoleName=role_name)
+        logger.debug(f'IAM role {role_name} already exists')
+    except iam_client.exceptions.NoSuchEntityException:
+        logger.info(f'Creating IAM role: {role_name}')
+
+        # Trust policy for CodeBuild
+        trust_policy = {
+            'Version': '2012-10-17',
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'codebuild.amazonaws.com'},
+                    'Action': 'sts:AssumeRole',
+                }
+            ],
+        }
+
+        iam_client.create_role(
+            RoleName=role_name,
+            AssumeRolePolicyDocument=json.dumps(trust_policy),
+            Description='Role for HealthOmics container clone CodeBuild project',
+        )
+
+        # Attach policy for ECR and CloudWatch Logs
+        policy_document = {
+            'Version': '2012-10-17',
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Action': [
+                        'ecr:GetAuthorizationToken',
+                        'ecr:BatchCheckLayerAvailability',
+                        'ecr:GetDownloadUrlForLayer',
+                        'ecr:BatchGetImage',
+                        'ecr:PutImage',
+                        'ecr:InitiateLayerUpload',
+                        'ecr:UploadLayerPart',
+                        'ecr:CompleteLayerUpload',
+                    ],
+                    'Resource': '*',
+                },
+                {
+                    'Effect': 'Allow',
+                    'Action': [
+                        'logs:CreateLogGroup',
+                        'logs:CreateLogStream',
+                        'logs:PutLogEvents',
+                    ],
+                    'Resource': f'arn:aws:logs:{region}:{account_id}:log-group:/aws/codebuild/{CODEBUILD_PROJECT_NAME}*',
+                },
+            ],
+        }
+
+        iam_client.put_role_policy(
+            RoleName=role_name,
+            PolicyName='healthomics-container-clone-policy',
+            PolicyDocument=json.dumps(policy_document),
+        )
+
+        # Wait for role to propagate
+        import time
+
+        time.sleep(10)
+
+    # Create CodeBuild project
+    codebuild_client.create_project(
+        name=CODEBUILD_PROJECT_NAME,
+        description='Clone container images to ECR for HealthOmics workflows',
+        source={
+            'type': 'NO_SOURCE',
+            'buildspec': """version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+  build:
+    commands:
+      - echo Pulling source image...
+      - docker pull $SOURCE_IMAGE
+      - echo Tagging image...
+      - docker tag $SOURCE_IMAGE $TARGET_IMAGE
+      - echo Pushing to ECR...
+      - docker push $TARGET_IMAGE
+  post_build:
+    commands:
+      - echo Build completed on `date`
+""",
+        },
+        artifacts={'type': 'NO_ARTIFACTS'},
+        environment={
+            'type': 'LINUX_CONTAINER',
+            'image': 'aws/codebuild/amazonlinux2-x86_64-standard:5.0',
+            'computeType': 'BUILD_GENERAL1_SMALL',
+            'privilegedMode': True,  # Required for Docker
+        },
+        serviceRole=role_arn,
+        timeoutInMinutes=30,
+        queuedTimeoutInMinutes=60,
+    )
+
+    logger.info(f'Created CodeBuild project: {CODEBUILD_PROJECT_NAME}')
+    return CODEBUILD_PROJECT_NAME
+
+
+async def _copy_image_via_codebuild(
+    ctx: Context,
+    source_image: str,
+    target_repo: str,
+    target_tag: str,
+    account_id: str,
+    region: str,
+) -> Dict[str, Any]:
+    """Copy a container image to ECR using CodeBuild.
+
+    Args:
+        ctx: MCP context
+        source_image: Full source image reference
+        target_repo: Target ECR repository name
+        target_tag: Target image tag
+        account_id: AWS account ID
+        region: AWS region
+
+    Returns:
+        Dictionary with success status, digest, and message
+    """
+    from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
+        get_codebuild_client,
+        get_iam_client,
+    )
+
+    codebuild_client = get_codebuild_client()
+    iam_client = get_iam_client()
+
+    ecr_registry = f'{account_id}.dkr.ecr.{region}.amazonaws.com'
+    target_image = f'{ecr_registry}/{target_repo}:{target_tag}'
+
+    try:
+        # Ensure CodeBuild project exists
+        project_name = _get_or_create_codebuild_project(
+            codebuild_client, iam_client, account_id, region
+        )
+
+        # Start the build
+        logger.info(f'Starting CodeBuild to copy {source_image} to {target_image}')
+
+        build_response = codebuild_client.start_build(
+            projectName=project_name,
+            environmentVariablesOverride=[
+                {'name': 'SOURCE_IMAGE', 'value': source_image, 'type': 'PLAINTEXT'},
+                {'name': 'TARGET_IMAGE', 'value': target_image, 'type': 'PLAINTEXT'},
+                {'name': 'TARGET_REPO', 'value': target_repo, 'type': 'PLAINTEXT'},
+                {'name': 'TARGET_TAG', 'value': target_tag, 'type': 'PLAINTEXT'},
+                {'name': 'ECR_REGISTRY', 'value': ecr_registry, 'type': 'PLAINTEXT'},
+            ],
+        )
+
+        build_id = build_response['build']['id']
+        logger.info(f'Started CodeBuild build: {build_id}')
+
+        # Poll for completion
+        import asyncio
+
+        max_wait_seconds = 300  # 5 minutes
+        poll_interval = 10
+        elapsed = 0
+
+        while elapsed < max_wait_seconds:
+            await asyncio.sleep(poll_interval)
+            elapsed += poll_interval
+
+            builds = codebuild_client.batch_get_builds(ids=[build_id])
+            if not builds.get('builds'):
+                continue
+
+            build = builds['builds'][0]
+            status = build.get('buildStatus')
+
+            if status == 'SUCCEEDED':
+                logger.info(f'CodeBuild completed successfully: {build_id}')
+
+                # Get the image digest from ECR
+                ecr_client = get_ecr_client()
+                try:
+                    images = ecr_client.describe_images(
+                        repositoryName=target_repo,
+                        imageIds=[{'imageTag': target_tag}],
+                    )
+                    if images.get('imageDetails'):
+                        digest = images['imageDetails'][0].get('imageDigest', '')
+                        return {
+                            'success': True,
+                            'digest': digest,
+                            'message': f'Successfully copied {source_image} to {target_image}',
+                        }
+                except Exception as e:
+                    logger.warning(f'Failed to get image digest: {e}')
+
+                return {
+                    'success': True,
+                    'digest': None,
+                    'message': f'Successfully copied {source_image} to {target_image}',
+                }
+
+            elif status in ('FAILED', 'FAULT', 'STOPPED', 'TIMED_OUT'):
+                error_msg = f'CodeBuild failed with status: {status}'
+                phases = build.get('phases', [])
+                for phase in phases:
+                    if phase.get('phaseStatus') == 'FAILED':
+                        contexts = phase.get('contexts', [])
+                        if contexts:
+                            error_msg += f' - {contexts[0].get("message", "")}'
+                        break
+
+                logger.error(error_msg)
+                return {
+                    'success': False,
+                    'digest': None,
+                    'message': error_msg,
+                }
+
+            logger.debug(f'CodeBuild status: {status}, waiting...')
+
+        # Timeout
+        return {
+            'success': False,
+            'digest': None,
+            'message': f'CodeBuild timed out after {max_wait_seconds} seconds. Build ID: {build_id}',
+        }
+
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        logger.error(f'CodeBuild error: {error_code} - {error_message}')
+        return {
+            'success': False,
+            'digest': None,
+            'message': f'CodeBuild error: {error_message}',
+        }
+
+    except Exception as e:
+        logger.error(f'Unexpected error in CodeBuild copy: {e}')
+        return {
+            'success': False,
+            'digest': None,
+            'message': f'Unexpected error: {str(e)}',
+        }
+
+
+async def clone_container_to_ecr(
+    ctx: Context,
+    source_image: str = Field(
+        ...,
+        description='Source container image reference (e.g., "ubuntu:latest", '
+        '"myorg/myimage:v1", "quay.io/org/image:tag")',
+    ),
+    target_repository_name: Optional[str] = Field(
+        None,
+        description='Target ECR repository name. Only used if no pull-through cache exists. '
+        'If not provided, derives from source image.',
+    ),
+    target_image_tag: Optional[str] = Field(
+        None,
+        description='Target image tag. If not provided, uses source tag or "latest".',
+    ),
+) -> Dict[str, Any]:
+    """Clone a container image to a private ECR repository for HealthOmics use.
+
+    This tool copies a container image from an upstream registry (Docker Hub, Quay.io,
+    ECR Public) to your private ECR repository with appropriate HealthOmics access
+    permissions. It uses ECR pull-through cache to perform the copy.
+
+    The tool will:
+    1. Parse the source image reference (handling Docker Hub shorthand like "ubuntu:latest")
+    2. Find an existing pull-through cache rule for the source registry
+    3. Use the pull-through cache to pull the image into ECR
+    4. Grant HealthOmics access permissions to the repository
+    5. Return the ECR URI and digest for use in workflows
+
+    Image reference formats supported:
+    - "ubuntu:latest" -> registry-1.docker.io/library/ubuntu:latest
+    - "myorg/myimage:v1" -> registry-1.docker.io/myorg/myimage:v1
+    - "quay.io/biocontainers/samtools:1.17" -> quay.io/biocontainers/samtools:1.17
+    - "public.ecr.aws/lts/ubuntu:22.04" -> public.ecr.aws/lts/ubuntu:22.04
+
+    Args:
+        ctx: MCP context for error reporting
+        source_image: Source container image reference
+        target_repository_name: Target ECR repository name (only used if no pull-through
+            cache exists; optional)
+        target_image_tag: Target image tag (optional)
+
+    Returns:
+        Dictionary containing:
+        - success: Whether the operation was successful
+        - source_image: Original source image reference
+        - source_registry: Source registry URL
+        - source_digest: Source image digest (if available)
+        - ecr_uri: ECR URI of the cloned image
+        - ecr_digest: ECR image digest
+        - repository_created: Whether a new repository was created
+        - used_pull_through_cache: Whether pull-through cache was used
+        - pull_through_cache_prefix: The pull-through cache prefix used (if any)
+        - healthomics_accessible: Whether HealthOmics can access the image
+        - message: Human-readable status message
+    """
+    from awslabs.aws_healthomics_mcp_server.models.ecr import (
+        CloneContainerResponse,
+        HealthOmicsAccessStatus,
+    )
+    from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id, get_region
+
+    # Validate source image
+    if not source_image or not source_image.strip():
+        await ctx.error('Source image is required and cannot be empty')
+        return CloneContainerResponse(
+            success=False,
+            source_image='',
+            source_registry='',
+            message='Source image is required and cannot be empty',
+        ).model_dump()
+
+    source_image = source_image.strip()
+
+    # Parse the source image reference
+    parsed = _parse_container_image_reference(source_image)
+    source_registry = parsed['registry']
+    source_repository = parsed['repository']
+    source_tag = parsed['tag']
+    source_digest = parsed['digest']
+
+    logger.info(
+        f'Cloning container image: registry={source_registry}, '
+        f'repository={source_repository}, tag={source_tag}, digest={source_digest}'
+    )
+
+    client = get_ecr_client()
+
+    # Get account ID and region for ECR URI construction
+    try:
+        account_id = get_account_id()
+        region = get_region()
+    except Exception as e:
+        logger.error(f'Failed to get AWS account info: {e}')
+        await ctx.error(f'Failed to get AWS account info: {e}')
+        return CloneContainerResponse(
+            success=False,
+            source_image=source_image,
+            source_registry=source_registry,
+            message=f'Failed to get AWS account info: {e}',
+        ).model_dump()
+
+    # Determine target tag
+    ecr_tag = target_image_tag or source_tag or 'latest'
+
+    # Find pull-through cache for source registry
+    ptc_prefix: Optional[str] = None
+    try:
+        ptc_response = client.describe_pull_through_cache_rules()
+        for rule in ptc_response.get('pullThroughCacheRules', []):
+            upstream_url = rule.get('upstreamRegistryUrl', '')
+            if upstream_url == source_registry or (
+                source_registry in ('docker.io', 'registry-1.docker.io')
+                and upstream_url in ('docker.io', 'registry-1.docker.io')
+            ):
+                ptc_prefix = rule.get('ecrRepositoryPrefix')
+                break
+    except Exception as e:
+        logger.warning(f'Failed to check pull-through cache rules: {e}')
+
+    repository_created = False
+    ecr_digest: Optional[str] = None
+
+    try:
+        if ptc_prefix:
+            # Use pull-through cache
+            ecr_repository_name = f'{ptc_prefix}/{source_repository}'
+            ecr_uri_base = f'{account_id}.dkr.ecr.{region}.amazonaws.com/{ecr_repository_name}'
+
+            logger.info(f'Using pull-through cache prefix "{ptc_prefix}" to clone {source_image}')
+
+            # Build image identifier
+            image_ids: List[Dict[str, str]] = []
+            if source_digest:
+                image_ids.append({'imageDigest': source_digest})
+            else:
+                image_ids.append({'imageTag': ecr_tag})
+
+            # batch_get_image triggers the pull-through cache
+            response = client.batch_get_image(
+                repositoryName=ecr_repository_name,
+                imageIds=image_ids,
+                acceptedMediaTypes=[
+                    'application/vnd.docker.distribution.manifest.v2+json',
+                    'application/vnd.oci.image.manifest.v1+json',
+                ],
+            )
+
+            images = response.get('images', [])
+            failures = response.get('failures', [])
+
+            if images:
+                image = images[0]
+                image_id = image.get('imageId', {})
+                ecr_digest = image_id.get('imageDigest', '')
+                pulled_tag = image_id.get('imageTag', ecr_tag)
+
+                ecr_uri = f'{ecr_uri_base}:{pulled_tag}'
+                if ecr_digest:
+                    ecr_uri = f'{ecr_uri_base}@{ecr_digest}'
+
+                # Grant HealthOmics access
+                try:
+                    await grant_healthomics_repository_access(
+                        ctx, repository_name=ecr_repository_name
+                    )
+                except Exception as grant_err:
+                    logger.warning(f'Failed to grant HealthOmics access: {grant_err}')
+
+                return CloneContainerResponse(
+                    success=True,
+                    source_image=source_image,
+                    source_registry=source_registry,
+                    source_digest=source_digest,
+                    ecr_uri=ecr_uri,
+                    ecr_digest=ecr_digest,
+                    repository_created=False,
+                    used_pull_through_cache=True,
+                    pull_through_cache_prefix=ptc_prefix,
+                    healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                    message=f'Successfully cloned {source_image} to {ecr_uri} via pull-through cache',
+                ).model_dump()
+
+            elif failures:
+                failure = failures[0]
+                failure_code = failure.get('failureCode', '')
+                failure_reason = failure.get('failureReason', '')
+                error_msg = f'Pull-through cache failed: {failure_code} - {failure_reason}'
+                logger.error(error_msg)
+                await ctx.error(error_msg)
+                return CloneContainerResponse(
+                    success=False,
+                    source_image=source_image,
+                    source_registry=source_registry,
+                    message=error_msg,
+                ).model_dump()
+
+            else:
+                error_msg = 'Pull-through cache returned no images'
+                logger.error(error_msg)
+                return CloneContainerResponse(
+                    success=False,
+                    source_image=source_image,
+                    source_registry=source_registry,
+                    message=error_msg,
+                ).model_dump()
+
+        else:
+            # No pull-through cache available
+            ecr_repository_name = target_repository_name or source_repository.replace('/', '-')
+            ecr_uri_base = f'{account_id}.dkr.ecr.{region}.amazonaws.com/{ecr_repository_name}'
+
+            logger.info(
+                f'No pull-through cache for {source_registry}. '
+                f'Creating repository {ecr_repository_name}.'
+            )
+
+            # Check if repository exists, create if not
+            try:
+                client.describe_repositories(repositoryNames=[ecr_repository_name])
+                logger.debug(f'Repository {ecr_repository_name} already exists')
+            except botocore.exceptions.ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code == 'RepositoryNotFoundException':
+                    logger.info(f'Creating repository: {ecr_repository_name}')
+                    client.create_repository(
+                        repositoryName=ecr_repository_name,
+                        imageScanningConfiguration={'scanOnPush': True},
+                        imageTagMutability='MUTABLE',
+                    )
+                    repository_created = True
+                    logger.info(f'Created repository: {ecr_repository_name}')
+                else:
+                    raise
+
+            # Grant HealthOmics access
+            try:
+                await grant_healthomics_repository_access(ctx, repository_name=ecr_repository_name)
+            except Exception as grant_error:
+                logger.warning(f'Failed to grant HealthOmics access: {grant_error}')
+
+            ecr_uri = f'{ecr_uri_base}:{ecr_tag}'
+
+            # Check if registry supports pull-through cache
+            registry_supports_ptc = source_registry in PULL_THROUGH_CACHE_SUPPORTED_REGISTRIES
+
+            if registry_supports_ptc:
+                # Registry supports pull-through cache but none is configured
+                # Suggest creating one
+                return CloneContainerResponse(
+                    success=False,
+                    source_image=source_image,
+                    source_registry=source_registry,
+                    source_digest=source_digest,
+                    ecr_uri=ecr_uri,
+                    ecr_digest=None,
+                    repository_created=repository_created,
+                    used_pull_through_cache=False,
+                    used_codebuild=False,
+                    pull_through_cache_prefix=None,
+                    healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                    message=(
+                        f'No pull-through cache configured for {source_registry}. '
+                        f'Repository {ecr_repository_name} created with HealthOmics permissions. '
+                        f'To clone the image, create a pull-through cache using '
+                        f'CreatePullThroughCacheForHealthOmics, then retry this operation.'
+                    ),
+                ).model_dump()
+            else:
+                # Registry does NOT support pull-through cache (e.g., wave.seqera.io)
+                # Use CodeBuild to copy the image
+                logger.info(
+                    f'Registry {source_registry} does not support pull-through cache. '
+                    f'Using CodeBuild to copy image.'
+                )
+
+                full_source_image = parsed['full_reference']
+                codebuild_result = await _copy_image_via_codebuild(
+                    ctx=ctx,
+                    source_image=full_source_image,
+                    target_repo=ecr_repository_name,
+                    target_tag=ecr_tag,
+                    account_id=account_id,
+                    region=region,
+                )
+
+                if codebuild_result['success']:
+                    ecr_digest = codebuild_result.get('digest')
+                    final_ecr_uri = ecr_uri
+                    if ecr_digest:
+                        final_ecr_uri = f'{ecr_uri_base}@{ecr_digest}'
+
+                    return CloneContainerResponse(
+                        success=True,
+                        source_image=source_image,
+                        source_registry=source_registry,
+                        source_digest=source_digest,
+                        ecr_uri=final_ecr_uri,
+                        ecr_digest=ecr_digest,
+                        repository_created=repository_created,
+                        used_pull_through_cache=False,
+                        used_codebuild=True,
+                        pull_through_cache_prefix=None,
+                        healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                        message=(
+                            f'Successfully cloned {source_image} to {final_ecr_uri} via CodeBuild'
+                        ),
+                    ).model_dump()
+                else:
+                    # CodeBuild failed - return error with manual instructions
+                    return CloneContainerResponse(
+                        success=False,
+                        source_image=source_image,
+                        source_registry=source_registry,
+                        source_digest=source_digest,
+                        ecr_uri=ecr_uri,
+                        ecr_digest=None,
+                        repository_created=repository_created,
+                        used_pull_through_cache=False,
+                        used_codebuild=False,
+                        pull_through_cache_prefix=None,
+                        healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                        message=(
+                            f'CodeBuild copy failed: {codebuild_result["message"]}. '
+                            f'Repository {ecr_repository_name} created with HealthOmics permissions. '
+                            f'To manually push: docker pull {full_source_image} && '
+                            f'docker tag {full_source_image} {ecr_uri} && '
+                            f'aws ecr get-login-password --region {region} | '
+                            f'docker login --username AWS --password-stdin '
+                            f'{account_id}.dkr.ecr.{region}.amazonaws.com && '
+                            f'docker push {ecr_uri}'
+                        ),
+                    ).model_dump()
+
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+
+        if error_code == 'AccessDeniedException':
+            required_actions = [
+                'ecr:DescribePullThroughCacheRules',
+                'ecr:DescribeRepositories',
+                'ecr:CreateRepository',
+                'ecr:BatchGetImage',
+                'ecr:SetRepositoryPolicy',
+            ]
+            logger.error(f'Access denied to ECR: {error_message}')
+            await ctx.error(
+                f'Access denied to ECR. Ensure IAM permissions include: {required_actions}'
+            )
+            return CloneContainerResponse(
+                success=False,
+                source_image=source_image,
+                source_registry=source_registry,
+                message=f'Access denied: {error_message}',
+            ).model_dump()
+        else:
+            logger.error(f'ECR API error: {error_code} - {error_message}')
+            await ctx.error(f'ECR error: {error_message}')
+            return CloneContainerResponse(
+                success=False,
+                source_image=source_image,
+                source_registry=source_registry,
+                message=f'ECR error: {error_message}',
+            ).model_dump()
+
+    except botocore.exceptions.BotoCoreError as e:
+        error_message = f'AWS error accessing ECR: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        return CloneContainerResponse(
+            success=False,
+            source_image=source_image,
+            source_registry=source_registry,
+            message=error_message,
+        ).model_dump()
+
+    except Exception as e:
+        error_message = f'Unexpected error cloning container: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        return CloneContainerResponse(
+            success=False,
+            source_image=source_image,
+            source_registry=source_registry,
+            message=error_message,
+        ).model_dump()

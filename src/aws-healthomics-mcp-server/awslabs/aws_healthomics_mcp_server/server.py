@@ -16,6 +16,7 @@
 
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
+    clone_container_to_ecr,
     create_container_registry_map,
     create_pull_through_cache_for_healthomics,
     grant_healthomics_repository_access,
@@ -107,6 +108,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ### ECR Container Tools
 - **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
 - **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics
+- **CloneContainerToECR**: Clone a container image from an upstream registry to ECR with HealthOmics permissions
 - **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
 - **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
 - **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics
@@ -169,6 +171,7 @@ mcp.tool(name='GetAHOSupportedRegions')(get_supported_regions)
 # Register ECR container tools
 mcp.tool(name='ListECRRepositories')(list_ecr_repositories)
 mcp.tool(name='CheckContainerAvailability')(check_container_availability)
+mcp.tool(name='CloneContainerToECR')(clone_container_to_ecr)
 mcp.tool(name='GrantHealthOmicsRepositoryAccess')(grant_healthomics_repository_access)
 mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
 mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)

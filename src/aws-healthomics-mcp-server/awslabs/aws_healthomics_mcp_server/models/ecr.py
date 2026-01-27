@@ -136,3 +136,20 @@ class GrantAccessResponse(BaseModel):
     previous_healthomics_accessible: HealthOmicsAccessStatus = HealthOmicsAccessStatus.UNKNOWN
     current_healthomics_accessible: HealthOmicsAccessStatus = HealthOmicsAccessStatus.UNKNOWN
     message: str
+
+
+class CloneContainerResponse(BaseModel):
+    """Response for cloning a container to ECR."""
+
+    success: bool
+    source_image: str
+    source_registry: str
+    source_digest: Optional[str] = None
+    ecr_uri: Optional[str] = None
+    ecr_digest: Optional[str] = None
+    repository_created: bool = False
+    used_pull_through_cache: bool = False
+    used_codebuild: bool = False
+    pull_through_cache_prefix: Optional[str] = None
+    healthomics_accessible: HealthOmicsAccessStatus = HealthOmicsAccessStatus.UNKNOWN
+    message: str

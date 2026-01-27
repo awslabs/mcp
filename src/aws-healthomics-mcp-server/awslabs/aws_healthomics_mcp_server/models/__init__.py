@@ -39,6 +39,7 @@ from .core import (
 
 # ECR models
 from .ecr import (
+    CloneContainerResponse,
     ContainerAvailabilityResponse,
     ContainerImage,
     ECRRepository,
@@ -101,6 +102,7 @@ __all__ = [
     'WorkflowSummary',
     'WorkflowType',
     # ECR models
+    'CloneContainerResponse',
     'ContainerAvailabilityResponse',
     'ContainerImage',
     'ECRRepository',
