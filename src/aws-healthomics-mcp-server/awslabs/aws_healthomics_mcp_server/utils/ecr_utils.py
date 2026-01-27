@@ -353,6 +353,26 @@ def check_repository_template_healthomics_access(
     return True, len(missing_actions) == 0, missing_actions
 
 
+def get_pull_through_cache_rule_for_repository(
+    repository_name: str,
+    ptc_rules: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Get the pull-through cache rule that matches a repository name.
+
+    Args:
+        repository_name: The ECR repository name to check
+        ptc_rules: List of pull-through cache rules from describe_pull_through_cache_rules
+
+    Returns:
+        The matching pull-through cache rule dict, or None if no match
+    """
+    for rule in ptc_rules:
+        prefix = rule.get('ecrRepositoryPrefix', '')
+        if prefix and repository_name.startswith(f'{prefix}/'):
+            return rule
+    return None
+
+
 def evaluate_pull_through_cache_healthomics_usability(
     registry_policy_text: Optional[str],
     template_policy_text: Optional[str],
@@ -405,3 +425,141 @@ def evaluate_pull_through_cache_healthomics_usability(
         'missing_registry_permissions': missing_registry,
         'missing_template_permissions': missing_template,
     }
+
+
+def initiate_pull_through_cache(
+    ecr_client: Any,
+    repository_name: str,
+    image_tag: Optional[str] = None,
+    image_digest: Optional[str] = None,
+) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Initiate a pull-through cache by calling batch_get_image.
+
+    When an image is not found in a pull-through cache repository, calling
+    batch_get_image will trigger ECR to pull the image from the upstream
+    registry. This is useful for pre-caching images before HealthOmics
+    workflow execution.
+
+    Args:
+        ecr_client: boto3 ECR client
+        repository_name: The ECR repository name (e.g., "docker-hub/library/ubuntu")
+        image_tag: Image tag to pull (e.g., "latest")
+        image_digest: Image digest to pull (e.g., "sha256:...")
+
+    Returns:
+        Tuple of (success, message, image_details):
+        - success: True if the pull-through was initiated successfully
+        - message: Human-readable status message
+        - image_details: Image details if available after pull-through
+    """
+    import botocore.exceptions
+
+    # Build image identifier
+    image_ids: List[Dict[str, str]] = []
+    if image_digest:
+        image_ids.append({'imageDigest': image_digest})
+    else:
+        image_ids.append({'imageTag': image_tag or 'latest'})
+
+    try:
+        # batch_get_image triggers the pull-through cache mechanism
+        response = ecr_client.batch_get_image(
+            repositoryName=repository_name,
+            imageIds=image_ids,
+            acceptedMediaTypes=[
+                'application/vnd.docker.distribution.manifest.v2+json',
+                'application/vnd.oci.image.manifest.v1+json',
+            ],
+        )
+
+        # Check if we got images back
+        images = response.get('images', [])
+        failures = response.get('failures', [])
+
+        if images:
+            # Pull-through succeeded - image is now cached
+            image = images[0]
+            image_id = image.get('imageId', {})
+            digest = image_id.get('imageDigest', '')
+            tag = image_id.get('imageTag', image_tag)
+
+            return (
+                True,
+                f'Pull-through cache initiated successfully. Image {repository_name}:{tag or digest} is now cached.',
+                {
+                    'imageDigest': digest,
+                    'imageTag': tag,
+                    'repositoryName': repository_name,
+                },
+            )
+
+        if failures:
+            # Check failure reasons
+            failure = failures[0]
+            failure_code = failure.get('failureCode', '')
+            failure_reason = failure.get('failureReason', '')
+
+            if failure_code == 'ImageNotFound':
+                return (
+                    False,
+                    f'Image not found in upstream registry: {failure_reason}',
+                    None,
+                )
+            elif failure_code == 'RepositoryNotFound':
+                return (
+                    False,
+                    f'Repository not found: {failure_reason}',
+                    None,
+                )
+            else:
+                return (
+                    False,
+                    f'Pull-through cache failed: {failure_code} - {failure_reason}',
+                    None,
+                )
+
+        return (
+            False,
+            'Pull-through cache returned no images and no failures',
+            None,
+        )
+
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+
+        if error_code == 'RepositoryNotFoundException':
+            # Repository doesn't exist yet - this is expected for first pull
+            # The pull-through cache should create it, but we need permissions
+            return (
+                False,
+                f'Repository does not exist yet. Pull-through cache may create it on first access: {error_message}',
+                None,
+            )
+        elif error_code == 'ImageNotFoundException':
+            return (
+                False,
+                f'Image not found in upstream registry: {error_message}',
+                None,
+            )
+        elif error_code == 'AccessDeniedException':
+            return (
+                False,
+                f'Access denied. Ensure IAM permissions include ecr:BatchGetImage: {error_message}',
+                None,
+            )
+        else:
+            logger.warning(f'Pull-through cache initiation failed: {error_code} - {error_message}')
+            return (
+                False,
+                f'Pull-through cache initiation failed: {error_message}',
+                None,
+            )
+
+    except Exception as e:
+        logger.warning(f'Unexpected error initiating pull-through cache: {str(e)}')
+        return (
+            False,
+            f'Unexpected error initiating pull-through cache: {str(e)}',
+            None,
+        )

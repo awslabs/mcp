@@ -84,6 +84,8 @@ class ContainerAvailabilityResponse(BaseModel):
     healthomics_accessible: HealthOmicsAccessStatus = HealthOmicsAccessStatus.UNKNOWN
     missing_permissions: List[str] = Field(default_factory=list)
     message: str
+    pull_through_initiated: bool = False
+    pull_through_initiation_message: Optional[str] = None
 
 
 class PullThroughCacheRule(BaseModel):

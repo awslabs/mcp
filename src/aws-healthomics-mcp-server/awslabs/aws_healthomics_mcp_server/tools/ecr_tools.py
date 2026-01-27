@@ -40,6 +40,8 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
 from awslabs.aws_healthomics_mcp_server.utils.ecr_utils import (
     check_repository_healthomics_access,
     evaluate_pull_through_cache_healthomics_usability,
+    get_pull_through_cache_rule_for_repository,
+    initiate_pull_through_cache,
 )
 from datetime import datetime
 from loguru import logger
@@ -255,6 +257,102 @@ def _is_pull_through_cache_repository(repository_name: str) -> bool:
         return False
 
 
+def _check_pull_through_cache_healthomics_usability(
+    repository_name: str,
+) -> Dict[str, Any]:
+    """Check if a pull-through cache repository is usable by HealthOmics.
+
+    Evaluates whether the pull-through cache configuration allows HealthOmics
+    to use the cached images. This includes checking:
+    1. Registry permissions policy grants HealthOmics required permissions
+    2. Repository creation template exists and grants HealthOmics access
+
+    Args:
+        repository_name: The ECR repository name to check
+
+    Returns:
+        Dictionary containing:
+        - is_ptc: Whether this is a pull-through cache repository
+        - healthomics_usable: Whether HealthOmics can use this pull-through cache
+        - ptc_rule: The matching pull-through cache rule (if any)
+        - usability_details: Detailed usability information
+    """
+    client = get_ecr_client()
+
+    result: Dict[str, Any] = {
+        'is_ptc': False,
+        'healthomics_usable': False,
+        'ptc_rule': None,
+        'usability_details': None,
+    }
+
+    try:
+        # Get all pull-through cache rules
+        ptc_rules = []
+        next_token = None
+
+        while True:
+            params: Dict[str, Any] = {'maxResults': 100}
+            if next_token:
+                params['nextToken'] = next_token
+
+            response = client.describe_pull_through_cache_rules(**params)
+            ptc_rules.extend(response.get('pullThroughCacheRules', []))
+            next_token = response.get('nextToken')
+
+            if not next_token:
+                break
+
+        # Find matching rule
+        matching_rule = get_pull_through_cache_rule_for_repository(repository_name, ptc_rules)
+        if not matching_rule:
+            return result
+
+        result['is_ptc'] = True
+        result['ptc_rule'] = matching_rule
+        ecr_repository_prefix = matching_rule.get('ecrRepositoryPrefix', '')
+
+        # Get registry permissions policy
+        registry_policy_text: Optional[str] = None
+        try:
+            registry_policy_response = client.get_registry_policy()
+            registry_policy_text = registry_policy_response.get('policyText')
+        except botocore.exceptions.ClientError as policy_error:
+            error_code = policy_error.response.get('Error', {}).get('Code', '')
+            if error_code != 'RegistryPolicyNotFoundException':
+                logger.warning(f'Failed to get registry policy: {policy_error}')
+
+        # Get repository creation template
+        template_policy_text: Optional[str] = None
+        try:
+            template_response = client.describe_repository_creation_templates(
+                prefixes=[ecr_repository_prefix]
+            )
+            templates = template_response.get('repositoryCreationTemplates', [])
+            if templates:
+                template_policy_text = templates[0].get('repositoryPolicy')
+        except botocore.exceptions.ClientError as template_error:
+            error_code = template_error.response.get('Error', {}).get('Code', '')
+            if error_code != 'TemplateNotFoundException':
+                logger.warning(f'Failed to get repository creation template: {template_error}')
+
+        # Evaluate usability
+        usability = evaluate_pull_through_cache_healthomics_usability(
+            registry_policy_text=registry_policy_text,
+            template_policy_text=template_policy_text,
+            ecr_repository_prefix=ecr_repository_prefix,
+        )
+
+        result['healthomics_usable'] = usability['healthomics_usable']
+        result['usability_details'] = usability
+
+        return result
+
+    except Exception as e:
+        logger.warning(f'Error checking pull-through cache HealthOmics usability: {e}')
+        return result
+
+
 async def check_container_availability(
     ctx: Context,
     repository_name: str = Field(
@@ -269,6 +367,12 @@ async def check_container_availability(
         None,
         description='Image digest (sha256:...) - if provided, takes precedence over tag',
     ),
+    initiate_pull_through: bool = Field(
+        False,
+        description='If True and the image is not found in a pull-through cache repository '
+        'that is accessible to HealthOmics, attempt to initiate the pull-through '
+        'using batch_get_image API call',
+    ),
 ) -> Dict[str, Any]:
     """Check if a container image is available in ECR and accessible by HealthOmics.
 
@@ -277,11 +381,18 @@ async def check_container_availability(
     For pull-through cache repositories, indicates that the image may be pulled
     on first access even if not currently cached.
 
+    When initiate_pull_through is True and the image is not found in a pull-through
+    cache repository that is accessible to HealthOmics, this function will attempt
+    to initiate the pull-through using ECR's batch_get_image API call. This triggers
+    ECR to pull the image from the upstream registry and cache it locally.
+
     Args:
         ctx: MCP context for error reporting
         repository_name: ECR repository name (e.g., "my-repo" or "docker-hub/library/ubuntu")
         image_tag: Image tag to check (default: "latest")
         image_digest: Image digest (sha256:...) - if provided, takes precedence over tag
+        initiate_pull_through: If True, attempt to initiate pull-through cache for
+            missing images in accessible pull-through cache repositories
 
     Returns:
         Dictionary containing:
@@ -292,6 +403,8 @@ async def check_container_availability(
         - healthomics_accessible: Whether HealthOmics can access the image
         - missing_permissions: List of missing ECR permissions for HealthOmics
         - message: Human-readable status message
+        - pull_through_initiated: Whether a pull-through was initiated
+        - pull_through_initiation_message: Message about pull-through initiation result
     """
     # Validate repository name
     if not repository_name or not repository_name.strip():
@@ -426,7 +539,56 @@ async def check_container_availability(
         if error_code == 'RepositoryNotFoundException':
             logger.debug(f'Repository not found: {repository_name}')
             message = f'Repository not found: {repository_name}'
-            if is_ptc:
+
+            # Check if we should initiate pull-through
+            pull_through_initiated = False
+            pull_through_initiation_message: Optional[str] = None
+
+            if is_ptc and initiate_pull_through:
+                # Check if the pull-through cache is usable by HealthOmics
+                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name)
+
+                if ptc_usability['healthomics_usable']:
+                    logger.info(
+                        f'Initiating pull-through cache for {repository_name}:{image_tag} '
+                        '(repository does not exist yet)'
+                    )
+                    success, ptc_message, image_details = initiate_pull_through_cache(
+                        client,
+                        repository_name,
+                        image_tag=image_tag,
+                        image_digest=image_digest,
+                    )
+                    pull_through_initiated = success
+                    pull_through_initiation_message = ptc_message
+
+                    if success and image_details:
+                        # Image was successfully pulled - return as available
+                        container_image = ContainerImage(
+                            repository_name=repository_name,
+                            image_tag=image_details.get('imageTag'),
+                            image_digest=image_details.get('imageDigest', ''),
+                            exists=True,
+                        )
+                        return ContainerAvailabilityResponse(
+                            available=True,
+                            image=container_image,
+                            repository_exists=True,
+                            is_pull_through_cache=True,
+                            healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                            message=f'Image pulled via pull-through cache: {repository_name}:{image_tag}',
+                            pull_through_initiated=True,
+                            pull_through_initiation_message=ptc_message,
+                        ).model_dump()
+                    else:
+                        message += f'. Pull-through initiation attempted: {ptc_message}'
+                else:
+                    pull_through_initiation_message = (
+                        'Pull-through cache is not usable by HealthOmics. '
+                        'Ensure registry policy and repository template are configured correctly.'
+                    )
+                    message += f'. {pull_through_initiation_message}'
+            elif is_ptc:
                 message += '. This appears to be a pull-through cache repository - it may be created on first image pull.'
 
             return ContainerAvailabilityResponse(
@@ -434,13 +596,61 @@ async def check_container_availability(
                 repository_exists=False,
                 is_pull_through_cache=is_ptc,
                 message=message,
+                pull_through_initiated=pull_through_initiated,
+                pull_through_initiation_message=pull_through_initiation_message,
             ).model_dump()
 
         elif error_code == 'ImageNotFoundException':
             identifier = image_digest if image_digest else f'tag:{image_tag}'
             logger.debug(f'Image not found: {repository_name} ({identifier})')
             message = f'Image not found: {repository_name} ({identifier})'
-            if is_ptc:
+
+            # Check if we should initiate pull-through
+            pull_through_initiated = False
+            pull_through_initiation_message: Optional[str] = None
+
+            if is_ptc and initiate_pull_through:
+                # Check if the pull-through cache is usable by HealthOmics
+                ptc_usability = _check_pull_through_cache_healthomics_usability(repository_name)
+
+                if ptc_usability['healthomics_usable']:
+                    logger.info(f'Initiating pull-through cache for {repository_name}:{image_tag}')
+                    success, ptc_message, image_details = initiate_pull_through_cache(
+                        client,
+                        repository_name,
+                        image_tag=image_tag,
+                        image_digest=image_digest,
+                    )
+                    pull_through_initiated = success
+                    pull_through_initiation_message = ptc_message
+
+                    if success and image_details:
+                        # Image was successfully pulled - return as available
+                        container_image = ContainerImage(
+                            repository_name=repository_name,
+                            image_tag=image_details.get('imageTag'),
+                            image_digest=image_details.get('imageDigest', ''),
+                            exists=True,
+                        )
+                        return ContainerAvailabilityResponse(
+                            available=True,
+                            image=container_image,
+                            repository_exists=True,
+                            is_pull_through_cache=True,
+                            healthomics_accessible=HealthOmicsAccessStatus.ACCESSIBLE,
+                            message=f'Image pulled via pull-through cache: {repository_name}:{image_tag}',
+                            pull_through_initiated=True,
+                            pull_through_initiation_message=ptc_message,
+                        ).model_dump()
+                    else:
+                        message += f'. Pull-through initiation attempted: {ptc_message}'
+                else:
+                    pull_through_initiation_message = (
+                        'Pull-through cache is not usable by HealthOmics. '
+                        'Ensure registry policy and repository template are configured correctly.'
+                    )
+                    message += f'. {pull_through_initiation_message}'
+            elif is_ptc:
                 message += '. This is a pull-through cache repository - the image may be pulled on first access.'
 
             return ContainerAvailabilityResponse(
@@ -448,6 +658,8 @@ async def check_container_availability(
                 repository_exists=True,
                 is_pull_through_cache=is_ptc,
                 message=message,
+                pull_through_initiated=pull_through_initiated,
+                pull_through_initiation_message=pull_through_initiation_message,
             ).model_dump()
 
         elif error_code == 'AccessDeniedException':
