@@ -17,6 +17,7 @@
 import argparse
 import boto3
 import httpx
+import json
 import psycopg
 import psycopg.rows
 import sys
@@ -496,7 +497,13 @@ async def _proxy_to_knowledge_server(
                     await ctx.error(error_msg)
                 raise Exception(error_msg)
 
-            return result.get('result', {})
+            res = result.get('result', {})
+            if not res:
+                content = result.get('content', [])
+                if content and isinstance(content, list) and content[0].get('type') == 'text':
+                    return json.loads(content[0]['text'])
+                return {'content': content}
+            return res
 
     except httpx.HTTPError as e:
         error_msg = 'The DSQL knowledge server is currently unavailable. Please try again later.'
