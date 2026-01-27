@@ -13,7 +13,7 @@ dependencies = [
     "sarif-om>=1.0.4",
     "setuptools>=80.9.0",
     "starlette>=0.48.0",
-    "urllib3>=2.5.0",
+    "urllib3>=2.6.3",
 ]
 license = { text = "Apache-2.0" }
 license-files = ["LICENSE", "NOTICE"]
