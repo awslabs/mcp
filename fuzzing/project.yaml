@@ -17,9 +17,10 @@
 
 homepage: "https://github.com/awslabs/mcp"
 language: python
-primary_contact: "mcp-security@amazon.com"
+primary_contact: "scoschre@amazon.com"
 auto_ccs:
-  - "mcp-maintainers@amazon.com"
+  - "awslabs-mcp+oss-fuzz@amazon.com"
+  - "scoschre@amazon.com"
 
 # Fuzzing engines to use
 fuzzing_engines:
@@ -33,10 +34,6 @@ sanitizers:
 # Architecture (default is x86_64)
 architectures:
   - x86_64
-
-# Vendor information
-vendor_ccs:
-  - "aws-security@amazon.com"
 
 # Build integration branch
 main_repo: "https://github.com/awslabs/mcp"
