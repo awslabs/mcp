@@ -1,0 +1,324 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# SPARQL Dictionary for libFuzzer
+# Contains SPARQL keywords, functions, and injection tokens
+
+# SPARQL Query Forms
+"SELECT"
+"CONSTRUCT"
+"DESCRIBE"
+"ASK"
+
+# SPARQL Update Forms
+"INSERT"
+"DELETE"
+"INSERT DATA"
+"DELETE DATA"
+"DELETE WHERE"
+"LOAD"
+"CLEAR"
+"CREATE"
+"DROP"
+"COPY"
+"MOVE"
+"ADD"
+
+# SPARQL Clauses
+"BASE"
+"PREFIX"
+"FROM"
+"NAMED"
+"WHERE"
+"GROUP BY"
+"HAVING"
+"ORDER BY"
+"LIMIT"
+"OFFSET"
+"VALUES"
+"BIND"
+
+# SPARQL Keywords
+"DISTINCT"
+"REDUCED"
+"AS"
+"OPTIONAL"
+"GRAPH"
+"UNION"
+"MINUS"
+"FILTER"
+"EXISTS"
+"NOT EXISTS"
+"SERVICE"
+"SILENT"
+"UNDEF"
+"DEFAULT"
+"ALL"
+"WITH"
+"USING"
+"INTO"
+"TO"
+"DATA"
+
+# SPARQL Order Modifiers
+"ASC"
+"DESC"
+
+# SPARQL Aggregate Functions
+"COUNT"
+"SUM"
+"MIN"
+"MAX"
+"AVG"
+"SAMPLE"
+"GROUP_CONCAT"
+
+# SPARQL String Functions
+"STR"
+"LANG"
+"LANGMATCHES"
+"DATATYPE"
+"CONCAT"
+"STRLEN"
+"UCASE"
+"LCASE"
+"ENCODE_FOR_URI"
+"CONTAINS"
+"STRSTARTS"
+"STRENDS"
+"STRBEFORE"
+"STRAFTER"
+"SUBSTR"
+"REPLACE"
+"REGEX"
+
+# SPARQL Numeric Functions
+"ABS"
+"CEIL"
+"FLOOR"
+"ROUND"
+"RAND"
+
+# SPARQL Date/Time Functions
+"YEAR"
+"MONTH"
+"DAY"
+"HOURS"
+"MINUTES"
+"SECONDS"
+"TIMEZONE"
+"TZ"
+"NOW"
+
+# SPARQL Hash Functions
+"MD5"
+"SHA1"
+"SHA256"
+"SHA384"
+"SHA512"
+
+# SPARQL Constructor Functions
+"IRI"
+"URI"
+"BNODE"
+"STRDT"
+"STRLANG"
+"UUID"
+"STRUUID"
+
+# SPARQL Type Testing Functions
+"BOUND"
+"isIRI"
+"isURI"
+"isBLANK"
+"isLITERAL"
+"isNUMERIC"
+"sameTerm"
+
+# SPARQL Conditional Functions
+"IF"
+"COALESCE"
+
+# SPARQL Operators
+"="
+"!="
+"<"
+">"
+"<="
+">="
+"&&"
+"||"
+"!"
+"+"
+"-"
+"*"
+"/"
+"a"
+"^"
+"^^"
+"IN"
+"NOT IN"
+
+# SPARQL Syntax
+"{"
+"}"
+"("
+")"
+"["
+"]"
+"."
+","
+";"
+":"
+"@"
+"#"
+"?"
+"$"
+"<"
+">"
+"\""
+"'"
+"_"
+"|"
+"/"
+
+# SPARQL Variable Prefixes
+"?"
+"$"
+
+# SPARQL IRI Delimiters
+"<"
+">"
+
+# SPARQL Literal Delimiters
+"\""
+"'"
+"'''"
+"\"\"\""
+
+# SPARQL Language Tags
+"@en"
+"@de"
+"@fr"
+"@es"
+"@ja"
+"@zh"
+
+# SPARQL Datatypes
+"^^xsd:string"
+"^^xsd:integer"
+"^^xsd:decimal"
+"^^xsd:float"
+"^^xsd:double"
+"^^xsd:boolean"
+"^^xsd:date"
+"^^xsd:dateTime"
+
+# Common Prefixes
+"rdf:"
+"rdfs:"
+"xsd:"
+"owl:"
+"foaf:"
+"dc:"
+"dcterms:"
+"skos:"
+"schema:"
+
+# Common RDF URIs
+"http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+"http://www.w3.org/2000/01/rdf-schema#"
+"http://www.w3.org/2001/XMLSchema#"
+"http://www.w3.org/2002/07/owl#"
+"http://xmlns.com/foaf/0.1/"
+"http://purl.org/dc/elements/1.1/"
+"http://purl.org/dc/terms/"
+
+# Common RDF Properties
+"rdf:type"
+"rdfs:label"
+"rdfs:comment"
+"rdfs:subClassOf"
+"rdfs:subPropertyOf"
+"owl:sameAs"
+"foaf:name"
+"foaf:knows"
+"foaf:mbox"
+
+# SPARQL Injection - Federated Query
+"SERVICE"
+"SERVICE SILENT"
+
+# SPARQL Injection - File Access
+"file://"
+"file:///etc/passwd"
+"file:///etc/shadow"
+"file:///proc/self/environ"
+
+# SPARQL Injection - Protocol Smuggling
+"javascript:"
+"data:"
+"vbscript:"
+"mailto:"
+"ftp://"
+"gopher://"
+
+# SPARQL Injection - Script Injection
+"<script"
+"</script>"
+"onerror="
+"onload="
+
+# SPARQL Injection - Update Bypass
+"; DROP"
+"; DELETE"
+"; INSERT"
+"; CLEAR"
+"; LOAD"
+
+# SPARQL Injection - Comment Bypass
+"#"
+
+# SPARQL Injection - Encoding Bypass
+"%27"
+"%22"
+"%3C"
+"%3E"
+"\\u0027"
+"\\u0022"
+
+# SPARQL Injection - Resource Exhaustion
+"LIMIT 999999999999"
+"OFFSET 999999999999"
+
+# SPARQL Boolean Values
+"true"
+"false"
+
+# SPARQL Numeric Values
+"0"
+"1"
+"-1"
+"999999999"
+"1.0"
+"0.0"
+"1e308"
+
+# SPARQL Blank Nodes
+"_:b0"
+"_:blank"
+"[]"
+
+# SPARQL Path Operators
+"/"
+"|"
+"^"
+"*"
+"+"
+"?"
+
+# SPARQL Property Paths
+"rdf:type/rdfs:subClassOf*"
+"foaf:knows+"
+"^foaf:knows"
+"foaf:knows|foaf:friend"

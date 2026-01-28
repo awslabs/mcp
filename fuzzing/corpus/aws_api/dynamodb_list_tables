@@ -1,0 +1,1 @@
+aws dynamodb list-tables

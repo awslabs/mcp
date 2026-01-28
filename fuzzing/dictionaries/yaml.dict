@@ -1,0 +1,219 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# YAML Dictionary for libFuzzer
+# Contains YAML syntax tokens, keywords, and edge cases
+
+# YAML Document Markers
+"---"
+"..."
+
+# YAML Key-Value Separator
+":"
+": "
+
+# YAML List Indicators
+"-"
+"- "
+
+# YAML Block Scalars
+"|"
+">"
+"|+"
+"|-"
+">+"
+">-"
+"|2"
+">2"
+
+# YAML Flow Indicators
+"["
+"]"
+"{"
+"}"
+","
+
+# YAML Anchors and Aliases
+"&"
+"*"
+"<<"
+
+# YAML Tags
+"!"
+"!!"
+"!!str"
+"!!int"
+"!!float"
+"!!bool"
+"!!null"
+"!!seq"
+"!!map"
+"!!set"
+"!!omap"
+"!!pairs"
+"!!binary"
+"!!timestamp"
+
+# YAML Boolean Values
+"true"
+"false"
+"True"
+"False"
+"TRUE"
+"FALSE"
+"yes"
+"no"
+"Yes"
+"No"
+"YES"
+"NO"
+"on"
+"off"
+"On"
+"Off"
+"ON"
+"OFF"
+
+# YAML Null Values
+"null"
+"Null"
+"NULL"
+"~"
+
+# YAML Special Float Values
+".inf"
+"-.inf"
+".Inf"
+"-.Inf"
+".INF"
+"-.INF"
+".nan"
+".NaN"
+".NAN"
+
+# YAML Comments
+"#"
+" #"
+
+# YAML Quotes
+"'"
+"\""
+"''"
+"\"\""
+
+# YAML Escape Sequences
+"\\\\"
+"\\n"
+"\\t"
+"\\r"
+"\\0"
+"\\x"
+"\\u"
+"\\U"
+
+# YAML Whitespace
+" "
+"  "
+"    "
+"\t"
+"\n"
+"\r\n"
+
+# YAML Directives
+"%YAML"
+"%TAG"
+"%YAML 1.1"
+"%YAML 1.2"
+
+# YAML Reserved Indicators
+"@"
+"\`"
+
+# YAML Dangerous Tags (for security testing)
+"!!python/object"
+"!!python/object/apply"
+"!!python/object/new"
+"!!python/name"
+"!!python/module"
+"!!python/tuple"
+
+# Common Configuration Keys
+"host"
+"port"
+"debug"
+"enabled"
+"disabled"
+"timeout"
+"username"
+"password"
+"token"
+"api_key"
+"secret"
+"database"
+"server"
+"client"
+"config"
+"settings"
+"options"
+"env"
+"environment"
+"production"
+"development"
+"staging"
+"test"
+
+# MCP Server Configuration Keys
+"mcpServers"
+"command"
+"args"
+"autoApprove"
+"transport"
+"auth_type"
+"api_name"
+"api_base_url"
+
+# AWS Configuration Keys
+"region"
+"endpoint"
+"access_key"
+"secret_key"
+"session_token"
+"profile"
+
+# Numeric Values
+"0"
+"1"
+"-1"
+"42"
+"3.14"
+"-3.14"
+"1e10"
+"1e-10"
+"0x1A"
+"0o17"
+"0b1010"
+
+# Edge Case Strings
+""
+" "
+"  "
+"key"
+"value"
+"key: value"
+"- item"
+"key:"
+": value"
+
+# Multiline Indicators
+"|\n"
+">\n"
+"|+\n"
+"|-\n"
+">+\n"
+">-\n"
+
+# Complex Structures
+"[1, 2, 3]"
+"{key: value}"
+"- key: value"
+"key:\n  nested: value"

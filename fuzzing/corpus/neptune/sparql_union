@@ -1,0 +1,1 @@
+SELECT ?name WHERE { { ?person <http://xmlns.com/foaf/0.1/name> ?name } UNION { ?person <http://xmlns.com/foaf/0.1/givenName> ?name } }

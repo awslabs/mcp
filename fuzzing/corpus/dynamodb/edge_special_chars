@@ -1,0 +1,1 @@
+{"tables":[{"TableName":"Test-Table_123.v2","AttributeDefinitions":[{"AttributeName":"pk-attr","AttributeType":"S"}],"KeySchema":[{"AttributeName":"pk-attr","KeyType":"HASH"}]}]}

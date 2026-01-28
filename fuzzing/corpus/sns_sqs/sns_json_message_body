@@ -1,0 +1,1 @@
+{"Message": "{\"event\": \"user_signup\", \"user_id\": \"12345\", \"timestamp\": \"2024-01-15T10:30:00Z\"}", "TopicArn": "arn:aws:sns:us-east-1:123456789012:UserEvents"}

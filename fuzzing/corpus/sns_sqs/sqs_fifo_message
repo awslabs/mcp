@@ -1,0 +1,1 @@
+{"MessageBody": "FIFO message", "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue.fifo", "MessageDeduplicationId": "dedup-123", "MessageGroupId": "group-1"}

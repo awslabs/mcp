@@ -1,0 +1,216 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# JSON Dictionary for libFuzzer
+# Contains JSON syntax tokens and DynamoDB-specific keywords
+
+# JSON Syntax - Structural Characters
+"{"
+"}"
+"["
+"]"
+":"
+","
+
+# JSON Syntax - Literals
+"true"
+"false"
+"null"
+
+# JSON Syntax - String Delimiters
+"\""
+
+# JSON Syntax - Escape Sequences
+"\\\\"
+"\\/"
+"\\b"
+"\\f"
+"\\n"
+"\\r"
+"\\t"
+"\\u"
+"\\u0000"
+"\\u001f"
+"\\uffff"
+
+# JSON Syntax - Numbers
+"0"
+"1"
+"-1"
+"0.0"
+"1.0"
+"-1.0"
+"1e10"
+"1E10"
+"1e-10"
+"1e+10"
+"1.5e10"
+
+# DynamoDB - Table Definition Keys
+"tables"
+"TableName"
+"AttributeDefinitions"
+"KeySchema"
+"GlobalSecondaryIndexes"
+"LocalSecondaryIndexes"
+"TimeToLiveSpecification"
+"StreamSpecification"
+"BillingMode"
+"ProvisionedThroughput"
+"SSESpecification"
+"Tags"
+"TableClass"
+
+# DynamoDB - Attribute Definition Keys
+"AttributeName"
+"AttributeType"
+
+# DynamoDB - Attribute Types
+"S"
+"N"
+"B"
+"SS"
+"NS"
+"BS"
+"M"
+"L"
+"NULL"
+"BOOL"
+
+# DynamoDB - Key Schema Keys
+"KeyType"
+"HASH"
+"RANGE"
+
+# DynamoDB - GSI/LSI Keys
+"IndexName"
+"Projection"
+"ProjectionType"
+"NonKeyAttributes"
+"ALL"
+"KEYS_ONLY"
+"INCLUDE"
+
+# DynamoDB - TTL Keys
+"Enabled"
+
+# DynamoDB - Stream Keys
+"StreamEnabled"
+"StreamViewType"
+"NEW_IMAGE"
+"OLD_IMAGE"
+"NEW_AND_OLD_IMAGES"
+"KEYS_ONLY"
+
+# DynamoDB - Billing Keys
+"PAY_PER_REQUEST"
+"PROVISIONED"
+"ReadCapacityUnits"
+"WriteCapacityUnits"
+
+# DynamoDB - SSE Keys
+"SSEEnabled"
+"SSEType"
+"KMSMasterKeyId"
+"AES256"
+"KMS"
+
+# DynamoDB - Table Class
+"STANDARD"
+"STANDARD_INFREQUENT_ACCESS"
+
+# DynamoDB - Item Operations
+"Item"
+"Items"
+"Key"
+"Keys"
+"PutRequest"
+"DeleteRequest"
+"RequestItems"
+"UnprocessedItems"
+
+# DynamoDB - Query/Scan Keys
+"FilterExpression"
+"KeyConditionExpression"
+"ProjectionExpression"
+"ExpressionAttributeNames"
+"ExpressionAttributeValues"
+"ConsistentRead"
+"ScanIndexForward"
+"Limit"
+"ExclusiveStartKey"
+"LastEvaluatedKey"
+
+# DynamoDB - Update Keys
+"UpdateExpression"
+"ConditionExpression"
+"ReturnValues"
+"NONE"
+"ALL_OLD"
+"UPDATED_OLD"
+"ALL_NEW"
+"UPDATED_NEW"
+
+# DynamoDB - Condition Operators
+"attribute_exists"
+"attribute_not_exists"
+"attribute_type"
+"begins_with"
+"contains"
+"size"
+"AND"
+"OR"
+"NOT"
+"BETWEEN"
+"IN"
+
+# DynamoDB - Update Actions
+"SET"
+"REMOVE"
+"ADD"
+"DELETE"
+"if_not_exists"
+"list_append"
+
+# Common Table/Attribute Names
+"id"
+"pk"
+"sk"
+"userId"
+"itemId"
+"timestamp"
+"createdAt"
+"updatedAt"
+"data"
+"type"
+"status"
+"name"
+"value"
+
+# Edge Case Values
+""
+" "
+"\\u0000"
+"\\uffff"
+
+# Nested Structure Tokens
+"{}"
+"[]"
+"{\"\"}"
+"[{}]"
+"{\"a\":{}}"
+"[[[]]"
+
+# Large Numbers
+"9999999999999999"
+"-9999999999999999"
+"1.7976931348623157e+308"
+"-1.7976931348623157e+308"
+"5e-324"
+
+# Special String Values
+"__proto__"
+"constructor"
+"prototype"
+"toString"
+"valueOf"

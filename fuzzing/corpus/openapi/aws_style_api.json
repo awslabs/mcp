@@ -1,0 +1,227 @@
+{
+  "components": {
+    "schemas": {
+      "CreateResourceRequest": {
+        "properties": {
+          "Name": {
+            "type": "string"
+          },
+          "Tags": {
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "Name"
+        ],
+        "type": "object"
+      },
+      "CreateResourceResponse": {
+        "properties": {
+          "Resource": {
+            "$ref": "#/components/schemas/Resource"
+          }
+        },
+        "type": "object"
+      },
+      "ListResourcesResponse": {
+        "properties": {
+          "NextToken": {
+            "type": "string"
+          },
+          "Resources": {
+            "items": {
+              "$ref": "#/components/schemas/Resource"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Resource": {
+        "properties": {
+          "CreatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "ResourceArn": {
+            "pattern": "^arn:aws:.*",
+            "type": "string"
+          },
+          "ResourceId": {
+            "type": "string"
+          },
+          "Tags": {
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "type": "array"
+          },
+          "UpdatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ResourceId",
+          "ResourceArn"
+        ],
+        "type": "object"
+      },
+      "Tag": {
+        "properties": {
+          "Key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "Value": {
+            "maxLength": 256,
+            "type": "string"
+          }
+        },
+        "required": [
+          "Key",
+          "Value"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "An API following AWS naming conventions",
+    "title": "AWS-Style API",
+    "version": "2023-01-01"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/resources": {
+      "get": {
+        "operationId": "ListResources",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "MaxResults",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "NextToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListResourcesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Lists all resources"
+      },
+      "post": {
+        "operationId": "CreateResource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateResourceResponse"
+                }
+              }
+            },
+            "description": "Success"
+          }
+        },
+        "summary": "Creates a new resource"
+      }
+    },
+    "/resources/{ResourceId}": {
+      "delete": {
+        "operationId": "DeleteResource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ResourceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        }
+      },
+      "get": {
+        "operationId": "GetResource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ResourceId",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-zA-Z0-9-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resource"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        }
+      }
+    }
+  }
+}

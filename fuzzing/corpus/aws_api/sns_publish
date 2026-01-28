@@ -1,0 +1,1 @@
+aws sns publish --topic-arn arn:aws:sns:us-east-1:123456789012:my-topic --message "Test message"

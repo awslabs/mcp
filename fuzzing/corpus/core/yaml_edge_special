@@ -1,0 +1,8 @@
+null_value: ~
+infinity: .inf
+neg_infinity: -.inf
+not_a_number: .nan
+yes_bool: yes
+no_bool: no
+on_bool: on
+off_bool: off
