@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "AnotherFakeEntity": {
+      "access_pattern_data": {
+        "fake_id": "sample_fake_id"
+      },
+      "sample_data": {
+        "fake_id": "fake-456",
+        "fake_name": "Fake Entity"
+      },
+      "update_data": {
+        "fake_name": "Updated Fake"
+      }
+    },
+    "Post": {
+      "access_pattern_data": {
+        "post_id": "sample_post_id"
+      },
+      "sample_data": {
+        "content": "Sample post content",
+        "post_id": "post-456",
+        "user_id": "user-123"
+      },
+      "update_data": {
+        "content": "updated content"
+      }
+    },
+    "UnknownEntity": {
+      "access_pattern_data": {
+        "id": "sample_id"
+      },
+      "sample_data": {
+        "id": "unknown-123",
+        "name": "Unknown Entity"
+      },
+      "update_data": {
+        "name": "Updated Unknown"
+      }
+    },
+    "UserProfile": {
+      "access_pattern_data": {
+        "user_id": "sample_user_id"
+      },
+      "sample_data": {
+        "email": "test@example.com",
+        "user_id": "user-123",
+        "username": "testuser"
+      },
+      "update_data": {
+        "username": "updated_user"
+      }
+    }
+  }
+}
