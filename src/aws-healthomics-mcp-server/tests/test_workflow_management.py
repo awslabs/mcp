@@ -2849,3 +2849,148 @@ async def test_create_workflow_version_path_to_main_validation_invalid_extension
             storage_type='DYNAMIC',
             path_to_main='main.py',
         )
+
+
+# Tests for README parameter support
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_readme_s3_uri():
+    """Test create_workflow with readme as S3 URI."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            readme='s3://my-bucket/docs/readme.md',
+        )
+
+    # Verify the client was called with readmeUri parameter
+    call_args = mock_client.create_workflow.call_args
+    assert 'readmeUri' in call_args.kwargs
+    assert call_args.kwargs['readmeUri'] == 's3://my-bucket/docs/readme.md'
+    assert 'readmeMarkdown' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['status'] == 'CREATING'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_readme_markdown_content():
+    """Test create_workflow with readme as markdown content."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    markdown_content = '# My Workflow\n\nThis is documentation.'
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            readme=markdown_content,
+        )
+
+    # Verify the client was called with readmeMarkdown parameter
+    call_args = mock_client.create_workflow.call_args
+    assert 'readmeMarkdown' in call_args.kwargs
+    assert call_args.kwargs['readmeMarkdown'] == markdown_content
+    assert 'readmeUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_readme_s3_uri():
+    """Test create_workflow_version with readme as S3 URI."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            readme='s3://my-bucket/docs/readme.md',
+        )
+
+    # Verify the client was called with readmeUri parameter
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'readmeUri' in call_args.kwargs
+    assert call_args.kwargs['readmeUri'] == 's3://my-bucket/docs/readme.md'
+    assert 'readmeMarkdown' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_readme_markdown_content():
+    """Test create_workflow_version with readme as markdown content."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    markdown_content = '# My Workflow v2\n\nUpdated documentation.'
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            readme=markdown_content,
+        )
+
+    # Verify the client was called with readmeMarkdown parameter
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'readmeMarkdown' in call_args.kwargs
+    assert call_args.kwargs['readmeMarkdown'] == markdown_content
+    assert 'readmeUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'

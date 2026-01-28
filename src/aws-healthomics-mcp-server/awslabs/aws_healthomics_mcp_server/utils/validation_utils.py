@@ -17,10 +17,47 @@
 import posixpath
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import decode_from_base64
+from enum import Enum
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import ValidationError
 from typing import Any, Dict, List, Optional, Tuple
+
+
+class ReadmeInputType(Enum):
+    """Enumeration of README input types for workflow documentation."""
+
+    S3_URI = 's3_uri'  # Input is an S3 URI (s3://bucket/path)
+    LOCAL_FILE = 'local_file'  # Input is a path to a local .md file
+    MARKDOWN_CONTENT = 'markdown_content'  # Input is direct markdown text
+
+
+def detect_readme_input_type(readme: str) -> ReadmeInputType:
+    """Detect the type of README input.
+
+    Detection rules (in order):
+    1. If starts with 's3://' -> S3_URI
+    2. If path exists and ends with '.md' -> LOCAL_FILE
+    3. Otherwise -> MARKDOWN_CONTENT
+
+    Args:
+        readme: The README input string
+
+    Returns:
+        The detected input type
+    """
+    import os
+
+    # Rule 1: Check for S3 URI prefix first
+    if readme.startswith('s3://'):
+        return ReadmeInputType.S3_URI
+
+    # Rule 2: Check for existing local file with .md extension
+    if readme.lower().endswith('.md') and os.path.isfile(readme):
+        return ReadmeInputType.LOCAL_FILE
+
+    # Rule 3: Default to markdown content
+    return ReadmeInputType.MARKDOWN_CONTENT
 
 
 async def validate_s3_uri(ctx: Context, uri: str, parameter_name: str) -> None:
@@ -183,6 +220,62 @@ async def validate_adhoc_s3_buckets(adhoc_buckets: Optional[List[str]]) -> List[
         # Log the error but don't fail completely - let the search continue with configured buckets
         logger.warning(f'Adhoc S3 bucket validation failed: {e}')
         return []
+
+
+async def validate_readme_input(
+    ctx: Context,
+    readme: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """Validate and process README input.
+
+    Args:
+        ctx: MCP context for error reporting
+        readme: User-provided README input (markdown, file path, or S3 URI)
+
+    Returns:
+        Tuple of (readme_markdown, readme_uri) where exactly one is set,
+        or (None, None) if readme is None
+
+    Raises:
+        ValueError: If validation fails
+        FileNotFoundError: If local file doesn't exist
+        IOError: If local file cannot be read
+    """
+    # Handle Field objects for optional parameters (FastMCP compatibility)
+    if hasattr(readme, 'default') and not isinstance(readme, (str, type(None))):
+        readme = getattr(readme, 'default', None)
+
+    # Handle None input
+    if readme is None:
+        return (None, None)
+
+    # Detect input type
+    input_type = detect_readme_input_type(readme)
+
+    if input_type == ReadmeInputType.S3_URI:
+        # Validate S3 URI format using existing validate_s3_uri
+        await validate_s3_uri(ctx, readme, 'readme')
+        return (None, readme)
+
+    elif input_type == ReadmeInputType.LOCAL_FILE:
+        # Read file contents with proper error handling
+        try:
+            with open(readme, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return (content, None)
+        except FileNotFoundError:
+            error_message = f'README file not found: {readme}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise FileNotFoundError(error_message)
+        except IOError as e:
+            error_message = f'Failed to read README file {readme}: {str(e)}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise IOError(error_message)
+
+    else:  # MARKDOWN_CONTENT
+        return (readme, None)
 
 
 async def validate_path_to_main(ctx: Context, path_to_main: Optional[str]) -> Optional[str]:

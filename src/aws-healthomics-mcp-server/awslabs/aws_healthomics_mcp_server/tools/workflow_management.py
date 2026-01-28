@@ -26,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_container_registry_params,
     validate_definition_sources,
     validate_path_to_main,
+    validate_readme_input,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -139,6 +140,10 @@ async def create_workflow(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    readme: Optional[str] = Field(
+        None,
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
@@ -152,6 +157,7 @@ async def create_workflow(
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
 
     Returns:
         Dictionary containing the created workflow information
@@ -166,6 +172,9 @@ async def create_workflow(
 
     # Validate path_to_main parameter
     validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
+    # Validate and process README input
+    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
     client = get_omics_client()
 
@@ -193,6 +202,12 @@ async def create_workflow(
 
     if validated_path_to_main is not None:
         params['main'] = validated_path_to_main
+
+    if readme_markdown is not None:
+        params['readmeMarkdown'] = readme_markdown
+
+    if readme_uri is not None:
+        params['readmeUri'] = readme_uri
 
     try:
         response = client.create_workflow(**params)
@@ -336,6 +351,10 @@ async def create_workflow_version(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    readme: Optional[str] = Field(
+        None,
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -352,6 +371,7 @@ async def create_workflow_version(
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
         definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
 
     Returns:
         Dictionary containing the created workflow version information
@@ -374,6 +394,9 @@ async def create_workflow_version(
             logger.error(error_message)
             await ctx.error(error_message)
             raise ValueError(error_message)
+
+    # Validate and process README input
+    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
 
     client = get_omics_client()
 
@@ -406,6 +429,12 @@ async def create_workflow_version(
 
     if validated_path_to_main is not None:
         params['main'] = validated_path_to_main
+
+    if readme_markdown is not None:
+        params['readmeMarkdown'] = readme_markdown
+
+    if readme_uri is not None:
+        params['readmeUri'] = readme_uri
 
     try:
         response = client.create_workflow_version(**params)
