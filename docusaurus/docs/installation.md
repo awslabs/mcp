@@ -12,6 +12,17 @@ Example configuration for Kiro MCP (`~/.kiro/settings/mcp.json`):
 ```json
 {
   "mcpServers": {
+    "aws-mcp": {
+      "command": "uvx",
+      "timeout": 100000,
+      "transport": "stdio",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-west-2"
+      ]
+    },
     "awslabs.aws-pricing-mcp-server": {
       "command": "uvx",
       "args": [
