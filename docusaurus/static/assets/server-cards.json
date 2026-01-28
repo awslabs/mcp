@@ -1,6 +1,12 @@
 {
   "categories": [
     {
+      "description": "Essential MCP servers for AWS resource management",
+      "icon": "\ud83d\udd11",
+      "id": "essential-setup",
+      "name": "Essential Setup"
+    },
+    {
       "description": "Real-time access to official AWS documentation",
       "icon": "\ud83d\udcda",
       "id": "documentation",
@@ -56,6 +62,30 @@
     }
   ],
   "servers": [
+    {
+      "category": "Essential Setup",
+      "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
+      "icon": "\ud83d\udd11",
+      "id": "aws-mcp",
+      "name": "AWS MCP",
+      "source_path": "https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html",
+      "subcategory": "Essential Setup",
+      "tags": [
+        "aws-api",
+        "documentation",
+        "security",
+        "audit-logging",
+        "cloudtrail",
+        "iam",
+        "remote-mcp",
+        "managed-service",
+        "best-practices"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
     {
       "category": "Documentation",
       "description": "Get latest AWS docs and APIs",

@@ -29,6 +29,11 @@ const sidebars: SidebarsConfig = {
           type: "category",
           label: "Getting Started",
           items: [
+            {
+              type: 'link',
+              label: 'AWS MCP',
+              href: 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html',
+            },
             "servers/aws-api-mcp-server",
             "servers/aws-knowledge-mcp-server",
           ],
