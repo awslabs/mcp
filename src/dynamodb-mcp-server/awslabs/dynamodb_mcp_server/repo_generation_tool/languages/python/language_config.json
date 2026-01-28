@@ -1,0 +1,59 @@
+{
+  "file_extension": ".py",
+  "file_patterns": {
+    "entities": "entities.py",
+    "repositories": "repositories.py",
+    "usage_examples": "usage_examples.py"
+  },
+  "linter": {
+    "check_args": [
+      "check",
+      "--config",
+      "{config_file}"
+    ],
+    "command": [
+      "uv",
+      "run",
+      "ruff"
+    ],
+    "config_file": "ruff.toml",
+    "fix_args": [
+      "check",
+      "--fix",
+      "--config",
+      "{config_file}"
+    ],
+    "format_command": [
+      "uv",
+      "run",
+      "ruff",
+      "format",
+      "--config",
+      "{config_file}"
+    ]
+  },
+  "name": "python",
+  "naming_conventions": {
+    "crud_patterns": {
+      "create": "create_{entity_name}",
+      "delete": "delete_{entity_name}",
+      "get": "get_{entity_name}",
+      "update": "update_{entity_name}"
+    },
+    "method_naming": "snake_case"
+  },
+  "support_files": [
+    {
+      "category": "config",
+      "description": "Base repository class",
+      "dest": "base_repository.py",
+      "source": "base_repository.py"
+    },
+    {
+      "category": "linter_config",
+      "description": "Linting configuration",
+      "dest": "ruff.toml",
+      "source": "ruff.toml"
+    }
+  ]
+}
