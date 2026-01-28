@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.11'",
@@ -63,6 +63,7 @@ dependencies = [
     { name = "nest-asyncio" },
     { name = "polars" },
     { name = "pydantic" },
+    { name = "python-multipart" },
     { name = "ruamel-yaml" },
 ]
 
@@ -92,6 +93,7 @@ requires-dist = [
     { name = "nest-asyncio", specifier = ">=1.5.0" },
     { name = "polars", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "ruamel-yaml", specifier = ">=0.18.0" },
 ]
 

@@ -183,8 +183,6 @@ class TaskAggregator:
                 - maxObservedCpus: Maximum observed CPU usage across all runs
                 - maxObservedMemoryGiB: Maximum observed memory usage across all runs
                 - totalEstimatedUSD: Total cost across all runs
-
-        Requirements: 7.1, 7.2, 7.3
         """
         if not runs_data:
             return pl.DataFrame()

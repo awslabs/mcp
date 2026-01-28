@@ -200,6 +200,42 @@ def get_logs_client() -> Any:
     return create_aws_client('logs')
 
 
+def get_ecr_client() -> Any:
+    """Get an AWS ECR client.
+
+    Returns:
+        boto3.client: Configured ECR client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('ecr')
+
+
+def get_codebuild_client() -> Any:
+    """Get an AWS CodeBuild client.
+
+    Returns:
+        boto3.client: Configured CodeBuild client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('codebuild')
+
+
+def get_iam_client() -> Any:
+    """Get an AWS IAM client.
+
+    Returns:
+        boto3.client: Configured IAM client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('iam')
+
+
 def get_account_id() -> str:
     """Get the current AWS account ID.
 
