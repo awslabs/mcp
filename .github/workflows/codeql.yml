@@ -61,7 +61,7 @@ jobs:
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
     steps:
     - name: Checkout repository
-      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
@@ -71,7 +71,7 @@ jobs:
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@1c4c0b36be82b11c8adb51fb38f7122d0debe048 # v4.31.9
+      uses: github/codeql-action/init@b2ff80ddacba59b60f4e0cf3b699baaea3230cd9 # v4.31.9
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
@@ -99,6 +99,6 @@ jobs:
         exit 1
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@1c4c0b36be82b11c8adb51fb38f7122d0debe048 # v4.31.9
+      uses: github/codeql-action/analyze@b2ff80ddacba59b60f4e0cf3b699baaea3230cd9 # v4.31.9
       with:
         category: "/language:${{matrix.language}}"
