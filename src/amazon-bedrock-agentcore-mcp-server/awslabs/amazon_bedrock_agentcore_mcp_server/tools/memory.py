@@ -17,10 +17,14 @@
 Comprehensive memory resource management and lifecycle operations.
 """
 
+import logging
 from typing import Any, Dict
+from mcp.server.fastmcp import Context
 
 
-def manage_agentcore_memory() -> Dict[str, Any]:
+logger = logging.getLogger('amazon-bedrock-mcp.memory')
+
+async def manage_agentcore_memory(ctx: Context = None) -> Dict[str, Any]:
     """Provides comprehensive information on how to manage AgentCore Memory resources.
 
     This tool returns detailed documentation about:
@@ -29,7 +33,12 @@ def manage_agentcore_memory() -> Dict[str, Any]:
 
     Use this tool to understand the complete process of working with AgentCore Memory.
     """
-    memory_guide = """
+    logger.info("Memory management guide recovery requested.")
+    if ctx:
+        await ctx.info("Retrieving AgentCore Memory CLI guide...")
+
+    try:
+        memory_guide ="""
 AGENTCORE MEMORY CLI GUIDE
 ===========================
 
@@ -194,4 +203,14 @@ KEY POINTS:
 - Use --wait flag to ensure resources are ready before proceeding
 """
 
-    return {'memory_guide': memory_guide}
+        logger.info("Memory guide successfully generated.")
+        return {'memory_guide': memory_guide}
+
+    except Exception as e:
+        error_msg = f"Erro crítico ao gerar guia de memória: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        
+        if ctx:
+            await ctx.error(f"Failed to retrieve memory guide: {str(e)}")
+            
+        return {'error': str(e)}
