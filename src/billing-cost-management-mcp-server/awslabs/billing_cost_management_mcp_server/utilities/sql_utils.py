@@ -80,16 +80,41 @@ def get_session_db_path() -> str:
 
     Returns:
         str: Path to the SQLite database file
+
+    Environment Variables:
+        MCP_SESSION_DB_NAME: Fixed database name for session persistence across
+            process restarts. When set, uses this value instead of generating
+            a random UUID. Useful in serverless environments where the MCP server
+            may restart but needs to access previously created tables.
+        MCP_SESSION_DB_DIR: Override the directory where the session database
+            is stored. Required in read-only filesystems (e.g., AWS Lambda's
+            /var/task) where the default location is not writable. Common
+            values: '/tmp' for Lambda, or a mounted volume for containers.
     """
     global _SESSION_DB_PATH
 
     if _SESSION_DB_PATH is None:
-        # Generate a unique session ID
-        session_id = str(uuid.uuid4())[:8]
+        # Check for fixed database name (serverless environment compatibility)
+        # When the MCP server process restarts (e.g., Lambda cold start, container restart),
+        # using a fixed name ensures the same database is reused, preserving tables
+        # created before the restart. Without this, each restart creates a new database
+        # with a random UUID, losing all previously stored data.
+        db_name = os.environ.get('MCP_SESSION_DB_NAME')
+        if db_name:
+            session_id = db_name  # Fixed name for restart resilience
+        else:
+            # Generate a unique session ID (original behavior)
+            session_id = str(uuid.uuid4())[:8]
 
-        # Get the base directory for the session database
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        session_dir = os.path.join(base_dir, 'sessions')
+        # Check for environment variable override (serverless/container compatibility)
+        # In AWS Lambda, /var/task is read-only; in containers, the module directory
+        # may not be writable. This allows overriding to a writable location like /tmp.
+        session_dir = os.environ.get('MCP_SESSION_DB_DIR')
+
+        if session_dir is None:
+            # Default: use directory relative to module
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            session_dir = os.path.join(base_dir, 'sessions')
 
         # Create sessions directory if it doesn't exist
         os.makedirs(session_dir, exist_ok=True)
