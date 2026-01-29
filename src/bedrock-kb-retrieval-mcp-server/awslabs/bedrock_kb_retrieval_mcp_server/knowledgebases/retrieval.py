@@ -16,6 +16,28 @@ from loguru import logger
 from typing import TYPE_CHECKING, Literal
 
 
+SUPPORTED_RERANKING_REGIONS = {
+    'us-west-2',
+    'us-east-1',
+    'ap-northeast-1',
+    'ca-central-1',
+    'eu-central-1',
+}
+
+
+def supported_reranking_models_for_region(region_name: str) -> tuple[str, ...]:
+    """Return the supported reranking model names for a region.
+
+    The first element is the recommended default.
+    """
+    if region_name not in SUPPORTED_RERANKING_REGIONS:
+        return ()
+    if region_name == 'us-east-1':
+        return ('COHERE',)
+    # AMAZON is preferred where available
+    return ('AMAZON', 'COHERE')
+
+
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_agent_runtime.client import AgentsforBedrockRuntimeClient
     from mypy_boto3_bedrock_agent_runtime.type_defs import (
@@ -43,7 +65,7 @@ async def query_knowledge_base(
         kb_agent_client (AgentsforBedrockRuntimeClient): The Bedrock agent client.
         number_of_results (int): The number of results to return.
         reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
-        reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
+        reranking_model_name: The reranking model to use. Valid values are exposed in the tool schema.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
 
     ## Warning: You must use the `ListKnowledgeBases` tool to get the knowledge base ID and optionally a data source ID first.
@@ -51,16 +73,6 @@ async def query_knowledge_base(
     ## Returns:
     - A string containing the results of the query.
     """
-    if reranking and kb_agent_client.meta.region_name not in [
-        'us-west-2',
-        'us-east-1',
-        'ap-northeast-1',
-        'ca-central-1',
-        'eu-central-1',
-    ]:
-        raise ValueError(
-            f'Reranking is not supported in region {kb_agent_client.meta.region_name}'
-        )
 
     retrieve_request: KnowledgeBaseRetrievalConfigurationTypeDef = {
         'vectorSearchConfiguration': {
@@ -77,6 +89,15 @@ async def query_knowledge_base(
         }
 
     if reranking:
+        region_name = kb_agent_client.meta.region_name
+        supported_models = supported_reranking_models_for_region(region_name)
+        if not supported_models:
+            raise ValueError(f'Reranking is not supported in region {region_name}')
+        if reranking_model_name not in supported_models:
+            raise ValueError(
+                f"Reranking model '{reranking_model_name}' is not available in {region_name}. "
+                f"Select reranking_model_name={supported_models!r} or disable reranking."
+            )
         model_name_mapping = {
             'COHERE': 'cohere.rerank-v3-5:0',
             'AMAZON': 'amazon.rerank-v1:0',
@@ -85,7 +106,7 @@ async def query_knowledge_base(
             'type': 'BEDROCK_RERANKING_MODEL',
             'bedrockRerankingConfiguration': {
                 'modelConfiguration': {
-                    'modelArn': f'arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
+                    'modelArn': f'arn:aws:bedrock:{region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
                 },
             },
         }
