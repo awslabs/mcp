@@ -252,6 +252,10 @@ Storage Lens (Athena and S3):
 - s3:GetStorageLensConfigurationTagging
 - s3:PutStorageLensConfigurationTagging
 
+AWS Billing:
+- billing:GetBillingView
+- billing:GetBillingViewData
+
 #### Configuration
 
 The server uses these key environment variables:

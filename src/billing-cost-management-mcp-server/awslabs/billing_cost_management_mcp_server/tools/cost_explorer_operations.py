@@ -40,6 +40,7 @@ async def get_cost_and_usage(
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter_expr: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -56,6 +57,7 @@ async def get_cost_and_usage(
         metrics: List of metrics as JSON string
         group_by: Optional grouping as JSON string
         filter_expr: Optional filters as JSON string
+        billing_view_arn: Optional billing view ARN
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
 
@@ -91,6 +93,9 @@ async def get_cost_and_usage(
 
         if filters:
             request_params['Filter'] = filters
+
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
 
         # Handle pagination
 
@@ -152,6 +157,7 @@ async def get_cost_and_usage_with_resources(
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter_expr: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get resource-level cost and usage data.
 
@@ -166,7 +172,7 @@ async def get_cost_and_usage_with_resources(
         metrics: List of metrics as JSON string
         group_by: Optional grouping as JSON string
         filter_expr: Optional filters as JSON string
-
+        billing_view_arn: Optional billing view ARN
     Returns:
         Resource-level cost and usage data response
     """
@@ -204,6 +210,9 @@ async def get_cost_and_usage_with_resources(
         if filters:
             request_params['Filter'] = filters
 
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
+
         # Make API call
         await ctx.info('Calling getCostAndUsageWithResources API')
         response = ce_client.get_cost_and_usage_with_resources(**request_params)
@@ -222,6 +231,7 @@ async def get_dimension_values(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     filter_expr: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     max_results: Optional[int] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
@@ -236,6 +246,7 @@ async def get_dimension_values(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         filter_expr: Optional filters as JSON string
+        billing_view_arn: Optional billing view ARN
         max_results: Maximum number of results per page
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
@@ -262,6 +273,9 @@ async def get_dimension_values(
 
         if filters:
             request_params['Filter'] = filters
+
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
 
         if max_results:
             request_params['MaxResults'] = max_results
@@ -301,6 +315,7 @@ async def get_cost_forecast(
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
     filter_expr: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     prediction_interval_level: int = 80,
 ) -> Dict[str, Any]:
     """Get cost forecast.
@@ -313,6 +328,7 @@ async def get_cost_forecast(
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters as JSON string
+        billing_view_arn: Optional billing view ARN
         prediction_interval_level: Confidence interval (70-99)
 
     Returns:
@@ -350,6 +366,9 @@ async def get_cost_forecast(
         if filters:
             request_params['Filter'] = filters
 
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
+
         # Make API call
         await ctx.info('Calling getCostForecast API')
         response = ce_client.get_cost_forecast(**request_params)
@@ -369,6 +388,7 @@ async def get_usage_forecast(
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
     filter_expr: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     prediction_interval_level: int = 80,
 ) -> Dict[str, Any]:
     """Get usage forecast.
@@ -381,6 +401,7 @@ async def get_usage_forecast(
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters as JSON string
+        billing_view_arn: Optional billing view ARN
         prediction_interval_level: Confidence interval (70-99)
 
     Returns:
@@ -417,6 +438,9 @@ async def get_usage_forecast(
         if filters:
             request_params['Filter'] = filters
 
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
+
         # Make API call
         await ctx.info('Calling getUsageForecast API')
         response = ce_client.get_usage_forecast(**request_params)
@@ -435,6 +459,7 @@ async def get_tags(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     tag_key: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -447,6 +472,7 @@ async def get_tags(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         tag_key: Optional specific tag key to get values for
+        billing_view_arn: Optional billing view ARN
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
 
@@ -470,6 +496,9 @@ async def get_tags(
 
         if tag_key:
             request_params['TagKey'] = str(tag_key)
+
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
 
         # Handle pagination
         if next_token or max_pages:
@@ -508,6 +537,7 @@ async def get_cost_categories(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     cost_category_name: Optional[str] = None,
+    billing_view_arn: Optional[str] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -520,6 +550,7 @@ async def get_cost_categories(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         cost_category_name: Optional specific cost category to get values for
+        billing_view_arn: Optional billing view ARN
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
 
@@ -543,6 +574,9 @@ async def get_cost_categories(
 
         if cost_category_name:
             request_params['CostCategoryName'] = str(cost_category_name)
+
+        if billing_view_arn:
+            request_params['BillingViewArn'] = billing_view_arn
 
         # Handle pagination
         if next_token or max_pages:
