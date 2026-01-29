@@ -1547,3 +1547,239 @@ class TestValidateConnectionArn:
 
             assert 'Invalid connection ARN format:' in str(exc_info.value)
             mock_ctx.error.assert_called_once()
+
+
+# Tests for validate_repository_path_params function
+
+
+class TestValidateRepositoryPathParams:
+    """Test cases for validate_repository_path_params function.
+
+    These tests cover the validation of repository-specific path parameters
+    (parameter_template_path and readme_path) which are only valid when
+    definition_repository is provided.
+    """
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_path_params_all_none(self):
+        """Test validation with all None inputs returns (None, None)."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_repository_path_params(mock_ctx, None, None, None)
+        assert result == (None, None)
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_path_params_with_repository(self):
+        """Test validation with definition_repository and path params."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+        definition_repository = {
+            'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc',
+            'full_repository_id': 'owner/repo',
+            'source_reference': {'type': 'BRANCH', 'value': 'main'},
+        }
+        result = await validate_repository_path_params(
+            mock_ctx,
+            definition_repository,
+            'params/template.json',
+            'docs/README.md',
+        )
+        assert result == ('params/template.json', 'docs/README.md')
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_path_params_parameter_template_without_repo(self):
+        """Test validation rejects parameter_template_path without definition_repository."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_repository_path_params(
+                mock_ctx,
+                None,  # No definition_repository
+                'params/template.json',  # But parameter_template_path is provided
+                None,
+            )
+
+        assert 'parameter_template_path can only be used with definition_repository' in str(
+            exc_info.value
+        )
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_path_params_readme_path_without_repo(self):
+        """Test validation rejects readme_path without definition_repository."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_repository_path_params(
+                mock_ctx,
+                None,  # No definition_repository
+                None,
+                'docs/README.md',  # But readme_path is provided
+            )
+
+        assert 'readme_path can only be used with definition_repository' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_path_params_logs_error(self):
+        """Test that validation errors are logged."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+        ) as mock_logger:
+            with pytest.raises(ValueError):
+                await validate_repository_path_params(
+                    mock_ctx,
+                    None,
+                    'params/template.json',
+                    None,
+                )
+
+            mock_logger.error.assert_called_once()
+            assert 'parameter_template_path' in mock_logger.error.call_args[0][0]
+
+
+# Tests for validate_definition_sources with definition_repository
+
+
+class TestValidateDefinitionSourcesWithRepository:
+    """Test cases for validate_definition_sources with definition_repository."""
+
+    @pytest.mark.asyncio
+    async def test_validate_definition_sources_with_repository(self):
+        """Test validation with definition_repository source."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+        definition_repository = {
+            'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+            'full_repository_id': 'owner/repo',
+            'source_reference': {'type': 'BRANCH', 'value': 'main'},
+        }
+
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+        )
+
+        definition_zip, validated_uri, validated_repository = result
+        assert definition_zip is None
+        assert validated_uri is None
+        assert validated_repository is not None
+        assert validated_repository['connectionArn'] == definition_repository['connection_arn']
+        assert (
+            validated_repository['fullRepositoryId'] == definition_repository['full_repository_id']
+        )
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_definition_sources_repository_with_exclude_patterns(self):
+        """Test validation with definition_repository including exclude_file_patterns."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+        definition_repository = {
+            'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+            'full_repository_id': 'owner/repo',
+            'source_reference': {'type': 'TAG', 'value': 'v1.0.0'},
+            'exclude_file_patterns': ['*.md', 'tests/*'],
+        }
+
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+        )
+
+        _, _, validated_repository = result
+        assert validated_repository is not None
+        assert validated_repository['excludeFilePatterns'] == ['*.md', 'tests/*']
+        mock_ctx.error.assert_not_called()
+
+
+# Tests for validate_repository_definition with Field objects
+
+
+class TestValidateRepositoryDefinitionFieldObjects:
+    """Test cases for validate_repository_definition handling Field objects."""
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_definition_none_input(self):
+        """Test handling of None input returns None."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_repository_definition(mock_ctx, None)
+        assert result is None
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_definition_field_object_with_none_default(self):
+        """Test handling of Field object with None default value."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Create a mock Field object with None default that is NOT a dict or None type
+        class MockField:
+            default = None
+
+        # The key is that the object has 'default' attribute and is NOT isinstance of (dict, type(None))
+        mock_field = MockField()
+        result = await validate_repository_definition(mock_ctx, mock_field)
+        assert result is None
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_definition_field_object_with_dict_default(self):
+        """Test handling of Field object with dict default value."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Create a mock Field object with dict default
+        class MockField:
+            default = {
+                'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc',
+                'full_repository_id': 'owner/repo',
+                'source_reference': {'type': 'BRANCH', 'value': 'main'},
+            }
+
+        result = await validate_repository_definition(mock_ctx, MockField())
+        assert result is not None
+        assert result['connectionArn'] == MockField.default['connection_arn']
+        mock_ctx.error.assert_not_called()
