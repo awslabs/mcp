@@ -16,6 +16,7 @@ dependencies = [
     "isodate>=0.6.0",
     "nest-asyncio>=1.5.0",
     "polars>=1.0.0",
+    "python-multipart>=0.0.22",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
