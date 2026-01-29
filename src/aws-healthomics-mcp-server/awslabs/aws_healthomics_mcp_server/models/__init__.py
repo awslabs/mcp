@@ -37,6 +37,22 @@ from .core import (
     WorkflowType,
 )
 
+# ECR models
+from .ecr import (
+    CloneContainerResponse,
+    ContainerAvailabilityResponse,
+    ContainerImage,
+    ECRRepository,
+    ECRRepositoryListResponse,
+    HealthOmicsAccessStatus,
+    PullThroughCacheListResponse,
+    PullThroughCacheRule,
+    UpstreamRegistry,
+    UPSTREAM_REGISTRY_URLS,
+    ValidationIssue,
+    ValidationResult,
+)
+
 # S3 file models and utilities
 from .s3 import (
     S3File,
@@ -85,6 +101,19 @@ __all__ = [
     'WorkflowListResponse',
     'WorkflowSummary',
     'WorkflowType',
+    # ECR models
+    'CloneContainerResponse',
+    'ContainerAvailabilityResponse',
+    'ContainerImage',
+    'ECRRepository',
+    'ECRRepositoryListResponse',
+    'HealthOmicsAccessStatus',
+    'PullThroughCacheListResponse',
+    'PullThroughCacheRule',
+    'UpstreamRegistry',
+    'UPSTREAM_REGISTRY_URLS',
+    'ValidationIssue',
+    'ValidationResult',
     # S3 models
     'S3File',
     'build_s3_uri',

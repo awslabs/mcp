@@ -215,7 +215,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
             )
         report_sections.append('')
 
-        # Cross-run summary comparison (Requirements 2.4, 7.4)
+        # Cross-run summary comparison
         runs = analysis_data.get('runs', [])
         if len(runs) > 1:
             report_sections.append('## Cross-Run Summary Comparison')
@@ -297,7 +297,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                 report_sections.append(f'- **Stop Time**: {run_info["stopTime"]}')
                 report_sections.append('')
 
-                # Cost summary (Requirements 1.4, 2.3)
+                # Cost summary
                 report_sections.append('### Cost Summary')
                 report_sections.append(
                     f'- **Total Estimated Cost**: ${run_summary.get("totalEstimatedUSD", 0):.4f}'
@@ -351,7 +351,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         t for t in task_metrics if t.get('isHighPrioritySaving', False)
                     ]
 
-                    # High-priority savings tasks (Requirements 4.4)
+                    # High-priority savings tasks
                     if high_priority_savings_tasks:
                         report_sections.append('#### High-Priority Savings Opportunities')
                         report_sections.append(
@@ -437,7 +437,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         )
                         report_sections.append('')
 
-                    # Instance type recommendations (Requirements 3.4)
+                    # Instance type recommendations
                     instance_types = {}
                     for task in task_metrics:
                         inst_type = task.get('instanceType', 'unknown')
@@ -467,7 +467,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                             report_sections.append(f'  - Potential Savings: ${total_savings:.4f}')
                         report_sections.append('')
 
-                # Aggregated task metrics section (Requirements 6.4)
+                # Aggregated task metrics section
                 aggregated_metrics = run_data.get('aggregatedTaskMetrics', [])
                 if aggregated_metrics:
                     report_sections.append('### Aggregated Task Metrics (Scattered Tasks)')
@@ -503,7 +503,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                     report_sections.append('```')
                     report_sections.append('')
 
-        # Cross-run aggregates section (Requirements 7.1, 7.2, 7.3)
+        # Cross-run aggregates section
         cross_run_aggregates = analysis_data.get('crossRunAggregates', [])
         if cross_run_aggregates:
             report_sections.append('## Cross-Run Aggregate Metrics')
@@ -672,7 +672,7 @@ async def _get_run_analysis_data(
                 # Continue with other runs rather than failing completely
                 continue
 
-        # Calculate grand total cost across all runs (Requirements 2.4)
+        # Calculate grand total cost across all runs
         if analysis_results['runs']:
             grand_total_cost = sum(
                 run.get('summary', {}).get('totalEstimatedUSD', 0)
@@ -685,7 +685,7 @@ async def _get_run_analysis_data(
             analysis_results['summary']['grandTotalEstimatedUSD'] = grand_total_cost
             analysis_results['summary']['grandTotalPotentialSavingsUSD'] = grand_total_savings
 
-        # Add cross-run aggregation when multiple runs are provided (Requirements 7.1, 7.2, 7.3)
+        # Add cross-run aggregation when multiple runs are provided
         if len(analysis_results['runs']) > 1:
             cross_run_aggregates = _aggregate_cross_run_metrics(
                 analysis_results['runs'],
@@ -827,13 +827,13 @@ async def _parse_manifest_for_analysis(
             else 0
         )
 
-        # Calculate cost summary (Requirements 2.1, 2.2, 2.3)
+        # Calculate cost summary
         task_cost_usd = sum(task.get('estimatedUSD', 0) for task in task_metrics)
         total_potential_savings_usd = sum(
             task.get('potentialSavingsUSD', 0) for task in task_metrics
         )
 
-        # Calculate storage cost (Requirements 11.1, 11.2, 11.3, 11.4)
+        # Calculate storage cost
         storage_cost_usd = 0.0
         if cost_analyzer and run_details:
             storage_type = run_details.get('storageType', 'DYNAMIC')
@@ -850,10 +850,10 @@ async def _parse_manifest_for_analysis(
             )
             storage_cost_usd = storage_cost if storage_cost is not None else 0.0
 
-        # Calculate total estimated cost (Requirements 2.1, 2.4)
+        # Calculate total estimated cost
         total_estimated_usd = task_cost_usd + storage_cost_usd
 
-        # Aggregate scattered tasks (Requirements 6.1, 6.2, 6.3, 6.4, 6.5)
+        # Aggregate scattered tasks
         aggregated_task_metrics = _aggregate_task_metrics(
             task_metrics,
             instance_recommender=instance_recommender,
@@ -873,7 +873,7 @@ async def _parse_manifest_for_analysis(
                 'overallCpuEfficiency': overall_cpu_efficiency,
                 'overallMemoryEfficiency': overall_memory_efficiency,
                 'manifestLogCount': len(log_events),
-                # Cost summary (Requirements 2.1, 2.3)
+                # Cost summary
                 'totalEstimatedUSD': total_estimated_usd,
                 'taskCostUSD': task_cost_usd,
                 'storageCostUSD': storage_cost_usd,
@@ -920,7 +920,7 @@ def _aggregate_task_metrics(
     # Convert Polars DataFrame to list of dictionaries
     aggregated_list = aggregated_df.to_dicts()
 
-    # Add instance recommendations based on maximum observed usage (Requirement 6.5)
+    # Add instance recommendations based on maximum observed usage
     for agg_task in aggregated_list:
         max_cpus = agg_task.get('maxObservedCpus', 0.0)
         max_memory = agg_task.get('maxObservedMemoryGiB', 0.0)
@@ -956,8 +956,6 @@ def _aggregate_cross_run_metrics(
 
     Returns:
         List of cross-run aggregated task metric dictionaries
-
-    Requirements: 7.1, 7.2, 7.3
     """
     if not runs_data:
         return []
@@ -1081,7 +1079,7 @@ def _extract_task_metrics_from_manifest(
             metrics['maxCpuEfficiencyRatio'] > 0.9 or metrics['maxMemoryEfficiencyRatio'] > 0.9
         )
 
-        # Cost analysis integration (Requirements 1.1, 1.4, 4.2, 4.4)
+        # Cost analysis integration
         instance_type = metrics['instanceType']
         running_seconds = metrics['runningSeconds']
 
@@ -1092,7 +1090,7 @@ def _extract_task_metrics_from_manifest(
         else:
             metrics['estimatedUSD'] = 0.0
 
-        # Instance recommendation integration (Requirements 3.1, 3.2, 3.4, 3.5)
+        # Instance recommendation integration
         if instance_recommender:
             max_cpu = metrics['maxCpuUtilization']
             max_memory = metrics['maxMemoryUtilizationGiB']
@@ -1114,12 +1112,12 @@ def _extract_task_metrics_from_manifest(
             else:
                 metrics['minimumUSD'] = 0.0
 
-            # Calculate potential savings (Requirements 4.1, 4.2)
+            # Calculate potential savings
             metrics['potentialSavingsUSD'] = max(
                 0.0, metrics['estimatedUSD'] - metrics['minimumUSD']
             )
 
-            # Flag high-priority savings (Requirements 4.4)
+            # Flag high-priority savings
             metrics['isHighPrioritySaving'] = instance_recommender.is_high_priority_saving(
                 metrics['estimatedUSD'], metrics['potentialSavingsUSD']
             )

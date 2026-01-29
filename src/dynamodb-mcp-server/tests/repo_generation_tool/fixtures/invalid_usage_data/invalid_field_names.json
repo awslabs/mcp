@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "Post": {
+      "access_pattern_data": {
+        "post_id": "sample_post_id",
+        "usr_id": "typo_user_id"
+      },
+      "sample_data": {
+        "content": "Sample post content",
+        "made_up_field": "this_does_not_exist",
+        "post_id": "post-456",
+        "user_id": "user-123"
+      },
+      "update_data": {
+        "content": "updated content",
+        "fake_field": "invalid"
+      }
+    },
+    "UserProfile": {
+      "access_pattern_data": {
+        "user_id": "sample_user_id",
+        "usrname": "typo_in_username"
+      },
+      "sample_data": {
+        "another_bad_field": "also_invalid",
+        "email": "test@example.com",
+        "invalid_field": "should_not_exist",
+        "user_id": "user-123",
+        "username": "testuser"
+      },
+      "update_data": {
+        "emial": "typo_in_email",
+        "username": "updated_user"
+      }
+    }
+  }
+}
