@@ -1666,9 +1666,7 @@ async def test_create_workflow_both_definition_sources_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(
-        ValueError, match='Cannot specify both definition_zip_base64 and definition_uri'
-    ):
+    with pytest.raises(ValueError, match='Cannot specify multiple definition sources'):
         await create_workflow(
             mock_ctx,
             name='test-workflow',
@@ -1682,10 +1680,7 @@ async def test_create_workflow_both_definition_sources_error():
 
     # Verify error was reported to context
     mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both definition_zip_base64 and definition_uri'
-        in mock_ctx.error.call_args[0][0]
-    )
+    assert 'Cannot specify multiple definition sources' in mock_ctx.error.call_args[0][0]
 
 
 @pytest.mark.asyncio
@@ -1694,9 +1689,7 @@ async def test_create_workflow_no_definition_source_error():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(
-        ValueError, match='Must specify either definition_zip_base64 or definition_uri'
-    ):
+    with pytest.raises(ValueError, match='Must specify one definition source'):
         await create_workflow(
             mock_ctx,
             name='test-workflow',
@@ -1710,10 +1703,7 @@ async def test_create_workflow_no_definition_source_error():
 
     # Verify error was reported to context
     mock_ctx.error.assert_called_once()
-    assert (
-        'Must specify either definition_zip_base64 or definition_uri'
-        in mock_ctx.error.call_args[0][0]
-    )
+    assert 'Must specify one definition source' in mock_ctx.error.call_args[0][0]
 
 
 @pytest.mark.asyncio
@@ -1807,9 +1797,7 @@ async def test_create_workflow_version_both_definition_sources_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(
-        ValueError, match='Cannot specify both definition_zip_base64 and definition_uri'
-    ):
+    with pytest.raises(ValueError, match='Cannot specify multiple definition sources'):
         await create_workflow_version(
             mock_ctx,
             workflow_id='wfl-12345',
@@ -1826,10 +1814,7 @@ async def test_create_workflow_version_both_definition_sources_error():
 
     # Verify error was reported to context
     mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both definition_zip_base64 and definition_uri'
-        in mock_ctx.error.call_args[0][0]
-    )
+    assert 'Cannot specify multiple definition sources' in mock_ctx.error.call_args[0][0]
 
 
 @pytest.mark.asyncio
@@ -1838,9 +1823,7 @@ async def test_create_workflow_version_no_definition_source_error():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(
-        ValueError, match='Must specify either definition_zip_base64 or definition_uri'
-    ):
+    with pytest.raises(ValueError, match='Must specify one definition source'):
         await create_workflow_version(
             mock_ctx,
             workflow_id='wfl-12345',
@@ -1857,10 +1840,7 @@ async def test_create_workflow_version_no_definition_source_error():
 
     # Verify error was reported to context
     mock_ctx.error.assert_called_once()
-    assert (
-        'Must specify either definition_zip_base64 or definition_uri'
-        in mock_ctx.error.call_args[0][0]
-    )
+    assert 'Must specify one definition source' in mock_ctx.error.call_args[0][0]
 
 
 @pytest.mark.asyncio

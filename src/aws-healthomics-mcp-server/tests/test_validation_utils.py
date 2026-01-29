@@ -24,6 +24,8 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_path_to_main,
     validate_s3_uri,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import AsyncMock, patch
 
 
@@ -681,3 +683,867 @@ class TestValidateReadmeInput:
                     mock_logger.error.assert_called_once()
                     error_call_args = mock_logger.error.call_args[0][0]
                     assert 'Failed to read README file' in error_call_args
+
+
+# Property-Based Tests using Hypothesis for Workflow Repository Integration
+
+# Custom strategies for repository integration tests
+# Valid AWS CodeConnection ARN generator
+valid_connection_arns = st.from_regex(
+    r'arn:aws:(codeconnections|codestar-connections):us-east-1:123456789012:connection/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}',
+    fullmatch=True,
+)
+
+# Valid repository ID generator (owner/repo format)
+valid_repository_ids = st.from_regex(r'[a-zA-Z0-9_-]{1,39}/[a-zA-Z0-9_.-]{1,100}', fullmatch=True)
+
+# Valid source reference type generator
+valid_source_types = st.sampled_from(['COMMIT_ID', 'BRANCH', 'TAG'])
+
+# Valid source reference value generator (non-empty strings)
+valid_source_values = st.text(
+    min_size=1,
+    max_size=100,
+    alphabet=st.characters(whitelist_categories=('L', 'N'), whitelist_characters='-_./'),
+).filter(lambda x: x.strip())
+
+# Valid base64 content generator
+valid_base64_content = st.binary(min_size=1, max_size=100).map(
+    lambda b: __import__('base64').b64encode(b).decode('utf-8')
+)
+
+# Valid S3 URI generator
+valid_s3_uris = st.from_regex(
+    r's3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[a-zA-Z0-9._/-]+\.zip',
+    fullmatch=True,
+)
+
+
+class TestWorkflowRepositoryIntegrationPropertyBased:
+    """Property-based tests for workflow repository integration using Hypothesis."""
+
+    @given(
+        definition_zip_base64=valid_base64_content,
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_backward_compatibility_zip_source(
+        self,
+        definition_zip_base64: str,
+    ):
+        """Property 7: Backward Compatibility - ZIP source.
+
+        For any valid workflow creation request using definition_zip_base64
+        (without definition_repository), the function SHALL process the request
+        identically to the previous implementation.
+
+        **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
+        **Feature: workflow-repository-integration, Property 7: Backward Compatibility**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Call validate_definition_sources with only definition_zip_base64
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64=definition_zip_base64,
+            definition_uri=None,
+            definition_repository=None,
+        )
+
+        # Property: Returns a 3-tuple
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+
+        # Property: First element is decoded bytes (not None)
+        definition_zip, validated_uri, validated_repository = result
+        assert definition_zip is not None
+        assert isinstance(definition_zip, bytes)
+
+        # Property: Second and third elements are None
+        assert validated_uri is None
+        assert validated_repository is None
+
+        # Property: No errors reported to context
+        mock_ctx.error.assert_not_called()
+
+    @given(
+        s3_uri=valid_s3_uris,
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_backward_compatibility_uri_source(
+        self,
+        s3_uri: str,
+    ):
+        """Property 7: Backward Compatibility - URI source.
+
+        For any valid workflow creation request using definition_uri
+        (without definition_repository), the function SHALL process the request
+        identically to the previous implementation.
+
+        **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
+        **Feature: workflow-repository-integration, Property 7: Backward Compatibility**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Call validate_definition_sources with only definition_uri
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64=None,
+            definition_uri=s3_uri,
+            definition_repository=None,
+        )
+
+        # Property: Returns a 3-tuple
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+
+        # Property: Second element is the validated URI (not None)
+        definition_zip, validated_uri, validated_repository = result
+        assert definition_zip is None
+        assert validated_uri is not None
+        assert validated_uri == s3_uri
+
+        # Property: First and third elements are None
+        assert validated_repository is None
+
+        # Property: No errors reported to context
+        mock_ctx.error.assert_not_called()
+
+    @given(
+        connection_arn=valid_connection_arns,
+        repository_id=valid_repository_ids,
+        source_type=valid_source_types,
+        source_value=valid_source_values,
+        exclude_patterns=st.lists(st.text(min_size=1, max_size=50), min_size=0, max_size=5),
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_api_parameter_mapping_round_trip(
+        self,
+        connection_arn: str,
+        repository_id: str,
+        source_type: str,
+        source_value: str,
+        exclude_patterns: list,
+    ):
+        """Property 8: API Parameter Mapping Round-Trip.
+
+        For any valid repository configuration with snake_case field names,
+        the transformation to API format SHALL produce a dictionary with
+        camelCase field names that correctly maps all input fields.
+
+        **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6**
+        **Feature: workflow-repository-integration, Property 8: API Parameter Mapping Round-Trip**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Build input repository configuration with snake_case field names
+        definition_repository = {
+            'connection_arn': connection_arn,
+            'full_repository_id': repository_id,
+            'source_reference': {
+                'type': source_type,
+                'value': source_value,
+            },
+        }
+
+        # Add exclude_file_patterns only if non-empty
+        if exclude_patterns:
+            definition_repository['exclude_file_patterns'] = exclude_patterns
+
+        # Call validate_repository_definition
+        result = await validate_repository_definition(mock_ctx, definition_repository)
+
+        # Property: Result is not None for valid input
+        assert result is not None
+
+        # Property: connectionArn is correctly mapped (Requirement 8.1)
+        assert 'connectionArn' in result
+        assert result['connectionArn'] == connection_arn
+
+        # Property: fullRepositoryId is correctly mapped (Requirement 8.2)
+        assert 'fullRepositoryId' in result
+        assert result['fullRepositoryId'] == repository_id
+
+        # Property: sourceReference is correctly mapped with nested fields (Requirement 8.3)
+        assert 'sourceReference' in result
+        assert 'type' in result['sourceReference']
+        assert 'value' in result['sourceReference']
+        assert result['sourceReference']['type'] == source_type
+        assert result['sourceReference']['value'] == source_value
+
+        # Property: excludeFilePatterns is correctly mapped if provided (Requirement 8.4)
+        if exclude_patterns:
+            assert 'excludeFilePatterns' in result
+            assert result['excludeFilePatterns'] == exclude_patterns
+        else:
+            # Should not be present if empty
+            assert 'excludeFilePatterns' not in result
+
+        # Property: No errors reported to context
+        mock_ctx.error.assert_not_called()
+
+    @given(
+        invalid_arn=st.text(min_size=1, max_size=100).filter(
+            lambda x: not x.startswith('arn:aws:codeconnections:')
+            and not x.startswith('arn:aws:codestar-connections:')
+        ),
+        repository_id=valid_repository_ids,
+        source_type=valid_source_types,
+        source_value=valid_source_values,
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_error_message_context_invalid_arn(
+        self,
+        invalid_arn: str,
+        repository_id: str,
+        source_type: str,
+        source_value: str,
+    ):
+        """Property 9: Error Message Context Inclusion - Invalid ARN.
+
+        For any validation error raised during repository configuration validation
+        due to invalid connection_arn, the error message SHALL contain the specific
+        invalid ARN value that caused the failure.
+
+        **Validates: Requirements 7.1, 7.2, 7.3**
+        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Build input repository configuration with invalid ARN
+        definition_repository = {
+            'connection_arn': invalid_arn,
+            'full_repository_id': repository_id,
+            'source_reference': {
+                'type': source_type,
+                'value': source_value,
+            },
+        }
+
+        # Call validate_repository_definition and expect ValueError
+        with pytest.raises(ValueError) as exc_info:
+            await validate_repository_definition(mock_ctx, definition_repository)
+
+        # Property: Error message contains the invalid ARN value
+        error_message = str(exc_info.value)
+        assert invalid_arn in error_message or 'connection_arn' in error_message.lower()
+
+        # Property: Error was reported to context
+        mock_ctx.error.assert_called_once()
+
+    @given(
+        connection_arn=valid_connection_arns,
+        repository_id=valid_repository_ids,
+        invalid_source_type=st.text(min_size=1, max_size=50).filter(
+            lambda x: x not in ['COMMIT_ID', 'BRANCH', 'TAG']
+        ),
+        source_value=valid_source_values,
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_error_message_context_invalid_source_type(
+        self,
+        connection_arn: str,
+        repository_id: str,
+        invalid_source_type: str,
+        source_value: str,
+    ):
+        """Property 9: Error Message Context Inclusion - Invalid Source Type.
+
+        For any validation error raised during repository configuration validation
+        due to invalid source_reference.type, the error message SHALL contain
+        information about the valid types.
+
+        **Validates: Requirements 7.1, 7.2, 7.3**
+        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Build input repository configuration with invalid source type
+        definition_repository = {
+            'connection_arn': connection_arn,
+            'full_repository_id': repository_id,
+            'source_reference': {
+                'type': invalid_source_type,
+                'value': source_value,
+            },
+        }
+
+        # Call validate_repository_definition and expect ValueError
+        with pytest.raises(ValueError) as exc_info:
+            await validate_repository_definition(mock_ctx, definition_repository)
+
+        # Property: Error message contains information about the invalid type
+        error_message = str(exc_info.value)
+        assert 'source_reference' in error_message.lower() or 'type' in error_message.lower()
+
+        # Property: Error was reported to context
+        mock_ctx.error.assert_called_once()
+
+    @given(
+        connection_arn=valid_connection_arns,
+        repository_id=valid_repository_ids,
+        source_type=valid_source_types,
+        empty_value=st.sampled_from(['', '   ', '\t', '\n']),
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_property_error_message_context_empty_source_value(
+        self,
+        connection_arn: str,
+        repository_id: str,
+        source_type: str,
+        empty_value: str,
+    ):
+        """Property 9: Error Message Context Inclusion - Empty Source Value.
+
+        For any validation error raised during repository configuration validation
+        due to empty source_reference.value, the error message SHALL indicate
+        that the value cannot be empty.
+
+        **Validates: Requirements 7.1, 7.2, 7.3**
+        **Feature: workflow-repository-integration, Property 9: Error Message Context Inclusion**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_definition,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # Build input repository configuration with empty source value
+        definition_repository = {
+            'connection_arn': connection_arn,
+            'full_repository_id': repository_id,
+            'source_reference': {
+                'type': source_type,
+                'value': empty_value,
+            },
+        }
+
+        # Call validate_repository_definition and expect ValueError
+        with pytest.raises(ValueError) as exc_info:
+            await validate_repository_definition(mock_ctx, definition_repository)
+
+        # Property: Error message indicates empty value issue
+        error_message = str(exc_info.value)
+        assert 'empty' in error_message.lower() or 'value' in error_message.lower()
+
+        # Property: Error was reported to context
+        mock_ctx.error.assert_called_once()
+
+
+# Tests for validate_provider_type function
+
+
+class TestValidateProviderType:
+    """Test cases for validate_provider_type function.
+
+    **Validates: Requirements 4.1, 4.2, 4.3, 7.3**
+    """
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_none_input(self):
+        """Test validation with None input returns None."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, None)
+        assert result is None
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_bitbucket(self):
+        """Test validation with valid Bitbucket provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'Bitbucket')
+        assert result == 'Bitbucket'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_github(self):
+        """Test validation with valid GitHub provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'GitHub')
+        assert result == 'GitHub'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_github_enterprise(self):
+        """Test validation with valid GitHubEnterpriseServer provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'GitHubEnterpriseServer')
+        assert result == 'GitHubEnterpriseServer'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_gitlab(self):
+        """Test validation with valid GitLab provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'GitLab')
+        assert result == 'GitLab'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_gitlab_self_managed(self):
+        """Test validation with valid GitLabSelfManaged provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'GitLabSelfManaged')
+        assert result == 'GitLabSelfManaged'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_valid_azure_devops(self):
+        """Test validation with valid AzureDevOps provider type."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+        result = await validate_provider_type(mock_ctx, 'AzureDevOps')
+        assert result == 'AzureDevOps'
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_all_valid_types(self):
+        """Test validation with all valid provider types."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        valid_types = [
+            'Bitbucket',
+            'GitHub',
+            'GitHubEnterpriseServer',
+            'GitLab',
+            'GitLabSelfManaged',
+            'AzureDevOps',
+        ]
+
+        for provider_type in valid_types:
+            mock_ctx = AsyncMock()
+            result = await validate_provider_type(mock_ctx, provider_type)
+            assert result == provider_type
+            mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_invalid_lowercase(self):
+        """Test validation rejects lowercase provider types (case-sensitive).
+
+        **Validates: Requirements 4.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_provider_type(mock_ctx, 'github')
+
+        assert "Invalid provider_type 'github'" in str(exc_info.value)
+        assert 'Must be one of:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_invalid_uppercase(self):
+        """Test validation rejects uppercase provider types (case-sensitive).
+
+        **Validates: Requirements 4.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_provider_type(mock_ctx, 'GITHUB')
+
+        assert "Invalid provider_type 'GITHUB'" in str(exc_info.value)
+        assert 'Must be one of:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_invalid_unknown(self):
+        """Test validation rejects unknown provider types.
+
+        **Validates: Requirements 4.2**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_provider_type(mock_ctx, 'UnknownProvider')
+
+        assert "Invalid provider_type 'UnknownProvider'" in str(exc_info.value)
+        assert 'Must be one of:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_invalid_empty_string(self):
+        """Test validation rejects empty string provider type.
+
+        **Validates: Requirements 4.2**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_provider_type(mock_ctx, '')
+
+        assert "Invalid provider_type ''" in str(exc_info.value)
+        assert 'Must be one of:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_error_lists_valid_types(self):
+        """Test that error message lists all valid provider types.
+
+        **Validates: Requirements 4.2**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_provider_type(mock_ctx, 'invalid')
+
+        error_message = str(exc_info.value)
+        # Verify all valid types are listed in the error message
+        assert 'Bitbucket' in error_message
+        assert 'GitHub' in error_message
+        assert 'GitHubEnterpriseServer' in error_message
+        assert 'GitLab' in error_message
+        assert 'GitLabSelfManaged' in error_message
+        assert 'AzureDevOps' in error_message
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_logs_error(self):
+        """Test that validation errors are logged before raising.
+
+        **Validates: Requirements 7.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+        ) as mock_logger:
+            with pytest.raises(ValueError):
+                await validate_provider_type(mock_ctx, 'invalid')
+
+            mock_logger.error.assert_called_once()
+            error_call_args = mock_logger.error.call_args[0][0]
+            assert "Invalid provider_type 'invalid'" in error_call_args
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_type_reports_to_context(self):
+        """Test that validation errors are reported to MCP context.
+
+        **Validates: Requirements 7.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_provider_type,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError):
+            await validate_provider_type(mock_ctx, 'invalid')
+
+        mock_ctx.error.assert_called_once()
+        error_call_args = mock_ctx.error.call_args[0][0]
+        assert "Invalid provider_type 'invalid'" in error_call_args
+
+
+# Tests for validate_connection_arn function
+
+
+class TestValidateConnectionArn:
+    """Test cases for validate_connection_arn function.
+
+    **Validates: Requirements 5.1, 5.2, 5.3, 5.4, 7.3**
+    """
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_valid_codeconnections_prefix(self):
+        """Test validation with valid codeconnections ARN prefix.
+
+        **Validates: Requirements 5.1, 5.2**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        valid_arn = 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123'
+        result = await validate_connection_arn(mock_ctx, valid_arn)
+        assert result == valid_arn
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_valid_codestar_prefix(self):
+        """Test validation with valid codestar-connections ARN prefix (legacy format).
+
+        **Validates: Requirements 5.1, 5.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        valid_arn = 'arn:aws:codestar-connections:us-west-2:123456789012:connection/def-456'
+        result = await validate_connection_arn(mock_ctx, valid_arn)
+        assert result == valid_arn
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_valid_various_regions(self):
+        """Test validation with valid ARNs from various regions.
+
+        **Validates: Requirements 5.1, 5.2, 5.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        valid_arns = [
+            'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+            'arn:aws:codeconnections:eu-west-1:123456789012:connection/abc-123',
+            'arn:aws:codeconnections:ap-southeast-1:123456789012:connection/abc-123',
+            'arn:aws:codestar-connections:us-east-2:123456789012:connection/abc-123',
+            'arn:aws:codestar-connections:eu-central-1:123456789012:connection/abc-123',
+        ]
+
+        for valid_arn in valid_arns:
+            mock_ctx = AsyncMock()
+            result = await validate_connection_arn(mock_ctx, valid_arn)
+            assert result == valid_arn
+            mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_invalid_prefix(self):
+        """Test validation rejects ARNs with invalid prefix.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        invalid_arn = 'arn:aws:s3:us-east-1:123456789012:bucket/my-bucket'
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_connection_arn(mock_ctx, invalid_arn)
+
+        assert 'Invalid connection ARN format:' in str(exc_info.value)
+        assert invalid_arn in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_invalid_empty_string(self):
+        """Test validation rejects empty string.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_connection_arn(mock_ctx, '')
+
+        assert 'Invalid connection ARN format:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_invalid_random_string(self):
+        """Test validation rejects random strings.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        invalid_arn = 'not-an-arn-at-all'
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_connection_arn(mock_ctx, invalid_arn)
+
+        assert 'Invalid connection ARN format:' in str(exc_info.value)
+        assert invalid_arn in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_invalid_partial_prefix(self):
+        """Test validation rejects ARNs with partial prefix.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        # Missing 'arn:aws:' prefix
+        invalid_arn = 'codeconnections:us-east-1:123456789012:connection/abc-123'
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_connection_arn(mock_ctx, invalid_arn)
+
+        assert 'Invalid connection ARN format:' in str(exc_info.value)
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_error_message_format(self):
+        """Test that error message includes expected format guidance.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        invalid_arn = 'invalid-arn'
+
+        with pytest.raises(ValueError) as exc_info:
+            await validate_connection_arn(mock_ctx, invalid_arn)
+
+        error_message = str(exc_info.value)
+        # Verify error message includes expected format guidance
+        assert 'arn:aws:codeconnections:' in error_message
+        assert 'arn:aws:codestar-connections:' in error_message
+        assert '{region}' in error_message
+        assert '{account}' in error_message
+        assert 'connection/{id}' in error_message
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_logs_error(self):
+        """Test that validation errors are logged before raising.
+
+        **Validates: Requirements 7.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        invalid_arn = 'invalid-arn'
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.logger'
+        ) as mock_logger:
+            with pytest.raises(ValueError):
+                await validate_connection_arn(mock_ctx, invalid_arn)
+
+            mock_logger.error.assert_called_once()
+            error_call_args = mock_logger.error.call_args[0][0]
+            assert 'Invalid connection ARN format:' in error_call_args
+            assert invalid_arn in error_call_args
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_reports_to_context(self):
+        """Test that validation errors are reported to MCP context.
+
+        **Validates: Requirements 7.3**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        mock_ctx = AsyncMock()
+        invalid_arn = 'invalid-arn'
+
+        with pytest.raises(ValueError):
+            await validate_connection_arn(mock_ctx, invalid_arn)
+
+        mock_ctx.error.assert_called_once()
+        error_call_args = mock_ctx.error.call_args[0][0]
+        assert 'Invalid connection ARN format:' in error_call_args
+        assert invalid_arn in error_call_args
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_arn_invalid_similar_service(self):
+        """Test validation rejects ARNs from similar but different services.
+
+        **Validates: Requirements 5.4**
+        """
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_connection_arn,
+        )
+
+        invalid_arns = [
+            'arn:aws:codestar:us-east-1:123456789012:connection/abc-123',  # codestar, not codestar-connections
+            'arn:aws:codecommit:us-east-1:123456789012:connection/abc-123',  # codecommit
+            'arn:aws:codepipeline:us-east-1:123456789012:connection/abc-123',  # codepipeline
+        ]
+
+        for invalid_arn in invalid_arns:
+            mock_ctx = AsyncMock()
+            with pytest.raises(ValueError) as exc_info:
+                await validate_connection_arn(mock_ctx, invalid_arn)
+
+            assert 'Invalid connection ARN format:' in str(exc_info.value)
+            mock_ctx.error.assert_called_once()
