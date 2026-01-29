@@ -16,6 +16,8 @@ Metric Definition Analyzer - Provides comprehensive descriptions of what metrics
 
 Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
 
+Database Insights - Analyzes RDS and Aurora database performance using Performance Insights. Identifies top SQL queries, wait events, and database load to help diagnose performance issues.
+
 ## Prerequisites
 1. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
 2. This MCP server can only be run locally on the same host as your LLM client.
@@ -42,6 +44,10 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
 * `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
 
+### Tools for Database Insights (Performance Insights)
+* `list-databases-with-insights` - Lists RDS and Aurora databases with their Performance Insights status
+* `get-database-load-metrics` - Retrieves database load metrics grouped by SQL, wait events, users, or hosts
+
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
 * `cloudwatch:DescribeAlarmHistory`
@@ -55,6 +61,9 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `logs:StartQuery`
 * `logs:GetQueryResults`
 * `logs:StopQuery`
+
+* `rds:DescribeDBInstances`
+* `pi:GetResourceMetrics`
 
 ## Installation
 
