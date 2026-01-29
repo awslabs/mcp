@@ -1749,15 +1749,16 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
+        from typing import Any, Dict, Optional
 
         mock_ctx = AsyncMock()
 
         # Create a mock Field object with None default that is NOT a dict or None type
         class MockField:
-            default = None
+            default: Optional[Dict[str, Any]] = None
 
         # The key is that the object has 'default' attribute and is NOT isinstance of (dict, type(None))
-        mock_field = MockField()
+        mock_field: Any = MockField()
         result = await validate_repository_definition(mock_ctx, mock_field)
         assert result is None
         mock_ctx.error.assert_not_called()
@@ -1768,18 +1769,20 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
+        from typing import Any, Dict
 
         mock_ctx = AsyncMock()
 
         # Create a mock Field object with dict default
         class MockField:
-            default = {
+            default: Dict[str, Any] = {
                 'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc',
                 'full_repository_id': 'owner/repo',
                 'source_reference': {'type': 'BRANCH', 'value': 'main'},
             }
 
-        result = await validate_repository_definition(mock_ctx, MockField())
+        mock_field: Any = MockField()
+        result = await validate_repository_definition(mock_ctx, mock_field)
         assert result is not None
         assert result['connectionArn'] == MockField.default['connection_arn']
         mock_ctx.error.assert_not_called()
