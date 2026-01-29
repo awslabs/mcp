@@ -1,0 +1,148 @@
+# {{ entity_name }} Entity Configuration
+{{ entity_name.upper() }}_CONFIG = EntityConfig(
+    entity_type="{{ entity_config.entity_type }}",
+    {% if entity_config.pk_is_numeric -%}
+    pk_builder=lambda entity: entity.{{ entity_config.pk_params[0] }},
+    {%- else -%}
+    pk_builder=lambda entity: f"{{ entity_config.pk_template | substitute_params(entity_config.pk_params) }}",
+    {%- endif %}
+    {% if entity_config.pk_params | length > 0 -%}
+    {% if entity_config.pk_is_numeric -%}
+    pk_lookup_builder=lambda {{ entity_config.pk_params | join(', ') }}: {{ entity_config.pk_params[0] }},
+    {%- else -%}
+    pk_lookup_builder=lambda {{ entity_config.pk_params | join(', ') }}: f"{{ entity_config.pk_template }}",
+    {%- endif %}
+    {%- else -%}
+    pk_lookup_builder=lambda: f"{{ entity_config.pk_template }}",
+    {%- endif %}
+    {% if entity_config.sk_template -%}
+    {% if entity_config.sk_is_numeric -%}
+    sk_builder=lambda entity: entity.{{ entity_config.sk_params[0] }},
+    {%- else -%}
+    sk_builder=lambda entity: f"{{ entity_config.sk_template | substitute_params(entity_config.sk_params) }}",
+    {%- endif %}
+    {%- else -%}
+    sk_builder=None,  # No sort key for this entity
+    {%- endif %}
+    {% if entity_config.sk_template -%}
+    {% if entity_config.sk_params | length > 0 -%}
+    {% if entity_config.sk_is_numeric -%}
+    sk_lookup_builder=lambda {{ entity_config.sk_params | join(', ') }}: {{ entity_config.sk_params[0] }},
+    {%- else -%}
+    sk_lookup_builder=lambda {{ entity_config.sk_params | join(', ') }}: f"{{ entity_config.sk_template }}",
+    {%- endif %}
+    {%- else -%}
+    sk_lookup_builder=lambda: f"{{ entity_config.sk_template }}",
+    {%- endif %}
+    {%- else -%}
+    sk_lookup_builder=None,  # No sort key for this entity
+    {%- endif %}
+    {% if entity_config.sk_template -%}
+    {%- set prefix_part = entity_config.sk_template.split('#{')[0] if '#{' in entity_config.sk_template else '' -%}
+    {%- if '#{' in entity_config.sk_template and '{' not in prefix_part -%}
+    prefix_builder=lambda **kwargs: "{{ prefix_part }}#"
+    {%- else -%}
+    prefix_builder=lambda **kwargs: "{{ entity_config.entity_type }}#"
+    {%- endif -%}
+    {%- else -%}
+    prefix_builder=None  # No sort key prefix for this entity
+    {%- endif %}
+)
+
+class {{ entity_name }}(ConfigurableEntity):
+{%- for field in entity_config.fields %}
+    {{ field.name }}: {{ map_field_type(field) }}{% if not field.required %} = None{% endif %}
+{%- endfor %}
+
+    @classmethod
+    def get_config(cls) -> EntityConfig:
+        return {{ entity_name.upper() }}_CONFIG
+
+{%- if entity_config.gsi_mappings %}
+
+    # GSI Key Builder Class Methods
+{%- for gsi_mapping in entity_config.gsi_mappings %}
+
+    @classmethod
+    {% if gsi_mapping.pk_is_numeric -%}
+    def build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.pk_params | length > 0 %}, {{ gsi_mapping.pk_params | join(', ') }}{% endif %}) -> KeyType:
+        """Build GSI partition key for {{ gsi_mapping.name }} lookup operations"""
+        return {{ gsi_mapping.pk_params[0] }}
+    {%- else -%}
+    def build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.pk_params | length > 0 %}, {{ gsi_mapping.pk_params | join(', ') }}{% endif %}) -> KeyType:
+        """Build GSI partition key for {{ gsi_mapping.name }} lookup operations"""
+        return f"{{ gsi_mapping.pk_template }}"
+    {%- endif %}
+
+    {% if gsi_mapping.sk_template -%}
+    @classmethod
+    {% if gsi_mapping.sk_is_numeric -%}
+    def build_gsi_sk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.sk_params | length > 0 %}, {{ gsi_mapping.sk_params | join(', ') }}{% endif %}) -> KeyType:
+        """Build GSI sort key for {{ gsi_mapping.name }} lookup operations"""
+        return {{ gsi_mapping.sk_params[0] }}
+    {%- else -%}
+    def build_gsi_sk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.sk_params | length > 0 %}, {{ gsi_mapping.sk_params | join(', ') }}{% endif %}) -> KeyType:
+        """Build GSI sort key for {{ gsi_mapping.name }} lookup operations"""
+        return f"{{ gsi_mapping.sk_template }}"
+    {%- endif %}
+    {%- endif %}
+{%- endfor %}
+
+    # GSI Key Builder Instance Methods
+{%- for gsi_mapping in entity_config.gsi_mappings %}
+
+    {% if gsi_mapping.pk_is_numeric -%}
+    def build_gsi_pk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
+        """Build GSI partition key for {{ gsi_mapping.name }} from entity instance"""
+        return self.{{ gsi_mapping.pk_params[0] }}
+    {%- else -%}
+    def build_gsi_pk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
+        """Build GSI partition key for {{ gsi_mapping.name }} from entity instance"""
+        return f"{{ gsi_mapping.pk_template | substitute_self_params(gsi_mapping.pk_params) }}"
+    {%- endif %}
+
+    {% if gsi_mapping.sk_template -%}
+    {% if gsi_mapping.sk_is_numeric -%}
+    def build_gsi_sk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
+        """Build GSI sort key for {{ gsi_mapping.name }} from entity instance"""
+        return self.{{ gsi_mapping.sk_params[0] }}
+    {%- else -%}
+    def build_gsi_sk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
+        """Build GSI sort key for {{ gsi_mapping.name }} from entity instance"""
+        return f"{{ gsi_mapping.sk_template | substitute_self_params(gsi_mapping.sk_params) }}"
+    {%- endif %}
+    {%- endif %}
+{%- endfor %}
+
+    # GSI Prefix Helper Methods
+{%- for gsi_mapping in entity_config.gsi_mappings %}
+
+    @classmethod
+    def get_gsi_pk_prefix_{{ gsi_mapping.safe_name }}(cls) -> str:
+        """Get GSI partition key prefix for {{ gsi_mapping.name }} query operations"""
+        {% if '#{' in gsi_mapping.pk_template -%}
+        return "{{ gsi_mapping.pk_template.split('#{')[0] }}#"
+        {%- else -%}
+        {%- if '{' in gsi_mapping.pk_template -%}
+        return ""
+        {%- else -%}
+        return "{{ gsi_mapping.pk_template }}"
+        {%- endif -%}
+        {%- endif %}
+
+    {% if gsi_mapping.sk_template -%}
+    @classmethod
+    def get_gsi_sk_prefix_{{ gsi_mapping.safe_name }}(cls) -> str:
+        """Get GSI sort key prefix for {{ gsi_mapping.name }} query operations"""
+        {% if '#{' in gsi_mapping.sk_template -%}
+        return "{{ gsi_mapping.sk_template.split('#{')[0] }}#"
+        {%- else -%}
+        {%- if '{' in gsi_mapping.sk_template -%}
+        return ""
+        {%- else -%}
+        return "{{ gsi_mapping.sk_template }}"
+        {%- endif -%}
+        {%- endif %}
+    {%- endif %}
+{%- endfor %}
+{%- endif %}

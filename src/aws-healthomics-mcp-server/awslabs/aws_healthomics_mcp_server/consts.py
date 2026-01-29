@@ -44,6 +44,18 @@ HEALTHOMICS_SUPPORTED_REGIONS = [
 ]
 
 
+# ECR Constants
+HEALTHOMICS_PRINCIPAL = 'omics.amazonaws.com'
+ECR_REQUIRED_REGISTRY_ACTIONS = ['ecr:CreateRepository', 'ecr:BatchImportUpstreamImage']
+ECR_REQUIRED_REPOSITORY_ACTIONS = ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+
+# Default ECR repository prefixes
+DEFAULT_ECR_PREFIXES = {
+    'docker-hub': 'docker-hub',
+    'quay': 'quay',
+    'ecr-public': 'ecr-public',
+}
+
 # Storage types
 STORAGE_TYPE_STATIC = 'STATIC'
 STORAGE_TYPE_DYNAMIC = 'DYNAMIC'

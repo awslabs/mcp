@@ -9,8 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- v0.0.19 **Run Timeline Tool** - Generates a GANTT style timeline plot of a run as base64 encoded SVG
-- v0.0.19 **Run Analysis Tool** - Adds cost estimation and potential cost saving estimation based on AWS pricing and run duration
+- v0.0.22
+  - **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
+  - **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics
+  - **CloneContaienrToECR**: Clone a container from a public registry into an ECR repository. Uses pull through caches when they exist otherwise uses CodeBuild to copy the image
+  - **CreateContainerRegistryMap**: Creates container registry maps suitable for use when creating a workflow.
+  - **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
+  - **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
+  - **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics
+  - **ValidateHealthOmicsECRConfig**: Validate ECR configuration for HealthOmics workflows
+
+- v0.0.19
+  - **Run Timeline Tool** - Generates a GANTT style timeline plot of a run as base64 encoded SVG
+  - **Run Analysis Tool** - Adds cost estimation and potential cost saving estimation based on AWS pricing and run duration
 
 - v0.018 **Genomics File Search Tool** - Comprehensive file discovery across multiple storage systems
   - Added `SearchGenomicsFiles` tool for intelligent file discovery across S3 buckets, HealthOmics sequence stores, and reference stores
