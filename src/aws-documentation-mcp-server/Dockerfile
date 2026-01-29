@@ -60,7 +60,8 @@ FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b962471
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    FASTMCP_HOST=0.0.0.0
 
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
