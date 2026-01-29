@@ -809,3 +809,106 @@ class TestDBConnectionMapIntegration:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+    # ==================== Port Parameter Tests ====================
+
+    def test_set_and_get_with_custom_port(self, connection_map, mock_connection):
+        """Test connection can be stored and retrieved with custom port."""
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            mock_connection,
+            port=8192,
+        )
+
+        result = connection_map.get(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            port=8192,
+        )
+
+        assert result is mock_connection
+
+    def test_get_with_wrong_port_returns_none(self, connection_map, mock_connection):
+        """Test get() returns None when port doesn't match."""
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            mock_connection,
+            port=8192,
+        )
+
+        result = connection_map.get(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            port=5432,
+        )
+
+        assert result is None
+
+    def test_different_ports_create_separate_connections(self, connection_map):
+        """Test connections with different ports are stored separately."""
+        mock_conn_5432 = MagicMock()
+        mock_conn_8192 = MagicMock()
+
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            mock_conn_5432,
+            port=5432,
+        )
+
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            mock_conn_8192,
+            port=8192,
+        )
+
+        result_5432 = connection_map.get(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            port=5432,
+        )
+        result_8192 = connection_map.get(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            port=8192,
+        )
+
+        assert result_5432 is mock_conn_5432
+        assert result_8192 is mock_conn_8192
+        assert result_5432 is not result_8192
+
+    def test_get_keys_json_includes_custom_port(self, connection_map, mock_connection):
+        """Test get_keys_json() includes custom port in output."""
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            'test-cluster',
+            'test-endpoint',
+            'test-db',
+            mock_connection,
+            port=8192,
+        )
+
+        keys_json = connection_map.get_keys_json()
+        keys = json.loads(keys_json)
+
+        assert len(keys) == 1
+        assert keys[0]['port'] == 8192

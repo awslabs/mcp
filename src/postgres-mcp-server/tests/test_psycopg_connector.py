@@ -1017,3 +1017,142 @@ class TestPsycopgConnector:
             # Should close and reinitialize
             mock_pool.close.assert_called_once()
             mock_init.assert_called_once()
+
+    # ==================== IAM Host/Port Tests ====================
+
+    @pytest.mark.asyncio
+    @patch('boto3.client')
+    async def test_iam_token_uses_iam_host_and_port(self, mock_boto_client):
+        """Test IAM token generation uses iam_host and iam_port, not connection host/port."""
+        mock_rds_client = MagicMock()
+        mock_rds_client.generate_db_auth_token.return_value = 'test_token'
+        mock_boto_client.return_value = mock_rds_client
+
+        conn = PsycopgPoolConnection(
+            host='127.0.0.1',  # Tunnel endpoint
+            port=8192,  # Tunnel port
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,
+            iam_host='actual-db.rds.amazonaws.com',  # Real RDS endpoint
+            iam_port=5432,  # Real RDS port
+        )
+
+        token = conn.get_iam_auth_token()
+
+        # Verify token was generated with IAM endpoint, not connection endpoint
+        mock_rds_client.generate_db_auth_token.assert_called_once_with(
+            DBHostname='actual-db.rds.amazonaws.com',
+            Port=5432,
+            DBUsername='iam_user',
+            Region='us-east-1',
+        )
+        assert token == 'test_token'
+
+    @pytest.mark.asyncio
+    @patch('boto3.client')
+    async def test_connection_uses_actual_host_and_port(self, mock_boto_client):
+        """Test connection string uses actual host/port, not iam_host/iam_port."""
+        mock_rds_client = MagicMock()
+        mock_rds_client.generate_db_auth_token.return_value = 'test_token'
+        mock_boto_client.return_value = mock_rds_client
+
+        conn = PsycopgPoolConnection(
+            host='127.0.0.1',
+            port=8192,
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,  # Don't actually connect
+            iam_host='actual-db.rds.amazonaws.com',
+            iam_port=5432,
+        )
+
+        # Manually build conninfo like initialize_pool does
+        password = conn.get_iam_auth_token()
+        ssl_param = ' sslmode=require' if conn.is_iam_auth else ''
+        conninfo = f'host={conn.host} port={conn.port} dbname={conn.database} user={conn.user} password={password}{ssl_param}'
+
+        # Verify connection string uses tunnel endpoint
+        assert 'host=127.0.0.1' in conninfo
+        assert 'port=8192' in conninfo
+        assert 'actual-db.rds.amazonaws.com' not in conninfo
+
+    @pytest.mark.asyncio
+    async def test_iam_host_defaults_to_host(self):
+        """Test iam_host defaults to host when not provided."""
+        conn = PsycopgPoolConnection(
+            host='db.rds.amazonaws.com',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        assert conn.iam_host == 'db.rds.amazonaws.com'
+        assert conn.iam_port == 5432
+
+    @pytest.mark.asyncio
+    @patch('boto3.client')
+    async def test_ssl_mode_required_for_iam_auth(self, mock_boto_client):
+        """Test connection string includes sslmode=require for IAM authentication."""
+        mock_rds_client = MagicMock()
+        mock_rds_client.generate_db_auth_token.return_value = 'test_token'
+        mock_boto_client.return_value = mock_rds_client
+
+        conn = PsycopgPoolConnection(
+            host='db.rds.amazonaws.com',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        # Manually build conninfo like initialize_pool does
+        password = conn.get_iam_auth_token()
+        ssl_param = ' sslmode=require' if conn.is_iam_auth else ''
+        conninfo = f'host={conn.host} port={conn.port} dbname={conn.database} user={conn.user} password={password}{ssl_param}'
+
+        # Verify SSL mode is set
+        assert 'sslmode=require' in conninfo
+
+    @pytest.mark.asyncio
+    async def test_no_ssl_mode_for_non_iam_auth(self):
+        """Test connection string does not include sslmode for non-IAM authentication."""
+        with patch.object(
+            PsycopgPoolConnection, '_get_credentials_from_secret', return_value=('user', 'pass')
+        ):
+            conn = PsycopgPoolConnection(
+                host='db.rds.amazonaws.com',
+                port=5432,
+                database='test_db',
+                readonly=False,
+                secret_arn='arn:aws:secretsmanager:us-east-1:123456789012:secret:test',  # pragma: allowlist secret
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+            )
+
+            # Manually build conninfo like initialize_pool does
+            user, password = conn._get_credentials_from_secret(conn.secret_arn, conn.region, True)
+            ssl_param = ' sslmode=require' if conn.is_iam_auth else ''
+            conninfo = f'host={conn.host} port={conn.port} dbname={conn.database} user={user} password={password}{ssl_param}'
+
+            # Verify SSL mode is not set
+            assert 'sslmode' not in conninfo

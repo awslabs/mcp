@@ -56,12 +56,14 @@ class PsycopgPoolConnection(AbstractDBConnection):
         min_size: int = 1,
         max_size: int = 10,
         is_test: bool = False,
+        iam_host: Optional[str] = None,
+        iam_port: Optional[int] = None,
     ):
         """Initialize a new DB connection pool.
 
         Args:
-            host: Database host (Aurora cluster endpoint or RDS instance endpoint)
-            port: Database port
+            host: Database host for connection (can be tunnel endpoint)
+            port: Database port for connection (can be tunnel port)
             database: Database name
             readonly: Whether connections should be read-only
             secret_arn: ARN of the secret containing credentials
@@ -72,12 +74,16 @@ class PsycopgPoolConnection(AbstractDBConnection):
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
+            iam_host: Actual RDS endpoint for IAM token generation (defaults to host)
+            iam_port: Actual RDS port for IAM token generation (defaults to port)
         """
         super().__init__(readonly)
         self.host = host
         self.port = port
         self.database = database
         self.min_size = min_size
+        self.iam_host = iam_host if iam_host else host
+        self.iam_port = iam_port if iam_port else port
         self.max_size = max_size
         self.region = region
         self.is_iam_auth = is_iam_auth
@@ -128,7 +134,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 )
 
             self.created_time = datetime.now()
-            self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}'
+            # For IAM auth, SSL is required by RDS/Aurora
+            ssl_param = ' sslmode=require' if self.is_iam_auth else ''
+            self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}{ssl_param}'
             self.pool = AsyncConnectionPool(
                 self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
             )
@@ -330,5 +338,5 @@ class PsycopgPoolConnection(AbstractDBConnection):
             'rds', region_name=self.region, config=Config(user_agent_extra=__user_agent__)
         )
         return rds_client.generate_db_auth_token(
-            DBHostname=self.host, Port=self.port, DBUsername=self.user, Region=self.region
+            DBHostname=self.iam_host, Port=self.iam_port, DBUsername=self.user, Region=self.region
         )
