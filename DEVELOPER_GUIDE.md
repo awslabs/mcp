@@ -6,7 +6,7 @@ At the moment, there is no dedicated development container, thus you need to con
 
 - [pre-commit](https://pre-commit.com/)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Python](Python) 3.10. You can install it through uv using `uv python install 3.10`
+- [Python](https://www.python.org/) 3.10. You can install it through uv using `uv python install 3.10`
 - [Git](https://git-scm.com/) (if using code repository)
 - (optional) [AWS CLI](https://aws.amazon.com/cli/). Some servers will require to use your AWS credentials to interact with your AWS account. Configure your credentials:
 
@@ -88,7 +88,7 @@ npx @modelcontextprotocol/inspector \
 ```
 where `<absolute path to your server code>` is the absolute path to the server code, for instance `/Users/myuser/mcp/src/aws-documentation-mcp-server/awslabs/aws_documentation_mcp_server`.
 
-Inspector will run your server on locahost (for instance: http://127.0.0.1:6274). You can then open your browser and connect to the server. For up to date instructions on how to use Inspector, please refer to the [official documentation](https://modelcontextprotocol.io/docs/tools/inspector).
+Inspector will run your server on localhost (for instance: http://127.0.0.1:6274). You can then open your browser and connect to the server. For up to date instructions on how to use Inspector, please refer to the [official documentation](https://modelcontextprotocol.io/docs/tools/inspector).
 
 ### Tests
 
