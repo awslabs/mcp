@@ -45,6 +45,9 @@ This power includes the following steering files in [steering](./steering)
 - **mcp-setup**
   - SHOULD load when MCP server isn't configured and MCP operation is being invoked
   - Guides the user through updated MCP server configuration
+- **ddl-migrations**
+  - MUST load when performing DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
+  - Table recreation patterns, batched migration for large tables, data validation
 
 ---
 
@@ -259,6 +262,65 @@ readonly_query(
    GROUP BY e.name",
   parameters=["tenant-123"]
 )
+```
+
+### Workflow 5: Table Recreation DDL Migration
+
+**Goal:** Perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT using the table recreation pattern.
+
+**MUST load [ddl-migrations.md](steering/ddl-migrations.md) for detailed guidance.**
+
+**Steps:**
+1. MUST validate table exists and get row count with `readonly_query`
+2. MUST get current schema with `get_schema`
+3. MUST create new table with desired structure using `transact`
+4. MUST migrate data (batched in 500-1,000 row chunks for tables > 3,000 rows)
+5. MUST verify row counts match before proceeding
+6. MUST swap tables: drop original, rename new
+7. MUST recreate indexes using `CREATE INDEX ASYNC`
+
+**Rules:**
+- MUST use batching for tables exceeding 3,000 rows
+- PREFER batches of 500-1,000 rows for optimal throughput
+- MUST validate data compatibility before type changes (abort if incompatible)
+- MUST NOT drop original table until new table is verified
+- MUST recreate all indexes after table swap using ASYNC
+
+**Example:**
+```sql
+-- Step 1: Get current state
+readonly_query("SELECT COUNT(*) as total FROM orders")
+get_schema("orders")
+
+-- Step 2: Create new table without the column to drop
+transact([
+  "CREATE TABLE orders_new (
+     id UUID PRIMARY KEY,
+     tenant_id VARCHAR(255) NOT NULL,
+     order_date TIMESTAMP,
+     amount DECIMAL(10,2)
+   )"
+])
+
+-- Step 3: Batch migrate (for large tables, iterate with OFFSET)
+transact([
+  "INSERT INTO orders_new (id, tenant_id, order_date, amount)
+   SELECT id, tenant_id, order_date, amount
+   FROM orders
+   ORDER BY id
+   LIMIT 1000 OFFSET 0"
+])
+
+-- Step 4: Verify counts match
+readonly_query("SELECT COUNT(*) FROM orders")
+readonly_query("SELECT COUNT(*) FROM orders_new")
+
+-- Step 5: Swap tables
+transact(["DROP TABLE orders"])
+transact(["ALTER TABLE orders_new RENAME TO orders"])
+
+-- Step 6: Recreate indexes
+transact(["CREATE INDEX ASYNC idx_orders_tenant ON orders(tenant_id)"])
 ```
 
 ---
