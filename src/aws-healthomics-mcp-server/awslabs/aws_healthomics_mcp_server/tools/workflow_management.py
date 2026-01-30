@@ -26,6 +26,8 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_container_registry_params,
     validate_definition_sources,
     validate_path_to_main,
+    validate_readme_input,
+    validate_repository_path_params,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -111,7 +113,7 @@ async def create_workflow(
     ),
     definition_zip_base64: Optional[str] = Field(
         None,
-        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository',
     ),
     description: Optional[str] = Field(
         None,
@@ -131,7 +133,7 @@ async def create_workflow(
     ),
     definition_uri: Optional[str] = Field(
         None,
-        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository',
     ),
     path_to_main: Annotated[
         Optional[str],
@@ -139,26 +141,50 @@ async def create_workflow(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    readme: Optional[str] = Field(
+        None,
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+    ),
+    definition_repository: Optional[Dict[str, Any]] = Field(
+        None,
+        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_zip_base64 or definition_uri',
+    ),
+    parameter_template_path: Optional[str] = Field(
+        None,
+        description='Path to parameter template JSON file within the repository (only valid with definition_repository)',
+    ),
+    readme_path: Optional[str] = Field(
+        None,
+        description='Path to README markdown file within the repository (only valid with definition_repository)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
     Args:
         ctx: MCP context for error reporting
         name: Name of the workflow
-        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
-        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
+        definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
+        parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
+        readme_path: Path to README markdown file within the repository (only valid with definition_repository)
 
     Returns:
         Dictionary containing the created workflow information
     """
     # Validate definition sources and container registry parameters
-    definition_zip, definition_uri = await validate_definition_sources(
-        ctx, definition_zip_base64, definition_uri
+    (
+        definition_zip,
+        validated_definition_uri,
+        validated_repository,
+    ) = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri, definition_repository
     )
     await validate_container_registry_params(
         ctx, container_registry_map, container_registry_map_uri
@@ -167,17 +193,27 @@ async def create_workflow(
     # Validate path_to_main parameter
     validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
 
+    # Validate repository-specific path parameters
+    validated_param_template_path, validated_readme_path = await validate_repository_path_params(
+        ctx, definition_repository, parameter_template_path, readme_path
+    )
+
+    # Validate and process README input
+    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
+
     client = get_omics_client()
 
     params: Dict[str, Any] = {
         'name': name,
     }
 
-    # Add definition source (either ZIP or S3 URI)
+    # Add definition source (either ZIP, S3 URI, or repository)
     if definition_zip is not None:
         params['definitionZip'] = definition_zip
-    elif definition_uri is not None:
-        params['definitionUri'] = definition_uri
+    elif validated_definition_uri is not None:
+        params['definitionUri'] = validated_definition_uri
+    elif validated_repository is not None:
+        params['definitionRepository'] = validated_repository
 
     if description:
         params['description'] = description
@@ -193,6 +229,19 @@ async def create_workflow(
 
     if validated_path_to_main is not None:
         params['main'] = validated_path_to_main
+
+    # Add repository-specific path parameters
+    if validated_param_template_path is not None:
+        params['parameterTemplatePath'] = validated_param_template_path
+
+    if validated_readme_path is not None:
+        params['readmePath'] = validated_readme_path
+
+    if readme_markdown is not None:
+        params['readmeMarkdown'] = readme_markdown
+
+    if readme_uri is not None:
+        params['readmeUri'] = readme_uri
 
     try:
         response = client.create_workflow(**params)
@@ -299,7 +348,7 @@ async def create_workflow_version(
     ),
     definition_zip_base64: Optional[str] = Field(
         None,
-        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository',
     ),
     description: Optional[str] = Field(
         None,
@@ -328,7 +377,7 @@ async def create_workflow_version(
     ),
     definition_uri: Optional[str] = Field(
         None,
-        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository',
     ),
     path_to_main: Annotated[
         Optional[str],
@@ -336,6 +385,22 @@ async def create_workflow_version(
             description='Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.',
         ),
     ] = None,
+    readme: Optional[str] = Field(
+        None,
+        description='README documentation: markdown content, local .md file path, or S3 URI (s3://bucket/key)',
+    ),
+    definition_repository: Optional[Dict[str, Any]] = Field(
+        None,
+        description='Git repository configuration with connection_arn, full_repository_id, source_reference (type and value), and optional exclude_file_patterns. Cannot be used together with definition_zip_base64 or definition_uri',
+    ),
+    parameter_template_path: Optional[str] = Field(
+        None,
+        description='Path to parameter template JSON file within the repository (only valid with definition_repository)',
+    ),
+    readme_path: Optional[str] = Field(
+        None,
+        description='Path to README markdown file within the repository (only valid with definition_repository)',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -343,22 +408,30 @@ async def create_workflow_version(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow
         version_name: Name for the new version
-        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri or definition_repository
         description: Optional description of the workflow version
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
-        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64 or definition_repository
         path_to_main: Path to the main file in the workflow definition ZIP file. Not required if there is a top level main.wdl, main.cwl or main.nf files in the workflow package. Not required if there is only a single top level workflow file.
+        readme: README documentation - can be markdown content, local .md file path, or S3 URI (s3://bucket/key)
+        definition_repository: Git repository configuration with connection_arn, full_repository_id, source_reference, and optional exclude_file_patterns
+        parameter_template_path: Path to parameter template JSON file within the repository (only valid with definition_repository)
+        readme_path: Path to README markdown file within the repository (only valid with definition_repository)
 
     Returns:
         Dictionary containing the created workflow version information
     """
     # Validate definition sources and container registry parameters
-    definition_zip, definition_uri = await validate_definition_sources(
-        ctx, definition_zip_base64, definition_uri
+    (
+        definition_zip,
+        validated_definition_uri,
+        validated_repository,
+    ) = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri, definition_repository
     )
     await validate_container_registry_params(
         ctx, container_registry_map, container_registry_map_uri
@@ -366,6 +439,11 @@ async def create_workflow_version(
 
     # Validate path_to_main parameter
     validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
+    # Validate repository-specific path parameters
+    validated_param_template_path, validated_readme_path = await validate_repository_path_params(
+        ctx, definition_repository, parameter_template_path, readme_path
+    )
 
     # Validate storage requirements
     if storage_type == 'STATIC':
@@ -375,6 +453,9 @@ async def create_workflow_version(
             await ctx.error(error_message)
             raise ValueError(error_message)
 
+    # Validate and process README input
+    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
+
     client = get_omics_client()
 
     params: Dict[str, Any] = {
@@ -383,11 +464,13 @@ async def create_workflow_version(
         'storageType': storage_type,
     }
 
-    # Add definition source (either ZIP or S3 URI)
+    # Add definition source (either ZIP, S3 URI, or repository)
     if definition_zip is not None:
         params['definitionZip'] = definition_zip
-    elif definition_uri is not None:
-        params['definitionUri'] = definition_uri
+    elif validated_definition_uri is not None:
+        params['definitionUri'] = validated_definition_uri
+    elif validated_repository is not None:
+        params['definitionRepository'] = validated_repository
 
     if description:
         params['description'] = description
@@ -406,6 +489,19 @@ async def create_workflow_version(
 
     if validated_path_to_main is not None:
         params['main'] = validated_path_to_main
+
+    # Add repository-specific path parameters
+    if validated_param_template_path is not None:
+        params['parameterTemplatePath'] = validated_param_template_path
+
+    if validated_readme_path is not None:
+        params['readmePath'] = validated_readme_path
+
+    if readme_markdown is not None:
+        params['readmeMarkdown'] = readme_markdown
+
+    if readme_uri is not None:
+        params['readmeUri'] = readme_uri
 
     try:
         response = client.create_workflow_version(**params)
