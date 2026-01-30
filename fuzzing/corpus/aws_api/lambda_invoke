@@ -1,0 +1,1 @@
+aws lambda invoke --function-name my-function --payload '{"key": "value"}' output.json

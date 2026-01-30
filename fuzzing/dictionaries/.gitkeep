@@ -1,0 +1,2 @@
+# This directory contains dictionary files for fuzz targets.
+# Dictionary files use the libFuzzer format with quoted tokens.

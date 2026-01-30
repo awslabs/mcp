@@ -1,0 +1,1 @@
+{"tables":[{"TableName":"Sessions","AttributeDefinitions":[{"AttributeName":"sessionId","AttributeType":"S"}],"KeySchema":[{"AttributeName":"sessionId","KeyType":"HASH"}],"TimeToLiveSpecification":{"Enabled":true,"AttributeName":"expirationTime"}}]}

@@ -1,0 +1,1 @@
+aws dynamodb get-item --table-name my-table --key '{"id": {"S": "123"}}'

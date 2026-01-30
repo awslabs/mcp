@@ -1,0 +1,29 @@
+[server]
+host = "localhost"
+port = 8080
+
+[server.ssl]
+enabled = true
+cert_path = "/etc/ssl/certs/server.crt"
+key_path = "/etc/ssl/private/server.key"
+
+[database.primary]
+host = "db-primary.example.com"
+port = 5432
+name = "production"
+
+[database.replica]
+host = "db-replica.example.com"
+port = 5432
+name = "production"
+
+[logging]
+level = "INFO"
+format = "json"
+
+[[logging.outputs]]
+type = "console"
+
+[[logging.outputs]]
+type = "file"
+path = "/var/log/app.log"

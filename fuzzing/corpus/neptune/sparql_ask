@@ -1,0 +1,1 @@
+ASK WHERE { <http://example.org/person1> ?p ?o }

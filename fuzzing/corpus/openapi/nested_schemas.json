@@ -1,0 +1,119 @@
+{
+  "components": {
+    "schemas": {
+      "BaseEntity": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Cat": {
+        "properties": {
+          "meow": {
+            "type": "boolean"
+          },
+          "petType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ComposedSchema": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseEntity"
+          },
+          {
+            "properties": {
+              "specificField": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "DeepObject": {
+        "properties": {
+          "level1": {
+            "properties": {
+              "level2": {
+                "properties": {
+                  "level3": {
+                    "properties": {
+                      "level4": {
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "Dog": {
+        "properties": {
+          "bark": {
+            "type": "boolean"
+          },
+          "petType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OneOfExample": {
+        "discriminator": {
+          "propertyName": "petType"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Cat"
+          },
+          {
+            "$ref": "#/components/schemas/Dog"
+          }
+        ]
+      },
+      "RecursiveNode": {
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/RecursiveNode"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Nested Schema API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.0",
+  "paths": {}
+}
