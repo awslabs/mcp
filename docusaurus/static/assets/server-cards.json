@@ -1198,6 +1198,26 @@
     },
     {
       "category": "Healthcare & Lifesciences",
+      "description": "Comprehensive medical imaging data lifecycle management with AWS HealthImaging - 21 tools for DICOM operations, datastore management, and patient data handling",
+      "icon": "\ud83c\udfe5",
+      "id": "healthimaging-mcp-server",
+      "name": "HealthImaging MCP Server",
+      "source_path": "src/healthimaging-mcp-server/",
+      "subcategory": "Medical Imaging Management",
+      "tags": [
+        "healthcare",
+        "medical-imaging",
+        "healthimaging",
+        "dicom",
+        "radiology",
+        "patient-data"
+      ],
+      "workflows": [
+        "healthcare-data"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
       "description": "Perform Fast Healthcare Interoperability Resources (FHIR) interactions and manage AWS HealthLake datastores",
       "icon": "\ud83e\uddc0",
       "id": "healthlake-mcp-server",
