@@ -349,8 +349,17 @@ list_tables(cluster_identifier: str, table_database_name: str, table_schema_name
 **Returns**: List of table information including:
 
 - Table name and type (TABLE/VIEW/EXTERNAL TABLE)
-- Access permissions
-- Remarks and metadata
+- Access permissions and remarks
+- Redshift-specific metadata (from SVV_TABLE_INFO, may be None on serverless):
+  - Distribution style and sort key
+  - Compression encoding status
+  - Approximate row count and size in MB
+  - Table capacity usage percentage
+  - Statistics freshness (% out of date)
+  - Data distribution skew ratio
+- External table properties (for Spectrum tables):
+  - S3 location
+  - JSON parameters (partition columns, etc.)
 
 ### list_columns
 
@@ -400,6 +409,27 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 - Result rows with proper type conversion
 - Row count and execution time
 - Query ID for reference
+
+### describe_execution_plan
+
+Generates the query execution plan for a SQL statement without executing the query.
+
+```python
+describe_execution_plan(cluster_identifier: str, database_name: str, sql: str) -> ExecutionPlan
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database where the query would run against
+- `sql`: SQL statement to explain (do not include EXPLAIN keyword)
+
+**Returns**: Execution plan including:
+
+- Structured plan nodes with costs, rows, and distribution info
+- Table design information (DISTKEY, SORTKEY) for referenced tables
+- Human-readable plan text
+- Performance optimization suggestions
 
 ## Permissions
 
