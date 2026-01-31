@@ -20,6 +20,7 @@ This module provides tools and prompts for troubleshooting ECS deployments.
 from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from awslabs.ecs_mcp_server.api.ecs_troubleshooting import (
     TroubleshootingAction,
@@ -62,7 +63,12 @@ def register_module(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="ecs_troubleshooting_tool",
-        annotations=None,
+        annotations=ToolAnnotations(
+            title='ECS Troubleshooting Tool',
+            readOnlyHint=True,
+            destructiveHint=False,
+            openWorldHint=True,
+        ),
     )
     async def mcp_ecs_troubleshooting_tool(
         action: TroubleshootingAction = "get_ecs_troubleshooting_guidance",
