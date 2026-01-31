@@ -39,12 +39,15 @@ This power includes the following steering files in [steering](./steering)
 - **troubleshooting**
   - SHOULD Load when debugging errors or unexpected behavior
   - Common pitfalls and errors and how to solve
+- **mcp-setup**
+  - ALWAYS load for MCP server configurations or MCP server operations
+  - Details the options for MCP server configurations AND how to add cluster to MCP
+  - MUST refer to the [Database Operations Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations)
+    to correctly add DSQL cluster to MCP configuration
+  - Interactive edits when user requests to "Add cluster XYZ to power/mcp" or similar phrase
 - **onboarding**
   - SHOULD load when user requests to try the power, "Get started with DSQL" or similar phrase
   - Interactive "Get Started with DSQL" guide for onboarding users step-by-step
-- **mcp-setup**
-  - SHOULD load when MCP server isn't configured and MCP operation is being invoked
-  - Guides the user through updated MCP server configuration
 - **ddl-migrations**
   - MUST load when performing DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
   - Table recreation patterns, batched migration for large tables, data validation
@@ -69,9 +72,14 @@ The `aurora-dsql` MCP server provides these tools:
 
 ## Configuration
 
-Currently the Aurora DSQL MCP Server REQUIRES an existing DSQL cluster which
-all operations are executed atop. If the user requires complete onboarding
-guidance for creating a cluster, refer to the [onboarding guide](steering/onboarding.md).
+To use **Database Operations** MCP tools, the DSQL MCP Server REQUIRES an existing DSQL
+cluster be correctly added to the MCP configuration to execute these operations atop.
+Refer to the provided [MCP Setup Guide](steering/mcp-setup.md), using the
+[Cluster-Added MCP Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations),
+to update the power's MCP configuration.
+
+If the user requires complete onboarding guidance in creating a cluster, too,
+refere first to the [onboarding guide](steering/onboarding.md).
 
 - **Package:** `awslabs.aurora-dsql-mcp-server@latest`
 

@@ -26,9 +26,11 @@ Load these files as needed for detailed guidance:
 
 ### MCP:
 #### [mcp-setup.md](mcp/mcp-setup.md)
-**When:** Load for guidance adding to the DSQL MCP server
-**Requires:** An existing cluster endpoint
-**Contains:** Instructions for setting up the DSQL MCP server
+**When:** Always load for guidance using or updating the DSQL MCP server
+**Contains:** Instructions for setting up the DSQL MCP server with 2 configuration options as
+sampled in [.mcp.json](mcp/.mcp.json)
+1. Documentation-Tools Only
+2. Database Operations (requires a cluster endpoint)
 
 #### [mcp-tools.md](mcp/mcp-tools.md)
 **When:** Load when you need detailed MCP tool syntax and examples
@@ -72,7 +74,8 @@ The `aurora-dsql` MCP server provides these tools:
 
 **Note:** There is no `list_tables` tool. Use `readonly_query` with information_schema.
 
-See [mcp-tools.md](references/mcp-tools.md) for detailed usage and examples.
+See [mcp-setup.md](mcp/mcp-setup.md) for detailed setup instructions.
+See [mcp-tools.md](mcp/mcp-tools.md) for detailed usage and examples.
 
 ---
 
