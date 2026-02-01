@@ -26,9 +26,11 @@ Load these files as needed for detailed guidance:
 
 ### MCP:
 #### [mcp-setup.md](mcp/mcp-setup.md)
-**When:** Load for guidance adding to the DSQL MCP server
-**Requires:** An existing cluster endpoint
-**Contains:** Instructions for setting up the DSQL MCP server
+**When:** Always load for guidance using or updating the DSQL MCP server
+**Contains:** Instructions for setting up the DSQL MCP server with 2 configuration options as
+sampled in [.mcp.json](mcp/.mcp.json)
+1. Documentation-Tools Only
+2. Database Operations (requires a cluster endpoint)
 
 #### [mcp-tools.md](mcp/mcp-tools.md)
 **When:** Load when you need detailed MCP tool syntax and examples
@@ -50,6 +52,10 @@ Load these files as needed for detailed guidance:
 **When:** User explicitly requests to "Get started with DSQL" or similar phrase
 **Contains:** Interactive step-by-step guide for new users
 
+### [ddl-migrations.md](references/ddl-migrations.md)
+**When:** MUST load when trying to perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT functionality
+**Contains:** Table recreation patterns, batched migration for large tables, data validation
+
 ---
 
 ## MCP Tools Available
@@ -68,7 +74,8 @@ The `aurora-dsql` MCP server provides these tools:
 
 **Note:** There is no `list_tables` tool. Use `readonly_query` with information_schema.
 
-See [mcp-tools.md](references/mcp-tools.md) for detailed usage and examples.
+See [mcp-setup.md](mcp/mcp-setup.md) for detailed setup instructions.
+See [mcp-tools.md](mcp/mcp-tools.md) for detailed usage and examples.
 
 ---
 
@@ -183,6 +190,28 @@ Always use CREATE INDEX ASYNC in separate transaction
 - ALL queries include WHERE tenant_id = 'validated-value'
 - Reject cross-tenant access at application layer
 - Use allowlists or regex validation for tenant IDs
+
+### Workflow 5: Table Recreation DDL Migration
+
+**Goal:** Perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT using the table recreation pattern.
+
+**MUST load [ddl-migrations.md](references/ddl-migrations.md) for detailed guidance.**
+
+**Steps:**
+1. MUST validate table exists and get row count with `readonly_query`
+2. MUST get current schema with `get_schema`
+3. MUST create new table with desired structure using `transact`
+4. MUST migrate data (batched in 500-1,000 row chunks for tables > 3,000 rows)
+5. MUST verify row counts match before proceeding
+6. MUST swap tables: drop original, rename new
+7. MUST recreate indexes using `CREATE INDEX ASYNC`
+
+**Rules:**
+- MUST use batching for tables exceeding 3,000 rows
+- PREFER batches of 500-1,000 rows for optimal throughput
+- MUST validate data compatibility before type changes (abort if incompatible)
+- MUST NOT drop original table until new table is verified
+- MUST recreate all indexes after table swap using ASYNC
 
 ---
 
