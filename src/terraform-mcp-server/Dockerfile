@@ -57,7 +57,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN mkdir -p /root/.local
 
 FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:e27a70c006c68f0d194cc9b9624714d6ed8d979a94f60f7d31392f4c8294155b
-ARG TERRAFORM_VERSION="1.14.3"
+ARG TERRAFORM_VERSION="1.14.4"
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
