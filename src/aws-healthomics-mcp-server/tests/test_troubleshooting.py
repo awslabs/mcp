@@ -727,3 +727,496 @@ class TestSafeDatetimeToIso:
 
         result = safe_datetime_to_iso(['list'])
         assert result == "['list']"
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_manifest_logs_internal'
+    )
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_detailed_false(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_manifest_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_run_response,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis with detailed=False."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+        mock_client.get_run.return_value = sample_failed_run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task calls for task-specific timing
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 25, 0, tzinfo=timezone.utc),
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_run_manifest_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        assert result['detailed'] is False
+
+        # Manifest logs should NOT be included
+        assert 'manifestLogs' not in result
+        assert 'manifestLogCount' not in result
+
+        # Engine logs should be limited to 50
+        assert len(result['engineLogs']) == 3  # Sample has 3 events
+        assert result['engineLogCount'] == 3
+
+        # Failed tasks should have limited logs (50 instead of 100)
+        assert len(result['failedTasks']) == 2
+        first_task = result['failedTasks'][0]
+        assert len(first_task['logs']) == 3
+
+        # Summary should not include hasManifestLogs
+        summary = result['summary']
+        assert 'hasManifestLogs' not in summary
+        assert summary['hasEngineLogs'] is True
+
+        # Verify manifest logs were NOT retrieved
+        mock_get_run_manifest_logs_internal.assert_not_called()
+
+        # Verify engine logs called with limit=50
+        mock_get_run_engine_logs_internal.assert_called_once_with(
+            run_id='run-12345',
+            start_time='2024-01-01T10:15:00+00:00',  # 15 minutes before stop time
+            end_time='2024-01-01T10:35:00+00:00',  # 5 minutes after stop time
+            limit=50,
+            start_from_head=False,
+        )
+
+        # Verify task logs called with limit=50 and reduced time window
+        assert mock_get_task_logs_internal.call_count == 2
+        mock_get_task_logs_internal.assert_any_call(
+            run_id='run-12345',
+            task_id='task-111',
+            start_time='2024-01-01T10:10:00+00:00',  # 15 minutes before task stop
+            end_time='2024-01-01T10:30:00+00:00',  # 5 minutes after task stop
+            limit=50,
+            start_from_head=False,
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_manifest_logs_internal'
+    )
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_detailed_true(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_manifest_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_run_response,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis with detailed=True."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+        mock_client.get_run.return_value = sample_failed_run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task calls for task-specific timing
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 25, 0, tzinfo=timezone.utc),
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_run_manifest_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=True,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        assert result['detailed'] is True
+
+        # Manifest logs SHOULD be included
+        assert 'manifestLogs' in result
+        assert 'manifestLogCount' in result
+        assert len(result['manifestLogs']) == 3
+        assert result['manifestLogCount'] == 3
+
+        # Engine logs should use limit=100
+        assert len(result['engineLogs']) == 3
+        assert result['engineLogCount'] == 3
+
+        # Summary should include hasManifestLogs
+        summary = result['summary']
+        assert 'hasManifestLogs' in summary
+        assert summary['hasManifestLogs'] is True
+
+        # Verify manifest logs WERE retrieved
+        mock_get_run_manifest_logs_internal.assert_called_once_with(
+            run_id='run-12345',
+            run_uuid='uuid-abcd-1234',
+            start_time='2024-01-01T09:55:00+00:00',  # 5 minutes before creation time
+            end_time='2024-01-01T10:35:00+00:00',  # 5 minutes after stop time
+            limit=100,
+            start_from_head=False,
+        )
+
+        # Verify engine logs called with limit=100
+        mock_get_run_engine_logs_internal.assert_called_once_with(
+            run_id='run-12345',
+            start_time='2024-01-01T09:55:00+00:00',  # 5 minutes before creation time
+            end_time='2024-01-01T10:35:00+00:00',  # 5 minutes after stop time
+            limit=100,
+            start_from_head=False,
+        )
+
+        # Verify task logs called with limit=100 and full time window
+        assert mock_get_task_logs_internal.call_count == 2
+        mock_get_task_logs_internal.assert_any_call(
+            run_id='run-12345',
+            task_id='task-111',
+            start_time='2024-01-01T10:00:00+00:00',  # 5 minutes before task creation
+            end_time='2024-01-01T10:30:00+00:00',  # 5 minutes after task stop
+            limit=100,
+            start_from_head=False,
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_none_stop_time(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis when stop_time is None in non-detailed mode."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+
+        # Create a run response with None stop_time
+        run_response = {
+            'id': 'run-12345',
+            'status': 'FAILED',
+            'failureReason': 'Task execution failed',
+            'name': 'test-workflow-run',
+            'workflowId': 'workflow-67890',
+            'uuid': 'uuid-abcd-1234',
+            'creationTime': '2024-01-01T10:00:00Z',
+            'startTime': '2024-01-01T10:05:00Z',
+            'stopTime': None,  # None stop time
+            'workflowType': 'WDL',
+        }
+
+        mock_client.get_run.return_value = run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task calls
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 25, 0, tzinfo=timezone.utc),
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        assert result['stopTime'] is None
+
+        # Should fall back to creation time-based window calculation
+        mock_get_run_engine_logs_internal.assert_called_once()
+        call_args = mock_get_run_engine_logs_internal.call_args
+        assert call_args[1]['run_id'] == 'run-12345'
+        assert call_args[1]['limit'] == 50
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_datetime_objects(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis with datetime objects instead of strings."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+
+        # Create a run response with datetime objects (not strings)
+        run_response = {
+            'id': 'run-12345',
+            'status': 'FAILED',
+            'failureReason': 'Task execution failed',
+            'name': 'test-workflow-run',
+            'workflowId': 'workflow-67890',
+            'uuid': 'uuid-abcd-1234',
+            'creationTime': datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            'startTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 30, 0, tzinfo=timezone.utc),
+            'workflowType': 'WDL',
+        }
+
+        mock_client.get_run.return_value = run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task calls with datetime objects
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 25, 0, tzinfo=timezone.utc),
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        # Datetime objects should be converted to ISO format strings
+        assert isinstance(result['creationTime'], str)
+        assert isinstance(result['startTime'], str)
+        assert isinstance(result['stopTime'], str)
+        assert '2024-01-01T10:00:00' in result['creationTime']
+        assert '2024-01-01T10:30:00' in result['stopTime']
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_task_timing_calculation_failure(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis when task timing calculation fails."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+
+        run_response = {
+            'id': 'run-12345',
+            'status': 'FAILED',
+            'failureReason': 'Task execution failed',
+            'name': 'test-workflow-run',
+            'workflowId': 'workflow-67890',
+            'uuid': 'uuid-abcd-1234',
+            'creationTime': '2024-01-01T10:00:00Z',
+            'startTime': '2024-01-01T10:05:00Z',
+            'stopTime': '2024-01-01T10:30:00Z',
+            'workflowType': 'WDL',
+        }
+
+        # Task with invalid stop_time that will cause calculation to fail
+        failed_tasks = {
+            'items': [
+                {
+                    'taskId': 'task-111',
+                    'name': 'preprocessing',
+                    'status': 'FAILED',
+                    'statusMessage': 'Container exited with code 1',
+                },
+            ],
+            'nextToken': None,
+        }
+
+        mock_client.get_run.return_value = run_response
+        mock_client.list_run_tasks.return_value = failed_tasks
+
+        # Mock get_run_task to return invalid datetime that will cause exception
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': 'invalid-datetime-format',  # This will cause parsing to fail
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        assert len(result['failedTasks']) == 1
+
+        # Should still retrieve task logs despite timing calculation failure
+        mock_get_task_logs_internal.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_get_run_task_fails(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis when get_run_task API call fails."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+
+        run_response = {
+            'id': 'run-12345',
+            'status': 'FAILED',
+            'failureReason': 'Task execution failed',
+            'name': 'test-workflow-run',
+            'workflowId': 'workflow-67890',
+            'uuid': 'uuid-abcd-1234',
+            'creationTime': '2024-01-01T10:00:00Z',
+            'startTime': '2024-01-01T10:05:00Z',
+            'stopTime': '2024-01-01T10:30:00Z',
+            'workflowType': 'WDL',
+        }
+
+        mock_client.get_run.return_value = run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task to raise an exception
+        mock_client.get_run_task.side_effect = Exception('API call failed')
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        assert len(result['failedTasks']) == 2
+
+        # Should still retrieve task logs using run-level time window
+        assert mock_get_task_logs_internal.call_count == 2
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
+    @pytest.mark.asyncio
+    async def test_diagnose_run_failure_invalid_stop_time_string(
+        self,
+        mock_get_task_logs_internal,
+        mock_get_run_engine_logs_internal,
+        mock_get_omics_client,
+        mock_context,
+        sample_failed_tasks,
+        sample_log_events,
+    ):
+        """Test run failure diagnosis with invalid stop_time string format."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_omics_client.return_value = mock_client
+
+        # Create a run response with invalid stop_time format
+        run_response = {
+            'id': 'run-12345',
+            'status': 'FAILED',
+            'failureReason': 'Task execution failed',
+            'name': 'test-workflow-run',
+            'workflowId': 'workflow-67890',
+            'uuid': 'uuid-abcd-1234',
+            'creationTime': '2024-01-01T10:00:00Z',
+            'startTime': '2024-01-01T10:05:00Z',
+            'stopTime': 'not-a-valid-datetime',  # Invalid format
+            'workflowType': 'WDL',
+        }
+
+        mock_client.get_run.return_value = run_response
+        mock_client.list_run_tasks.return_value = sample_failed_tasks
+
+        # Mock get_run_task calls
+        mock_client.get_run_task.return_value = {
+            'creationTime': datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            'stopTime': datetime(2024, 1, 1, 10, 25, 0, tzinfo=timezone.utc),
+        }
+
+        # Mock log responses
+        mock_get_run_engine_logs_internal.return_value = sample_log_events
+        mock_get_task_logs_internal.return_value = sample_log_events
+
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+            detailed=False,
+        )
+
+        # Assert
+        assert result['runId'] == 'run-12345'
+        assert result['status'] == 'FAILED'
+        # Should handle the invalid datetime gracefully and still complete
+        assert 'engineLogs' in result
+        assert 'failedTasks' in result
