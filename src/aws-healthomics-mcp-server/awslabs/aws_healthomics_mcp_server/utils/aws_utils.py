@@ -200,6 +200,18 @@ def get_logs_client() -> Any:
     return create_aws_client('logs')
 
 
+def get_codeconnections_client() -> Any:
+    """Get an AWS CodeConnections client.
+
+    Returns:
+        boto3.client: Configured CodeConnections client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('codeconnections')
+
+
 def get_ecr_client() -> Any:
     """Get an AWS ECR client.
 

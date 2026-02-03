@@ -49,6 +49,7 @@ from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_
 from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional, Union
@@ -161,6 +162,7 @@ mcp = FastMCP(
 @mcp.tool(
     name='analyze_cdk_project',
     description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def analyze_cdk_project_wrapper(
     ctx: Context,
@@ -196,6 +198,7 @@ async def analyze_cdk_project_wrapper(
 @mcp.tool(
     name='analyze_terraform_project',
     description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def analyze_terraform_project_wrapper(
     ctx: Context,
@@ -379,6 +382,7 @@ async def analyze_terraform_project_wrapper(
     - For cost optimization: tested ALL qualifying tiers exhaustively (in a reasonable range)
     - Included ["OnDemand", "FlatRate"] in output_options and explored all alternatives
     """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_pricing(
     ctx: Context,
@@ -560,6 +564,7 @@ async def get_pricing(
 @mcp.tool(
     name='get_bedrock_patterns',
     description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_bedrock_patterns(ctx: Optional[Context] = None) -> str:
     """Get architecture patterns for Amazon Bedrock applications.
@@ -693,6 +698,7 @@ Example usage:
 }
 ```
 """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def generate_cost_report_wrapper(
     ctx: Context,
@@ -850,6 +856,7 @@ async def generate_cost_report_wrapper(
 
     **NOTE:** Service codes may differ from AWS console names (e.g., 'AmazonES' for OpenSearch, 'AWSLambda' for Lambda).
     """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_pricing_service_codes(
     ctx: Context, filter: Optional[str] = SERVICE_CODES_FILTER_FIELD
@@ -966,6 +973,7 @@ async def get_pricing_service_codes(
 
     **EXAMPLE:** For 'AmazonRDS' you might get ['engineCode', 'instanceType', 'deploymentOption', 'location'].
     """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_pricing_service_attributes(
     ctx: Context,
@@ -1211,6 +1219,7 @@ async def _get_single_attribute_values(
     - Multiple attributes: ['instanceType', 'location'] returns both mappings
     - Partial filtering: filters={'instanceType': 't3'} applies only to instanceType, location returns all values
     """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_pricing_attribute_values(
     ctx: Context,
@@ -1355,6 +1364,7 @@ async def get_pricing_attribute_values(
     - CSV files: Lines 1-5 are metadata, Line 6 contains headers, Line 7+ contains pricing data
     - Use `tail -n +7 pricing.csv | grep "t3.medium"` to filter data
     """,
+    annotations=ToolAnnotations(readOnlyHint=True),
 )
 async def get_price_list_urls(
     ctx: Context,

@@ -14,6 +14,11 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
+    create_codeconnection,
+    get_codeconnection,
+    list_codeconnections,
+)
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
     check_container_availability,
     clone_container_to_ecr,
@@ -119,6 +124,11 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
 - **GetAHOSupportedRegions**: Get the list of AWS regions where HealthOmics is available
 
+### CodeConnections Management
+- **ListCodeConnections**: List available CodeConnections for use with HealthOmics workflows
+- **CreateCodeConnection**: Create a new CodeConnection to a Git provider
+- **GetCodeConnection**: Get details about a specific CodeConnection
+
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
 """,
@@ -167,6 +177,11 @@ mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)
 mcp.tool(name='GetAHOSupportedRegions')(get_supported_regions)
+
+# Register CodeConnections tools
+mcp.tool(name='ListCodeConnections')(list_codeconnections)
+mcp.tool(name='CreateCodeConnection')(create_codeconnection)
+mcp.tool(name='GetCodeConnection')(get_codeconnection)
 
 # Register ECR container tools
 mcp.tool(name='ListECRRepositories')(list_ecr_repositories)

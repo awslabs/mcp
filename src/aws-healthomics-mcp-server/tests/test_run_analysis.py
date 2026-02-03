@@ -708,8 +708,8 @@ class TestGenerateAnalysisReport:
             ],
         }
 
-        # Act
-        result = await _generate_analysis_report(analysis_data)
+        # Act - use detailed=True to get full task lists
+        result = await _generate_analysis_report(analysis_data, detailed=True)
 
         # Assert
         assert isinstance(result, str)
@@ -782,8 +782,8 @@ class TestGenerateAnalysisReport:
             ],
         }
 
-        # Act
-        result = await _generate_analysis_report(analysis_data)
+        # Act - use detailed=True to get instance type analysis
+        result = await _generate_analysis_report(analysis_data, detailed=True)
 
         # Assert
         assert isinstance(result, str)
@@ -1985,8 +1985,8 @@ class TestGenerateAnalysisReportCrossRunComparison:
             ],
         }
 
-        # Act
-        result = await _generate_analysis_report(analysis_data)
+        # Act - use detailed=True to get aggregated metrics section
+        result = await _generate_analysis_report(analysis_data, detailed=True)
 
         # Assert
         assert isinstance(result, str)
@@ -2002,7 +2002,7 @@ class TestGenerateAnalysisReportCrossRunComparison:
 
     @pytest.mark.asyncio
     async def test_generate_analysis_report_with_detailed_json(self):
-        """Test generating analysis report with detailed JSON section."""
+        """Test generating analysis report with detailed=True (JSON section removed)."""
         # Arrange
         analysis_data = {
             'summary': {
@@ -2046,9 +2046,420 @@ class TestGenerateAnalysisReportCrossRunComparison:
 
         # Assert
         assert isinstance(result, str)
-        assert 'Detailed Task Metrics (JSON)' in result
-        assert '```json' in result
-        assert 'task1' in result
+        # JSON section has been removed from both detailed and non-detailed reports
+        assert 'Detailed Task Metrics (JSON)' not in result
+        assert '```json' not in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_detailed_true_shows_all_tasks(self):
+        """Test that detailed=True shows full task lists for over/under-provisioned tasks."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 4,
+                        'totalAllocatedCpus': 16.0,
+                        'totalAllocatedMemoryGiB': 32.0,
+                        'totalActualCpuUsage': 8.0,
+                        'totalActualMemoryUsageGiB': 16.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'over-prov-task-1',
+                            'instanceType': 'omics.c.large',
+                            'isOverProvisioned': True,
+                            'wastedCpus': 2.0,
+                            'wastedMemoryGiB': 4.0,
+                            'cpuEfficiencyRatio': 0.3,
+                            'memoryEfficiencyRatio': 0.4,
+                            'runningSeconds': 1800,
+                            'estimatedUSD': 0.10,
+                            'recommendedInstanceType': 'omics.c.medium',
+                        },
+                        {
+                            'taskName': 'over-prov-task-2',
+                            'instanceType': 'omics.c.xlarge',
+                            'isOverProvisioned': True,
+                            'wastedCpus': 4.0,
+                            'wastedMemoryGiB': 8.0,
+                            'cpuEfficiencyRatio': 0.25,
+                            'memoryEfficiencyRatio': 0.35,
+                            'runningSeconds': 3600,
+                            'estimatedUSD': 0.20,
+                            'recommendedInstanceType': 'omics.c.large',
+                        },
+                        {
+                            'taskName': 'under-prov-task-1',
+                            'instanceType': 'omics.c.small',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.95,
+                            'maxMemoryEfficiencyRatio': 0.92,
+                            'runningSeconds': 2400,
+                        },
+                        {
+                            'taskName': 'under-prov-task-2',
+                            'instanceType': 'omics.c.medium',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.98,
+                            'maxMemoryEfficiencyRatio': 0.96,
+                            'runningSeconds': 1200,
+                        },
+                    ],
+                    'aggregatedTaskMetrics': [
+                        {
+                            'baseTaskName': 'alignReads',
+                            'count': 5,
+                            'meanRunningSeconds': 100.0,
+                            'maximumRunningSeconds': 150.0,
+                            'maxObservedCpus': 4.0,
+                            'maxObservedMemoryGiB': 8.0,
+                            'totalEstimatedUSD': 0.50,
+                            'recommendedInstanceType': 'omics.c.large',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=True)
+
+        # Assert
+        assert isinstance(result, str)
+
+        # Verify over-provisioned tasks section shows individual tasks
+        assert 'Over-Provisioned Tasks (Wasting Resources)' in result
+        assert 'over-prov-task-1' in result
+        assert 'over-prov-task-2' in result
+        assert 'CPU Efficiency: 30.0%' in result or 'CPU Efficiency: 0.3' in result
+        assert 'Wasted: 2.00 CPUs' in result
+        assert 'omics.c.medium' in result
+
+        # Verify under-provisioned tasks section shows individual tasks
+        assert 'Under-Provisioned Tasks (May Need More Resources)' in result
+        assert 'under-prov-task-1' in result
+        assert 'under-prov-task-2' in result
+        assert 'Max CPU Utilization: 95.0%' in result or 'Max CPU Utilization: 0.95' in result
+
+        # Verify aggregated task metrics section is shown
+        assert 'Aggregated Task Metrics (Scattered Tasks)' in result
+        assert 'alignReads' in result
+        assert '(5 instances)' in result
+
+        # Verify instance type analysis is shown
+        assert 'Instance Type Analysis' in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_detailed_false_shows_summaries(self):
+        """Test that detailed=False shows only summary counts for over/under-provisioned tasks."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 4,
+                        'totalAllocatedCpus': 16.0,
+                        'totalAllocatedMemoryGiB': 32.0,
+                        'totalActualCpuUsage': 8.0,
+                        'totalActualMemoryUsageGiB': 16.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'over-prov-task-1',
+                            'instanceType': 'omics.c.large',
+                            'isOverProvisioned': True,
+                            'wastedCpus': 2.0,
+                            'wastedMemoryGiB': 4.0,
+                            'cpuEfficiencyRatio': 0.3,
+                            'memoryEfficiencyRatio': 0.4,
+                            'runningSeconds': 1800,
+                            'estimatedUSD': 0.10,
+                            'potentialSavingsUSD': 0.02,
+                        },
+                        {
+                            'taskName': 'over-prov-task-2',
+                            'instanceType': 'omics.c.xlarge',
+                            'isOverProvisioned': True,
+                            'wastedCpus': 4.0,
+                            'wastedMemoryGiB': 8.0,
+                            'cpuEfficiencyRatio': 0.25,
+                            'memoryEfficiencyRatio': 0.35,
+                            'runningSeconds': 3600,
+                            'estimatedUSD': 0.20,
+                            'potentialSavingsUSD': 0.05,
+                        },
+                        {
+                            'taskName': 'under-prov-task-1',
+                            'instanceType': 'omics.c.small',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.95,
+                            'maxMemoryEfficiencyRatio': 0.92,
+                            'runningSeconds': 2400,
+                        },
+                        {
+                            'taskName': 'under-prov-task-2',
+                            'instanceType': 'omics.c.medium',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.98,
+                            'maxMemoryEfficiencyRatio': 0.96,
+                            'runningSeconds': 1200,
+                        },
+                    ],
+                    'aggregatedTaskMetrics': [
+                        {
+                            'baseTaskName': 'alignReads',
+                            'count': 5,
+                            'meanRunningSeconds': 100.0,
+                            'maximumRunningSeconds': 150.0,
+                            'maxObservedCpus': 4.0,
+                            'maxObservedMemoryGiB': 8.0,
+                            'totalEstimatedUSD': 0.50,
+                            'recommendedInstanceType': 'omics.c.large',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=False)
+
+        # Assert
+        assert isinstance(result, str)
+
+        # Verify Run Overview is NOT shown when detailed=False
+        assert 'Run Overview' not in result
+        assert 'Workflow ID' not in result or 'workflow-123' not in result  # May appear in title
+
+        # Verify over-provisioned tasks section shows summary only
+        assert 'Over-Provisioned Tasks Summary' in result
+        assert '2 tasks' in result
+        assert 'are over-provisioned' in result
+        assert 'Average CPU Efficiency' in result
+        assert 'Average Memory Efficiency' in result
+        assert (
+            'Total Potential Savings: $0.07' in result
+            or 'Total Potential Savings: $0.0700' in result
+        )
+
+        # Verify individual task names are NOT shown
+        assert 'over-prov-task-1' not in result
+        assert 'over-prov-task-2' not in result
+        assert 'Wasted: 2.00 CPUs' not in result
+
+        # Verify under-provisioned tasks section shows summary with grouped task names
+        assert 'Under-Provisioned Tasks Summary' in result
+        assert '2 tasks' in result
+        assert 'may be under-provisioned' in result
+        assert 'Average Max CPU Utilization' in result
+        assert 'Average Max Memory Utilization' in result
+
+        # Verify task names ARE shown with instance information (grouped by base name)
+        # Since these are not scattered tasks, they should appear individually
+        assert 'under-prov-task-1' in result
+        assert 'under-prov-task-2' in result
+        assert 'omics.c.small' in result
+        assert 'omics.c.medium' in result
+
+        # Verify aggregated task metrics section is NOT shown
+        assert 'Aggregated Task Metrics (Scattered Tasks)' not in result
+        assert 'alignReads' not in result
+
+        # Verify instance type analysis is NOT shown
+        assert 'Instance Type Analysis' not in result
+
+        # Verify JSON section is NOT shown
+        assert 'Detailed Task Metrics (JSON)' not in result
+        assert '```json' not in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_detailed_false_still_shows_high_priority(self):
+        """Test that detailed=False still shows high-priority savings opportunities."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 2,
+                        'totalAllocatedCpus': 8.0,
+                        'totalAllocatedMemoryGiB': 16.0,
+                        'totalActualCpuUsage': 4.0,
+                        'totalActualMemoryUsageGiB': 8.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'high-priority-task',
+                            'instanceType': 'omics.c.xlarge',
+                            'isHighPrioritySaving': True,
+                            'estimatedUSD': 1.00,
+                            'potentialSavingsUSD': 0.25,
+                            'recommendedInstanceType': 'omics.c.large',
+                        },
+                        {
+                            'taskName': 'regular-task',
+                            'instanceType': 'omics.c.large',
+                            'isOverProvisioned': True,
+                            'cpuEfficiencyRatio': 0.4,
+                            'memoryEfficiencyRatio': 0.4,
+                            'potentialSavingsUSD': 0.02,
+                        },
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=False)
+
+        # Assert
+        assert isinstance(result, str)
+
+        # Verify high-priority savings are always shown
+        assert 'High-Priority Savings Opportunities' in result
+        assert 'high-priority-task' in result
+        assert 'Estimated Cost: $1.00' in result or 'Estimated Cost: $1.0000' in result
+        assert 'Potential Savings: $0.25' in result or 'Potential Savings: $0.2500' in result
+        assert 'omics.c.xlarge' in result
+        assert 'omics.c.large' in result
+
+        # Verify regular over-provisioned task is NOT shown individually
+        assert 'regular-task' not in result
+
+    @pytest.mark.asyncio
+    async def test_generate_analysis_report_detailed_false_groups_scattered_under_provisioned(
+        self,
+    ):
+        """Test that detailed=False groups scattered under-provisioned tasks by base name."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 3,
+                        'totalAllocatedCpus': 12.0,
+                        'totalAllocatedMemoryGiB': 24.0,
+                        'totalActualCpuUsage': 11.0,
+                        'totalActualMemoryUsageGiB': 22.0,
+                        'overallCpuEfficiency': 0.92,
+                        'overallMemoryEfficiency': 0.92,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'alignReads-0-1',
+                            'instanceType': 'omics.c.small',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.95,
+                            'maxMemoryEfficiencyRatio': 0.93,
+                            'runningSeconds': 2400,
+                            'recommendedInstanceType': 'omics.c.medium',
+                        },
+                        {
+                            'taskName': 'alignReads-1-1',
+                            'instanceType': 'omics.c.small',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.96,
+                            'maxMemoryEfficiencyRatio': 0.94,
+                            'runningSeconds': 2500,
+                            'recommendedInstanceType': 'omics.c.medium',
+                        },
+                        {
+                            'taskName': 'sortBam',
+                            'instanceType': 'omics.c.medium',
+                            'isUnderProvisioned': True,
+                            'maxCpuEfficiencyRatio': 0.98,
+                            'maxMemoryEfficiencyRatio': 0.96,
+                            'runningSeconds': 1200,
+                            'recommendedInstanceType': 'omics.c.large',
+                        },
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=False)
+
+        # Assert
+        assert isinstance(result, str)
+
+        # Verify under-provisioned tasks are grouped
+        assert 'Under-Provisioned Tasks Summary' in result
+        assert '3 tasks' in result
+
+        # Verify scattered tasks are grouped by base name
+        assert 'alignReads (2 instances)' in result
+        assert 'omics.c.small → omics.c.medium' in result
+
+        # Verify individual scattered task names are NOT shown
+        assert 'alignReads-0-1' not in result
+        assert 'alignReads-1-1' not in result
+
+        # Verify non-scattered task is shown individually
+        assert 'sortBam:' in result
+        assert 'omics.c.medium → omics.c.large' in result
 
 
 class TestNormalizeRunIdsEdgeCases:
@@ -2133,8 +2544,8 @@ class TestGenerateAnalysisReportOverProvisionedTasks:
             ],
         }
 
-        # Act
-        result = await _generate_analysis_report(analysis_data)
+        # Act - use detailed=True to get full task details
+        result = await _generate_analysis_report(analysis_data, detailed=True)
 
         # Assert
         assert isinstance(result, str)
@@ -2221,3 +2632,579 @@ class TestExtractTaskMetricsWithCostAnalyzer:
         assert result is not None
         assert result['estimatedUSD'] == 0.0
         assert result['minimumUSD'] == 0.0
+
+
+class TestGenerateAnalysisReportInstanceSpecsEdgeCases:
+    """Test edge cases for instance specs display in analysis reports."""
+
+    @pytest.mark.asyncio
+    async def test_high_priority_savings_detailed_with_invalid_instance_specs(self):
+        """Test high-priority savings in detailed mode when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 2.0,
+                        'totalActualMemoryUsageGiB': 4.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.xlarge',
+                            'estimatedUSD': 1.0,
+                            'potentialSavingsUSD': 0.2,
+                            'recommendedInstanceType': 'invalid.instance.type',
+                            'isHighPrioritySaving': True,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for invalid instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=True)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'High-Priority Savings Opportunities' in result
+            assert 'invalid.instance.type' in result
+            # Should show instance type without CPU/memory specs
+            assert 'Recommended Instance: invalid.instance.type' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_high_priority_savings_non_detailed_with_invalid_instance_specs(self):
+        """Test high-priority savings in non-detailed mode when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 2.0,
+                        'totalActualMemoryUsageGiB': 4.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.xlarge',
+                            'estimatedUSD': 1.0,
+                            'potentialSavingsUSD': 0.2,
+                            'recommendedInstanceType': 'invalid.instance.type',
+                            'isHighPrioritySaving': True,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for invalid instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=False)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'High-Priority Savings Opportunities' in result
+            assert 'invalid.instance.type' in result
+            # Should show instance type without CPU/memory specs
+            assert 'Recommended Instance: invalid.instance.type' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_over_provisioned_tasks_detailed_with_invalid_instance_specs(self):
+        """Test over-provisioned tasks in detailed mode when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 1.0,
+                        'totalActualMemoryUsageGiB': 2.0,
+                        'overallCpuEfficiency': 0.25,
+                        'overallMemoryEfficiency': 0.25,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.xlarge',
+                            'estimatedUSD': 1.0,
+                            'cpuEfficiencyRatio': 0.25,
+                            'memoryEfficiencyRatio': 0.25,
+                            'wastedCpus': 3.0,
+                            'wastedMemoryGiB': 6.0,
+                            'runningSeconds': 1800,
+                            'recommendedInstanceType': 'unknown.type',
+                            'isOverProvisioned': True,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for unknown instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=True)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'Over-Provisioned Tasks' in result
+            assert 'unknown.type' in result
+            # Should show instance type without CPU/memory specs
+            assert 'Recommended Instance: unknown.type' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_under_provisioned_tasks_non_detailed_with_invalid_instance_specs(self):
+        """Test under-provisioned tasks in non-detailed mode when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 3.8,
+                        'totalActualMemoryUsageGiB': 7.5,
+                        'overallCpuEfficiency': 0.95,
+                        'overallMemoryEfficiency': 0.94,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.0,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.large',
+                            'maxCpuEfficiencyRatio': 0.95,
+                            'maxMemoryEfficiencyRatio': 0.94,
+                            'runningSeconds': 1800,
+                            'recommendedInstanceType': 'bad.instance',
+                            'isUnderProvisioned': True,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for bad instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=False)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'Under-Provisioned Tasks Summary' in result
+            assert 'bad.instance' in result
+            # Should show instance type without CPU/memory specs
+            assert 'omics.c.large → bad.instance' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_aggregated_metrics_with_invalid_instance_specs(self):
+        """Test aggregated task metrics when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 2,
+                        'totalAllocatedCpus': 8.0,
+                        'totalAllocatedMemoryGiB': 16.0,
+                        'totalActualCpuUsage': 6.0,
+                        'totalActualMemoryUsageGiB': 12.0,
+                        'overallCpuEfficiency': 0.75,
+                        'overallMemoryEfficiency': 0.75,
+                        'totalEstimatedUSD': 2.0,
+                        'taskCostUSD': 1.8,
+                        'storageCostUSD': 0.2,
+                        'totalPotentialSavingsUSD': 0.4,
+                    },
+                    'taskMetrics': [],
+                    'aggregatedTaskMetrics': [
+                        {
+                            'baseTaskName': 'alignReads',
+                            'count': 2,
+                            'meanRunningSeconds': 1800.0,
+                            'maximumRunningSeconds': 2000.0,
+                            'maxObservedCpus': 3.0,
+                            'maxObservedMemoryGiB': 6.0,
+                            'totalEstimatedUSD': 2.0,
+                            'recommendedInstanceType': 'malformed.instance',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for malformed instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=True)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'Aggregated Task Metrics' in result
+            assert 'malformed.instance' in result
+            # Should show instance type without CPU/memory specs
+            assert 'Recommended Instance: malformed.instance' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_cross_run_aggregates_with_invalid_instance_specs(self):
+        """Test cross-run aggregates when get_instance_specs returns (0, 0)."""
+        from unittest.mock import patch
+
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 2,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 3.0,
+                        'totalActualMemoryUsageGiB': 6.0,
+                        'overallCpuEfficiency': 0.75,
+                        'overallMemoryEfficiency': 0.75,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [],
+                },
+                {
+                    'runInfo': {
+                        'runId': 'run-2',
+                        'runName': 'workflow-run-2',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T12:00:00Z',
+                        'startTime': '2023-01-01T12:05:00Z',
+                        'stopTime': '2023-01-01T13:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 3.0,
+                        'totalActualMemoryUsageGiB': 6.0,
+                        'overallCpuEfficiency': 0.75,
+                        'overallMemoryEfficiency': 0.75,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [],
+                },
+            ],
+            'crossRunAggregates': [
+                {
+                    'baseTaskName': 'alignReads',
+                    'runCount': 2,
+                    'totalTaskCount': 4,
+                    'meanRunningSeconds': 1800.0,
+                    'maximumRunningSeconds': 2000.0,
+                    'meanCpuUtilizationRatio': 0.75,
+                    'meanMemoryUtilizationRatio': 0.75,
+                    'maxObservedCpus': 3.5,
+                    'maxObservedMemoryGiB': 7.0,
+                    'totalEstimatedUSD': 4.0,
+                    'recommendedInstanceType': 'corrupt.instance',
+                }
+            ],
+        }
+
+        # Mock PricingCache.get_instance_specs to return (0, 0.0) for corrupt instance
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_analysis.PricingCache.get_instance_specs'
+        ) as mock_get_specs:
+            mock_get_specs.return_value = (0, 0.0)
+
+            # Act
+            result = await _generate_analysis_report(analysis_data, detailed=False)
+
+            # Assert
+            assert isinstance(result, str)
+            assert 'Cross-Run Aggregate Metrics' in result
+            assert 'corrupt.instance' in result
+            # Should show instance type without CPU/memory specs
+            assert 'Recommended Instance: corrupt.instance' in result
+            # Should NOT show CPU/memory in parentheses
+            assert '(0 CPUs' not in result
+
+    @pytest.mark.asyncio
+    async def test_high_priority_savings_with_none_recommended_instance(self):
+        """Test high-priority savings when recommendedInstanceType is None."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 1,
+                        'totalAllocatedCpus': 4.0,
+                        'totalAllocatedMemoryGiB': 8.0,
+                        'totalActualCpuUsage': 2.0,
+                        'totalActualMemoryUsageGiB': 4.0,
+                        'overallCpuEfficiency': 0.5,
+                        'overallMemoryEfficiency': 0.5,
+                        'totalEstimatedUSD': 1.0,
+                        'taskCostUSD': 0.9,
+                        'storageCostUSD': 0.1,
+                        'totalPotentialSavingsUSD': 0.2,
+                    },
+                    'taskMetrics': [
+                        {
+                            'taskName': 'task1',
+                            'instanceType': 'omics.c.xlarge',
+                            'estimatedUSD': 1.0,
+                            'potentialSavingsUSD': 0.2,
+                            'recommendedInstanceType': None,
+                            'isHighPrioritySaving': True,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=True)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'High-Priority Savings Opportunities' in result
+        # Should handle None gracefully
+        assert 'Recommended Instance: None' in result
+
+    @pytest.mark.asyncio
+    async def test_aggregated_metrics_with_na_recommended_instance(self):
+        """Test aggregated metrics when recommendedInstanceType is 'N/A'."""
+        # Arrange
+        analysis_data = {
+            'summary': {
+                'totalRuns': 1,
+                'analysisTimestamp': '2023-01-01T12:00:00Z',
+                'analysisType': 'manifest-based',
+                'headroom': 0.20,
+            },
+            'runs': [
+                {
+                    'runInfo': {
+                        'runId': 'run-1',
+                        'runName': 'workflow-run-1',
+                        'status': 'COMPLETED',
+                        'workflowId': 'workflow-123',
+                        'creationTime': '2023-01-01T10:00:00Z',
+                        'startTime': '2023-01-01T10:05:00Z',
+                        'stopTime': '2023-01-01T11:00:00Z',
+                    },
+                    'summary': {
+                        'totalTasks': 2,
+                        'totalAllocatedCpus': 8.0,
+                        'totalAllocatedMemoryGiB': 16.0,
+                        'totalActualCpuUsage': 6.0,
+                        'totalActualMemoryUsageGiB': 12.0,
+                        'overallCpuEfficiency': 0.75,
+                        'overallMemoryEfficiency': 0.75,
+                        'totalEstimatedUSD': 2.0,
+                        'taskCostUSD': 1.8,
+                        'storageCostUSD': 0.2,
+                        'totalPotentialSavingsUSD': 0.4,
+                    },
+                    'taskMetrics': [],
+                    'aggregatedTaskMetrics': [
+                        {
+                            'baseTaskName': 'alignReads',
+                            'count': 2,
+                            'meanRunningSeconds': 1800.0,
+                            'maximumRunningSeconds': 2000.0,
+                            'maxObservedCpus': 3.0,
+                            'maxObservedMemoryGiB': 6.0,
+                            'totalEstimatedUSD': 2.0,
+                            'recommendedInstanceType': 'N/A',
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act
+        result = await _generate_analysis_report(analysis_data, detailed=True)
+
+        # Assert
+        assert isinstance(result, str)
+        assert 'Aggregated Task Metrics' in result
+        # Should handle N/A gracefully
+        assert 'Recommended Instance: N/A' in result
