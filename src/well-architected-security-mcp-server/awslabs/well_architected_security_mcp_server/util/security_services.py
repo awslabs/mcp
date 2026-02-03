@@ -122,6 +122,7 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
             analyzer_details.append(
                 {
                     "name": analyzer.get("name"),
+                    "arn": analyzer.get("arn"),
                     "type": analyzer.get("type"),
                     "status": analyzer.get("status"),
                     "created_at": str(analyzer.get("createdAt")),
@@ -840,7 +841,7 @@ async def get_inspector_findings(
         if filter_criteria is None:
             # By default, get findings with high or critical severity
             filter_criteria = {
-                "severities": [
+                "severity": [
                     {"comparison": "EQUALS", "value": "HIGH"},
                     {"comparison": "EQUALS", "value": "CRITICAL"},
                 ],
@@ -937,17 +938,33 @@ async def get_access_analyzer_findings(
                 analyzerArn=analyzer_arn, maxResults=100
             )
 
-            finding_ids = findings_response.get("findings", [])
+            # list_findings returns a list of finding objects, not IDs
+            findings_list = findings_response.get("findings", [])
 
             # Get details for each finding
-            for finding_id in finding_ids:
-                finding_details = analyzer_client.get_finding(
+            for finding_obj in findings_list:
+                # Extract finding ID from the finding object
+                if isinstance(finding_obj, dict):
+                    finding_id = finding_obj.get("id")
+                else:
+                    # If it's a string, use it directly as the ID
+                    finding_id = finding_obj
+
+                if not finding_id:
+                    continue
+
+                finding_response = analyzer_client.get_finding(
                     analyzerArn=analyzer_arn, id=finding_id
                 )
 
-                # Clean up non-serializable objects
-                finding_details = _clean_datetime_objects(finding_details)
-                all_findings.append(finding_details)
+                # get_finding returns {"finding": {...}}, extract the actual finding
+                finding_details = finding_response.get("finding", finding_response)
+
+                # Validate finding_details is a dict before processing
+                if isinstance(finding_details, dict):
+                    # Clean up non-serializable objects
+                    finding_details = _clean_datetime_objects(finding_details)
+                    all_findings.append(finding_details)
 
         if not all_findings:
             return {
@@ -1148,8 +1165,10 @@ def _summarize_access_analyzer_findings(findings: List[Dict]) -> Dict:
         else:
             summary["resource_type_counts"][resource_type] = 1
 
-        # Count by action
+        # Count by action - normalize to list since action can be string or list
         actions = finding.get("action", [])
+        if isinstance(actions, str):
+            actions = [actions]
         for action in actions:
             if action in summary["action_counts"]:
                 summary["action_counts"][action] += 1
