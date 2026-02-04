@@ -6,16 +6,16 @@ version = "0.0.19"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for awslabs.s3-tables-mcp-server"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "loguru==0.7.3",
     "mcp[cli]==1.23.0",
-    "pydantic==2.11.0",
-    "boto3==1.40.8",
+    "pydantic==2.12.5",
+    "boto3==1.42.41",
     "pyiceberg==0.10.0",
     "pyarrow==22.0.0",
     "sqlparse==0.5.3",
-    "daft==0.5.8",
+    "daft==0.7.1",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
