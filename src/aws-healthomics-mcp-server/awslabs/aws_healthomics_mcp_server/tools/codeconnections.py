@@ -101,7 +101,7 @@ async def list_codeconnections(
     ctx: Context,
     provider_type_filter: Optional[str] = Field(
         None,
-        description='Filter by provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged, AzureDevOps',
+        description='Filter by provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged',
     ),
     max_results: int = Field(
         DEFAULT_MAX_RESULTS,
@@ -215,7 +215,7 @@ async def create_codeconnection(
     ),
     provider_type: str = Field(
         ...,
-        description='Git provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged, AzureDevOps',
+        description='Git provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged',
     ),
     tags: Optional[Dict[str, str]] = Field(
         None,
@@ -233,7 +233,7 @@ async def create_codeconnection(
         ctx: MCP context for error reporting
         connection_name: Name for the new connection
         provider_type: Git provider type (Bitbucket, GitHub, GitHubEnterpriseServer,
-            GitLab, GitLabSelfManaged, AzureDevOps)
+            GitLab, GitLabSelfManaged)
         tags: Optional tags to apply to the connection
 
     Returns:

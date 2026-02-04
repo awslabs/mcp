@@ -40,7 +40,6 @@ class ProviderType(str, Enum):
     GITHUB_ENTERPRISE_SERVER = 'GitHubEnterpriseServer'
     GITLAB = 'GitLab'
     GITLAB_SELF_MANAGED = 'GitLabSelfManaged'
-    AZURE_DEVOPS = 'AzureDevOps'
 
 
 def detect_readme_input_type(readme: str) -> ReadmeInputType:

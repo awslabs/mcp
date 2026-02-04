@@ -1137,18 +1137,6 @@ class TestValidateProviderType:
         mock_ctx.error.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_validate_provider_type_valid_azure_devops(self):
-        """Test validation with valid AzureDevOps provider type."""
-        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
-            validate_provider_type,
-        )
-
-        mock_ctx = AsyncMock()
-        result = await validate_provider_type(mock_ctx, 'AzureDevOps')
-        assert result == 'AzureDevOps'
-        mock_ctx.error.assert_not_called()
-
-    @pytest.mark.asyncio
     async def test_validate_provider_type_all_valid_types(self):
         """Test validation with all valid provider types."""
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
@@ -1161,7 +1149,6 @@ class TestValidateProviderType:
             'GitHubEnterpriseServer',
             'GitLab',
             'GitLabSelfManaged',
-            'AzureDevOps',
         ]
 
         for provider_type in valid_types:
@@ -1268,7 +1255,6 @@ class TestValidateProviderType:
         assert 'GitHubEnterpriseServer' in error_message
         assert 'GitLab' in error_message
         assert 'GitLabSelfManaged' in error_message
-        assert 'AzureDevOps' in error_message
 
     @pytest.mark.asyncio
     async def test_validate_provider_type_logs_error(self):
