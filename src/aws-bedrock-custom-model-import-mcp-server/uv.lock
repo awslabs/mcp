@@ -67,7 +67,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-bedrock-custom-model-import-mcp-server"
-version = "0.0.11"
+version = "0.0.12"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

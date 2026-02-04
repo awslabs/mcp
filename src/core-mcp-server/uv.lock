@@ -761,7 +761,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-core-mcp-server"
-version = "1.0.21"
+version = "1.0.22"
 source = { editable = "." }
 dependencies = [
     { name = "awslabs-amazon-kendra-index-mcp-server" },
