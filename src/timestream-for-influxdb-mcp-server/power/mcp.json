@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "awslabs.timestream-for-influxdb-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.timestream-for-influxdb-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "INFLUXDB_URL": "https://your-influxdb-2-endpoint:8086",
+        "INFLUXDB_TOKEN": "your-influxdb-2-token",
+        "INFLUXDB_ORG": "your-influxdb-org",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": []
+    },
+    "influxdb3": {
+      "command": "node",
+      "args": ["/path/to/influx-mcp-standalone/build/index.js"],
+      "env": {
+        "INFLUX_DB_INSTANCE_URL": "https://your-influxdb-3-endpoint:8181",
+        "INFLUX_DB_TOKEN": "your-influxdb-3-token",
+        "INFLUX_DB_PRODUCT_TYPE": "core"
+      }
+    }
+  }
+}
