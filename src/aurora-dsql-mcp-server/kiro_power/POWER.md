@@ -39,12 +39,18 @@ This power includes the following steering files in [steering](./steering)
 - **troubleshooting**
   - SHOULD Load when debugging errors or unexpected behavior
   - Common pitfalls and errors and how to solve
+- **mcp-setup**
+  - ALWAYS load for MCP server configurations or MCP server operations
+  - Details the options for MCP server configurations AND how to add cluster to MCP
+  - MUST refer to the [Database Operations Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations)
+    to correctly add DSQL cluster to MCP configuration
+  - Interactive edits when user requests to "Add cluster XYZ to power/mcp" or similar phrase
 - **onboarding**
   - SHOULD load when user requests to try the power, "Get started with DSQL" or similar phrase
   - Interactive "Get Started with DSQL" guide for onboarding users step-by-step
-- **mcp-setup**
-  - SHOULD load when MCP server isn't configured and MCP operation is being invoked
-  - Guides the user through updated MCP server configuration
+- **ddl-migrations**
+  - MUST load when performing DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
+  - Table recreation patterns, batched migration for large tables, data validation
 
 ---
 
@@ -66,9 +72,14 @@ The `aurora-dsql` MCP server provides these tools:
 
 ## Configuration
 
-Currently the Aurora DSQL MCP Server REQUIRES an existing DSQL cluster which
-all operations are executed atop. If the user requires complete onboarding
-guidance for creating a cluster, refer to the [onboarding guide](steering/onboarding.md).
+To use **Database Operations** MCP tools, the DSQL MCP Server REQUIRES an existing DSQL
+cluster be correctly added to the MCP configuration to execute these operations atop.
+Refer to the provided [MCP Setup Guide](steering/mcp-setup.md), using the
+[Cluster-Added MCP Configuration](steering/mcp-setup.md#cluster-configuration-for-database-operations),
+to update the power's MCP configuration.
+
+If the user requires complete onboarding guidance in creating a cluster, too,
+refere first to the [onboarding guide](steering/onboarding.md).
 
 - **Package:** `awslabs.aurora-dsql-mcp-server@latest`
 
@@ -259,6 +270,65 @@ readonly_query(
    GROUP BY e.name",
   parameters=["tenant-123"]
 )
+```
+
+### Workflow 5: Table Recreation DDL Migration
+
+**Goal:** Perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT using the table recreation pattern.
+
+**MUST load [ddl-migrations.md](steering/ddl-migrations.md) for detailed guidance.**
+
+**Steps:**
+1. MUST validate table exists and get row count with `readonly_query`
+2. MUST get current schema with `get_schema`
+3. MUST create new table with desired structure using `transact`
+4. MUST migrate data (batched in 500-1,000 row chunks for tables > 3,000 rows)
+5. MUST verify row counts match before proceeding
+6. MUST swap tables: drop original, rename new
+7. MUST recreate indexes using `CREATE INDEX ASYNC`
+
+**Rules:**
+- MUST use batching for tables exceeding 3,000 rows
+- PREFER batches of 500-1,000 rows for optimal throughput
+- MUST validate data compatibility before type changes (abort if incompatible)
+- MUST NOT drop original table until new table is verified
+- MUST recreate all indexes after table swap using ASYNC
+
+**Example:**
+```sql
+-- Step 1: Get current state
+readonly_query("SELECT COUNT(*) as total FROM orders")
+get_schema("orders")
+
+-- Step 2: Create new table without the column to drop
+transact([
+  "CREATE TABLE orders_new (
+     id UUID PRIMARY KEY,
+     tenant_id VARCHAR(255) NOT NULL,
+     order_date TIMESTAMP,
+     amount DECIMAL(10,2)
+   )"
+])
+
+-- Step 3: Batch migrate (for large tables, iterate with OFFSET)
+transact([
+  "INSERT INTO orders_new (id, tenant_id, order_date, amount)
+   SELECT id, tenant_id, order_date, amount
+   FROM orders
+   ORDER BY id
+   LIMIT 1000 OFFSET 0"
+])
+
+-- Step 4: Verify counts match
+readonly_query("SELECT COUNT(*) FROM orders")
+readonly_query("SELECT COUNT(*) FROM orders_new")
+
+-- Step 5: Swap tables
+transact(["DROP TABLE orders"])
+transact(["ALTER TABLE orders_new RENAME TO orders"])
+
+-- Step 6: Recreate indexes
+transact(["CREATE INDEX ASYNC idx_orders_tenant ON orders(tenant_id)"])
 ```
 
 ---

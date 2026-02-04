@@ -1,0 +1,84 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "Entity1": {
+          "access_patterns": [
+            {
+              "description": "Get entity1",
+              "name": "get_entity1",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "TYPE1",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_params": [
+            "id"
+          ],
+          "pk_template": "{id}",
+          "sk_params": [],
+          "sk_template": "ENTITY1"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk1",
+        "sort_key": "sk1",
+        "table_name": "Table1"
+      }
+    },
+    {
+      "entities": {
+        "Entity2": {
+          "access_patterns": [
+            {
+              "description": "Get entity2 - This should fail due to duplicate pattern_id",
+              "name": "get_entity2",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "TYPE2",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_params": [
+            "id"
+          ],
+          "pk_template": "{id}",
+          "sk_params": [],
+          "sk_template": "ENTITY2"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk2",
+        "sort_key": "sk2",
+        "table_name": "Table2"
+      }
+    }
+  ]
+}
