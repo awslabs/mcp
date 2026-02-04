@@ -45,6 +45,56 @@ class CacheBehavior(str, Enum):
     CACHE_ON_FAILURE = 'CACHE_ON_FAILURE'
 
 
+class SourceReferenceType(str, Enum):
+    """Enum for source reference types in repository definitions."""
+
+    COMMIT_ID = 'COMMIT_ID'
+    BRANCH = 'BRANCH'
+    TAG = 'TAG'
+
+
+class SourceReference(BaseModel):
+    """Model for repository source reference."""
+
+    type: SourceReferenceType
+    value: str
+
+    @field_validator('value')
+    @classmethod
+    def validate_value_not_empty(cls, v: str) -> str:
+        """Validate that value is not empty."""
+        if not v or not v.strip():
+            raise ValueError('source_reference.value cannot be empty')
+        return v
+
+
+class DefinitionRepository(BaseModel):
+    """Model for Git repository definition configuration."""
+
+    connection_arn: str
+    full_repository_id: str
+    source_reference: SourceReference
+    exclude_file_patterns: Optional[List[str]] = None
+
+    @field_validator('connection_arn')
+    @classmethod
+    def validate_connection_arn(cls, v: str) -> str:
+        """Validate that connection_arn is a valid AWS CodeConnection ARN."""
+        if not v.startswith('arn:aws:codeconnections:') and not v.startswith(
+            'arn:aws:codestar-connections:'
+        ):
+            raise ValueError(f'connection_arn must be a valid AWS CodeConnection ARN, got: {v}')
+        return v
+
+    @field_validator('full_repository_id')
+    @classmethod
+    def validate_repository_id_not_empty(cls, v: str) -> str:
+        """Validate that full_repository_id is not empty."""
+        if not v or not v.strip():
+            raise ValueError('full_repository_id cannot be empty')
+        return v
+
+
 class RunStatus(str, Enum):
     """Enum for run statuses."""
 

@@ -1,0 +1,146 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "AnotherEntity": {
+          "access_patterns": [
+            {
+              "description": "This pattern_id conflicts with TestEntity",
+              "name": "duplicate_across_entities",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ANOTHER",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_params": [
+            "id"
+          ],
+          "pk_template": "{id}",
+          "sk_params": [],
+          "sk_template": "ANOTHER"
+        },
+        "TestEntity": {
+          "access_patterns": [
+            {
+              "description": "Get test entity with typo in operation",
+              "name": "get_test",
+              "operation": "GetItm",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entitty"
+            },
+            {
+              "description": "Duplicate pattern ID and name",
+              "name": "get_test",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Pattern with completely invalid operation",
+              "name": "invalid_operation_pattern",
+              "operation": "InvalidOperation",
+              "parameters": [
+                {
+                  "name": "id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "invalid_return_type"
+            },
+            {
+              "description": "Pattern with entity parameter missing entity_type",
+              "name": "entity_param_pattern",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "name": "entity",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Pattern with invalid entity reference",
+              "name": "invalid_entity_ref_pattern",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "NonExistentEntity",
+                  "name": "entity",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "TEST",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "strng"
+            },
+            {
+              "name": "data",
+              "type": "array"
+            },
+            {
+              "name": "invalid_field",
+              "required": true,
+              "type": "invalid_type"
+            },
+            {
+              "name": "duplicate_field",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "duplicate_field",
+              "required": false,
+              "type": "integer"
+            }
+          ],
+          "pk_params": [
+            "user_id"
+          ],
+          "pk_template": "{user_id}",
+          "sk_params": [],
+          "sk_template": "TEST"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "TestTable"
+      }
+    }
+  ]
+}
