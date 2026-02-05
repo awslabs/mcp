@@ -14,7 +14,7 @@ This server acts as a bridge between AI assistants and AWS HealthImaging, allowi
 
 ## 📦 Installation Methods
 
-Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Q CLI, Cursor or Cline.
+Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Kiro, Cursor or Cline.
 
 | Cursor | VS Code | Kiro |
 |:------:|:-------:|:----:|
@@ -22,7 +22,7 @@ Choose the installation method that best fits your workflow and get started with
 
 ### ⚡ Using uv
 
-Add the following configuration to your MCP client config file (e.g., for Q CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 **For Linux/MacOS users:**
 
@@ -79,7 +79,7 @@ pip install awslabs.healthimaging-mcp-server
 ```
 
 **Step 2: Configure your MCP client**
-Add the following configuration to your MCP client config file (e.g., for Q CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 ```json
 {
