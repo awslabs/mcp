@@ -21,7 +21,6 @@ dependencies = [
     "python-dateutil>=2.8.0",
     "urllib3>=2.6.3",
     "filelock>=3.20.3",
-    "virtualenv>=20.36.1",
     "python-multipart>=0.0.22",
 ]
 license = {text = "Apache-2.0"}

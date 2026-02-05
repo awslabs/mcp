@@ -49,7 +49,6 @@ dependencies = [
     { name = "python-dateutil" },
     { name = "python-multipart" },
     { name = "urllib3" },
-    { name = "virtualenv" },
 ]
 
 [package.optional-dependencies]
@@ -93,7 +92,6 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.7" },
     { name = "urllib3", specifier = ">=2.6.3" },
-    { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 provides-extras = ["dev"]
 
