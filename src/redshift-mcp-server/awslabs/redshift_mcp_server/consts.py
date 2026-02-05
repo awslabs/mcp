@@ -92,15 +92,49 @@ ORDER BY schema_name;
 
 SVV_ALL_TABLES_QUERY = """
 SELECT
-    database_name,
-    schema_name,
-    table_name,
-    table_acl,
-    table_type,
-    remarks
-FROM pg_catalog.svv_all_tables
-WHERE database_name = :database_name AND schema_name = :schema_name
+    t.database_name,
+    t.schema_name,
+    t.table_name,
+    t.table_acl,
+    t.table_type,
+    t.remarks,
+    NULL as external_location,
+    NULL as external_parameters
+FROM pg_catalog.svv_redshift_tables t
+WHERE t.database_name = :database_name AND t.schema_name = :schema_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name as database_name,
+    schemaname as schema_name,
+    tablename as table_name,
+    NULL as table_acl,
+    'EXTERNAL TABLE' as table_type,
+    NULL as remarks,
+    location as external_location,
+    parameters as external_parameters
+FROM pg_catalog.svv_external_tables
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name
+
 ORDER BY table_name;
+"""
+
+SVV_TABLE_INFO_QUERY = """
+SELECT
+    database,
+    schema,
+    "table",
+    diststyle,
+    sortkey1,
+    encoded,
+    tbl_rows,
+    size,
+    pct_used,
+    stats_off,
+    skew_rows
+FROM pg_catalog.svv_table_info
+WHERE database = :database_name AND schema = :schema_name;
 """
 
 SVV_ALL_COLUMNS_QUERY = """
@@ -113,12 +147,41 @@ SELECT
     column_default,
     is_nullable,
     data_type,
-    character_maximum_length,
-    numeric_precision,
-    numeric_scale,
-    remarks
-FROM pg_catalog.svv_all_columns
+    NULL as character_maximum_length,
+    NULL as numeric_precision,
+    NULL as numeric_scale,
+    remarks,
+    encoding as redshift_encoding,
+    distkey as redshift_distkey,
+    sortkey as redshift_sortkey,
+    NULL as external_type,
+    NULL as external_part_key
+FROM pg_catalog.svv_redshift_columns
 WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
+
+UNION ALL
+
+SELECT
+    redshift_database_name as database_name,
+    schemaname as schema_name,
+    tablename as table_name,
+    columnname as column_name,
+    columnnum as ordinal_position,
+    NULL as column_default,
+    is_nullable,
+    external_type as data_type,
+    NULL as character_maximum_length,
+    NULL as numeric_precision,
+    NULL as numeric_scale,
+    NULL as remarks,
+    NULL as redshift_encoding,
+    NULL as redshift_distkey,
+    NULL as redshift_sortkey,
+    external_type as external_type,
+    part_key as external_part_key
+FROM pg_catalog.svv_external_columns
+WHERE redshift_database_name = :database_name AND schemaname = :schema_name AND tablename = :table_name
+
 ORDER BY ordinal_position;
 """
 
