@@ -229,12 +229,9 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 
 ### Advanced Search
 
-```json
 Search image sets with DICOM criteria
 
 ```json
-
-
 {
   "datastore_id": "discovered-from-resources",
   "search_criteria": {
@@ -251,11 +248,9 @@ Search image sets with DICOM criteria
 
 ### DICOM Metadata
 
-```json
-// Get detailed DICOM metadata
+Get detailed DICOM metadata
 
 ```json
-
 {
   "datastore_id": "discovered-from-resources",
   "image_set_id": "image-set-123",
