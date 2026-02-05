@@ -22,6 +22,7 @@ dependencies = [
     "urllib3>=2.6.3",
     "filelock>=3.20.3",
     "virtualenv>=20.36.1",
+    "python-multipart>=0.0.22",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
