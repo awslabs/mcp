@@ -40,7 +40,7 @@ jobs:
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
       - name: Install uv
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+        uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # v7.2.1
       - name: Check and upgrade AWS CLI version
         id: upgrade
         working-directory: src/aws-api-mcp-server
