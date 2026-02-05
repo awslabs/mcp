@@ -307,7 +307,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-dynamodb-mcp-server"
-version = "2.0.12"
+version = "2.0.13"
 source = { editable = "." }
 dependencies = [
     { name = "awslabs-aws-api-mcp-server" },
