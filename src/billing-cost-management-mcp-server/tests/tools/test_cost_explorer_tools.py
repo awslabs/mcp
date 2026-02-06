@@ -878,6 +878,7 @@ async def test_ce_real_get_cost_and_usage_passes_all_args_reload_identity_decora
             '["UnblendedCost"]',
             '[{"Type":"DIMENSION","Key":"SERVICE"}]',
             '{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
+            None,
             'tok',
             3,
         )
@@ -923,6 +924,7 @@ async def test_ce_real_get_cost_and_usage_with_resources_passes_args_reload_iden
             '["UnblendedCost"]',
             '[{"Type":"DIMENSION","Key":"SERVICE"}]',
             '{"Tags":{"Key":"Environment","Values":["prod"]}}',
+            None,
         )
 
 
@@ -963,6 +965,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             '2023-03-31',
             'Amazon',
             '{}',
+            None,
             25,
             'abc',
             2,
@@ -1026,6 +1029,7 @@ async def test_ce_real_get_cost_forecast_passes_args_reload_identity_decorator(m
             '2023-02-28',
             'MONTHLY',
             '{}',
+            None,
             95,
         )
 
@@ -1087,6 +1091,7 @@ async def test_ce_real_get_usage_forecast_passes_args_reload_identity_decorator(
             '2023-04-30',
             'DAILY',
             '{"Dimensions":{"Key":"SERVICE","Values":["Amazon S3"]}}',
+            None,
             80,
         )
 
@@ -1139,6 +1144,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             None,
+            None,
             'n1',
             2,
         )
@@ -1149,6 +1155,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-31',
             'Env',
             'Environment',
+            None,
             'n2',
             3,
         )
@@ -1203,6 +1210,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             None,  # cost_category_name for getCostCategories
+            None,
             'p1',
             2,
         )
@@ -1213,6 +1221,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             '2023-01-31',
             'Dept',
             'Department',
+            None,
             'p2',
             4,
         )
