@@ -9,7 +9,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 ## Table of Contents
 
-- [Open-source MCP servers for AWS](#open-source-mcp-servers-for-aws)
+- [Open source MCP servers for AWS](#open-source-mcp-servers-for-aws)
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with MCP Servers for AWS?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-mcp-servers-for-aws)
   - [Open source MCP servers for AWS Transport Mechanisms](#open-source-mcp-servers-for-aws-transport-mechanisms)
@@ -463,7 +463,7 @@ MCP servers can be run either locally on your development machine or remotely on
 - **Security**: Centralized security controls with IAM-based permissions and zero credential exposure
 - **Governance**: Comprehensive audit logging and compliance monitoring for enterprise-grade governance
 
-> **Note**: Some MCP servers, like the official AWS MCP server and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
+> **Note**: Some MCP servers, like the [official AWS MCP server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) (in preview) and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Use Cases for the Servers
 

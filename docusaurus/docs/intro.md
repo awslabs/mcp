@@ -138,7 +138,7 @@ MCP servers for AWS can be run either locally on your development machine or rem
 - **Security**: Centralized security controls with IAM-based permissions and zero credential exposure
 - **Governance**: Comprehensive audit logging and compliance monitoring for enterprise-grade governance
 
-> **Note**: Some MCP servers, like the official AWS MCP server (in preview) and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
+> **Note**: Some MCP servers, like the [official AWS MCP server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) (in preview) and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Workflows
 
