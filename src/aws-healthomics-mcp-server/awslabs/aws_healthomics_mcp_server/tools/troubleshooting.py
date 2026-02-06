@@ -88,19 +88,25 @@ async def diagnose_run_failure(
         ...,
         description='ID of the failed run',
     ),
+    detailed: bool = Field(
+        default=False,
+        description='If False, excludes manifest logs and limits engine/task logs to last 50 lines from 15 minutes before stop time to 5 minutes after. If True, includes all logs. False is suitable for most scenarios',
+    ),
 ) -> Dict[str, Any]:
     """Provides comprehensive diagnostic information for a failed workflow run.
 
     This function collects multiple sources of diagnostic information including:
     - Run details and failure reason
     - Engine logs from CloudWatch
-    - Run manifest logs containing workflow summary and resource metrics
+    - Run manifest logs containing workflow summary and resource metrics (when detailed=True)
     - Task logs from all failed tasks
     - Actionable recommendations for troubleshooting
 
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the failed run
+        detailed: If False (default), excludes manifest logs and limits engine/task logs to last 50 lines
+                 from 15 minutes before stop time to 5 minutes after. If True, includes all logs.
 
     Returns:
         Dictionary containing comprehensive diagnostic information including:
@@ -109,7 +115,7 @@ async def diagnose_run_failure(
         - failureReason: AWS-provided failure reason
         - runUuid: Run UUID for log stream identification
         - engineLogs: Engine execution logs
-        - manifestLogs: Run manifest logs with workflow summary
+        - manifestLogs: Run manifest logs with workflow summary (only when detailed=True)
         - failedTasks: List of failed tasks with their logs
         - recommendations: Troubleshooting recommendations
     """
@@ -130,12 +136,38 @@ async def diagnose_run_failure(
         failure_reason = run_response.get('failureReason', 'No failure reason provided')
         run_uuid = run_response.get('uuid')
 
-        logger.info(f'Diagnosing failed run {run_id} with UUID {run_uuid}')
+        logger.info(f'Diagnosing failed run {run_id} with UUID {run_uuid} (detailed={detailed})')
 
-        # Calculate time window for log retrieval (5 minutes before creation to 5 minutes after stop)
+        # Calculate time window for log retrieval
         creation_time = run_response.get('creationTime')
         stop_time = run_response.get('stopTime')
-        log_start_time, log_end_time = calculate_log_time_window(creation_time, stop_time)
+
+        if detailed:
+            # Detailed mode: 5 minutes before creation to 5 minutes after stop
+            log_start_time, log_end_time = calculate_log_time_window(creation_time, stop_time)
+        else:
+            # Non-detailed mode: 15 minutes before stop to 5 minutes after stop
+            if stop_time:
+                log_start_time, log_end_time = calculate_log_time_window(
+                    stop_time, stop_time, buffer_minutes=0
+                )
+                # Adjust start time to be 15 minutes before stop
+                try:
+                    if isinstance(stop_time, str):
+                        stop_dt = datetime.fromisoformat(stop_time.replace('Z', '+00:00'))
+                    else:
+                        stop_dt = stop_time
+                    log_start_dt = stop_dt - timedelta(minutes=15)
+                    log_start_time = log_start_dt.isoformat()
+                    log_end_dt = stop_dt + timedelta(minutes=5)
+                    log_end_time = log_end_dt.isoformat()
+                except Exception as e:
+                    logger.warning(f'Failed to calculate reduced time window: {str(e)}')
+                    log_start_time, log_end_time = calculate_log_time_window(
+                        creation_time, stop_time
+                    )
+            else:
+                log_start_time, log_end_time = calculate_log_time_window(creation_time, stop_time)
 
         if log_start_time and log_end_time:
             logger.info(f'Using log time window: {log_start_time} to {log_end_time}')
@@ -147,11 +179,14 @@ async def diagnose_run_failure(
         # Get engine logs using the workflow_analysis function
         engine_logs = []
         try:
+            # Determine log limit based on detailed flag
+            log_limit = 100 if detailed else 50
+
             engine_logs_response = await get_run_engine_logs_internal(
                 run_id=run_id,
                 start_time=log_start_time,
                 end_time=log_end_time,
-                limit=100,
+                limit=log_limit,
                 start_from_head=False,  # Get the most recent logs
             )
 
@@ -165,31 +200,36 @@ async def diagnose_run_failure(
             logger.error(error_message)
             engine_logs = [error_message]
 
-        # Get run manifest logs if UUID is available
+        # Get run manifest logs if UUID is available and detailed mode is enabled
         manifest_logs = []
-        if run_uuid:
-            try:
-                manifest_logs_response = await get_run_manifest_logs_internal(
-                    run_id=run_id,
-                    run_uuid=run_uuid,
-                    start_time=log_start_time,
-                    end_time=log_end_time,
-                    limit=100,
-                    start_from_head=False,  # Get the most recent logs
-                )
+        if detailed:
+            if run_uuid:
+                try:
+                    manifest_logs_response = await get_run_manifest_logs_internal(
+                        run_id=run_id,
+                        run_uuid=run_uuid,
+                        start_time=log_start_time,
+                        end_time=log_end_time,
+                        limit=100,
+                        start_from_head=False,  # Get the most recent logs
+                    )
 
-                # Extract just the messages for backward compatibility
-                manifest_logs = [
-                    event.get('message', '') for event in manifest_logs_response.get('events', [])
-                ]
-                logger.info(f'Retrieved {len(manifest_logs)} manifest log entries')
-            except Exception as e:
-                error_message = f'Error retrieving manifest logs: {str(e)}'
-                logger.error(error_message)
-                manifest_logs = [error_message]
+                    # Extract just the messages for backward compatibility
+                    manifest_logs = [
+                        event.get('message', '')
+                        for event in manifest_logs_response.get('events', [])
+                    ]
+                    logger.info(f'Retrieved {len(manifest_logs)} manifest log entries')
+                except Exception as e:
+                    error_message = f'Error retrieving manifest logs: {str(e)}'
+                    logger.error(error_message)
+                    manifest_logs = [error_message]
+            else:
+                logger.warning(f'No UUID available for run {run_id}, skipping manifest logs')
+                manifest_logs = ['No run UUID available - manifest logs cannot be retrieved']
         else:
-            logger.warning(f'No UUID available for run {run_id}, skipping manifest logs')
-            manifest_logs = ['No run UUID available - manifest logs cannot be retrieved']
+            logger.info('Skipping manifest logs (detailed=False)')
+            manifest_logs = []
 
         # Get all failed tasks (not just the first 10)
         failed_tasks = []
@@ -228,9 +268,31 @@ async def diagnose_run_failure(
                     task_stop_time = task_details.get('stopTime')
 
                     if task_creation_time and task_stop_time:
-                        task_start_time, task_end_time = calculate_log_time_window(
-                            task_creation_time, task_stop_time
-                        )
+                        if detailed:
+                            # Detailed mode: use full task time window with buffer
+                            task_start_time, task_end_time = calculate_log_time_window(
+                                task_creation_time, task_stop_time
+                            )
+                        else:
+                            # Non-detailed mode: 15 minutes before stop to 5 minutes after
+                            try:
+                                if isinstance(task_stop_time, str):
+                                    task_stop_dt = datetime.fromisoformat(
+                                        task_stop_time.replace('Z', '+00:00')
+                                    )
+                                else:
+                                    task_stop_dt = task_stop_time
+                                task_start_dt = task_stop_dt - timedelta(minutes=15)
+                                task_start_time = task_start_dt.isoformat()
+                                task_end_dt = task_stop_dt + timedelta(minutes=5)
+                                task_end_time = task_end_dt.isoformat()
+                            except Exception as e:
+                                logger.warning(
+                                    f'Failed to calculate reduced task time window: {str(e)}'
+                                )
+                                task_start_time, task_end_time = calculate_log_time_window(
+                                    task_creation_time, task_stop_time
+                                )
                         logger.info(
                             f'Using task-specific time window for {task_id}: {task_start_time} to {task_end_time}'
                         )
@@ -242,12 +304,15 @@ async def diagnose_run_failure(
                 # Get task logs using the workflow_analysis function
                 task_logs = []
                 try:
+                    # Determine log limit based on detailed flag
+                    task_log_limit = 100 if detailed else 50
+
                     task_logs_response = await get_task_logs_internal(
                         run_id=run_id,
                         task_id=task_id,
                         start_time=task_start_time,
                         end_time=task_end_time,
-                        limit=100,  # Get more logs per task
+                        limit=task_log_limit,
                         start_from_head=False,  # Get the most recent logs
                     )
 
@@ -318,22 +383,26 @@ async def diagnose_run_failure(
             'workflowType': run_response.get('workflowType'),
             'engineLogs': engine_logs,
             'engineLogCount': len(engine_logs),
-            'manifestLogs': manifest_logs,
-            'manifestLogCount': len(manifest_logs),
             'failedTasks': failed_tasks,
             'failedTaskCount': len(failed_tasks),
             'recommendations': recommendations,
+            'detailed': detailed,
             'summary': {
                 'totalFailedTasks': len(failed_tasks),
-                'hasManifestLogs': bool(
-                    run_uuid
-                    and len(manifest_logs) > 0
-                    and 'Error retrieving manifest logs' not in str(manifest_logs)
-                ),
                 'hasEngineLogs': len(engine_logs) > 0
                 and 'Error retrieving engine logs' not in str(engine_logs),
             },
         }
+
+        # Only include manifest logs in detailed mode
+        if detailed:
+            diagnosis['manifestLogs'] = manifest_logs
+            diagnosis['manifestLogCount'] = len(manifest_logs)
+            diagnosis['summary']['hasManifestLogs'] = bool(
+                run_uuid
+                and len(manifest_logs) > 0
+                and 'Error retrieving manifest logs' not in str(manifest_logs)
+            )
 
         logger.info(
             f'Diagnosis complete for run {run_id}: {len(failed_tasks)} failed tasks, {len(engine_logs)} engine logs, {len(manifest_logs)} manifest logs'

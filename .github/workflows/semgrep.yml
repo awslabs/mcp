@@ -20,8 +20,8 @@ jobs:
       security-events: write
     # if: (github.actor != 'dependabot[bot]')
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 #v6.0.1
-      - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 #v6.1.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 #v6.2.0
         with:
           python-version: '3.13'
           cache: 'pip'
@@ -30,6 +30,6 @@ jobs:
           python -m pip install --require-hashes --requirement .github/workflows/semgrep-requirements.txt
       - run: semgrep scan --config auto --sarif-output semgrep.sarif.json --no-error --dryrun --verbose
       - name: Upload Semgrep scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@1c4c0b36be82b11c8adb51fb38f7122d0debe048 # v4.31.9
+        uses: github/codeql-action/upload-sarif@b2ff80ddacba59b60f4e0cf3b699baaea3230cd9 # v4.31.9
         with:
           sarif_file: semgrep.sarif.json
