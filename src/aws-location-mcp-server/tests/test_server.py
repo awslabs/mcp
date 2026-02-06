@@ -17,6 +17,7 @@ import pytest
 
 # Import the functions directly to avoid Field validation issues
 from awslabs.aws_location_server.server import (
+    GeoFencingClient,
     GeoPlacesClient,
     GeoRoutesClient,
     calculate_route,
@@ -1305,3 +1306,1424 @@ def test_geo_routes_client_initialization_with_session_token(monkeypatch):
             kwargs['aws_session_token']
             == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk'
         )
+
+
+# ============================================================================
+# GeoFencingClient Initialization Tests
+# ============================================================================
+
+
+def test_geo_fencing_client_initialization(monkeypatch):
+    """Test the GeoFencingClient initialization with default credential chain.
+
+    Validates: Requirements 4.1, 4.3
+    """
+    monkeypatch.setenv('AWS_REGION', 'us-west-2')
+    # Clear any explicit credentials to test default chain
+    monkeypatch.delenv('AWS_ACCESS_KEY_ID', raising=False)
+    monkeypatch.delenv('AWS_SECRET_ACCESS_KEY', raising=False)
+    monkeypatch.delenv('AWS_SESSION_TOKEN', raising=False)
+
+    with patch('boto3.client') as mock_boto3_client:
+        _ = GeoFencingClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'location'
+        assert kwargs['region_name'] == 'us-west-2'
+        # Verify no explicit credentials are passed when using default chain
+        assert 'aws_access_key_id' not in kwargs
+        assert 'aws_secret_access_key' not in kwargs
+
+
+def test_geo_fencing_client_initialization_with_credentials(monkeypatch):
+    """Test the GeoFencingClient initialization with explicit credentials.
+
+    Validates: Requirements 4.1, 4.2
+    """
+    monkeypatch.setenv('AWS_REGION', 'us-west-2')
+    monkeypatch.setenv(
+        'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+
+    with patch('boto3.client') as mock_boto3_client:
+        _ = GeoFencingClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'location'
+        assert kwargs['region_name'] == 'us-west-2'
+        assert (
+            kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+        assert (
+            kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+
+
+def test_geo_fencing_client_initialization_with_session_token(monkeypatch):
+    """Test the GeoFencingClient initialization with session token.
+
+    Validates: Requirements 4.1, 4.2
+    """
+    monkeypatch.setenv('AWS_REGION', 'us-west-2')
+    monkeypatch.setenv(
+        'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SESSION_TOKEN',
+        'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk',
+    )  # pragma: allowlist secret - Test credential for unit tests only
+
+    with patch('boto3.client') as mock_boto3_client:
+        _ = GeoFencingClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'location'
+        assert kwargs['region_name'] == 'us-west-2'
+        assert (
+            kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+        assert (
+            kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+        assert (
+            kwargs['aws_session_token']
+            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+
+
+def test_geo_fencing_client_initialization_exception():
+    """Test the GeoFencingClient initialization when an exception occurs.
+
+    Validates: Requirements 4.4
+    """
+    with patch('boto3.client', side_effect=Exception('Test exception')):
+        geo_client = GeoFencingClient()
+        assert geo_client.location_client is None
+
+
+def test_geo_fencing_client_initialization_default_region(monkeypatch):
+    """Test the GeoFencingClient initialization with default region.
+
+    Validates: Requirements 4.1
+    """
+    # Clear AWS_REGION to test default value
+    monkeypatch.delenv('AWS_REGION', raising=False)
+    monkeypatch.delenv('AWS_ACCESS_KEY_ID', raising=False)
+    monkeypatch.delenv('AWS_SECRET_ACCESS_KEY', raising=False)
+    monkeypatch.delenv('AWS_SESSION_TOKEN', raising=False)
+
+    with patch('boto3.client') as mock_boto3_client:
+        geo_client = GeoFencingClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'location'
+        assert kwargs['region_name'] == 'us-east-1'  # Default region
+        assert geo_client.aws_region == 'us-east-1'
+
+
+# ============================================================================
+# Geofence Collection Management Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_create_geofence_collection_success(mock_boto3_client, mock_context):
+    """Test create_geofence_collection success case.
+
+    Validates: Requirements 1.1, 5.1
+    """
+    from awslabs.aws_location_server.server import create_geofence_collection
+    from datetime import datetime, timezone
+
+    # Set up mock response
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.create_geofence_collection.return_value = {
+        'CollectionName': 'test-collection',
+        'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/test-collection',
+        'CreateTime': create_time,
+    }
+
+    # Patch the geo_fencing_client in the server module
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.create_geofence_collection.return_value,
+        ):
+            result = await create_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+                description='Test description',
+            )
+
+    # Verify the result
+    assert 'collection_name' in result
+    assert result['collection_name'] == 'test-collection'
+    assert 'collection_arn' in result
+    assert 'arn:aws:geo' in result['collection_arn']
+    assert 'create_time' in result
+    assert result['create_time'] == create_time.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_create_geofence_collection_client_error(mock_boto3_client, mock_context):
+    """Test create_geofence_collection when boto3 client raises a ClientError.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import create_geofence_collection
+    from botocore.exceptions import ClientError
+
+    # Set up boto3 client to raise ClientError
+    mock_boto3_client.create_geofence_collection.side_effect = ClientError(
+        {'Error': {'Code': 'ConflictException', 'Message': 'Collection already exists'}},
+        'create_geofence_collection',
+    )
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            side_effect=ClientError(
+                {'Error': {'Code': 'ConflictException', 'Message': 'Collection already exists'}},
+                'create_geofence_collection',
+            ),
+        ):
+            result = await create_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    assert 'error' in result
+    assert 'AWS Location Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_geofence_collection_general_exception(mock_boto3_client, mock_context):
+    """Test create_geofence_collection when a general exception occurs.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import create_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', side_effect=Exception('Test general exception')):
+            result = await create_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    assert 'error' in result
+    assert 'Error creating geofence collection' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_geofence_collection_uninitialized_client(mock_context):
+    """Test create_geofence_collection when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import create_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await create_geofence_collection(
+            mock_context,
+            collection_name='test-collection',
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_success(mock_boto3_client, mock_context):
+    """Test list_geofence_collections success case.
+
+    Validates: Requirements 1.2, 5.1
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+    from datetime import datetime, timezone
+
+    # Set up mock response
+    create_time1 = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    create_time2 = datetime(2024, 1, 16, 11, 45, 0, tzinfo=timezone.utc)
+    mock_boto3_client.list_geofence_collections.return_value = {
+        'Entries': [
+            {
+                'CollectionName': 'collection-1',
+                'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/collection-1',
+                'CreateTime': create_time1,
+            },
+            {
+                'CollectionName': 'collection-2',
+                'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/collection-2',
+                'CreateTime': create_time2,
+            },
+        ]
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.list_geofence_collections.return_value,
+        ):
+            result = await list_geofence_collections(mock_context, max_results=10)
+
+    # Verify the result
+    assert 'collections' in result
+    assert len(result['collections']) == 2
+    assert result['collections'][0]['collection_name'] == 'collection-1'
+    assert (
+        result['collections'][0]['collection_arn']
+        == 'arn:aws:geo:us-east-1:123456789012:geofence-collection/collection-1'
+    )
+    assert result['collections'][0]['create_time'] == create_time1.isoformat()
+    assert result['collections'][1]['collection_name'] == 'collection-2'
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_empty(mock_boto3_client, mock_context):
+    """Test list_geofence_collections when no collections exist.
+
+    Validates: Requirements 1.2, 5.1
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+
+    # Set up mock response with empty list
+    mock_boto3_client.list_geofence_collections.return_value = {'Entries': []}
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.list_geofence_collections.return_value,
+        ):
+            result = await list_geofence_collections(mock_context, max_results=10)
+
+    # Verify the result
+    assert 'collections' in result
+    assert len(result['collections']) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_client_error(mock_boto3_client, mock_context):
+    """Test list_geofence_collections when boto3 client raises a ClientError.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+    from botocore.exceptions import ClientError
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            side_effect=ClientError(
+                {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+                'list_geofence_collections',
+            ),
+        ):
+            result = await list_geofence_collections(mock_context, max_results=10)
+
+    assert 'error' in result
+    assert 'AWS Location Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_general_exception(mock_boto3_client, mock_context):
+    """Test list_geofence_collections when a general exception occurs.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', side_effect=Exception('Test general exception')):
+            result = await list_geofence_collections(mock_context, max_results=10)
+
+    assert 'error' in result
+    assert 'Error listing geofence collections' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_uninitialized_client(mock_context):
+    """Test list_geofence_collections when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await list_geofence_collections(mock_context, max_results=10)
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_geofence_collection_success(mock_boto3_client, mock_context):
+    """Test describe_geofence_collection success case.
+
+    Validates: Requirements 1.3, 5.1
+    """
+    from awslabs.aws_location_server.server import describe_geofence_collection
+    from datetime import datetime, timezone
+
+    # Set up mock response
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    update_time = datetime(2024, 1, 20, 14, 45, 0, tzinfo=timezone.utc)
+    mock_boto3_client.describe_geofence_collection.return_value = {
+        'CollectionName': 'test-collection',
+        'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/test-collection',
+        'Description': 'Test collection description',
+        'CreateTime': create_time,
+        'UpdateTime': update_time,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.describe_geofence_collection.return_value,
+        ):
+            result = await describe_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    # Verify the result
+    assert 'collection_name' in result
+    assert result['collection_name'] == 'test-collection'
+    assert 'collection_arn' in result
+    assert 'arn:aws:geo' in result['collection_arn']
+    assert 'description' in result
+    assert result['description'] == 'Test collection description'
+    assert 'create_time' in result
+    assert result['create_time'] == create_time.isoformat()
+    assert 'update_time' in result
+    assert result['update_time'] == update_time.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_describe_geofence_collection_not_found(mock_boto3_client, mock_context):
+    """Test describe_geofence_collection when collection is not found.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import describe_geofence_collection
+    from botocore.exceptions import ClientError
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            side_effect=ClientError(
+                {
+                    'Error': {
+                        'Code': 'ResourceNotFoundException',
+                        'Message': 'Collection not found',
+                    }
+                },
+                'describe_geofence_collection',
+            ),
+        ):
+            result = await describe_geofence_collection(
+                mock_context,
+                collection_name='nonexistent-collection',
+            )
+
+    assert 'error' in result
+    assert 'AWS Location Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_geofence_collection_general_exception(mock_boto3_client, mock_context):
+    """Test describe_geofence_collection when a general exception occurs.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import describe_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', side_effect=Exception('Test general exception')):
+            result = await describe_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    assert 'error' in result
+    assert 'Error describing geofence collection' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_geofence_collection_uninitialized_client(mock_context):
+    """Test describe_geofence_collection when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import describe_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await describe_geofence_collection(
+            mock_context,
+            collection_name='test-collection',
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_delete_geofence_collection_success(mock_boto3_client, mock_context):
+    """Test delete_geofence_collection success case.
+
+    Validates: Requirements 1.4, 5.1
+    """
+    from awslabs.aws_location_server.server import delete_geofence_collection
+
+    # Set up mock response (delete returns empty response on success)
+    mock_boto3_client.delete_geofence_collection.return_value = {}
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.delete_geofence_collection.return_value,
+        ):
+            result = await delete_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    # Verify the result
+    assert 'success' in result
+    assert result['success'] is True
+    assert 'collection_name' in result
+    assert result['collection_name'] == 'test-collection'
+
+
+@pytest.mark.asyncio
+async def test_delete_geofence_collection_client_error(mock_boto3_client, mock_context):
+    """Test delete_geofence_collection when boto3 client raises a ClientError.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import delete_geofence_collection
+    from botocore.exceptions import ClientError
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            side_effect=ClientError(
+                {
+                    'Error': {
+                        'Code': 'ResourceNotFoundException',
+                        'Message': 'Collection not found',
+                    }
+                },
+                'delete_geofence_collection',
+            ),
+        ):
+            result = await delete_geofence_collection(
+                mock_context,
+                collection_name='nonexistent-collection',
+            )
+
+    assert 'error' in result
+    assert 'AWS Location Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_delete_geofence_collection_general_exception(mock_boto3_client, mock_context):
+    """Test delete_geofence_collection when a general exception occurs.
+
+    Validates: Requirements 1.5, 5.2
+    """
+    from awslabs.aws_location_server.server import delete_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', side_effect=Exception('Test general exception')):
+            result = await delete_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    assert 'error' in result
+    assert 'Error deleting geofence collection' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_delete_geofence_collection_uninitialized_client(mock_context):
+    """Test delete_geofence_collection when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import delete_geofence_collection
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await delete_geofence_collection(
+            mock_context,
+            collection_name='test-collection',
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_geofence_collections_with_pagination(mock_boto3_client, mock_context):
+    """Test list_geofence_collections with different max_results values.
+
+    Validates: Requirements 1.2
+    """
+    from awslabs.aws_location_server.server import list_geofence_collections
+    from datetime import datetime, timezone
+
+    # Set up mock response with multiple collections
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.list_geofence_collections.return_value = {
+        'Entries': [
+            {
+                'CollectionName': f'collection-{i}',
+                'CollectionArn': f'arn:aws:geo:us-east-1:123456789012:geofence-collection/collection-{i}',
+                'CreateTime': create_time,
+            }
+            for i in range(5)
+        ]
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.list_geofence_collections.return_value,
+        ):
+            result = await list_geofence_collections(mock_context, max_results=5)
+
+    # Verify the result
+    assert 'collections' in result
+    assert len(result['collections']) == 5
+    for i, collection in enumerate(result['collections']):
+        assert collection['collection_name'] == f'collection-{i}'
+
+
+@pytest.mark.asyncio
+async def test_describe_geofence_collection_empty_description(mock_boto3_client, mock_context):
+    """Test describe_geofence_collection when description is empty.
+
+    Validates: Requirements 1.3, 5.1
+    """
+    from awslabs.aws_location_server.server import describe_geofence_collection
+    from datetime import datetime, timezone
+
+    # Set up mock response without description
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    update_time = datetime(2024, 1, 20, 14, 45, 0, tzinfo=timezone.utc)
+    mock_boto3_client.describe_geofence_collection.return_value = {
+        'CollectionName': 'test-collection',
+        'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/test-collection',
+        'CreateTime': create_time,
+        'UpdateTime': update_time,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.describe_geofence_collection.return_value,
+        ):
+            result = await describe_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+            )
+
+    # Verify the result
+    assert 'collection_name' in result
+    assert result['collection_name'] == 'test-collection'
+    assert 'description' in result
+    assert result['description'] == ''  # Default empty string
+
+
+@pytest.mark.asyncio
+async def test_create_geofence_collection_without_description(mock_boto3_client, mock_context):
+    """Test create_geofence_collection without optional description.
+
+    Validates: Requirements 1.1, 5.1
+    """
+    from awslabs.aws_location_server.server import create_geofence_collection
+    from datetime import datetime, timezone
+
+    # Set up mock response
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.create_geofence_collection.return_value = {
+        'CollectionName': 'test-collection',
+        'CollectionArn': 'arn:aws:geo:us-east-1:123456789012:geofence-collection/test-collection',
+        'CreateTime': create_time,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.create_geofence_collection.return_value,
+        ):
+            result = await create_geofence_collection(
+                mock_context,
+                collection_name='test-collection',
+                # No description provided
+            )
+
+    # Verify the result
+    assert 'collection_name' in result
+    assert result['collection_name'] == 'test-collection'
+    assert 'collection_arn' in result
+    assert 'create_time' in result
+
+
+# ============================================================================
+# Geofence CRUD Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_circle_success(mock_boto3_client, mock_context):
+    """Test put_geofence with circle geometry success case.
+
+    Validates: Requirements 2.1, 5.1
+    """
+    from awslabs.aws_location_server.server import put_geofence
+    from datetime import datetime, timezone
+
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    update_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.put_geofence.return_value = {
+        'GeofenceId': 'test-geofence',
+        'CreateTime': create_time,
+        'UpdateTime': update_time,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', return_value=mock_boto3_client.put_geofence.return_value):
+            result = await put_geofence(
+                mock_context,
+                collection_name='test-collection',
+                geofence_id='test-geofence',
+                geometry_type='Circle',
+                circle_center=[-122.3321, 47.6062],
+                circle_radius=1000.0,
+            )
+
+    assert 'geofence_id' in result
+    assert result['geofence_id'] == 'test-geofence'
+    assert 'create_time' in result
+    assert 'update_time' in result
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_polygon_success(mock_boto3_client, mock_context):
+    """Test put_geofence with polygon geometry success case.
+
+    Validates: Requirements 2.2, 5.1
+    """
+    from awslabs.aws_location_server.server import put_geofence
+    from datetime import datetime, timezone
+
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    update_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.put_geofence.return_value = {
+        'GeofenceId': 'test-geofence',
+        'CreateTime': create_time,
+        'UpdateTime': update_time,
+    }
+
+    polygon_coords = [
+        [
+            [-122.3321, 47.6062],
+            [-122.3421, 47.6062],
+            [-122.3421, 47.6162],
+            [-122.3321, 47.6062],  # Closed ring
+        ]
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', return_value=mock_boto3_client.put_geofence.return_value):
+            result = await put_geofence(
+                mock_context,
+                collection_name='test-collection',
+                geofence_id='test-geofence',
+                geometry_type='Polygon',
+                polygon_coordinates=polygon_coords,
+            )
+
+    assert 'geofence_id' in result
+    assert result['geofence_id'] == 'test-geofence'
+    assert 'create_time' in result
+    assert 'update_time' in result
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_invalid_geometry_type(mock_boto3_client, mock_context):
+    """Test put_geofence with invalid geometry type.
+
+    Validates: Requirements 2.7, 5.2
+    """
+    from awslabs.aws_location_server.server import put_geofence
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await put_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+            geometry_type='InvalidType',
+        )
+
+    assert 'error' in result
+    assert "geometry_type must be 'Circle' or 'Polygon'" in result['error']
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_circle_missing_center(mock_boto3_client, mock_context):
+    """Test put_geofence with circle geometry missing center.
+
+    Validates: Requirements 2.7, 5.2
+    """
+    from awslabs.aws_location_server.server import put_geofence
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await put_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+            geometry_type='Circle',
+            circle_center=None,
+            circle_radius=1000.0,
+        )
+
+    assert 'error' in result
+    assert 'Circle geometry requires center' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_circle_invalid_radius(mock_boto3_client, mock_context):
+    """Test put_geofence with circle geometry invalid radius.
+
+    Validates: Requirements 2.7, 5.2
+    """
+    from awslabs.aws_location_server.server import put_geofence
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await put_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+            geometry_type='Circle',
+            circle_center=[-122.3321, 47.6062],
+            circle_radius=-100.0,
+        )
+
+    assert 'error' in result
+    assert 'Circle geometry requires positive radius' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_polygon_not_closed(mock_boto3_client, mock_context):
+    """Test put_geofence with polygon geometry not closed.
+
+    Validates: Requirements 2.7, 5.2
+    """
+    from awslabs.aws_location_server.server import put_geofence
+
+    polygon_coords = [
+        [
+            [-122.3321, 47.6062],
+            [-122.3421, 47.6062],
+            [-122.3421, 47.6162],
+            [-122.3321, 47.6162],  # Not closed - different from first point
+        ]
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await put_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+            geometry_type='Polygon',
+            polygon_coordinates=polygon_coords,
+        )
+
+    assert 'error' in result
+    assert 'Polygon linear ring must be closed' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_put_geofence_uninitialized_client(mock_context):
+    """Test put_geofence when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import put_geofence
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await put_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+            geometry_type='Circle',
+            circle_center=[-122.3321, 47.6062],
+            circle_radius=1000.0,
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_geofence_success(mock_boto3_client, mock_context):
+    """Test get_geofence success case.
+
+    Validates: Requirements 2.3, 5.1, 5.3
+    """
+    from awslabs.aws_location_server.server import get_geofence
+    from datetime import datetime, timezone
+
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    update_time = datetime(2024, 1, 20, 14, 45, 0, tzinfo=timezone.utc)
+    mock_boto3_client.get_geofence.return_value = {
+        'GeofenceId': 'test-geofence',
+        'Geometry': {
+            'Circle': {
+                'Center': [-122.3321, 47.6062],
+                'Radius': 1000.0,
+            }
+        },
+        'Status': 'ACTIVE',
+        'CreateTime': create_time,
+        'UpdateTime': update_time,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch('asyncio.to_thread', return_value=mock_boto3_client.get_geofence.return_value):
+            result = await get_geofence(
+                mock_context,
+                collection_name='test-collection',
+                geofence_id='test-geofence',
+            )
+
+    assert 'geofence_id' in result
+    assert result['geofence_id'] == 'test-geofence'
+    assert 'geometry' in result
+    assert 'Circle' in result['geometry']
+    assert 'status' in result
+    assert result['status'] == 'ACTIVE'
+    assert 'create_time' in result
+    assert 'update_time' in result
+
+
+@pytest.mark.asyncio
+async def test_get_geofence_not_found(mock_boto3_client, mock_context):
+    """Test get_geofence when geofence is not found.
+
+    Validates: Requirements 5.2
+    """
+    from awslabs.aws_location_server.server import get_geofence
+    from botocore.exceptions import ClientError
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            side_effect=ClientError(
+                {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Geofence not found'}},
+                'get_geofence',
+            ),
+        ):
+            result = await get_geofence(
+                mock_context,
+                collection_name='test-collection',
+                geofence_id='nonexistent-geofence',
+            )
+
+    assert 'error' in result
+    assert 'AWS Location Service error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_geofence_uninitialized_client(mock_context):
+    """Test get_geofence when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import get_geofence
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await get_geofence(
+            mock_context,
+            collection_name='test-collection',
+            geofence_id='test-geofence',
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_geofences_success(mock_boto3_client, mock_context):
+    """Test list_geofences success case.
+
+    Validates: Requirements 2.4, 5.1, 5.3
+    """
+    from awslabs.aws_location_server.server import list_geofences
+    from datetime import datetime, timezone
+
+    create_time = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    mock_boto3_client.list_geofences.return_value = {
+        'Entries': [
+            {
+                'GeofenceId': 'geofence-1',
+                'Geometry': {'Circle': {'Center': [-122.3321, 47.6062], 'Radius': 1000.0}},
+                'Status': 'ACTIVE',
+                'CreateTime': create_time,
+            },
+            {
+                'GeofenceId': 'geofence-2',
+                'Geometry': {
+                    'Polygon': [
+                        [
+                            [-122.3321, 47.6062],
+                            [-122.3421, 47.6062],
+                            [-122.3421, 47.6162],
+                            [-122.3321, 47.6062],
+                        ]
+                    ]
+                },
+                'Status': 'ACTIVE',
+                'CreateTime': create_time,
+            },
+        ]
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread', return_value=mock_boto3_client.list_geofences.return_value
+        ):
+            result = await list_geofences(
+                mock_context,
+                collection_name='test-collection',
+                max_results=10,
+            )
+
+    assert 'geofences' in result
+    assert len(result['geofences']) == 2
+    assert result['geofences'][0]['geofence_id'] == 'geofence-1'
+    assert 'geometry' in result['geofences'][0]
+    assert 'status' in result['geofences'][0]
+    assert 'create_time' in result['geofences'][0]
+
+
+@pytest.mark.asyncio
+async def test_list_geofences_empty(mock_boto3_client, mock_context):
+    """Test list_geofences when no geofences exist.
+
+    Validates: Requirements 2.4, 5.1
+    """
+    from awslabs.aws_location_server.server import list_geofences
+
+    mock_boto3_client.list_geofences.return_value = {'Entries': []}
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread', return_value=mock_boto3_client.list_geofences.return_value
+        ):
+            result = await list_geofences(
+                mock_context,
+                collection_name='test-collection',
+                max_results=10,
+            )
+
+    assert 'geofences' in result
+    assert len(result['geofences']) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_geofences_uninitialized_client(mock_context):
+    """Test list_geofences when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import list_geofences
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await list_geofences(
+            mock_context,
+            collection_name='test-collection',
+            max_results=10,
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_batch_delete_geofences_success(mock_boto3_client, mock_context):
+    """Test batch_delete_geofences success case.
+
+    Validates: Requirements 2.5, 5.1
+    """
+    from awslabs.aws_location_server.server import batch_delete_geofences
+
+    mock_boto3_client.batch_delete_geofence.return_value = {'Errors': []}
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread', return_value=mock_boto3_client.batch_delete_geofence.return_value
+        ):
+            result = await batch_delete_geofences(
+                mock_context,
+                collection_name='test-collection',
+                geofence_ids=['geofence-1', 'geofence-2'],
+            )
+
+    assert 'deleted' in result
+    assert 'errors' in result
+    assert 'geofence-1' in result['deleted']
+    assert 'geofence-2' in result['deleted']
+    assert len(result['errors']) == 0
+
+
+@pytest.mark.asyncio
+async def test_batch_delete_geofences_mixed_results(mock_boto3_client, mock_context):
+    """Test batch_delete_geofences with mixed success and failure.
+
+    Validates: Requirements 2.5, 5.1
+    """
+    from awslabs.aws_location_server.server import batch_delete_geofences
+
+    mock_boto3_client.batch_delete_geofence.return_value = {
+        'Errors': [
+            {
+                'GeofenceId': 'geofence-2',
+                'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Geofence not found'},
+            }
+        ]
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread', return_value=mock_boto3_client.batch_delete_geofence.return_value
+        ):
+            result = await batch_delete_geofences(
+                mock_context,
+                collection_name='test-collection',
+                geofence_ids=['geofence-1', 'geofence-2'],
+            )
+
+    assert 'deleted' in result
+    assert 'errors' in result
+    assert 'geofence-1' in result['deleted']
+    assert 'geofence-2' not in result['deleted']
+    assert len(result['errors']) == 1
+    assert result['errors'][0]['geofence_id'] == 'geofence-2'
+
+
+@pytest.mark.asyncio
+async def test_batch_delete_geofences_uninitialized_client(mock_context):
+    """Test batch_delete_geofences when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import batch_delete_geofences
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await batch_delete_geofences(
+            mock_context,
+            collection_name='test-collection',
+            geofence_ids=['geofence-1'],
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+# ============================================================================
+# Position Evaluation Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_batch_evaluate_geofences_success(mock_boto3_client, mock_context):
+    """Test batch_evaluate_geofences success case.
+
+    Validates: Requirements 3.1, 3.2, 5.1
+    """
+    from awslabs.aws_location_server.server import batch_evaluate_geofences
+
+    mock_boto3_client.batch_evaluate_geofences.return_value = {'Errors': []}
+
+    device_position_updates = [
+        {
+            'device_id': 'device-1',
+            'position': [-122.3321, 47.6062],
+            'sample_time': '2024-01-15T10:30:00Z',
+        },
+        {
+            'device_id': 'device-2',
+            'position': [-122.3421, 47.6162],
+            'sample_time': '2024-01-15T10:30:00Z',
+        },
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.batch_evaluate_geofences.return_value,
+        ):
+            result = await batch_evaluate_geofences(
+                mock_context,
+                collection_name='test-collection',
+                device_position_updates=device_position_updates,
+            )
+
+    assert 'results' in result
+    assert isinstance(result['results'], list)
+
+
+@pytest.mark.asyncio
+async def test_batch_evaluate_geofences_invalid_position(mock_boto3_client, mock_context):
+    """Test batch_evaluate_geofences with invalid position.
+
+    Validates: Requirements 3.4, 5.2
+    """
+    from awslabs.aws_location_server.server import batch_evaluate_geofences
+
+    device_position_updates = [
+        {
+            'device_id': 'device-1',
+            'position': [-122.3321],  # Invalid - only one coordinate
+            'sample_time': '2024-01-15T10:30:00Z',
+        },
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await batch_evaluate_geofences(
+            mock_context,
+            collection_name='test-collection',
+            device_position_updates=device_position_updates,
+        )
+
+    assert 'error' in result
+    assert 'Invalid position for device device-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_batch_evaluate_geofences_invalid_coordinates(mock_boto3_client, mock_context):
+    """Test batch_evaluate_geofences with out-of-range coordinates.
+
+    Validates: Requirements 3.4, 5.2
+    """
+    from awslabs.aws_location_server.server import batch_evaluate_geofences
+
+    device_position_updates = [
+        {
+            'device_id': 'device-1',
+            'position': [-200.0, 47.6062],  # Invalid longitude
+            'sample_time': '2024-01-15T10:30:00Z',
+        },
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await batch_evaluate_geofences(
+            mock_context,
+            collection_name='test-collection',
+            device_position_updates=device_position_updates,
+        )
+
+    assert 'error' in result
+    assert 'Invalid coordinates for device device-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_batch_evaluate_geofences_uninitialized_client(mock_context):
+    """Test batch_evaluate_geofences when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import batch_evaluate_geofences
+
+    device_position_updates = [
+        {
+            'device_id': 'device-1',
+            'position': [-122.3321, 47.6062],
+            'sample_time': '2024-01-15T10:30:00Z',
+        },
+    ]
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await batch_evaluate_geofences(
+            mock_context,
+            collection_name='test-collection',
+            device_position_updates=device_position_updates,
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_forecast_geofence_events_success(mock_boto3_client, mock_context):
+    """Test forecast_geofence_events success case.
+
+    Validates: Requirements 3.3, 5.1, 5.4
+    """
+    from awslabs.aws_location_server.server import forecast_geofence_events
+    from datetime import datetime, timezone
+
+    forecasted_time = datetime(2024, 1, 15, 11, 0, 0, tzinfo=timezone.utc)
+    mock_boto3_client.forecast_geofence_events.return_value = {
+        'ForecastedEvents': [
+            {
+                'GeofenceId': 'geofence-1',
+                'EventType': 'ENTER',
+                'ForecastedBreachTime': forecasted_time,
+            },
+        ]
+    }
+
+    device_state = {
+        'position': [-122.3321, 47.6062],
+        'speed': 10.0,
+        'heading': 45.0,
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        with patch(
+            'asyncio.to_thread',
+            return_value=mock_boto3_client.forecast_geofence_events.return_value,
+        ):
+            result = await forecast_geofence_events(
+                mock_context,
+                collection_name='test-collection',
+                device_id='device-1',
+                device_state=device_state,
+                time_horizon_minutes=30.0,
+            )
+
+    assert 'forecasted_events' in result
+    assert len(result['forecasted_events']) == 1
+    assert result['forecasted_events'][0]['geofence_id'] == 'geofence-1'
+    assert result['forecasted_events'][0]['event_type'] == 'ENTER'
+    assert result['forecasted_events'][0]['forecasted_time'] == forecasted_time.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_forecast_geofence_events_missing_position(mock_boto3_client, mock_context):
+    """Test forecast_geofence_events with missing position.
+
+    Validates: Requirements 5.2
+    """
+    from awslabs.aws_location_server.server import forecast_geofence_events
+
+    device_state = {
+        'speed': 10.0,
+        # Missing position
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await forecast_geofence_events(
+            mock_context,
+            collection_name='test-collection',
+            device_id='device-1',
+            device_state=device_state,
+            time_horizon_minutes=30.0,
+        )
+
+    assert 'error' in result
+    assert 'device_state must contain position' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_forecast_geofence_events_invalid_coordinates(mock_boto3_client, mock_context):
+    """Test forecast_geofence_events with invalid coordinates.
+
+    Validates: Requirements 5.2
+    """
+    from awslabs.aws_location_server.server import forecast_geofence_events
+
+    device_state = {
+        'position': [-200.0, 47.6062],  # Invalid longitude
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = mock_boto3_client
+        result = await forecast_geofence_events(
+            mock_context,
+            collection_name='test-collection',
+            device_id='device-1',
+            device_state=device_state,
+            time_horizon_minutes=30.0,
+        )
+
+    assert 'error' in result
+    assert 'Invalid coordinates' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_forecast_geofence_events_uninitialized_client(mock_context):
+    """Test forecast_geofence_events when client is not initialized.
+
+    Validates: Requirements 4.5
+    """
+    from awslabs.aws_location_server.server import forecast_geofence_events
+
+    device_state = {
+        'position': [-122.3321, 47.6062],
+    }
+
+    with patch('awslabs.aws_location_server.server.geo_fencing_client') as mock_geo_client:
+        mock_geo_client.location_client = None
+        result = await forecast_geofence_events(
+            mock_context,
+            collection_name='test-collection',
+            device_id='device-1',
+            device_state=device_state,
+            time_horizon_minutes=30.0,
+        )
+
+    assert 'error' in result
+    assert 'AWS Location geofencing client not initialized' in result['error']
