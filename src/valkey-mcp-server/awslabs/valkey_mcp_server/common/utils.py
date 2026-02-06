@@ -12,22 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Tool imports for Valkey MCP Server.
-"""
+import struct
 
-from . import (
-    bitmap,
-    hash,
-    hyperloglog,
-    json,
-    list,
-    misc,
-    vss,
-    semantic_search,
-    server_management,
-    set,
-    sorted_set,
-    stream,
-    string,
-)
+
+def pack_embedding(embedding: list[float]) -> bytes:
+    """Pack embedding vector to bytes for Valkey storage."""
+    return struct.pack(f'{len(embedding)}f', *embedding)

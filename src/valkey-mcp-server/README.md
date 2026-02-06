@@ -103,7 +103,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "VALKEY_HOST": "127.0.0.1",
         "VALKEY_PORT": "6379",
         "FASTMCP_LOG_LEVEL": "ERROR"
-      },
+      }
     }
   }
 }
@@ -193,21 +193,70 @@ To run in readonly mode with Docker:
 
 ## Configuration
 
-The server can be configured using the following environment variables:
+### Valkey Connection
+The Valkey server can be configured using the following environment variables.
+However, both *MemoryDB* and *ElastiCache Serverless* are *not* compatible with semantic search and vector search:
 
-| Name | Description | Default Value |
-|------|-------------|---------------|
-| `VALKEY_HOST` | ElastiCache Primary Endpoint or MemoryDB Cluster Endpoint or Valkey IP or hostname | `"127.0.0.1"` |
-| `VALKEY_PORT` | Valkey port | `6379` |
-| `VALKEY_USERNAME` | Default database username | `None` |
-| `VALKEY_PWD` | Default database password | `""` |
-| `VALKEY_USE_SSL` | Enables or disables SSL/TLS | `False` |
-| `VALKEY_CA_PATH` | CA certificate for verifying server | `None` |
-| `VALKEY_SSL_KEYFILE` | Client's private key file | `None` |
-| `VALKEY_SSL_CERTFILE` | Client's certificate file | `None` |
-| `VALKEY_CERT_REQS` | Server certificate verification | `"required"` |
-| `VALKEY_CA_CERTS` | Path to trusted CA certificates | `None` |
-| `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode | `False` |
+| Name | Description                                                                                                                    | Default Value |
+|------|--------------------------------------------------------------------------------------------------------------------------------|---------------|
+| `VALKEY_HOST` | ElastiCache Primary Endpoint or MemoryDB Cluster Endpoint or Valkey IP or hostname                                             | `"127.0.0.1"` |
+| `VALKEY_PORT` | Valkey port                                                                                                                    | `6379`        |
+| `VALKEY_USERNAME` | Default database username                                                                                                      | `None`        |
+| `VALKEY_PWD` | Default database password                                                                                                      | `""`          |
+| `VALKEY_USE_SSL` | Enables or disables SSL/TLS                                                                                                    | `False`       |
+| `VALKEY_CA_PATH` | CA certificate for verifying server                                                                                            | `None`        |
+| `VALKEY_SSL_KEYFILE` | Client's private key file                                                                                                      | `None`        |
+| `VALKEY_SSL_CERTFILE` | Client's certificate file                                                                                                      | `None`        |
+| `VALKEY_CERT_REQS` | Server certificate verification                                                                                                | `"required"`  |
+| `VALKEY_CA_CERTS` | Path to trusted CA certificates                                                                                                | `None`        |
+| `VALKEY_CLUSTER_MODE` | Enable Valkey Cluster mode                                                                                                     | `False`       |
+| `VALKEY_VECTOR_INDEX_TYPE` | Default vector index structure type to use when vector indices are created in calls to add documents (either `FLAT` or `HNSW`) | `HNSW`        |
+| `VALKEY_MAX_CONNECTIONS_PER_NODE` | Maximum number of concurrent Valkey connections per node                                                                       | `300`         |
+
+### Embeddings Provider
+Semantic search requires integration with an embeddings provider.
+The following environment variables are used to configure this:
+
+#### Common Embedding Configuration
+The first step is to configure the embeddings provider, which is used to generate embeddings for semantic search.
+This defaults to using the Bedrock embeddings provider, but can be configured to use any of the following:
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `EMBEDDING_PROVIDER` | Embeddings provider to use (i.e. 'Ollama', 'Bedrock', or 'OpenAI')                         | `"bedrock"`                    |
+
+#### Bedrock
+The following environment variables are used to configure the Bedrock embeddings provider, including a number
+of optional configuration options.  Credentials for the Bedrock service must be provided using the `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` and/or `AWS_SESSION_TOKEN` environment variables or via `AWS_PROFILE`.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `AWS_REGION` | If Bedrock is used, this is the name of the region to interop with             | `"us-east-1"`                  |
+| `BEDROCK_MODEL_ID` | If Bedrock is used, this is the ID of the model to use to generate embeddings | `"amazon.nova-2-multimodal-embeddings-v1:0"` |
+| `BEDROCK_NORMALIZE` | If Bedrock is used, whether to normalize embeddings | `true`                         |
+| `BEDROCK_DIMENSIONS` | If Bedrock is used, number of dimensions for embeddings | `None`                         |
+| `BEDROCK_INPUT_TYPE` | If Bedrock is used, input type for embeddings (e.g., "searchDocument", "searchQuery") | `None`                         |
+| `BEDROCK_MAX_ATTEMPTS` | If Bedrock is used, maximum retry attempts for failed requests | `3`                            |
+| `BEDROCK_MAX_POOL_CONNECTIONS` | If Bedrock is used, maximum number of connections in the connection pool | `50`                           |
+| `BEDROCK_RETRY_MODE` | If Bedrock is used, retry mode for failed requests (e.g., "adaptive", "standard", "legacy") | `"adaptive"`                   |
+
+#### OpenAI
+The following environment variables are used to configure the OpenAI embeddings provider.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `OPENAI_API_KEY` | If OpenAI is used, this is the API key for authentication | `None`                         |
+| `OPENAI_MODEL` | If OpenAI is used, this is the model to use to generate embeddings | `"text-embedding-3-small"`     |
+
+#### Ollama
+The following environment variables are used to configure the Ollama embeddings provider.
+
+| Name | Description                                                                    | Default Value                  |
+|------|--------------------------------------------------------------------------------|--------------------------------|
+| `OLLAMA_HOST` | If Ollama is used, this is the URL pointing to the Ollama endpoint             | `"http://localhost:11434"`     |
+| `OLLAMA_EMBEDDING_MODEL` | If Ollama is used, this is the name of the model to use to generate embeddings | `nomic-embed-text`             |
+
 
 ## Example Usage
 
