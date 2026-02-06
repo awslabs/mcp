@@ -1,0 +1,490 @@
+[
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Continually learn about and discover available services and configurations that help you make better architectural decisions and improve performance efficiency in your workload architecture.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_understand_cloud_services_and_features.html",
+    "id": "PERF01-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Learn about and understand available cloud services and features",
+    "title_full": "PERF01-BP01 Learn about and understand available cloud services and features"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Use cloud company resources such as documentation, solutions architects, professional services, or appropriate partners to guide your architectural decisions. These resources help you review and improve your architecture for optimal performance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_guidance_architecture_patterns_best_practices.html",
+    "id": "PERF01-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use guidance from your cloud provider or an appropriate partner to learn about architecture patterns and best practices",
+    "title_full": "PERF01-BP02 Use guidance from your cloud provider or an appropriate partner to learn about architecture patterns and best practices"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Factor cost into your architectural decisions to improve resource utilization and performance efficiency of your cloud workload. When you are aware of the cost implications of your cloud workload, you are more likely to leverage efficient resources and reduce wasteful practices.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_factor_cost_into_architectural_decisions.html",
+    "id": "PERF01-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Factor cost into architectural decisions",
+    "title_full": "PERF01-BP03 Factor cost into architectural decisions"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "When evaluating performance-related improvements, determine which choices impact your customers and workload efficiency. For example, if using a key-value data store increases system performance, it is important to evaluate how the eventually consistent nature of this change will impact customers.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_evaluate_trade_offs.html",
+    "id": "PERF01-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Evaluate how trade-offs impact customers and architecture efficiency",
+    "title_full": "PERF01-BP04 Evaluate how trade-offs impact customers and architecture efficiency"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Use internal policies and existing reference architectures when selecting services and configurations to be more efficient when designing and implementing your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_policies_and_reference_architectures.html",
+    "id": "PERF01-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use policies and reference architectures",
+    "title_full": "PERF01-BP05 Use policies and reference architectures"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Benchmark the performance of an existing workload to understand how it performs on the cloud and drive architectural decisions based on that data.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_benchmarking.html",
+    "id": "PERF01-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use benchmarking to drive architectural decisions",
+    "title_full": "PERF01-BP06 Use benchmarking to drive architectural decisions"
+  },
+  {
+    "area": [
+      "Architecture selection"
+    ],
+    "description": "Define a clear, data-driven approach for architectural choices to verify that the right cloud services and configurations are used to meet your specific business needs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_architecture_use_data_driven_approach.html",
+    "id": "PERF01-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use a data-driven approach for architectural choices",
+    "title_full": "PERF01-BP07 Use a data-driven approach for architectural choices"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Selecting the most appropriate compute option for your workload allows you to improve performance, reduce unnecessary infrastructure costs, and lower the operational efforts required to maintain your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_select_best_compute_options.html",
+    "id": "PERF02-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Select the best compute options for your workload",
+    "title_full": "PERF02-BP01 Select the best compute options for your workload"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Understand the available configuration options and features for your compute service to help you provision the right amount of resources and improve performance efficiency.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_understand_compute_configuration_features.html",
+    "id": "PERF02-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Understand the available compute configuration and features",
+    "title_full": "PERF02-BP02 Understand the available compute configuration and features"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Record and track compute-related metrics to better understand how your compute resources are performing and improve their performance and their utilization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_collect_compute_related_metrics.html",
+    "id": "PERF02-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Collect compute-related metrics",
+    "title_full": "PERF02-BP03 Collect compute-related metrics"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Configure and right-size compute resources to match your workload\u2019s performance requirements and avoid under- or over-utilized resources.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_configure_and_right_size_compute_resources.html",
+    "id": "PERF02-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Configure and right-size compute resources",
+    "title_full": "PERF02-BP04 Configure and right-size compute resources"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Use the elasticity of the cloud to scale your compute resources up or down dynamically to match your needs and avoid over- or under-provisioning capacity for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_scale_compute_resources_dynamically.html",
+    "id": "PERF02-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Scale your compute resources dynamically",
+    "title_full": "PERF02-BP05 Scale your compute resources dynamically"
+  },
+  {
+    "area": [
+      "Compute and hardware"
+    ],
+    "description": "Use hardware accelerators to perform certain functions more efficiently than CPU-based alternatives.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_compute_hardware_compute_accelerators.html",
+    "id": "PERF02-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use optimized hardware-based compute accelerators",
+    "title_full": "PERF02-BP06 Use optimized hardware-based compute accelerators"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Understand data characteristics (like shareable, size, cache size, access patterns, latency, throughput, and persistence of data) to select the right purpose-built data stores (storage or database) for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_use_purpose_built_data_store.html",
+    "id": "PERF03-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use a purpose-built data store that best supports your data access and storage requirements",
+    "title_full": "PERF03-BP01 Use a purpose-built data store that best supports your data access and storage requirements"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Understand and evaluate the various features and configuration options available for your data stores to optimize storage space and performance for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_evaluate_configuration_options_data_store.html",
+    "id": "PERF03-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Evaluate available configuration options for data store",
+    "title_full": "PERF03-BP02 Evaluate available configuration options for data store"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Track and record relevant performance metrics for your data store to understand how your data management solutions are performing. These metrics can help you optimize your data store, verify that your workload requirements are met, and provide a clear overview on how the workload performs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_collect_record_data_store_performance_metrics.html",
+    "id": "PERF03-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Collect and record data store performance metrics",
+    "title_full": "PERF03-BP03 Collect and record data store performance metrics"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Implement strategies to optimize data and improve data query to enable more scalability and efficient performance for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_implement_strategies_to_improve_query_performance.html",
+    "id": "PERF03-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Implement strategies to improve query performance in data store",
+    "title_full": "PERF03-BP04 Implement strategies to improve query performance in data store"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Implement access patterns that can benefit from caching data for fast retrieval of frequently accessed data.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_data_access_patterns_caching.html",
+    "id": "PERF03-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Implement data access patterns that utilize caching",
+    "title_full": "PERF03-BP05 Implement data access patterns that utilize caching"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Analyze and understand how network-related decisions impact your workload to provide efficient performance and improved user experience.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_understand_how_networking_impacts_performance.html",
+    "id": "PERF04-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Understand how networking impacts performance",
+    "title_full": "PERF04-BP01 Understand how networking impacts performance"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Evaluate networking features in the cloud that may increase performance. Measure the impact of these features through testing, metrics, and analysis. For example, take advantage of network-level features that are available to reduce latency, network distance, or jitter.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_evaluate_networking_features.html",
+    "id": "PERF04-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Evaluate available networking features",
+    "title_full": "PERF04-BP02 Evaluate available networking features"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "When hybrid connectivity is required to connect on-premises and cloud resources, provision adequate bandwidth to meet your performance requirements. Estimate the bandwidth and latency requirements for your hybrid workload. These numbers will drive your sizing requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_appropriate_dedicated_connectivity_or_vpn.html",
+    "id": "PERF04-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Choose appropriate dedicated connectivity or VPN for your workload",
+    "title_full": "PERF04-BP03 Choose appropriate dedicated connectivity or VPN for your workload"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Distribute traffic across multiple resources or services to allow your workload to take advantage of the elasticity that the cloud provides. You can also use load balancing for offloading encryption termination to improve performance, reliability and manage and route traffic effectively.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_load_balancing_distribute_traffic.html",
+    "id": "PERF04-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use load balancing to distribute traffic across multiple resources",
+    "title_full": "PERF04-BP04 Use load balancing to distribute traffic across multiple resources"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Make decisions about protocols for communication between systems and networks based on the impact to the workload\u2019s performance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_network_protocols_improve_performance.html",
+    "id": "PERF04-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Choose network protocols to improve performance",
+    "title_full": "PERF04-BP05 Choose network protocols to improve performance"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Evaluate options for resource placement to reduce network latency and improve throughput, providing an optimal user experience by reducing page load and data transfer times.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_choose_workload_location_network_requirements.html",
+    "id": "PERF04-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "COST07-BP02",
+      "COST08-BP03",
+      "REL10-BP01",
+      "REL10-BP02",
+      "SUS01-BP01",
+      "SUS02-BP04",
+      "SUS04-BP07"
+    ],
+    "risk": "MEDIUM",
+    "title": "Choose your workload's location based on network requirements",
+    "title_full": "PERF04-BP06 Choose your workload's location based on network requirements"
+  },
+  {
+    "area": [
+      "Networking and content delivery"
+    ],
+    "description": "Use collected and analyzed data to make informed decisions about optimizing your network configuration.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_networking_optimize_network_configuration_based_on_metrics.html",
+    "id": "PERF04-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Optimize network configuration based on metrics",
+    "title_full": "PERF04-BP07 Optimize network configuration based on metrics"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Identify the KPIs that quantitatively and qualitatively measure workload performance. KPIs help you measure the health and performance of a workload related to a business goal.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_establish_key_performance_indicators.html",
+    "id": "PERF05-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Establish key performance indicators (KPIs) to measure workload health and performance",
+    "title_full": "PERF05-BP01 Establish key performance indicators (KPIs) to measure workload health and performance"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Understand and identify areas where increasing the performance of your workload will have a positive impact on efficiency or customer experience. For example, a website that has a large amount of customer interaction can benefit from using edge services to move content delivery closer to customers.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_use_monitoring_solutions.html",
+    "id": "PERF05-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use monitoring solutions to understand the areas where performance is most critical",
+    "title_full": "PERF05-BP02 Use monitoring solutions to understand the areas where performance is most critical"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Define a process to evaluate new services, design patterns, resource types, and configurations as they become available. For example, run existing performance tests on new instance offerings to determine their potential to improve your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_workload_performance.html",
+    "id": "PERF05-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Define a process to improve workload performance",
+    "title_full": "PERF05-BP03 Define a process to improve workload performance"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Load test your workload to verify it can handle production load and identify any performance bottleneck.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_load_test.html",
+    "id": "PERF05-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Load test your workload",
+    "title_full": "PERF05-BP04 Load test your workload"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Use key performance indicators (KPIs), combined with monitoring and alerting systems, to proactively address performance-related issues.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_automation_remediate_issues.html",
+    "id": "PERF05-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Use automation to proactively remediate performance-related issues",
+    "title_full": "PERF05-BP05 Use automation to proactively remediate performance-related issues"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Stay up-to-date on new cloud services and features to adopt efficient features, remove issues, and improve the overall performance efficiency of your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_keep_workload_and_services_up_to_date.html",
+    "id": "PERF05-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Keep your workload and services up-to-date",
+    "title_full": "PERF05-BP06 Keep your workload and services up-to-date"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "As part of routine maintenance or in response to events or incidents, review which metrics are collected. Use these reviews to identify which metrics were essential in addressing issues and which additional metrics, if they were being tracked, could help identify, address, or prevent issues.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/performance-efficiency-pillar/perf_process_culture_review_metrics.html",
+    "id": "PERF05-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Review metrics at regular intervals",
+    "title_full": "PERF05-BP07 Review metrics at regular intervals"
+  }
+]
