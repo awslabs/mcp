@@ -1,0 +1,14 @@
+description: |
+  This is a multiline string
+  that spans multiple lines
+  and preserves newlines.
+
+folded_text: >
+  This is a folded string
+  that will be joined into
+  a single line with spaces.
+
+literal_with_indent: |2
+    This text has
+    preserved indentation
+    of two spaces.

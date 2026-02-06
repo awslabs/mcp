@@ -1051,6 +1051,12 @@ You can use these MCP servers with your AI coding assistant to [vibe code](https
 - [Guidance for Vibe Coding with AWS MCP servers](https://aws.amazon.com/solutions/guidance/vibe-coding-with-aws-mcp-servers/)
 - [Vibe coding with AWS MCP Servers | Hands-on Workshop](https://github.com/aws-solutions-library-samples/guidance-for-vibe-coding-with-aws-mcp-servers)
 
+## Fuzzing
+
+This project includes comprehensive fuzzing infrastructure for security testing using [Google's OSS-Fuzz](https://github.com/google/oss-fuzz) framework. The fuzzing targets cover SQL injection detection, document parsing, OpenAPI specification handling, and more.
+
+For setup instructions and usage documentation, see the [fuzzing README](fuzzing/README.md).
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.

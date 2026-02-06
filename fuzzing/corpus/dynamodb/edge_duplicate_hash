@@ -1,0 +1,1 @@
+{"tables":[{"TableName":"Test","AttributeDefinitions":[{"AttributeName":"id1","AttributeType":"S"},{"AttributeName":"id2","AttributeType":"S"}],"KeySchema":[{"AttributeName":"id1","KeyType":"HASH"},{"AttributeName":"id2","KeyType":"HASH"}]}]}

@@ -1,0 +1,214 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# TOML Dictionary for libFuzzer
+# Contains TOML syntax tokens, keywords, and edge cases
+
+# TOML Key-Value Separator
+"="
+" = "
+
+# TOML Table Headers
+"["
+"]"
+"[["
+"]]"
+
+# TOML Inline Table
+"{"
+"}"
+", "
+
+# TOML Array
+"["
+"]"
+","
+
+# TOML Comments
+"#"
+" #"
+
+# TOML String Delimiters
+"\""
+"'"
+"\"\"\""
+"'''"
+
+# TOML Boolean Values
+"true"
+"false"
+
+# TOML Escape Sequences
+"\\\\"
+"\\n"
+"\\t"
+"\\r"
+"\\b"
+"\\f"
+"\\\""
+"\\u"
+"\\U"
+
+# TOML Whitespace
+" "
+"\t"
+"\n"
+"\r\n"
+
+# TOML Dotted Keys
+"."
+"a.b"
+"a.b.c"
+"\"a.b\""
+
+# TOML Date/Time Formats
+"T"
+"Z"
+"+"
+"-"
+":"
+
+# TOML Date Examples
+"1979-05-27"
+"1979-05-27T07:32:00"
+"1979-05-27T07:32:00Z"
+"1979-05-27T07:32:00-07:00"
+"1979-05-27T07:32:00.999999"
+
+# TOML Time Examples
+"07:32:00"
+"00:32:00.999999"
+
+# TOML Integer Formats
+"0"
+"1"
+"-1"
+"+1"
+"42"
+"-42"
+"+42"
+"1_000"
+"1_000_000"
+"0xDEADBEEF"
+"0xdeadbeef"
+"0o755"
+"0o0755"
+"0b11010110"
+
+# TOML Float Formats
+"3.14"
+"-3.14"
+"+3.14"
+"3.14e10"
+"3.14E10"
+"3.14e+10"
+"3.14e-10"
+"inf"
+"+inf"
+"-inf"
+"nan"
+"+nan"
+"-nan"
+
+# TOML Special Values
+"_"
+"__"
+
+# Common Configuration Keys
+"host"
+"port"
+"debug"
+"enabled"
+"disabled"
+"timeout"
+"username"
+"password"
+"token"
+"api_key"
+"secret"
+"database"
+"server"
+"client"
+"config"
+"settings"
+"options"
+"env"
+"environment"
+"production"
+"development"
+"staging"
+"test"
+
+# MCP Server Configuration Keys
+"mcpServers"
+"command"
+"args"
+"autoApprove"
+"transport"
+"auth_type"
+"api_name"
+"api_base_url"
+
+# AWS Configuration Keys
+"region"
+"endpoint"
+"access_key"
+"secret_key"
+"session_token"
+"profile"
+
+# Table Section Names
+"[server]"
+"[database]"
+"[logging]"
+"[auth]"
+"[api]"
+"[mcpServers]"
+"[[servers]]"
+"[[databases]]"
+
+# Inline Table Examples
+"{ }"
+"{ key = \"value\" }"
+"{ a = 1, b = 2 }"
+
+# Array Examples
+"[]"
+"[1, 2, 3]"
+"[\"a\", \"b\", \"c\"]"
+"[1, \"mixed\", true]"
+
+# Multiline String Indicators
+"\"\"\"\n"
+"'''\n"
+
+# Edge Case Strings
+""
+" "
+"  "
+"key"
+"value"
+"key = \"value\""
+
+# Dotted Key Examples
+"a.b = 1"
+"a.b.c = 1"
+"\"a.b\" = 1"
+"'a.b' = 1"
+
+# Complex Structures
+"[section]\nkey = \"value\""
+"[[array]]\nname = \"item\""
+
+# Bare Keys (valid characters)
+"key"
+"key123"
+"key_name"
+"key-name"
+"KEY"
+"Key_Name"
+
+# Quoted Keys
+"\"key with spaces\""
+"\"key.with.dots\""
+"'literal key'"

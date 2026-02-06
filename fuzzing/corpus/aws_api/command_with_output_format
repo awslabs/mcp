@@ -1,0 +1,1 @@
+aws ec2 describe-instances --output json

@@ -1,0 +1,6 @@
+host: 127.0.0.1
+port: 8000
+debug: false
+transport: stdio
+auth_type: none
+timeout: 60
