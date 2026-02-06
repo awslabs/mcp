@@ -17,15 +17,15 @@
     "@mdx-js/react": "^3.1.1",
     "clsx": "^2.0.0",
     "prism-react-renderer": "^2.3.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "unist-util-visit": "^5.0.0"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.9.1",
     "@docusaurus/tsconfig": "^3.9.2",
     "@docusaurus/types": "^3.9.1",
-    "baseline-browser-mapping": "^2.9.15",
+    "baseline-browser-mapping": "^2.9.19",
     "typescript": "~5.9.2"
   },
   "engines": {
