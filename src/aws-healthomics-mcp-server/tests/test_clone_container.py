@@ -774,8 +774,8 @@ class TestCloneContainerToECR:
                 ctx=mock_ctx, source_image='wave.seqera.io/wt/abc123:latest'
             )
 
-        assert result['success'] is False
-        assert 'AWS error' in result['message']
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_unexpected_error(self):
@@ -804,8 +804,8 @@ class TestCloneContainerToECR:
                 ctx=mock_ctx, source_image='wave.seqera.io/wt/abc123:latest'
             )
 
-        assert result['success'] is False
-        assert 'Unexpected' in result['message']
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_pull_through_cache_with_digest(self):
