@@ -26,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     encode_to_base64,
     get_account_id,
     get_aws_session,
+    get_codeconnections_client,
     get_logs_client,
     get_omics_client,
     get_omics_endpoint_url,
@@ -412,6 +413,29 @@ class TestGetLogsClient:
 
         with pytest.raises(Exception, match='Logs service unavailable'):
             get_logs_client()
+
+
+class TestGetCodeconnectionsClient:
+    """Test cases for get_codeconnections_client function."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_codeconnections_client_success(self, mock_create_client):
+        """Test successful CodeConnections client creation."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_codeconnections_client()
+
+        mock_create_client.assert_called_once_with('codeconnections')
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_codeconnections_client_failure(self, mock_create_client):
+        """Test CodeConnections client creation failure."""
+        mock_create_client.side_effect = Exception('CodeConnections service unavailable')
+
+        with pytest.raises(Exception, match='CodeConnections service unavailable'):
+            get_codeconnections_client()
 
 
 class TestUtilityFunctions:
