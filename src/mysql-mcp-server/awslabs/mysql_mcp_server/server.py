@@ -233,7 +233,10 @@ def main():
     parser.add_argument('--database', required=True, help='Database name')
     parser.add_argument('--region', required=True, help='AWS region')
     parser.add_argument(
-        '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
+        '--readonly',
+        required=True,
+        type=lambda x: x.lower() == 'true',
+        help='Enforce NL to SQL to only allow readonly sql statement (True/False)',
     )
     args = parser.parse_args()
 
@@ -264,7 +267,7 @@ def main():
                 secret_arn=args.secret_arn,
                 database=args.database,
                 region=args.region,
-                readonly=args.readonly.lower(),
+                readonly=args.readonly,
             )
 
             # Test database connection
@@ -291,7 +294,7 @@ def main():
                 secret_arn=args.secret_arn,
                 database=args.database,
                 region=args.region,
-                readonly=args.readonly.lower(),
+                readonly=args.readonly,
                 hostname=args.hostname,
                 port=args.port,
             )
