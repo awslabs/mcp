@@ -324,10 +324,18 @@ Hot keys (frequently accessed rows) create bottlenecks. For detailed analysis, s
 ## Data Loading Tools
 
 The [DSQL Loader](https://github.com/aws-samples/aurora-dsql-loader) is a fast parallel data loader for DSQL that supports
-loading from CSV, TSV, and Parquet files into DSQL with automatic schema detection and progress tracking. PREFER using
-the DSQL Loader for quick loading, populating test tables, or migrating data into DSQL from local files or S3 uri's.
+loading from CSV, TSV, and Parquet files into DSQL with automatic schema detection and progress tracking.
 
-**Download the pre-built binary:** [Latest releases](https://github.com/aws-samples/aurora-dsql-loader/releases/latest)
+Developers SHOULD PREFER the DSQL Loader for:
+* quick, managed loading without user supervision
+* populating test tables
+* migrating data into DSQL from local files or S3 URIs of type csv, tsv, or parquet
+* automated schema detection and progress tracking
+
+ALWAYS use the loader's schema inference, PREFERRED to separate schema
+creation for data migration.
+
+**Install and use the DSQL Loader with [loader.sh](../scripts/loader.sh)**
 
 ### Common Examples
 

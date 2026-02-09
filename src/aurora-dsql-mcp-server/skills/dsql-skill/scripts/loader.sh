@@ -120,10 +120,6 @@ while [[ $# -gt 0 ]]; do
       INSTALL_ONLY=true
       shift
       ;;
-    --version)
-      LOADER_VERSION="$2"
-      shift 2
-      ;;
     -h|--help)
       show_help
       exit 0
@@ -140,18 +136,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Detect OS and architecture
+# Detect OS and architecture for GitHub release asset naming
 detect_platform() {
   local os arch
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  os="$(uname -s)"
   arch="$(uname -m)"
 
   case "$os" in
-    linux)
-      os="linux"
+    Linux)
+      os="unknown-linux-gnu"
       ;;
-    darwin)
-      os="macos"
+    Darwin)
+      os="apple-darwin"
       ;;
     *)
       echo "Error: Unsupported operating system: $os" >&2
@@ -172,14 +168,14 @@ detect_platform() {
       ;;
   esac
 
-  echo "${os}-${arch}"
+  echo "${arch}-${os}"
 }
 
 # Install the loader if not present
 install_loader() {
   if [[ -x "$LOADER_BIN" ]]; then
     echo "Aurora DSQL Loader already installed at $LOADER_BIN" >&2
-    "$LOADER_BIN" --version 2>/dev/null || true
+    "$LOADER_BIN" --help 2>/dev/null || true
     return 0
   fi
 
@@ -256,7 +252,6 @@ main() {
   install_loader
 
   if [[ "$INSTALL_ONLY" == "true" ]]; then
-    echo "Installation complete." >&2
     exit 0
   fi
 
