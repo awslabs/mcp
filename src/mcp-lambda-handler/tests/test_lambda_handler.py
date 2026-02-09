@@ -621,6 +621,43 @@ def test_tool_decorator_optional_int_type_hint():
     assert 'name' in schema['inputSchema']['required']
 
 
+def test_tool_decorator_optional_optional_int_type_hint():
+    """Test nested Optional[Optional[int]] so inner type is already ['integer', 'null'] (covers list + null-in-list paths)."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(value: Optional[Optional[int]]) -> str:
+        """Test nested optional.
+
+        Args:
+            value: Optional optional integer
+        """
+        return str(value)
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['value']['type'] == ['integer', 'null']
+    assert 'value' not in schema['inputSchema']['required']
+
+
+def test_tool_decorator_union_non_optional_type_hint():
+    """Test Union[int, str] (no None) falls through to default string schema."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(id_or_name: typing.Union[int, str]) -> str:
+        """Test union without None.
+
+        Args:
+            id_or_name: Int or string
+        """
+        return str(id_or_name)
+
+    schema = handler.tools['foo']
+    # Union with no None is not treated as optional; defaults to string for unknown complex type
+    assert schema['inputSchema']['properties']['id_or_name']['type'] == 'string'
+    assert 'id_or_name' in schema['inputSchema']['required']
+
+
 def test_tool_decorator_dictionary_type_hints():
     """Test tool decorator with dictionary type hints."""
     handler = MCPLambdaHandler('test-server')
