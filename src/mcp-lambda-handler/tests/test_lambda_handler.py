@@ -580,7 +580,7 @@ def test_tool_decorator_type_hints():
 
 
 def test_tool_decorator_with_no_origin_type_hints():
-    """Test tool decorator with no origin or unsupported type hints. No origin or unsupported type hints default to String type."""
+    """Test tool decorator with no origin or unsupported type hints. No origin defaults to String; Optional is supported."""
     handler = MCPLambdaHandler('test-server')
 
     @handler.tool()
@@ -589,13 +589,36 @@ def test_tool_decorator_with_no_origin_type_hints():
 
         Args:
             a: Any (get_origin returns None)
-            b: Optional (get_origin returns Optional, but it is unsupported)
+            b: Optional str (Union[str, None])
         """
         return a
 
     schema = handler.tools['foo']
     assert schema['inputSchema']['properties']['a']['type'] == 'string'
-    assert schema['inputSchema']['properties']['b']['type'] == 'string'
+    assert schema['inputSchema']['properties']['b']['type'] == ['string', 'null']
+    assert 'b' not in schema['inputSchema']['required']
+    assert 'a' in schema['inputSchema']['required']
+
+
+def test_tool_decorator_optional_int_type_hint():
+    """Test tool decorator with Optional[int] produces integer+null schema and param not required."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(count: Optional[int], name: str) -> str:
+        """Test tool.
+
+        Args:
+            count: Optional integer
+            name: Required string
+        """
+        return name if count is None else f'{name}:{count}'
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['count']['type'] == ['integer', 'null']
+    assert schema['inputSchema']['properties']['name']['type'] == 'string'
+    assert 'count' not in schema['inputSchema']['required']
+    assert 'name' in schema['inputSchema']['required']
 
 
 def test_tool_decorator_dictionary_type_hints():
