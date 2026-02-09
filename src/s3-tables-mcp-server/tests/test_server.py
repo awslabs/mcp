@@ -631,7 +631,8 @@ async def test_append_rows_to_table(mock_database):
     )
 
 
-def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
+@pytest.mark.asyncio
+async def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
     """Test append_rows_to_table tool when allow_write is disabled."""
     warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
     region = 'us-west-2'
@@ -646,21 +647,16 @@ def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
-        # Must be awaited in an event loop
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(
-            append_rows_to_table(
-                warehouse=warehouse,
-                region=region,
-                namespace=namespace,
-                table_name=table_name,
-                rows=rows,
-                uri=uri,
-                catalog_name=catalog_name,
-                rest_signing_name=rest_signing_name,
-                rest_sigv4_enabled=rest_sigv4_enabled,
-            )
+        await append_rows_to_table(
+            warehouse=warehouse,
+            region=region,
+            namespace=namespace,
+            table_name=table_name,
+            rows=rows,
+            uri=uri,
+            catalog_name=catalog_name,
+            rest_signing_name=rest_signing_name,
+            rest_sigv4_enabled=rest_sigv4_enabled,
         )
 
 
