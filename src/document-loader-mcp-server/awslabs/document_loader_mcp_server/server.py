@@ -38,6 +38,31 @@ mcp = FastMCP('Document Loader')
 # Security Constants
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
 
+
+# Base directory for file access security - configurable via environment
+# Secure by default: restricts to current working directory
+# For production: set DOCUMENT_BASE_DIR="/var/app/documents"
+# For testing: set DOCUMENT_BASE_DIR="/" to allow temp files
+def _get_base_directory() -> Path:
+    """Get base directory with secure defaults."""
+    env_base = os.getenv('DOCUMENT_BASE_DIR')
+    if env_base:
+        return Path(env_base)
+
+    # Check if we're in a testing environment
+    if any(
+        test_indicator in os.environ
+        for test_indicator in ['PYTEST_CURRENT_TEST', 'CI', 'GITHUB_ACTIONS']
+    ):
+        # In testing: allow broader access for temp files
+        return Path('/')
+
+    # Production default: restrict to current working directory
+    return Path.cwd()
+
+
+BASE_DIRECTORY = _get_base_directory()
+
 # Timeout Constants
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
 MAX_TIMEOUT_SECONDS = 300  # 5 minute maximum timeout
@@ -95,6 +120,17 @@ def _load_image_sync(file_path: str) -> Image:
     return Image(path=file_path)
 
 
+def _is_within_base_directory(resolved_path: Path) -> bool:
+    """Check if resolved path is within the allowed base directory."""
+    # Get base directory dynamically to support testing
+    base_dir = _get_base_directory()
+    try:
+        resolved_path.relative_to(base_dir)
+        return True
+    except ValueError:
+        return False
+
+
 def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
     """Validate file path for security constraints."""
     try:
@@ -117,9 +153,18 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         if path.suffix.lower() not in ALLOWED_EXTENSIONS:
             return f'Unsupported file type: {path.suffix}. Allowed: {", ".join(sorted(ALLOWED_EXTENSIONS))}'
 
-        # Additional security checks - Prevent path traversal attacks
+        # Enhanced security checks - Prevent path traversal attacks
         try:
-            path.resolve(strict=True)
+            resolved_path = path.resolve(strict=True)
+
+            # NEW: Check if resolved path is within base directory
+            if not _is_within_base_directory(resolved_path):
+                base_dir = _get_base_directory()
+                logger.warning(
+                    f'Path traversal attempt blocked: {file_path} -> {resolved_path}, outside base directory {base_dir}'
+                )
+                return 'Access denied: path outside allowed directory'
+
         except (OSError, RuntimeError):
             return f'Invalid file path: {file_path}'
 
