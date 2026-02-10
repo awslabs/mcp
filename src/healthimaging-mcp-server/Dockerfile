@@ -45,13 +45,13 @@ ENV PIP_NO_CACHE_DIR=1 \
 RUN --mount=type=cache,target=/root/.cache/uv \
     python3 -m ensurepip && \
     python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+    PATH="/root/.local/bin:$PATH" uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --python 3.13 --frozen --no-dev --no-editable
+    PATH="/root/.local/bin:$PATH" uv sync --python 3.13 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
