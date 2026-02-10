@@ -32,6 +32,7 @@ from .core.common.config import (
     FASTMCP_LOG_LEVEL,
     FILE_ACCESS_MODE,
     HOST,
+    MAX_BATCH_COMMANDS,
     PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
@@ -39,17 +40,16 @@ from .core.common.config import (
     STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
-    MAX_BATCH_COMMANDS,
     FileAccessMode,
     get_server_auth,
 )
-from .core.common.errors import AwsApiMcpError, CliParsingError, CommandValidationError
+from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsCliAliasResponse,
+    CallAWSResponse,
     Credentials,
     ProgramInterpretationResponse,
-    CallAWSResponse,
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
@@ -242,7 +242,8 @@ async def suggest_aws_commands(
 )
 async def call_aws(
     cli_command: Annotated[
-        str | list[str], Field(description='A single command or a list of complete AWS CLI commands to execute')
+        str | list[str],
+        Field(description='A single command or a list of complete AWS CLI commands to execute'),
     ],
     ctx: Context,
     max_results: Annotated[
@@ -251,17 +252,18 @@ async def call_aws(
     ] = None,
 ) -> list[CallAWSResponse]:
     """Call AWS with the given CLI command and return the result as a dictionary."""
-
     commands = [cli_command] if isinstance(cli_command, str) else cli_command
 
     if len(commands) > MAX_BATCH_COMMANDS:
-        raise AwsApiMcpError(f'Number of batch commands exceeds the maximum limit of {MAX_BATCH_COMMANDS}.')
+        raise AwsApiMcpError(
+            f'Number of batch commands exceeds the maximum limit of {MAX_BATCH_COMMANDS}.'
+        )
 
     results = []
     for cmd in commands:
-        try:        
+        try:
             expanded_commands = expand_regions_if_needed(cmd)
-        except CliParsingError as e:
+        except Exception as e:
             results.append(CallAWSResponse(cli_command=cmd, error=str(e)))
         else:
             for expanded_cmd in expanded_commands:
@@ -270,7 +272,7 @@ async def call_aws(
 
 
 async def _execute_single_command(
-    cmd: str, ctx: Context,  max_results: int | None
+    cmd: str, ctx: Context, max_results: int | None
 ) -> CallAWSResponse:
     try:
         response = await call_aws_helper(cmd, ctx, max_results, None)

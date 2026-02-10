@@ -649,3 +649,33 @@ class OperationIsNotSupportedInTheRegionError(CommandValidationError):
                 'region': self._region,
             },
         )
+
+
+class AwsRegionResolutionError(AwsApiMcpError):
+    """Raised when active AWS regions cannot be retrieved.
+
+    This error occurs during multi-region command expansion when the agent
+    attempts to call the AWS Account API to list available regions.
+
+    Common causes and fixes:
+    - Missing "account:ListRegions" IAM permission → grant this permission to the IAM principal in use
+    - Invalid or missing AWS profile → check ~/.aws/credentials and ~/.aws/config
+    - Invalid credentials → ensure credentials are not expired
+    - Account service not accessible → check network connectivity and VPC endpoint configuration
+
+    When handling this error, inform the user that multi-region expansion failed
+    and suggest running the command against specific regions explicitly instead.
+    """
+
+    def __init__(self, reason: str, profile_name: str | None = None):
+        """Initialize AwsRegionResolutionError with error reason and profile name."""
+        self.reason = reason
+        self.profile_name = profile_name
+        profile_info = f'(profile: "{profile_name or "default"}")'
+        message = (
+            f'Failed to retrieve active AWS regions {profile_info}. '
+            f'Multi-region command expansion is unavailable. '
+            f'Check the error reason and fix it, or consider specifying regions explicitly. '
+            f'Reason: {reason}'
+        )
+        super().__init__(message)

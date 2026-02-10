@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import boto3
+from ..common.errors import AwsRegionResolutionError
+from botocore.exceptions import ClientError
 
 
 # These global services don't have regionalized endpoints
@@ -31,18 +33,39 @@ GLOBAL_SERVICE_REGIONS = {
 }
 
 
-def get_active_regions() -> list[str]:
-    account_client = boto3.client('account')
-
-    active_regions = []
-    paginator = account_client.get_paginator('list_regions')
-
-    for page in paginator.paginate():
-        page_regions = page.get('Regions', [])
-        active_regions.extend(
-            region['RegionName']
-            for region in page_regions
-            if region.get('RegionOptStatus') in ['ENABLED', 'ENABLED_BY_DEFAULT']
+def get_active_regions(profile_name: str | None = None) -> list[str]:
+    """Return a list of active regions for the given profile."""
+    session = boto3.Session(profile_name=profile_name)
+    account_client = session.client('account')
+    try:
+        paginator = account_client.get_paginator('list_regions')
+        active_regions = []
+        for page in paginator.paginate():
+            page_regions = page.get('Regions', [])
+            active_regions.extend(
+                region['RegionName']
+                for region in page_regions
+                if region.get('RegionOptStatus') in ['ENABLED', 'ENABLED_BY_DEFAULT']
+            )
+    except ClientError as e:
+        code = e.response['Error']['Code']
+        if code == 'AccessDenied':
+            raise AwsRegionResolutionError(
+                reason=(
+                    f'The IAM principal lacks the "account:ListRegions" permission. '
+                    f'Grant this permission to enable multi-region command expansion. '
+                    f'Details: {e}'
+                ),
+                profile_name=profile_name,
+            )
+        raise AwsRegionResolutionError(
+            reason=f'Unexpected AWS API error while listing regions. Details: {e}',
+            profile_name=profile_name,
+        )
+    except Exception as e:
+        raise AwsRegionResolutionError(
+            reason=f'Unexpected error while retrieving active AWS regions. Details: {e}',
+            profile_name=profile_name,
         )
 
     return active_regions
