@@ -33,9 +33,21 @@ Lists all access patterns with their AWS CLI implementations for testing.
   "tables": [
     {
       "AttributeDefinitions": [
+        // Base table key attributes
         {"AttributeName": "partition_key_name", "AttributeType": "S|N|B"},
         {"AttributeName": "sort_key_name", "AttributeType": "S|N|B"},
-        {"AttributeName": "gsi_key_name", "AttributeType": "S|N|B"}
+
+        // Single-attribute GSI key attributes
+        {"AttributeName": "gsi_partition_key", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_sort_key", "AttributeType": "S|N|B"},
+
+        // Multi-attribute GSI key attributes (EACH attribute must be defined)
+        {"AttributeName": "gsi_pk_attr1", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_pk_attr2", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_sk_attr1", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_sk_attr2", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_sk_attr3", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_sk_attr4", "AttributeType": "S|N|B"}
       ],
       "TableName": "TableName",
       "KeySchema": [
@@ -48,6 +60,21 @@ Lists all access patterns with their AWS CLI implementations for testing.
           "KeySchema": [
             {"AttributeName": "gsi_partition_key", "KeyType": "HASH"},
             {"AttributeName": "gsi_sort_key", "KeyType": "RANGE"}
+          ],
+          "Projection": {
+            "ProjectionType": "ALL|KEYS_ONLY|INCLUDE",
+            "NonKeyAttributes": ["attr1", "attr2"]
+          }
+        },
+        {
+          "IndexName": "MultiAttributeGSIName",
+          "KeySchema": [
+            {"AttributeName": "gsi_pk_attr1", "KeyType": "HASH"},
+            {"AttributeName": "gsi_pk_attr2", "KeyType": "HASH"},
+            {"AttributeName": "gsi_sk_attr1", "KeyType": "RANGE"},
+            {"AttributeName": "gsi_sk_attr2", "KeyType": "RANGE"},
+            {"AttributeName": "gsi_sk_attr3", "KeyType": "RANGE"},
+            {"AttributeName": "gsi_sk_attr4", "KeyType": "RANGE"}
           ],
           "Projection": {
             "ProjectionType": "ALL|KEYS_ONLY|INCLUDE",
@@ -100,6 +127,36 @@ Generate boto3 `create_table` format with AttributeDefinitions, TableName, KeySc
 - **If multiple GSIs exist** for a table, include all of them in the GlobalSecondaryIndexes array
 - **For each GSI**: Include IndexName, KeySchema, Projection with correct ProjectionType
 - **Use INCLUDE projection** with NonKeyAttributes from "Per‑Pattern Projected Attributes" section
+- **CRITICAL - NonKeyAttributes**: When using INCLUDE projection, NEVER include key attributes in NonKeyAttributes array. Key attributes (partition key, sort key, base table keys, and ALL multi-attribute key components) are automatically projected. Only include non-key attributes.
+
+#### Multi-Attribute Keys in GSIs (Only When Detected)
+
+**IMPORTANT: Multi-attribute keys are NOT the default. Only use when explicitly indicated in dynamodb_data_model.md.**
+
+**What are Multi-Attribute Keys?**
+Multi-attribute keys allow GSI keys to be composed of multiple discrete attributes (up to 4 per key type). Each attribute is listed separately in the KeySchema with the same KeyType. This is a native DynamoDB feature - NOT string concatenation.
+
+**CRITICAL: Multi-Attribute Keys vs Concatenated Strings**
+- ❌ **WRONG - Concatenated String**: `{"AttributeName": "composite_key", "AttributeType": "S"}` with value `"TOURNAMENT#WINTER2024#REGION#NA-EAST"`
+- ✅ **CORRECT - Multi-Attribute Key**: Multiple KeySchema entries with same KeyType:
+  ```json
+  {"AttributeName": "tournamentId", "KeyType": "HASH"},
+  {"AttributeName": "region", "KeyType": "HASH"}
+  ```
+
+**Detecting Multi-Attribute Keys:**
+Look in `dynamodb_data_model.md` for:
+- GSI table showing multiple attributes in keys (e.g., "Partition Key: factory_id, status (2 attributes)" or "Sort Key: status, created_at (multi-attribute)")
+- Mentions of "multi-attribute keys", "composite keys", or "Multi-Attribute Key Decision"
+- GSI documentation stating "Sort Key: attr1, attr2 (multi-attribute)" format
+
+**If NOT detected: Use standard single-attribute keys** (one HASH, optionally one RANGE per GSI)
+
+**If detected, How to Generate:**
+- Multiple attributes with same KeyType (HASH or RANGE) in GSI KeySchema
+- ALL attributes must be in AttributeDefinitions with their native types (S, N, or B)
+- Each attribute is a separate entry in KeySchema - DO NOT concatenate values into a single attribute
+- Example: `{"AttributeName": "factory_id", "KeyType": "HASH"}, {"AttributeName": "status", "KeyType": "HASH"}` creates 2-attribute partition key
 
 ### Items Section Rules
 
@@ -126,8 +183,28 @@ Convert to new format with keys: pattern, description, table/index (optional), d
   - **Use single quotes** around all JSON parameters (--expression-attribute-values, --item, --key, --transact-items, etc.)
   - **Use correct AWS CLI boolean syntax**: `--flag` for true, `--no-flag` for false (e.g., `--no-scan-index-forward` NOT `--scan-index-forward false`)
   - **Commands must be executable** and syntactically correct with valid JSON syntax
+  - **CRITICAL - Query Filter Expressions**: For Query operations, NEVER use `--filter-expression` on key attributes (partition key, sort key, or any GSI key attributes including multi-attribute key components). Key attributes can ONLY be used in `--key-condition-expression`. Filter expressions can only reference non-key attributes. Note: Scan operations CAN use key attributes in filter expressions.
+  - **CRITICAL - Handling != Operator with Sparse GSI**: If Implementation Notes contain `!=` or `<>` on a key attribute AND mention "Sparse GSI" (or if GSI documentation mentions "Sparse:" with an attribute name), the sparse GSI already excludes those items at the index level. Generate query with ONLY the partition key (and optionally other sort key attributes for filtering) in key-condition-expression. Do NOT try to implement the != condition in the query - it's handled by the sparse GSI design.
 - **Preserve pattern ranges** (e.g. "1-2") when multiple patterns share the same description, operation, and implementation
 - **Split pattern ranges** when multiple operations exist (e.g. "16-19" with GetItem/UpdateItem becomes two entries: "16-19" with GetItem operation and "16-19" with UpdateItem operation)
+
+#### Multi-Attribute Key Query Rules (Only When GSI Uses Multi-Attribute Keys)
+
+**IMPORTANT: These rules only apply to GSIs that use multi-attribute keys. Standard single-attribute GSIs follow normal query rules.**
+
+When generating AWS CLI commands for GSIs with multi-attribute keys:
+
+**Partition Key Requirements:**
+- ALL partition key attributes MUST be specified with equality (`=`)
+- Cannot skip any partition key attribute
+- Cannot use inequality operators on partition keys
+- Example: GSI with `tournamentId + region` partition key requires: `tournamentId = :t AND region = :r`
+
+**Sort Key Requirements:**
+- Query left-to-right in KeySchema order
+- Cannot skip attributes (can't query attr1 + attr3 while skipping attr2)
+- Inequality operators (`>`, `>=`, `<`, `<=`, `BETWEEN`, `begins_with()`) must be LAST
+- Example: GSI with `round + bracket` sort key allows: `round = :r` OR `round = :r AND bracket = :b` OR `round >= :r` (but NOT `bracket = :b` alone)
 
 ### Output Requirements
 
