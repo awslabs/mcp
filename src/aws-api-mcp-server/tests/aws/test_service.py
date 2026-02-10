@@ -6,6 +6,7 @@ from awslabs.aws_api_mcp_server.core.aws.service import (
     execute_awscli_customization,
     interpret_command,
     is_operation_read_only,
+    expand_regions_if_needed,
     validate,
 )
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
@@ -804,3 +805,70 @@ def test_execute_awscli_customization_raises_error(mock_get_driver):
             execute_awscli_customization(cli_command, ir_command)
 
         assert cli_command in str(exc_info.value)
+
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "aws s3 ls",
+        "aws account list-regions"        
+    ],
+)
+def test_expand_regions_if_needed_no_region(command):
+    """Test _expand_regions_if_needed with no --region parameter."""
+    result = expand_regions_if_needed(command)
+    assert result == [command]
+    
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "aws s3 ls --region us-east-1",
+        "aws s3api list-buckets --region ap-south-1 --output json",
+    ],
+)
+def test_expand_regions_if_needed_specific_region(command):
+    """Test _expand_regions_if_needed with specific region in different positions."""
+    result = expand_regions_if_needed(command)
+    assert result == [command]
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("aws s3 ls --region *", ["aws s3 ls --region us-east-1", "aws s3 ls --region us-west-2"]),
+        ("aws s3api list-buckets --region * --output json", ["aws s3api list-buckets --output json --region us-east-1", "aws s3api list-buckets --output json --region us-west-2"]),
+    ],
+)
+def test_expand_regions_if_needed_wildcard(mock_get_active_regions, command, expected):
+    """Test _expand_regions_if_needed with wildcard region."""
+    mock_get_active_regions.return_value = ['us-east-1', 'us-west-2']
+    
+    result = expand_regions_if_needed(command)    
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "command,expected_error",
+    [
+        ("aws s3 ls --region", "--region parameter requires a value"),
+        ("aws s3 ls --region --output json", "--region parameter requires a value"),
+    ],
+)
+def test_expand_regions_if_needed_invalid_region(command, expected_error):
+    """Test _expand_regions_if_needed with invalid --region parameter."""
+    from awslabs.aws_api_mcp_server.core.common.errors import CliParsingError
+    with pytest.raises(CliParsingError, match=expected_error):
+        expand_regions_if_needed(command)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_active_regions')
+def test_expand_regions_if_needed_get_regions_fails(mock_get_active_regions):
+    """Test _expand_regions_if_needed when get_active_regions raises exception."""
+    from awslabs.aws_api_mcp_server.core.common.errors import CliParsingError
+    mock_get_active_regions.side_effect = Exception("AWS API error")
+    
+    with pytest.raises(CliParsingError, match="Failed to get active regions: AWS API error"):
+        expand_regions_if_needed("aws s3 ls --region *")

@@ -14,8 +14,9 @@
 
 import contextlib
 from ..aws.services import get_awscli_driver
+from ..aws.regions import get_active_regions
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
-from ..common.errors import AwsApiMcpError, Failure
+from ..common.errors import AwsApiMcpError, Failure, CliParsingError
 from ..common.help_command import generate_help_document
 from ..common.models import (
     AwsCliAliasResponse,
@@ -279,3 +280,27 @@ def _to_context(context: dict[str, Any] | None) -> ContextAPIModel | None:
         args=context.get('args'),
         parameters=context.get('parameters'),
     )
+
+
+def expand_regions_if_needed(cli_command: str) -> list[str]:
+    if "--region" not in cli_command:
+        return [cli_command]
+    
+    parts = cli_command.split()
+    try:
+        region_idx = parts.index("--region")
+        if region_idx + 1 == len(parts):
+            raise CliParsingError("--region parameter requires a value")
+        region_value = parts[region_idx + 1]
+        if region_value.startswith("--"):
+            raise CliParsingError("--region parameter requires a value")
+        if region_value == "*":
+            base_command = " ".join(parts[:region_idx] + parts[region_idx + 2:])
+            try:
+                regions = get_active_regions()
+                return [base_command + f' --region {region}' for region in regions]
+            except Exception as e:
+                raise CliParsingError(f"Failed to get active regions: {e}")
+    except (ValueError, IndexError):
+        raise CliParsingError("Cannot parse --region parameter")
+    return [cli_command]

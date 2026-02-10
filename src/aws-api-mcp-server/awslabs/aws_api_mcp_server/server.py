@@ -16,10 +16,10 @@ import os
 import sys
 from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
-from .core.aws.regions import get_active_regions
 from .core.aws.service import (
     check_security_policy,
     execute_awscli_customization,
+    expand_regions_if_needed,
     get_help_document,
     interpret_command,
     request_consent,
@@ -39,6 +39,7 @@ from .core.common.config import (
     STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
+    MAX_BATCH_COMMANDS,
     FileAccessMode,
     get_server_auth,
 )
@@ -193,7 +194,7 @@ async def suggest_aws_commands(
     - Do not generate explicit batch calls for iterating over all regions, use `--region *` instead.
 
     Single Command Mode:
-    - You can run a single AWS CLI command usign this tool.
+    - You can run a single AWS CLI command using this tool.
     - Example:
         call_aws(cli_command="aws s3api list-buckets --region us-east-1")
 
@@ -208,6 +209,7 @@ async def suggest_aws_commands(
                 "aws s3api get-bucket-website --bucket bucket2"
             ]
         )
+    - You can call at most {MAX_BATCH_COMMANDS} CLI commands in batch mode.
 
     Best practices for command generation:
     - Always use the most specific service and operation names
@@ -251,39 +253,20 @@ async def call_aws(
     """Call AWS with the given CLI command and return the result as a dictionary."""
 
     commands = [cli_command] if isinstance(cli_command, str) else cli_command
-    if not isinstance(commands, list):
-        raise AwsApiMcpError("Tool input error. call_aws command accepts a string for a single command and list for multiple commands.")
+
+    if len(commands) > MAX_BATCH_COMMANDS:
+        raise AwsApiMcpError(f'Number of batch commands exceeds the maximum limit of {MAX_BATCH_COMMANDS}.')
 
     results = []
     for cmd in commands:
         try:        
-            expanded_commands = _expand_regions_if_needed(cmd)
+            expanded_commands = expand_regions_if_needed(cmd)
         except CliParsingError as e:
             results.append(CallAWSResponse(cli_command=cmd, error=str(e)))
         else:
             for expanded_cmd in expanded_commands:
                 results.append(await _execute_single_command(expanded_cmd, ctx, max_results))
     return results
-
-
-def _expand_regions_if_needed(cli_command: str) -> list[str]:
-    if "--region" not in cli_command:
-        return [cli_command]
-    
-    parts = cli_command.split()
-    try:
-        region_idx = parts.index("--region")
-        if region_idx + 1 == len(parts):
-            raise CliParsingError("--region parameter requires a value")
-        region_value = parts[region_idx + 1]
-        if region_value.startswith("--"):
-            raise CliParsingError("--region parameter requires a value")
-        if region_value == "*":
-            base_command = " ".join(parts[:region_idx] + parts[region_idx + 2:])
-            return [base_command + f' --region {region}' for region in get_active_regions()]
-    except (ValueError, IndexError):
-        raise CliParsingError("Cannot parse --region parameter")
-    return [cli_command]
 
 
 async def _execute_single_command(

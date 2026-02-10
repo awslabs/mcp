@@ -31,7 +31,6 @@ GLOBAL_SERVICE_REGIONS = {
 }
 
 
-
 def get_active_regions() -> list[str]:
     account_client = boto3.client('account')
 
@@ -40,10 +39,10 @@ def get_active_regions() -> list[str]:
 
     for page in paginator.paginate():
         page_regions = page.get('Regions', [])
-        active_regions.extend([
+        active_regions.extend(
             region['RegionName']
             for region in page_regions
             if region.get('RegionOptStatus') in ['ENABLED', 'ENABLED_BY_DEFAULT']
-        ])
+        )
 
     return active_regions
