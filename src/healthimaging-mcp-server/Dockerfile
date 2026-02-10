@@ -38,13 +38,12 @@ ENV UV_FROZEN=true
 COPY pyproject.toml uv.lock ./
 
 # Install uv using the official installer
-RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
-    . $HOME/.cargo/env
+RUN wget -qO- https://astral.sh/uv/install.sh | sh
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/root/.cargo/bin:$PATH"
+    PATH="/root/.local/bin:$PATH"
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -74,7 +73,7 @@ RUN dnf install -y shadow-utils procps python3 python3-devel wget tar gcc && \
     chmod o+x /root
 
 # Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.cargo /root/.cargo
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
