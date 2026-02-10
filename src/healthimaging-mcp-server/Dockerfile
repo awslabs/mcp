@@ -16,7 +16,7 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20 AS uv
 
 # Install build dependencies needed for compiling packages
-RUN dnf install -y shadow-utils python3 python3-devel wget tar gzip gcc && \
+RUN dnf install -y shadow-utils python3 python3-devel gcc && \
     dnf clean all
 
 # Install the project into `/app`
@@ -35,18 +35,16 @@ ENV UV_PYTHON_PREFERENCE=only-managed
 ENV UV_FROZEN=true
 
 # Copy the required files first
-COPY pyproject.toml uv.lock ./
-
-# Install uv using the official installer
-RUN wget -qO- https://astral.sh/uv/install.sh | sh
+COPY pyproject.toml uv.lock uv-requirements.txt ./
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/root/.local/bin:$PATH"
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
@@ -66,7 +64,7 @@ ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
 
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
-RUN dnf install -y shadow-utils procps python3 python3-devel wget tar gcc && \
+RUN dnf install -y shadow-utils procps && \
     dnf clean all && \
     groupadd --force --system app && \
     useradd app -g app -d /app && \
