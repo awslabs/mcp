@@ -35,23 +35,26 @@ ENV UV_PYTHON_PREFERENCE=only-managed
 ENV UV_FROZEN=true
 
 # Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY pyproject.toml uv.lock ./
+
+# Install uv using the official installer
+RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
+    . $HOME/.cargo/env
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PATH="/root/.cargo/bin:$PATH"
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    python3 -m ensurepip && \
-    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    PATH="/root/.local/bin:$PATH" uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    PATH="/root/.local/bin:$PATH" uv sync --python 3.13 --frozen --no-dev --no-editable
+    uv sync --python 3.13 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
@@ -71,7 +74,7 @@ RUN dnf install -y shadow-utils procps python3 python3-devel wget tar gcc && \
     chmod o+x /root
 
 # Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.local /root/.local
+COPY --from=uv --chown=app:app /root/.cargo /root/.cargo
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
