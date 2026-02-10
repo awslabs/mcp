@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "Game": {
+      "access_pattern_data": {
+        "game_id": "game-98765",
+        "genre": "Racing",
+        "is_active": true,
+        "max_players": 12,
+        "publisher": "Speed Studios",
+        "release_date": "2023-11-15T00:00:00Z",
+        "title": "Cyber Racing Championship"
+      },
+      "sample_data": {
+        "game_id": "game-12345",
+        "genre": "Action",
+        "is_active": true,
+        "max_players": 4,
+        "publisher": "Galactic Games Studio",
+        "release_date": "2024-01-01T00:00:00Z",
+        "title": "Space Defenders"
+      },
+      "update_data": {
+        "max_players": 8,
+        "publisher": "Galactic Games Studio Inc.",
+        "title": "Space Defenders: Ultimate Edition"
+      }
+    },
+    "LeaderboardEntry": {
+      "access_pattern_data": {
+        "achieved_at": "2024-01-18T20:15:00Z",
+        "game_id": "game-98765",
+        "level_reached": 22,
+        "play_duration_seconds": 4200,
+        "player_id": "player-11111",
+        "player_name": "SpeedDemon",
+        "score": 156000
+      },
+      "sample_data": {
+        "achieved_at": "2024-01-20T14:30:00Z",
+        "game_id": "game-12345",
+        "level_reached": 15,
+        "play_duration_seconds": 2700,
+        "player_id": "player-67890",
+        "player_name": "ProGamer123",
+        "score": 85000
+      },
+      "update_data": {
+        "level_reached": 17,
+        "play_duration_seconds": 3120,
+        "score": 92000
+      }
+    },
+    "PlayerAchievement": {
+      "access_pattern_data": {
+        "achievement_id": "achievement-55555",
+        "achievement_name": "Speed Master",
+        "description": "Complete a race in under 2 minutes",
+        "game_id": "game-98765",
+        "player_id": "player-22222",
+        "points": 500,
+        "rarity": "rare",
+        "unlocked_at": "2024-01-16T12:30:00Z"
+      },
+      "sample_data": {
+        "achievement_id": "achievement-11111",
+        "achievement_name": "First Victory",
+        "description": "Win your first game",
+        "game_id": "game-12345",
+        "player_id": "player-67890",
+        "points": 100,
+        "rarity": "common",
+        "unlocked_at": "2024-01-18T16:45:00Z"
+      },
+      "update_data": {
+        "achievement_name": "First Victory - Updated",
+        "description": "Win your first game and earn bonus points",
+        "points": 150
+      }
+    },
+    "TournamentEntry": {
+      "access_pattern_data": {
+        "matches_played": 8,
+        "player_id": "player-33333",
+        "player_name": "CyberChampion",
+        "prize_amount": 75.0,
+        "ranking": 12,
+        "total_score": 45000,
+        "tournament_id": "tournament-77777",
+        "wins": 5
+      },
+      "sample_data": {
+        "matches_played": 3,
+        "player_id": "player-67890",
+        "player_name": "ProGamer123",
+        "prize_amount": 150.0,
+        "ranking": 5,
+        "total_score": 78000,
+        "tournament_id": "tournament-22222",
+        "wins": 2
+      },
+      "update_data": {
+        "matches_played": 5,
+        "prize_amount": 300.0,
+        "ranking": 3,
+        "total_score": 89000,
+        "wins": 4
+      }
+    }
+  }
+}
