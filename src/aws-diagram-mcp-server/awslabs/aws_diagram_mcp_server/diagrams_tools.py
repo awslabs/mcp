@@ -19,8 +19,9 @@ import importlib
 import inspect
 import logging
 import os
+import platform
 import re
-import signal
+import threading
 import uuid
 from awslabs.aws_diagram_mcp_server.models import (
     DiagramExampleResponse,
@@ -292,20 +293,32 @@ from diagrams.aws.enduser import *
                 # Replace in the code
                 code = code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
 
-        # Set up a timeout handler
-        def timeout_handler(signum, frame):
+        # Set up a cross-platform timeout mechanism
+        execution_error = None
+        execution_complete = threading.Event()
+
+        def execute_with_timeout():
+            nonlocal execution_error
+            try:
+                # Execute the code
+                # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
+                exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            except Exception as e:
+                execution_error = e
+            finally:
+                execution_complete.set()
+
+        # Start execution in a separate thread
+        execution_thread = threading.Thread(target=execute_with_timeout, daemon=True)
+        execution_thread.start()
+
+        # Wait for completion or timeout
+        if not execution_complete.wait(timeout=timeout):
             raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
 
-        # Register the timeout handler
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-
-        # Execute the code
-        # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
-
-        # Cancel the alarm
-        signal.alarm(0)
+        # Re-raise any execution errors
+        if execution_error:
+            raise execution_error
 
         # Check if the file was created
         png_path = f'{output_path}.png'
