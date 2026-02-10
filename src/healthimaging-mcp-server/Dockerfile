@@ -16,7 +16,7 @@
 FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20 AS uv
 
 # Install build dependencies needed for compiling packages
-RUN dnf install -y shadow-utils python3 python3-devel wget tar gcc && \
+RUN dnf install -y shadow-utils python3 python3-devel wget tar gzip gcc && \
     dnf clean all
 
 # Install the project into `/app`
