@@ -106,11 +106,64 @@ or docker after a successful `docker build -t mcp/aws-documentation .`:
 }
 ```
 
+### HTTP Transport Mode (for ECS/Container Deployments)
+
+The server supports `streamable-http` transport mode for containerized deployments on platforms like Amazon ECS, Kubernetes, or behind load balancers.
+
+**Environment Variables for HTTP Mode:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `FASTMCP_TRANSPORT` | Transport mode (`stdio` or `streamable-http`) | `stdio` |
+| `FASTMCP_HOST` | Host to bind HTTP server | `127.0.0.1` |
+| `FASTMCP_PORT` | Port for HTTP server | `8000` |
+
+**Docker Example with HTTP Mode:**
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e FASTMCP_TRANSPORT=streamable-http \
+  -e FASTMCP_HOST=0.0.0.0 \
+  -e FASTMCP_PORT=8000 \
+  -e AWS_DOCUMENTATION_PARTITION=aws \
+  mcp/aws-documentation:latest
+```
+
+**MCP Client Configuration for HTTP Mode:**
+
+```json
+{
+  "mcpServers": {
+    "aws-doc-remote": {
+      "url": "https://your-domain.com/mcp",
+      "headers": {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json"
+      },
+      "autoApprove": ["read_documentation", "get_available_services"]
+    }
+  }
+}
+```
+
+**Testing HTTP Endpoint:**
+
+```bash
+curl -X POST http://localhost:8000/mcp \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+```
+
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|----------|
 | `FASTMCP_LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `WARNING` |
+| `FASTMCP_TRANSPORT` | Transport mode (`stdio` or `streamable-http`) | `stdio` |
+| `FASTMCP_HOST` | Host to bind HTTP server (HTTP mode only) | `127.0.0.1` |
+| `FASTMCP_PORT` | Port for HTTP server (HTTP mode only) | `8000` |
 | `AWS_DOCUMENTATION_PARTITION` | AWS partition (`aws` or `aws-cn`) | `aws` |
 | `MCP_USER_AGENT` | Custom User-Agent string for HTTP requests | Chrome-based default |
 

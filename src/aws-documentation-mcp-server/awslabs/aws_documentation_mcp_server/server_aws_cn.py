@@ -31,12 +31,19 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
+import os
 
 
 SESSION_UUID = str(uuid.uuid4())
 
+# Read FastMCP settings from environment variables
+FASTMCP_HOST = os.getenv('FASTMCP_HOST', '127.0.0.1')
+FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
+
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
+    host=FASTMCP_HOST,
+    port=FASTMCP_PORT,
     instructions="""
     # AWS China Documentation MCP Server
 
@@ -241,10 +248,12 @@ async def get_available_services(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    # Log startup information
-    logger.info('Starting AWS China Documentation MCP Server')
-
-    mcp.run()
+    import os
+    
+    transport = os.getenv('FASTMCP_TRANSPORT', 'stdio')
+    logger.info(f'Starting AWS China Documentation MCP Server with {transport} transport')
+    
+    mcp.run(transport=transport)
 
 
 if __name__ == '__main__':
