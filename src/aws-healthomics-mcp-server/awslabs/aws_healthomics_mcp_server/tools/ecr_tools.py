@@ -43,6 +43,7 @@ from awslabs.aws_healthomics_mcp_server.utils.ecr_utils import (
     get_pull_through_cache_rule_for_repository,
     initiate_pull_through_cache,
 )
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -158,33 +159,8 @@ async def list_ecr_repositories(
 
         return result.model_dump()
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-
-        if error_code == 'AccessDeniedException':
-            required_actions = ['ecr:DescribeRepositories', 'ecr:GetRepositoryPolicy']
-            logger.error(f'Access denied to ECR: {error_message}')
-            await ctx.error(
-                f'Access denied to ECR. Ensure IAM permissions include: {required_actions}'
-            )
-            raise
-        else:
-            logger.error(f'ECR API error: {error_code} - {error_message}')
-            await ctx.error(f'ECR error: {error_message}')
-            raise
-
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-
     except Exception as e:
-        error_message = f'Unexpected error listing ECR repositories: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing ECR repositories')
 
 
 def _is_pull_through_cache_repository(repository_name: str) -> bool:
@@ -674,17 +650,8 @@ async def check_container_availability(
             await ctx.error(f'ECR error: {error_message}')
             raise
 
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-
     except Exception as e:
-        error_message = f'Unexpected error checking container availability: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error checking container availability')
 
 
 async def list_pull_through_cache_rules(
@@ -822,37 +789,8 @@ async def list_pull_through_cache_rules(
 
         return result.model_dump()
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-
-        if error_code == 'AccessDeniedException':
-            required_actions = [
-                'ecr:DescribePullThroughCacheRules',
-                'ecr:GetRegistryPolicy',
-                'ecr:DescribeRepositoryCreationTemplates',
-            ]
-            logger.error(f'Access denied to ECR: {error_message}')
-            await ctx.error(
-                f'Access denied to ECR. Ensure IAM permissions include: {required_actions}'
-            )
-            raise
-        else:
-            logger.error(f'ECR API error: {error_code} - {error_message}')
-            await ctx.error(f'ECR error: {error_message}')
-            raise
-
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-
     except Exception as e:
-        error_message = f'Unexpected error listing pull-through cache rules: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing pull-through cache rules')
 
 
 async def create_pull_through_cache_for_healthomics(
@@ -1101,29 +1039,8 @@ async def create_pull_through_cache_for_healthomics(
                 'message': f'ECR error: {error_message}',
             }
 
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        return {
-            'success': False,
-            'rule': created_rule.model_dump() if created_rule else None,
-            'registry_policy_updated': registry_policy_updated,
-            'repository_template_created': repository_template_created,
-            'message': error_message,
-        }
-
     except Exception as e:
-        error_message = f'Unexpected error creating pull-through cache: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        return {
-            'success': False,
-            'rule': created_rule.model_dump() if created_rule else None,
-            'registry_policy_updated': registry_policy_updated,
-            'repository_template_created': repository_template_created,
-            'message': error_message,
-        }
+        return await handle_tool_error(ctx, e, 'Error creating pull-through cache for HealthOmics')
 
 
 async def _update_registry_policy_for_healthomics(
@@ -1583,37 +1500,8 @@ async def validate_healthomics_ecr_config(
 
         return result.model_dump()
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', '')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-
-        if error_code == 'AccessDeniedException':
-            required_actions = [
-                'ecr:DescribePullThroughCacheRules',
-                'ecr:GetRegistryPolicy',
-                'ecr:DescribeRepositoryCreationTemplates',
-            ]
-            logger.error(f'Access denied to ECR: {error_message}')
-            await ctx.error(
-                f'Access denied to ECR. Ensure IAM permissions include: {required_actions}'
-            )
-            raise
-        else:
-            logger.error(f'ECR API error: {error_code} - {error_message}')
-            await ctx.error(f'ECR error: {error_message}')
-            raise
-
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-
     except Exception as e:
-        error_message = f'Unexpected error validating ECR configuration: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error validating HealthOmics ECR configuration')
 
 
 async def grant_healthomics_repository_access(
@@ -2766,24 +2654,5 @@ async def clone_container_to_ecr(
                 message=f'ECR error: {error_message}',
             ).model_dump()
 
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error accessing ECR: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        return CloneContainerResponse(
-            success=False,
-            source_image=source_image,
-            source_registry=source_registry,
-            message=error_message,
-        ).model_dump()
-
     except Exception as e:
-        error_message = f'Unexpected error cloning container: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        return CloneContainerResponse(
-            success=False,
-            source_image=source_image,
-            source_registry=source_registry,
-            message=error_message,
-        ).model_dump()
+        return await handle_tool_error(ctx, e, 'Error cloning container to ECR')

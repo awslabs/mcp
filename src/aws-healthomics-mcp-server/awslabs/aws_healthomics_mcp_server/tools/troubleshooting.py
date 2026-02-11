@@ -14,14 +14,13 @@
 
 """Troubleshooting tools for the AWS HealthOmics MCP server."""
 
-import botocore
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs_internal,
     get_run_manifest_logs_internal,
     get_task_logs_internal,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -409,18 +408,5 @@ async def diagnose_run_failure(
         )
         return diagnosis
 
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error diagnosing run failure for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error diagnosing run failure for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error diagnosing run failure for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error diagnosing run failure')
