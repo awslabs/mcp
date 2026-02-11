@@ -239,9 +239,9 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
         '__import__',
         'pickle.loads',
         'spawn(',
-         'getattr(',  
-        'setattr(', 
-        '__getattribute__', 
+        'getattr(',
+        'setattr(',
+        '__getattribute__',
         '__getattr__',
     ]
 
