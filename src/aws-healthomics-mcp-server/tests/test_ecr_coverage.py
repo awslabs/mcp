@@ -1156,14 +1156,16 @@ class TestCheckContainerAvailabilityEdgeCases:
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await check_container_availability(
-                    ctx=mock_ctx,
-                    repository_name='my-repo',
-                    image_tag='latest',
-                    image_digest=None,
-                    initiate_pull_through=False,
-                )
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest=None,
+                initiate_pull_through=False,
+            )
+
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_unexpected_exception_handling(self):
@@ -1178,14 +1180,16 @@ class TestCheckContainerAvailabilityEdgeCases:
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception, match='Unexpected error'):
-                await check_container_availability(
-                    ctx=mock_ctx,
-                    repository_name='my-repo',
-                    image_tag='latest',
-                    image_digest=None,
-                    initiate_pull_through=False,
-                )
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest=None,
+                initiate_pull_through=False,
+            )
+
+        assert 'error' in result
+        assert 'Error' in result['error']
 
 
 # =============================================================================
@@ -1197,7 +1201,7 @@ class TestListECRRepositoriesEdgeCases:
     """Additional edge case tests for list_ecr_repositories."""
 
     @pytest.mark.asyncio
-    async def test_unexpected_exception_handling(self):
+    async def test_unexpected_exception(self):
         """Test unexpected exception handling."""
         mock_client = MagicMock()
         mock_ctx = AsyncMock()
@@ -1208,13 +1212,15 @@ class TestListECRRepositoriesEdgeCases:
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception, match='Unexpected error'):
-                await list_ecr_repositories(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                    filter_healthomics_accessible=False,
-                )
+            result = await list_ecr_repositories(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+                filter_healthomics_accessible=False,
+            )
+
+        assert 'error' in result
+        assert 'Error' in result['error']
 
 
 # =============================================================================
@@ -1378,8 +1384,10 @@ class TestValidateHealthOmicsECRConfigAdditional:
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception, match='Unexpected'):
-                await validate_healthomics_ecr_config(ctx=mock_ctx)
+            result = await validate_healthomics_ecr_config(ctx=mock_ctx)
+
+        assert 'error' in result
+        assert 'Error' in result['error']
 
 
 # =============================================================================
@@ -1796,12 +1804,14 @@ class TestListPullThroughCacheRulesEdgeCases:
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception, match='Unexpected error'):
-                await list_pull_through_cache_rules(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                )
+            result = await list_pull_through_cache_rules(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+            )
+
+        assert 'error' in result
+        assert 'Error' in result['error']
 
 
 class TestGrantHealthOmicsRepositoryAccessEdgeCases:

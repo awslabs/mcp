@@ -14,7 +14,6 @@
 
 """Workflow execution tools for the AWS HealthOmics MCP server."""
 
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
@@ -27,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     STORAGE_TYPES,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
 from datetime import datetime
 from loguru import logger
@@ -181,45 +181,44 @@ async def start_run(
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
 
     Returns:
-        Dictionary containing the run information
+        Dictionary containing the run information or error dict
     """
     # Validate parameters first, before creating client
     # Validate storage type
     if storage_type not in STORAGE_TYPES:
-        error_message = ERROR_INVALID_STORAGE_TYPE.format(STORAGE_TYPES)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_STORAGE_TYPE.format(STORAGE_TYPES)),
+            'Invalid storage type',
+        )
 
     # Validate storage capacity for STATIC storage
     if storage_type == STORAGE_TYPE_STATIC and storage_capacity is None:
-        error_message = ERROR_STATIC_STORAGE_REQUIRES_CAPACITY
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx, ValueError(ERROR_STATIC_STORAGE_REQUIRES_CAPACITY), 'Missing storage capacity'
+        )
 
     # Validate cache behavior
     if cache_behavior and cache_behavior not in CACHE_BEHAVIORS:
-        error_message = ERROR_INVALID_CACHE_BEHAVIOR.format(CACHE_BEHAVIORS)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_CACHE_BEHAVIOR.format(CACHE_BEHAVIORS)),
+            'Invalid cache behavior',
+        )
 
     # Validate that cache_behavior requires cache_id
     if cache_behavior and not cache_id:
-        error_message = 'cache_behavior requires cache_id to be provided'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx,
+            ValueError('cache_behavior requires cache_id to be provided'),
+            'Invalid cache configuration',
+        )
 
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
     except ValueError as e:
-        error_message = f'Invalid S3 URI: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Invalid S3 URI')
 
     client = get_omics_client()
 
@@ -256,16 +255,8 @@ async def start_run(
             'workflowVersionName': workflow_version_name,
             'outputUri': output_uri,
         }
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error starting run: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error starting run: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error starting run')
 
 
 async def list_runs(
@@ -304,33 +295,26 @@ async def list_runs(
         created_before: Filter for runs created before this timestamp (ISO format)
 
     Returns:
-        Dictionary containing run information and next token if available
+        Dictionary containing run information and next token if available, or error dict
     """
     # Validate all parameters first, before creating client
     if status and status not in RUN_STATUSES:
-        error_message = ERROR_INVALID_RUN_STATUS.format(RUN_STATUSES)
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
+        return await handle_tool_error(
+            ctx, ValueError(ERROR_INVALID_RUN_STATUS.format(RUN_STATUSES)), 'Invalid run status'
+        )
 
     # Validate datetime filters
     if created_after:
         try:
             parse_iso_datetime(created_after)
         except ValueError as e:
-            error_message = f'Invalid created_after datetime: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+            return await handle_tool_error(ctx, e, 'Invalid created_after datetime')
 
     if created_before:
         try:
             parse_iso_datetime(created_before)
         except ValueError as e:
-            error_message = f'Invalid created_before datetime: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+            return await handle_tool_error(ctx, e, 'Invalid created_before datetime')
 
     client = get_omics_client()
 
@@ -430,21 +414,8 @@ async def list_runs(
                 result['nextToken'] = current_token
             return result
 
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing runs: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing runs')
 
 
 async def get_run(
@@ -461,7 +432,7 @@ async def get_run(
         run_id: ID of the run to retrieve
 
     Returns:
-        Dictionary containing run details including:
+        Dictionary containing run details or error dict including:
         - Basic run information (id, arn, name, status)
         - Workflow information (workflowId, workflowType, workflowVersionName)
         - Timing information (creationTime, startTime, stopTime)
@@ -507,21 +478,8 @@ async def get_run(
                 result[field] = response[field]
 
         return result
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error getting run {run_id}')
 
 
 async def list_run_tasks(
@@ -597,16 +555,8 @@ async def list_run_tasks(
             result['nextToken'] = response['nextToken']
 
         return result
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing tasks for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing tasks for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error listing tasks for run {run_id}')
 
 
 async def get_run_task(
@@ -659,18 +609,5 @@ async def get_run_task(
             result['imageDetails'] = response['imageDetails']
 
         return result
-    except botocore.exceptions.ClientError as e:
-        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting task {task_id} for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, f'Error getting task {task_id} for run {run_id}')
