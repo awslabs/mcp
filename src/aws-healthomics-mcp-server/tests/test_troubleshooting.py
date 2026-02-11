@@ -392,18 +392,15 @@ class TestDiagnoseRunFailure:
             operation_name='GetRun',
         )
 
-        # Act & Assert
-        with pytest.raises(botocore.exceptions.ClientError):
-            await diagnose_run_failure(
-                ctx=mock_context,
-                run_id='run-12345',
-            )
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'AWS error diagnosing run failure' in error_call_args
-        assert 'run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error diagnosing run failure' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
     @pytest.mark.asyncio
@@ -416,18 +413,15 @@ class TestDiagnoseRunFailure:
         # Arrange
         mock_get_omics_client.side_effect = Exception('Unexpected error')
 
-        # Act & Assert
-        with pytest.raises(Exception, match='Unexpected error'):
-            await diagnose_run_failure(
-                ctx=mock_context,
-                run_id='run-12345',
-            )
+        # Act
+        result = await diagnose_run_failure(
+            ctx=mock_context,
+            run_id='run-12345',
+        )
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        error_call_args = mock_context.error.call_args[0][0]
-        assert 'Unexpected error diagnosing run failure' in error_call_args
-        assert 'run-12345' in error_call_args
+        # Assert
+        assert 'error' in result
+        assert 'Error diagnosing run failure' in result['error']
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
