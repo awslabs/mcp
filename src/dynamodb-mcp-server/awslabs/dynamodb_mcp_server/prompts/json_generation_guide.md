@@ -138,7 +138,7 @@ Generate boto3 `create_table` format with AttributeDefinitions, TableName, KeySc
 **IMPORTANT: Multi-attribute keys are NOT the default. Only use when explicitly indicated in dynamodb_data_model.md.**
 
 **What are Multi-Attribute Keys?**
-Multi-attribute keys allow GSI keys to be composed of multiple discrete attributes (up to 4 per key type). Each attribute is listed separately in the KeySchema with the same KeyType. This is a native DynamoDB feature - NOT string concatenation.
+Multi-attribute keys allow GSI keys to be composed of multiple discrete attributes (up to 4 per key type). For the partition key, all attributes use `KeyType: 'HASH'`. For the sort key, all attributes use `KeyType: 'RANGE'`. This is a native DynamoDB feature - NOT string concatenation.
 
 **CRITICAL: Multi-Attribute Keys vs Concatenated Strings**
 - ❌ **WRONG - Concatenated String**: `{"AttributeName": "composite_key", "AttributeType": "S"}` with value `"TOURNAMENT#WINTER2024#REGION#NA-EAST"`
