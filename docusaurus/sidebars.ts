@@ -22,7 +22,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Available AWS MCP Servers",
+      label: "Available MCP Servers for AWS",
       collapsed: false,
       items: [
         {
