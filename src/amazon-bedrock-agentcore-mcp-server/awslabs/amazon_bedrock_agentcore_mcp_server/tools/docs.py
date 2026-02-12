@@ -13,12 +13,14 @@
 # limitations under the License.
 
 """AgentCore documentation search and retrieval tools."""
-
+import logging
+from mcp.server.fastmcp import Context
 from ..utils import cache, text_processor
 from typing import Any, Dict, List
 
+logger = logging.getLogger('amazon-bedrock-mcp.docs')
 
-def search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
+async def search_agentcore_docs(query: str, k: int = 5, ctx: Context = None) -> List[Dict[str, Any]]:
     """Search curated AgentCore documentation and return ranked results with snippets.
 
     This tool provides access to the complete Amazon Bedrock AgentCore documentation including:
@@ -65,20 +67,31 @@ def search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
         - snippet: Contextual content preview
 
     """
+    logger.info(f"Initiating document search: '{query}' (top-k: {k})")
+    if ctx:
+        await ctx.info(f"Searching AgentCore docs for: '{query}'...")
+
+    logger.debug("Checking search cache integrity...")
     cache.ensure_ready()
+    
     index = cache.get_index()
     results = index.search(query, k=k) if index else []
     url_cache = cache.get_url_cache()
 
-    # Collect top-k URLs that need hydration (no content yet)
-    # Simplified: Direct hydration in one pass
+   # Hydration Process (may be slow, so we notify the user)
     top = results[: min(len(results), cache.SNIPPET_HYDRATE_MAX)]
-    for _, doc in top:
-        cached = url_cache.get(doc.uri)
-        if cached is None or not cached.content:
-            cache.ensure_page(doc.uri)
+    if top:
+        logger.info(f"Hydrating {len(top)} results for snippet extraction.")
+        if ctx:
+            await ctx.info(f"Extracting snippets from {len(top)} relevant pages...")
+            
+        for _, doc in top:
+            cached = url_cache.get(doc.uri)
+            if cached is None or not cached.content:
+                logger.debug(f"Hydrating page: {doc.uri}")
+                cache.ensure_page(doc.uri)
 
-    # Build response with real content snippets when available
+    # Response construction
     return_docs: List[Dict[str, Any]] = []
     for score, doc in results:
         page = url_cache.get(doc.uri)
@@ -91,10 +104,11 @@ def search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
                 'snippet': snippet,
             }
         )
+    
+    logger.info(f"Search finished. {len(return_docs)} results found.")
     return return_docs
 
-
-def fetch_agentcore_doc(uri: str) -> Dict[str, Any]:
+async def fetch_agentcore_doc(uri: str, ctx: Context = None) -> Dict[str, Any]:
     """Fetch full document content by URL.
 
     Retrieves complete AgentCore documentation content from URLs found via search_agentcore_docs
@@ -121,14 +135,29 @@ def fetch_agentcore_doc(uri: str) -> Dict[str, Any]:
         - error: Error message (if fetch failed)
 
     """
+    logger.info(f"Request for full content: {uri}")
+    if ctx:
+        await ctx.info(f"Fetching full content from: {uri}")
+
     cache.ensure_ready()
 
-    page = cache.ensure_page(uri)
-    if page is None:
-        return {'error': 'fetch failed', 'url': uri}
+    try:
+        page = cache.ensure_page(uri)
+        if page is None:
+            error_msg = f"Failed to retrieve the page: {uri}"
+            logger.error(error_msg)
+            if ctx:
+                await ctx.error(error_msg)
+            return {'error': 'fetch failed', 'url': uri}
 
-    return {
-        'url': page.url,
-        'title': page.title,
-        'content': page.content,
-    }
+        logger.info(f"Document '{page.title}' successfully recovered.")
+        return {
+            'url': page.url,
+            'title': page.title,
+            'content': page.content,
+        }
+    except Exception as e:
+        logger.exception(f"Unexpected error while searching for document. {uri}: {str(e)}")
+        if ctx:
+            await ctx.error(f"Error fetching document: {str(e)}")
+        return {'error': str(e), 'url': uri}

@@ -17,10 +17,15 @@
 Comprehensive gateway operations including create, configure, list, get, and delete.
 """
 
+import logging
 from typing import Any, Dict
+from mcp.server.fastmcp import Context
 
 
-def manage_agentcore_gateway() -> Dict[str, Any]:
+# Logger configuration following the project standard.
+logger = logging.getLogger('amazon-bedrock-mcp.gateway')
+
+async def manage_agentcore_gateway(ctx: Context = None) -> Dict[str, Any]:
     """Provides comprehensive information on how to deploy and manage MCP Gateways in AgentCore.
 
     This tool returns detailed documentation about:
@@ -32,7 +37,13 @@ def manage_agentcore_gateway() -> Dict[str, Any]:
 
     Use this tool to understand the complete process of deploying and managing MCP Gateways.
     """
-    deployment_guide = """
+    logger.info("Request to retrieve the Gateway deployment guide.")
+    if ctx:
+        await ctx.info("Retrieving AgentCore Gateway deployment guide...")
+
+    try:
+        # The deployment guide (kept as a string for consistency)
+        deployment_guide= """
 AGENTCORE GATEWAY DEPLOYMENT GUIDE
 ===================================
 
@@ -283,4 +294,14 @@ KEY POINTS:
 - IAM roles and Cognito resources created automatically if not provided
 """
 
-    return {'deployment_guide': deployment_guide}
+        logger.info("Gateway deployment guide successfully generated.")
+        return {'deployment_guide': deployment_guide}
+
+    except Exception as e:
+        error_msg = f"Error generating Gateway guide.: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+            
+        if ctx:
+            await ctx.error(f"Failed to retrieve gateway guide: {str(e)}")
+                
+        return {'error': str(e)}
