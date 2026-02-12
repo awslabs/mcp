@@ -65,6 +65,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/finch-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
 /src/frontend-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
 /src/git-repo-research-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @theagenticguy
+/src/healthimaging-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @manish364
 /src/healthlake-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
 /src/iam-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @oshardik
 /src/lambda-tool-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @danilop @jsamuel1

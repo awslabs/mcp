@@ -145,6 +145,7 @@ const sidebars: SidebarsConfig = {
           label: "Healthcare & Lifesciences",
           items: [
             "servers/aws-healthomics-mcp-server",
+            "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
           ],
         },
