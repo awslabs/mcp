@@ -380,7 +380,7 @@ To add the skill directly in Gemini, decide on a scope `workspace` (contained to
 and use the `skills` installer.
 
 ```bash
-gemini skills install https://github.com/awslaps/mcp.git --path src/aurora-dsql-mcp-server/skills/dsql-skill --scope $SCOPE
+gemini skills install https://github.com/awslabs/mcp.git --path src/aurora-dsql-mcp-server/skills/dsql-skill --scope $SCOPE
 ```
 
 You can then use the `/dsql` skill command with Gemini, and Gemini will automatically detect when the skill should be used.
