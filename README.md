@@ -1,4 +1,4 @@
-# AWS MCP Servers
+# Open source MCP servers for AWS
 
 A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
@@ -9,13 +9,13 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 ## Table of Contents
 
-- [AWS MCP Servers](#aws-mcp-servers)
+- [Open source MCP servers for AWS](#open-source-mcp-servers-for-aws)
   - [Table of Contents](#table-of-contents)
-  - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
-  - [AWS MCP Servers Transport Mechanisms](#aws-mcp-servers-transport-mechanisms)
+  - [What is the Model Context Protocol (MCP) and how does it work with MCP Servers for AWS?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-mcp-servers-for-aws)
+  - [Open source MCP servers for AWS Transport Mechanisms](#open-source-mcp-servers-for-aws-transport-mechanisms)
     - [Supported transport mechanisms](#supported-transport-mechanisms)
     - [Server Sent Events Support Removal](#server-sent-events-support-removal)
-  - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+  - [Why MCP Servers for AWS?](#why-mcp-servers-for-aws)
   - [Available MCP Servers: Quick Installation](#available-mcp-servers-quick-installation)
     - [🚀Getting Started with AWS](#-getting-started-with-aws)
     - [Browse by What You're Building](#browse-by-what-youre-building)
@@ -79,7 +79,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [License](#license)
   - [Disclaimer](#disclaimer)
 
-## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
+## What is the Model Context Protocol (MCP) and how does it work with MCP Servers for AWS?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
 >
@@ -87,13 +87,13 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients include agentic AI coding assistants (like Kiro, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
 
-AWS MCP Servers use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
+MCP Servers for AWS use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
 
-AWS MCP servers enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
+MCP Servers for AWS enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
 
 The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community. For more information on MCP, you can find further documentation [here](https://modelcontextprotocol.io/introduction)
 
-## AWS MCP Servers Transport Mechanisms
+## Open source MCP servers for AWS Transport Mechanisms
 
 ### Supported transport mechanisms
 
@@ -101,7 +101,7 @@ The MCP protocol currently defines two standard transport mechanisms for client-
 - stdio, communication over standard in and standard out
 - streamable HTTP
 
-These AWS MCP Servers are designed to support stdio only.
+The MCP servers in this repository are designed to support stdio only.
 
 You are responsible for ensuring that your use of these servers comply with the terms governing them, and any laws, rules, regulations, policies, or standards that apply to you.
 
@@ -113,7 +113,7 @@ We are actively working towards supporting [Streamable HTTP](https://modelcontex
 
 For applications still requiring SSE support, please use the previous major version of the respective MCP server until you can migrate to alternative transport methods.
 
-### Why AWS MCP Servers?
+### Why MCP Servers for AWS?
 
 MCP servers enhance the capabilities of foundation models (FMs) in several key ways:
 
@@ -133,9 +133,9 @@ Get started quickly with one-click installation buttons for popular MCP clients.
 
 For AWS interactions, we recommend starting with:
 
-| Server Name | Description | Install |
-|-------------|-------------|---------|
-| [AWS MCP Server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) | Start here for secure, auditable AWS interactions! This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, and Getting Started information. Features pre-built Agent SOPs that follow AWS best practices, helping agents complete complex multi-step AWS tasks reliably. Built with safety and control in mind: syntactically validated API calls, IAM-based permissions with zero credential exposure, and complete CloudTrail audit logging. Access all AWS services for managing infrastructure, exploring resources, and executing AWS operations with full transparency and traceability. [Read more](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) | [![Install](https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro)](https://kiro.dev/launch/mcp/add?name=aws-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A//aws-mcp.us-east-1.api.aws/mcp%22%5D%7D) <br/>[![Install](https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor)](https://cursor.com/en-US/install-mcp?name=aws-mcp&config=eyJjb21tYW5kIjoidXZ4IG1jcC1wcm94eS1mb3ItYXdzQGxhdGVzdCBodHRwczovL2F3cy1tY3AudXMtZWFzdC0xLmFwaS5hd3MvbWNwIn0%3D) <br/>[![Install on VS Code](https://img.shields.io/badge/Install-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](<https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A%2F%2Faws-mcp.us-east-1.api.aws%2Fmcp%22%5D%7D>) |
+| Server Name                                                                                                 | Description | Install |
+|-------------------------------------------------------------------------------------------------------------|-------------|---------|
+| [AWS MCP Server (in preview)](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) | Start here for secure, auditable AWS interactions! This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, and Getting Started information. Features pre-built Agent SOPs that follow AWS best practices, helping agents complete complex multi-step AWS tasks reliably. Built with safety and control in mind: syntactically validated API calls, IAM-based permissions with zero credential exposure, and complete CloudTrail audit logging. Access all AWS services for managing infrastructure, exploring resources, and executing AWS operations with full transparency and traceability. [Read more](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) | [![Install](https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro)](https://kiro.dev/launch/mcp/add?name=aws-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A//aws-mcp.us-east-1.api.aws/mcp%22%5D%7D) <br/>[![Install](https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor)](https://cursor.com/en-US/install-mcp?name=aws-mcp&config=eyJjb21tYW5kIjoidXZ4IG1jcC1wcm94eS1mb3ItYXdzQGxhdGVzdCBodHRwczovL2F3cy1tY3AudXMtZWFzdC0xLmFwaS5hd3MvbWNwIn0%3D) <br/>[![Install on VS Code](https://img.shields.io/badge/Install-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](<https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A%2F%2Faws-mcp.us-east-1.api.aws%2Fmcp%22%5D%7D>) |
 
 ### Browse by What You're Building
 
@@ -445,7 +445,7 @@ See [`src/mcp-lambda-handler/README.md`](src/mcp-lambda-handler/README.md) for f
 
 ## When to use Local vs Remote MCP Servers?
 
-AWS MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
+MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
 
 ### Local MCP Servers
 - **Development & Testing**: Perfect for local development, testing, and debugging
@@ -460,8 +460,10 @@ AWS MCP servers can be run either locally on your development machine or remotel
 - **Always Available**: Access your MCP servers from anywhere, any device
 - **Automatic Updates**: Get the latest features and security patches automatically
 - **Scalability**: Easily handle varying workloads without local resource constraints
+- **Security**: Centralized security controls with IAM-based permissions and zero credential exposure
+- **Governance**: Comprehensive audit logging and compliance monitoring for enterprise-grade governance
 
-> **Note**: Some MCP servers, like AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
+> **Note**: Some MCP servers, like the [official AWS MCP server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) (in preview) and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Use Cases for the Servers
 
@@ -683,7 +685,7 @@ For Windows:
    <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
  <p>
 
- 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
+ 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
 #### `cline_mcp_settings.json`
 
@@ -730,7 +732,7 @@ For Windows:
 }
 ```
 
-6. Once installed, you should see a list of your MCP Servers under the MCP Server Installed tab, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
+6. Once installed, you should see a list of your MCP Servers under the MCP Server Installed tab, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible MCP servers for AWS. Click **Done** when finished. You should now see the Cline chat interface.
 
 <p align="center">
   <img src="./docs/images/root-readme/mcp-servers-installed.png" width="500" height="800"  />
@@ -770,9 +772,9 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 
 11. Once the custom prompt is pasted in, click **Done** to return to the chat interface.
 
-12. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
+12. Now you can begin asking questions and testing out the functionality of your installed MCP servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
 
-**Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+**Note:** For the best results, please prompt Cline to use the desired MCP server you wish to use. For example, `Using the Terraform MCP Server, do...`
 </details>
 
 ### Getting Started with Cursor
@@ -835,7 +837,7 @@ For Windows:
 }
 ```
 
-3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired MCP server you wish to use. For example, `Using the Terraform MCP Server, do...`
 
 4. **Tool Approval** By default, when Agent wants to use an MCP tool, it will display a message asking for your approval. You can use the arrow next to the tool name to expand the message and see what arguments the Agent is calling the tool with.
 
@@ -1026,7 +1028,7 @@ For macOS/Linux:
 
 ## Samples
 
-Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
+Ready-to-use examples of open source MCP servers for AWS in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
 
 ## Vibe coding
 
