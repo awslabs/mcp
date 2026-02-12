@@ -33,6 +33,8 @@ from awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator impo
     GenomicsSearchOrchestrator,
 )
 from datetime import datetime
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1091,14 +1093,41 @@ class TestGenomicsSearchOrchestrator:
     async def test_execute_parallel_searches_no_systems_configured(
         self, orchestrator, sample_search_request
     ):
-        """Test executing parallel searches with no systems configured."""
+        """Test executing parallel searches raises ValueError with no buckets and HealthOmics disabled."""
         # Disable all systems
         orchestrator.config.s3_bucket_paths = []
         orchestrator.config.enable_healthomics_search = False
 
-        result = await orchestrator._execute_parallel_searches(sample_search_request)
+        with pytest.raises(ValueError, match='No S3 bucket paths available for search'):
+            await orchestrator._execute_parallel_searches(sample_search_request)
 
-        assert result == []
+    @pytest.mark.asyncio
+    async def test_execute_parallel_searches_no_buckets_adhoc_only(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test executing parallel searches proceeds when only adhoc buckets are provided."""
+        # No configured buckets, HealthOmics disabled
+        orchestrator.config.s3_bucket_paths = []
+        orchestrator.config.enable_healthomics_search = False
+
+        # Provide adhoc buckets via the request
+        sample_search_request.adhoc_s3_buckets = ['s3://adhoc-bucket/']
+
+        with (
+            patch.object(
+                orchestrator, '_get_all_s3_bucket_paths', new_callable=AsyncMock
+            ) as mock_get_paths,
+            patch.object(
+                orchestrator, '_search_s3_with_timeout_for_buckets', new_callable=AsyncMock
+            ) as mock_s3,
+        ):
+            mock_get_paths.return_value = ['s3://adhoc-bucket/']
+            mock_s3.return_value = sample_genomics_files
+
+            result = await orchestrator._execute_parallel_searches(sample_search_request)
+
+            assert result == sample_genomics_files
+            mock_s3.assert_called_once_with(sample_search_request, ['s3://adhoc-bucket/'])
 
     @pytest.mark.asyncio
     async def test_score_results(self, orchestrator, sample_genomics_files):
@@ -1460,7 +1489,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_execute_parallel_paginated_searches_no_systems_configured(
         self, orchestrator, sample_search_request
     ):
-        """Test executing parallel paginated searches with no systems configured."""
+        """Test executing parallel paginated searches raises ValueError with no buckets and HealthOmics disabled."""
         # Disable all systems
         orchestrator.config.s3_bucket_paths = []
         orchestrator.config.enable_healthomics_search = False
@@ -1472,13 +1501,64 @@ class TestGenomicsSearchOrchestrator:
         )
         global_token = GlobalContinuationToken()
 
-        files, next_token, total_scanned = await orchestrator._execute_parallel_paginated_searches(
-            sample_search_request, storage_request, global_token
+        with pytest.raises(ValueError, match='No S3 bucket paths available for search'):
+            await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_no_buckets_adhoc_only(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test executing parallel paginated searches proceeds when only adhoc buckets are provided."""
+        # No configured buckets, HealthOmics disabled
+        orchestrator.config.s3_bucket_paths = []
+        orchestrator.config.enable_healthomics_search = False
+
+        # Provide adhoc buckets via the request
+        sample_search_request.adhoc_s3_buckets = ['s3://adhoc-bucket/']
+
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        mock_response = StoragePaginationResponse(
+            results=sample_genomics_files,
+            next_continuation_token=None,
+            has_more_results=False,
+            total_scanned=2,
         )
 
-        assert files == []
-        assert next_token is None
-        assert total_scanned == 0
+        with (
+            patch.object(
+                orchestrator, '_get_all_s3_bucket_paths', new_callable=AsyncMock
+            ) as mock_get_paths,
+            patch.object(
+                orchestrator,
+                '_search_s3_paginated_with_timeout_for_buckets',
+                new_callable=AsyncMock,
+            ) as mock_s3,
+        ):
+            mock_get_paths.return_value = ['s3://adhoc-bucket/']
+            mock_s3.return_value = mock_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert files == sample_genomics_files
+            assert next_token is None
+            assert total_scanned == 2
+            mock_s3.assert_called_once_with(
+                sample_search_request, storage_request, ['s3://adhoc-bucket/']
+            )
 
     @pytest.mark.asyncio
     async def test_execute_parallel_paginated_searches_mixed_continuation_tokens(
@@ -3258,3 +3338,88 @@ class TestGenomicsSearchOrchestrator:
                 # Verify HealthOmics searches were called
                 orchestrator.healthomics_engine.search_sequence_stores.assert_called_once()
                 orchestrator.healthomics_engine.search_reference_stores.assert_called_once()
+
+
+class TestPropertyOrchestratorBucketUnion:
+    """Property-based tests for orchestrator bucket union.
+
+    Feature: s3-adhoc-bucket-search-fix
+    Property 2: Orchestrator searches union of configured and adhoc buckets
+    Validates: Requirements 2.1, 2.2, 3.2
+    """
+
+    @given(data=st.data())
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_orchestrator_searches_union_of_configured_and_adhoc_buckets(self, data):
+        """Orchestrator searches union of configured and adhoc buckets.
+
+        For any combination of configured S3 bucket paths (possibly empty) and
+        adhoc S3 bucket paths (possibly empty), _get_all_s3_bucket_paths() returns
+        the deduplicated union of both sets. When the union is non-empty, the search
+        should proceed without error.
+
+        **Validates: Requirements 2.1, 2.2, 3.2**
+        """
+        # Draw unique configured bucket indices (0-5 unique paths)
+        configured_indices = data.draw(
+            st.lists(st.integers(min_value=0, max_value=99), min_size=0, max_size=5, unique=True)
+        )
+        configured_paths = [f's3://configured-bucket-{i}/' for i in configured_indices]
+
+        # Draw unique adhoc bucket indices (0-5 unique paths)
+        # Use a separate namespace (adhoc-bucket-) so they don't collide with configured
+        # unless we explicitly want overlap
+        use_shared_namespace = data.draw(st.booleans())
+        adhoc_indices = data.draw(
+            st.lists(st.integers(min_value=0, max_value=99), min_size=0, max_size=5, unique=True)
+        )
+        if use_shared_namespace:
+            # Shared namespace: adhoc paths may overlap with configured paths
+            adhoc_paths = [f's3://configured-bucket-{i}/' for i in adhoc_indices]
+        else:
+            # Separate namespace: no overlap possible
+            adhoc_paths = [f's3://adhoc-bucket-{i}/' for i in adhoc_indices]
+
+        # Create orchestrator with configured paths
+        config = SearchConfig(
+            s3_bucket_paths=configured_paths,
+            enable_healthomics_search=False,
+        )
+        mock_s3_engine = MagicMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(config, s3_engine=mock_s3_engine)
+
+        # Build request with adhoc buckets (or None if empty)
+        request = GenomicsFileSearchRequest(
+            file_type='fastq',
+            search_terms=['sample'],
+            adhoc_s3_buckets=adhoc_paths if adhoc_paths else None,
+        )
+
+        # Mock validate_adhoc_s3_buckets to return the adhoc paths as-is (skip AWS calls)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.validate_adhoc_s3_buckets'
+        ) as mock_validate:
+            mock_validate.return_value = adhoc_paths
+
+            result = await orchestrator._get_all_s3_bucket_paths(request)
+
+        # Compute expected deduplicated union preserving first-occurrence order
+        expected = list(dict.fromkeys(configured_paths + adhoc_paths))
+
+        assert result == expected
+
+        # Verify deduplication: no duplicates in result
+        assert len(result) == len(set(result))
+
+        # Every configured path should be in the result
+        for p in configured_paths:
+            assert p in result
+
+        # Every adhoc path should be in the result
+        for p in adhoc_paths:
+            assert p in result
