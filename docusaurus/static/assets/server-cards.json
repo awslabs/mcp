@@ -67,7 +67,7 @@
       "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
       "icon": "\ud83d\udd11",
       "id": "aws-mcp",
-      "name": "AWS MCP",
+      "name": "AWS MCP (in preview)",
       "source_path": "https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html",
       "subcategory": "Essential Setup",
       "tags": [
@@ -1136,7 +1136,7 @@
     },
     {
       "category": "Core",
-      "description": "Intelligent planning and AWS MCP server orchestration",
+      "description": "Intelligent planning and orchestration of MCP servers for AWS.",
       "icon": "\u26a1",
       "id": "core-mcp-server",
       "name": "Core MCP Server",
