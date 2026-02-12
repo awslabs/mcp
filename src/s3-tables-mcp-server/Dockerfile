@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20 AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:b06511762afe97b1b5781ef28a712b1d46c28abceef11c8c3fcb7a10ccab021b AS uv
 
 # Install build dependencies needed for compiling packages
 RUN dnf install -y shadow-utils python3 && \
@@ -56,7 +56,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:b06511762afe97b1b5781ef28a712b1d46c28abceef11c8c3fcb7a10ccab021b
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
