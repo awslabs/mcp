@@ -1,6 +1,6 @@
 # Core MCP Server
 
-MCP server that provides a starting point for using AWS MCP servers through a dynamic proxy server strategy based on role-based environment variables.
+MCP server that provides a starting point for using MCP servers for AWS through a dynamic proxy server strategy based on role-based environment variables.
 
 ## Features
 
@@ -52,7 +52,7 @@ You can enable specific roles by setting environment variables. Each role corres
 - You can enable multiple roles simultaneously to create a comprehensive server configuration
 - The proxy strategy ensures that each server is imported only once, even if it's needed by multiple roles
 
-> **Note**: Not all AWS MCP servers are represented in these logical groupings. For specific use cases, you may need to install additional MCP servers directly. See the [main README](https://github.com/awslabs/mcp#available-mcp-servers-quick-installation) for a complete list of available MCP servers.
+> **Note**: Not all MCP servers for AWS are represented in these logical groupings. For specific use cases, you may need to install additional MCP servers directly. See the [main README](https://github.com/awslabs/mcp#available-mcp-servers-quick-installation) for a complete list of available MCP servers.
 
 ## Prerequisites
 
