@@ -44,6 +44,8 @@ Lists all access patterns with their AWS CLI implementations for testing.
         // Multi-attribute GSI key attributes (EACH attribute must be defined)
         {"AttributeName": "gsi_pk_attr1", "AttributeType": "S|N|B"},
         {"AttributeName": "gsi_pk_attr2", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_pk_attr3", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_pk_attr4", "AttributeType": "S|N|B"},
         {"AttributeName": "gsi_sk_attr1", "AttributeType": "S|N|B"},
         {"AttributeName": "gsi_sk_attr2", "AttributeType": "S|N|B"},
         {"AttributeName": "gsi_sk_attr3", "AttributeType": "S|N|B"},
@@ -71,6 +73,8 @@ Lists all access patterns with their AWS CLI implementations for testing.
           "KeySchema": [
             {"AttributeName": "gsi_pk_attr1", "KeyType": "HASH"},
             {"AttributeName": "gsi_pk_attr2", "KeyType": "HASH"},
+            {"AttributeName": "gsi_pk_attr3", "KeyType": "HASH"},
+            {"AttributeName": "gsi_pk_attr4", "KeyType": "HASH"},
             {"AttributeName": "gsi_sk_attr1", "KeyType": "RANGE"},
             {"AttributeName": "gsi_sk_attr2", "KeyType": "RANGE"},
             {"AttributeName": "gsi_sk_attr3", "KeyType": "RANGE"},
