@@ -229,43 +229,44 @@ def _get_attribute_name(node: ast.AST) -> Optional[str]:
 
 def _check_dangerous_functions_string(code: str) -> List[Dict[str, Any]]:
     """Fallback string-based check for dangerous functions when AST parsing fails."""
+    # Each tuple is (pattern_to_match, canonical_function_name)
     dangerous_patterns = [
-        'exec(',
-        'eval(',
-        'compile(',
-        'getattr(',
-        'setattr(',
-        'delattr(',
-        'vars(',
-        '__import__',
-        'breakpoint(',
-        'open(',
-        'globals(',
-        'locals(',
-        'spawn(',
-        'subprocess.',
-        'os.system',
-        'os.popen',
-        'pickle.loads',
-        'pickle.load(',
-        '__dict__',
-        '__builtins__',
-        '__class__',
-        '__subclasses__',
-        '__bases__',
-        '__globals__',
-        '__mro__',
+        ('exec(', 'exec'),
+        ('eval(', 'eval'),
+        ('compile(', 'compile'),
+        ('getattr(', 'getattr'),
+        ('setattr(', 'setattr'),
+        ('delattr(', 'delattr'),
+        ('vars(', 'vars'),
+        ('__import__(', '__import__'),
+        ('breakpoint(', 'breakpoint'),
+        ('open(', 'open'),
+        ('globals(', 'globals'),
+        ('locals(', 'locals'),
+        ('spawn(', 'spawn'),
+        ('subprocess.', 'subprocess'),
+        ('os.system(', 'os.system'),
+        ('os.popen(', 'os.popen'),
+        ('pickle.loads(', 'pickle.loads'),
+        ('pickle.load(', 'pickle.load'),
+        ('__dict__', '__dict__'),
+        ('__builtins__', '__builtins__'),
+        ('__class__', '__class__'),
+        ('__subclasses__', '__subclasses__'),
+        ('__bases__', '__bases__'),
+        ('__globals__', '__globals__'),
+        ('__mro__', '__mro__'),
     ]
 
     results = []
     lines = code.splitlines()
 
     for i, line in enumerate(lines):
-        for pattern in dangerous_patterns:
+        for pattern, func_name in dangerous_patterns:
             if pattern in line:
                 results.append(
                     {
-                        'function': pattern.rstrip('('),
+                        'function': func_name,
                         'line': i + 1,
                         'code': line.strip(),
                     }
@@ -310,7 +311,7 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
 
     try:
         tree = ast.parse(code)
-    except SyntaxError:
+    except Exception:
         return _check_dangerous_functions_string(code)
 
     results = []
