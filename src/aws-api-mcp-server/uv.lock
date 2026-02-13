@@ -121,7 +121,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-api-mcp-server"
-version = "1.3.9"
+version = "1.3.10"
 source = { editable = "." }
 dependencies = [
     { name = "awscli" },
