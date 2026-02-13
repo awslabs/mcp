@@ -355,7 +355,7 @@ class TestMcpGetDiagramExamplesStringInput:
         mock_get_diagram_examples.return_value = MagicMock(
             model_dump=MagicMock(return_value={'examples': {}})
         )
-        for dt in DiagramType:
+        for dt in list(DiagramType):
             mock_get_diagram_examples.reset_mock()
             await mcp_get_diagram_examples(diagram_type=dt.value)
             mock_get_diagram_examples.assert_called_once_with(dt)
