@@ -196,20 +196,6 @@ async def scan_python_code(code: str) -> CodeScanResult:
     # Check security
     security_issues = await check_security(code)
 
-    # Check for dangerous functions explicitly
-    dangerous_functions = check_dangerous_functions(code)
-    if dangerous_functions:
-        for func in dangerous_functions:
-            security_issues.append(
-                SecurityIssue(
-                    severity='HIGH',
-                    confidence='HIGH',
-                    line=func['line'],
-                    issue_text=f"Dangerous function '{func['function']}' detected",
-                    issue_type='DangerousFunctionDetection',
-                )
-            )
-
     # Determine if there are errors
     has_errors = bool(security_issues)
 
@@ -228,17 +214,47 @@ async def scan_python_code(code: str) -> CodeScanResult:
     )
 
 
-def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
-    """Check for dangerous functions like exec, eval, etc."""
+def _get_attribute_name(node: ast.AST) -> Optional[str]:
+    """Build dotted name from an Attribute or Name node."""
+    parts: List[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if isinstance(current, ast.Name):
+        parts.append(current.id)
+        return '.'.join(reversed(parts))
+    return None
+
+
+def _check_dangerous_functions_string(code: str) -> List[Dict[str, Any]]:
+    """Fallback string-based check for dangerous functions when AST parsing fails."""
     dangerous_patterns = [
         'exec(',
         'eval(',
+        'compile(',
+        'getattr(',
+        'setattr(',
+        'delattr(',
+        'vars(',
+        '__import__',
+        'breakpoint(',
+        'open(',
+        'globals(',
+        'locals(',
+        'spawn(',
         'subprocess.',
         'os.system',
         'os.popen',
-        '__import__',
         'pickle.loads',
-        'spawn(',
+        'pickle.load(',
+        '__dict__',
+        '__builtins__',
+        '__class__',
+        '__subclasses__',
+        '__bases__',
+        '__globals__',
+        '__mro__',
     ]
 
     results = []
@@ -254,6 +270,102 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
                         'code': line.strip(),
                     }
                 )
+
+    return results
+
+
+def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
+    """Check for dangerous functions using AST analysis.
+
+    Falls back to string matching if the code cannot be parsed.
+    """
+    dangerous_builtins = {
+        'exec',
+        'eval',
+        'compile',
+        'getattr',
+        'setattr',
+        'delattr',
+        'vars',
+        '__import__',
+        'breakpoint',
+        'open',
+        'globals',
+        'locals',
+        'spawn',
+    }
+
+    dangerous_attr_exact = {'os.system', 'os.popen', 'pickle.loads', 'pickle.load'}
+    dangerous_attr_modules = {'subprocess'}
+
+    dangerous_dunders = {
+        '__dict__',
+        '__builtins__',
+        '__class__',
+        '__subclasses__',
+        '__bases__',
+        '__globals__',
+        '__mro__',
+    }
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return _check_dangerous_functions_string(code)
+
+    results = []
+    lines = code.splitlines()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id in dangerous_builtins:
+                lineno = node.lineno
+                code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+                results.append(
+                    {
+                        'function': func.id,
+                        'line': lineno,
+                        'code': code_line,
+                    }
+                )
+            elif isinstance(func, ast.Attribute):
+                full_name = _get_attribute_name(func)
+                if full_name and (
+                    full_name in dangerous_attr_exact
+                    or any(full_name.startswith(mod + '.') for mod in dangerous_attr_modules)
+                ):
+                    lineno = node.lineno
+                    code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+                    results.append(
+                        {
+                            'function': full_name,
+                            'line': lineno,
+                            'code': code_line,
+                        }
+                    )
+
+        # Check for dangerous dunder attribute access
+        if isinstance(node, ast.Attribute) and node.attr in dangerous_dunders:
+            lineno = node.lineno
+            code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+            results.append(
+                {
+                    'function': node.attr,
+                    'line': lineno,
+                    'code': code_line,
+                }
+            )
+        elif isinstance(node, ast.Name) and node.id in dangerous_dunders:
+            lineno = node.lineno
+            code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
+            results.append(
+                {
+                    'function': node.id,
+                    'line': lineno,
+                    'code': code_line,
+                }
+            )
 
     return results
 
