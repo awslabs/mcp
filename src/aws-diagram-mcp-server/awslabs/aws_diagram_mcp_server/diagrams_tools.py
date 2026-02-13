@@ -18,9 +18,9 @@ import diagrams
 import importlib
 import inspect
 import logging
+import multiprocessing
 import os
 import re
-import signal
 import uuid
 from awslabs.aws_diagram_mcp_server.models import (
     DiagramExampleResponse,
@@ -34,99 +34,12 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
-async def generate_diagram(
-    code: str,
-    filename: Optional[str] = None,
-    timeout: int = 90,
-    workspace_dir: Optional[str] = None,
-) -> DiagramGenerateResponse:
-    """Generate a diagram from Python code using the `diagrams` package.
-
-    You should use the `get_diagram_examples` tool first to get examples of how to use the `diagrams` package.
-
-    This function accepts Python code as a string that uses the diagrams package DSL
-    and generates a PNG diagram without displaying it. The code is executed with
-    show=False to prevent automatic display.
-
-    Supported diagram types:
-    - AWS architecture diagrams
-    - Sequence diagrams
-    - Flow diagrams
-    - Class diagrams
-    - Kubernetes diagrams
-    - On-premises diagrams
-    - Custom diagrams with custom nodes
-
-    Args:
-        code: Python code string using the diagrams package DSL
-        filename: Output filename (without extension). If not provided, a random name will be generated.
-        timeout: Timeout in seconds for diagram generation
-        workspace_dir: The user's current workspace directory. If provided, diagrams will be saved to a "generated-diagrams" subdirectory.
-
-    Returns:
-        DiagramGenerateResponse: Response with the path to the generated diagram and status
-    """
-    # Scan the code for security issues
-    scan_result = await scan_python_code(code)
-    if scan_result.has_errors:
-        return DiagramGenerateResponse(
-            status='error',
-            message=f'Security issues found in the code: {scan_result.error_message}',
-        )
-
-    if filename is None:
-        filename = f'diagram_{uuid.uuid4().hex[:8]}'
-
-    # Determine the output path
-    if os.path.isabs(filename):
-        # If it's an absolute path, use it directly
-        output_path = filename
-    else:
-        # For non-absolute paths, use the "generated-diagrams" subdirectory
-
-        # Strip any path components to ensure it's just a filename
-        # (for relative paths with directories like "path/to/diagram.png")
-        simple_filename = os.path.basename(filename)
-
-        if workspace_dir and os.path.isdir(workspace_dir) and os.access(workspace_dir, os.W_OK):
-            # Create a "generated-diagrams" subdirectory in the workspace
-            output_dir = os.path.join(workspace_dir, 'generated-diagrams')
-        else:
-            # Fall back to a secure temporary directory if workspace_dir isn't provided or isn't writable
-            import tempfile
-
-            temp_base = tempfile.gettempdir()
-            output_dir = os.path.join(temp_base, 'generated-diagrams')
-
-        # Create the output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Combine directory and filename
-        output_path = os.path.join(output_dir, simple_filename)
-
-    try:
-        # Create a namespace for execution
-        namespace = {}
-
-        # Import necessary modules directly in the namespace
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'import os',
-            namespace,
-        )
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'import diagrams', namespace
-        )
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'from diagrams import Diagram, Cluster, Edge', namespace
-        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            """from diagrams.saas.crm import *
+# nosec B102 - These import statements are necessary to set up the namespace for diagram code
+_DIAGRAM_IMPORT_CODE = """\
+import os
+import diagrams
+from diagrams import Diagram, Cluster, Edge
+from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
 from diagrams.saas.recommendation import *
@@ -246,14 +159,95 @@ from diagrams.aws.blockchain import *
 from diagrams.aws.storage import *
 from diagrams.aws.satellite import *
 from diagrams.aws.enduser import *
-""",
-            namespace,
-        )
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'from urllib.request import urlretrieve', namespace
-        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
+from urllib.request import urlretrieve
+"""
 
+
+def _execute_diagram_in_process(full_code: str, error_queue: multiprocessing.Queue) -> None:
+    """Run diagram code in a separate process for isolation and timeout support.
+
+    This function is the target for multiprocessing.Process. It runs the combined
+    import + user code in a fresh namespace and reports any errors back via the queue.
+    """
+    try:
+        namespace = {}
+        # nosec B102 - This is necessary to run diagram code in a controlled environment
+        exec(full_code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
+    except Exception as e:
+        error_queue.put(f'{type(e).__name__}: {str(e)}')
+
+
+async def generate_diagram(
+    code: str,
+    filename: Optional[str] = None,
+    timeout: int = 90,
+    workspace_dir: Optional[str] = None,
+) -> DiagramGenerateResponse:
+    """Generate a diagram from Python code using the `diagrams` package.
+
+    You should use the `get_diagram_examples` tool first to get examples of how to use the `diagrams` package.
+
+    This function accepts Python code as a string that uses the diagrams package DSL
+    and generates a PNG diagram without displaying it. The code is executed with
+    show=False to prevent automatic display.
+
+    Supported diagram types:
+    - AWS architecture diagrams
+    - Sequence diagrams
+    - Flow diagrams
+    - Class diagrams
+    - Kubernetes diagrams
+    - On-premises diagrams
+    - Custom diagrams with custom nodes
+
+    Args:
+        code: Python code string using the diagrams package DSL
+        filename: Output filename (without extension). If not provided, a random name will be generated.
+        timeout: Timeout in seconds for diagram generation
+        workspace_dir: The user's current workspace directory. If provided, diagrams will be saved to a "generated-diagrams" subdirectory.
+
+    Returns:
+        DiagramGenerateResponse: Response with the path to the generated diagram and status
+    """
+    # Scan the code for security issues
+    scan_result = await scan_python_code(code)
+    if scan_result.has_errors:
+        return DiagramGenerateResponse(
+            status='error',
+            message=f'Security issues found in the code: {scan_result.error_message}',
+        )
+
+    if filename is None:
+        filename = f'diagram_{uuid.uuid4().hex[:8]}'
+
+    # Determine the output path
+    if os.path.isabs(filename):
+        # If it's an absolute path, use it directly
+        output_path = filename
+    else:
+        # For non-absolute paths, use the "generated-diagrams" subdirectory
+
+        # Strip any path components to ensure it's just a filename
+        # (for relative paths with directories like "path/to/diagram.png")
+        simple_filename = os.path.basename(filename)
+
+        if workspace_dir and os.path.isdir(workspace_dir) and os.access(workspace_dir, os.W_OK):
+            # Create a "generated-diagrams" subdirectory in the workspace
+            output_dir = os.path.join(workspace_dir, 'generated-diagrams')
+        else:
+            # Fall back to a secure temporary directory if workspace_dir isn't provided or isn't writable
+            import tempfile
+
+            temp_base = tempfile.gettempdir()
+            output_dir = os.path.join(temp_base, 'generated-diagrams')
+
+        # Create the output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Combine directory and filename
+        output_path = os.path.join(output_dir, simple_filename)
+
+    try:
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
             # Find all instances of Diagram constructor
@@ -292,20 +286,27 @@ from diagrams.aws.enduser import *
                 # Replace in the code
                 code = code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
 
-        # Set up a timeout handler
-        def timeout_handler(signum, frame):
+        # Build the full code with imports and user diagram code
+        full_code = _DIAGRAM_IMPORT_CODE + '\n' + code
+
+        # Execute in a separate process for cross-platform timeout and process isolation
+        error_queue = multiprocessing.Queue()
+        proc = multiprocessing.Process(
+            target=_execute_diagram_in_process,
+            args=(full_code, error_queue),
+        )
+        proc.start()
+        proc.join(timeout=timeout)
+
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=5)
             raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
 
-        # Register the timeout handler
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-
-        # Execute the code
-        # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
-
-        # Cancel the alarm
-        signal.alarm(0)
+        # Check for execution errors from the subprocess
+        if not error_queue.empty():
+            error_msg = error_queue.get_nowait()
+            raise RuntimeError(error_msg)
 
         # Check if the file was created
         png_path = f'{output_path}.png'

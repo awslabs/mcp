@@ -315,6 +315,27 @@ class TestGenerateDiagram:
             assert os.path.exists(result.path)
 
     @pytest.mark.asyncio
+    async def test_generate_diagram_timeout_triggers(self, temp_workspace_dir):
+        """Test that timeout correctly interrupts long-running diagram generation."""
+        # Use a busy-wait loop instead of time.sleep since the security scanner
+        # rejects import statements in user-provided diagram code
+        slow_code = """
+i = 0
+while i < 10**10:
+    i += 1
+with Diagram("Slow Diagram", show=False):
+    ELB("lb") >> EC2("web")
+"""
+        result = await generate_diagram(
+            code=slow_code,
+            filename='test_timeout_triggers',
+            timeout=2,
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert 'timed out' in result.message.lower()
+
+    @pytest.mark.asyncio
     async def test_generate_sequence_diagram(self, sequence_diagram_code, temp_workspace_dir):
         """Test generating a sequence diagram."""
         result = await generate_diagram(
