@@ -411,11 +411,10 @@ class TestCrossPlatformTimeout:
     """Tests for cross-platform timeout handling in generate_diagram."""
 
     def test_signal_module_imported(self):
-        """Test that the diagrams_tools module imports signal and sys."""
-        import awslabs.aws_diagram_mcp_server.diagrams_tools as dt
-
+        """Test that the diagrams_tools module imports signal and threading."""
+        dt = sys.modules.get('awslabs.aws_diagram_mcp_server.diagrams_tools')
+        assert dt is not None
         assert hasattr(dt, 'signal')
-        assert hasattr(dt, 'sys')
         assert hasattr(dt, 'threading')
 
     @pytest.mark.asyncio
@@ -438,16 +437,27 @@ class TestCrossPlatformTimeout:
         assert result.status == 'success'
 
     @pytest.mark.asyncio
-    async def test_threading_fallback_on_windows(self, aws_diagram_code, temp_workspace_dir):
+    async def test_threading_fallback_when_sigalrm_unavailable(
+        self, aws_diagram_code, temp_workspace_dir
+    ):
         """Test that threading fallback is used when SIGALRM is unavailable."""
-        # Simulate Windows by patching sys.platform
-        with patch('awslabs.aws_diagram_mcp_server.diagrams_tools.sys') as mock_sys:
-            mock_sys.platform = 'win32'
-            result = await generate_diagram(
-                code=aws_diagram_code,
-                filename='test_win_timeout',
-                workspace_dir=temp_workspace_dir,
-            )
+        # Remove SIGALRM to force the threading fallback path
+        sigalrm = getattr(signal, 'SIGALRM', None)
+        if sigalrm is None:
+            pytest.skip('Already on a platform without SIGALRM')
+
+        with patch.object(signal, 'SIGALRM', new=sigalrm, create=True):
+            # Delete SIGALRM so hasattr returns False
+            delattr(signal, 'SIGALRM')
+            try:
+                result = await generate_diagram(
+                    code=aws_diagram_code,
+                    filename='test_no_sigalrm',
+                    workspace_dir=temp_workspace_dir,
+                )
+            finally:
+                # Restore SIGALRM
+                signal.SIGALRM = sigalrm
             if result.status == 'error' and (
                 'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
             ):
@@ -460,19 +470,28 @@ class TestCrossPlatformTimeout:
     @pytest.mark.asyncio
     async def test_threading_timeout_triggers(self, temp_workspace_dir):
         """Test that the threading-based timeout fires correctly."""
+        # Use a CPU-bound busy loop instead of time.sleep to avoid
+        # the import statement being rejected by the security scanner.
         slow_code = """
-import time
+x = 0
 with Diagram("Slow Diagram", show=False):
-    time.sleep(30)
+    while x < 10**12:
+        x += 1
     ELB("lb") >> EC2("web")
 """
-        with patch('awslabs.aws_diagram_mcp_server.diagrams_tools.sys') as mock_sys:
-            mock_sys.platform = 'win32'
+        sigalrm = getattr(signal, 'SIGALRM', None)
+        if sigalrm is None:
+            pytest.skip('Already on a platform without SIGALRM')
+
+        delattr(signal, 'SIGALRM')
+        try:
             result = await generate_diagram(
                 code=slow_code,
                 filename='test_timeout',
                 timeout=2,
                 workspace_dir=temp_workspace_dir,
             )
-            assert result.status == 'error'
-            assert 'timed out' in result.message.lower() or 'security' in result.message.lower()
+        finally:
+            signal.SIGALRM = sigalrm
+        assert result.status == 'error'
+        assert 'timed out' in result.message.lower()

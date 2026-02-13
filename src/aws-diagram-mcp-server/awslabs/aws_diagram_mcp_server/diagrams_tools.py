@@ -21,7 +21,6 @@ import logging
 import os
 import re
 import signal
-import sys
 import threading
 import uuid
 from awslabs.aws_diagram_mcp_server.models import (
@@ -296,13 +295,13 @@ from diagrams.aws.enduser import *
 
         # Execute the code with a platform-aware timeout.
         # SIGALRM is POSIX-only and unavailable on Windows, so we use
-        # a threading-based approach on non-POSIX platforms.
-        if sys.platform != 'win32' and hasattr(signal, 'SIGALRM'):
+        # a threading-based approach on platforms without it.
+        if hasattr(signal, 'SIGALRM'):
 
             def timeout_handler(signum, frame):
                 raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
 
-            signal.signal(signal.SIGALRM, timeout_handler)
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout)
             try:
                 # nosec B102 - exec is necessary to run user-provided diagram code
@@ -311,8 +310,12 @@ from diagrams.aws.enduser import *
                 )  # nosem: python.lang.security.audit.exec-detected.exec-detected
             finally:
                 signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
         else:
-            # Windows / non-POSIX: use a daemon thread with a timeout
+            # Windows / non-POSIX: use a daemon thread with a timeout.
+            # Note: if the thread times out, the daemon thread continues running
+            # in the background until the process exits. This is acceptable because
+            # diagram generation has no dangerous side effects beyond writing a file.
             exec_exception: list = []
 
             def _run_code():
