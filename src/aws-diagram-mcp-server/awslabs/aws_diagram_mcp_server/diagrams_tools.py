@@ -21,6 +21,8 @@ import logging
 import os
 import re
 import signal
+import sys
+import threading
 import uuid
 from awslabs.aws_diagram_mcp_server.models import (
     DiagramExampleResponse,
@@ -292,20 +294,43 @@ from diagrams.aws.enduser import *
                 # Replace in the code
                 code = code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
 
-        # Set up a timeout handler
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
+        # Execute the code with a platform-aware timeout.
+        # SIGALRM is POSIX-only and unavailable on Windows, so we use
+        # a threading-based approach on non-POSIX platforms.
+        if sys.platform != 'win32' and hasattr(signal, 'SIGALRM'):
 
-        # Register the timeout handler
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
 
-        # Execute the code
-        # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+            try:
+                # nosec B102 - exec is necessary to run user-provided diagram code
+                exec(
+                    code, namespace
+                )  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            finally:
+                signal.alarm(0)
+        else:
+            # Windows / non-POSIX: use a daemon thread with a timeout
+            exec_exception: list = []
 
-        # Cancel the alarm
-        signal.alarm(0)
+            def _run_code():
+                try:
+                    # nosec B102 - exec is necessary to run user-provided diagram code
+                    exec(
+                        code, namespace
+                    )  # nosem: python.lang.security.audit.exec-detected.exec-detected
+                except Exception as exc:
+                    exec_exception.append(exc)
+
+            worker = threading.Thread(target=_run_code, daemon=True)
+            worker.start()
+            worker.join(timeout=timeout)
+            if worker.is_alive():
+                raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
+            if exec_exception:
+                raise exec_exception[0]
 
         # Check if the file was created
         png_path = f'{output_path}.png'

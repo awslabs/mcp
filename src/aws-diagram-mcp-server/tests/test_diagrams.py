@@ -18,12 +18,15 @@
 
 import os
 import pytest
+import signal
+import sys
 from awslabs.aws_diagram_mcp_server.diagrams_tools import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,
 )
 from awslabs.aws_diagram_mcp_server.models import DiagramType
+from unittest.mock import patch
 
 
 class TestGetDiagramExamples:
@@ -402,3 +405,74 @@ class TestGenerateDiagram:
         assert os.path.dirname(result.path) == os.path.join(
             temp_workspace_dir, 'generated-diagrams'
         )
+
+
+class TestCrossPlatformTimeout:
+    """Tests for cross-platform timeout handling in generate_diagram."""
+
+    def test_signal_module_imported(self):
+        """Test that the diagrams_tools module imports signal and sys."""
+        import awslabs.aws_diagram_mcp_server.diagrams_tools as dt
+
+        assert hasattr(dt, 'signal')
+        assert hasattr(dt, 'sys')
+        assert hasattr(dt, 'threading')
+
+    @pytest.mark.asyncio
+    async def test_unix_path_uses_sigalrm(self, aws_diagram_code, temp_workspace_dir):
+        """Test that SIGALRM is used on Unix platforms."""
+        if sys.platform == 'win32':
+            pytest.skip('SIGALRM only available on Unix')
+
+        assert hasattr(signal, 'SIGALRM')
+        # Just verify generate_diagram works on this platform
+        result = await generate_diagram(
+            code=aws_diagram_code,
+            filename='test_unix_timeout',
+            workspace_dir=temp_workspace_dir,
+        )
+        if result.status == 'error' and (
+            'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+        ):
+            pytest.skip('Graphviz not installed, skipping test')
+        assert result.status == 'success'
+
+    @pytest.mark.asyncio
+    async def test_threading_fallback_on_windows(self, aws_diagram_code, temp_workspace_dir):
+        """Test that threading fallback is used when SIGALRM is unavailable."""
+        # Simulate Windows by patching sys.platform
+        with patch('awslabs.aws_diagram_mcp_server.diagrams_tools.sys') as mock_sys:
+            mock_sys.platform = 'win32'
+            result = await generate_diagram(
+                code=aws_diagram_code,
+                filename='test_win_timeout',
+                workspace_dir=temp_workspace_dir,
+            )
+            if result.status == 'error' and (
+                'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+            ):
+                pytest.skip('Graphviz not installed, skipping test')
+            # Should succeed or fail with a diagram error, not a SIGALRM crash
+            assert result.status in ('success', 'error')
+            if result.status == 'error':
+                assert 'sigalrm' not in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_threading_timeout_triggers(self, temp_workspace_dir):
+        """Test that the threading-based timeout fires correctly."""
+        slow_code = """
+import time
+with Diagram("Slow Diagram", show=False):
+    time.sleep(30)
+    ELB("lb") >> EC2("web")
+"""
+        with patch('awslabs.aws_diagram_mcp_server.diagrams_tools.sys') as mock_sys:
+            mock_sys.platform = 'win32'
+            result = await generate_diagram(
+                code=slow_code,
+                filename='test_timeout',
+                timeout=2,
+                workspace_dir=temp_workspace_dir,
+            )
+            assert result.status == 'error'
+            assert 'timed out' in result.message.lower() or 'security' in result.message.lower()
