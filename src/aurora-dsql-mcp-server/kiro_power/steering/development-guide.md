@@ -261,7 +261,7 @@ Low-level libraries that directly connect to the database:
 | **JavaScript** | DSQL Connector for Postgres.js | [Postgres.js samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/javascript/postgres-js) |
 | **Python** | Psycopg | [Python Psycopg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg) |
 | **Python** | DSQL Connector for Psycopg2 | [Python Psycopg2 samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg2 ) |
-| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/awslabs/aurora-dsql-python-connector/tree/main/examples/asyncpg)|
+| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/asyncpg)|
 | **Ruby** | pg | [Ruby pg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/ruby/ruby-pg) |
 | **Rust** | SQLx | [Rust SQLx samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/rust/sqlx) |
 
@@ -271,8 +271,8 @@ Standalone libraries that provide object-relational mapping functionality:
 
 | Programming Language | ORM Library | Sample Repository |
 |---------------------|-------------|-------------------|
-| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-hibernate/tree/main/examples/pet-clinic-app) |
-| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-sqlalchemy/tree/main/examples/pet-clinic-app) |
+| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate/examples/pet-clinic-app) |
+| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy/examples/pet-clinic-app) |
 | **TypeScript** | Sequelize | [TypeScript Sequelize samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/sequelize) |
 | **TypeScript** | TypeORM | [TypeScript TypeORM samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/type-orm) |
 
@@ -282,9 +282,9 @@ Specific extensions that make existing ORMs work with Aurora DSQL:
 
 | Programming Language | ORM/Framework | Repository |
 |---------------------|---------------|------------|
-| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-hibernate/) |
-| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-django/) |
-| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-sqlalchemy/) |
+| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate/) |
+| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/django/) |
+| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy/) |
 
 
 ---
