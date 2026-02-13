@@ -224,7 +224,7 @@ cargo add aws-sdk-dsql tokio --features full
 - Show what you found
 - Ask: "Found existing schema definitions. Want to migrate these to DSQL?"
 - If yes, MUST verify DSQL compatibility:
-  - No SERIAL types (use UUID or generated values)
+  - No SERIAL types (use `GENERATED AS IDENTITY` with sequences, or UUID)
   - No foreign keys (implement in application)
   - No array/JSON column types (serialize as TEXT)
   - Reference [`./development-guide.md`](./development-guide.md) for full constraints
