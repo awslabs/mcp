@@ -56,6 +56,13 @@ from .service_tools import (
 )
 from .slo_tools import get_slo, list_slos
 from .trace_tools import list_slis, query_sampled_traces, search_transaction_spans
+from .group_tools import (
+    list_group_services,
+    audit_group_health,
+    get_group_dependencies,
+    get_group_changes,
+    list_grouping_attribute_definitions,
+)
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -1489,6 +1496,11 @@ mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
 mcp.tool()(list_change_events)
+mcp.tool()(list_group_services)
+mcp.tool()(audit_group_health)
+mcp.tool()(get_group_dependencies)
+mcp.tool()(get_group_changes)
+mcp.tool()(list_grouping_attribute_definitions)
 
 
 def main():
