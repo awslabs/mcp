@@ -411,8 +411,7 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 
 ### Choosing a CACHE Size
 
-- **CACHE >= 65536** — high-frequency identifier generation, many concurrent sessions, tolerates gaps (e.g., IoT ingestion, job run IDs)
-- **CACHE = 1** — low allocation rates, identifiers should follow allocation order more closely, minimizing gaps matters (e.g., account numbers, reference numbers)
+Use `CACHE >= 65536` for high-throughput workloads; use `CACHE = 1` when ordering and minimizing gaps matters. See the development guide for detailed guidance.
 
 ---
 
