@@ -112,6 +112,7 @@ const sidebars: SidebarsConfig = {
             "servers/code-doc-gen-mcp-server",
             "servers/frontend-mcp-server",
             "servers/iam-mcp-server",
+            "servers/aws-security-hub-mcp-server",
             "servers/kendra-index-mcp-server",
             "servers/syntheticdata-mcp-server",
             "servers/aws-bedrock-data-automation-mcp-server",
