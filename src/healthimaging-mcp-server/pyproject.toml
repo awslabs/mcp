@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "awslabs.healthimaging-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.0"
+version = "0.0.1"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for HealthImaging"
 readme = "README.md"
