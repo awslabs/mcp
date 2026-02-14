@@ -1,0 +1,285 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Gremlin Dictionary for libFuzzer
+# Contains Gremlin traversal steps, predicates, and injection tokens
+
+# Gremlin Source Steps
+"g"
+"V"
+"E"
+"addV"
+"addE"
+"inject"
+
+# Gremlin Filter Steps
+"has"
+"hasLabel"
+"hasId"
+"hasKey"
+"hasValue"
+"hasNot"
+"is"
+"not"
+"where"
+"filter"
+"or"
+"and"
+"dedup"
+"range"
+"limit"
+"tail"
+"skip"
+"coin"
+"sample"
+"simplePath"
+"cyclicPath"
+"timeLimit"
+
+# Gremlin Map Steps
+"map"
+"flatMap"
+"id"
+"label"
+"constant"
+"identity"
+"values"
+"properties"
+"propertyMap"
+"valueMap"
+"elementMap"
+"key"
+"value"
+"path"
+"match"
+"sack"
+"select"
+"unfold"
+"fold"
+"count"
+"sum"
+"max"
+"min"
+"mean"
+"group"
+"groupCount"
+"tree"
+"order"
+"project"
+"math"
+"coalesce"
+"optional"
+"union"
+"choose"
+"repeat"
+"emit"
+"until"
+"times"
+"local"
+"as"
+
+# Gremlin Side Effect Steps
+"sideEffect"
+"cap"
+"subgraph"
+"aggregate"
+"store"
+"property"
+"drop"
+"profile"
+"explain"
+
+# Gremlin Vertex Steps
+"out"
+"in"
+"both"
+"outE"
+"inE"
+"bothE"
+"outV"
+"inV"
+"bothV"
+"otherV"
+
+# Gremlin Predicates
+"P"
+"eq"
+"neq"
+"lt"
+"lte"
+"gt"
+"gte"
+"inside"
+"outside"
+"between"
+"within"
+"without"
+
+# Gremlin Text Predicates
+"TextP"
+"startingWith"
+"endingWith"
+"containing"
+"notStartingWith"
+"notEndingWith"
+"notContaining"
+"regex"
+"notRegex"
+
+# Gremlin Special Tokens
+"__"
+"T"
+"Order"
+"Scope"
+"Column"
+"Pop"
+"Operator"
+"Cardinality"
+"Direction"
+"Barrier"
+"Pick"
+
+# Gremlin Syntax
+"."
+"("
+")"
+","
+"'"
+"\""
+"{"
+"}"
+"["
+"]"
+
+# Gremlin Modifiers
+"by"
+"from"
+"to"
+"with"
+"option"
+
+# Gremlin Cardinality
+"single"
+"list"
+"set"
+
+# Gremlin Order
+"asc"
+"desc"
+"shuffle"
+
+# Gremlin Scope
+"global"
+"local"
+
+# Gremlin Direction
+"OUT"
+"IN"
+"BOTH"
+
+# Gremlin Column
+"keys"
+"values"
+
+# Gremlin Pop
+"first"
+"last"
+"all"
+"mixed"
+
+# Gremlin Injection - Groovy Closures
+"sideEffect{"
+"map{"
+"filter{"
+"transform{"
+"}"
+
+# Gremlin Injection - Code Execution
+"Runtime"
+"getRuntime"
+"exec"
+"ProcessBuilder"
+"Process"
+"File"
+"FileInputStream"
+"FileOutputStream"
+"BufferedReader"
+"InputStreamReader"
+
+# Gremlin Injection - System Access
+"/etc/passwd"
+"/etc/shadow"
+"System.getProperty"
+"System.getenv"
+"System.exit"
+
+# Gremlin Injection - Class Loading
+"Class.forName"
+"ClassLoader"
+"URLClassLoader"
+"defineClass"
+
+# Gremlin Injection - Reflection
+"getMethod"
+"invoke"
+"getDeclaredMethod"
+"setAccessible"
+
+# Gremlin Injection - Network
+"URL"
+"URLConnection"
+"HttpURLConnection"
+"Socket"
+"ServerSocket"
+
+# Gremlin Injection - Bypass Attempts
+"\\u0027"
+"\\x27"
+"%27"
+"\\'"
+"''"
+
+# Gremlin Numeric Values
+"0"
+"1"
+"-1"
+"999999999"
+"1.0"
+"0.0"
+
+# Gremlin Boolean Values
+"true"
+"false"
+
+# Gremlin Special Characters
+"_"
+"$"
+"@"
+"#"
+";"
+":"
+
+# Common Property Names
+"name"
+"age"
+"id"
+"label"
+"type"
+"created"
+"updated"
+
+# Common Edge Labels
+"knows"
+"created"
+"follows"
+"likes"
+"contains"
+"belongsTo"
+
+# Common Vertex Labels
+"person"
+"software"
+"user"
+"product"
+"company"
+"location"

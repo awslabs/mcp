@@ -1,0 +1,1 @@
+aws sns list-topics

@@ -1,0 +1,9 @@
+api_name: my-api-server
+api_base_url: https://api.example.com
+api_spec_url: https://api.example.com/openapi.json
+auth_type: bearer
+auth_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+host: 0.0.0.0
+port: 443
+debug: true
+transport: https

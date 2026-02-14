@@ -1,0 +1,1 @@
+{"MessageBody": "Message with attributes", "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue", "MessageAttributes": {"CustomAttribute": {"DataType": "String", "StringValue": "custom value"}, "NumberAttr": {"DataType": "Number", "StringValue": "42"}}}

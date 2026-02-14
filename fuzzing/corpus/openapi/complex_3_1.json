@@ -1,0 +1,189 @@
+{
+  "components": {
+    "schemas": {
+      "Pagination": {
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "per_page": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "total_pages": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "admin",
+          "user",
+          "guest"
+        ],
+        "type": "string"
+      },
+      "User": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "type": "object"
+      },
+      "UserList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/User"
+            },
+            "type": "array"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKey": {
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      },
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "summary": "A complex API with various OpenAPI 3.1 features",
+    "title": "Complex API",
+    "version": "2.0.0"
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "openapi": "3.1.0",
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "default": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            },
+            "description": "Paginated list of users"
+          }
+        },
+        "summary": "List users with pagination"
+      }
+    },
+    "/users/{userId}": {
+      "get": {
+        "operationId": "getUser",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "User details"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "apiKey": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://{environment}.api.example.com/{version}",
+      "variables": {
+        "environment": {
+          "default": "prod",
+          "enum": [
+            "prod",
+            "staging",
+            "dev"
+          ]
+        },
+        "version": {
+          "default": "v2"
+        }
+      }
+    }
+  ]
+}

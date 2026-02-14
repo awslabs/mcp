@@ -1,0 +1,12 @@
+mcpServers:
+  postgres-server:
+    command: python
+    args:
+      - -m
+      - awslabs.postgres_mcp_server
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DATABASE: mydb

