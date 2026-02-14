@@ -202,6 +202,27 @@ class TestGetCostAndUsage:
         assert result['status'] == 'success'
         assert result['data'] is not None
 
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_and_usage with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            granularity='DAILY',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_cost_and_usage.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage."""
         # Setup error
@@ -290,6 +311,33 @@ class TestGetCostAndUsageWithResources:
         assert 'Metrics' in call_kwargs
         assert 'GroupBy' in call_kwargs
         assert 'Filter' in call_kwargs
+
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_and_usage_with_resources with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+        # We need to mock get_date_range to ensure our dates are used as is
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.get_date_range',
+            return_value=('2023-01-01', '2023-01-07'),
+        ):
+            result = await get_cost_and_usage_with_resources(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-07',
+                granularity='DAILY',
+                billing_view_arn=billing_view_arn,
+            )
+
+            mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
+            call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+
+            # Verify the client was called with the optional parameter and value
+            assert 'BillingViewArn' in call_kwargs
+            assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+            assert result['status'] == 'success'
+            assert result['data'] is not None
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage_with_resources."""
@@ -384,6 +432,27 @@ class TestGetDimensionValues:
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
         assert 'MaxResults' in call_kwargs
         assert call_kwargs['MaxResults'] == 50
+
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_dimension_values with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='SERVICE',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_dimension_values.assert_called_once()
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_dimension_values."""
@@ -495,6 +564,27 @@ class TestGetCostForecast:
         call_kwargs = mock_ce_client.get_cost_forecast.call_args[1]
         assert call_kwargs['Granularity'] == 'DAILY'
 
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_forecast with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_cost_forecast.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_forecast.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_forecast."""
         # Setup error
@@ -605,6 +695,27 @@ class TestGetUsageForecast:
         call_kwargs = mock_ce_client.get_usage_forecast.call_args[1]
         assert call_kwargs['Granularity'] == 'DAILY'
 
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_usage_forecast with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_usage_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='STORAGE_FORECAST',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_usage_forecast.assert_called_once()
+        call_kwargs = mock_ce_client.get_usage_forecast.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_usage_forecast."""
         # Setup error
@@ -668,6 +779,26 @@ class TestGetTags:
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Env'
 
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_tags with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_tags(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_tags.assert_called_once()
+        call_kwargs = mock_ce_client.get_tags.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
+
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_tags."""
         # Setup error
@@ -730,6 +861,26 @@ class TestGetCostCategories:
         call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
         assert 'SearchString' in call_kwargs
         assert call_kwargs['SearchString'] == 'Dep'
+
+    async def test_with_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_categories with billing_view_arn parameter."""
+        billing_view_arn = 'arn:aws:billing::123456789012:billingview/view'
+
+        result = await get_cost_categories(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            billing_view_arn=billing_view_arn,
+        )
+
+        mock_ce_client.get_cost_categories.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
+        assert 'BillingViewArn' in call_kwargs
+        assert call_kwargs['BillingViewArn'] == billing_view_arn
+
+        assert result['status'] == 'success'
+        assert result['data'] is not None
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_categories."""
