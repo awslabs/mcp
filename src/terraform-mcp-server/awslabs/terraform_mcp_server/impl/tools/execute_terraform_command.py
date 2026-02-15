@@ -132,6 +132,18 @@ async def execute_terraform_command_impl(
                         outputs=None,
                     )
 
+        if request.targets:
+            for target_value in request.targets:
+                if pattern in str(target_value):
+                    logger.error(f'Potentially dangerous pattern detected in targets: {pattern}')
+                    return TerraformExecutionResult(
+                        command=f'terraform {request.command}',
+                        status='error',
+                        error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in targets",
+                        working_directory=request.working_directory,
+                        outputs=None,
+                    )
+
     # Build the command
     cmd = ['terraform', request.command]
 
@@ -145,6 +157,12 @@ async def execute_terraform_command_impl(
         logger.info(f'Adding {len(request.variables)} variables to {request.command} command')
         for key, value in request.variables.items():
             cmd.append(f'-var={key}={value}')
+
+    # Add target flags for plan, apply, and destroy commands
+    if request.command in ['plan', 'apply', 'destroy'] and request.targets:
+        logger.info(f'Adding {len(request.targets)} targets to {request.command} command')
+        for target in request.targets:
+            cmd.append(f'-target={target}')
 
     # Execute command
     try:

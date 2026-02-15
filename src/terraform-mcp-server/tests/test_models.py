@@ -64,6 +64,22 @@ class TestTerraformExecutionRequest:
         assert request.variables is None
         assert request.aws_region is None
         assert request.strip_ansi is True
+        assert request.targets is None
+
+    def test_terraform_execution_request_with_targets(self, temp_terraform_dir):
+        """Test TerraformExecutionRequest with targets field."""
+        targets = ['aws_instance.web', 'module.vpc']
+        request = TerraformExecutionRequest(
+            command='plan',
+            working_directory=temp_terraform_dir,
+            variables=None,
+            aws_region=None,
+            strip_ansi=True,
+            targets=targets,
+        )
+
+        assert request.command == 'plan'
+        assert request.targets == targets
 
 
 class TestTerraformExecutionResult:
