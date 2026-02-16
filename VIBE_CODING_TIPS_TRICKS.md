@@ -29,7 +29,7 @@ Vibe coding involves several key components working together:
 
 - **Prompt**: The initial instructions and context provided to guide the coding process
 - **Client**: The interface through which users interact with the coding system. For instance, [Kiro](https://kiro.dev/) or [Cline](https://cline.bot/)
-- **Additional context**: You can enhance the agent's capabilities by providing additional context, such as AWS MCP servers
+- **Additional context**: You can enhance the agent's capabilities by providing additional context, such as by using MCP servers for AWS
 
 An important aspect is that while coding AI intends to help you be more productive, it is not aiming at replacing the developer. You own the architecture and the vision for the product. As the developer, you are expected to understand, review, and validate every technical decision made - the AI serves as a tool to enhance your capabilities, not substitute your critical thinking and expertise. The responsibility for code quality, architectural choices, and technical decisions remains firmly in human hands. Please refer to [this guide](https://d1.awsstatic.com/products/generative-ai/responsbile-ai/AWS-Responsible-Use-of-AI-Guide-Final.pdf) for responsible use of AI.
 
