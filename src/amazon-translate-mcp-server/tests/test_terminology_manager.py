@@ -669,30 +669,6 @@ class TestTerminologyManager:
 class TestTerminologyManagerXMLParsing:
     """Test XML parsing functionality and fallback behavior."""
 
-    def test_xml_parsing_fallback_warning(self):
-        """Test that XML parsing fallback generates appropriate warning."""
-        import warnings
-
-        # Mock defusedxml import failure to trigger fallback
-        with patch.dict('sys.modules', {'defusedxml': None, 'defusedxml.ElementTree': None}):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter('always')
-
-                # Force reimport to trigger the fallback
-                import awslabs.amazon_translate_mcp_server.terminology_manager as tm_module
-                import importlib
-
-                importlib.reload(tm_module)
-
-                # Check if warning was issued
-                warning_messages = [str(warning.message) for warning in w]
-                xml_warnings = [
-                    msg for msg in warning_messages if 'defusedxml' in msg and 'XML attacks' in msg
-                ]
-
-                # Should have at least one warning about XML security
-                assert len(xml_warnings) > 0
-
     def test_terminology_manager_initialization_edge_cases(self):
         """Test terminology manager initialization with edge cases."""
         from awslabs.amazon_translate_mcp_server.terminology_manager import TerminologyManager

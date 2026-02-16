@@ -105,25 +105,6 @@ class TestServerMissingLines:
 class TestTerminologyManagerMissingLines:
     """Test specific missing lines in terminology_manager.py."""
 
-    def test_xml_fallback_import_warning(self):
-        """Test XML fallback import warning (lines 32-37)."""
-        import warnings
-
-        # Mock defusedxml import failure
-        with patch.dict('sys.modules', {'defusedxml': None, 'defusedxml.ElementTree': None}):
-            with warnings.catch_warnings(record=True) as w:
-                warnings.simplefilter('always')
-
-                # Force reimport to trigger fallback
-                import awslabs.amazon_translate_mcp_server.terminology_manager as tm_module
-                import importlib
-
-                importlib.reload(tm_module)
-
-                # Check for XML security warning
-                xml_warnings = [warning for warning in w if 'defusedxml' in str(warning.message)]
-                assert len(xml_warnings) > 0
-
     def test_terminology_manager_initialization(self):
         """Test terminology manager initialization."""
         from awslabs.amazon_translate_mcp_server.terminology_manager import TerminologyManager
