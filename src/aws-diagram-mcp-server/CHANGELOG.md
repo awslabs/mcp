@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Fixed Windows compatibility issue by replacing Unix-only signal.SIGALRM with cross-platform threading-based timeout mechanism
+
 ### Added
 
 - Initial project setup
