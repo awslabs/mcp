@@ -13,8 +13,6 @@
 # limitations under the License.
 """Utility functions for AWS Documentation MCP Server."""
 
-import markdownify
-from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
 from urllib.parse import quote_plus
 
@@ -32,7 +30,8 @@ def extract_content_from_html(html: str) -> str:
         return '<e>Empty HTML content</e>'
 
     try:
-        # First use BeautifulSoup to clean up the HTML
+        # Local imports — deferred for faster module-level load
+        import markdownify
         from bs4 import BeautifulSoup
 
         # Parse HTML with BeautifulSoup
@@ -192,7 +191,7 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
+def parse_recommendation_results(data: Dict[str, Any]) -> 'List[RecommendationResult]':
     """Parse recommendation API response into RecommendationResult objects.
 
     Args:
@@ -203,7 +202,7 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
     """
     results = []
 
-    # Process highly rated recommendations
+    from awslabs.aws_documentation_mcp_server.models import RecommendationResult
     if 'highlyRated' in data and 'items' in data['highlyRated']:
         for item in data['highlyRated']['items']:
             context = item.get('abstract') if 'abstract' in item else None

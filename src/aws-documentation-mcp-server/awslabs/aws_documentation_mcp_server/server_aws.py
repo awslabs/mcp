@@ -13,31 +13,10 @@
 # limitations under the License.
 """awslabs AWS Documentation MCP Server implementation."""
 
-import httpx
 import json
 import re
 import uuid
-
-# Import models
-from awslabs.aws_documentation_mcp_server.models import (
-    RecommendationResult,
-    SearchResponse,
-    SearchResult,
-)
-from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
-    add_search_result_cache_item,
-    read_documentation_impl,
-)
-
-# Import utility functions
-from awslabs.aws_documentation_mcp_server.util import (
-    add_search_intent_to_search_request,
-    parse_recommendation_results,
-)
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
 from typing import List, Optional
 
 
@@ -56,53 +35,15 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
 ]
 
 
-mcp = FastMCP(
-    'awslabs.aws-documentation-mcp-server',
-    instructions="""
-    # AWS Documentation MCP Server
-
-    This server provides tools to access public AWS documentation, search for content, and get recommendations.
-
-    ## Best Practices
-
-    - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
-    - For very long documents (>30,000 characters), stop reading if you've found the needed information
-    - When searching, use specific technical terms rather than general phrases
-    - Use `recommend` tool to discover related content that might not appear in search results
-    - For recent updates to a service, get an URL for any page in that service, then check the **New** section of the `recommend` tool output on that URL
-    - If multiple searches with similar terms yield insufficient results, pivot to using `recommend` to find related pages.
-    - Always cite the documentation URL when providing information to users
-
-    ## Tool Selection Guide
-
-    - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
-    - Use `read_documentation` when: You have a specific documentation URL and need its content
-    - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
-    - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
-    """,
-    dependencies=[
-        'pydantic',
-        'httpx',
-        'beautifulsoup4',
-    ],
-)
+# mcp instance - deferred to main()
+mcp = None
 
 
-@mcp.tool()
 async def read_documentation(
-    ctx: Context,
-    url: str = Field(description='URL of the AWS documentation page to read'),
-    max_length: int = Field(
-        default=5000,
-        description='Maximum number of characters to return.',
-        gt=0,
-        lt=1000000,
-    ),
-    start_index: int = Field(
-        default=0,
-        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
-        ge=0,
-    ),
+    ctx,
+    url: str,
+    max_length: int = 5000,
+    start_index: int = 0,
 ) -> str:
     """Fetch and convert an AWS documentation page to markdown format.
 
@@ -145,6 +86,8 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
+    from awslabs.aws_documentation_mcp_server.server_utils import read_documentation_impl
+
     # Validate that URL is from docs.aws.amazon.com and ends with .html
     url_str = str(url)
 
@@ -162,29 +105,14 @@ async def read_documentation(
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
-@mcp.tool()
 async def search_documentation(
-    ctx: Context,
-    search_phrase: str = Field(description='Search phrase to use'),
-    search_intent: str = Field(
-        description='For the search_phrase parameter, describe the search intent of the user. CRITICAL: Do not include any PII or customer data, describe only the AWS-related intent for search.',
-        default='',
-    ),
-    limit: int = Field(
-        default=10,
-        description='Maximum number of results to return',
-        ge=1,
-        le=50,
-    ),
-    product_types: Optional[List[str]] = Field(
-        default=None,
-        description='Filter results by AWS product/service (e.g., ["Amazon Simple Storage Service"])',
-    ),
-    guide_types: Optional[List[str]] = Field(
-        default=None,
-        description='Filter results by guide type (e.g., ["User Guide", "API Reference", "Developer Guide"])',
-    ),
-) -> SearchResponse:
+    ctx,
+    search_phrase: str,
+    search_intent: str = '',
+    limit: int = 10,
+    product_types: Optional[List[str]] = None,
+    guide_types: Optional[List[str]] = None,
+) -> 'SearchResponse':
     """Search AWS documentation using the official AWS Documentation Search API.
 
     ## Usage
@@ -228,6 +156,14 @@ async def search_documentation(
     Returns:
         List of search results with URLs, titles, query ID, context snippets, and facets for filtering
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
+    from awslabs.aws_documentation_mcp_server.server_utils import (
+        add_search_result_cache_item,
+        get_default_user_agent,
+    )
+    from awslabs.aws_documentation_mcp_server.util import add_search_intent_to_search_request
+
     logger.debug(f'Searching AWS documentation for: {search_phrase}')
 
     request_body = {
@@ -266,7 +202,7 @@ async def search_documentation(
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
-                    'User-Agent': DEFAULT_USER_AGENT,
+                    'User-Agent': get_default_user_agent(),
                     'X-MCP-Session-Id': SESSION_UUID,
                 },
                 timeout=30,
@@ -352,11 +288,10 @@ async def search_documentation(
     return final_search_response
 
 
-@mcp.tool()
 async def recommend(
-    ctx: Context,
-    url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
-) -> List[RecommendationResult]:
+    ctx,
+    url: str,
+) -> 'List[RecommendationResult]':
     """Get content recommendations for an AWS documentation page.
 
     ## Usage
@@ -402,6 +337,11 @@ async def recommend(
     Returns:
         List of recommended pages with URLs, titles, and context
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+    from awslabs.aws_documentation_mcp_server.server_utils import get_default_user_agent
+    from awslabs.aws_documentation_mcp_server.util import parse_recommendation_results
+
     url_str = str(url)
     logger.debug(f'Getting recommendations for: {url_str}')
 
@@ -411,7 +351,7 @@ async def recommend(
         try:
             response = await client.get(
                 recommendation_url,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={'User-Agent': get_default_user_agent()},
                 timeout=30,
             )
         except httpx.HTTPError as e:
@@ -445,9 +385,110 @@ async def recommend(
     return results
 
 
+def _create_mcp():
+    """Create and configure the FastMCP instance with all tool registrations."""
+    from mcp.server.fastmcp import Context, FastMCP
+    from pydantic import Field
+    from awslabs.aws_documentation_mcp_server.models import RecommendationResult, SearchResponse
+
+    server = FastMCP(
+        'awslabs.aws-documentation-mcp-server',
+        instructions="""
+    # AWS Documentation MCP Server
+
+    This server provides tools to access public AWS documentation, search for content, and get recommendations.
+
+    ## Best Practices
+
+    - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
+    - For very long documents (>30,000 characters), stop reading if you've found the needed information
+    - When searching, use specific technical terms rather than general phrases
+    - Use `recommend` tool to discover related content that might not appear in search results
+    - For recent updates to a service, get an URL for any page in that service, then check the **New** section of the `recommend` tool output on that URL
+    - If multiple searches with similar terms yield insufficient results, pivot to using `recommend` to find related pages.
+    - Always cite the documentation URL when providing information to users
+
+    ## Tool Selection Guide
+
+    - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
+    - Use `read_documentation` when: You have a specific documentation URL and need its content
+    - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
+    - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
+    """,
+        dependencies=[
+            'pydantic',
+            'httpx',
+            'beautifulsoup4',
+        ],
+    )
+
+    # Register tool functions with Field-annotated wrappers.
+    # Docstrings are inherited from the outer functions to avoid duplication.
+    @server.tool(name='read_documentation', description=read_documentation.__doc__)
+    async def read_documentation_tool(
+        ctx: Context,
+        url: str = Field(description='URL of the AWS documentation page to read'),
+        max_length: int = Field(
+            default=5000,
+            description='Maximum number of characters to return.',
+            gt=0,
+            lt=1000000,
+        ),
+        start_index: int = Field(
+            default=0,
+            description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
+            ge=0,
+        ),
+    ) -> str:
+        return await read_documentation(ctx, url=url, max_length=max_length, start_index=start_index)
+
+    @server.tool(name='search_documentation', description=search_documentation.__doc__)
+    async def search_documentation_tool(
+        ctx: Context,
+        search_phrase: str = Field(description='Search phrase to use'),
+        search_intent: str = Field(
+            description='For the search_phrase parameter, describe the search intent of the user. CRITICAL: Do not include any PII or customer data, describe only the AWS-related intent for search.',
+            default='',
+        ),
+        limit: int = Field(
+            default=10,
+            description='Maximum number of results to return',
+            ge=1,
+            le=50,
+        ),
+        product_types: Optional[List[str]] = Field(
+            default=None,
+            description='Filter results by AWS product/service (e.g., ["Amazon Simple Storage Service"])',
+        ),
+        guide_types: Optional[List[str]] = Field(
+            default=None,
+            description='Filter results by guide type (e.g., ["User Guide", "API Reference", "Developer Guide"])',
+        ),
+    ) -> SearchResponse:
+        return await search_documentation(
+            ctx,
+            search_phrase=search_phrase,
+            search_intent=search_intent,
+            limit=limit,
+            product_types=product_types,
+            guide_types=guide_types,
+        )
+
+    @server.tool(name='recommend', description=recommend.__doc__)
+    async def recommend_tool(
+        ctx: Context,
+        url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
+    ) -> List[RecommendationResult]:
+        return await recommend(ctx, url=url)
+
+    return server
+
+
 def main():
     """Run the MCP server with CLI argument support."""
+    global mcp
     logger.info('Starting AWS Documentation MCP Server')
+    mcp = _create_mcp()
     mcp.run()
 
 

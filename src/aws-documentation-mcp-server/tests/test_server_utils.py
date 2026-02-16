@@ -17,9 +17,9 @@ import httpx
 import pytest
 from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
 from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
     add_search_result_cache_item,
+    get_default_user_agent,
     get_query_id_from_cache,
     read_documentation_impl,
 )
@@ -56,15 +56,15 @@ class TestReadDocumentationImpl:
 
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    'awslabs.aws_documentation_mcp_server.util.is_html_content',
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.util.extract_content_from_html',
                     return_value='# Test\n\nContent',
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
+                    'awslabs.aws_documentation_mcp_server.util.format_documentation_result',
                     return_value='AWS Documentation from URL: # Test\n\nContent',
                 ),
             ):
@@ -80,7 +80,7 @@ class TestReadDocumentationImpl:
                     f'{url}?session=test-uuid',
                     follow_redirects=True,
                     headers={
-                        'User-Agent': DEFAULT_USER_AGENT,
+                        'User-Agent': get_default_user_agent(),
                         'X-MCP-Session-Id': 'test-uuid',
                     },
                     timeout=30,
@@ -112,11 +112,11 @@ class TestReadDocumentationImpl:
 
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    'awslabs.aws_documentation_mcp_server.util.is_html_content',
                     return_value=False,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
+                    'awslabs.aws_documentation_mcp_server.util.format_documentation_result',
                     return_value='AWS Documentation from URL: Plain text content',
                 ),
             ):
@@ -218,15 +218,15 @@ class TestReadDocumentationImpl:
 
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    'awslabs.aws_documentation_mcp_server.util.is_html_content',
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.util.extract_content_from_html',
                     return_value='# Test\n\nLong content that exceeds max length',
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result'
+                    'awslabs.aws_documentation_mcp_server.util.format_documentation_result'
                 ) as mock_format,
             ):
                 # Set up the mock to return a truncated result
@@ -277,15 +277,15 @@ class TestReadDocumentationImpl:
 
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    'awslabs.aws_documentation_mcp_server.util.is_html_content',
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.util.extract_content_from_html',
                     return_value='# Test\n\nContent',
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
+                    'awslabs.aws_documentation_mcp_server.util.format_documentation_result',
                     mock_format,
                 ),
             ):
@@ -347,15 +347,15 @@ class TestReadDocumentationImpl:
 
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    'awslabs.aws_documentation_mcp_server.util.is_html_content',
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.util.extract_content_from_html',
                     return_value='# Test\n\nContent',
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
+                    'awslabs.aws_documentation_mcp_server.util.format_documentation_result',
                     return_value='AWS Documentation from URL: # Test\n\nContent',
                 ),
             ):
@@ -371,7 +371,7 @@ class TestReadDocumentationImpl:
                     f'{url}?session=test-uuid&query_id=test-query-id',
                     follow_redirects=True,
                     headers={
-                        'User-Agent': DEFAULT_USER_AGENT,
+                        'User-Agent': get_default_user_agent(),
                         'X-MCP-Session-Id': 'test-uuid',
                     },
                     timeout=30,
@@ -388,9 +388,11 @@ class TestUserAgentCustomization:
         import importlib
 
         importlib.reload(server_utils)
+        server_utils._default_user_agent = None
 
-        assert 'Custom/1.0 Browser' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol' in server_utils.DEFAULT_USER_AGENT
+        ua = server_utils.get_default_user_agent()
+        assert 'Custom/1.0 Browser' in ua
+        assert 'ModelContextProtocol' in ua
 
     @patch.dict('os.environ', {}, clear=True)
     def test_default_user_agent_when_no_env(self):
@@ -399,9 +401,11 @@ class TestUserAgentCustomization:
         import importlib
 
         importlib.reload(server_utils)
+        server_utils._default_user_agent = None
 
-        assert 'Chrome' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol' in server_utils.DEFAULT_USER_AGENT
+        ua = server_utils.get_default_user_agent()
+        assert 'Chrome' in ua
+        assert 'ModelContextProtocol' in ua
 
 
 class TestVersionImport:
@@ -417,11 +421,14 @@ class TestVersionImport:
         import importlib
 
         importlib.reload(server_utils)
+        server_utils._default_user_agent = None
+
+        ua = server_utils.get_default_user_agent()
 
         # Verify the version was retrieved from metadata
-        mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
-        assert '1.1.3' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol/1.1.3' in server_utils.DEFAULT_USER_AGENT
+        mock_version.assert_called_with('awslabs.aws-documentation-mcp-server')
+        assert '1.1.3' in ua
+        assert 'ModelContextProtocol/1.1.3' in ua
 
     @patch('importlib.metadata.version')
     def test_version_fallback_to_init(self, mock_version):
@@ -438,11 +445,14 @@ class TestVersionImport:
         import importlib
 
         importlib.reload(server_utils)
+        server_utils._default_user_agent = None
+
+        ua = server_utils.get_default_user_agent()
 
         # Verify it fell back to the __init__.py version
-        mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
-        assert version in server_utils.DEFAULT_USER_AGENT
-        assert f'ModelContextProtocol/{version}' in server_utils.DEFAULT_USER_AGENT
+        mock_version.assert_called_with('awslabs.aws-documentation-mcp-server')
+        assert version in ua
+        assert f'ModelContextProtocol/{version}' in ua
 
 
 class TestSearchResultCache:
