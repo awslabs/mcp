@@ -24,11 +24,73 @@ from ..common.file_system_controls import validate_file_path
 from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
+from loguru import logger
 from typing import Any
 
 
 TIMEOUT_AFTER_SECONDS = 10
 CHUNK_SIZE = 4 * 1024 * 1024
+
+# Bounded cache for boto3 clients to avoid creating heavyweight objects per request.
+# Each client loads service models, creates connection pools, and allocates SSL contexts.
+# Keyed on (service_name, region, credential_hash, endpoint_url).
+_client_cache: dict[tuple, Any] = {}
+_MAX_CACHED_CLIENTS = 10
+
+# Auth error codes that should trigger client eviction and retry
+_AUTH_ERROR_CODES = frozenset({
+    'ExpiredTokenException',
+    'ExpiredToken',
+    'RequestExpired',
+    'InvalidClientTokenId',
+    'UnrecognizedClientException',
+})
+
+
+def _get_or_create_client(
+    service_name: str,
+    access_key_id: str,
+    secret_access_key: str,
+    session_token: str | None,
+    region: str,
+    config: Config,
+    endpoint_url: str | None,
+) -> Any:
+    """Return a cached boto3 client or create a new one.
+
+    Evicts oldest entry when cache exceeds _MAX_CACHED_CLIENTS.
+    """
+    key = (service_name, region, hash((access_key_id, session_token)), endpoint_url)
+
+    if key in _client_cache:
+        return _client_cache[key]
+
+    if len(_client_cache) >= _MAX_CACHED_CLIENTS:
+        evicted_key = next(iter(_client_cache))
+        del _client_cache[evicted_key]
+
+    client = boto3.client(
+        service_name,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        aws_session_token=session_token,
+        config=config,
+        endpoint_url=endpoint_url,
+    )
+    _client_cache[key] = client
+    return client
+
+
+def _evict_client(
+    service_name: str,
+    access_key_id: str,
+    session_token: str | None,
+    region: str,
+    endpoint_url: str | None,
+) -> None:
+    """Remove a client from cache, e.g. after an auth error."""
+    key = (service_name, region, hash((access_key_id, session_token)), endpoint_url)
+    _client_cache.pop(key, None)
 
 
 def interpret(
@@ -59,30 +121,44 @@ def interpret(
     )
 
     with operation_timer(ir.service_name, ir.operation_python_name, region):
-        client = boto3.client(
+        client = _get_or_create_client(
             ir.service_name,
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=secret_access_key,
-            aws_session_token=session_token,
-            config=config,
-            endpoint_url=endpoint_url,
+            access_key_id,
+            secret_access_key,
+            session_token,
+            region,
+            config,
+            endpoint_url,
         )
 
-        if client.can_paginate(ir.operation_python_name):
-            response = build_result(
-                paginator=client.get_paginator(ir.operation_python_name),
-                service_name=ir.service_name,
-                operation_name=ir.operation_name,
-                operation_parameters=ir.parameters,
-                pagination_config=pagination_config,
-                client_side_filter=client_side_filter,
-            )
-        else:
-            operation = getattr(client, ir.operation_python_name)
-            response = operation(**parameters)
+        try:
+            if client.can_paginate(ir.operation_python_name):
+                response = build_result(
+                    paginator=client.get_paginator(ir.operation_python_name),
+                    service_name=ir.service_name,
+                    operation_name=ir.operation_name,
+                    operation_parameters=ir.parameters,
+                    pagination_config=pagination_config,
+                    client_side_filter=client_side_filter,
+                )
+            else:
+                operation = getattr(client, ir.operation_python_name)
+                response = operation(**parameters)
 
-            if client_side_filter is not None:
-                response = _apply_filter(response, client_side_filter)
+                if client_side_filter is not None:
+                    response = _apply_filter(response, client_side_filter)
+        except Exception as exc:
+            # Evict cached client on auth errors so next call gets fresh credentials
+            error_code = getattr(getattr(exc, 'response', None), 'get', lambda *a: {})('Error', {}).get('Code', '')
+            if not error_code:
+                # Handle botocore ClientError structure
+                resp = getattr(exc, 'response', None)
+                if isinstance(resp, dict):
+                    error_code = resp.get('Error', {}).get('Code', '')
+            if error_code in _AUTH_ERROR_CODES:
+                logger.info('Auth error ({}), evicting cached client for {}/{}', error_code, ir.service_name, region)
+                _evict_client(ir.service_name, access_key_id, session_token, region, endpoint_url)
+            raise
 
         if ir.has_streaming_output and ir.output_file and ir.output_file.path != '-':
             response = _handle_streaming_output(response, ir.output_file)

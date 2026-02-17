@@ -157,19 +157,19 @@ async def suggest_aws_commands(
         await ctx.error(error_message)
         raise AwsApiMcpError(error_message)
     try:
-        with get_requests_session() as session:
-            response = session.post(
-                ENDPOINT_SUGGEST_AWS_COMMANDS,
-                json={'query': query},
-                timeout=30,
-            )
-            response.raise_for_status()
-            suggestions = response.json().get('suggestions')
-            logger.info(
-                'Suggested commands: {}',
-                [suggestion.get('command') for suggestion in suggestions],
-            )
-            return response.json()
+        session = get_requests_session()
+        response = session.post(
+            ENDPOINT_SUGGEST_AWS_COMMANDS,
+            json={'query': query},
+            timeout=30,
+        )
+        response.raise_for_status()
+        suggestions = response.json().get('suggestions')
+        logger.info(
+            'Suggested commands: {}',
+            [suggestion.get('command') for suggestion in suggestions],
+        )
+        return response.json()
     except Exception as e:
         logger.error('Error while suggesting commands: {}', str(e))
         error_message = 'Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
