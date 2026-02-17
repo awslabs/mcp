@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v0.0.25
+  - **Agent Identification**: Added support for an `AGENT` environment variable that appends `agent/<value>` to the User-Agent string on all boto3 API calls, enabling traceability and attribution of requests to specific AI agents via CloudTrail and AWS service logs
+    - New `AGENT_ENV` constant in `consts.py`
+    - New `get_agent_value()` function with input sanitization (visible ASCII only)
+    - Agent value appended to `user_agent_extra` on the botocore session as `agent/<lowercased_value>`
+    - All service clients automatically inherit the user-agent suffix from the shared session
+
 - v0.0.22
   - **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
   - **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics

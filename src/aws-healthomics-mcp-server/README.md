@@ -403,6 +403,14 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 
 > **Note for Large S3 Buckets**: When searching very large S3 buckets (millions of objects), the genomics file search may take longer than the default MCP client timeout. If you encounter timeout errors, increase the MCP server timeout by adding a `"timeout"` property to your MCP server configuration (e.g., `"timeout": 300000` for five minutes, specified in milliseconds). This is particularly important when using the search tool with extensive S3 bucket configurations or when `GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH=true` is used with large datasets. The value of `"timeout"` should always be greater than the value of `GENOMICS_SEARCH_TIMEOUT_SECONDS` if you want to prevent the MCP timeout from preempting the genomics search timeout
 
+#### Agent Identification
+
+- `AGENT` - Agent identifier appended to the User-Agent string on all boto3 API calls as `agent/<value>` (optional)
+  - **Use case**: Attributing API calls to specific AI agents for traceability via CloudTrail and AWS service logs
+  - **Behavior**: When set, the value is sanitized to visible ASCII characters (0x20-0x7E), stripped of leading/trailing whitespace, lowercased, and appended to the User-Agent header as `agent/<value>`
+  - **Validation**: Empty, whitespace-only, or values that become empty after sanitization are treated as unset
+  - **Example**: `export AGENT=KIRO` produces `User-Agent: ... agent/kiro`
+
 #### Testing Configuration Variables
 
 The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
@@ -527,6 +535,7 @@ Add to your Kiro MCP configuration (`~/.kiro/settings/mcp.json`):
         "AWS_REGION": "us-east-1",
         "AWS_PROFILE": "your-profile",
         "HEALTHOMICS_DEFAULT_MAX_RESULTS": "10",
+        "AGENT": "kiro",
         "GENOMICS_SEARCH_S3_BUCKETS": "s3://my-genomics-data/,s3://shared-references/",
         "GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH": "true",
         "GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE": "100",
