@@ -251,7 +251,7 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
                 ]
             ),
         ),
-        # Shape for stream-name has max length 128 but this is not validated for forward compatibility reasons
+        # Shape for stream-name has max length 128 but this is not validated to remain forwards compatible with any API changes
         (
             (
                 'aws kinesis describe-stream --stream-name 1234511111111111111111111111111111111111'
