@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Remove max range check on parameters to remain forwards compatible with any API changes (#2445)
+
+## [1.3.9] - 2026-02-12
+
+### Fixed
+
 - Validate file path access in shorthand parser (#2406)
 
 ## [1.3.5] - 2026-01-21
