@@ -49,8 +49,7 @@ Before referring to any listed errors, refer to the complete [DSQL troubleshooti
 When migrating from PostgreSQL, remember DSQL doesn't support:
 
 - **Foreign key constraints** - Enforce referential integrity in application code
-- **Sequences** - Use `gen_random_uuid()` for primary keys
-- **SERIAL types** - Use UUID or INTEGER with application-generated IDs
+- **SERIAL types** - Use `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY` with sequences instead
 - **Extensions** - No PL/pgSQL, PostGIS, pgvector, etc.
 - **Triggers** - Implement logic in application layer
 - **Temporary tables** - Use regular tables or application-level caching
