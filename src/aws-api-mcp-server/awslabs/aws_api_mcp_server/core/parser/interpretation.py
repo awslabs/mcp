@@ -35,7 +35,7 @@ CHUNK_SIZE = 4 * 1024 * 1024
 # Each client loads service models, creates connection pools, and allocates SSL contexts.
 # Keyed on (service_name, region, credential_hash, endpoint_url).
 _client_cache: dict[tuple, Any] = {}
-_MAX_CACHED_CLIENTS = 10
+_MAX_CACHED_CLIENTS = 30
 
 # Auth error codes that should trigger client eviction and retry
 _AUTH_ERROR_CODES = frozenset({

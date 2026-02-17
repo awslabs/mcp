@@ -46,17 +46,29 @@ class FileAccessMode(str, Enum):
     NO_ACCESS = 'no-access'
 
 
+# Cache resolved regions by profile name. Region doesn't change for a given profile,
+# so creating a new boto3.Session() per call just to read it wastes ~5 MB each time.
+_region_cache: dict[str, str] = {}
+
+
 def get_region(profile_name: str | None = None) -> str:
     """Get the region depending on configuration."""
     if AWS_REGION:
         return AWS_REGION
 
+    cache_key = profile_name or '__default__'
+    if cache_key in _region_cache:
+        return _region_cache[cache_key]
+
     fallback_region = 'us-east-1'
 
     if profile_name:
-        return boto3.Session(profile_name=profile_name).region_name or fallback_region
+        region = boto3.Session(profile_name=profile_name).region_name or fallback_region
+    else:
+        region = boto3.Session().region_name or fallback_region
 
-    return boto3.Session().region_name or fallback_region
+    _region_cache[cache_key] = region
+    return region
 
 
 def get_server_directory():
