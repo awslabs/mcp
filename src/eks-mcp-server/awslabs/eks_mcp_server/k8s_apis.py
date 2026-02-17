@@ -91,6 +91,9 @@ class K8sApis:
 
     def _configure_proxy_settings(self, config):
         """Configure proxy settings for Kubernetes client from environment variables."""
+        from urllib.parse import urlparse
+        from urllib.request import proxy_bypass_environment
+
         # Get proxy URL (HTTPS proxy takes precedence over HTTP proxy)
         proxy_url = (
             os.environ.get('HTTPS_PROXY')
@@ -100,6 +103,12 @@ class K8sApis:
         )
 
         if not proxy_url:
+            return
+
+        # Check NO_PROXY/no_proxy before configuring proxy
+        hostname = urlparse(config.host).hostname
+        if hostname and proxy_bypass_environment(hostname):
+            logger.debug(f'Skipping proxy for {hostname} (matches NO_PROXY)')
             return
 
         logger.debug(f'Configuring proxy: {proxy_url}')
