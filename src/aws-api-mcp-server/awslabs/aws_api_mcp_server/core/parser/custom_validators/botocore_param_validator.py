@@ -60,6 +60,6 @@ class BotoCoreParamValidator(ParamValidator):
 
     @type_check(valid_types=(str,))
     def _validate_string(self, param, shape, errors, name):
-        # max range is not checked to be forwards compatible with API changes https://github.com/boto/botocore/issues/1845
+        # max range is not checked to be forward compatible with API changes https://github.com/boto/botocore/issues/1845
         range_check(name, len(param), shape, 'invalid length', errors)
         pattern_check(name, param, shape, 'invalid pattern', errors)
