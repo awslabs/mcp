@@ -149,12 +149,10 @@ def interpret(
                     response = _apply_filter(response, client_side_filter)
         except Exception as exc:
             # Evict cached client on auth errors so next call gets fresh credentials
-            error_code = getattr(getattr(exc, 'response', None), 'get', lambda *a: {})('Error', {}).get('Code', '')
-            if not error_code:
-                # Handle botocore ClientError structure
-                resp = getattr(exc, 'response', None)
-                if isinstance(resp, dict):
-                    error_code = resp.get('Error', {}).get('Code', '')
+            error_code = ''
+            resp = getattr(exc, 'response', None)
+            if isinstance(resp, dict):
+                error_code = resp.get('Error', {}).get('Code', '')
             if error_code in _AUTH_ERROR_CODES:
                 logger.info('Auth error ({}), evicting cached client for {}/{}', error_code, ir.service_name, region)
                 _evict_client(ir.service_name, access_key_id, session_token, region, endpoint_url)

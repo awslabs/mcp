@@ -157,7 +157,7 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
 
     """
     _evict_stale_cache_entries()
-    for _, search_response in SEARCH_RESULT_CACHE:
+    for _timestamp, search_response in SEARCH_RESULT_CACHE:
         for search_result in search_response.search_results:
             if search_result.url == url:
                 query_id = quote(search_response.query_id)
