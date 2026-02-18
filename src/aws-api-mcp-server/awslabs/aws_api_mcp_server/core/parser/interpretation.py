@@ -14,6 +14,7 @@
 
 import boto3
 import json
+from collections import OrderedDict
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
@@ -31,10 +32,11 @@ from typing import Any
 TIMEOUT_AFTER_SECONDS = 10
 CHUNK_SIZE = 4 * 1024 * 1024
 
-# Bounded cache for boto3 clients to avoid creating heavyweight objects per request.
+# Bounded LRU cache for boto3 clients to avoid creating heavyweight objects per request.
 # Each client loads service models, creates connection pools, and allocates SSL contexts.
-# Keyed on (service_name, region, credential_hash, endpoint_url).
-_client_cache: dict[tuple, Any] = {}
+# Keyed on (service_name, region, access_key_id, secret_access_key, session_token, endpoint_url).
+# OrderedDict gives O(1) move_to_end() for LRU eviction.
+_client_cache: OrderedDict[tuple, Any] = OrderedDict()
 _MAX_CACHED_CLIENTS = 30
 
 # Auth error codes that should trigger client eviction and retry
@@ -58,16 +60,16 @@ def _get_or_create_client(
 ) -> Any:
     """Return a cached boto3 client or create a new one.
 
-    Evicts oldest entry when cache exceeds _MAX_CACHED_CLIENTS.
+    Uses LRU eviction via OrderedDict.move_to_end() when cache is full.
     """
-    key = (service_name, region, hash((access_key_id, session_token)), endpoint_url)
+    key = (service_name, region, access_key_id, secret_access_key, session_token, endpoint_url)
 
     if key in _client_cache:
+        _client_cache.move_to_end(key)
         return _client_cache[key]
 
     if len(_client_cache) >= _MAX_CACHED_CLIENTS:
-        evicted_key = next(iter(_client_cache))
-        del _client_cache[evicted_key]
+        _client_cache.popitem(last=False)
 
     client = boto3.client(
         service_name,
@@ -84,12 +86,13 @@ def _get_or_create_client(
 def _evict_client(
     service_name: str,
     access_key_id: str,
+    secret_access_key: str,
     session_token: str | None,
     region: str,
     endpoint_url: str | None,
 ) -> None:
     """Remove a client from cache, e.g. after an auth error."""
-    key = (service_name, region, hash((access_key_id, session_token)), endpoint_url)
+    key = (service_name, region, access_key_id, secret_access_key, session_token, endpoint_url)
     _client_cache.pop(key, None)
 
 
@@ -155,7 +158,7 @@ def interpret(
                 error_code = resp.get('Error', {}).get('Code', '')
             if error_code in _AUTH_ERROR_CODES:
                 logger.info('Auth error ({}), evicting cached client for {}/{}', error_code, ir.service_name, region)
-                _evict_client(ir.service_name, access_key_id, session_token, region, endpoint_url)
+                _evict_client(ir.service_name, access_key_id, secret_access_key, session_token, region, endpoint_url)
             raise
 
         if ir.has_streaming_output and ir.output_file and ir.output_file.path != '-':
