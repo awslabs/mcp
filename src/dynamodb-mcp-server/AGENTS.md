@@ -4,7 +4,7 @@
 
 This is the **AWS DynamoDB MCP Server** - an official AWS Labs Model Context Protocol (MCP) server that provides DynamoDB expert design guidance and data modeling assistance. The project is built with Python 3.10+ and uses `uv` for dependency management.
 
-**Current Version**: 2.0.13
+**Current Version**: See `version` in [pyproject.toml](pyproject.toml)
 
 **Project URLs**:
 - Homepage: https://awslabs.github.io/mcp/
@@ -15,7 +15,6 @@ This is the **AWS DynamoDB MCP Server** - an official AWS Labs Model Context Pro
 **Package Information**:
 - PyPI Package: `awslabs.dynamodb-mcp-server`
 - License: Apache-2.0
-- Python Files: 47+ core Python modules
 
 ## Setup Commands
 
@@ -56,13 +55,6 @@ docker run --rm --interactive --env FASTMCP_LOG_LEVEL=ERROR awslabs/dynamodb-mcp
 
 ## Code Style and Quality
 
-### Formatting and Linting
-- **Formatter**: Ruff with single quotes, no semicolons
-- **Line length**: 99 characters
-- **Import style**: Lines after imports = 2, no sections
-- **Docstring convention**: Google style
-- **Quote style**: Single quotes preferred
-
 ### Quality Tools
 ```bash
 # Format code
@@ -81,11 +73,10 @@ uv run pyright
 uv run ruff check && uv run pyright
 ```
 
-### Ruff Configuration
-- Selects: C (complexity), D (docstring), E (error), F (pyflakes), I (import), W (warning)
-- Ignores: C901, E501, E741, F402, F823, D100, D106
-- Special handling: `__init__.py` files exclude lint checks
-- Per-file ignores configured in pyproject.toml
+### Code Style Configuration
+- **Formatter**: Ruff (see pyproject.toml for complete configuration)
+- **Type Checker**: Pyright (configured in pyproject.toml)
+- Complete style rules and exceptions are defined in pyproject.toml
 
 ### Pre-commit Setup
 ```bash
@@ -96,7 +87,7 @@ uv run pre-commit install
 uv run pre-commit run --all-files
 ```
 
-**Note**: This project includes pre-commit as a dev dependency but does not have a `.pre-commit-config.yaml` file configured yet.
+**Note**: This project includes pre-commit as a dev dependency but does not have a `.pre-commit-config.yaml` file configured.
 
 ## Testing
 
@@ -138,7 +129,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 
 ### Test Suite
 - **Property-based tests**: Using `hypothesis` for comprehensive input validation
-- **85+ test files** covering all components
+- **Comprehensive test coverage**: Unit, integration, and evaluation tests
 - **Async test support**: pytest-asyncio with auto mode
 - **Mocking support**: Using `moto` for AWS service mocking
 - **Coverage exclusions**: Pragma comments and main blocks are excluded
@@ -150,8 +141,6 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 - `tests/test_model_validation_utils.py` - DynamoDB validation tests
 - `tests/db_analyzer/` - Database analyzer tests
 - `tests/evals/` - Evaluation framework tests
-- `tests/capacity_calculator/` - Capacity calculation tests
-- `tests/cost_performance_calculator/` - Cost optimization tests
 - `tests/cdk_generator/` - CDK code generation tests
 - `tests/repo_generation_tool/` - Data access layer generation tests
 - `tests/conftest.py` - Shared pytest fixtures and configuration
@@ -162,44 +151,6 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 - Coverage reports exclude pragma comments and main blocks (configured in pyproject.toml)
 - Coverage source: `awslabs` directory
 - Coverage omits: `awslabs/dynamodb_mcp_server/repo_generation_tool/languages/python/base_repository.py`
-
-## Environment Configuration
-
-### Required Environment Variables
-```bash
-# AWS Configuration
-AWS_PROFILE=default
-AWS_REGION=us-west-2
-FASTMCP_LOG_LEVEL=ERROR  # Options: DEBUG, INFO, WARNING, ERROR
-
-# MySQL Integration (optional)
-MYSQL_CLUSTER_ARN=arn:aws:rds:region:account:cluster:name
-MYSQL_SECRET_ARN=arn:aws:secretsmanager:region:account:secret:name
-MYSQL_DATABASE=database_name
-MYSQL_HOSTNAME=hostname  # Alternative to cluster ARN
-MYSQL_PORT=3306          # Optional, default 3306
-MYSQL_MAX_QUERY_RESULTS=500  # Optional, default 500
-```
-
-### MCP Server Configuration
-The server can be configured in MCP clients (Kiro, Cursor, VS Code) using:
-```json
-{
-  "mcpServers": {
-    "awslabs.dynamodb-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.dynamodb-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "default",
-        "AWS_REGION": "us-west-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
 
 ## Project Structure
 
@@ -212,8 +163,8 @@ The server can be configured in MCP clients (Kiro, Cursor, VS Code) using:
 
 ### Key Directories
 - `awslabs/dynamodb_mcp_server/prompts/` - Expert prompts and guidance
-  - `dynamodb_architect.md` - Main data modeling expert prompt (45KB)
-  - `dynamodb_schema_generator.md` - Schema generation guidance (30KB)
+  - `dynamodb_architect.md` - Main data modeling expert prompt
+  - `dynamodb_schema_generator.md` - Schema generation guidance
   - `json_generation_guide.md` - JSON specification guide
   - `transform_model_validation_result.md` - Validation result formatting
   - `usage_data_generator.md` - Test data generation instructions
@@ -226,7 +177,6 @@ The server can be configured in MCP clients (Kiro, Cursor, VS Code) using:
   - `sqlserver.py` - SQL Server analyzer implementation
   - `plugin_registry.py` - Plugin discovery and registration
   - `analyzer_utils.py` - Common analyzer utilities
-- `awslabs/dynamodb_mcp_server/cost_performance/` - Cost optimization logic
 - `awslabs/dynamodb_mcp_server/cdk_generator/` - CDK infrastructure code generation
   - `generator.py` - CDK app generator
   - `models.py` - CDK generation models
@@ -293,8 +243,8 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Version Management
 - Version is managed in `pyproject.toml` and `awslabs/dynamodb_mcp_server/__init__.py`
-- Current version: **2.0.13**
-- Commitizen is configured in pyproject.toml for version bumping
+- Both files must be updated: `pyproject.toml` for packaging/distribution, `__init__.py` for runtime version checking
+- Check `pyproject.toml` for current version number
 - CHANGELOG.md exists and commitizen is configured to update it
 - Version format follows [Semantic Versioning](https://semver.org/)
 
@@ -304,7 +254,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### Logging
 - Set `FASTMCP_LOG_LEVEL=DEBUG` for verbose logging
 - Available levels: DEBUG, INFO, WARNING, ERROR
-- Project uses `loguru==0.7.3` for structured logging
+- Project uses `loguru` for structured logging (see pyproject.toml for version)
 - Logs include timestamps, levels, and contextual information
 
 ### Common Issues
@@ -326,7 +276,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Performance Considerations
 - DynamoDB Local validation requires container runtime (Docker/Podman/Finch/nerdctl) or Java 17+
-- Large result sets are limited by `MYSQL_MAX_QUERY_RESULTS` setting (default: 500)
+- MySQL analyzer result sets are limited by `MYSQL_MAX_QUERY_RESULTS` environment variable (default: 500, defined in `db_analyzer/mysql.py`)
 - Schema validation can take up to 8 iterations for complex models
 - Code generation is optimized for schemas with up to 50 entities
 
@@ -354,31 +304,8 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - **Docker production build**: Python 3.13 (as specified in Dockerfile)
 - **Recommended**: Python 3.12+ for best performance
 
-### Key Dependencies
-- `mcp[cli]==1.23.0` - Model Context Protocol framework (exact version)
-- `boto3>=1.40.5` - AWS SDK for Python
-- `loguru==0.7.3` - Structured logging (exact version)
-- `strands-agents>=1.5.0` - Agent framework for data modeling
-- `dspy-ai>=2.6.27` - Evaluation and reasoning framework
-- `pydantic==2.11.7` - Data validation and serialization (exact version)
-- `psutil==7.1.1` - System and process utilities (exact version)
-- `typing-extensions==4.14.1` - Type hints backport (exact version)
-- `jinja2>=3.1.6` - Template engine for code generation
-- `awslabs.mysql-mcp-server==1.0.9` - MySQL MCP server integration (exact version)
-- `awslabs-aws-api-mcp-server==1.0.2` - AWS API MCP server integration (exact version)
-
-### Development Dependencies
-- `commitizen>=4.2.2` - Conventional commits and versioning
-- `pre-commit>=4.1.0` - Git pre-commit hooks
-- `ruff>=0.9.7` - Linting and formatting
-- `pyright>=1.1.398` - Type checking
-- `pytest>=8.0.0` - Testing framework
-- `pytest-asyncio>=0.26.0` - Async testing support
-- `pytest-cov>=4.1.0` - Coverage reporting
-- `pytest-mock>=3.12.0` - Mocking utilities
-- `hypothesis>=6.100.0` - Property-based testing
-- `moto>=5.1.4` - AWS service mocking
-- `boto3>=1.38.14` - AWS SDK (separate dev dependency)
+### Dependencies
+- See [pyproject.toml](pyproject.toml) for complete list of production and development dependencies
 
 ### Compatibility Notes
 - FastMCP framework is used for MCP server implementation
@@ -405,7 +332,7 @@ uv pip install -e .
 
 ### Package Distribution
 - Published to PyPI as `awslabs.dynamodb-mcp-server`
-- Version updates require changes to both `pyproject.toml` and `__init__.py`
+- Version updates require changes to both `pyproject.toml` (for packaging) and `__init__.py` (for runtime)
 - Changelog maintained in CHANGELOG.md following Keep a Changelog format
 - Supports installation via `uvx` for latest version
 
@@ -426,7 +353,3 @@ uv pip install -e .
 - Report issues on [GitHub](https://github.com/awslabs/mcp/issues)
 - Refer to official documentation at [AWS Labs MCP](https://awslabs.github.io/mcp/)
 - Review CHANGELOG.md for version history and breaking changes
-
----
-
-**Last Updated**: 2026-02-18
