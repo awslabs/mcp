@@ -1,0 +1,1 @@
+{"Id": "msg1", "MessageBody": "First message in batch", "DelaySeconds": 10, "MessageAttributes": {"BatchId": {"DataType": "String", "StringValue": "batch-001"}}}

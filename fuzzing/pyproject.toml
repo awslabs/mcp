@@ -1,0 +1,98 @@
+[project]
+name = "awslabs.mcp-fuzzing"
+version = "0.1.0"
+description = "OSS-Fuzz integration for AWS MCP Servers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hypothesis>=6.100.0",
+    "pydantic>=2.0.0",
+]
+license = {text = "Apache-2.0"}
+license-files = ["../LICENSE", "../NOTICE"]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+atheris = [
+    "atheris>=2.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.ruff]
+line-length = 99
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/dist",
+    "**/build",
+    "**/.ruff_cache",
+]
+
+[tool.ruff.lint]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py", "fuzz_*.py"]
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = ["tests", "targets"]
+asyncio_mode = "auto"
+addopts = "-v"
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", "targets/*"]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:',
+]
+
+# Hypothesis settings for property-based testing
+[tool.hypothesis]
+# Minimum 100 examples per test as per requirements
+max_examples = 100
+# No deadline for fuzzing tests (can be slow)
+deadline = "none"

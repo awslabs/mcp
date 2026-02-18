@@ -78,7 +78,9 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
-      "**/dist/**"
+      "**/dist/**",
+      "fuzzing/dictionaries/**",
+      "fuzzing/corpus/**"
     ]
   }
 ]

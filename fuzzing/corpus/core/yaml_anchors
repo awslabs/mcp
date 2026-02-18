@@ -1,0 +1,13 @@
+defaults: &defaults
+  host: localhost
+  port: 5432
+  timeout: 30
+
+development:
+  <<: *defaults
+  database: dev_db
+
+production:
+  <<: *defaults
+  host: prod-db.example.com
+  database: prod_db

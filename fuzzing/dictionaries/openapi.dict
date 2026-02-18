@@ -1,0 +1,338 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OpenAPI Dictionary for libFuzzer
+# Contains OpenAPI keywords, JSON/YAML tokens, and schema keywords
+
+# OpenAPI Version Strings
+"openapi"
+"3.0.0"
+"3.0.1"
+"3.0.2"
+"3.0.3"
+"3.1.0"
+"swagger"
+"2.0"
+
+# OpenAPI Root Level Keywords
+"info"
+"servers"
+"paths"
+"components"
+"security"
+"tags"
+"externalDocs"
+"webhooks"
+"jsonSchemaDialect"
+
+# Info Object Keywords
+"title"
+"description"
+"termsOfService"
+"contact"
+"license"
+"version"
+"summary"
+"name"
+"url"
+"email"
+"identifier"
+
+# Server Object Keywords
+"variables"
+"default"
+"enum"
+
+# Path Item Keywords
+"$ref"
+"summary"
+"description"
+"get"
+"put"
+"post"
+"delete"
+"options"
+"head"
+"patch"
+"trace"
+"servers"
+"parameters"
+
+# Operation Object Keywords
+"tags"
+"operationId"
+"externalDocs"
+"parameters"
+"requestBody"
+"responses"
+"callbacks"
+"deprecated"
+"security"
+
+# Parameter Object Keywords
+"name"
+"in"
+"query"
+"header"
+"path"
+"cookie"
+"required"
+"deprecated"
+"allowEmptyValue"
+"style"
+"explode"
+"allowReserved"
+"schema"
+"example"
+"examples"
+"content"
+
+# Request Body Keywords
+"description"
+"content"
+"required"
+
+# Media Type Keywords
+"schema"
+"example"
+"examples"
+"encoding"
+"application/json"
+"application/xml"
+"text/plain"
+"multipart/form-data"
+"application/x-www-form-urlencoded"
+
+# Response Object Keywords
+"description"
+"headers"
+"content"
+"links"
+
+# Components Object Keywords
+"schemas"
+"responses"
+"parameters"
+"examples"
+"requestBodies"
+"headers"
+"securitySchemes"
+"links"
+"callbacks"
+"pathItems"
+
+# Schema Object Keywords (JSON Schema)
+"type"
+"format"
+"title"
+"description"
+"default"
+"nullable"
+"discriminator"
+"readOnly"
+"writeOnly"
+"xml"
+"externalDocs"
+"example"
+"deprecated"
+
+# JSON Schema Types
+"string"
+"number"
+"integer"
+"boolean"
+"array"
+"object"
+"null"
+
+# JSON Schema Format Keywords
+"int32"
+"int64"
+"float"
+"double"
+"byte"
+"binary"
+"date"
+"date-time"
+"password"
+"email"
+"uri"
+"uuid"
+"hostname"
+"ipv4"
+"ipv6"
+
+# JSON Schema Validation Keywords
+"multipleOf"
+"maximum"
+"exclusiveMaximum"
+"minimum"
+"exclusiveMinimum"
+"maxLength"
+"minLength"
+"pattern"
+"maxItems"
+"minItems"
+"uniqueItems"
+"maxProperties"
+"minProperties"
+"required"
+"enum"
+"const"
+
+# JSON Schema Composition Keywords
+"allOf"
+"anyOf"
+"oneOf"
+"not"
+
+# JSON Schema Object Keywords
+"properties"
+"additionalProperties"
+"patternProperties"
+"propertyNames"
+
+# JSON Schema Array Keywords
+"items"
+"prefixItems"
+"contains"
+"additionalItems"
+
+# JSON Schema Reference Keywords
+"$ref"
+"$id"
+"$schema"
+"$defs"
+"definitions"
+
+# Discriminator Keywords
+"propertyName"
+"mapping"
+
+# Security Scheme Keywords
+"type"
+"description"
+"name"
+"in"
+"scheme"
+"bearerFormat"
+"flows"
+"openIdConnectUrl"
+"apiKey"
+"http"
+"oauth2"
+"openIdConnect"
+"basic"
+"bearer"
+
+# OAuth Flow Keywords
+"implicit"
+"password"
+"clientCredentials"
+"authorizationCode"
+"authorizationUrl"
+"tokenUrl"
+"refreshUrl"
+"scopes"
+
+# Link Object Keywords
+"operationRef"
+"operationId"
+"parameters"
+"requestBody"
+"description"
+"server"
+
+# JSON Syntax Tokens
+"{"
+"}"
+"["
+"]"
+":"
+","
+"\""
+"true"
+"false"
+"null"
+
+# YAML Syntax Tokens
+"---"
+"..."
+"|"
+">"
+"-"
+"&"
+"*"
+"!"
+"?"
+"%"
+
+# Common Reference Patterns
+"#/components/schemas/"
+"#/components/responses/"
+"#/components/parameters/"
+"#/components/examples/"
+"#/components/requestBodies/"
+"#/components/headers/"
+"#/components/securitySchemes/"
+"#/components/links/"
+"#/components/callbacks/"
+
+# HTTP Status Codes
+"200"
+"201"
+"204"
+"301"
+"302"
+"400"
+"401"
+"403"
+"404"
+"405"
+"409"
+"422"
+"429"
+"500"
+"502"
+"503"
+"default"
+
+# Common Path Patterns
+"/"
+"/{id}"
+"/{resourceId}"
+
+# Numeric Values
+"0"
+"1"
+"-1"
+"100"
+"1000"
+"2147483647"
+"-2147483648"
+
+# Special Characters for Edge Cases
+"\\"
+"\\n"
+"\\t"
+"\\r"
+"\\u0000"
+"%00"
+"%20"
+
+# Empty/Null Values
+""
+"null"
+"~"
+
+# Large Numbers (for overflow testing)
+"9999999999999999999"
+"-9999999999999999999"
+"1e308"
+"-1e308"
+"1e-308"
+
+# Unicode Characters
+"\\u00e9"
+"\\u4e2d"
+"\\u0000"

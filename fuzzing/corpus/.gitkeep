@@ -1,0 +1,3 @@
+# This directory contains seed corpus files for fuzz targets.
+# Corpus files are organized in subdirectories by target name:
+# fuzzing/corpus/<target_name>/

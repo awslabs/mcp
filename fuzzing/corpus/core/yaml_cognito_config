@@ -1,0 +1,9 @@
+auth_type: cognito
+auth_cognito_client_id: abc123def456
+auth_cognito_username: user@example.com
+auth_cognito_password: SecurePassword123!
+auth_cognito_client_secret: secret123
+auth_cognito_domain: myapp.auth.us-east-1.amazoncognito.com
+auth_cognito_scopes: openid,profile,email
+auth_cognito_user_pool_id: us-east-1_AbCdEfGhI
+auth_cognito_region: us-east-1

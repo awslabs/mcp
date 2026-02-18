@@ -1,0 +1,1 @@
+SELECT ?name ?email WHERE { ?person <http://xmlns.com/foaf/0.1/name> ?name . OPTIONAL { ?person <http://xmlns.com/foaf/0.1/mbox> ?email } }

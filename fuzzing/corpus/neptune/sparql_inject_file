@@ -1,0 +1,1 @@
+SELECT * WHERE { GRAPH <file:///etc/passwd> { ?s ?p ?o } }

@@ -1,0 +1,1 @@
+{"tables":[{"TableName":"Metrics","AttributeDefinitions":[{"AttributeName":"timestamp","AttributeType":"N"},{"AttributeName":"metricName","AttributeType":"S"}],"KeySchema":[{"AttributeName":"metricName","KeyType":"HASH"},{"AttributeName":"timestamp","KeyType":"RANGE"}]}]}

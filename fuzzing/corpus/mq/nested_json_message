@@ -1,0 +1,1 @@
+{"outer": {"inner": {"deep": {"value": "nested data"}}, "array": [1, 2, 3]}, "metadata": {"type": "test"}}
