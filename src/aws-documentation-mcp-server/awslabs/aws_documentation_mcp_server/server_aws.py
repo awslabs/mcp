@@ -27,6 +27,7 @@ from awslabs.aws_documentation_mcp_server.models import (
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     add_search_result_cache_item,
+    get_http_client,
     read_documentation_impl,
 )
 
@@ -259,61 +260,61 @@ async def search_documentation(
         search_url_with_session, search_intent
     )
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                search_url_with_session,
-                json=request_body,
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    'X-MCP-Session-Id': SESSION_UUID,
-                },
-                timeout=30,
-            )
-        except httpx.HTTPError as e:
-            error_msg = f'Error searching AWS docs: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
-                facets=None,
-                query_id='',
-            )
+    client = get_http_client()
+    try:
+        response = await client.post(
+            search_url_with_session,
+            json=request_body,
+            headers={
+                'Content-Type': 'application/json',
+                'User-Agent': DEFAULT_USER_AGENT,
+                'X-MCP-Session-Id': SESSION_UUID,
+            },
+            timeout=30,
+        )
+    except httpx.HTTPError as e:
+        error_msg = f'Error searching AWS docs: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SearchResponse(
+            search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+            facets=None,
+            query_id='',
+        )
 
-        if response.status_code >= 400:
-            error_msg = f'Error searching AWS docs - status code {response.status_code}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
-                facets=None,
-                query_id='',
-            )
+    if response.status_code >= 400:
+        error_msg = f'Error searching AWS docs - status code {response.status_code}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SearchResponse(
+            search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+            facets=None,
+            query_id='',
+        )
 
-        try:
-            data = response.json()
-            query_id = data.get('queryId', '')
-            raw_facets = data.get('facets', {})
+    try:
+        data = response.json()
+        query_id = data.get('queryId', '')
+        raw_facets = data.get('facets', {})
 
-            # Parse facets to rename keys
-            facets = {}
-            if raw_facets:
-                for key, value in raw_facets.items():
-                    if key == 'aws-docs-search-product':
-                        facets['product_types'] = value
-                    elif key == 'aws-docs-search-guide':
-                        facets['guide_types'] = value
+        # Parse facets to rename keys
+        facets = {}
+        if raw_facets:
+            for key, value in raw_facets.items():
+                if key == 'aws-docs-search-product':
+                    facets['product_types'] = value
+                elif key == 'aws-docs-search-guide':
+                    facets['guide_types'] = value
 
-        except json.JSONDecodeError as e:
-            error_msg = f'Error parsing search results: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
-                facets=None,
-                query_id='',
-            )
+    except json.JSONDecodeError as e:
+        error_msg = f'Error parsing search results: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SearchResponse(
+            search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+            facets=None,
+            query_id='',
+        )
 
     results = []
     if 'suggestions' in data:
@@ -407,38 +408,38 @@ async def recommend(
 
     recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}&session={SESSION_UUID}'
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                recommendation_url,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
-                timeout=30,
+    client = get_http_client()
+    try:
+        response = await client.get(
+            recommendation_url,
+            headers={'User-Agent': DEFAULT_USER_AGENT},
+            timeout=30,
+        )
+    except httpx.HTTPError as e:
+        error_msg = f'Error getting recommendations: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return [RecommendationResult(url='', title=error_msg, context=None)]
+
+    if response.status_code >= 400:
+        error_msg = f'Error getting recommendations - status code {response.status_code}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return [
+            RecommendationResult(
+                url='',
+                title=error_msg,
+                context=None,
             )
-        except httpx.HTTPError as e:
-            error_msg = f'Error getting recommendations: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return [RecommendationResult(url='', title=error_msg, context=None)]
+        ]
 
-        if response.status_code >= 400:
-            error_msg = f'Error getting recommendations - status code {response.status_code}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return [
-                RecommendationResult(
-                    url='',
-                    title=error_msg,
-                    context=None,
-                )
-            ]
-
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            error_msg = f'Error parsing recommendations: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return [RecommendationResult(url='', title=error_msg, context=None)]
+    try:
+        data = response.json()
+    except json.JSONDecodeError as e:
+        error_msg = f'Error parsing recommendations: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return [RecommendationResult(url='', title=error_msg, context=None)]
 
     results = parse_recommendation_results(data)
     logger.debug(f'Found {len(results)} recommendations for: {url_str}')
