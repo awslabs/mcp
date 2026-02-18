@@ -329,7 +329,6 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - Identifies intra-group dependencies (services calling each other)
 - Discovers cross-group dependencies with group information
 - Lists external AWS service dependencies (DynamoDB, S3, etc.)
-- Shows external callers (dependents) of the group
 
 **Key Use Cases:**
 - `get_group_dependencies(group_name="Payments")` - Map payment service dependencies

@@ -690,10 +690,6 @@ class TestGetGroupDependencies:
             ]
         }
 
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': []
-        }
-
         result = await get_group_dependencies(group_name='Checkout')
 
         assert 'GROUP DEPENDENCIES: Checkout' in result
@@ -721,10 +717,6 @@ class TestGetGroupDependencies:
                     'OperationName': 'GET /users',
                 },
             ]
-        }
-
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': []
         }
 
         # Mock GetService to return group info for the cross-group dependency
@@ -783,10 +775,6 @@ class TestGetGroupDependencies:
             ]
         }
 
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': []
-        }
-
         result = await get_group_dependencies(group_name='Payments')
 
         assert 'EXTERNAL DEPENDENCIES' in result
@@ -812,10 +800,6 @@ class TestGetGroupDependencies:
                     'OperationName': 'SendMessage',
                 },
             ]
-        }
-
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': []
         }
 
         result = await get_group_dependencies(group_name='Payments')
@@ -862,37 +846,6 @@ class TestGetGroupDependencies:
         assert 'Groups:' not in result
 
     @pytest.mark.asyncio
-    async def test_external_dependents(self, mock_aws_clients):
-        """Test detection of services calling into this group."""
-        mock_aws_clients['applicationsignals_client'].list_services.return_value = {
-            'ServiceSummaries': [
-                _make_service('payment-svc', groups=[_make_group('App', 'Payments')]),
-            ]
-        }
-
-        mock_aws_clients['applicationsignals_client'].list_service_dependencies.return_value = {
-            'ServiceDependencies': []
-        }
-
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': [
-                {
-                    'DependentKeyAttributes': {
-                        'Name': 'external-caller',
-                        'Type': 'Service',
-                        'Environment': 'production',
-                    },
-                    'OperationName': 'POST /charge',
-                },
-            ]
-        }
-
-        result = await get_group_dependencies(group_name='Payments')
-
-        assert 'DEPENDENTS' in result
-        assert 'external-caller' in result
-
-    @pytest.mark.asyncio
     async def test_no_dependencies(self, mock_aws_clients):
         """Test when a service has no dependencies."""
         mock_aws_clients['applicationsignals_client'].list_services.return_value = {
@@ -905,16 +858,11 @@ class TestGetGroupDependencies:
             'ServiceDependencies': []
         }
 
-        mock_aws_clients['applicationsignals_client'].list_service_dependents.return_value = {
-            'ServiceDependents': []
-        }
-
         result = await get_group_dependencies(group_name='Isolated')
 
         assert 'No intra-group dependencies found' in result
         assert 'No cross-group dependencies found' in result
         assert 'No external AWS service dependencies found' in result
-        assert 'No external dependents found' in result
 
     @pytest.mark.asyncio
     async def test_no_services_found(self, mock_aws_clients):
