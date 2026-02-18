@@ -78,8 +78,16 @@ def get_session_db_path() -> str:
     Creates the sessions directory if it doesn't exist.
     Registers a cleanup function to delete the database on exit.
 
+    The session directory can be configured via the AWSLABS_SESSION_DIR
+    environment variable. If not set, defaults to a package-relative path.
+    If the default location is read-only (e.g., Lambda layers, containers),
+    automatically falls back to /tmp/awslabs/sessions.
+
     Returns:
         str: Path to the SQLite database file
+
+    Environment Variables:
+        AWSLABS_SESSION_DIR: Override the default session directory path
     """
     global _SESSION_DB_PATH
 
@@ -87,12 +95,28 @@ def get_session_db_path() -> str:
         # Generate a unique session ID
         session_id = str(uuid.uuid4())[:8]
 
-        # Get the base directory for the session database
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        session_dir = os.path.join(base_dir, 'sessions')
+        # Check for environment variable override first
+        session_dir = os.environ.get('AWSLABS_SESSION_DIR')
 
-        # Create sessions directory if it doesn't exist
-        os.makedirs(session_dir, exist_ok=True)
+        if session_dir is None:
+            # Default to package-relative path
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            session_dir = os.path.join(base_dir, 'sessions')
+
+            # Try to create directory, fallback to /tmp if it fails
+            try:
+                os.makedirs(session_dir, exist_ok=True)
+            except (OSError, PermissionError):
+                # Fallback to /tmp for read-only environments (Lambda, containers)
+                session_dir = os.path.join('/tmp', 'awslabs', 'sessions')
+                os.makedirs(session_dir, exist_ok=True)
+                logger.debug(
+                    f'Using fallback session directory due to read-only filesystem: {session_dir}'
+                )
+        else:
+            # Use environment-specified directory
+            os.makedirs(session_dir, exist_ok=True)
+            logger.debug(f'Using session directory from AWSLABS_SESSION_DIR: {session_dir}')
 
         # Set the database path
         _SESSION_DB_PATH = os.path.join(session_dir, f'session_{session_id}.db')
