@@ -28,12 +28,20 @@ from awslabs.aws_api_mcp_server.core.common.config import AWS_API_MCP_PROFILE_NA
 from botocore.exceptions import NoCredentialsError
 
 
+# Cache boto3.Session objects by profile name. Each Session loads config files
+# and creates credential providers, which is expensive to repeat per request.
+_session_cache: dict[str, boto3.Session] = {}
+
+
 def get_local_credentials(profile: str | None = None) -> Credentials:
     """Get the local credentials for AWS profile."""
-    if profile is not None:
-        session = boto3.Session(profile_name=profile)
-    else:
-        session = boto3.Session()
+    cache_key = profile or '__default__'
+    if cache_key not in _session_cache:
+        if profile is not None:
+            _session_cache[cache_key] = boto3.Session(profile_name=profile)
+        else:
+            _session_cache[cache_key] = boto3.Session()
+    session = _session_cache[cache_key]
     aws_creds = session.get_credentials()
 
     if aws_creds is None:
