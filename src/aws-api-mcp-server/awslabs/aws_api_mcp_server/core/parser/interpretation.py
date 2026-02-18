@@ -59,7 +59,7 @@ def interpret(
         region_name=region,
         connect_timeout=CONNECT_TIMEOUT_SECONDS,
         read_timeout=READ_TIMEOUT_SECONDS,
-        retries={'total_max_attempts': AWS_MAX_ATTEMPTS, 'mode': 'standard'},
+        retries={'total_max_attempts': AWS_MAX_ATTEMPTS, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
 
