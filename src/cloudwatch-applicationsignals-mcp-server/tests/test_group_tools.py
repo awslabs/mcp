@@ -210,6 +210,38 @@ class TestListGroupServices:
         assert 'OTEL' in result
 
     @pytest.mark.asyncio
+    async def test_platform_and_environment_distribution(self, mock_aws_clients):
+        """Test that platform and environment distribution is shown."""
+        mock_aws_clients['applicationsignals_client'].list_services.return_value = {
+            'ServiceSummaries': [
+                {
+                    'KeyAttributes': {'Name': 'svc-a', 'Environment': 'production', 'Type': 'Service'},
+                    'ServiceGroups': [_make_group('Team', 'Payments')],
+                    'AttributeMaps': [{'PlatformType': 'AWS::ECS'}],
+                },
+                {
+                    'KeyAttributes': {'Name': 'svc-b', 'Environment': 'production', 'Type': 'Service'},
+                    'ServiceGroups': [_make_group('Team', 'Payments')],
+                    'AttributeMaps': [{'PlatformType': 'AWS::Lambda'}],
+                },
+                {
+                    'KeyAttributes': {'Name': 'svc-c', 'Environment': 'staging', 'Type': 'Service'},
+                    'ServiceGroups': [_make_group('Team', 'Payments')],
+                    'AttributeMaps': [{'PlatformType': 'AWS::ECS'}],
+                },
+            ]
+        }
+
+        result = await list_group_services(group_name='Payments')
+
+        assert 'Platform Distribution:' in result
+        assert 'AWS::ECS: 2 services' in result
+        assert 'AWS::Lambda: 1 service' in result
+        assert 'Environment Distribution:' in result
+        assert 'production: 2 services' in result
+        assert 'staging: 1 service' in result
+
+    @pytest.mark.asyncio
     async def test_general_exception(self, mock_aws_clients):
         """Test handling of unexpected exceptions."""
         mock_aws_clients['applicationsignals_client'].list_services.side_effect = Exception(
