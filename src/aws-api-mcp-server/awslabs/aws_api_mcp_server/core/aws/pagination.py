@@ -118,7 +118,7 @@ def build_result(
         response_metadata = page.get('ResponseMetadata')
 
         # Check accumulated items against safety cap
-        for result_expression in page_iterator.result_keys:
+        for result_expression in page_iterator.result_keys or []:
             accumulated = result_expression.search(result)
             if isinstance(accumulated, list) and len(accumulated) >= MAX_PAGINATION_ITEMS:
                 logger.warning(
