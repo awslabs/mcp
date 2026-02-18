@@ -78,6 +78,11 @@ def _finalize_result(
     return result
 
 
+# Safety cap to prevent unbounded memory growth from large paginated results.
+# 10K items is generous for typical governance/management operations.
+MAX_PAGINATION_ITEMS = 10_000
+
+
 def build_result(
     paginator: Paginator,
     service_name: str,
@@ -111,5 +116,17 @@ def build_result(
         _merge_page_into_result(result, page, page_iterator)
 
         response_metadata = page.get('ResponseMetadata')
+
+        # Check accumulated items against safety cap
+        for result_expression in page_iterator.result_keys:
+            accumulated = result_expression.search(result)
+            if isinstance(accumulated, list) and len(accumulated) >= MAX_PAGINATION_ITEMS:
+                logger.warning(
+                    'Pagination capped at {} items for {}.{} to prevent memory exhaustion',
+                    MAX_PAGINATION_ITEMS,
+                    service_name,
+                    operation_name,
+                )
+                return _finalize_result(result, page_iterator, response_metadata, client_side_filter)
 
     return _finalize_result(result, page_iterator, response_metadata, client_side_filter)

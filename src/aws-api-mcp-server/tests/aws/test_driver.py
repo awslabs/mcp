@@ -24,6 +24,7 @@ from tests.fixtures import S3_CLI_NO_REGION, TEST_CREDENTIALS, patch_botocore
 from unittest.mock import MagicMock, patch
 
 
+@patch('awslabs.aws_api_mcp_server.core.aws.driver._session_cache', {})
 @patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
 def test_get_local_credentials_success_with_aws_mcp_profile(mock_session_class):
     """Test get_local_credentials returns credentials when available."""
@@ -47,6 +48,7 @@ def test_get_local_credentials_success_with_aws_mcp_profile(mock_session_class):
     mock_session.get_credentials.assert_called_once()
 
 
+@patch('awslabs.aws_api_mcp_server.core.aws.driver._session_cache', {})
 @patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
 def test_get_local_credentials_success_with_default_creds(mock_session_class):
     """Test get_local_credentials returns credentials when available."""
@@ -70,6 +72,7 @@ def test_get_local_credentials_success_with_default_creds(mock_session_class):
     mock_session.get_credentials.assert_called_once()
 
 
+@patch('awslabs.aws_api_mcp_server.core.aws.driver._session_cache', {})
 @patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
 def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
     """Test get_local_credentials raises NoCredentialsError when credentials are None."""
