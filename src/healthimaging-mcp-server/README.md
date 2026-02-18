@@ -217,11 +217,9 @@ The server automatically exposes HealthImaging datastores as MCP resources, enab
 
 ### Basic Operations
 
+List datastores (datastore discovered automatically)
+
 ```json
- List datastores (datastore discovered automatically)
-
- ```json
-
 {
   "status": "ACTIVE"
 }
