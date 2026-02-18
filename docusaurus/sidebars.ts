@@ -22,7 +22,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Available AWS MCP Servers",
+      label: "Available MCP Servers for AWS",
       collapsed: false,
       items: [
         {
@@ -145,6 +145,7 @@ const sidebars: SidebarsConfig = {
           label: "Healthcare & Lifesciences",
           items: [
             "servers/aws-healthomics-mcp-server",
+            "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
           ],
         },
