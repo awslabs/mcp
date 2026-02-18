@@ -15,6 +15,17 @@
 """CloudWatch Application Signals MCP Server - Utility functions."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
+from pydantic import Field
+
+
+# Health monitoring thresholds
+FAULT_THRESHOLD_WARNING = 1.0
+FAULT_THRESHOLD_CRITICAL = 5.0
+ERROR_THRESHOLD_WARNING = 1.0
+ERROR_THRESHOLD_CRITICAL = 5.0
+LATENCY_P99_THRESHOLD_WARNING = 1000.0
+LATENCY_P99_THRESHOLD_CRITICAL = 5000.0
 
 
 def remove_null_values(data: dict) -> dict:
@@ -170,3 +181,162 @@ def calculate_name_similarity(
         score = max(0, score - 5)
 
     return min(100, score)
+
+
+# =============================================================================
+# COMMON UTILITIES FOR GROUP AND SERVICE TOOLS
+# =============================================================================
+
+
+def parse_time_range(
+    start_time: Optional[str],
+    end_time: Optional[str],
+    default_hours: int = 3,
+) -> Tuple[datetime, datetime]:
+    """Parse time range parameters with defaults.
+
+    Args:
+        start_time: Start time string or None for default
+        end_time: End time string or None for default
+        default_hours: Default lookback hours when start_time is None (default: 3)
+
+    Returns:
+        Tuple of (start_datetime, end_datetime)
+    """
+    start_dt = (
+        parse_timestamp(start_time)
+        if start_time
+        else (datetime.now(timezone.utc) - timedelta(hours=default_hours))
+    )
+    end_dt = (
+        parse_timestamp(end_time, default_hours=0)
+        if end_time
+        else datetime.now(timezone.utc)
+    )
+    return start_dt, end_dt
+
+
+def fetch_metric_stats(
+    cloudwatch_client: Any,
+    namespace: str,
+    metric_name: str,
+    dimensions: list,
+    start_dt: datetime,
+    end_dt: datetime,
+    period: int,
+    extended_statistics: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Fetch CloudWatch metric statistics.
+
+    Args:
+        cloudwatch_client: Boto3 CloudWatch client
+        namespace: CloudWatch namespace
+        metric_name: Metric name
+        dimensions: List of metric dimensions
+        start_dt: Start datetime
+        end_dt: End datetime
+        period: Period in seconds
+        extended_statistics: Optional list of extended statistics (e.g., ['p99'])
+
+    Returns:
+        Dict with 'average' and optional 'extended' keys, or None if no data
+    """
+    try:
+        params = {
+            'Namespace': namespace,
+            'MetricName': metric_name,
+            'Dimensions': dimensions,
+            'StartTime': start_dt,
+            'EndTime': end_dt,
+            'Period': period,
+            'Statistics': ['Average'],
+        }
+        if extended_statistics:
+            params['ExtendedStatistics'] = extended_statistics
+        response = cloudwatch_client.get_metric_statistics(**params)
+        datapoints = response.get('Datapoints', [])
+        if not datapoints:
+            return None
+        result = {'average': sum(dp.get('Average', 0) for dp in datapoints) / len(datapoints)}
+        if extended_statistics:
+            result['extended'] = datapoints
+        return result
+    except Exception:
+        return None
+
+
+def list_services_paginated(
+    applicationsignals_client: Any,
+    start_time: datetime,
+    end_time: datetime,
+    max_results: int = 100,
+) -> List[Dict[str, Any]]:
+    """List all services with pagination handling.
+
+    Args:
+        applicationsignals_client: Boto3 Application Signals client
+        start_time: Start datetime
+        end_time: End datetime
+        max_results: Maximum results per page (default: 100)
+
+    Returns:
+        List of all service summaries
+    """
+    all_services = []
+    next_token = None
+
+    while True:
+        list_params = {
+            'StartTime': start_time,
+            'EndTime': end_time,
+            'MaxResults': max_results,
+        }
+        if next_token:
+            list_params['NextToken'] = next_token
+
+        response = applicationsignals_client.list_services(**list_params)
+        services_batch = response.get('ServiceSummaries', [])
+        all_services.extend(services_batch)
+        next_token = response.get('NextToken')
+
+        if not next_token:
+            break
+
+    return all_services
+
+
+# =============================================================================
+# COMMON PARAMETER DEFINITIONS
+# =============================================================================
+
+
+# Health threshold parameters for reuse across tools
+FAULT_THRESHOLD_WARNING = Field(
+    default=1.0,
+    description="Fault rate percentage threshold for WARNING (default: 1.0)",
+)
+
+FAULT_THRESHOLD_CRITICAL = Field(
+    default=5.0,
+    description="Fault rate percentage threshold for CRITICAL (default: 5.0)",
+)
+
+ERROR_THRESHOLD_WARNING = Field(
+    default=1.0,
+    description="Error rate percentage threshold for WARNING (default: 1.0)",
+)
+
+ERROR_THRESHOLD_CRITICAL = Field(
+    default=5.0,
+    description="Error rate percentage threshold for CRITICAL (default: 5.0)",
+)
+
+LATENCY_P99_THRESHOLD_WARNING = Field(
+    default=1000.0,
+    description="Latency P99 threshold in milliseconds for WARNING (default: 1000.0)",
+)
+
+LATENCY_P99_THRESHOLD_CRITICAL = Field(
+    default=5000.0,
+    description="Latency P99 threshold in milliseconds for CRITICAL (default: 5000.0)",
+)

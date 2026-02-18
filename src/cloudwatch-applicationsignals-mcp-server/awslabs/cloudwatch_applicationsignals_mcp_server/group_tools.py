@@ -27,7 +27,18 @@ Tools:
 
 from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
 from .sli_report_client import AWSConfig, SLIReportClient
-from .utils import parse_timestamp
+from .utils import (
+    ERROR_THRESHOLD_CRITICAL,
+    ERROR_THRESHOLD_WARNING,
+    FAULT_THRESHOLD_CRITICAL,
+    FAULT_THRESHOLD_WARNING,
+    LATENCY_P99_THRESHOLD_CRITICAL,
+    LATENCY_P99_THRESHOLD_WARNING,
+    fetch_metric_stats,
+    list_services_paginated,
+    parse_time_range,
+    parse_timestamp,
+)
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -88,7 +99,6 @@ async def _discover_services_by_group(
     logger.debug(f"Discovering services for group: {group_name}")
 
     group_services = []
-    next_token = None
     stats = {
         'total_services_scanned': 0,
         'services_in_group': 0,
@@ -96,43 +106,29 @@ async def _discover_services_by_group(
     }
 
     try:
-        while True:
-            list_params = {
-                'StartTime': start_time,
-                'EndTime': end_time,
-                'MaxResults': 100,
-            }
-            if next_token:
-                list_params['NextToken'] = next_token
+        all_services = list_services_paginated(applicationsignals_client, start_time, end_time)
 
-            response = applicationsignals_client.list_services(**list_params)
-            services_batch = response.get('ServiceSummaries', [])
-            next_token = response.get('NextToken')
+        for service in all_services:
+            stats['total_services_scanned'] += 1
+            key_attrs = service.get('KeyAttributes', {})
 
-            for service in services_batch:
-                stats['total_services_scanned'] += 1
-                key_attrs = service.get('KeyAttributes', {})
+            # Get ServiceGroups from the API response
+            service_groups = service.get('ServiceGroups', [])
 
-                # Get ServiceGroups from the API response
-                service_groups = service.get('ServiceGroups', [])
+            # Track all groups found for reporting
+            for sg in service_groups:
+                group_name_attr = sg.get('GroupName', '')
+                group_value = sg.get('GroupValue', '')
+                if group_name_attr or group_value:
+                    stats['groups_found'].add(f"{group_name_attr}={group_value}")
 
-                # Track all groups found for reporting
-                for sg in service_groups:
-                    group_name_attr = sg.get('GroupName', '')
-                    group_value = sg.get('GroupValue', '')
-                    if group_name_attr or group_value:
-                        stats['groups_found'].add(f"{group_name_attr}={group_value}")
-
-                # Check if this service belongs to the target group
-                if _matches_group(service_groups, group_name):
-                    group_services.append(service)
-                    stats['services_in_group'] += 1
-                    logger.debug(
-                        f"Found service in group '{group_name}': {key_attrs.get('Name', 'Unknown')}"
-                    )
-
-            if not next_token:
-                break
+            # Check if this service belongs to the target group
+            if _matches_group(service_groups, group_name):
+                group_services.append(service)
+                stats['services_in_group'] += 1
+                logger.debug(
+                    f"Found service in group '{group_name}': {key_attrs.get('Name', 'Unknown')}"
+                )
 
         stats['groups_found'] = sorted(stats['groups_found'])
 
@@ -183,65 +179,6 @@ def _build_group_header(
     )
 
 
-def _parse_time_range(
-    start_time: Optional[str],
-    end_time: Optional[str],
-    default_hours: int = 3,
-) -> Tuple[datetime, datetime]:
-    """Parse time range parameters with defaults.
-
-    Args:
-        start_time: Start time string or None for default
-        end_time: End time string or None for default
-        default_hours: Default lookback hours when start_time is None (default: 3)
-
-    Returns:
-        Tuple of (start_datetime, end_datetime)
-    """
-    start_dt = (
-        parse_timestamp(start_time)
-        if start_time
-        else (datetime.now(timezone.utc) - timedelta(hours=default_hours))
-    )
-    end_dt = (
-        parse_timestamp(end_time, default_hours=0)
-        if end_time
-        else datetime.now(timezone.utc)
-    )
-    return start_dt, end_dt
-
-
-def _fetch_metric_stats(
-    namespace: str, metric_name: str, dimensions: list,
-    start_dt: datetime, end_dt: datetime, period: int,
-    extended_statistics: Optional[List[str]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Fetch CloudWatch metric statistics. Returns dict with 'average' and optional 'extended' keys, or None."""
-    try:
-        params = {
-            'Namespace': namespace,
-            'MetricName': metric_name,
-            'Dimensions': dimensions,
-            'StartTime': start_dt,
-            'EndTime': end_dt,
-            'Period': period,
-            'Statistics': ['Average'],
-        }
-        if extended_statistics:
-            params['ExtendedStatistics'] = extended_statistics
-        response = cloudwatch_client.get_metric_statistics(**params)
-        datapoints = response.get('Datapoints', [])
-        if not datapoints:
-            return None
-        result = {'average': sum(dp.get('Average', 0) for dp in datapoints) / len(datapoints)}
-        if extended_statistics:
-            result['extended'] = datapoints
-        return result
-    except Exception as e:
-        logger.warning(f"Failed to get {metric_name} metrics: {e}")
-        return None
-
-
 async def _setup_group_tool(
     group_name: str, start_time: Optional[str], end_time: Optional[str],
     emoji: str, title: str, default_hours: int = 3,
@@ -251,7 +188,7 @@ async def _setup_group_tool(
     Returns (group_services, start_dt, end_dt, result_or_error).
     If group_services is None, result_or_error contains the error/empty message to return immediately.
     """
-    start_dt, end_dt = _parse_time_range(start_time, end_time, default_hours)
+    start_dt, end_dt = parse_time_range(start_time, end_time, default_hours)
     if end_dt <= start_dt:
         return None, None, None, 'Error: end_time must be greater than start_time.'
 
@@ -310,7 +247,7 @@ async def list_group_services(
     logger.debug(f'Starting list_group_services for group: {group_name}')
 
     try:
-        start_dt, end_dt = _parse_time_range(start_time, end_time)
+        start_dt, end_dt = parse_time_range(start_time, end_time)
 
         if end_dt <= start_dt:
             return 'Error: end_time must be greater than start_time.'
@@ -330,6 +267,35 @@ async def list_group_services(
 
         result += f"✅ Found **{len(group_services)} services** in group '{group_name}'\n"
         result += f"📊 (Scanned {discovery_stats['total_services_scanned']} total services)\n\n"
+
+        # Collect platform and environment statistics
+        platforms = {}
+        environments = {}
+        for svc in group_services:
+            key_attrs = svc.get('KeyAttributes', {})
+            env = key_attrs.get('Environment', 'N/A')
+            environments[env] = environments.get(env, 0) + 1
+            
+            # Extract platform from AttributeMaps
+            attribute_maps = svc.get('AttributeMaps', [])
+            for attr_map in attribute_maps:
+                if 'PlatformType' in attr_map:
+                    platform = attr_map['PlatformType']
+                    platforms[platform] = platforms.get(platform, 0) + 1
+                    break
+
+        # Display platform and environment summary
+        if platforms:
+            result += "**Platform Distribution:**\n"
+            for platform, count in sorted(platforms.items(), key=lambda x: -x[1]):
+                result += f"   • {platform}: {count} service{'s' if count > 1 else ''}\n"
+            result += "\n"
+
+        if environments:
+            result += "**Environment Distribution:**\n"
+            for env, count in sorted(environments.items(), key=lambda x: -x[1]):
+                result += f"   • {env}: {count} service{'s' if count > 1 else ''}\n"
+            result += "\n"
 
         result += "**Services:**\n"
         for svc in group_services:
@@ -380,27 +346,27 @@ async def audit_group_health(
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
     fault_threshold_warning: float = Field(
-        default=1.0,
+        default=FAULT_THRESHOLD_WARNING,
         description="Fault rate percentage threshold for WARNING when using metrics fallback (default: 1.0)",
     ),
     fault_threshold_critical: float = Field(
-        default=5.0,
+        default=FAULT_THRESHOLD_CRITICAL,
         description="Fault rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)",
     ),
     error_threshold_warning: float = Field(
-        default=1.0,
+        default=ERROR_THRESHOLD_WARNING,
         description="Error rate percentage threshold for WARNING when using metrics fallback (default: 1.0)",
     ),
     error_threshold_critical: float = Field(
-        default=5.0,
+        default=ERROR_THRESHOLD_CRITICAL,
         description="Error rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)",
     ),
     latency_p99_threshold_warning: float = Field(
-        default=1000.0,
+        default=LATENCY_P99_THRESHOLD_WARNING,
         description="Latency P99 threshold in milliseconds for WARNING when using metrics fallback (default: 1000.0)",
     ),
     latency_p99_threshold_critical: float = Field(
-        default=5000.0,
+        default=LATENCY_P99_THRESHOLD_CRITICAL,
         description="Latency P99 threshold in milliseconds for CRITICAL when using metrics fallback (default: 5000.0)",
     ),
 ) -> str:
@@ -549,7 +515,7 @@ async def audit_group_health(
                         dimensions = metric_ref.get('Dimensions', [])
 
                         if metric_type == 'Fault':
-                            stats = _fetch_metric_stats(namespace, metric_name, dimensions, start_dt, end_dt, period)
+                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period)
                             if stats:
                                 avg_fault = stats['average']
                                 health_result['fault_rate'] = avg_fault
@@ -575,7 +541,7 @@ async def audit_group_health(
                                     logger.warning(f"Failed to evaluate Fault thresholds for {svc_name}: {e}")
 
                         elif metric_type == 'Error':
-                            stats = _fetch_metric_stats(namespace, metric_name, dimensions, start_dt, end_dt, period)
+                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period)
                             if stats:
                                 avg_error = stats['average']
                                 health_result['error_rate'] = avg_error
@@ -601,7 +567,7 @@ async def audit_group_health(
                                     logger.warning(f"Failed to evaluate Error thresholds for {svc_name}: {e}")
 
                         elif metric_type == 'Latency':
-                            stats = _fetch_metric_stats(namespace, metric_name, dimensions, start_dt, end_dt, period, extended_statistics=['p99'])
+                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period, extended_statistics=['p99'])
                             if stats and stats.get('extended'):
                                 p99_values = [dp.get('ExtendedStatistics', {}).get('p99', 0) for dp in stats['extended']]
                                 if p99_values:
@@ -761,20 +727,17 @@ async def get_group_dependencies(
     - "What does the checkout application depend on?"
     - "What external services does the Checkout group use?"
     - "Show me the dependency map for the API group"
-    - "What services call the Payment services?"
 
     **WHAT THIS TOOL DOES:**
     Maps all dependencies for services in a group:
     - Intra-group: Dependencies between services within the same group
     - Cross-group: Dependencies on services in other groups
     - External: Dependencies on AWS services (S3, DynamoDB, SQS, etc.)
-    - Dependents: Services that depend ON this group's services
 
     **OUTPUT INCLUDES:**
     - Intra-group dependency graph
     - Cross-group dependencies
     - External AWS service dependencies
-    - List of dependent services (who calls this group)
 
     **EXAMPLES:**
     ```
@@ -802,7 +765,6 @@ async def get_group_dependencies(
         intra_group_deps = {}  # service -> [dependencies within group]
         cross_group_deps = []  # dependencies to services outside group
         external_deps = set()  # AWS service dependencies
-        all_dependents = []  # services that depend on this group
         dep_group_cache = {}  # Cache for dependency group lookups: (name, env) -> groups
 
         for svc in group_services:
@@ -868,32 +830,6 @@ async def get_group_dependencies(
                 if error_code != 'ResourceNotFoundException':
                     logger.warning(f"Failed to get dependencies for {svc_name}: {e}")
 
-            # Get dependents (who calls this service)
-            try:
-                dependents_response = applicationsignals_client.list_service_dependents(
-                    StartTime=start_dt,
-                    EndTime=end_dt,
-                    KeyAttributes=key_attrs,
-                    MaxResults=100,
-                )
-
-                for dependent in dependents_response.get('ServiceDependents', []):
-                    dependent_key_attrs = dependent.get('DependentKeyAttributes', {})
-                    dependent_name = dependent_key_attrs.get('Name', 'Unknown')
-
-                    dependent_env = dependent_key_attrs.get('Environment', '')
-                    # Only include if not in our group (external callers)
-                    if (dependent_name.lower(), dependent_env.lower()) not in group_service_keys:
-                        all_dependents.append({
-                            'caller': dependent_name,
-                            'calls': svc_name,
-                            'caller_env': dependent_key_attrs.get('Environment', ''),
-                            'operation': dependent.get('OperationName', ''),
-                        })
-
-            except Exception as e:
-                logger.debug(f"Could not get dependents for {svc_name}: {e}")
-
         # Format output
         result += "=" * 50 + "\n"
         result += "**INTRA-GROUP DEPENDENCIES**\n"
@@ -948,28 +884,6 @@ async def get_group_dependencies(
         else:
             result += "   (No external AWS service dependencies found)\n"
 
-        result += "\n" + "=" * 50 + "\n"
-        result += "**DEPENDENTS**\n"
-        result += "(External services that call INTO this group)\n"
-        result += "=" * 50 + "\n\n"
-
-        if all_dependents:
-            # Deduplicate
-            seen = set()
-            unique_dependents = []
-            for dep in all_dependents:
-                key = (dep['caller'], dep['calls'])
-                if key not in seen:
-                    seen.add(key)
-                    unique_dependents.append(dep)
-
-            for dep in unique_dependents[:20]:
-                result += f"   {dep['caller']} → {dep['calls']}\n"
-            if len(unique_dependents) > 20:
-                result += f"   ... and {len(unique_dependents) - 20} more\n"
-        else:
-            result += "   (No external dependents found)\n"
-
         # Summary
         result += "\n" + "=" * 50 + "\n"
         result += "**SUMMARY**\n"
@@ -979,7 +893,6 @@ async def get_group_dependencies(
         result += f"   • Intra-group dependencies: {intra_count}\n"
         result += f"   • Cross-group dependencies: {len(cross_group_deps)}\n"
         result += f"   • External AWS dependencies: {len(external_deps)}\n"
-        result += f"   • External callers: {len({d['caller'] for d in all_dependents})}\n"
 
         elapsed = timer() - start_time_perf
         logger.debug(f'get_group_dependencies completed in {elapsed:.3f}s')
