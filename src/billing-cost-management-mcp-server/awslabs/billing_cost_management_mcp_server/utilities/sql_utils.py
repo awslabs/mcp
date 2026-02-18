@@ -30,6 +30,7 @@ import json
 import os
 import re
 import sqlite3
+import tempfile
 import uuid
 from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
@@ -107,15 +108,27 @@ def get_session_db_path() -> str:
             try:
                 os.makedirs(session_dir, exist_ok=True)
             except (OSError, PermissionError):
-                # Fallback to /tmp for read-only environments (Lambda, containers)
-                session_dir = os.path.join('/tmp', 'awslabs', 'sessions')
-                os.makedirs(session_dir, exist_ok=True)
+                # Fallback to temp directory for read-only environments (Lambda, containers)
+                session_dir = os.path.join(tempfile.gettempdir(), 'awslabs', 'sessions')
+                try:
+                    os.makedirs(session_dir, exist_ok=True)
+                except (OSError, PermissionError) as e:
+                    raise RuntimeError(
+                        f'Cannot create session directory in fallback location {session_dir}. '
+                        f'Temporary directory is not writable: {str(e)}'
+                    ) from e
                 logger.debug(
                     f'Using fallback session directory due to read-only filesystem: {session_dir}'
                 )
         else:
             # Use environment-specified directory
-            os.makedirs(session_dir, exist_ok=True)
+            try:
+                os.makedirs(session_dir, exist_ok=True)
+            except (OSError, PermissionError) as e:
+                raise RuntimeError(
+                    f'Cannot create session directory at {session_dir} specified by AWSLABS_SESSION_DIR. '
+                    f'Directory is not writable or accessible: {str(e)}'
+                ) from e
             logger.debug(f'Using session directory from AWSLABS_SESSION_DIR: {session_dir}')
 
         # Set the database path
