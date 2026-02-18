@@ -14,6 +14,7 @@
 
 import boto3
 import json
+import os
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
@@ -54,7 +55,7 @@ def interpret(
         region_name=region,
         connect_timeout=CONNECT_TIMEOUT_SECONDS,
         read_timeout=READ_TIMEOUT_SECONDS,
-        retries={'max_attempts': 3, 'mode': 'adaptive'},
+        retries={'max_attempts': int(os.environ.get('AWS_MAX_ATTEMPTS') or 3), 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
 
