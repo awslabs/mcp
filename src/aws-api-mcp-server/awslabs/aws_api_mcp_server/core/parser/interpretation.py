@@ -40,13 +40,15 @@ _client_cache: OrderedDict[tuple, Any] = OrderedDict()
 _MAX_CACHED_CLIENTS = 30
 
 # Auth error codes that should trigger client eviction and retry
-_AUTH_ERROR_CODES = frozenset({
-    'ExpiredTokenException',
-    'ExpiredToken',
-    'RequestExpired',
-    'InvalidClientTokenId',
-    'UnrecognizedClientException',
-})
+_AUTH_ERROR_CODES = frozenset(
+    {
+        'ExpiredTokenException',
+        'ExpiredToken',
+        'RequestExpired',
+        'InvalidClientTokenId',
+        'UnrecognizedClientException',
+    }
+)
 
 
 def _get_or_create_client(
@@ -157,8 +159,20 @@ def interpret(
             if isinstance(resp, dict):
                 error_code = resp.get('Error', {}).get('Code', '')
             if error_code in _AUTH_ERROR_CODES:
-                logger.info('Auth error ({}), evicting cached client for {}/{}', error_code, ir.service_name, region)
-                _evict_client(ir.service_name, access_key_id, secret_access_key, session_token, region, endpoint_url)
+                logger.info(
+                    'Auth error ({}), evicting cached client for {}/{}',
+                    error_code,
+                    ir.service_name,
+                    region,
+                )
+                _evict_client(
+                    ir.service_name,
+                    access_key_id,
+                    secret_access_key,
+                    session_token,
+                    region,
+                    endpoint_url,
+                )
             raise
 
         if ir.has_streaming_output and ir.output_file and ir.output_file.path != '-':
