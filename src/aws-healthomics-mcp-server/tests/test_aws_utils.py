@@ -18,13 +18,16 @@ import base64
 import io
 import os
 import pytest
+import string
 import zipfile
+from awslabs.aws_healthomics_mcp_server.consts import AGENT_ENV
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_aws_client,
     create_zip_file,
     decode_from_base64,
     encode_to_base64,
     get_account_id,
+    get_agent_value,
     get_aws_session,
     get_codeconnections_client,
     get_logs_client,
@@ -34,6 +37,8 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_partition,
     get_region,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import MagicMock, patch
 
 
@@ -253,6 +258,71 @@ class TestGetAwsSession:
             region_name='us-east-1', botocore_session=mock_botocore_instance
         )
         assert result == mock_boto3_instance
+
+
+class TestGetAwsSessionAgentHeader:
+    """Test cases for agent user-agent injection in get_aws_session."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_agent_in_user_agent_when_not_set(self, mock_botocore_session, mock_boto3_session):
+        """Test get_aws_session does not append agent/ to user_agent_extra when AGENT is not set."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/' not in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'test-agent'})
+    def test_agent_appended_to_user_agent_when_set(
+        self, mock_botocore_session, mock_boto3_session
+    ):
+        """Test get_aws_session appends agent/<value> to user_agent_extra when AGENT is set."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/test-agent' in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'TEST'})
+    def test_agent_value_lowercased_in_user_agent(self, mock_botocore_session, mock_boto3_session):
+        """Test get_aws_session lowercases the agent value in user_agent_extra."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'agent/test' in mock_botocore_instance.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch.dict(os.environ, {'AGENT': 'KIRO'})
+    def test_user_agent_extra_still_has_server_id_when_agent_configured(
+        self, mock_botocore_session, mock_boto3_session
+    ):
+        """Test user_agent_extra still contains the server identifier when AGENT is configured."""
+        mock_botocore_instance = MagicMock()
+        mock_botocore_session.return_value = mock_botocore_instance
+        mock_boto3_instance = MagicMock()
+        mock_boto3_session.return_value = mock_boto3_instance
+
+        get_aws_session()
+
+        assert 'aws-healthomics-mcp-server' in mock_botocore_instance.user_agent_extra
+        assert 'agent/kiro' in mock_botocore_instance.user_agent_extra
 
 
 class TestCreateAwsClient:
@@ -811,3 +881,214 @@ class TestGetPartition:
         mock_get_session.assert_called_once()
         mock_session.client.assert_called_once_with('sts')
         mock_sts_client.get_caller_identity.assert_called_once()
+
+
+class TestGetAgentValue:
+    """Test cases for get_agent_value function."""
+
+    def test_get_agent_value_not_set(self):
+        """Test get_agent_value returns None when AGENT env var is not set."""
+        env = os.environ.copy()
+        env.pop(AGENT_ENV, None)
+        with patch.dict(os.environ, env, clear=True):
+            result = get_agent_value()
+        assert result is None
+
+    @patch.dict(os.environ, {AGENT_ENV: 'my-agent'})
+    def test_get_agent_value_valid_string(self):
+        """Test get_agent_value returns value when AGENT is set to a valid string."""
+        result = get_agent_value()
+        assert result == 'my-agent'
+
+    @patch.dict(os.environ, {AGENT_ENV: ''})
+    def test_get_agent_value_empty_string(self):
+        """Test get_agent_value returns None for empty string."""
+        result = get_agent_value()
+        assert result is None
+
+    @patch.dict(os.environ, {AGENT_ENV: '\x01\x02\x03'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_agent_value_warning_on_empty_after_sanitization(self, mock_logger):
+        """Test get_agent_value logs warning when value becomes empty after sanitization."""
+        result = get_agent_value()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            f'{AGENT_ENV} environment variable value became empty after sanitization. '
+            'Treating as unset.'
+        )
+
+
+class TestGetAgentValueProperties:
+    """Property-based tests for get_agent_value()."""
+
+    # **Validates: Requirements 1.1, 1.5, 1.6**
+    @given(
+        value=st.text(
+            alphabet=st.characters(
+                exclude_characters='\x00',
+                exclude_categories=('Cs',),
+            )
+        )
+    )
+    @settings(max_examples=100)
+    def test_sanitization_invariant(self, value):
+        """Property 1: Sanitization invariant.
+
+        For any string set as the AGENT env var, get_agent_value() returns
+        either None or a non-empty string containing only visible ASCII
+        characters (0x20-0x7E).
+
+        **Validates: Requirements 1.1, 1.5, 1.6**
+        """
+        with patch.dict(os.environ, {AGENT_ENV: value}):
+            result = get_agent_value()
+
+        if result is not None:
+            assert len(result) > 0, 'Result must be non-empty when not None'
+            for c in result:
+                assert 0x20 <= ord(c) <= 0x7E, (
+                    f'Character {c!r} (ord={ord(c)}) is outside visible ASCII range'
+                )
+
+    # **Validates: Requirements 1.3**
+    @given(value=st.text(alphabet=string.whitespace))
+    @settings(max_examples=100)
+    def test_whitespace_only_strings_are_rejected(self, value):
+        """Property 2: Whitespace-only strings are rejected.
+
+        For any string composed entirely of whitespace characters,
+        get_agent_value() returns None.
+
+        **Validates: Requirements 1.3**
+        """
+        with patch.dict(os.environ, {AGENT_ENV: value}):
+            result = get_agent_value()
+
+        assert result is None, f'Expected None for whitespace-only input {value!r}, got {result!r}'
+
+
+class TestUserAgentInjectionProperties:
+    """Property-based tests for agent user-agent injection."""
+
+    # **Validates: Requirements 2.2, 3.2**
+    @given(
+        agent_value=st.text(
+            alphabet=st.characters(min_codepoint=0x21, max_codepoint=0x7E),
+            min_size=1,
+        ),
+    )
+    @settings(max_examples=100)
+    def test_user_agent_contains_agent_suffix_and_server_id(self, agent_value):
+        """Property 3: User-agent string contains both server ID and agent/<value>.
+
+        For any non-empty visible ASCII agent string, get_aws_session() should
+        produce a user_agent_extra that contains the server identifier AND
+        the agent/<lowercased_value> suffix.
+
+        **Validates: Requirements 2.2, 3.2**
+        """
+        with (
+            patch.dict(os.environ, {AGENT_ENV: agent_value}),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session'
+            ) as mock_bc,
+            patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session'),
+        ):
+            mock_bc_instance = MagicMock()
+            mock_bc.return_value = mock_bc_instance
+
+            get_aws_session()
+
+            ua = mock_bc_instance.user_agent_extra
+            assert 'aws-healthomics-mcp-server' in ua, (
+                f'Server identifier missing from user_agent_extra: {ua}'
+            )
+            assert f'agent/{agent_value.lower()}' in ua, (
+                f'Expected agent/{agent_value.lower()} in user_agent_extra: {ua}'
+            )
+
+
+class TestAgentUserAgentIntegration:
+    """Integration test verifying agent/ appears in User-Agent header in botocore HTTP requests."""
+
+    @staticmethod
+    def _make_fake_sts_response():
+        """Create a fake STS GetCallerIdentity HTTP response."""
+        from botocore.awsrequest import AWSResponse
+        from unittest.mock import MagicMock
+
+        xml_body = b"""<GetCallerIdentityResponse>
+            <GetCallerIdentityResult>
+                <Arn>arn:aws:iam::123456789012:user/test</Arn>
+                <UserId>AIDEXAMPLE</UserId>
+                <Account>123456789012</Account>
+            </GetCallerIdentityResult>
+        </GetCallerIdentityResponse>"""
+
+        raw = MagicMock()
+        raw.stream.return_value = iter([xml_body])
+        raw.read.return_value = xml_body
+
+        def make_send(captured):
+            def mock_send(request):
+                captured.update(request.headers)
+                response = AWSResponse(
+                    url=request.url,
+                    status_code=200,
+                    headers={'Content-Type': 'text/xml'},
+                    raw=raw,
+                )
+                response._content = xml_body
+                return response
+
+            return mock_send
+
+        return make_send
+
+    @patch.dict(
+        os.environ,
+        {
+            'AGENT': 'KIRO',
+            'AWS_REGION': 'us-east-1',
+            # Mock credentials to prevent boto3 from trying to find them in build system
+            'AWS_ACCESS_KEY_ID': 'testing',  # pragma: allowlist secret
+            'AWS_SECRET_ACCESS_KEY': 'testing',  # pragma: allowlist secret
+            'AWS_SECURITY_TOKEN': 'testing',  # pragma: allowlist secret
+        },
+    )
+    def test_agent_in_user_agent_on_real_pipeline(self):
+        """Verify agent/kiro appears in User-Agent header after full botocore pipeline."""
+        session = get_aws_session()
+        sts = session.client('sts', region_name='us-east-1')
+
+        captured_headers = {}
+        sts._endpoint.http_session.send = self._make_fake_sts_response()(captured_headers)
+
+        sts.get_caller_identity()
+
+        user_agent = captured_headers.get('User-Agent', b'').decode('utf-8')
+        assert 'agent/kiro' in user_agent, (
+            f'agent/kiro not found in User-Agent header: {user_agent}'
+        )
+        assert 'aws-healthomics-mcp-server' in user_agent
+
+    def test_no_agent_in_user_agent_when_not_set(self):
+        """Verify agent/ is absent from User-Agent when AGENT env var is not set."""
+        env = os.environ.copy()
+        env.pop('AGENT', None)
+        env['AWS_ACCESS_KEY_ID'] = 'testing'  # pragma: allowlist secret
+        env['AWS_SECRET_ACCESS_KEY'] = 'testing'  # pragma: allowlist secret
+        env['AWS_SECURITY_TOKEN'] = 'testing'  # pragma: allowlist secret
+        with patch.dict(os.environ, env, clear=True):
+            session = get_aws_session()
+            sts = session.client('sts', region_name='us-east-1')
+
+            captured_headers = {}
+            sts._endpoint.http_session.send = self._make_fake_sts_response()(captured_headers)
+
+            sts.get_caller_identity()
+
+        user_agent = captured_headers.get('User-Agent', b'').decode('utf-8')
+        assert 'agent/' not in user_agent, (
+            f'agent/ should not be in User-Agent header: {user_agent}'
+        )

@@ -165,7 +165,7 @@ class GenomicsSearchOrchestrator:
 
             # Build comprehensive JSON response
             search_duration_ms = int((time.time() - start_time) * 1000)
-            storage_systems_searched = self._get_searched_storage_systems()
+            storage_systems_searched = self._get_searched_storage_systems(request)
 
             pagination_info = {
                 'offset': request.offset,
@@ -341,7 +341,7 @@ class GenomicsSearchOrchestrator:
 
             # Build comprehensive JSON response
             search_duration_ms = int((time.time() - start_time) * 1000)
-            storage_systems_searched = self._get_searched_storage_systems()
+            storage_systems_searched = self._get_searched_storage_systems(request)
 
             # Create next continuation token
             next_continuation_token = None
@@ -472,6 +472,13 @@ class GenomicsSearchOrchestrator:
         # Combine configured buckets with validated adhoc buckets
         all_bucket_paths = await self._get_all_s3_bucket_paths(request)
 
+        if not all_bucket_paths and not self.config.enable_healthomics_search:
+            raise ValueError(
+                'No S3 bucket paths available for search. Either set the '
+                'GENOMICS_SEARCH_S3_BUCKETS environment variable or provide '
+                'adhoc_s3_buckets in the search request.'
+            )
+
         # Add S3 search task if bucket paths are available and S3 engine is available
         if all_bucket_paths and self.s3_engine is not None:
             logger.info(f'Adding S3 search task for {len(all_bucket_paths)} buckets')
@@ -549,6 +556,13 @@ class GenomicsSearchOrchestrator:
 
         # Combine configured buckets with validated adhoc buckets
         all_bucket_paths = await self._get_all_s3_bucket_paths(request)
+
+        if not all_bucket_paths and not self.config.enable_healthomics_search:
+            raise ValueError(
+                'No S3 bucket paths available for search. Either set the '
+                'GENOMICS_SEARCH_S3_BUCKETS environment variable or provide '
+                'adhoc_s3_buckets in the search request.'
+            )
 
         # Add S3 paginated search task if bucket paths are available and S3 engine is available
         if all_bucket_paths and self.s3_engine is not None:
@@ -1000,15 +1014,23 @@ class GenomicsSearchOrchestrator:
         logger.info(f'Scored {len(scored_results)} results')
         return scored_results
 
-    def _get_searched_storage_systems(self) -> List[str]:
+    def _get_searched_storage_systems(
+        self, request: Optional[GenomicsFileSearchRequest] = None
+    ) -> List[str]:
         """Get the list of storage systems that were searched.
+
+        Args:
+            request: Optional search request to check for adhoc buckets
 
         Returns:
             List of storage system names that were included in the search
         """
         systems = []
 
-        if self.config.s3_bucket_paths and self.s3_engine is not None:
+        has_s3_buckets = bool(self.config.s3_bucket_paths) or (
+            request is not None and bool(request.adhoc_s3_buckets)
+        )
+        if has_s3_buckets and self.s3_engine is not None:
             systems.append('s3')
 
         if self.config.enable_healthomics_search:
