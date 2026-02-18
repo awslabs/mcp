@@ -34,7 +34,19 @@ const config: Config = {
   },
 
   // Add plugins
-  plugins: [],
+  plugins: [
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {
+            from: '/servers/kendra-index-mcp-server',
+            to: '/servers/amazon-kendra-index-mcp-server',
+          },
+        ],
+      },
+    ],
+  ],
 
   // Add scripts to be loaded in the client
   scripts: [],
