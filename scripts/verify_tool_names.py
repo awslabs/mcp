@@ -130,9 +130,11 @@ def find_tool_decorators(file_path: Path) -> List[Tuple[str, int]]:
                     # Check if decorator is mcp.tool
                     is_mcp_tool = False
                     if isinstance(decorator.func, ast.Attribute):
-                        if (decorator.func.attr == 'tool' and
-                            isinstance(decorator.func.value, ast.Name) and
-                            decorator.func.value.id == 'mcp'):
+                        if (
+                            decorator.func.attr == 'tool'
+                            and isinstance(decorator.func.value, ast.Name)
+                            and decorator.func.value.id == 'mcp'
+                        ):
                             is_mcp_tool = True
 
                     if is_mcp_tool:
@@ -157,7 +159,11 @@ def find_all_tools_in_package(package_dir: Path) -> List[Tuple[str, Path, int]]:
     # Search for Python files in the package
     for python_file in package_dir.rglob('*.py'):
         # Skip test files and virtual environments
-        if 'test' in str(python_file) or '.venv' in str(python_file) or '__pycache__' in str(python_file):
+        if (
+            'test' in str(python_file)
+            or '.venv' in str(python_file)
+            or '__pycache__' in str(python_file)
+        ):
             continue
 
         tools = find_tool_decorators(python_file)
@@ -195,7 +201,7 @@ def validate_tool_name(tool_name: str) -> Tuple[List[str], List[str]]:
             if invalid_chars:
                 errors.append(
                     f"Tool name '{tool_name}' contains invalid characters: {', '.join(sorted(invalid_chars))}. "
-                    f"Only alphanumeric characters, underscores (_), and hyphens (-) are allowed"
+                    f'Only alphanumeric characters, underscores (_), and hyphens (-) are allowed'
                 )
 
     # Warn if not using recommended snake_case
@@ -209,9 +215,7 @@ def validate_tool_name(tool_name: str) -> Tuple[List[str], List[str]]:
 
 
 def validate_tool_names(
-    package_name: str,
-    tools: List[Tuple[str, Path, int]],
-    verbose: bool = False
+    package_name: str, tools: List[Tuple[str, Path, int]], verbose: bool = False
 ) -> Tuple[bool, List[str], List[str]]:
     """Validate all tool names in a package.
 
@@ -249,7 +253,9 @@ def validate_tool_names(
             style_note = ''
             if naming_warnings:
                 style_note = ' (non-snake_case)'
-            print(f'  {status} {tool_name} -> {fully_qualified_name} ({fqn_length} chars){style_note}')
+            print(
+                f'  {status} {tool_name} -> {fully_qualified_name} ({fqn_length} chars){style_note}'
+            )
 
     return len(errors) == 0, errors, warnings
 
@@ -261,7 +267,7 @@ def main():
     )
     parser.add_argument(
         'package_dir',
-        help='Path to the package directory (e.g., src/git-repo-research-mcp-server)'
+        help='Path to the package directory (e.g., src/git-repo-research-mcp-server)',
     )
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
 
@@ -302,7 +308,9 @@ def main():
             print(f'\n⚠️  Found {len(warnings)} naming style recommendation(s):')
             for warning in warnings:
                 print(f'  - {warning}')
-            print(f'\nNote: These are recommendations only. snake_case is preferred but not required.')
+            print(
+                f'\nNote: These are recommendations only. snake_case is preferred but not required.'
+            )
 
         # Print result
         if is_valid:
