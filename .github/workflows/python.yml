@@ -132,6 +132,7 @@ jobs:
         run: |
           python3 scripts/verify_package_name.py src/${{ matrix.package }}
           uv run --script scripts/verify_awslabs_init.py src/${{ matrix.package }}
+          python3 scripts/verify_tool_names.py src/${{ matrix.package }}
 
       - name: Run tests
         working-directory: src/${{ matrix.package }}
