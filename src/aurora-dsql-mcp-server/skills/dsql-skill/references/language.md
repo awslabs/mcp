@@ -62,8 +62,8 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
 
 **SQLAlchemy**
 - Supports `psycopg` and `psycopg2`
-- See [aurora-dsql-samples/python/sqlalchemy](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/sqlalchemy)
-- Dialect Source: [aurora-dsql-sqlalchemy](https://github.com/awslabs/aurora-dsql-sqlalchemy/tree/main/)
+- See [aurora-dsql-orms/python/sqlalchemy](https://github.com/awslabs/aurora-dsql-orms/blob/main/python/sqlalchemy/examples/pet-clinic-app/src/example.py)
+- Dialect Source: [aurora-dsql-sqlalchemy](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy)
 
 **JupyterLab**
 - Still SHOULD PREFER using the python connector.
