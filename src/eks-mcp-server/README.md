@@ -6,6 +6,7 @@ Integrating the EKS MCP server into AI code assistants enhances development work
 
 ## Key features
 
+* **Multi-account and multi-region support**: Manage EKS clusters across multiple AWS accounts and regions through a single configuration file, with support for IAM role assumption, named AWS profiles, and default credentials.
 * Enables users of AI code assistants to create new EKS clusters, complete with prerequisites such as dedicated VPCs, networking, and EKS Auto Mode node pools, by translating requests into the appropriate AWS CloudFormation actions.
 * Provides the ability to deploy containerized applications by applying existing Kubernetes YAML files or by generating new deployment and service manifests based on user-provided parameters.
 * Supports full lifecycle management of individual Kubernetes resources (such as Pods, Services, and Deployments) within EKS clusters, enabling create, read, update, patch, and delete operations.
@@ -233,6 +234,160 @@ Enables access to sensitive data such as logs, events, and Kubernetes Secrets. T
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
 
+#### `--cluster-config` (optional)
+
+Specifies the path to a JSON or YAML file containing cluster configuration for multi-region and multi-account support. This enables managing EKS clusters across different AWS accounts and regions.
+
+* Default: None (If not set, can also be configured via `EKS_CLUSTER_CONFIG` environment variable)
+* Example: Add `--cluster-config /path/to/cluster-config.json` to the `args` list in your MCP server definition.
+
+### Multi-account and multi-region configuration
+
+The EKS MCP server supports managing clusters across multiple AWS accounts and regions through a configuration file. This is useful for organizations with clusters distributed across different environments (dev, staging, production) or geographical locations.
+
+#### Configuration file format
+
+The configuration file can be in JSON or YAML format and follows this structure:
+
+**JSON format:**
+
+```json
+{
+  "clusters": [
+    {
+      "name": "dev-cluster",
+      "region": "us-west-2",
+      "description": "Development cluster in us-west-2",
+      "account_id": "123456789012"
+    },
+    {
+      "name": "prod-cluster",
+      "region": "us-east-1",
+      "description": "Production cluster in account 987654321098",
+      "account_id": "987654321098",
+      "role_arn": "arn:aws:iam::987654321098:role/EKSMCPServerRole"
+    },
+    {
+      "name": "staging-cluster",
+      "region": "eu-west-1",
+      "description": "Staging cluster using named profile",
+      "profile": "staging-profile"
+    }
+  ]
+}
+```
+
+**YAML format:**
+
+```yaml
+clusters:
+  - name: dev-cluster
+    region: us-west-2
+    description: Development cluster in us-west-2
+    account_id: "123456789012"
+
+  - name: prod-cluster
+    region: us-east-1
+    description: Production cluster in account 987654321098
+    account_id: "987654321098"
+    role_arn: arn:aws:iam::987654321098:role/EKSMCPServerRole
+
+  - name: staging-cluster
+    region: eu-west-1
+    description: Staging cluster using named profile
+    profile: staging-profile
+```
+
+#### Cluster configuration fields
+
+Each cluster configuration supports the following fields:
+
+* **name** (required): The name of the EKS cluster
+* **region** (required): AWS region where the cluster is located
+* **account_id** (optional): AWS account ID for the cluster
+* **description** (optional): Human-readable description of the cluster
+* **role_arn** (optional): IAM role ARN to assume for accessing the cluster (for cross-account access)
+* **external_id** (optional): External ID to use when assuming the role (required by some IAM role trust policies)
+* **profile** (optional): Named AWS profile to use for credentials (alternative to role assumption)
+
+#### Authentication methods
+
+The server supports three authentication methods for accessing clusters:
+
+1. **IAM Role Assumption** (recommended for cross-account access): Specify `role_arn` and optionally `external_id` to assume a role in another account.
+2. **Named AWS Profile**: Specify `profile` to use credentials from a named profile in your AWS credentials file.
+3. **Default Credentials**: If neither `role_arn` nor `profile` is specified, the server uses default AWS credentials (from environment variables, instance profile, etc.).
+
+#### Setting up cross-account access
+
+To access clusters in different AWS accounts:
+
+1. Create an IAM role in the target account with EKS permissions
+2. Configure the trust relationship to allow assumption from your primary account
+3. Add the role ARN to your cluster configuration
+4. Ensure your primary credentials have permission to assume the role
+
+Example IAM trust policy for the target account role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::PRIMARY-ACCOUNT-ID:root"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "my-external-id"
+        }
+      }
+    }
+  ]
+}
+```
+
+#### Configuration file location
+
+Specify the configuration file location using either:
+
+* The `--cluster-config` command-line argument
+* The `EKS_CLUSTER_CONFIG` environment variable
+
+Example MCP server configuration with cluster config:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.eks-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access",
+        "--cluster-config",
+        "/path/to/cluster-config.json"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+#### Use cases for multi-account configuration
+
+Multi-account and multi-region support is beneficial for:
+
+* **Environment separation**: Manage dev, staging, and production clusters in different AWS accounts from a single interface
+* **Geographical distribution**: Work with clusters across multiple regions for global applications
+* **Organizational boundaries**: Access clusters across different AWS Organizations or business units
+* **Consolidated operations**: Perform troubleshooting, monitoring, and management tasks across all your clusters without switching contexts
+* **Cross-account IAM management**: Add IAM policies to roles in different accounts when configuring cluster permissions
+
 ### Environment variables
 
 The `env` field in the MCP server definition allows you to configure environment variables that control the behavior of the EKS MCP server.  For example:
@@ -245,6 +400,7 @@ The `env` field in the MCP server definition allows you to configure environment
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
         "AWS_REGION": "us-west-2",
+        "EKS_CLUSTER_CONFIG": "/path/to/cluster-config.json",
         "HTTP_PROXY": "http://proxy.example.com:8080",
         "HTTPS_PROXY": "https://proxy.example.com:8080"
       }
@@ -261,19 +417,29 @@ Sets the logging level verbosity for the server.
 * Default: "WARNING"
 * Example: `"FASTMCP_LOG_LEVEL": "ERROR"`
 
+#### `EKS_CLUSTER_CONFIG` (optional)
+
+Specifies the path to a JSON or YAML file containing cluster configuration for multi-region and multi-account support. Alternative to using the `--cluster-config` command-line argument.
+
+* Default: None (Single cluster mode using AWS_PROFILE and AWS_REGION)
+* Example: `"EKS_CLUSTER_CONFIG": "/path/to/cluster-config.json"`
+* Note: When this is set, AWS_PROFILE and AWS_REGION are used as fallback defaults for clusters without specific configuration.
+
 #### `AWS_PROFILE` (optional)
 
 Specifies the AWS profile to use for authentication.
 
 * Default: None (If not set, uses default AWS credentials).
 * Example: `"AWS_PROFILE": "my-profile"`
+* Note: When using multi-cluster configuration, this serves as the default profile for clusters that don't specify their own profile or role.
 
 #### `AWS_REGION` (optional)
 
-Specifies the AWS region where EKS clusters are managed, which will be used for all AWS service operations.
+Specifies the AWS region where EKS clusters are managed.
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+* Note: When using multi-cluster configuration, each cluster specifies its own region in the configuration file.
 
 #### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
 
@@ -288,6 +454,21 @@ Configures proxy settings for HTTP and HTTPS connections. These environment vari
 The following tools are provided by the EKS MCP server for managing Amazon EKS clusters and Kubernetes resources. Each tool performs a specific action that can be invoked to automate common tasks in your EKS clusters and Kubernetes workloads.
 
 ### EKS Cluster Management
+
+#### `list_eks_clusters`
+
+Lists all configured EKS clusters from the cluster configuration file.
+
+Features:
+
+* Returns a list of all clusters defined in the configuration file with their metadata
+* Optionally validates cluster accessibility and retrieves current status and Kubernetes version
+* Shows the authentication method used for each cluster (role_assumption, profile, or default)
+* Supports quick listing without validation for faster response times
+
+Parameters:
+
+* validate (optional) - Whether to validate cluster accessibility by calling AWS APIs (default: false)
 
 #### `manage_eks_stacks`
 
@@ -488,10 +669,12 @@ Features:
 * Fetches the assume role policy document for the specified IAM role.
 * Lists all attached managed policies and includes their policy documents.
 * Lists all embedded inline policies and includes their policy documents.
+* Supports cross-account access when a cluster configuration is provided.
 
 Parameters:
 
 * role_name
+* cluster_name (optional) - Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.
 
 #### `add_inline_policy`
 
@@ -503,10 +686,12 @@ Features:
 * Rejects requests if the policy name already exists on the role to prevent accidental modification.
 * Requires `--allow-write` server flag to be enabled.
 * Accepts permissions as a single JSON object (statement) or a list of JSON objects (statements).
+* Supports cross-account access when a cluster configuration is provided.
 
 Parameters:
 
 * policy_name, role_name, permissions (JSON object or array of objects)
+* cluster_name (optional) - Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.
 
 ### Troubleshooting
 
@@ -572,7 +757,7 @@ When using the EKS MCP Server, consider the following:
 
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
-* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
+* **Read-only mode (default)**: `list_eks_clusters`, `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
 * **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)
@@ -594,6 +779,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_eks_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",
@@ -627,6 +813,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_eks_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",
