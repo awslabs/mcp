@@ -182,22 +182,22 @@ def _build_group_header(
 async def _setup_group_tool(
     group_name: str, start_time: Optional[str], end_time: Optional[str],
     emoji: str, title: str, default_hours: int = 3,
-) -> Tuple[Optional[List[Dict]], Optional[datetime], Optional[datetime], str]:
+) -> Tuple[Optional[List[Dict]], Optional[datetime], Optional[datetime], str, Optional[Dict]]:
     """Common setup: parse time, discover services, build header or error message.
 
-    Returns (group_services, start_dt, end_dt, result_or_error).
+    Returns (group_services, start_dt, end_dt, result_or_error, discovery_stats).
     If group_services is None, result_or_error contains the error/empty message to return immediately.
     """
     start_dt, end_dt = parse_time_range(start_time, end_time, default_hours)
     if end_dt <= start_dt:
-        return None, None, None, 'Error: end_time must be greater than start_time.'
+        return None, None, None, 'Error: end_time must be greater than start_time.', None
 
     group_services, discovery_stats = await _discover_services_by_group(group_name, start_dt, end_dt)
     if not group_services:
-        return None, None, None, _format_no_services_found(group_name, discovery_stats)
+        return None, None, None, _format_no_services_found(group_name, discovery_stats), None
 
     header = _build_group_header(emoji, title, group_name, start_dt, end_dt, len(group_services))
-    return group_services, start_dt, end_dt, header
+    return group_services, start_dt, end_dt, header, discovery_stats
 
 
 # =============================================================================
@@ -247,25 +247,13 @@ async def list_group_services(
     logger.debug(f'Starting list_group_services for group: {group_name}')
 
     try:
-        start_dt, end_dt = parse_time_range(start_time, end_time)
-
-        if end_dt <= start_dt:
-            return 'Error: end_time must be greater than start_time.'
-
-        # Discover services
-        group_services, discovery_stats = await _discover_services_by_group(
-            group_name, start_dt, end_dt
+        group_services, _, _, result, discovery_stats = await _setup_group_tool(
+            group_name, start_time, end_time, '📋', 'SERVICES IN GROUP'
         )
-
-        if not group_services:
-            return _format_no_services_found(group_name, discovery_stats)
-
-        # Build result (custom header for this tool — includes discovery stats)
-        result = f"📋 **SERVICES IN GROUP: {group_name}**\n"
-        result += f"⏰ Time Range: {start_dt.strftime('%Y-%m-%d %H:%M')} to {end_dt.strftime('%Y-%m-%d %H:%M')} UTC\n"
-        result += f"🌎 Region: {AWS_REGION}\n\n"
-
-        result += f"✅ Found **{len(group_services)} services** in group '{group_name}'\n"
+        if group_services is None:
+            return result
+        
+        # Add discovery stats (unique to this tool)
         result += f"📊 (Scanned {discovery_stats['total_services_scanned']} total services)\n\n"
 
         # Collect platform and environment statistics
@@ -406,7 +394,7 @@ async def audit_group_health(
     logger.debug(f'Starting audit_group_health for group: {group_name}')
 
     try:
-        group_services, start_dt, end_dt, result = await _setup_group_tool(
+        group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '🔍', 'GROUP HEALTH AUDIT'
         )
         if group_services is None:
@@ -749,7 +737,7 @@ async def get_group_dependencies(
     logger.debug(f'Starting get_group_dependencies for group: {group_name}')
 
     try:
-        group_services, start_dt, end_dt, result = await _setup_group_tool(
+        group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '🔗', 'GROUP DEPENDENCIES'
         )
         if group_services is None:
@@ -950,7 +938,7 @@ async def get_group_changes(
     logger.debug(f'Starting get_group_changes for group: {group_name}')
 
     try:
-        group_services, start_dt, end_dt, result = await _setup_group_tool(
+        group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '📦', 'GROUP CHANGES'
         )
         if group_services is None:

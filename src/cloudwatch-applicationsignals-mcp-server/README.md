@@ -300,7 +300,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 
 ### 🏢 Group-Level Monitoring Tools
 
-#### 14. **`list_group_services`** - Group Service Discovery
+#### 15. **`list_group_services`** - Group Service Discovery
 **Discover all services belonging to a specific group**
 
 - List services by group name with wildcard support (`*payment*`)
@@ -311,7 +311,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `list_group_services(group_name="Payments")` - List all services in Payments group
 - `list_group_services(group_name="*prod*")` - Find all production groups
 
-#### 15. **`audit_group_health`** - Group Health Monitoring
+#### 16. **`audit_group_health`** - Group Health Monitoring
 **Comprehensive health assessment for all services in a group**
 
 - Automatic health detection using SLOs and metrics
@@ -323,7 +323,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `audit_group_health(group_name="Payments")` - Audit all payment services
 - `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
 
-#### 16. **`get_group_dependencies`** - Group Dependency Mapping
+#### 17. **`get_group_dependencies`** - Group Dependency Mapping
 **Map dependencies within and across service groups**
 
 - Identifies intra-group dependencies (services calling each other)
@@ -334,7 +334,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
 - Useful for understanding service architecture and blast radius
 
-#### 17. **`get_group_changes`** - Group Change Tracking
+#### 18. **`get_group_changes`** - Group Change Tracking
 **Track deployments across a group**
 
 - Lists recent deployments
@@ -346,7 +346,7 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
 - `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
 
-#### 18. **`list_grouping_attribute_definitions`** - Group Configuration
+#### 19. **`list_grouping_attribute_definitions`** - Group Configuration
 **List all custom grouping attribute definitions**
 
 - Shows configured grouping attributes (Team, BusinessUnit, etc.)
@@ -894,6 +894,8 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListAuditFindings",
         "application-signals:ListEntityEvents",
         "application-signals:ListServiceStates",
+        "application-signals:ListServiceDependencies",
+        "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",

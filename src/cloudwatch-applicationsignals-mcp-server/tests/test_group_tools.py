@@ -93,7 +93,7 @@ class TestListGroupServices:
         result = await list_group_services(group_name='Payments')
 
         assert 'SERVICES IN GROUP: Payments' in result
-        assert 'Found **2 services**' in result
+        assert 'Services in group: 2' in result
         assert 'payment-svc' in result
         assert 'order-svc' in result
         assert 'auth-svc' not in result
@@ -111,7 +111,7 @@ class TestListGroupServices:
 
         result = await list_group_services(group_name='*payment*')
 
-        assert 'Found **2 services**' in result
+        assert 'Services in group: 2' in result
         assert 'payment-svc' in result
         assert 'payment-gateway' in result
         assert 'auth-svc' not in result
@@ -128,7 +128,7 @@ class TestListGroupServices:
 
         result = await list_group_services(group_name='BusinessUnit')
 
-        assert 'Found **2 services**' in result
+        assert 'Services in group: 2' in result
         assert 'svc-a' in result
         assert 'svc-b' in result
 
@@ -146,7 +146,6 @@ class TestListGroupServices:
         assert 'No services found' in result
         assert 'Team=Auth' in result
 
-    @pytest.mark.asyncio
     @pytest.mark.asyncio
     async def test_pagination(self, mock_aws_clients):
         """Test pagination through multiple pages of services."""
@@ -166,7 +165,7 @@ class TestListGroupServices:
 
         result = await list_group_services(group_name='Payments')
 
-        assert 'Found **2 services**' in result
+        assert 'Services in group: 2' in result
         assert 'svc-1' in result
         assert 'svc-2' in result
 
@@ -181,7 +180,7 @@ class TestListGroupServices:
 
         result = await list_group_services(group_name='payments')
 
-        assert 'Found **1 services**' in result
+        assert 'Services in group: 1' in result
         assert 'svc-a' in result
 
     @pytest.mark.asyncio
