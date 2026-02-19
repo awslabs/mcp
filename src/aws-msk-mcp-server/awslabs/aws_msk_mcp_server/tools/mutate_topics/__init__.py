@@ -64,9 +64,16 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
         )
-        return create_topic(
-            cluster_arn, topic_name, partition_count, replication_factor, client, configs
-        )
+        
+        # Call create_topic with configs only if provided
+        if configs is not None:
+            return create_topic(
+                cluster_arn, topic_name, partition_count, replication_factor, client, configs
+            )
+        else:
+            return create_topic(
+                cluster_arn, topic_name, partition_count, replication_factor, client
+            )
 
     @mcp.tool(
         name="update_topic",
@@ -107,7 +114,15 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
         )
-        return update_topic(cluster_arn, topic_name, client, configs, partition_count)
+        
+        # Build kwargs conditionally to avoid passing None values
+        kwargs = {}
+        if configs is not None:
+            kwargs['configs'] = configs
+        if partition_count is not None:
+            kwargs['partition_count'] = partition_count
+        
+        return update_topic(cluster_arn, topic_name, client, **kwargs)
 
     @mcp.tool(
         name="delete_topic", description="Deletes a topic in the specified MSK cluster."

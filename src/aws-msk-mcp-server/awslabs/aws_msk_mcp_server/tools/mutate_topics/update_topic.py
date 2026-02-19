@@ -17,7 +17,7 @@ Function to update the configuration of a topic in an MSK cluster.
 Maps to AWS MSK API: update_topic
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 
 def update_topic(
@@ -49,7 +49,7 @@ def update_topic(
         )
 
     # Build parameters for the API call
-    params = {
+    params: dict[str, Any] = {
         "ClusterArn": cluster_arn,
         "TopicName": topic_name,
     }

@@ -17,7 +17,7 @@ Function to list topics in an MSK cluster.
 Maps to AWS MSK API: GET /clusters/{clusterArn}/topics
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 
 def list_topics(
@@ -53,7 +53,7 @@ def list_topics(
         )
 
     # Build parameters for the API call
-    params = {"ClusterArn": cluster_arn}
+    params: dict[str, Any] = {"ClusterArn": cluster_arn}
 
     if topic_name_filter is not None:
         params["TopicNameFilter"] = topic_name_filter

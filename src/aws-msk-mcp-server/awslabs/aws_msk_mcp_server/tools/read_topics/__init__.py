@@ -76,7 +76,17 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
         )
-        return list_topics(cluster_arn, client, topic_name_filter, max_results, next_token)
+        
+        # Build kwargs conditionally to avoid passing None values
+        kwargs = {}
+        if topic_name_filter is not None:
+            kwargs['topic_name_filter'] = topic_name_filter
+        if max_results is not None:
+            kwargs['max_results'] = max_results
+        if next_token is not None:
+            kwargs['next_token'] = next_token
+        
+        return list_topics(cluster_arn, client, **kwargs)
 
     @mcp.tool(
         name="describe_topic", description="Returns details for a specific topic on an MSK cluster."
@@ -151,4 +161,12 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
         )
-        return describe_topic_partitions(cluster_arn, topic_name, client, max_results, next_token)
+        
+        # Build kwargs conditionally to avoid passing None values
+        kwargs = {}
+        if max_results is not None:
+            kwargs['max_results'] = max_results
+        if next_token is not None:
+            kwargs['next_token'] = next_token
+        
+        return describe_topic_partitions(cluster_arn, topic_name, client, **kwargs)

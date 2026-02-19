@@ -17,7 +17,7 @@ Function to describe partitions of a specific topic in an MSK cluster.
 Maps to AWS MSK API: describe_topic_partitions
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 
 def describe_topic_partitions(
@@ -52,7 +52,7 @@ def describe_topic_partitions(
         )
 
     # Build parameters for the API call
-    params = {"ClusterArn": cluster_arn, "TopicName": topic_name}
+    params: dict[str, Any] = {"ClusterArn": cluster_arn, "TopicName": topic_name}
 
     if max_results is not None:
         params["MaxResults"] = max_results
