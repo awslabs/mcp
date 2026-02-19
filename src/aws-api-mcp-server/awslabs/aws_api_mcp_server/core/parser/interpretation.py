@@ -19,7 +19,12 @@ from ..aws.services import (
     extract_pagination_config,
 )
 from ..common.command import IRCommand, OutputFile
-from ..common.config import CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS, get_user_agent_extra
+from ..common.config import (
+    AWS_MAX_ATTEMPTS,
+    CONNECT_TIMEOUT_SECONDS,
+    READ_TIMEOUT_SECONDS,
+    get_user_agent_extra,
+)
 from ..common.file_system_controls import validate_file_path
 from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
@@ -54,7 +59,7 @@ def interpret(
         region_name=region,
         connect_timeout=CONNECT_TIMEOUT_SECONDS,
         read_timeout=READ_TIMEOUT_SECONDS,
-        retries={'max_attempts': 3, 'mode': 'adaptive'},
+        retries={'total_max_attempts': AWS_MAX_ATTEMPTS, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
 

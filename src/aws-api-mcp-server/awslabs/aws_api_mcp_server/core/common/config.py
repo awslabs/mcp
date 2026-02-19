@@ -193,6 +193,7 @@ ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
 )
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 60
+AWS_MAX_ATTEMPTS = int(os.getenv('AWS_MAX_ATTEMPTS', 3))
 
 # Authentication Configuration
 AUTH_TYPE = os.getenv('AUTH_TYPE')
