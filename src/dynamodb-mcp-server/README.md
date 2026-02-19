@@ -4,7 +4,7 @@ The official developer experience MCP Server for Amazon DynamoDB. This server pr
 
 ## Available Tools
 
-The DynamoDB MCP server provides seven tools for data modeling, validation, and code generation:
+The DynamoDB MCP server provides eight tools for data modeling, validation, cost analysis, and code generation:
 
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt with enterprise-level design patterns, cost optimization strategies, and multi-table design philosophy. Guides through requirements gathering, access pattern analysis, and schema design.
 
@@ -33,6 +33,10 @@ The DynamoDB MCP server provides seven tools for data modeling, validation, and 
 - `generate_data_access_layer` - Generates type-safe Python code from schema.json including entity classes with field validation, repository classes with CRUD operations, fully implemented access patterns, and optional usage examples. The generated code uses Pydantic for validation and boto3 for DynamoDB operations.
 
   **Example invocation:** "Generate Python code from my schema.json"
+
+- `compute_performances_and_costs` - Calculates DynamoDB capacity units (RCU/WCU) and monthly costs from access patterns. Analyzes all DynamoDB operations (GetItem, Query, Scan, PutItem, UpdateItem, DeleteItem, BatchGetItem, BatchWriteItem, TransactGetItems, TransactWriteItems), tracks GSI additional writes, and calculates storage costs. Appends a comprehensive cost report to dynamodb_data_model.md.
+
+  **Example invocation:** "Calculate the cost and performance for my DynamoDB data model"
 
 ## Prerequisites
 

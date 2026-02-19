@@ -229,10 +229,23 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 
 ## Access Pattern Mapping
 
-[Show how each pattern maps to table operations and critical implementation notes]
+🔴 **CRITICAL**: You MUST output this section with all access patterns, showing how each maps to DynamoDB operations.
 
-| Pattern | Description | Tables/Indexes | DynamoDB Operations | Implementation Notes |
-| ------- | ----------- | -------------- | ------------------- | -------------------- |
+| Pattern # | Description | Type | Peak RPS | Items Returned | Avg Item Size | Table/GSI Used | DynamoDB Operations | Implementation Notes |
+|-----------|-------------|------|----------|----------------|---------------|----------------|---------------------|----------------------|
+| 1 | Get user profile by user ID | GetItem | 500 | 1 | 2 KB | Users | GetItem(PK=user_id) | Simple PK lookup |
+| 2 | Create new user account | PutItem | 50 | - | 2 KB | Users | PutItem with ConditionExpression | Check email uniqueness |
+| 3 | Query orders by user | Query | 300 | 10 | 5 KB | Orders-ByUser-GSI | Query(PK=user_id) | Paginate with LastEvaluatedKey |
+| 4 | Get order details | GetItem | 200 | 1 | 5 KB | Orders | GetItem(PK=order_id) | Include order items |
+
+**Instructions for User**: Update RPS, items returned, and item size values based on your actual workload. Agent estimates are based on requirements gathering.
+
+**Column Definitions**:
+- **Type**: GetItem, PutItem, UpdateItem, DeleteItem, Query, Scan, BatchGetItem, BatchWriteItem, TransactWriteItems, TransactGetItems
+- **Items Returned**: For Query/Scan operations, average number of items returned per request (use "-" for single-item operations)
+- **Avg Item Size**: Average size per item in KB (used to calculate RCU/WCU consumption)
+- **DynamoDB Operations**: Specific API calls with key conditions
+- **Implementation Notes**: Critical details for implementing the pattern
 
 ## Hot Partition Analysis
 - **MainTable**: Pattern #1 at 500 RPS distributed across ~10K users = 0.05 RPS per partition ✅
@@ -257,12 +270,33 @@ A markdown table which shows 5-10 representative items for the index. You MUST e
 - [ ] Multi-attribute keys used for GSI instead of composite string keys where applicable ✅
 - [ ] All tables and GSIs documented with full justification ✅
 - [ ] Hot partition analysis completed ✅
-- [ ] Cost estimates provided for high-volume operations ✅
 - [ ] Trade-offs explicitly documented and justified ✅
 - [ ] Integration patterns detailed for non-DynamoDB functionality ✅
 - [ ] No Scans used to solve access patterns ✅
 - [ ] Cross-referenced against `dynamodb_requirement.md` for accuracy ✅
+- [ ] Capacity and cost analysis completed using `compute_performances_and_costs` tool ✅
 ```
+
+🔴 **CRITICAL**: After completing the data model design, you MUST call the `compute_performances_and_costs` tool to generate capacity and cost analysis.
+
+**Tool Parameters:**
+
+1. **access_pattern_list** (required): Extract from Access Pattern Mapping table above
+   - Common fields: `operation`, `pattern`, `description`, `table`, `rps`, `item_size_bytes`
+   - For Query/Scan/Batch/Transact operations: add `item_count`
+   - For read operations (GetItem, Query, Scan, BatchGetItem): add `strongly_consistent` (default: false)
+   - For Query/Scan on GSI: add `gsi` (GSI name)
+   - For write operations affecting GSIs: add `gsi_list` (array of GSI names)
+
+2. **table_list** (required): Extract from Table Designs section above
+   - Each table needs: `name`, `item_count`, `item_size_bytes`
+   - Include `gsi_list` array with each GSI's `name`, `item_count`, `item_size_bytes`
+
+3. **workspace_dir** (required): Absolute path to the directory containing `dynamodb_data_model.md`
+
+**Size Hierarchy Rule:** `AccessPattern.item_size_bytes` ≤ `GSI.item_size_bytes` ≤ `Table.item_size_bytes`
+
+**Returns:** `{'status': 'success'|'error', 'message': <summary_or_error>}`
 
 ## Communication Guidelines
 
