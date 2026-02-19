@@ -12,14 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS helper for the EKS MCP Server."""
+"""AWS helper for the EKS MCP Server.
+
+This module provides utility methods for interacting with AWS services,
+including support for multi-region and multi-account access via
+role assumption and named profiles.
+"""
 
 import boto3
 import os
 from awslabs.eks_mcp_server import __version__
 from botocore.config import Config
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from awslabs.eks_mcp_server.config import ClusterConfig
 
 
 class AwsHelper:
@@ -29,14 +37,19 @@ class AwsHelper:
     including region and profile management and client creation.
 
     This class implements a singleton pattern with a client cache to avoid
-    creating multiple clients for the same service.
+    creating multiple clients for the same service. The cache key includes
+    service name, region, and credential context to support multi-region
+    and multi-account access.
     """
 
     # Singleton instance
     _instance = None
 
-    # Client cache with AWS service name as key
+    # Client cache with composite key: service:region:credential_context
     _client_cache: Dict[str, Any] = {}
+
+    # Cache for assumed role credentials
+    _assumed_role_cache: Dict[str, Dict[str, Any]] = {}
 
     @staticmethod
     def get_aws_region() -> Optional[str]:
@@ -47,6 +60,69 @@ class AwsHelper:
     def get_aws_profile() -> Optional[str]:
         """Get the AWS profile from the environment if set."""
         return os.environ.get('AWS_PROFILE')
+
+    @classmethod
+    def assume_role(
+        cls,
+        role_arn: str,
+        external_id: Optional[str] = None,
+        session_name: str = 'eks-mcp-server',
+        region_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Assume an IAM role and return temporary credentials.
+
+        Credentials are cached to avoid making repeated AssumeRole calls.
+        The cache key includes role_arn and external_id.
+
+        Args:
+            role_arn: The ARN of the IAM role to assume
+            external_id: Optional external ID for the role assumption
+            session_name: Name for the assumed role session
+            region_name: Optional region for the STS client
+
+        Returns:
+            Dictionary containing AccessKeyId, SecretAccessKey, and SessionToken
+
+        Raises:
+            Exception: If role assumption fails
+        """
+        # Build cache key for assumed role credentials
+        cache_key = f'{role_arn}:{external_id or "none"}'
+
+        # Check if we have cached credentials
+        if cache_key in cls._assumed_role_cache:
+            cached = cls._assumed_role_cache[cache_key]
+            # Check if credentials are still valid (with 5 minute buffer)
+            from datetime import datetime, timezone
+
+            expiration = cached.get('Expiration')
+            if expiration and expiration.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+                logger.debug(f'Using cached assumed role credentials for {role_arn}')
+                return cached
+
+        try:
+            # Get STS client (use default credentials to assume the role)
+            sts_client = cls.create_boto3_client('sts', region_name=region_name)
+
+            # Build assume role parameters
+            params = {
+                'RoleArn': role_arn,
+                'RoleSessionName': session_name,
+            }
+            if external_id:
+                params['ExternalId'] = external_id
+
+            logger.info(f'Assuming role {role_arn}')
+            response = sts_client.assume_role(**params)
+            credentials = response['Credentials']
+
+            # Cache the credentials
+            cls._assumed_role_cache[cache_key] = credentials
+
+            return credentials
+
+        except Exception as e:
+            raise Exception(f'Failed to assume role {role_arn}: {str(e)}')
 
     @classmethod
     def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
@@ -75,12 +151,12 @@ class AwsHelper:
             # Get profile from environment if set
             profile = cls.get_aws_profile()
 
-            # Use service name as the cache key
-            cache_key = service_name
+            # Build cache key including region and profile for proper isolation
+            cache_key = f'{service_name}:{region or "default"}:{profile or "default"}'
 
             # Check if client is already in cache
             if cache_key in cls._client_cache:
-                logger.info(f'Using cached boto3 client for {service_name}')
+                logger.debug(f'Using cached boto3 client for {service_name}')
                 return cls._client_cache[cache_key]
 
             # Create config with user agent suffix
@@ -106,3 +182,95 @@ class AwsHelper:
         except Exception as e:
             # Re-raise with more context
             raise Exception(f'Failed to create boto3 client for {service_name}: {str(e)}')
+
+    @classmethod
+    def create_boto3_client_for_cluster(
+        cls, cluster: 'ClusterConfig', service_name: str = 'eks'
+    ) -> Any:
+        """Create a boto3 client with credentials appropriate for the specified cluster.
+
+        This method handles three credential scenarios:
+        1. Role assumption: Uses STS AssumeRole with the configured role_arn
+        2. Named profile: Uses the configured AWS CLI profile
+        3. Default: Uses environment credentials or instance profile
+
+        Args:
+            cluster: ClusterConfig object containing region and credential information
+            service_name: The AWS service name (default: 'eks')
+
+        Returns:
+            A boto3 client configured for the specified cluster
+
+        Raises:
+            Exception: If there's an error creating the client
+        """
+        try:
+            # Build cache key including credentials context
+            credential_context = cluster.role_arn or cluster.profile or 'default'
+            cache_key = f'{service_name}:{cluster.region}:{credential_context}'
+
+            # Check if client is already in cache
+            if cache_key in cls._client_cache:
+                logger.debug(
+                    f'Using cached boto3 client for {service_name} '
+                    f'(cluster: {cluster.name}, region: {cluster.region})'
+                )
+                return cls._client_cache[cache_key]
+
+            # Create config with user agent suffix
+            config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
+
+            if cluster.role_arn:
+                # Use role assumption
+                logger.info(
+                    f'Creating {service_name} client with role assumption for cluster {cluster.name}'
+                )
+                credentials = cls.assume_role(
+                    role_arn=cluster.role_arn,
+                    external_id=cluster.external_id,
+                    region_name=cluster.region,
+                )
+                client = boto3.client(
+                    service_name,
+                    region_name=cluster.region,
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken'],
+                    config=config,
+                )
+            elif cluster.profile:
+                # Use named profile
+                logger.info(
+                    f"Creating {service_name} client with profile '{cluster.profile}' "
+                    f'for cluster {cluster.name}'
+                )
+                session = boto3.Session(profile_name=cluster.profile)
+                client = session.client(service_name, region_name=cluster.region, config=config)
+            else:
+                # Use default credentials
+                logger.info(
+                    f'Creating {service_name} client with default credentials '
+                    f'for cluster {cluster.name}'
+                )
+                client = boto3.client(service_name, region_name=cluster.region, config=config)
+
+            # Cache the client
+            cls._client_cache[cache_key] = client
+
+            return client
+
+        except Exception as e:
+            raise Exception(
+                f'Failed to create boto3 client for {service_name} '
+                f'(cluster: {cluster.name}): {str(e)}'
+            )
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached clients and credentials.
+
+        This is useful for testing or when credentials need to be refreshed.
+        """
+        cls._client_cache.clear()
+        cls._assumed_role_cache.clear()
+        logger.debug('Cleared AWS client and credential caches')

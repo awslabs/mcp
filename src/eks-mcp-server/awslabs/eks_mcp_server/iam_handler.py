@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""IAM handler for the EKS MCP Server."""
+"""IAM handler for the EKS MCP Server.
+
+This module provides tools for managing IAM roles and policies,
+with support for multi-account operations through cluster configuration.
+"""
 
 import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     AddInlinePolicyData,
@@ -25,7 +30,7 @@ from awslabs.eks_mcp_server.models import (
 from mcp.server.fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 class IAMHandler:
@@ -50,12 +55,37 @@ class IAMHandler:
         self.mcp.tool(name='add_inline_policy')(self.add_inline_policy)
         self.mcp.tool(name='get_policies_for_role')(self.get_policies_for_role)
 
+    def _get_iam_client(self, cluster_name: Optional[str] = None):
+        """Get an IAM client with appropriate credentials.
+
+        If a cluster configuration is available for the given cluster name,
+        uses the configured credentials. Otherwise falls back to default.
+
+        Note: IAM is a global service, but credentials still matter for
+        cross-account access.
+
+        Args:
+            cluster_name: Optional cluster name to look up configuration
+
+        Returns:
+            IAM boto3 client
+        """
+        if cluster_name:
+            cluster_config = ConfigManager.get_cluster(cluster_name)
+            if cluster_config:
+                return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'iam')
+        return AwsHelper.create_boto3_client('iam')
+
     async def get_policies_for_role(
         self,
         ctx: Context,
         role_name: str = Field(
             ...,
             description='Name of the IAM role to get policies for. The role must exist in your AWS account.',
+        ),
+        cluster_name: Optional[str] = Field(
+            None,
+            description="Optional: Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.",
         ),
     ) -> CallToolResult:
         """Get all policies attached to an IAM role.
@@ -93,8 +123,8 @@ class IAMHandler:
         try:
             log_with_request_id(ctx, LogLevel.INFO, f'Describing IAM role: {role_name}')
 
-            # Get IAM client
-            iam_client = AwsHelper.create_boto3_client('iam')
+            # Get IAM client with appropriate credentials
+            iam_client = self._get_iam_client(cluster_name)
 
             # Get role details
             role_response = iam_client.get_role(RoleName=role_name)
@@ -148,15 +178,21 @@ class IAMHandler:
         self,
         ctx: Context,
         policy_name: str = Field(
-            ..., description='Name of the inline policy to create. Must be unique within the role.'
+            ...,
+            description='Name of the inline policy to create. Must be unique within the role.',
         ),
         role_name: str = Field(
-            ..., description='Name of the IAM role to add the policy to. The role must exist.'
+            ...,
+            description='Name of the IAM role to add the policy to. The role must exist.',
         ),
         permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
             ...,
             description="""Permissions to include in the policy as IAM policy statements in JSON format.
             Can be either a single statement object or an array of statement objects.""",
+        ),
+        cluster_name: Optional[str] = Field(
+            None,
+            description="Optional: Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.",
         ),
     ) -> CallToolResult:
         """Add a new inline policy to an IAM role.
@@ -211,8 +247,8 @@ class IAMHandler:
                     content=[TextContent(type='text', text=error_message)],
                 )
 
-            # Get IAM client
-            iam_client = AwsHelper.create_boto3_client('iam')
+            # Get IAM client with appropriate credentials
+            iam_client = self._get_iam_client(cluster_name)
 
             # Create the inline policy
             return self._create_inline_policy(ctx, iam_client, role_name, policy_name, permissions)
@@ -249,7 +285,8 @@ class IAMHandler:
             policy_version = None
             try:
                 policy_version_response = iam_client.get_policy_version(
-                    PolicyArn=policy_arn, VersionId=policy_details.get('DefaultVersionId', 'v1')
+                    PolicyArn=policy_arn,
+                    VersionId=policy_details.get('DefaultVersionId', 'v1'),
                 )
                 policy_version = policy_version_response.get('PolicyVersion', {})
             except Exception as e:
@@ -261,7 +298,7 @@ class IAMHandler:
                 PolicySummary(
                     policy_type='Managed',
                     description=policy_details.get('Description'),
-                    policy_document=policy_version.get('Document') if policy_version else None,
+                    policy_document=(policy_version.get('Document') if policy_version else None),
                 )
             )
 
@@ -336,7 +373,9 @@ class IAMHandler:
 
         # Create the policy
         iam_client.put_role_policy(
-            RoleName=role_name, PolicyName=policy_name, PolicyDocument=json.dumps(policy_document)
+            RoleName=role_name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document),
         )
 
         data = AddInlinePolicyData(

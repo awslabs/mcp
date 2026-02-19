@@ -1,0 +1,1 @@
+@pattern\("\^arn:aws:kms:us-east-1:123456789012\.\*"\)

@@ -1,0 +1,23 @@
+{
+    "clusters": [
+        {
+            "name": "dev-cluster",
+            "region": "us-west-2",
+            "description": "Development cluster in us-west-2",
+            "account_id": "123456789012"
+        },
+        {
+            "name": "prod-cluster",
+            "region": "us-east-1",
+            "description": "Production cluster in account 987654321098",
+            "account_id": "987654321098",
+            "role_arn": "arn:aws:iam::987654321098:role/EKSMCPServerRole"
+        },
+        {
+            "name": "staging-cluster",
+            "region": "eu-west-1",
+            "description": "Staging cluster using named profile",
+            "profile": "staging-profile"
+        }
+    ]
+}
