@@ -37,10 +37,9 @@ from .utils import (
     fetch_metric_stats,
     list_services_paginated,
     parse_time_range,
-    parse_timestamp,
 )
 from botocore.exceptions import ClientError
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
@@ -96,7 +95,7 @@ async def _discover_services_by_group(
     Returns:
         Tuple of (list of services in the group, discovery stats)
     """
-    logger.debug(f"Discovering services for group: {group_name}")
+    logger.debug(f'Discovering services for group: {group_name}')
 
     group_services = []
     stats = {
@@ -120,7 +119,7 @@ async def _discover_services_by_group(
                 group_name_attr = sg.get('GroupName', '')
                 group_value = sg.get('GroupValue', '')
                 if group_name_attr or group_value:
-                    stats['groups_found'].add(f"{group_name_attr}={group_value}")
+                    stats['groups_found'].add(f'{group_name_attr}={group_value}')
 
             # Check if this service belongs to the target group
             if _matches_group(service_groups, group_name):
@@ -134,7 +133,7 @@ async def _discover_services_by_group(
 
         logger.info(
             f"Group discovery complete: {stats['services_in_group']} services found in group '{group_name}' "
-            f"out of {stats['total_services_scanned']} total services"
+            f'out of {stats["total_services_scanned"]} total services'
         )
 
         return group_services, stats
@@ -142,7 +141,9 @@ async def _discover_services_by_group(
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
-        logger.error(f'AWS ClientError in _discover_services_by_group: {error_code} - {error_message}')
+        logger.error(
+            f'AWS ClientError in _discover_services_by_group: {error_code} - {error_message}'
+        )
         raise
 
 
@@ -150,38 +151,46 @@ def _format_no_services_found(group_name: str, discovery_stats: Dict[str, Any]) 
     """Format error message when no services found in group."""
     available_groups = discovery_stats.get('groups_found', [])
     result = f"⚠️ No services found in group '{group_name}'.\n\n"
-    result += f"📊 Scanned {discovery_stats['total_services_scanned']} total services.\n\n"
+    result += f'📊 Scanned {discovery_stats["total_services_scanned"]} total services.\n\n'
 
     if available_groups:
-        result += "📋 **Available ServiceGroups Found (GroupName=GroupValue):**\n"
+        result += '📋 **Available ServiceGroups Found (GroupName=GroupValue):**\n'
         for grp in available_groups[:20]:
-            result += f"   • {grp}\n"
+            result += f'   • {grp}\n'
         if len(available_groups) > 20:
-            result += f"   ... and {len(available_groups) - 20} more groups\n"
+            result += f'   ... and {len(available_groups) - 20} more groups\n'
         result += "\n💡 Try using one of these GroupName or GroupValue values, or a wildcard pattern like '*team*'.\n"
     else:
-        result += "ℹ️ No ServiceGroups were found in the service responses.\n"
-        result += "Services may not have group metadata configured via tags or OpenTelemetry attributes.\n"
+        result += 'ℹ️ No ServiceGroups were found in the service responses.\n'
+        result += 'Services may not have group metadata configured via tags or OpenTelemetry attributes.\n'
 
     return result
 
 
 def _build_group_header(
-    emoji: str, title: str, group_name: str,
-    start_dt: datetime, end_dt: datetime, service_count: int,
+    emoji: str,
+    title: str,
+    group_name: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    service_count: int,
 ) -> str:
     """Build the standard header used by group tools."""
     return (
-        f"{emoji} **{title}: {group_name}**\n"
-        f"⏰ Time Range: {start_dt.strftime('%Y-%m-%d %H:%M')} to {end_dt.strftime('%Y-%m-%d %H:%M')} UTC\n"
-        f"🌎 Region: {AWS_REGION}\n"
-        f"📊 Services in group: {service_count}\n\n"
+        f'{emoji} **{title}: {group_name}**\n'
+        f'⏰ Time Range: {start_dt.strftime("%Y-%m-%d %H:%M")} to {end_dt.strftime("%Y-%m-%d %H:%M")} UTC\n'
+        f'🌎 Region: {AWS_REGION}\n'
+        f'📊 Services in group: {service_count}\n\n'
     )
 
 
 async def _setup_group_tool(
-    group_name: str, start_time: Optional[str], end_time: Optional[str],
-    emoji: str, title: str, default_hours: int = 3,
+    group_name: str,
+    start_time: Optional[str],
+    end_time: Optional[str],
+    emoji: str,
+    title: str,
+    default_hours: int = 3,
 ) -> Tuple[Optional[List[Dict]], Optional[datetime], Optional[datetime], str, Optional[Dict]]:
     """Common setup: parse time, discover services, build header or error message.
 
@@ -192,7 +201,9 @@ async def _setup_group_tool(
     if end_dt <= start_dt:
         return None, None, None, 'Error: end_time must be greater than start_time.', None
 
-    group_services, discovery_stats = await _discover_services_by_group(group_name, start_dt, end_dt)
+    group_services, discovery_stats = await _discover_services_by_group(
+        group_name, start_dt, end_dt
+    )
     if not group_services:
         return None, None, None, _format_no_services_found(group_name, discovery_stats), None
 
@@ -250,11 +261,11 @@ async def list_group_services(
         group_services, _, _, result, discovery_stats = await _setup_group_tool(
             group_name, start_time, end_time, '📋', 'SERVICES IN GROUP'
         )
-        if group_services is None:
+        if group_services is None or discovery_stats is None:
             return result
-        
+
         # Add discovery stats (unique to this tool)
-        result += f"📊 (Scanned {discovery_stats['total_services_scanned']} total services)\n\n"
+        result += f'📊 (Scanned {discovery_stats["total_services_scanned"]} total services)\n\n'
 
         # Collect platform and environment statistics
         platforms = {}
@@ -263,7 +274,7 @@ async def list_group_services(
             key_attrs = svc.get('KeyAttributes', {})
             env = key_attrs.get('Environment', 'N/A')
             environments[env] = environments.get(env, 0) + 1
-            
+
             # Extract platform from AttributeMaps
             attribute_maps = svc.get('AttributeMaps', [])
             for attr_map in attribute_maps:
@@ -274,18 +285,18 @@ async def list_group_services(
 
         # Display platform and environment summary
         if platforms:
-            result += "**Platform Distribution:**\n"
+            result += '**Platform Distribution:**\n'
             for platform, count in sorted(platforms.items(), key=lambda x: -x[1]):
-                result += f"   • {platform}: {count} service{'s' if count > 1 else ''}\n"
-            result += "\n"
+                result += f'   • {platform}: {count} service{"s" if count > 1 else ""}\n'
+            result += '\n'
 
         if environments:
-            result += "**Environment Distribution:**\n"
+            result += '**Environment Distribution:**\n'
             for env, count in sorted(environments.items(), key=lambda x: -x[1]):
-                result += f"   • {env}: {count} service{'s' if count > 1 else ''}\n"
-            result += "\n"
+                result += f'   • {env}: {count} service{"s" if count > 1 else ""}\n'
+            result += '\n'
 
-        result += "**Services:**\n"
+        result += '**Services:**\n'
         for svc in group_services:
             key_attrs = svc.get('KeyAttributes', {})
             svc_name = key_attrs.get('Name', 'Unknown')
@@ -293,17 +304,17 @@ async def list_group_services(
             svc_type = key_attrs.get('Type', 'Service')
             svc_groups = svc.get('ServiceGroups', [])
 
-            result += f"\n• **{svc_name}**\n"
-            result += f"  Environment: {svc_env}\n"
-            result += f"  Type: {svc_type}\n"
+            result += f'\n• **{svc_name}**\n'
+            result += f'  Environment: {svc_env}\n'
+            result += f'  Type: {svc_type}\n'
 
             if svc_groups:
-                result += "  Groups:\n"
+                result += '  Groups:\n'
                 for sg in svc_groups:
                     gn = sg.get('GroupName', '')
                     gv = sg.get('GroupValue', '')
                     gs = sg.get('GroupSource', '')
-                    result += f"    - {gn}={gv} (source: {gs})\n"
+                    result += f'    - {gn}={gv} (source: {gs})\n'
 
         elapsed = timer() - start_time_perf
         logger.debug(f'list_group_services completed in {elapsed:.3f}s')
@@ -335,27 +346,27 @@ async def audit_group_health(
     ),
     fault_threshold_warning: float = Field(
         default=FAULT_THRESHOLD_WARNING,
-        description="Fault rate percentage threshold for WARNING when using metrics fallback (default: 1.0)",
+        description='Fault rate percentage threshold for WARNING when using metrics fallback (default: 1.0)',
     ),
     fault_threshold_critical: float = Field(
         default=FAULT_THRESHOLD_CRITICAL,
-        description="Fault rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)",
+        description='Fault rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)',
     ),
     error_threshold_warning: float = Field(
         default=ERROR_THRESHOLD_WARNING,
-        description="Error rate percentage threshold for WARNING when using metrics fallback (default: 1.0)",
+        description='Error rate percentage threshold for WARNING when using metrics fallback (default: 1.0)',
     ),
     error_threshold_critical: float = Field(
         default=ERROR_THRESHOLD_CRITICAL,
-        description="Error rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)",
+        description='Error rate percentage threshold for CRITICAL when using metrics fallback (default: 5.0)',
     ),
     latency_p99_threshold_warning: float = Field(
         default=LATENCY_P99_THRESHOLD_WARNING,
-        description="Latency P99 threshold in milliseconds for WARNING when using metrics fallback (default: 1000.0)",
+        description='Latency P99 threshold in milliseconds for WARNING when using metrics fallback (default: 1000.0)',
     ),
     latency_p99_threshold_critical: float = Field(
         default=LATENCY_P99_THRESHOLD_CRITICAL,
-        description="Latency P99 threshold in milliseconds for CRITICAL when using metrics fallback (default: 5000.0)",
+        description='Latency P99 threshold in milliseconds for CRITICAL when using metrics fallback (default: 5000.0)',
     ),
 ) -> str:
     """HEALTH AUDIT TOOL - Detect anomalies and unhealthy services in a group.
@@ -397,7 +408,7 @@ async def audit_group_health(
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '🔍', 'GROUP HEALTH AUDIT'
         )
-        if group_services is None:
+        if group_services is None or start_dt is None or end_dt is None:
             return result
 
         # Collect health status for each service
@@ -466,20 +477,24 @@ async def audit_group_health(
 
                     if sli_report.sli_status == 'CRITICAL':
                         health_result['health_status'] = 'CRITICAL'
-                        health_result['anomalies'].append({
-                            'type': 'SLO_BREACH',
-                            'severity': 'CRITICAL',
-                            'message': f'{sli_report.breached_slo_count}/{sli_report.total_slo_count} SLOs breached: {", ".join(sli_report.breached_slo_names)}',
-                        })
+                        health_result['anomalies'].append(
+                            {
+                                'type': 'SLO_BREACH',
+                                'severity': 'CRITICAL',
+                                'message': f'{sli_report.breached_slo_count}/{sli_report.total_slo_count} SLOs breached: {", ".join(sli_report.breached_slo_names)}',
+                            }
+                        )
                         critical_services.append(health_result)
                     else:
                         health_result['health_status'] = 'HEALTHY'
                         healthy_services.append(health_result)
 
-                    logger.debug(f"Service {svc_name}: SLI-based health - {health_result['health_status']}")
+                    logger.debug(
+                        f'Service {svc_name}: SLI-based health - {health_result["health_status"]}'
+                    )
 
             except Exception as e:
-                logger.debug(f"Could not get SLI data for {svc_name}: {e}")
+                logger.debug(f'Could not get SLI data for {svc_name}: {e}')
 
             # Step 2: Fall back to metrics if no SLI data
             if not sli_data_available:
@@ -503,84 +518,130 @@ async def audit_group_health(
                         dimensions = metric_ref.get('Dimensions', [])
 
                         if metric_type == 'Fault':
-                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period)
+                            stats = fetch_metric_stats(
+                                cloudwatch_client,
+                                namespace,
+                                metric_name,
+                                dimensions,
+                                start_dt,
+                                end_dt,
+                                period,
+                            )
                             if stats:
                                 avg_fault = stats['average']
                                 health_result['fault_rate'] = avg_fault
 
                                 try:
                                     if avg_fault > fault_threshold_critical:
-                                        health_result['anomalies'].append({
-                                            'type': 'HIGH_FAULT_RATE',
-                                            'severity': 'CRITICAL',
-                                            'value': avg_fault,
-                                            'threshold': fault_threshold_critical,
-                                            'message': f'Fault rate {avg_fault:.2f}% exceeds critical threshold ({fault_threshold_critical}%)',
-                                        })
+                                        health_result['anomalies'].append(
+                                            {
+                                                'type': 'HIGH_FAULT_RATE',
+                                                'severity': 'CRITICAL',
+                                                'value': avg_fault,
+                                                'threshold': fault_threshold_critical,
+                                                'message': f'Fault rate {avg_fault:.2f}% exceeds critical threshold ({fault_threshold_critical}%)',
+                                            }
+                                        )
                                     elif avg_fault > fault_threshold_warning:
-                                        health_result['anomalies'].append({
-                                            'type': 'HIGH_FAULT_RATE',
-                                            'severity': 'WARNING',
-                                            'value': avg_fault,
-                                            'threshold': fault_threshold_warning,
-                                            'message': f'Fault rate {avg_fault:.2f}% exceeds warning threshold ({fault_threshold_warning}%)',
-                                        })
+                                        health_result['anomalies'].append(
+                                            {
+                                                'type': 'HIGH_FAULT_RATE',
+                                                'severity': 'WARNING',
+                                                'value': avg_fault,
+                                                'threshold': fault_threshold_warning,
+                                                'message': f'Fault rate {avg_fault:.2f}% exceeds warning threshold ({fault_threshold_warning}%)',
+                                            }
+                                        )
                                 except Exception as e:
-                                    logger.warning(f"Failed to evaluate Fault thresholds for {svc_name}: {e}")
+                                    logger.warning(
+                                        f'Failed to evaluate Fault thresholds for {svc_name}: {e}'
+                                    )
 
                         elif metric_type == 'Error':
-                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period)
+                            stats = fetch_metric_stats(
+                                cloudwatch_client,
+                                namespace,
+                                metric_name,
+                                dimensions,
+                                start_dt,
+                                end_dt,
+                                period,
+                            )
                             if stats:
                                 avg_error = stats['average']
                                 health_result['error_rate'] = avg_error
 
                                 try:
                                     if avg_error > error_threshold_critical:
-                                        health_result['anomalies'].append({
-                                            'type': 'HIGH_ERROR_RATE',
-                                            'severity': 'CRITICAL',
-                                            'value': avg_error,
-                                            'threshold': error_threshold_critical,
-                                            'message': f'Error rate {avg_error:.2f}% exceeds critical threshold ({error_threshold_critical}%)',
-                                        })
+                                        health_result['anomalies'].append(
+                                            {
+                                                'type': 'HIGH_ERROR_RATE',
+                                                'severity': 'CRITICAL',
+                                                'value': avg_error,
+                                                'threshold': error_threshold_critical,
+                                                'message': f'Error rate {avg_error:.2f}% exceeds critical threshold ({error_threshold_critical}%)',
+                                            }
+                                        )
                                     elif avg_error > error_threshold_warning:
-                                        health_result['anomalies'].append({
-                                            'type': 'HIGH_ERROR_RATE',
-                                            'severity': 'WARNING',
-                                            'value': avg_error,
-                                            'threshold': error_threshold_warning,
-                                            'message': f'Error rate {avg_error:.2f}% exceeds warning threshold ({error_threshold_warning}%)',
-                                        })
+                                        health_result['anomalies'].append(
+                                            {
+                                                'type': 'HIGH_ERROR_RATE',
+                                                'severity': 'WARNING',
+                                                'value': avg_error,
+                                                'threshold': error_threshold_warning,
+                                                'message': f'Error rate {avg_error:.2f}% exceeds warning threshold ({error_threshold_warning}%)',
+                                            }
+                                        )
                                 except Exception as e:
-                                    logger.warning(f"Failed to evaluate Error thresholds for {svc_name}: {e}")
+                                    logger.warning(
+                                        f'Failed to evaluate Error thresholds for {svc_name}: {e}'
+                                    )
 
                         elif metric_type == 'Latency':
-                            stats = fetch_metric_stats(cloudwatch_client, namespace, metric_name, dimensions, start_dt, end_dt, period, extended_statistics=['p99'])
+                            stats = fetch_metric_stats(
+                                cloudwatch_client,
+                                namespace,
+                                metric_name,
+                                dimensions,
+                                start_dt,
+                                end_dt,
+                                period,
+                                extended_statistics=['p99'],
+                            )
                             if stats and stats.get('extended'):
-                                p99_values = [dp.get('ExtendedStatistics', {}).get('p99', 0) for dp in stats['extended']]
+                                p99_values = [
+                                    dp.get('ExtendedStatistics', {}).get('p99', 0)
+                                    for dp in stats['extended']
+                                ]
                                 if p99_values:
                                     max_p99 = max(p99_values)
                                     health_result['latency_p99'] = max_p99
 
                                     try:
                                         if max_p99 > latency_p99_threshold_critical:
-                                            health_result['anomalies'].append({
-                                                'type': 'HIGH_LATENCY',
-                                                'severity': 'CRITICAL',
-                                                'value': max_p99,
-                                                'threshold': latency_p99_threshold_critical,
-                                                'message': f'Latency P99 {max_p99:.2f}ms exceeds critical threshold ({latency_p99_threshold_critical}ms)',
-                                            })
+                                            health_result['anomalies'].append(
+                                                {
+                                                    'type': 'HIGH_LATENCY',
+                                                    'severity': 'CRITICAL',
+                                                    'value': max_p99,
+                                                    'threshold': latency_p99_threshold_critical,
+                                                    'message': f'Latency P99 {max_p99:.2f}ms exceeds critical threshold ({latency_p99_threshold_critical}ms)',
+                                                }
+                                            )
                                         elif max_p99 > latency_p99_threshold_warning:
-                                            health_result['anomalies'].append({
-                                                'type': 'HIGH_LATENCY',
-                                                'severity': 'WARNING',
-                                                'value': max_p99,
-                                                'threshold': latency_p99_threshold_warning,
-                                                'message': f'Latency P99 {max_p99:.2f}ms exceeds warning threshold ({latency_p99_threshold_warning}ms)',
-                                            })
+                                            health_result['anomalies'].append(
+                                                {
+                                                    'type': 'HIGH_LATENCY',
+                                                    'severity': 'WARNING',
+                                                    'value': max_p99,
+                                                    'threshold': latency_p99_threshold_warning,
+                                                    'message': f'Latency P99 {max_p99:.2f}ms exceeds warning threshold ({latency_p99_threshold_warning}ms)',
+                                                }
+                                            )
                                     except Exception as e:
-                                        logger.warning(f"Failed to evaluate Latency thresholds for {svc_name}: {e}")
+                                        logger.warning(
+                                            f'Failed to evaluate Latency thresholds for {svc_name}: {e}'
+                                        )
 
                     # Determine health status from metrics
                     if health_result['anomalies']:
@@ -595,89 +656,95 @@ async def audit_group_health(
                         health_result['health_status'] = 'HEALTHY'
                         healthy_services.append(health_result)
 
-                    logger.debug(f"Service {svc_name}: Metrics-based health - {health_result['health_status']}")
+                    logger.debug(
+                        f'Service {svc_name}: Metrics-based health - {health_result["health_status"]}'
+                    )
 
                 except Exception as e:
-                    logger.warning(f"Failed to get metrics for service {svc_name}: {e}")
+                    logger.warning(f'Failed to get metrics for service {svc_name}: {e}')
                     health_result['health_status'] = 'ERROR'
                     health_result['error'] = str(e)
                     error_services.append(health_result)
 
         # Health Summary
-        result += "=" * 50 + "\n"
-        result += "**HEALTH SUMMARY**\n"
-        result += "=" * 50 + "\n\n"
+        result += '=' * 50 + '\n'
+        result += '**HEALTH SUMMARY**\n'
+        result += '=' * 50 + '\n\n'
 
-        result += f"📊 Data Sources: {sli_based_count} services with SLIs, {metrics_based_count} using metrics fallback\n\n"
+        result += f'📊 Data Sources: {sli_based_count} services with SLIs, {metrics_based_count} using metrics fallback\n\n'
 
         total = len(group_services)
-        result += f"🚨 Critical: {len(critical_services)}/{total}\n"
-        result += f"⚠️  Warning:  {len(warning_services)}/{total}\n"
-        result += f"✅ Healthy:  {len(healthy_services)}/{total}\n"
+        result += f'🚨 Critical: {len(critical_services)}/{total}\n'
+        result += f'⚠️  Warning:  {len(warning_services)}/{total}\n'
+        result += f'✅ Healthy:  {len(healthy_services)}/{total}\n'
         if error_services:
-            result += f"❓ Unknown:  {len(error_services)}/{total}\n"
-        result += "\n"
+            result += f'❓ Unknown:  {len(error_services)}/{total}\n'
+        result += '\n'
 
         # Overall status
         if critical_services:
-            result += "🚨 **Overall Status: CRITICAL** - Immediate attention required\n\n"
+            result += '🚨 **Overall Status: CRITICAL** - Immediate attention required\n\n'
         elif warning_services:
-            result += "⚠️ **Overall Status: WARNING** - Investigation recommended\n\n"
+            result += '⚠️ **Overall Status: WARNING** - Investigation recommended\n\n'
         else:
-            result += "✅ **Overall Status: HEALTHY** - All services operating normally\n\n"
+            result += '✅ **Overall Status: HEALTHY** - All services operating normally\n\n'
 
         # Critical Issues Detail
         if critical_services:
-            result += "=" * 50 + "\n"
-            result += "🚨 **CRITICAL ISSUES**\n"
-            result += "=" * 50 + "\n"
+            result += '=' * 50 + '\n'
+            result += '🚨 **CRITICAL ISSUES**\n'
+            result += '=' * 50 + '\n'
 
             for svc in critical_services:
-                result += f"\n**{svc['service_name']}** ({svc['environment']}) [{svc['data_source']}]\n"
+                result += (
+                    f'\n**{svc["service_name"]}** ({svc["environment"]}) [{svc["data_source"]}]\n'
+                )
                 for anomaly in svc.get('anomalies', []):
                     if anomaly['severity'] == 'CRITICAL':
-                        result += f"   • {anomaly['message']}\n"
+                        result += f'   • {anomaly["message"]}\n'
                 if svc.get('slo_info'):
                     info = svc['slo_info']
-                    result += f"   SLOs: {info['ok_slos']}/{info['total_slos']} OK\n"
+                    result += f'   SLOs: {info["ok_slos"]}/{info["total_slos"]} OK\n'
                 if svc.get('fault_rate') is not None:
-                    result += f"   Fault Rate: {svc['fault_rate']:.2f}%\n"
+                    result += f'   Fault Rate: {svc["fault_rate"]:.2f}%\n'
                 if svc.get('error_rate') is not None:
-                    result += f"   Error Rate: {svc['error_rate']:.2f}%\n"
+                    result += f'   Error Rate: {svc["error_rate"]:.2f}%\n'
                 if svc.get('latency_p99') is not None:
-                    result += f"   Latency P99: {svc['latency_p99']:.2f}ms\n"
+                    result += f'   Latency P99: {svc["latency_p99"]:.2f}ms\n'
 
         # Warning Issues Detail
         if warning_services:
-            result += "\n" + "=" * 50 + "\n"
-            result += "⚠️ **WARNING ISSUES**\n"
-            result += "=" * 50 + "\n"
+            result += '\n' + '=' * 50 + '\n'
+            result += '⚠️ **WARNING ISSUES**\n'
+            result += '=' * 50 + '\n'
 
             for svc in warning_services:
-                result += f"\n**{svc['service_name']}** ({svc['environment']}) [{svc['data_source']}]\n"
+                result += (
+                    f'\n**{svc["service_name"]}** ({svc["environment"]}) [{svc["data_source"]}]\n'
+                )
                 for anomaly in svc.get('anomalies', []):
-                    result += f"   • {anomaly['message']}\n"
+                    result += f'   • {anomaly["message"]}\n'
                 if svc.get('fault_rate') is not None:
-                    result += f"   Fault Rate: {svc['fault_rate']:.2f}%\n"
+                    result += f'   Fault Rate: {svc["fault_rate"]:.2f}%\n'
                 if svc.get('error_rate') is not None:
-                    result += f"   Error Rate: {svc['error_rate']:.2f}%\n"
+                    result += f'   Error Rate: {svc["error_rate"]:.2f}%\n'
 
         # Recommendations
         if critical_services or warning_services:
-            result += "\n" + "=" * 50 + "\n"
-            result += "💡 **RECOMMENDATIONS**\n"
-            result += "=" * 50 + "\n\n"
+            result += '\n' + '=' * 50 + '\n'
+            result += '💡 **RECOMMENDATIONS**\n'
+            result += '=' * 50 + '\n\n'
 
             if critical_services:
-                result += "**Immediate Actions:**\n"
+                result += '**Immediate Actions:**\n'
                 for svc in critical_services:
-                    result += f"   • Investigate {svc['service_name']} using audit_services()\n"
-                result += "\n"
+                    result += f'   • Investigate {svc["service_name"]} using audit_services()\n'
+                result += '\n'
 
-            result += "**Next Steps:**\n"
-            result += "   • Use audit_services() for detailed root cause analysis\n"
-            result += "   • Use get_group_changes() to check for recent deployments\n"
-            result += "   • Use get_group_dependencies() to check downstream impact\n"
+            result += '**Next Steps:**\n'
+            result += '   • Use audit_services() for detailed root cause analysis\n'
+            result += '   • Use get_group_changes() to check for recent deployments\n'
+            result += '   • Use get_group_dependencies() to check downstream impact\n'
 
         elapsed = timer() - start_time_perf
         logger.debug(f'audit_group_health completed in {elapsed:.3f}s')
@@ -740,13 +807,15 @@ async def get_group_dependencies(
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '🔗', 'GROUP DEPENDENCIES'
         )
-        if group_services is None:
+        if group_services is None or start_dt is None or end_dt is None:
             return result
 
         # Collect dependencies - track both (name, env) pairs and name-only set
         group_service_keys = {
-            (svc.get('KeyAttributes', {}).get('Name', '').lower(),
-             svc.get('KeyAttributes', {}).get('Environment', '').lower())
+            (
+                svc.get('KeyAttributes', {}).get('Name', '').lower(),
+                svc.get('KeyAttributes', {}).get('Environment', '').lower(),
+            )
             for svc in group_services
         }
 
@@ -772,7 +841,9 @@ async def get_group_dependencies(
 
                 for dep in response.get('ServiceDependencies', []):
                     dep_key_attrs = dep.get('DependencyKeyAttributes', {})
-                    dep_name = dep_key_attrs.get('Name') or dep_key_attrs.get('Identifier', 'Unknown')
+                    dep_name = dep_key_attrs.get('Name') or dep_key_attrs.get(
+                        'Identifier', 'Unknown'
+                    )
                     dep_type = dep_key_attrs.get('Type', 'Unknown')
                     dep_resource_type = dep_key_attrs.get('ResourceType', '')
                     dep_env = dep_key_attrs.get('Environment', '')
@@ -781,14 +852,16 @@ async def get_group_dependencies(
                     # Categorize dependency
                     # 1. Check intra-group first by name + environment
                     if (dep_name.lower(), dep_env.lower()) in group_service_keys:
-                        intra_group_deps[svc_name].append({
-                            'name': dep_name,
-                            'operation': operation,
-                        })
+                        intra_group_deps[svc_name].append(
+                            {
+                                'name': dep_name,
+                                'operation': operation,
+                            }
+                        )
                     # 2. AWS resources (DynamoDB, S3, etc.) and AWS managed services
                     elif dep_type.startswith('AWS::') or dep_resource_type.startswith('AWS::'):
                         display_type = dep_resource_type or dep_type
-                        external_deps.add(f"{display_type}:{dep_name}")
+                        external_deps.add(f'{display_type}:{dep_name}')
                     # 3. Other services not in our group - look up their group info
                     else:
                         cache_key = (dep_name.lower(), dep_env.lower())
@@ -799,45 +872,51 @@ async def get_group_dependencies(
                                     EndTime=end_dt,
                                     KeyAttributes=dep_key_attrs,
                                 )
-                                dep_group_cache[cache_key] = dep_svc_response.get('Service', {}).get('ServiceGroups', [])
+                                dep_group_cache[cache_key] = dep_svc_response.get(
+                                    'Service', {}
+                                ).get('ServiceGroups', [])
                             except Exception as e:
-                                logger.debug(f"Could not get service details for dependency {dep_name}: {e}")
+                                logger.debug(
+                                    f'Could not get service details for dependency {dep_name}: {e}'
+                                )
                                 dep_group_cache[cache_key] = []
 
-                        cross_group_deps.append({
-                            'from': svc_name,
-                            'to': dep_name,
-                            'to_env': dep_env,
-                            'type': dep_type,
-                            'operation': operation,
-                            'groups': dep_group_cache[cache_key],
-                        })
+                        cross_group_deps.append(
+                            {
+                                'from': svc_name,
+                                'to': dep_name,
+                                'to_env': dep_env,
+                                'type': dep_type,
+                                'operation': operation,
+                                'groups': dep_group_cache[cache_key],
+                            }
+                        )
 
             except ClientError as e:
                 error_code = e.response.get('Error', {}).get('Code', 'Unknown')
                 if error_code != 'ResourceNotFoundException':
-                    logger.warning(f"Failed to get dependencies for {svc_name}: {e}")
+                    logger.warning(f'Failed to get dependencies for {svc_name}: {e}')
 
         # Format output
-        result += "=" * 50 + "\n"
-        result += "**INTRA-GROUP DEPENDENCIES**\n"
-        result += "(Services within this group calling each other)\n"
-        result += "=" * 50 + "\n\n"
+        result += '=' * 50 + '\n'
+        result += '**INTRA-GROUP DEPENDENCIES**\n'
+        result += '(Services within this group calling each other)\n'
+        result += '=' * 50 + '\n\n'
 
         has_intra_deps = False
         for svc_name, deps in intra_group_deps.items():
             if deps:
                 has_intra_deps = True
                 dep_names = [d['name'] for d in deps]
-                result += f"   {svc_name} → {', '.join(dep_names)}\n"
+                result += f'   {svc_name} → {", ".join(dep_names)}\n'
 
         if not has_intra_deps:
-            result += "   (No intra-group dependencies found)\n"
+            result += '   (No intra-group dependencies found)\n'
 
-        result += "\n" + "=" * 50 + "\n"
-        result += "**CROSS-GROUP DEPENDENCIES**\n"
-        result += "(Services in this group calling services in OTHER groups)\n"
-        result += "=" * 50 + "\n\n"
+        result += '\n' + '=' * 50 + '\n'
+        result += '**CROSS-GROUP DEPENDENCIES**\n'
+        result += '(Services in this group calling services in OTHER groups)\n'
+        result += '=' * 50 + '\n\n'
 
         if cross_group_deps:
             # Group by source service
@@ -849,38 +928,38 @@ async def get_group_dependencies(
                 by_source[src].append(dep)
 
             for src, deps in by_source.items():
-                result += f"   **{src}** depends on:\n"
+                result += f'   **{src}** depends on:\n'
                 for dep in deps:
-                    result += f"      → {dep['to']} ({dep['to_env']})\n"
+                    result += f'      → {dep["to"]} ({dep["to_env"]})\n'
                     if dep.get('groups'):
                         group_strs = [
-                            f"{g.get('GroupName', '')}={g.get('GroupValue', '')} (source: {g.get('GroupSource', '')})"
+                            f'{g.get("GroupName", "")}={g.get("GroupValue", "")} (source: {g.get("GroupSource", "")})'
                             for g in dep['groups']
                         ]
-                        result += f"        Groups: {', '.join(group_strs)}\n"
+                        result += f'        Groups: {", ".join(group_strs)}\n'
         else:
-            result += "   (No cross-group dependencies found)\n"
+            result += '   (No cross-group dependencies found)\n'
 
-        result += "\n" + "=" * 50 + "\n"
-        result += "**EXTERNAL DEPENDENCIES**\n"
-        result += "(AWS services used by this group)\n"
-        result += "=" * 50 + "\n\n"
+        result += '\n' + '=' * 50 + '\n'
+        result += '**EXTERNAL DEPENDENCIES**\n'
+        result += '(AWS services used by this group)\n'
+        result += '=' * 50 + '\n\n'
 
         if external_deps:
             for ext_dep in sorted(external_deps):
-                result += f"   • {ext_dep}\n"
+                result += f'   • {ext_dep}\n'
         else:
-            result += "   (No external AWS service dependencies found)\n"
+            result += '   (No external AWS service dependencies found)\n'
 
         # Summary
-        result += "\n" + "=" * 50 + "\n"
-        result += "**SUMMARY**\n"
-        result += "=" * 50 + "\n\n"
+        result += '\n' + '=' * 50 + '\n'
+        result += '**SUMMARY**\n'
+        result += '=' * 50 + '\n\n'
 
         intra_count = sum(len(deps) for deps in intra_group_deps.values())
-        result += f"   • Intra-group dependencies: {intra_count}\n"
-        result += f"   • Cross-group dependencies: {len(cross_group_deps)}\n"
-        result += f"   • External AWS dependencies: {len(external_deps)}\n"
+        result += f'   • Intra-group dependencies: {intra_count}\n'
+        result += f'   • Cross-group dependencies: {len(cross_group_deps)}\n'
+        result += f'   • External AWS dependencies: {len(external_deps)}\n'
 
         elapsed = timer() - start_time_perf
         logger.debug(f'get_group_dependencies completed in {elapsed:.3f}s')
@@ -941,13 +1020,12 @@ async def get_group_changes(
         group_services, start_dt, end_dt, result, _ = await _setup_group_tool(
             group_name, start_time, end_time, '📦', 'GROUP CHANGES'
         )
-        if group_services is None:
+        if group_services is None or start_dt is None or end_dt is None:
             return result
 
         # Get service names for filtering
         group_service_names = {
-            svc.get('KeyAttributes', {}).get('Name', '').lower()
-            for svc in group_services
+            svc.get('KeyAttributes', {}).get('Name', '').lower() for svc in group_services
         }
 
         # Collect change events
@@ -989,15 +1067,17 @@ async def get_group_changes(
 
                         event_type = event.get('ChangeEventType', '')
 
-                        change_events.append({
-                            'service_name': svc_name,
-                            'timestamp': timestamp_str,
-                            'event_type': event_type,
-                            'event_name': event.get('EventName', ''),
-                            'event_id': event.get('EventId', ''),
-                            'user_name': event.get('UserName', ''),
-                            'region': event.get('Region', ''),
-                        })
+                        change_events.append(
+                            {
+                                'service_name': svc_name,
+                                'timestamp': timestamp_str,
+                                'event_type': event_type,
+                                'event_name': event.get('EventName', ''),
+                                'event_id': event.get('EventId', ''),
+                                'user_name': event.get('UserName', ''),
+                                'region': event.get('Region', ''),
+                            }
+                        )
 
                         if event_type == 'DEPLOYMENT':
                             deployment_count += 1
@@ -1010,45 +1090,45 @@ async def get_group_changes(
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', 'Unknown')
             if error_code not in ['ResourceNotFoundException', 'ValidationException']:
-                logger.warning(f"Failed to get service states: {e}")
-            result += "⚠️ Note: Service state tracking may not be available in this region.\n\n"
+                logger.warning(f'Failed to get service states: {e}')
+            result += '⚠️ Note: Service state tracking may not be available in this region.\n\n'
 
         # Sort by timestamp (most recent first)
         change_events.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
 
         # Summary
-        result += "=" * 50 + "\n"
-        result += "**CHANGE SUMMARY**\n"
-        result += "=" * 50 + "\n\n"
+        result += '=' * 50 + '\n'
+        result += '**CHANGE SUMMARY**\n'
+        result += '=' * 50 + '\n\n'
 
-        result += f"   📦 Deployments: {deployment_count}\n"
-        result += f"   ⚙️  Configuration Changes: {configuration_count}\n"
-        result += f"   📋 Total Events: {len(change_events)}\n\n"
+        result += f'   📦 Deployments: {deployment_count}\n'
+        result += f'   ⚙️  Configuration Changes: {configuration_count}\n'
+        result += f'   📋 Total Events: {len(change_events)}\n\n'
 
         # Change timeline
         if change_events:
-            result += "=" * 50 + "\n"
-            result += "**CHANGE TIMELINE** (most recent first)\n"
-            result += "=" * 50 + "\n\n"
+            result += '=' * 50 + '\n'
+            result += '**CHANGE TIMELINE** (most recent first)\n'
+            result += '=' * 50 + '\n\n'
 
             for event in change_events[:20]:
-                event_emoji = "📦" if event['event_type'] == 'DEPLOYMENT' else "⚙️"
-                result += f"{event_emoji} **{event['service_name']}**\n"
-                result += f"   Time: {event['timestamp']}\n"
-                result += f"   Type: {event['event_type']}\n"
+                event_emoji = '📦' if event['event_type'] == 'DEPLOYMENT' else '⚙️'
+                result += f'{event_emoji} **{event["service_name"]}**\n'
+                result += f'   Time: {event["timestamp"]}\n'
+                result += f'   Type: {event["event_type"]}\n'
                 if event['event_name']:
-                    result += f"   Event: {event['event_name']}\n"
+                    result += f'   Event: {event["event_name"]}\n'
                 if event['user_name']:
-                    result += f"   User: {event['user_name']}\n"
-                result += "\n"
+                    result += f'   User: {event["user_name"]}\n'
+                result += '\n'
 
             if len(change_events) > 20:
-                result += f"... and {len(change_events) - 20} more events\n\n"
+                result += f'... and {len(change_events) - 20} more events\n\n'
 
             # Group by service
-            result += "=" * 50 + "\n"
-            result += "**CHANGES BY SERVICE**\n"
-            result += "=" * 50 + "\n\n"
+            result += '=' * 50 + '\n'
+            result += '**CHANGES BY SERVICE**\n'
+            result += '=' * 50 + '\n\n'
 
             by_service = {}
             for event in change_events:
@@ -1061,19 +1141,19 @@ async def get_group_changes(
                     by_service[svc]['configs'] += 1
 
             for svc, counts in sorted(by_service.items()):
-                result += f"   **{svc}**: {counts['deployments']} deployments, {counts['configs']} config changes\n"
+                result += f'   **{svc}**: {counts["deployments"]} deployments, {counts["configs"]} config changes\n'
 
         else:
-            result += "ℹ️ No change events found in the specified time range.\n"
+            result += 'ℹ️ No change events found in the specified time range.\n'
 
         # Recommendations
         if change_events:
-            result += "\n" + "=" * 50 + "\n"
-            result += "💡 **TIPS**\n"
-            result += "=" * 50 + "\n\n"
-            result += "   • Use audit_group_health() to check if changes caused issues\n"
-            result += "   • Use audit_services() for detailed service analysis\n"
-            result += "   • Compare health before/after deployment times\n"
+            result += '\n' + '=' * 50 + '\n'
+            result += '💡 **TIPS**\n'
+            result += '=' * 50 + '\n\n'
+            result += '   • Use audit_group_health() to check if changes caused issues\n'
+            result += '   • Use audit_services() for detailed service analysis\n'
+            result += '   • Compare health before/after deployment times\n'
 
         elapsed = timer() - start_time_perf
         logger.debug(f'get_group_changes completed in {elapsed:.3f}s')
@@ -1142,39 +1222,41 @@ async def list_grouping_attribute_definitions() -> str:
                 break
 
         # Build result
-        result = "📋 **GROUPING ATTRIBUTE DEFINITIONS**\n"
-        result += f"🌎 Region: {AWS_REGION}\n"
+        result = '📋 **GROUPING ATTRIBUTE DEFINITIONS**\n'
+        result += f'🌎 Region: {AWS_REGION}\n'
         if updated_at:
             if hasattr(updated_at, 'strftime'):
-                result += f"🕐 Last Updated: {updated_at.strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+                result += f'🕐 Last Updated: {updated_at.strftime("%Y-%m-%d %H:%M:%S")} UTC\n'
             else:
-                result += f"🕐 Last Updated: {updated_at}\n"
-        result += "\n"
+                result += f'🕐 Last Updated: {updated_at}\n'
+        result += '\n'
 
         if not all_definitions:
-            result += "ℹ️ No custom grouping attribute definitions found.\n\n"
-            result += "💡 **Tips:**\n"
-            result += "   • Grouping attributes can be configured via the Application Signals console or API\n"
-            result += "   • Groups can be derived from OpenTelemetry attributes, AWS tags, or predefined mappings\n"
+            result += 'ℹ️ No custom grouping attribute definitions found.\n\n'
+            result += '💡 **Tips:**\n'
+            result += '   • Grouping attributes can be configured via the Application Signals console or API\n'
+            result += '   • Groups can be derived from OpenTelemetry attributes, AWS tags, or predefined mappings\n'
             return result
 
-        result += f"✅ Found **{len(all_definitions)} grouping attribute definition(s)**\n\n"
+        result += f'✅ Found **{len(all_definitions)} grouping attribute definition(s)**\n\n'
 
         for i, definition in enumerate(all_definitions, 1):
             grouping_name = definition.get('GroupingName', 'Unknown')
             source_keys = definition.get('GroupingSourceKeys', [])
             default_value = definition.get('DefaultGroupingValue', '')
 
-            result += f"**{i}. {grouping_name}**\n"
+            result += f'**{i}. {grouping_name}**\n'
             if source_keys:
-                result += f"   Source Keys: {', '.join(source_keys)}\n"
+                result += f'   Source Keys: {", ".join(source_keys)}\n'
             if default_value:
-                result += f"   Default Value: {default_value}\n"
-            result += "\n"
+                result += f'   Default Value: {default_value}\n'
+            result += '\n'
 
-        result += "💡 **Tips:**\n"
+        result += '💡 **Tips:**\n'
         result += "   • Use list_group_services(group_name='<GroupValue>') to find services in a specific group\n"
-        result += "   • Use audit_group_health(group_name='<GroupValue>') to check health of a group\n"
+        result += (
+            "   • Use audit_group_health(group_name='<GroupValue>') to check health of a group\n"
+        )
 
         elapsed = timer() - start_time_perf
         logger.debug(f'list_grouping_attribute_definitions completed in {elapsed:.3f}s')
@@ -1184,8 +1266,12 @@ async def list_grouping_attribute_definitions() -> str:
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
-        logger.error(f'AWS ClientError in list_grouping_attribute_definitions: {error_code} - {error_message}')
+        logger.error(
+            f'AWS ClientError in list_grouping_attribute_definitions: {error_code} - {error_message}'
+        )
         return f'Error: {error_code} - {error_message}'
     except Exception as e:
-        logger.error(f'Unexpected error in list_grouping_attribute_definitions: {e}', exc_info=True)
+        logger.error(
+            f'Unexpected error in list_grouping_attribute_definitions: {e}', exc_info=True
+        )
         return f'Error: {str(e)}'

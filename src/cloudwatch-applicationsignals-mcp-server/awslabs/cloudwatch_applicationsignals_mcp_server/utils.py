@@ -15,9 +15,8 @@
 """CloudWatch Application Signals MCP Server - Utility functions."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
-from pydantic import Field
 from loguru import logger
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # =============================================================================
@@ -216,15 +215,9 @@ def parse_time_range(
     """
     now = datetime.now(timezone.utc)
     start_dt = (
-        parse_timestamp(start_time)
-        if start_time
-        else (now - timedelta(hours=default_hours))
+        parse_timestamp(start_time) if start_time else (now - timedelta(hours=default_hours))
     )
-    end_dt = (
-        parse_timestamp(end_time, default_hours=0)
-        if end_time
-        else now
-    )
+    end_dt = parse_timestamp(end_time, default_hours=0) if end_time else now
     return start_dt, end_dt
 
 
@@ -268,15 +261,15 @@ def fetch_metric_stats(
         response = cloudwatch_client.get_metric_statistics(**params)
         datapoints = response.get('Datapoints', [])
         if not datapoints:
-            logger.debug(f"No datapoints found for {namespace}/{metric_name}")
-            return None  
+            logger.debug(f'No datapoints found for {namespace}/{metric_name}')
+            return None
         result = {'average': sum(dp.get('Average', 0) for dp in datapoints) / len(datapoints)}
         if extended_statistics:
             result['extended'] = datapoints
         return result
-        
+
     except Exception as e:
-        logger.error(f"Error fetching metric stats for {namespace}/{metric_name}: {e}")
+        logger.error(f'Error fetching metric stats for {namespace}/{metric_name}: {e}')
         return None
 
 
@@ -296,14 +289,14 @@ def list_services_paginated(
 
     Returns:
         List of all service summaries
-        
+
     Raises:
         Exception: If API call fails
     """
     all_services = []
     next_token = None
     page_count = 0
-    
+
     try:
         while True:
             page_count += 1
@@ -318,14 +311,16 @@ def list_services_paginated(
             response = applicationsignals_client.list_services(**list_params)
             services_batch = response.get('ServiceSummaries', [])
             all_services.extend(services_batch)
-            
+
             next_token = response.get('NextToken')
             if not next_token:
                 break
 
-        logger.info(f"Completed service listing: {len(all_services)} total services across {page_count} pages")
+        logger.info(
+            f'Completed service listing: {len(all_services)} total services across {page_count} pages'
+        )
         return all_services
-        
+
     except Exception as e:
-        logger.error(f"Error listing services (page {page_count}): {e}")
+        logger.error(f'Error listing services (page {page_count}): {e}')
         raise

@@ -214,17 +214,29 @@ class TestListGroupServices:
         mock_aws_clients['applicationsignals_client'].list_services.return_value = {
             'ServiceSummaries': [
                 {
-                    'KeyAttributes': {'Name': 'svc-a', 'Environment': 'production', 'Type': 'Service'},
+                    'KeyAttributes': {
+                        'Name': 'svc-a',
+                        'Environment': 'production',
+                        'Type': 'Service',
+                    },
                     'ServiceGroups': [_make_group('Team', 'Payments')],
                     'AttributeMaps': [{'PlatformType': 'AWS::ECS'}],
                 },
                 {
-                    'KeyAttributes': {'Name': 'svc-b', 'Environment': 'production', 'Type': 'Service'},
+                    'KeyAttributes': {
+                        'Name': 'svc-b',
+                        'Environment': 'production',
+                        'Type': 'Service',
+                    },
                     'ServiceGroups': [_make_group('Team', 'Payments')],
                     'AttributeMaps': [{'PlatformType': 'AWS::Lambda'}],
                 },
                 {
-                    'KeyAttributes': {'Name': 'svc-c', 'Environment': 'staging', 'Type': 'Service'},
+                    'KeyAttributes': {
+                        'Name': 'svc-c',
+                        'Environment': 'staging',
+                        'Type': 'Service',
+                    },
                     'ServiceGroups': [_make_group('Team', 'Payments')],
                     'AttributeMaps': [{'PlatformType': 'AWS::ECS'}],
                 },
@@ -648,7 +660,9 @@ class TestAuditGroupHealth:
         with patch(
             'awslabs.cloudwatch_applicationsignals_mcp_server.group_tools.SLIReportClient'
         ) as mock_sli_class:
-            mock_sli_class.return_value.generate_sli_report.side_effect = Exception('SLI unavailable')
+            mock_sli_class.return_value.generate_sli_report.side_effect = Exception(
+                'SLI unavailable'
+            )
             result = await audit_group_health(group_name='Payments')
 
         assert 'using metrics fallback' in result
@@ -1470,9 +1484,7 @@ class TestListGroupingAttributeDefinitions:
         """Test handling of unexpected exceptions."""
         mock_aws_clients[
             'applicationsignals_client'
-        ].list_grouping_attribute_definitions.side_effect = Exception(
-            'Unexpected error occurred'
-        )
+        ].list_grouping_attribute_definitions.side_effect = Exception('Unexpected error occurred')
 
         result = await list_grouping_attribute_definitions()
 
