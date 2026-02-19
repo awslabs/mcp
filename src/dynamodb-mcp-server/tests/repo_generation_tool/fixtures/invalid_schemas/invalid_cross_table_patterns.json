@@ -1,0 +1,474 @@
+{
+  "_comment": "Invalid cross-table patterns test schema - Multiple validation errors to test task 2.1 infrastructure",
+  "cross_table_access_patterns": [
+    {
+      "description": "INVALID: Duplicate pattern_id 100",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Put",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "name": "register_user",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "entity_type": "User",
+          "name": "user",
+          "type": "entity"
+        },
+        {
+          "entity_type": "EmailLookup",
+          "name": "email_lookup",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 100,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: References non-existent table 'NonExistentTable'",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "NonExistentTable"
+        }
+      ],
+      "name": "invalid_table_reference",
+      "operation": "TransactWrite",
+      "parameters": [],
+      "pattern_id": 101,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: References non-existent entity 'NonExistentEntity' in Users table",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "NonExistentEntity",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_entity_reference",
+      "operation": "TransactWrite",
+      "parameters": [],
+      "pattern_id": 102,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Invalid operation type 'InvalidOperation'",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_operation",
+      "operation": "InvalidOperation",
+      "parameters": [],
+      "pattern_id": 103,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Put action not compatible with TransactGet operation",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_for_transact_get",
+      "operation": "TransactGet",
+      "parameters": [],
+      "pattern_id": 104,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: BatchWrite is not a supported operation (future extensibility test)",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_operation_batch_write",
+      "operation": "BatchWrite",
+      "parameters": [],
+      "pattern_id": 105,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: ChainCall is not a supported operation (future extensibility test)",
+      "entities_involved": [
+        {
+          "action": "Get",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_operation_chain_call",
+      "operation": "ChainCall",
+      "parameters": [],
+      "pattern_id": 106,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: 'string' is not a valid return_type (must be boolean, object, or array)",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_return_type",
+      "operation": "TransactWrite",
+      "parameters": [],
+      "pattern_id": 107,
+      "return_type": "string"
+    },
+    {
+      "description": "INVALID: Get action not compatible with TransactWrite operation",
+      "entities_involved": [
+        {
+          "action": "Get",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_get_for_transact_write",
+      "operation": "TransactWrite",
+      "parameters": [],
+      "pattern_id": 108,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Update action not compatible with TransactGet operation",
+      "entities_involved": [
+        {
+          "action": "Update",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_update_for_transact_get",
+      "operation": "TransactGet",
+      "parameters": [],
+      "pattern_id": 109,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: Delete action not compatible with TransactGet operation",
+      "entities_involved": [
+        {
+          "action": "Delete",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_delete_for_transact_get",
+      "operation": "TransactGet",
+      "parameters": [],
+      "pattern_id": 110,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: ConditionCheck action not compatible with TransactGet operation",
+      "entities_involved": [
+        {
+          "action": "ConditionCheck",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_condition_check_for_transact_get",
+      "operation": "TransactGet",
+      "parameters": [],
+      "pattern_id": 111,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: Multiple entities with invalid actions for TransactGet",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        },
+        {
+          "action": "Delete",
+          "entity": "EmailLookup",
+          "table": "EmailLookup"
+        }
+      ],
+      "name": "multiple_invalid_actions",
+      "operation": "TransactGet",
+      "parameters": [],
+      "pattern_id": 112,
+      "return_type": "object"
+    },
+    {
+      "description": "INVALID: Unknown action 'Merge' not valid for any operation",
+      "entities_involved": [
+        {
+          "action": "Merge",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_action_unknown",
+      "operation": "TransactWrite",
+      "parameters": [],
+      "pattern_id": 113,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Entity parameter missing required entity_type field",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_entity_parameter_missing_entity_type",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 114,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Entity parameter references non-existent entity type 'NonExistentEntity'",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_entity_parameter_unknown_entity_type",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "entity_type": "NonExistentEntity",
+          "name": "entity",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 115,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Parameter has invalid type 'invalid_type'",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "invalid_parameter_type",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "param1",
+          "type": "invalid_type"
+        }
+      ],
+      "pattern_id": 116,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Duplicate parameter name 'user_id'",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "duplicate_parameter_names",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 117,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Parameter missing required 'name' field",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "parameter_missing_name",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "type": "string"
+        }
+      ],
+      "pattern_id": 118,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Parameter missing required 'type' field",
+      "entities_involved": [
+        {
+          "action": "Put",
+          "entity": "User",
+          "table": "Users"
+        }
+      ],
+      "name": "parameter_missing_type",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "user_id"
+        }
+      ],
+      "pattern_id": 119,
+      "return_type": "boolean"
+    },
+    {
+      "description": "INVALID: Parameter type 'string' doesn't match field type 'decimal'",
+      "entities_involved": [
+        {
+          "action": "Update",
+          "entity": "Balance",
+          "table": "Balances"
+        }
+      ],
+      "name": "parameter_type_mismatch",
+      "operation": "TransactWrite",
+      "parameters": [
+        {
+          "name": "account_id",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 120,
+      "return_type": "boolean"
+    }
+  ],
+  "tables": [
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [
+            {
+              "description": "Get user by ID",
+              "name": "get_user",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 100,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "USER#{user_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "Users"
+      }
+    },
+    {
+      "entities": {
+        "EmailLookup": {
+          "access_patterns": [],
+          "entity_type": "EMAIL_LOOKUP",
+          "fields": [
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "EMAIL#{email}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "EmailLookup"
+      }
+    },
+    {
+      "entities": {
+        "Balance": {
+          "access_patterns": [],
+          "entity_type": "BALANCE",
+          "fields": [
+            {
+              "name": "account_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "amount",
+              "required": true,
+              "type": "decimal"
+            }
+          ],
+          "pk_template": "{account_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "account_id",
+        "table_name": "Balances"
+      }
+    }
+  ]
+}

@@ -128,7 +128,7 @@ class OutputManager:
             by_category[file.category].append(file)
 
         # Print organized summary in logical order
-        for category in ['entities', 'repositories', 'config', 'examples']:
+        for category in ['entities', 'repositories', 'services', 'config', 'examples']:
             if category in by_category:
                 files = by_category[category]
                 if len(files) == 1 and files[0].count > 0:

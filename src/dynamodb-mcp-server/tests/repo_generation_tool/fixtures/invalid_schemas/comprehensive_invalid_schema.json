@@ -141,6 +141,26 @@
         "partition_key": "pk",
         "table_name": "TestTable"
       }
+    },
+    {
+      "entities": {
+        "DuplicateTableEntity": {
+          "access_patterns": [],
+          "entity_type": "DUPLICATE",
+          "fields": [
+            {
+              "name": "id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "{id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "TestTable"
+      }
     }
   ]
 }

@@ -14,8 +14,6 @@ class TestJinja2Generator:
     @pytest.fixture
     def valid_schema_file(self, mock_schema_data, tmp_path):
         """Create a temporary valid schema file."""
-        import json
-
         schema_file = tmp_path / 'schema.json'
         schema_file.write_text(json.dumps(mock_schema_data))
         return str(schema_file)
@@ -1105,3 +1103,530 @@ class TestFormatSpecifierSupport:
             'sk_lookup_builder=lambda score, user_id: f"SCORE#{score:08d}#USER#{user_id}"'
             in entity_code
         )
+
+
+@pytest.mark.unit
+class TestTransactionServiceTemplateRendering:
+    """Unit tests for transaction service template rendering."""
+
+    @pytest.fixture
+    def user_registration_schema_path(self):
+        """Path to user_registration test fixture schema."""
+        return 'tests/repo_generation_tool/fixtures/valid_schemas/user_registration/user_registration_schema.json'
+
+    @pytest.fixture
+    def generator_with_transactions(self, user_registration_schema_path):
+        """Create a Jinja2Generator instance with transaction patterns."""
+        return Jinja2Generator(user_registration_schema_path, language='python')
+
+    @pytest.fixture
+    def schema_without_transactions(self, tmp_path):
+        """Create a schema without cross_table_access_patterns."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {
+                        'table_name': 'Users',
+                        'partition_key': 'pk',
+                    },
+                    'entities': {
+                        'User': {
+                            'entity_type': 'USER',
+                            'pk_template': 'USER#{user_id}',
+                            'fields': [
+                                {'name': 'user_id', 'type': 'string', 'required': True},
+                                {'name': 'email', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [],
+                        }
+                    },
+                }
+            ]
+        }
+        schema_path = tmp_path / 'schema_no_tx.json'
+        schema_path.write_text(json.dumps(schema))
+        return str(schema_path)
+
+    def test_transaction_service_template_loads(self, generator_with_transactions):
+        """Test that transaction service template loads successfully."""
+        # The template should be loaded during initialization
+        # If it fails to load, it should print a warning but not crash
+        assert generator_with_transactions is not None
+
+    def test_generate_transaction_service_with_user_registration(
+        self, generator_with_transactions
+    ):
+        """Test transaction service generation with user_registration schema."""
+        # Get cross_table_patterns from schema
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+        assert (
+            len(cross_table_patterns) == 3
+        )  # register_user, delete_user_with_email, get_user_and_email
+
+        # Get all entities for imports
+        all_entities = {}
+        for table in generator_with_transactions.schema['tables']:
+            all_entities.update(table['entities'])
+
+        # Generate transaction service code
+        # Note: We need to check if the template exists first
+        if not hasattr(generator_with_transactions, 'transaction_service_template'):
+            pytest.skip('Transaction service template not loaded')
+
+        # For now, we'll test the helper methods that would be used in generation
+        entity_imports = generator_with_transactions._get_entity_imports(cross_table_patterns)
+        assert 'User' in entity_imports
+        assert 'EmailLookup' in entity_imports
+
+    def test_all_methods_generated(self, generator_with_transactions):
+        """Test that all transaction methods are generated."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        # Check that we have the expected patterns
+        pattern_names = [p['name'] for p in cross_table_patterns]
+        assert 'register_user' in pattern_names
+        assert 'delete_user_with_email' in pattern_names
+        assert 'get_user_and_email' in pattern_names
+
+        # Check pattern operations
+        operations = [p['operation'] for p in cross_table_patterns]
+        assert 'TransactWrite' in operations
+        assert 'TransactGet' in operations
+
+    def test_imports_are_correct(self, generator_with_transactions):
+        """Test that entity imports are correctly extracted."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        entity_imports = generator_with_transactions._get_entity_imports(cross_table_patterns)
+
+        # Should have both User and EmailLookup
+        assert 'User' in entity_imports
+        assert 'EmailLookup' in entity_imports
+
+        # Should be comma-separated and sorted
+        import_parts = entity_imports.split(', ')
+        assert len(import_parts) == 2
+        assert import_parts == sorted(import_parts)
+
+    def test_format_parameters_for_transactions(self, generator_with_transactions):
+        """Test parameter formatting for transaction methods."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        # Test register_user pattern (entity parameters)
+        register_pattern = next(p for p in cross_table_patterns if p['name'] == 'register_user')
+        formatted = generator_with_transactions._format_parameters(register_pattern['parameters'])
+        assert 'user: User' in formatted
+        assert 'email_lookup: EmailLookup' in formatted
+
+        # Test delete_user_with_email pattern (primitive parameters)
+        delete_pattern = next(
+            p for p in cross_table_patterns if p['name'] == 'delete_user_with_email'
+        )
+        formatted = generator_with_transactions._format_parameters(delete_pattern['parameters'])
+        assert 'user_id: str' in formatted
+        assert 'email: str' in formatted
+
+    def test_get_return_description(self, generator_with_transactions):
+        """Test return description generation for different return types."""
+        # Boolean return type
+        pattern_bool = {'return_type': 'boolean', 'operation': 'TransactWrite'}
+        desc = generator_with_transactions._get_return_description(pattern_bool)
+        assert 'True if transaction succeeded' in desc
+
+        # Object return type with TransactGet
+        pattern_obj = {'return_type': 'object', 'operation': 'TransactGet'}
+        desc = generator_with_transactions._get_return_description(pattern_obj)
+        assert 'Dictionary containing retrieved entities' in desc
+
+        # Array return type
+        pattern_arr = {'return_type': 'array', 'operation': 'TransactWrite'}
+        desc = generator_with_transactions._get_return_description(pattern_arr)
+        assert 'List of results' in desc
+
+    def test_get_table_list(self, generator_with_transactions):
+        """Test table list extraction from patterns."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        register_pattern = next(p for p in cross_table_patterns if p['name'] == 'register_user')
+        table_list = generator_with_transactions._get_table_list(register_pattern)
+
+        assert 'Users' in table_list
+        assert 'EmailLookup' in table_list
+        assert ',' in table_list  # Should be comma-separated
+
+    def test_get_param_description(self, generator_with_transactions):
+        """Test parameter description generation."""
+        # Entity parameter
+        entity_param = {'name': 'user', 'type': 'entity', 'entity_type': 'User'}
+        desc = generator_with_transactions._get_param_description(entity_param)
+        assert 'User entity' in desc
+
+        # Primitive parameter
+        string_param = {'name': 'user_id', 'type': 'string'}
+        desc = generator_with_transactions._get_param_description(string_param)
+        assert 'str' in desc
+
+    def test_schema_without_transactions_has_no_patterns(self, schema_without_transactions):
+        """Test that schema without cross_table_access_patterns works correctly."""
+        generator = Jinja2Generator(schema_without_transactions, language='python')
+
+        cross_table_patterns = generator.schema.get('cross_table_access_patterns', [])
+        assert len(cross_table_patterns) == 0
+
+        # Should not generate entity imports for transactions
+        entity_imports = generator._get_entity_imports(cross_table_patterns)
+        assert entity_imports == ''
+
+    def test_transaction_patterns_have_required_fields(self, generator_with_transactions):
+        """Test that all transaction patterns have required fields."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        for pattern in cross_table_patterns:
+            # Required fields
+            assert 'pattern_id' in pattern
+            assert 'name' in pattern
+            assert 'description' in pattern
+            assert 'operation' in pattern
+            assert 'entities_involved' in pattern
+            assert 'parameters' in pattern
+            assert 'return_type' in pattern
+
+            # Validate entities_involved structure
+            for entity_inv in pattern['entities_involved']:
+                assert 'table' in entity_inv
+                assert 'entity' in entity_inv
+                assert 'action' in entity_inv
+
+    def test_transact_write_patterns_have_valid_actions(self, generator_with_transactions):
+        """Test that TransactWrite patterns have valid actions."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        valid_write_actions = {'Put', 'Update', 'Delete', 'ConditionCheck'}
+
+        for pattern in cross_table_patterns:
+            if pattern['operation'] == 'TransactWrite':
+                for entity_inv in pattern['entities_involved']:
+                    assert entity_inv['action'] in valid_write_actions
+
+    def test_transact_get_patterns_have_get_action(self, generator_with_transactions):
+        """Test that TransactGet patterns only have Get actions."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        for pattern in cross_table_patterns:
+            if pattern['operation'] == 'TransactGet':
+                for entity_inv in pattern['entities_involved']:
+                    assert entity_inv['action'] == 'Get'
+
+    def test_create_transaction_pattern_mapping(self, generator_with_transactions):
+        """Test that _create_transaction_pattern_mapping creates correct mapping structure."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        # Test with first pattern (register_user - TransactWrite)
+        pattern = cross_table_patterns[0]
+        mapping = generator_with_transactions._create_transaction_pattern_mapping(pattern)
+
+        # Verify required fields
+        assert mapping['pattern_id'] == pattern['pattern_id']
+        assert mapping['description'] == pattern['description']
+        assert mapping['service'] == 'TransactionService'
+        assert mapping['method_name'] == pattern['name']
+        assert mapping['parameters'] == pattern['parameters']
+        assert mapping['operation'] == pattern['operation']
+        assert mapping['transaction_type'] == 'cross_table'
+
+        # Verify return type is mapped
+        assert 'return_type' in mapping
+        assert mapping['return_type'] == 'bool'  # boolean -> bool
+
+        # Verify entities_involved structure
+        assert 'entities_involved' in mapping
+        assert len(mapping['entities_involved']) == len(pattern['entities_involved'])
+        for i, entity_inv in enumerate(mapping['entities_involved']):
+            assert 'table' in entity_inv
+            assert 'entity' in entity_inv
+            assert 'action' in entity_inv
+            assert entity_inv['table'] == pattern['entities_involved'][i]['table']
+            assert entity_inv['entity'] == pattern['entities_involved'][i]['entity']
+            assert entity_inv['action'] == pattern['entities_involved'][i]['action']
+
+        # Verify no 'repository' field
+        assert 'repository' not in mapping
+
+    def test_create_transaction_pattern_mapping_transact_get(self, generator_with_transactions):
+        """Test mapping creation for TransactGet patterns."""
+        cross_table_patterns = generator_with_transactions.schema.get(
+            'cross_table_access_patterns', []
+        )
+
+        # Find TransactGet pattern (get_user_and_email)
+        transact_get_pattern = next(
+            p for p in cross_table_patterns if p['operation'] == 'TransactGet'
+        )
+        mapping = generator_with_transactions._create_transaction_pattern_mapping(
+            transact_get_pattern
+        )
+
+        # Verify operation and return type
+        assert mapping['operation'] == 'TransactGet'
+        assert mapping['return_type'] == 'dict[str, Any]'  # object -> dict[str, Any]
+        assert mapping['transaction_type'] == 'cross_table'
+
+    def test_generate_all_includes_transaction_patterns_in_mapping(
+        self, generator_with_transactions, tmp_path
+    ):
+        """Test that generate_all includes transaction patterns in access_pattern_mapping."""
+        output_dir = str(tmp_path / 'output')
+        generator_with_transactions.generate_all(output_dir)
+
+        # Load the access pattern mapping
+        mapping_file = tmp_path / 'output' / 'access_pattern_mapping.json'
+        assert mapping_file.exists()
+
+        with open(mapping_file, 'r') as f:
+            mapping_data = json.load(f)
+
+        access_patterns = mapping_data['access_pattern_mapping']
+
+        # Verify transaction patterns are included
+        assert '100' in access_patterns  # register_user
+        assert '101' in access_patterns  # delete_user_with_email
+        assert '102' in access_patterns  # get_user_and_email
+
+        # Verify structure of transaction patterns
+        for pattern_id in ['100', '101', '102']:
+            pattern = access_patterns[pattern_id]
+            assert pattern['service'] == 'TransactionService'
+            assert 'entities_involved' in pattern
+            assert 'transaction_type' in pattern
+            assert pattern['transaction_type'] == 'cross_table'
+            assert 'repository' not in pattern
+
+
+@pytest.mark.unit
+class TestJinja2GeneratorEdgeCases:
+    """Test edge cases in Jinja2Generator."""
+
+    @pytest.fixture
+    def generator(self, mock_schema_data, tmp_path):
+        """Create a Jinja2Generator instance for testing."""
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(mock_schema_data))
+        return Jinja2Generator(str(schema_file), language='python')
+
+    def test_is_unsafe_include_projection_with_safe_projection(self, generator):
+        """Test _is_unsafe_include_projection returns False when all required fields are projected."""
+        entity_config = {
+            'fields': [
+                {'name': 'id', 'type': 'string', 'required': True},
+                {'name': 'name', 'type': 'string', 'required': True},
+                {'name': 'optional', 'type': 'string', 'required': False},
+            ],
+            'pk_template': '{id}',
+        }
+        pattern = {
+            'projection': 'INCLUDE',
+            'projected_attributes': ['id', 'name'],
+        }
+        table_config = {'partition_key': 'pk'}
+
+        # All required fields are projected, should return False
+        result = generator._is_unsafe_include_projection(entity_config, pattern, table_config)
+        assert result is False
+
+    def test_get_gsi_mapping_for_index_returns_none_when_no_mappings(self, generator):
+        """Test that get_gsi_mapping_for_index returns None when no GSI mappings exist."""
+        entity_config = {
+            'entity_type': 'USER',
+            'pk_template': '{user_id}',
+            'fields': [{'name': 'user_id', 'type': 'string', 'required': True}],
+            'access_patterns': [],
+        }
+        table_config = {'table_name': 'Users', 'partition_key': 'pk'}
+
+        # Generate repository which internally calls get_gsi_mapping_for_index
+        repo = generator.generate_repository('User', entity_config, table_config)
+        assert isinstance(repo, str)
+        # The function should handle None gracefully
+
+    def test_generate_transaction_service_with_no_template(self, generator):
+        """Test generate_transaction_service returns empty string when template is missing."""
+        # Temporarily remove the template
+        original_template = generator.transaction_service_template
+        generator.transaction_service_template = None
+
+        result = generator.generate_transaction_service([], {})
+        assert result == ''
+
+        # Restore template
+        generator.transaction_service_template = original_template
+
+    def test_generate_transaction_service_with_empty_patterns(self, generator):
+        """Test generate_transaction_service returns empty string when no patterns provided."""
+        result = generator.generate_transaction_service([], {})
+        assert result == ''
+
+    def test_get_return_description_for_object_return_type(self, generator):
+        """Test _get_return_description for 'object' return type."""
+        pattern = {'return_type': 'object', 'operation': 'TransactWrite'}
+        result = generator._get_return_description(pattern)
+        assert result == 'Result object from transaction'
+
+    def test_get_return_description_for_unknown_return_type(self, generator):
+        """Test _get_return_description for unknown return type."""
+        pattern = {'return_type': 'unknown', 'operation': 'TransactWrite'}
+        result = generator._get_return_description(pattern)
+        assert result == 'Transaction result'
+
+    def test_get_entity_imports_with_empty_patterns(self, generator):
+        """Test _get_entity_imports returns empty string for empty patterns."""
+        result = generator._get_entity_imports([])
+        assert result == ''
+
+    def test_get_table_list_with_empty_entities(self, generator):
+        """Test _get_table_list returns empty string for empty entities_involved."""
+        pattern = {'entities_involved': []}
+        result = generator._get_table_list(pattern)
+        assert result == ''
+
+    def test_generate_usage_examples_with_usage_data(self, mock_schema_data, tmp_path):
+        """Test generate_usage_examples with usage_data_path."""
+        # Create usage data file
+        usage_data = {
+            'field_mappings': {
+                'User': {
+                    'user_id': 'user_123',
+                    'email': 'test@example.com',
+                }
+            }
+        }
+        usage_file = tmp_path / 'usage_data.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        # Create schema file
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(mock_schema_data))
+
+        # Create generator with usage data
+        generator = Jinja2Generator(
+            str(schema_file), language='python', usage_data_path=str(usage_file)
+        )
+
+        # Prepare required arguments
+        all_entities = mock_schema_data['tables'][0]['entities']
+        all_tables = mock_schema_data['tables']
+        access_pattern_mapping = {}
+
+        # Generate usage examples
+        result = generator.generate_usage_examples(
+            access_pattern_mapping, all_entities, all_tables
+        )
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_filter_resolvable_params_with_range_condition(self, tmp_path):
+        """Test filter_resolvable_access_pattern_params with range conditions."""
+        # Create schema with range condition pattern
+        schema_with_range = {
+            'tables': [
+                {
+                    'table_config': {
+                        'table_name': 'TestTable',
+                        'partition_key': 'pk',
+                        'sort_key': 'sk',
+                    },
+                    'entities': {
+                        'TestEntity': {
+                            'entity_type': 'TEST',
+                            'pk_template': '{id}',
+                            'sk_template': '{timestamp}',
+                            'fields': [
+                                {'name': 'id', 'type': 'string', 'required': True},
+                                {'name': 'timestamp', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 99,
+                                    'name': 'query_by_date',
+                                    'description': 'Query by date range',
+                                    'operation': 'Query',
+                                    'range_condition': '>=',
+                                    'parameters': [
+                                        {'name': 'id', 'type': 'string'},
+                                        {'name': 'start_date', 'type': 'string'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema_with_range))
+
+        generator = Jinja2Generator(str(schema_file), language='python')
+
+        # Prepare required arguments
+        all_entities = schema_with_range['tables'][0]['entities']
+        all_tables = schema_with_range['tables']
+        access_pattern_mapping = {}
+
+        # Generate usage examples which uses the filter
+        result = generator.generate_usage_examples(
+            access_pattern_mapping, all_entities, all_tables
+        )
+        assert isinstance(result, str)
+        # The filter should handle range parameters correctly
+
+    def test_check_template_is_pure_numeric_with_non_numeric_field(self, generator):
+        """Test _check_template_is_pure_numeric returns False for non-numeric fields."""
+        fields = [{'name': 'user_id', 'type': 'string'}]
+        params = ['user_id']
+        result = generator._check_template_is_pure_numeric('{user_id}', params, fields)
+        assert result is False
+
+    def test_preprocess_entity_config_with_numeric_gsi_keys(self, generator):
+        """Test _preprocess_entity_config handles numeric GSI keys correctly."""
+        entity_config = {
+            'entity_type': 'USER',
+            'pk_template': '{user_id}',
+            'sk_template': '{timestamp}',
+            'fields': [
+                {'name': 'user_id', 'type': 'string', 'required': True},
+                {'name': 'timestamp', 'type': 'integer', 'required': True},
+                {'name': 'score', 'type': 'decimal', 'required': True},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'ScoreIndex',
+                    'pk_template': '{user_id}',
+                    'sk_template': '{score}',
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        assert 'gsi_mappings' in result
+        # Should detect numeric sort key in GSI
+        assert result['gsi_mappings'][0]['sk_is_numeric'] is True

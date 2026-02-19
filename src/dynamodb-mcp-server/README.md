@@ -379,6 +379,7 @@ generated_dal/
 ├── entities.py              # Pydantic entity models
 ├── repositories.py          # Repository classes with CRUD operations
 ├── base_repository.py       # Base repository functionality
+├── transaction_service.py   # Cross-table transaction methods (if schema includes cross_table_access_patterns)
 ├── access_pattern_mapping.json  # Pattern ID to method mapping
 ├── usage_examples.py        # Sample usage code (if enabled)
 └── ruff.toml               # Linting configuration

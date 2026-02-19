@@ -191,6 +191,34 @@ class TestPythonSnapshotGeneration:
             'python',
         )
 
+    def test_user_registration_snapshot(
+        self, generation_output_dir, sample_schemas, code_generator
+    ):
+        """Test that user_registration generation matches expected snapshot (cross-table transactions)."""
+        result = code_generator(
+            sample_schemas['user_registration'],
+            generation_output_dir,
+            generate_sample_usage=True,
+            # Enable linting for consistent, high-quality output
+        )
+
+        assert result.returncode == 0, f'Generation failed: {result.stderr}'
+
+        self._compare_with_snapshot(
+            'user_registration',
+            generation_output_dir,
+            [
+                'entities.py',
+                'repositories.py',
+                'usage_examples.py',
+                'access_pattern_mapping.json',
+                'base_repository.py',
+                'transaction_service.py',
+                'ruff.toml',
+            ],
+            'python',
+        )
+
     def _compare_with_snapshot(
         self,
         schema_name: str,
@@ -319,7 +347,14 @@ class TestPythonSnapshotManagement:
 
         # Expected language directories
         expected_languages = ['python']  # Add more as languages are supported
-        expected_schemas = ['social_media', 'ecommerce', 'elearning', 'gaming_leaderboard', 'saas']
+        expected_schemas = [
+            'social_media',
+            'ecommerce',
+            'elearning',
+            'gaming_leaderboard',
+            'saas',
+            'user_registration',
+        ]
 
         for language in expected_languages:
             language_dir = snapshots_base_dir / language

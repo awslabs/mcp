@@ -341,3 +341,86 @@ def validate_data_type(
         )
 
     return errors
+
+
+def validate_parameter_core(
+    param: Any,
+    path: str,
+    param_names: set[str],
+    all_entity_names: set[str],
+) -> list[ValidationError]:
+    """Validate core parameter structure and type (shared logic for all validators).
+
+    This function validates the common aspects of parameters that are shared across
+    schema_validator and cross_table_validator:
+    - Parameter must be a dict
+    - Required fields (name, type) must be present
+    - Parameter name must be unique
+    - Parameter type must be valid (using ParameterType enum)
+    - Entity parameters must have entity_type that references a valid entity
+
+    Args:
+        param: The parameter dictionary to validate
+        path: Path context for error reporting
+        param_names: Set of already-used parameter names (will be updated)
+        all_entity_names: Set of all valid entity names in the schema
+
+    Returns:
+        List of validation errors
+    """
+    errors = []
+
+    if not isinstance(param, dict):
+        errors.append(
+            ValidationError(
+                path=path,
+                message='Parameter must be an object',
+                suggestion='Change parameter to a JSON object',
+            )
+        )
+        return errors
+
+    # Validate required fields
+    errors.extend(validate_required_fields(param, REQUIRED_PARAMETER_FIELDS, path))
+
+    # Validate parameter name uniqueness
+    if 'name' in param:
+        param_name = param['name']
+        if param_name in param_names:
+            errors.append(
+                ValidationError(
+                    path=f'{path}.name',
+                    message=f"Duplicate parameter name '{param_name}'",
+                    suggestion='Parameter names must be unique within an access pattern',
+                )
+            )
+        else:
+            param_names.add(param_name)
+
+    # Validate parameter type using shared enum
+    if 'type' in param:
+        param_type = param['type']
+        type_errors = validate_enum_field(param_type, ParameterType, path, 'type')
+        errors.extend(type_errors)
+
+        # Special validation for entity type
+        if param_type == ParameterType.ENTITY.value:
+            if 'entity_type' not in param:
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.entity_type',
+                        message='Entity parameters must specify entity_type',
+                        suggestion="Add 'entity_type' property for entity parameters",
+                    )
+                )
+            elif param.get('entity_type') not in all_entity_names:
+                entity_type = param.get('entity_type')
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.entity_type',
+                        message=f"Unknown entity type '{entity_type}'",
+                        suggestion=f'Use one of: {", ".join(sorted(all_entity_names))}',
+                    )
+                )
+
+    return errors

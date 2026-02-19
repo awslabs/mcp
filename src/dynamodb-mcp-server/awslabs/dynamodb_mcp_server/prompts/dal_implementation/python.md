@@ -3,7 +3,8 @@
 ## ⚠️ CRITICAL REQUIREMENTS CHECKLIST
 
 Before reporting completion, verify ALL items:
-- [ ] All repository methods implemented (no TODO/pass statements except cross-table transactions)
+- [ ] All repository methods implemented (no TODO/pass statements)
+- [ ] All transaction_service.py methods implemented (if file exists)
 - [ ] All tests pass against DynamoDB Local
 - [ ] No syntax errors in any file (validated with py_compile)
 
@@ -16,10 +17,9 @@ You are an AI expert in transforming generated repository skeletons into fully f
 - **ALWAYS** work in small chunks (3-5 methods at a time)
 - **VALIDATE** each chunk before proceeding to the next
 - **COMPLETE** all repository implementations before running tests
-- **ABSOLUTELY FORBIDDEN**: TODO comments, pass statements, or placeholder implementations (see SKIP CROSS-TABLE TRANSACTIONS below)
+- **ABSOLUTELY FORBIDDEN**: TODO comments, pass statements, or placeholder implementations
 - **NEVER** use generic fallback implementations
 - **NEVER** batch replace pass statements - each method has unique access patterns and requirements
-- **SKIP CROSS-TABLE TRANSACTIONS**: Do not implement methods with cross-table transaction operations - leave these as TODO with explanation "Cross-table transactions not supported in code generation yet"
 - 🚨 **NEVER MODIFY SCHEMA.JSON**: The schema file is read-only - fix issues in repositories.py, base_repository.py, entities.py, or usage_examples.py only
 - 🚨 **NO SUMMARY FILES**: Do not create README.md, IMPLEMENTATION.md, or any documentation files
 - 🚨 **NO DELEGATION**: Never use delegation tools (Delegate/subagent) - causes workflow hangs. Use direct file editing for sequential implementation with validation
@@ -308,6 +308,94 @@ def range_query_method(
         raise RuntimeError(f"Failed to range query {self.model_class.__name__}: {e}")
 ```
 
+### Cross-Table Transaction Operations (TransactionService)
+
+**TransactWrite Operations** - Atomic writes across multiple tables:
+
+```python
+def register_user(self, user: User, email_lookup: EmailLookup) -> bool:
+    """Create user and email lookup atomically."""
+    try:
+        # 1. Validate entity relationships
+        if user.user_id != email_lookup.user_id:
+            raise ValueError("user_id mismatch between user and email_lookup")
+
+        # 2. Build keys for all entities
+        user_pk = User.build_pk_for_lookup(user.user_id)
+        email_pk = EmailLookup.build_pk_for_lookup(email_lookup.email)
+
+        # 3. Convert entities to DynamoDB items and add keys
+        user_item = user.model_dump(exclude_none=True)
+        user_item['pk'] = user.pk()
+        # If table has sort key: user_item['sk'] = user.sk()
+
+        email_item = email_lookup.model_dump(exclude_none=True)
+        email_item['pk'] = email_lookup.pk()
+        # If table has sort key: email_item['sk'] = email_lookup.sk()
+
+        # 4. Execute transaction
+        response = self.client.transact_write_items(
+            TransactItems=[
+                {
+                    'Put': {
+                        'TableName': 'Users',
+                        'Item': user_item,
+                        'ConditionExpression': 'attribute_not_exists(pk)'
+                    }
+                },
+                {
+                    'Put': {
+                        'TableName': 'EmailLookup',
+                        'Item': email_item,
+                        'ConditionExpression': 'attribute_not_exists(pk)'
+                    }
+                }
+            ]
+        )
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'TransactionCanceledException':
+            raise ValueError("User or email already exists")
+        raise RuntimeError(f"Transaction failed: {e}")
+```
+
+**TransactGet Operations** - Atomic reads across multiple tables:
+
+```python
+def get_user_and_email(self, user_id: str, email: str) -> dict[str, Any]:
+    """Get user and email lookup atomically."""
+    try:
+        # 1. Build keys
+        user_pk = User.build_pk_for_lookup(user_id)
+        email_pk = EmailLookup.build_pk_for_lookup(email)
+
+        # 2. Execute transaction
+        response = self.client.transact_get_items(
+            TransactItems=[
+                {'Get': {'TableName': 'Users', 'Key': {'pk': user_pk}}},
+                {'Get': {'TableName': 'EmailLookup', 'Key': {'pk': email_pk}}}
+            ]
+        )
+
+        # 3. Parse results
+        responses = response.get('Responses', [])
+        result = {}
+        if responses[0].get('Item'):
+            result['user'] = User(**responses[0]['Item'])
+        if responses[1].get('Item'):
+            result['email_lookup'] = EmailLookup(**responses[1]['Item'])
+        return result
+    except ClientError as e:
+        raise RuntimeError(f"Transaction failed: {e}")
+```
+
+**Key Points for Transactions**:
+- Use `self.client.transact_write_items()` or `self.client.transact_get_items()`
+- Validate entity relationships before executing
+- Use entity key building methods: `Entity.build_pk_for_lookup()`
+- Handle `TransactionCanceledException` for condition failures
+- Return `bool` for TransactWrite, `dict[str, Any]` for TransactGet
+
 ## Validation and Testing
 
 ### Implementation Validation
@@ -395,7 +483,8 @@ If `repositories.py` or `usage_examples.py` become corrupted beyond repair (e.g.
 ## Success Criteria
 
 Your implementation is complete when:
-- ✅ All repository methods implemented with real DynamoDB operations (cross-table transactions keep their TODOs)
+- ✅ All repository methods implemented with real DynamoDB operations
+- ✅ All transaction_service.py methods implemented (if file exists)
 - ✅ Optimistic locking implemented for ALL write operations (except BatchWriteItem which doesn't support conditions)
 - ✅ Necessary imports added for DynamoDB operations and error handling
 - ✅ All usage example tests pass

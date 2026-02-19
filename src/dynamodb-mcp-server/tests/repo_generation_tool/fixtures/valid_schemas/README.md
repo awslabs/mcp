@@ -152,6 +152,33 @@ All examples use the `tables` array format with flexible partition and sort key 
 
 **Use Cases**: Deal browsing, user management, brand catalogs, notification fan-out, partition-key-only optimization
 
+### 8. User Registration (`user_registration/`)
+
+**Domain**: User registration with email uniqueness enforcement using cross-table transactions
+**Tables**: Users, EmailLookup (Multi-Table with Atomic Transactions)
+**Key Features**:
+
+- **Cross-table atomic transactions**: TransactWriteItems and TransactGetItems for consistency
+- **Email uniqueness enforcement**: Separate lookup table with atomic constraint checking
+- **Partition-key-only tables**: Simple key-value lookups for both tables
+- **Race-condition-free**: Atomic operations prevent duplicate emails
+- **Referential integrity**: User and EmailLookup always in sync
+
+**Transaction Patterns**:
+
+- `register_user`: Atomic Put to both tables with existence checks
+- `delete_user_with_email`: Atomic Delete from both tables
+- `get_user_and_email`: TransactGet from both tables for consistency verification
+
+**Key Design Patterns**:
+
+- Partition-only: `USER#{user_id}`, `EMAIL#{email}` for direct lookups
+- Condition expressions: `attribute_not_exists(pk)` for uniqueness enforcement
+- TransactWrite: Atomic creates and deletes across tables
+- TransactGet: Atomic reads for consistency verification
+
+**Use Cases**: User registration, email uniqueness, account deletion, consistency verification, atomic multi-table operations
+
 ## Design Pattern Comparison
 
 ### Single Table Design Benefits
