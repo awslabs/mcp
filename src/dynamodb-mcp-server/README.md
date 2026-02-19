@@ -250,6 +250,8 @@ Add these environment variables to enable MySQL integration:
 
 #### MCP Configuration with MySQL
 
+**For RDS Data API-based access:**
+
 ```json
 {
   "mcpServers": {
@@ -263,7 +265,32 @@ Add these environment variables to enable MySQL integration:
         "MYSQL_CLUSTER_ARN": "arn:aws:rds:$REGION:$ACCOUNT_ID:cluster:$CLUSTER_NAME",
         "MYSQL_SECRET_ARN": "arn:aws:secretsmanager:$REGION:$ACCOUNT_ID:secret:$SECRET_NAME",
         "MYSQL_DATABASE": "<DATABASE_NAME>",
-        "MYSQL_MAX_QUERY_RESULTS": 500
+        "MYSQL_MAX_QUERY_RESULTS": "500"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+**For Connection-based access:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.dynamodb-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.dynamodb-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MYSQL_HOSTNAME": "<MYSQL_HOST>",
+        "MYSQL_PORT": "3306",
+        "MYSQL_SECRET_ARN": "arn:aws:secretsmanager:$REGION:$ACCOUNT_ID:secret:$SECRET_NAME",
+        "MYSQL_DATABASE": "<DATABASE_NAME>",
+        "MYSQL_MAX_QUERY_RESULTS": "500"
       },
       "disabled": false,
       "autoApprove": []
