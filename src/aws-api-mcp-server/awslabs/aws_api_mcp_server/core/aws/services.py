@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import awscli.clidriver
+import awscli.shorthand
 import re
 from ..common.config import get_user_agent_extra
 from ..common.file_system_controls import (
@@ -30,12 +31,14 @@ from lxml import html
 from typing import Any, NamedTuple
 
 
-RESTRICTED_URI_HANDLER = URIArgumentHandler(
-    prefixes={
-        'file://': (get_file_validated, {'mode': 'r'}),
-        'fileb://': (get_file_validated, {'mode': 'rb'}),
-    }
-)
+LOCAL_PREFIX_MAP = {
+    'file://': (get_file_validated, {'mode': 'r'}),
+    'fileb://': (get_file_validated, {'mode': 'rb'}),
+}
+
+RESTRICTED_URI_HANDLER = URIArgumentHandler(prefixes=LOCAL_PREFIX_MAP)
+
+awscli.shorthand.LOCAL_PREFIX_MAP = LOCAL_PREFIX_MAP
 
 
 PaginationConfig = dict[str, int]

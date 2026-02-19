@@ -18,12 +18,15 @@
 
 import os
 import pytest
+import signal
+import sys
 from awslabs.aws_diagram_mcp_server.diagrams_tools import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,
 )
 from awslabs.aws_diagram_mcp_server.models import DiagramType
+from unittest.mock import patch
 
 
 class TestGetDiagramExamples:
@@ -402,3 +405,93 @@ class TestGenerateDiagram:
         assert os.path.dirname(result.path) == os.path.join(
             temp_workspace_dir, 'generated-diagrams'
         )
+
+
+class TestCrossPlatformTimeout:
+    """Tests for cross-platform timeout handling in generate_diagram."""
+
+    def test_signal_module_imported(self):
+        """Test that the diagrams_tools module imports signal and threading."""
+        dt = sys.modules.get('awslabs.aws_diagram_mcp_server.diagrams_tools')
+        assert dt is not None
+        assert hasattr(dt, 'signal')
+        assert hasattr(dt, 'threading')
+
+    @pytest.mark.asyncio
+    async def test_unix_path_uses_sigalrm(self, aws_diagram_code, temp_workspace_dir):
+        """Test that SIGALRM is used on Unix platforms."""
+        if sys.platform == 'win32':
+            pytest.skip('SIGALRM only available on Unix')
+
+        assert hasattr(signal, 'SIGALRM')
+        # Just verify generate_diagram works on this platform
+        result = await generate_diagram(
+            code=aws_diagram_code,
+            filename='test_unix_timeout',
+            workspace_dir=temp_workspace_dir,
+        )
+        if result.status == 'error' and (
+            'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+        ):
+            pytest.skip('Graphviz not installed, skipping test')
+        assert result.status == 'success'
+
+    @pytest.mark.asyncio
+    async def test_threading_fallback_when_sigalrm_unavailable(
+        self, aws_diagram_code, temp_workspace_dir
+    ):
+        """Test that threading fallback is used when SIGALRM is unavailable."""
+        # Remove SIGALRM to force the threading fallback path
+        sigalrm = getattr(signal, 'SIGALRM', None)
+        if sigalrm is None:
+            pytest.skip('Already on a platform without SIGALRM')
+
+        with patch.object(signal, 'SIGALRM', new=sigalrm, create=True):
+            # Delete SIGALRM so hasattr returns False
+            delattr(signal, 'SIGALRM')
+            try:
+                result = await generate_diagram(
+                    code=aws_diagram_code,
+                    filename='test_no_sigalrm',
+                    workspace_dir=temp_workspace_dir,
+                )
+            finally:
+                # Restore SIGALRM
+                signal.SIGALRM = sigalrm
+            if result.status == 'error' and (
+                'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+            ):
+                pytest.skip('Graphviz not installed, skipping test')
+            # Should succeed or fail with a diagram error, not a SIGALRM crash
+            assert result.status in ('success', 'error')
+            if result.status == 'error':
+                assert 'sigalrm' not in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_threading_timeout_triggers(self, temp_workspace_dir):
+        """Test that the threading-based timeout fires correctly."""
+        # Use a CPU-bound busy loop instead of time.sleep to avoid
+        # the import statement being rejected by the security scanner.
+        slow_code = """
+x = 0
+with Diagram("Slow Diagram", show=False):
+    while x < 10**12:
+        x += 1
+    ELB("lb") >> EC2("web")
+"""
+        sigalrm = getattr(signal, 'SIGALRM', None)
+        if sigalrm is None:
+            pytest.skip('Already on a platform without SIGALRM')
+
+        delattr(signal, 'SIGALRM')
+        try:
+            result = await generate_diagram(
+                code=slow_code,
+                filename='test_timeout',
+                timeout=2,
+                workspace_dir=temp_workspace_dir,
+            )
+        finally:
+            signal.SIGALRM = sigalrm
+        assert result.status == 'error'
+        assert 'timed out' in result.message.lower()

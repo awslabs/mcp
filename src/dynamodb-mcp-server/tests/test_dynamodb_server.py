@@ -1428,6 +1428,224 @@ async def test_generate_resources_mcp_integration():
     assert 'cdk' in generate_tool.description.lower()
 
 
+# Tests for compute_performances_and_costs function
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_basic(tmp_path):
+    """Test compute_performances_and_costs with basic access patterns."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    assert '1 access patterns' in result['message']
+    assert '1 tables' in result['message']
+    assert 'written to' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_appends_to_md_file(tmp_path):
+    """Test compute_performances_and_costs appends to dynamodb_data_model.md when workspace_dir provided."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Create the dynamodb_data_model.md file
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    md_file.write_text('# DynamoDB Data Model\n\nExisting content here.\n')
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    assert 'written to' in result['message']
+
+    # Verify the file was appended
+    content = md_file.read_text()
+    assert 'Existing content here.' in content
+    assert '## Cost Report' in content
+    assert '### Read and Write Request Costs' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_md_file_not_found(tmp_path):
+    """Test compute_performances_and_costs when dynamodb_data_model.md doesn't exist - creates new file."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Don't create the md file - it should be created by the tool
+
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 100,
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    # Should succeed and create the file
+    assert result['status'] == 'success'
+    assert 'written to' in result['message']
+
+    # Verify the file was created
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    assert md_file.exists()
+    content = md_file.read_text()
+    assert '## Cost Report' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_with_query_pattern(tmp_path):
+    """Test compute_performances_and_costs with Query access pattern."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    md_file = tmp_path / 'dynamodb_data_model.md'
+    md_file.write_text('# DynamoDB Data Model\n')
+
+    access_patterns = [
+        {
+            'operation': 'Query',
+            'pattern': 'query-orders',
+            'description': 'Query user orders',
+            'table': 'orders',
+            'rps': 50,
+            'item_size_bytes': 512,
+            'item_count': 10,
+            'gsi': None,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'orders',
+            'item_size_bytes': 1024,
+            'item_count': 5000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'success'
+    content = md_file.read_text()
+    assert '## Cost Report' in content
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_validation_error(tmp_path):
+    """Test compute_performances_and_costs with invalid input."""
+    from awslabs.dynamodb_mcp_server.server import compute_performances_and_costs
+
+    # Invalid access pattern - missing required fields
+    access_patterns = [
+        {
+            'operation': 'GetItem',
+            'pattern': 'get-user',
+            'description': 'Get user by ID',
+            'table': 'users',
+            'rps': 0,  # Invalid: must be > 0
+            'item_size_bytes': 1024,
+        }
+    ]
+
+    table_list = [
+        {
+            'name': 'users',
+            'item_size_bytes': 2048,
+            'item_count': 1000000,
+            'gsi_list': [],
+        }
+    ]
+
+    result = await compute_performances_and_costs(
+        access_pattern_list=access_patterns,
+        table_list=table_list,
+        workspace_dir=str(tmp_path),
+    )
+
+    assert result['status'] == 'error'
+    assert 'rps' in result['message'].lower()
+
+
+@pytest.mark.asyncio
+async def test_compute_performances_and_costs_mcp_integration():
+    """Test compute_performances_and_costs tool through MCP client."""
+    tools = await app.list_tools()
+    cost_tool = next(
+        (tool for tool in tools if tool.name == 'compute_performances_and_costs'), None
+    )
+
+    assert cost_tool is not None
+    assert cost_tool.description is not None
+    assert 'capacity' in cost_tool.description.lower()
+    assert 'cost' in cost_tool.description.lower()
+
+
 @pytest.mark.asyncio
 async def test_dynamodb_data_model_schema_converter():
     """Test the dynamodb_data_model_schema_converter tool directly and MCP integration."""
@@ -1992,3 +2210,51 @@ def test_main_function():
     with patch.object(app, 'run') as mock_run:
         main()
         mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_call_tool_formats_validation_errors():
+    """Test that call_tool intercepts ValidationError and reformats using format_validation_errors."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError) as exc_info:
+        await app.call_tool(
+            'compute_performances_and_costs',
+            {
+                'access_pattern_list': [
+                    {
+                        'operation': 'GetItem',
+                        'table': 'users',
+                        'rps': 100,
+                        'item_size_bytes': 1024,
+                    }
+                ],
+                'table_list': [
+                    {
+                        'name': 'users',
+                        'item_size_bytes': 2048,
+                        'item_count': 1000000,
+                    }
+                ],
+                'workspace_dir': '/tmp/test',
+            },
+        )
+
+    error_message = str(exc_info.value)
+    # Should use bracket notation from format_validation_errors
+    assert 'access_pattern_list[0]' in error_message
+    # Should NOT contain raw pydantic error fragments
+    assert 'pydantic.dev' not in error_message
+    assert '[type=missing' not in error_message
+
+
+@pytest.mark.asyncio
+async def test_call_tool_preserves_non_validation_errors():
+    """Test that call_tool does NOT reformat non-ValidationError ToolErrors."""
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError) as exc_info:
+        await app.call_tool('nonexistent_tool_name', {})
+
+    error_message = str(exc_info.value)
+    assert 'Unknown tool' in error_message
