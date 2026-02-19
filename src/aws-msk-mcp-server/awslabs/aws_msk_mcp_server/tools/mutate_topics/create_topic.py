@@ -17,9 +17,16 @@ Function to create a topic in an MSK cluster.
 Maps to AWS MSK API: create_topic
 """
 
+from typing import Optional
+
 
 def create_topic(
-    cluster_arn, topic_name, partition_count, replication_factor, client, configs=None
+    cluster_arn: str,
+    topic_name: str,
+    partition_count: int,
+    replication_factor: int,
+    client,
+    configs: Optional[str] = None,
 ):
     """
     Creates a topic in the specified MSK cluster.

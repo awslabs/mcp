@@ -17,8 +17,16 @@ Function to update the configuration of a topic in an MSK cluster.
 Maps to AWS MSK API: update_topic
 """
 
+from typing import Optional
 
-def update_topic(cluster_arn, topic_name, client, configs=None, partition_count=None):
+
+def update_topic(
+    cluster_arn: str,
+    topic_name: str,
+    client,
+    configs: Optional[str] = None,
+    partition_count: Optional[int] = None,
+):
     """
     Updates the configuration of the specified topic.
 

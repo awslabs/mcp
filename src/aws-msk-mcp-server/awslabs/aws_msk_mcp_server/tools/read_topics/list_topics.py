@@ -17,8 +17,16 @@ Function to list topics in an MSK cluster.
 Maps to AWS MSK API: GET /clusters/{clusterArn}/topics
 """
 
+from typing import Optional
 
-def list_topics(cluster_arn, client, topic_name_filter=None, max_results=None, next_token=None):
+
+def list_topics(
+    cluster_arn: str,
+    client,
+    topic_name_filter: Optional[str] = None,
+    max_results: Optional[int] = None,
+    next_token: Optional[str] = None,
+):
     """
     Returns all topics in an MSK cluster.
 

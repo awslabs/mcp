@@ -17,8 +17,16 @@ Function to describe partitions of a specific topic in an MSK cluster.
 Maps to AWS MSK API: describe_topic_partitions
 """
 
+from typing import Optional
 
-def describe_topic_partitions(cluster_arn, topic_name, client, max_results=None, next_token=None):
+
+def describe_topic_partitions(
+    cluster_arn: str,
+    topic_name: str,
+    client,
+    max_results: Optional[int] = None,
+    next_token: Optional[str] = None,
+):
     """
     Returns partition information for a topic on an MSK cluster.
 
