@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
+
 try:
     import tomllib
 except ImportError:
@@ -309,7 +310,7 @@ def main():
             for warning in warnings:
                 print(f'  - {warning}')
             print(
-                f'\nNote: These are recommendations only. snake_case is preferred but not required.'
+                '\nNote: These are recommendations only. snake_case is preferred but not required.'
             )
 
         # Print result
@@ -321,7 +322,7 @@ def main():
             print(f'\nFound {len(errors)} error(s):')
             for error in errors:
                 print(f'  - {error}')
-            print(f'\nPlease refer to DESIGN_GUIDELINES.md for tool naming conventions.')
+            print('\nPlease refer to DESIGN_GUIDELINES.md for tool naming conventions.')
             sys.exit(1)
 
     except ValueError as e:
