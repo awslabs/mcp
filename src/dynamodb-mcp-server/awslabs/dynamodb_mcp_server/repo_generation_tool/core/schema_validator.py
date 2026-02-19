@@ -18,6 +18,9 @@ This module provides validation for schema.json files used in code generation,
 ensuring they conform to expected structure and contain valid enum values.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.cross_table_validator import (
+    CrossTableValidator,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.file_utils import (
     FileUtils,
 )
@@ -29,17 +32,16 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions im
     REQUIRED_ACCESS_PATTERN_FIELDS,
     REQUIRED_ENTITY_FIELDS,
     REQUIRED_FIELD_PROPERTIES,
-    REQUIRED_PARAMETER_FIELDS,
     REQUIRED_SCHEMA_FIELDS,
     REQUIRED_TABLE_CONFIG_FIELDS,
     REQUIRED_TABLE_FIELDS,
     AccessPattern,
     DynamoDBOperation,
     FieldType,
-    ParameterType,
     ReturnType,
     validate_data_type,
     validate_enum_field,
+    validate_parameter_core,
     validate_required_fields,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
@@ -61,8 +63,12 @@ class SchemaValidator:
         self.result = ValidationResult(is_valid=True, errors=[], warnings=[])
         self.global_entity_names: set[str] = set()  # Global entity name tracking across all tables
         self.pattern_ids: set[int] = set()  # Global pattern_id tracking across all tables
+        self.table_map: dict[
+            str, dict[str, Any]
+        ] = {}  # Table name to table dict mapping for O(1) lookups
         self.gsi_validator = GSIValidator()  # GSI validation component
         self.range_query_validator = RangeQueryValidator()  # Range query validation component
+        self.cross_table_validator = CrossTableValidator()  # Cross-table validation component
 
     def validate_schema_file(self, schema_path: str) -> ValidationResult:
         """Load and validate schema file.
@@ -77,6 +83,7 @@ class SchemaValidator:
         self.global_entity_names = set()
         self.global_entity_fields = {}  # Track entity fields for reuse
         self.pattern_ids = set()
+        self.table_map = {}  # Reset table map for each validation
 
         # Load JSON file using FileUtils directly
         try:
@@ -123,6 +130,20 @@ class SchemaValidator:
         if 'tables' in schema:
             self._validate_tables(schema['tables'])
 
+        # Validate cross_table_access_patterns if present
+        if 'cross_table_access_patterns' in schema:
+            cross_table_errors = self.cross_table_validator.validate_cross_table_patterns(
+                schema['cross_table_access_patterns'],
+                schema,
+                'cross_table_access_patterns',
+                self.pattern_ids,
+                self.table_map,  # Pass cached table map for O(1) lookups
+                self.global_entity_names,  # Pass cached entity names for O(1) lookups
+            )
+            for error in cross_table_errors:
+                self.result.errors.append(error)
+                self.result.is_valid = False
+
     def _validate_tables(self, tables: Any) -> None:
         """Validate tables array."""
         path = 'tables'
@@ -136,6 +157,24 @@ class SchemaValidator:
                 path, 'tables cannot be empty', 'Add at least one table definition'
             )
             return
+
+        # Build table map for efficient lookups (O(1) instead of O(n))
+        # Also validate table name uniqueness
+        for i, table in enumerate(tables):
+            if isinstance(table, dict):
+                table_config = table.get('table_config', {})
+                if isinstance(table_config, dict):
+                    table_name = table_config.get('table_name')
+                    if table_name:
+                        # Check for duplicate table names
+                        if table_name in self.table_map:
+                            self.result.add_error(
+                                f'{path}[{i}].table_config.table_name',
+                                f"Duplicate table name '{table_name}'",
+                                'Table names must be unique across all tables',
+                            )
+                        else:
+                            self.table_map[table_name] = table
 
         # Validate each table
         for i, table in enumerate(tables):
@@ -444,49 +483,13 @@ class SchemaValidator:
 
     def _validate_parameter(self, param: Any, path: str, param_names: set[str]) -> None:
         """Validate single parameter."""
-        if not isinstance(param, dict):
-            self.result.add_error(
-                path, 'Parameter must be an object', 'Change parameter to a JSON object'
-            )
-            return
+        # Use shared core validation logic
+        errors = validate_parameter_core(param, path, param_names, self.global_entity_names)
 
-        # Check required fields
-        errors = validate_required_fields(param, REQUIRED_PARAMETER_FIELDS, path)
-        self.result.add_errors(errors)
-
-        # Validate parameter name uniqueness
-        if 'name' in param:
-            param_name = param['name']
-            if param_name in param_names:
-                self.result.add_error(
-                    f'{path}.name',
-                    f"Duplicate parameter name '{param_name}'",
-                    'Parameter names must be unique within an access pattern',
-                )
-            else:
-                param_names.add(param_name)
-
-        # Validate parameter type
-        if 'type' in param:
-            type_errors = validate_enum_field(param['type'], ParameterType, path, 'type')
-            for error in type_errors:
-                self.result.errors.append(error)
-                self.result.is_valid = False
-
-            # Special validation for entity type - check globally across all tables
-            if param['type'] == ParameterType.ENTITY.value:
-                if 'entity_type' not in param:
-                    self.result.add_error(
-                        f'{path}.entity_type',
-                        'Entity parameters must specify entity_type',
-                        "Add 'entity_type' property for entity parameters",
-                    )
-                elif param['entity_type'] not in self.global_entity_names:
-                    self.result.add_error(
-                        f'{path}.entity_type',
-                        f"Unknown entity type '{param['entity_type']}'",
-                        f'Use one of: {", ".join(sorted(self.global_entity_names))}',
-                    )
+        # Add errors to result
+        for error in errors:
+            self.result.errors.append(error)
+            self.result.is_valid = False
 
     def _validate_consistent_read(self, pattern: dict[str, Any], path: str) -> None:
         """Validate consistent_read field in an access pattern.

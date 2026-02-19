@@ -477,6 +477,38 @@ class TestSchemaValidator:
             "Duplicate entity name 'User' across tables" in e.message for e in result.errors
         )
 
+    def test_validate_duplicate_table_names(self, validator):
+        """Test that table names must be unique across all tables."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Users', 'partition_key': 'pk'},
+                    'entities': {
+                        'User': {
+                            'entity_type': 'USER',
+                            'pk_template': '{user_id}',
+                            'fields': [{'name': 'user_id', 'type': 'string', 'required': True}],
+                            'access_patterns': [],
+                        }
+                    },
+                },
+                {
+                    'table_config': {'table_name': 'Users', 'partition_key': 'pk'},  # Duplicate!
+                    'entities': {
+                        'Profile': {
+                            'entity_type': 'PROFILE',
+                            'pk_template': '{profile_id}',
+                            'fields': [{'name': 'profile_id', 'type': 'string', 'required': True}],
+                            'access_patterns': [],
+                        }
+                    },
+                },
+            ]
+        }
+        result = self._validate_schema_dict(validator, schema)
+        assert not result.is_valid
+        assert any("Duplicate table name 'Users'" in e.message for e in result.errors)
+
     def test_validate_file_not_found(self, validator):
         """Test that validation fails gracefully for non-existent files."""
         result = validator.validate_schema_file('/nonexistent/file.json')
