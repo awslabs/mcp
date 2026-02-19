@@ -80,6 +80,30 @@ The schema follows this structure (optional fields marked with `?`):
         }
       }
     }
+  ],
+  "cross_table_access_patterns?": [    // Optional: only for atomic cross-table transactions
+    {
+      "pattern_id": 100,
+      "name": "pattern_name",
+      "description": "Pattern description",
+      "operation": "TransactWrite|TransactGet",
+      "entities_involved": [
+        {
+          "table": "TableName",
+          "entity": "EntityName",
+          "action": "Put|Delete|Update|ConditionCheck|Get",
+          "condition?": "attribute_not_exists(pk)"  // Optional: DynamoDB condition expression
+        }
+      ],
+      "parameters": [
+        {
+          "name": "param_name",
+          "type": "string|integer|boolean|entity",
+          "entity_type?": "EntityName"  // Required only when type is "entity"
+        }
+      ],
+      "return_type": "boolean|object|array"
+    }
   ]
 }
 ```
@@ -93,6 +117,7 @@ The schema follows this structure (optional fields marked with `?`):
 - `gsi_list` and `gsi_mappings`: Only if the table/entity uses GSIs
 - `item_type`: Only when field type is "array"
 - `entity_type`: Only when parameter type is "entity"
+- `cross_table_access_patterns`: **Optional top-level section** for atomic transactions across multiple tables. Only include when data model specifies cross-table atomic operations (TransactWrite/TransactGet).
 
 ### When to Use range_condition
 
@@ -280,10 +305,41 @@ Put/upsert item | `"PutItem"` | Entity parameter | Omit | Creates if not exists,
 **Parameter Type Rules**:
 - **For entity parameters** (PutItem, BatchWriteItem): Use `"type": "entity"` with `"entity_type": "EntityName"`
 - **For key parameters** (GetItem, Query, UpdateItem, DeleteItem, Scan): Use `"type": "string"` or `"integer"`
+- **For value parameters** (amounts, balances, quantities): Match the field type - use `"decimal"` for decimal fields, `"integer"` for integer fields
 - **UpdateItem**: Include key parameters AND the field(s) being updated with appropriate types
 - **index_name field**: Only add for Query/Scan operations that use a GSI
 - **range_condition field**: Only add for Query operations with range queries
 - **consistent_read field**: Required for read operations. Defaults to `false`. Set `true` only when strong consistency needed for main table
+
+## Cross-Table Transaction Operations
+
+When the data model specifies atomic operations across multiple tables, add a `cross_table_access_patterns` section at the top level (sibling to `tables`):
+
+**Operations**:
+- `TransactWrite`: Atomic writes (Put, Delete, Update, ConditionCheck) - all succeed or all fail
+- `TransactGet`: Atomic reads (Get) - consistent snapshot across tables
+
+**Example**:
+```json
+{
+  "pattern_id": 100,
+  "name": "register_user",
+  "operation": "TransactWrite",
+  "entities_involved": [
+    {"table": "Users", "entity": "User", "action": "Put", "condition": "attribute_not_exists(pk)"},
+    {"table": "EmailLookup", "entity": "EmailLookup", "action": "Put", "condition": "attribute_not_exists(pk)"}
+  ],
+  "parameters": [
+    {"name": "user", "type": "entity", "entity_type": "User"},
+    {"name": "email_lookup", "type": "entity", "entity_type": "EmailLookup"}
+  ],
+  "return_type": "boolean"
+}
+```
+
+**When to use**: Email uniqueness, financial transfers, inventory management, referential integrity
+
+**Rules**: Pattern IDs unique across ALL patterns; table/entity names must exist; TransactWrite actions: Put/Delete/Update/ConditionCheck; TransactGet actions: Get only
 
 ## Return Type Mappings
 
