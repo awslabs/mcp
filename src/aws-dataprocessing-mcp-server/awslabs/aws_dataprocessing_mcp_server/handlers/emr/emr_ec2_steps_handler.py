@@ -14,7 +14,6 @@
 
 """EMREc2StepsHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
     AddStepsData,
     CancelStepsData,
@@ -232,7 +231,7 @@ class EMREc2StepsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -293,7 +292,7 @@ class EMREc2StepsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -320,7 +319,7 @@ class EMREc2StepsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -357,7 +356,7 @@ class EMREc2StepsHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
