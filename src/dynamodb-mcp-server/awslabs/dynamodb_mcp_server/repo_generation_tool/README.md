@@ -333,6 +333,7 @@ Control read consistency for your access patterns. Strongly consistent reads ens
 ### Key Features
 
 - **Multi-Table Support**: Define multiple DynamoDB tables in a single schema
+- **Cross-Table Transaction Support**: Atomic operations across multiple tables using TransactWriteItems and TransactGetItems ([details](docs/TRANSACTIONS.md))
 - **Flexible Key Design**: Support for both composite keys (PK+SK) and partition-key-only tables
 - **Template-Based Keys**: Flexible PK/SK generation with parameter substitution
 - **Numeric Key Support**: Full support for `integer` and `decimal` partition/sort keys
@@ -374,6 +375,7 @@ generated/
 │   ├── entities.py                # Entity classes with GSI key builders and prefix helpers
 │   ├── repositories.py            # Repository classes with CRUD + GSI access patterns
 │   ├── base_repository.py         # Base repository class
+│   ├── transaction_service.py     # Cross-table transaction service (when cross_table_access_patterns exist)
 │   ├── ruff.toml                  # Linting configuration
 │   ├── access_pattern_mapping.json # Access pattern mapping including GSI queries
 │   └── usage_examples.py          # Interactive examples with GSI usage (optional, uses realistic data from usage_data.json if provided)
@@ -460,6 +462,7 @@ uv run python tests/repo_generation_tool/scripts/manage_snapshots.py test
 
 For comprehensive information, see the detailed documentation:
 
+- **[Cross-Table Transactions](docs/TRANSACTIONS.md)** - Complete guide to atomic transaction support across multiple tables
 - **[Range Queries](docs/RANGE_QUERIES.md)** - Complete guide to range query support for main table and GSI sort keys
 - **[GSI Support](docs/GSI_SUPPORT.md)** - Complete guide to Global Secondary Index support
 - **[Schema Validation](docs/SCHEMA_VALIDATION.md)** - Detailed validation rules, error handling, and schema structure

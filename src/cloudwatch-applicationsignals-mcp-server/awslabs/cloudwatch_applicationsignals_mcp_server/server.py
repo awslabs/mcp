@@ -47,6 +47,13 @@ from .canary_utils import (
 )
 from .change_tools import list_change_events
 from .enablement_tools import get_enablement_guide
+from .group_tools import (
+    audit_group_health,
+    get_group_changes,
+    get_group_dependencies,
+    list_group_services,
+    list_grouping_attribute_definitions,
+)
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
@@ -1489,6 +1496,11 @@ mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
 mcp.tool()(get_enablement_guide)
 mcp.tool()(list_change_events)
+mcp.tool()(list_group_services)
+mcp.tool()(audit_group_health)
+mcp.tool()(get_group_dependencies)
+mcp.tool()(get_group_changes)
+mcp.tool()(list_grouping_attribute_definitions)
 
 
 def main():
