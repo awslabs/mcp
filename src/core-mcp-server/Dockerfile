@@ -19,6 +19,45 @@ FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbe
 RUN dnf install -y shadow-utils python3 python3-devel wget tar gcc && \
     dnf clean all
 
+####### 
+#
+# https://github.com/awslabs/mcp/security/code-scanning/5872
+# https://avd.aquasec.com/nvd/cve-2025-7458
+# Sqlite	Sqlite	3.39.2 (including)	3.41.2 (excluding)
+#
+# https://packages.debian.org/bookworm/libsqlite3-0
+# https://www.debian.org/Bugs/Reporting
+#
+#  To: submit@bugs.debian.org
+#  From: scoschre@amazon.com
+#  Subject: CVE-2025-7458
+#
+#  Package: libsqlite3-0
+#  Version: 3.40.1-2+deb12u2
+#
+#  When I invoke `hello' without arguments from an ordinary shell
+#  prompt it prints `goodbye', rather than the expected `hello, world'.
+#  Here is a transcript:
+# % docker pull ...
+# % trivy image ...
+# % docker run --rm -it --entrypoint="sh" ...
+# # apt update
+# # ...
+# # apt upgrade libsqlite3-0
+# # Reading package lists... Done
+# # Building dependency tree... Done
+# # Reading state information... Done
+# # libsqlite3-0 is already the newest version (3.40.1-2+deb12u2).
+# # Calculating upgrade... Done
+# # 0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+#
+#  I suggest upgrading to 3.41.2 or greater
+#
+#  I am using Linux b764312d8142 6.10.14-linuxkit
+#
+
+#######
+
 # Install the project into `/app`
 WORKDIR /app
 
