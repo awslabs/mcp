@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Function to list topics in an MSK cluster.
-Maps to AWS MSK API: GET /clusters/{clusterArn}/topics
+"""Function to list topics in an MSK cluster.
+
+Maps to AWS MSK API: GET /clusters/{clusterArn}/topics.
 """
 
 from typing import Any, Optional

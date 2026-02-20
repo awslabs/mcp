@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Function to create a topic in an MSK cluster.
-Maps to AWS MSK API: create_topic
+"""Function to create a topic in an MSK cluster.
+
+Maps to AWS MSK API: create_topic.
 """
 
 from typing import Optional

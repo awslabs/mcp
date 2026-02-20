@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Function to delete a topic in an MSK cluster.
-Maps to AWS MSK API: delete_topic
+"""Function to delete a topic in an MSK cluster.
+
+Maps to AWS MSK API: delete_topic.
 """
 
 

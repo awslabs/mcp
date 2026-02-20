@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Function to describe partitions of a specific topic in an MSK cluster.
-Maps to AWS MSK API: describe_topic_partitions
+"""Function to describe partitions of a specific topic in an MSK cluster.
+
+Maps to AWS MSK API: describe_topic_partitions.
 """
 
 from typing import Any, Optional
