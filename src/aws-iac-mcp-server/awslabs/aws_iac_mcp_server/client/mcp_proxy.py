@@ -14,8 +14,8 @@
 
 import os
 import sys
-from fastmcp import FastMCP
-from fastmcp.server.proxy import ProxyClient
+from fastmcp.server import create_proxy
+from fastmcp.server.providers.proxy import ProxyClient
 from fastmcp.tools import Tool
 from loguru import logger
 from typing import Any, Callable, Dict, Optional
@@ -42,7 +42,7 @@ async def get_remote_proxy_server_tool(
         ValueError: If the tool is not found on the remote server.
     """
     # https://gofastmcp.com/servers/proxy#transport-bridging
-    remote_proxy = FastMCP.as_proxy(remote_proxy_client, name='Remote to local bridge')
+    remote_proxy = create_proxy(remote_proxy_client, name='Remote to local bridge')
 
     # Get the tool from the proxy server
     remote_tool = await remote_proxy.get_tool(remote_tool_name)

@@ -17,7 +17,7 @@ from awslabs.aws_iac_mcp_server.client.mcp_proxy import (
     create_local_proxied_tool,
     get_remote_proxy_server_tool,
 )
-from fastmcp import FastMCP
+from fastmcp.server.providers.proxy import ProxyClient
 from fastmcp.tools import Tool
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -28,14 +28,14 @@ class TestGetRemoteProxyServerTool:
     @pytest.mark.asyncio
     async def test_get_remote_tool_success(self):
         """Test successfully retrieving a remote tool."""
-        mock_client = MagicMock(spec=FastMCP)
+        mock_client = MagicMock(spec=ProxyClient)
         mock_tool = MagicMock(spec=Tool)
         mock_tool.name = 'remote_tool'
 
         mock_proxy = MagicMock()
         mock_proxy.get_tool = AsyncMock(return_value=mock_tool)
 
-        with patch.object(FastMCP, 'as_proxy', return_value=mock_proxy):
+        with patch('awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy):
             result = await get_remote_proxy_server_tool(
                 remote_proxy_client=mock_client,
                 remote_tool_name='remote_tool',
@@ -47,12 +47,12 @@ class TestGetRemoteProxyServerTool:
     @pytest.mark.asyncio
     async def test_get_remote_tool_not_found(self):
         """Test error when remote tool is not found."""
-        mock_client = MagicMock(spec=FastMCP)
+        mock_client = MagicMock(spec=ProxyClient)
 
         mock_proxy = MagicMock()
         mock_proxy.get_tool = AsyncMock(return_value=None)
 
-        with patch.object(FastMCP, 'as_proxy', return_value=mock_proxy):
+        with patch('awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy):
             with pytest.raises(ValueError, match='Tool remote_tool not found on remote server'):
                 await get_remote_proxy_server_tool(
                     remote_proxy_client=mock_client,
