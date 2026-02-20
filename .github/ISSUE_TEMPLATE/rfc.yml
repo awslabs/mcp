@@ -6,6 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
+        ⚠️ Moving forward, we will not merge new MCP servers that are primarily wrappers around an AWS SDK (like boto3) ⚠️
         Thank you for submitting a RFC. Please add as many details as possible to help further enrich this design.
   - type: input
     id: relation
