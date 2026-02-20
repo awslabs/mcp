@@ -20,15 +20,13 @@ to third-party Git providers (GitHub, GitLab, Bitbucket, etc.) that are
 required for the workflow-repository-integration feature.
 """
 
-import botocore
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_MAX_RESULTS
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_codeconnections_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_connection_arn,
     validate_provider_type,
 )
-from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, Optional
@@ -101,7 +99,7 @@ async def list_codeconnections(
     ctx: Context,
     provider_type_filter: Optional[str] = Field(
         None,
-        description='Filter by provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged, AzureDevOps',
+        description='Filter by provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged',
     ),
     max_results: int = Field(
         DEFAULT_MAX_RESULTS,
@@ -188,23 +186,8 @@ async def list_codeconnections(
 
         return result
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_msg = e.response.get('Error', {}).get('Message', str(e))
-        error_message = f'AWS error listing CodeConnections: {error_code} - {error_msg}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing CodeConnections: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing CodeConnections: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing CodeConnections')
 
 
 async def create_codeconnection(
@@ -215,7 +198,7 @@ async def create_codeconnection(
     ),
     provider_type: str = Field(
         ...,
-        description='Git provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged, AzureDevOps',
+        description='Git provider type: Bitbucket, GitHub, GitHubEnterpriseServer, GitLab, GitLabSelfManaged',
     ),
     tags: Optional[Dict[str, str]] = Field(
         None,
@@ -233,7 +216,7 @@ async def create_codeconnection(
         ctx: MCP context for error reporting
         connection_name: Name for the new connection
         provider_type: Git provider type (Bitbucket, GitHub, GitHubEnterpriseServer,
-            GitLab, GitLabSelfManaged, AzureDevOps)
+            GitLab, GitLabSelfManaged)
         tags: Optional tags to apply to the connection
 
     Returns:
@@ -288,23 +271,8 @@ async def create_codeconnection(
             'guidance': guidance,
         }
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_msg = e.response.get('Error', {}).get('Message', str(e))
-        error_message = f'AWS error creating CodeConnection: {error_code} - {error_msg}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error creating CodeConnection: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error creating CodeConnection: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error creating CodeConnection')
 
 
 async def get_codeconnection(
@@ -369,28 +337,5 @@ async def get_codeconnection(
 
         return result
 
-    except botocore.exceptions.ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_msg = e.response.get('Error', {}).get('Message', str(e))
-
-        # Handle connection not found specifically
-        if error_code == 'ResourceNotFoundException':
-            error_message = f'Connection not found: {connection_arn}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise
-
-        error_message = f'AWS error getting CodeConnection: {error_code} - {error_msg}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting CodeConnection: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting CodeConnection: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error getting CodeConnection')

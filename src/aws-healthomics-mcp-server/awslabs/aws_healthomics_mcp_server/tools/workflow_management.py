@@ -14,13 +14,14 @@
 
 """Workflow management tools for the AWS HealthOmics MCP server."""
 
-import botocore
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_omics_client,
+)
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import (
+    handle_tool_error,
 )
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_container_registry_params,
@@ -93,16 +94,8 @@ async def list_workflows(
             result['nextToken'] = response['nextToken']
 
         return result
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing workflows: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error listing workflows: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing workflows')
 
 
 async def create_workflow(
@@ -176,74 +169,77 @@ async def create_workflow(
         readme_path: Path to README markdown file within the repository (only valid with definition_repository)
 
     Returns:
-        Dictionary containing the created workflow information
+        Dictionary containing the created workflow information or error dict
     """
-    # Validate definition sources and container registry parameters
-    (
-        definition_zip,
-        validated_definition_uri,
-        validated_repository,
-    ) = await validate_definition_sources(
-        ctx, definition_zip_base64, definition_uri, definition_repository
-    )
-    await validate_container_registry_params(
-        ctx, container_registry_map, container_registry_map_uri
-    )
-
-    # Validate path_to_main parameter
-    validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
-
-    # Validate repository-specific path parameters
-    validated_param_template_path, validated_readme_path = await validate_repository_path_params(
-        ctx, definition_repository, parameter_template_path, readme_path
-    )
-
-    # Validate and process README input
-    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
-
-    client = get_omics_client()
-
-    params: Dict[str, Any] = {
-        'name': name,
-    }
-
-    # Add definition source (either ZIP, S3 URI, or repository)
-    if definition_zip is not None:
-        params['definitionZip'] = definition_zip
-    elif validated_definition_uri is not None:
-        params['definitionUri'] = validated_definition_uri
-    elif validated_repository is not None:
-        params['definitionRepository'] = validated_repository
-
-    if description:
-        params['description'] = description
-
-    if parameter_template:
-        params['parameterTemplate'] = parameter_template
-
-    if container_registry_map:
-        params['containerRegistryMap'] = container_registry_map
-
-    if container_registry_map_uri:
-        params['containerRegistryMapUri'] = container_registry_map_uri
-
-    if validated_path_to_main is not None:
-        params['main'] = validated_path_to_main
-
-    # Add repository-specific path parameters
-    if validated_param_template_path is not None:
-        params['parameterTemplatePath'] = validated_param_template_path
-
-    if validated_readme_path is not None:
-        params['readmePath'] = validated_readme_path
-
-    if readme_markdown is not None:
-        params['readmeMarkdown'] = readme_markdown
-
-    if readme_uri is not None:
-        params['readmeUri'] = readme_uri
-
     try:
+        # Validate definition sources and container registry parameters
+        (
+            definition_zip,
+            validated_definition_uri,
+            validated_repository,
+        ) = await validate_definition_sources(
+            ctx, definition_zip_base64, definition_uri, definition_repository
+        )
+        await validate_container_registry_params(
+            ctx, container_registry_map, container_registry_map_uri
+        )
+
+        # Validate path_to_main parameter
+        validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
+        # Validate repository-specific path parameters
+        (
+            validated_param_template_path,
+            validated_readme_path,
+        ) = await validate_repository_path_params(
+            ctx, definition_repository, parameter_template_path, readme_path
+        )
+
+        # Validate and process README input
+        readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
+
+        client = get_omics_client()
+
+        params: Dict[str, Any] = {
+            'name': name,
+        }
+
+        # Add definition source (either ZIP, S3 URI, or repository)
+        if definition_zip is not None:
+            params['definitionZip'] = definition_zip
+        elif validated_definition_uri is not None:
+            params['definitionUri'] = validated_definition_uri
+        elif validated_repository is not None:
+            params['definitionRepository'] = validated_repository
+
+        if description:
+            params['description'] = description
+
+        if parameter_template:
+            params['parameterTemplate'] = parameter_template
+
+        if container_registry_map:
+            params['containerRegistryMap'] = container_registry_map
+
+        if container_registry_map_uri:
+            params['containerRegistryMapUri'] = container_registry_map_uri
+
+        if validated_path_to_main is not None:
+            params['main'] = validated_path_to_main
+
+        # Add repository-specific path parameters
+        if validated_param_template_path is not None:
+            params['parameterTemplatePath'] = validated_param_template_path
+
+        if validated_readme_path is not None:
+            params['readmePath'] = validated_readme_path
+
+        if readme_markdown is not None:
+            params['readmeMarkdown'] = readme_markdown
+
+        if readme_uri is not None:
+            params['readmeUri'] = readme_uri
+
         response = client.create_workflow(**params)
 
         return {
@@ -253,16 +249,8 @@ async def create_workflow(
             'name': name,
             'description': description,
         }
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error creating workflow: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error creating workflow: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error creating workflow')
 
 
 async def get_workflow(
@@ -324,16 +312,8 @@ async def get_workflow(
             result['containerRegistryMap'] = response['containerRegistryMap']
 
         return result
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error getting workflow {workflow_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error getting workflow {workflow_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error getting workflow')
 
 
 async def create_workflow_version(
@@ -425,85 +405,88 @@ async def create_workflow_version(
     Returns:
         Dictionary containing the created workflow version information
     """
-    # Validate definition sources and container registry parameters
-    (
-        definition_zip,
-        validated_definition_uri,
-        validated_repository,
-    ) = await validate_definition_sources(
-        ctx, definition_zip_base64, definition_uri, definition_repository
-    )
-    await validate_container_registry_params(
-        ctx, container_registry_map, container_registry_map_uri
-    )
-
-    # Validate path_to_main parameter
-    validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
-
-    # Validate repository-specific path parameters
-    validated_param_template_path, validated_readme_path = await validate_repository_path_params(
-        ctx, definition_repository, parameter_template_path, readme_path
-    )
-
-    # Validate storage requirements
-    if storage_type == 'STATIC':
-        if not storage_capacity:
-            error_message = 'Storage capacity is required when storage type is STATIC'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
-
-    # Validate and process README input
-    readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
-
-    client = get_omics_client()
-
-    params: Dict[str, Any] = {
-        'workflowId': workflow_id,
-        'versionName': version_name,
-        'storageType': storage_type,
-    }
-
-    # Add definition source (either ZIP, S3 URI, or repository)
-    if definition_zip is not None:
-        params['definitionZip'] = definition_zip
-    elif validated_definition_uri is not None:
-        params['definitionUri'] = validated_definition_uri
-    elif validated_repository is not None:
-        params['definitionRepository'] = validated_repository
-
-    if description:
-        params['description'] = description
-
-    if parameter_template:
-        params['parameterTemplate'] = parameter_template
-
-    if storage_type == 'STATIC':
-        params['storageCapacity'] = storage_capacity
-
-    if container_registry_map:
-        params['containerRegistryMap'] = container_registry_map
-
-    if container_registry_map_uri:
-        params['containerRegistryMapUri'] = container_registry_map_uri
-
-    if validated_path_to_main is not None:
-        params['main'] = validated_path_to_main
-
-    # Add repository-specific path parameters
-    if validated_param_template_path is not None:
-        params['parameterTemplatePath'] = validated_param_template_path
-
-    if validated_readme_path is not None:
-        params['readmePath'] = validated_readme_path
-
-    if readme_markdown is not None:
-        params['readmeMarkdown'] = readme_markdown
-
-    if readme_uri is not None:
-        params['readmeUri'] = readme_uri
-
     try:
+        # Validate definition sources and container registry parameters
+        (
+            definition_zip,
+            validated_definition_uri,
+            validated_repository,
+        ) = await validate_definition_sources(
+            ctx, definition_zip_base64, definition_uri, definition_repository
+        )
+        await validate_container_registry_params(
+            ctx, container_registry_map, container_registry_map_uri
+        )
+
+        # Validate path_to_main parameter
+        validated_path_to_main = await validate_path_to_main(ctx, path_to_main)
+
+        # Validate repository-specific path parameters
+        (
+            validated_param_template_path,
+            validated_readme_path,
+        ) = await validate_repository_path_params(
+            ctx, definition_repository, parameter_template_path, readme_path
+        )
+
+        # Validate storage requirements
+        if storage_type == 'STATIC':
+            if not storage_capacity:
+                error_message = 'Storage capacity is required when storage type is STATIC'
+                logger.error(error_message)
+                await ctx.error(error_message)
+                raise ValueError(error_message)
+
+        # Validate and process README input
+        readme_markdown, readme_uri = await validate_readme_input(ctx, readme)
+
+        client = get_omics_client()
+
+        params: Dict[str, Any] = {
+            'workflowId': workflow_id,
+            'versionName': version_name,
+            'storageType': storage_type,
+        }
+
+        # Add definition source (either ZIP, S3 URI, or repository)
+        if definition_zip is not None:
+            params['definitionZip'] = definition_zip
+        elif validated_definition_uri is not None:
+            params['definitionUri'] = validated_definition_uri
+        elif validated_repository is not None:
+            params['definitionRepository'] = validated_repository
+
+        if description:
+            params['description'] = description
+
+        if parameter_template:
+            params['parameterTemplate'] = parameter_template
+
+        if storage_type == 'STATIC':
+            params['storageCapacity'] = storage_capacity
+
+        if container_registry_map:
+            params['containerRegistryMap'] = container_registry_map
+
+        if container_registry_map_uri:
+            params['containerRegistryMapUri'] = container_registry_map_uri
+
+        if validated_path_to_main is not None:
+            params['main'] = validated_path_to_main
+
+        # Add repository-specific path parameters
+        if validated_param_template_path is not None:
+            params['parameterTemplatePath'] = validated_param_template_path
+
+        if validated_readme_path is not None:
+            params['readmePath'] = validated_readme_path
+
+        if readme_markdown is not None:
+            params['readmeMarkdown'] = readme_markdown
+
+        if readme_uri is not None:
+            params['readmeUri'] = readme_uri
+
         response = client.create_workflow_version(**params)
 
         return {
@@ -514,16 +497,8 @@ async def create_workflow_version(
             'versionName': version_name,
             'description': description,
         }
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error creating workflow version: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error creating workflow version: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error creating workflow version')
 
 
 async def list_workflow_versions(
@@ -594,15 +569,5 @@ async def list_workflow_versions(
             result['nextToken'] = response['nextToken']
 
         return result
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error listing workflow versions for workflow {workflow_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = (
-            f'Unexpected error listing workflow versions for workflow {workflow_id}: {str(e)}'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error listing workflow versions')
