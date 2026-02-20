@@ -18,6 +18,8 @@ Topics Information API Module
 This module provides functions to retrieve information about topics in MSK clusters.
 """
 
+from typing import Optional
+
 import boto3
 from botocore.config import Config
 from awslabs.aws_msk_mcp_server import __version__
@@ -36,14 +38,14 @@ def register_module(mcp: FastMCP) -> None:
         cluster_arn: str = Field(
             ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
         ),
-        topic_name_filter: str = Field(
+        topic_name_filter: Optional[str] = Field(
             None, description="Returns topics starting with given name"
         ),
-        max_results: int = Field(
+        max_results: Optional[int] = Field(
             None,
             description="The maximum number of results to return in the response (default maximum 100 results per API call)",
         ),
-        next_token: str = Field(
+        next_token: Optional[str] = Field(
             None,
             description="The paginated results marker. When the result of the operation is truncated, the call returns NextToken in the response",
         ),
@@ -133,8 +135,8 @@ def register_module(mcp: FastMCP) -> None:
             ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
         ),
         topic_name: str = Field(..., description="The name of the topic to describe partitions for"),
-        max_results: int = Field(None, description="Maximum number of partitions to return"),
-        next_token: str = Field(None, description="Token for pagination"),
+        max_results: Optional[int] = Field(None, description="Maximum number of partitions to return"),
+        next_token: Optional[str] = Field(None, description="Token for pagination"),
     ):
         """
         Returns partition information for a specific topic on an MSK cluster.

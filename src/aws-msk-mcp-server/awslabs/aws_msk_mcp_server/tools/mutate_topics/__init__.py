@@ -18,6 +18,8 @@ Topics Management API Module
 This module provides functions to manage topics in MSK clusters.
 """
 
+from typing import Optional
+
 import boto3
 from botocore.config import Config
 from awslabs.aws_msk_mcp_server import __version__
@@ -39,7 +41,7 @@ def register_module(mcp: FastMCP) -> None:
         topic_name: str = Field(..., description="The name of the topic to create"),
         partition_count: int = Field(..., description="The number of partitions for the topic"),
         replication_factor: int = Field(..., description="The replication factor for the topic"),
-        configs: str = Field(None, description="Topic configurations encoded as a Base64 string"),
+        configs: Optional[str] = Field(None, description="Topic configurations encoded as a Base64 string"),
     ):
         """
         Creates a topic in the specified MSK cluster.
@@ -85,10 +87,10 @@ def register_module(mcp: FastMCP) -> None:
             ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
         ),
         topic_name: str = Field(..., description="The name of the topic to update configuration for"),
-        configs: str = Field(
+        configs: Optional[str] = Field(
             None, description="The new topic configurations encoded as a Base64 string"
         ),
-        partition_count: int = Field(
+        partition_count: Optional[int] = Field(
             None, description="The new total number of partitions for the topic"
         ),
     ):

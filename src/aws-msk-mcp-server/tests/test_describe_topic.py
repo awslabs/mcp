@@ -1,4 +1,4 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+?# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class TestDescribeTopic:
             'PartitionCount': 3,
             'ReplicationFactor': 2,
             'Status': 'ACTIVE',
-            'Configs': 'eyJjbGVhbnVwLnBvbGljeSI6ICJkZWxldGUifQ==',
+            'Configs': 'eyJjbGVhbnVwLnBvbGljeSI6ICJkZWxldGUifQ==',  # pragma: allowlist secret - base64 test data, not actual secret
         }
         mock_client.describe_topic.return_value = expected_response
 
