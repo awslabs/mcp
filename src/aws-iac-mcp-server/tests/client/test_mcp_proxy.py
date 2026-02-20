@@ -35,7 +35,9 @@ class TestGetRemoteProxyServerTool:
         mock_proxy = MagicMock()
         mock_proxy.get_tool = AsyncMock(return_value=mock_tool)
 
-        with patch('awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy):
+        with patch(
+            'awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy
+        ):
             result = await get_remote_proxy_server_tool(
                 remote_proxy_client=mock_client,
                 remote_tool_name='remote_tool',
@@ -52,7 +54,9 @@ class TestGetRemoteProxyServerTool:
         mock_proxy = MagicMock()
         mock_proxy.get_tool = AsyncMock(return_value=None)
 
-        with patch('awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy):
+        with patch(
+            'awslabs.aws_iac_mcp_server.client.mcp_proxy.create_proxy', return_value=mock_proxy
+        ):
             with pytest.raises(ValueError, match='Tool remote_tool not found on remote server'):
                 await get_remote_proxy_server_tool(
                     remote_proxy_client=mock_client,

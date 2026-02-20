@@ -21,17 +21,17 @@ from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
 from unittest.mock import patch
 
 
-# Access underlying functions from FastMCP decorated tools
-validate_cloudformation_template = server.validate_cloudformation_template.fn
-check_cloudformation_template_compliance = server.check_cloudformation_template_compliance.fn
-troubleshoot_cloudformation_deployment = server.troubleshoot_cloudformation_deployment.fn
+# In fastmcp 3.x, decorators return the original function directly
+validate_cloudformation_template = server.validate_cloudformation_template
+check_cloudformation_template_compliance = server.check_cloudformation_template_compliance
+troubleshoot_cloudformation_deployment = server.troubleshoot_cloudformation_deployment
 get_cloudformation_pre_deploy_validation_instructions = (
-    server.get_cloudformation_pre_deploy_validation_instructions.fn
+    server.get_cloudformation_pre_deploy_validation_instructions
 )
-search_cdk_documentation = server.search_cdk_documentation.fn
-search_cloudformation_documentation = server.search_cloudformation_documentation.fn
-search_cdk_samples_and_constructs = server.search_cdk_samples_and_constructs.fn
-cdk_best_practices = server.cdk_best_practices.fn
+search_cdk_documentation = server.search_cdk_documentation
+search_cloudformation_documentation = server.search_cloudformation_documentation
+search_cdk_samples_and_constructs = server.search_cdk_samples_and_constructs
+cdk_best_practices = server.cdk_best_practices
 
 
 class TestValidateCloudFormationTemplate:
