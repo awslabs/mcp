@@ -1,7 +1,7 @@
 ---
 name: "amazon-aurora-dsql"
-displayName: "Build a database with Aurora DSQL"
-description: "Build and deploy a PostgreSQL-compatible serverless distributed SQL database with Aurora DSQL - manage schemas, execute queries, and handle migrations with DSQL-specific requirements."
+displayName: "Build applications with Aurora DSQL"
+description: "Build applications using a serverless, PostgreSQL-compatible database with scale-to-zero and pay-per-use pricing - built for applications at any scale."
 keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed"]
 author: "AWS"
 ---
