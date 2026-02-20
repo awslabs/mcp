@@ -48,7 +48,7 @@ def delete_topic(cluster_arn, topic_name, client, confirm_delete=None):
         )
 
     # Additional safety: prevent deletion of topics with system-like names
-    system_prefixes = ['__', '_internal', '_confluent', '_kafka', '_schema']
+    system_prefixes = ['__amazon', '__consumer']
     if any(topic_name.startswith(prefix) for prefix in system_prefixes):
         raise ValueError(
             f"Cannot delete topic '{topic_name}': Topics starting with system prefixes "

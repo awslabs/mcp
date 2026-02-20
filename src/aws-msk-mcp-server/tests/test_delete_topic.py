@@ -80,8 +80,8 @@ class TestDeleteTopic:
         assert 'Safety confirmation required' in str(excinfo.value)
         mock_client.delete_topic.assert_not_called()
 
-    def test_delete_topic_system_topic_double_underscore(self):
-        """Test the delete_topic function rejects system topics with __ prefix."""
+    def test_delete_topic_system_topic_consumer(self):
+        """Test the delete_topic function rejects system topics with __consumer prefix."""
         # Arrange
         mock_client = MagicMock()
         cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
@@ -97,12 +97,12 @@ class TestDeleteTopic:
         assert 'system prefixes' in str(excinfo.value)
         mock_client.delete_topic.assert_not_called()
 
-    def test_delete_topic_system_topic_internal(self):
-        """Test the delete_topic function rejects system topics with _internal prefix."""
+    def test_delete_topic_system_topic_amazon(self):
+        """Test the delete_topic function rejects system topics with __amazon prefix."""
         # Arrange
         mock_client = MagicMock()
         cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
-        topic_name = '_internal_topic'
+        topic_name = '__amazon_msk_canary'
         confirm_delete = 'DELETE'
 
         # Act & Assert
@@ -114,21 +114,24 @@ class TestDeleteTopic:
         assert 'protected from deletion' in str(excinfo.value)
         mock_client.delete_topic.assert_not_called()
 
-    def test_delete_topic_system_topic_confluent(self):
-        """Test the delete_topic function rejects system topics with _confluent prefix."""
+    def test_delete_topic_allows_regular_underscore_topics(self):
+        """Test the delete_topic function allows topics with single underscore."""
         # Arrange
         mock_client = MagicMock()
         cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
-        topic_name = '_confluent_metrics'
+        topic_name = '_regular_topic'
         confirm_delete = 'DELETE'
 
-        # Act & Assert
-        with pytest.raises(ValueError) as excinfo:
-            delete_topic(cluster_arn, topic_name, mock_client, confirm_delete)
+        # Act - should NOT raise, regular underscore topics are allowed
+        confirm_delete = 'DELETE'
+        expected_response = {'TopicArn': 'arn:test', 'Status': 'DELETING'}
+        mock_client.delete_topic.return_value = expected_response
 
-        # Verify the error
-        assert 'system prefixes' in str(excinfo.value)
-        mock_client.delete_topic.assert_not_called()
+        result = delete_topic(cluster_arn, topic_name, mock_client, confirm_delete)
+
+        # Assert - should succeed
+        mock_client.delete_topic.assert_called_once()
+        assert result == expected_response
 
     def test_delete_topic_not_found(self):
         """Test the delete_topic function when topic doesn't exist."""

@@ -146,7 +146,7 @@ def register_module(mcp: FastMCP) -> None:
 
         SAFETY REQUIREMENTS:
         1. confirm_delete parameter must be exactly "DELETE" (case-sensitive)
-        2. Topics with system prefixes (__*, _internal*, _confluent*, _kafka*, _schema*) are protected
+        2. Topics with system prefixes (__amazon*, __consumer*) are protected
 
         WARNING: This is a destructive operation that permanently deletes the topic and all its data.
 
