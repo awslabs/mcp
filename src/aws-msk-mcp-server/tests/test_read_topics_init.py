@@ -14,12 +14,10 @@
 
 """Tests for the read_topics/__init__.py module."""
 
-from typing import cast
-from unittest.mock import MagicMock, patch
-
-import pytest
 from awslabs.aws_msk_mcp_server.tools.read_topics import register_module
 from mcp.server.fastmcp import FastMCP
+from typing import cast
+from unittest.mock import MagicMock, patch
 
 
 class TestReadTopicsInit:
