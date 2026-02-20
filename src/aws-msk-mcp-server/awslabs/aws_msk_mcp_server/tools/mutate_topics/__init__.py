@@ -32,16 +32,18 @@ from .update_topic import update_topic
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="create_topic", description="Creates a topic in the specified MSK cluster.")
+    @mcp.tool(name='create_topic', description='Creates a topic in the specified MSK cluster.')
     def create_topic_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        topic_name: str = Field(..., description="The name of the topic to create"),
-        partition_count: int = Field(..., description="The number of partitions for the topic"),
-        replication_factor: int = Field(..., description="The replication factor for the topic"),
-        configs: Optional[str] = Field(None, description="Topic configurations encoded as a Base64 string"),
+        topic_name: str = Field(..., description='The name of the topic to create'),
+        partition_count: int = Field(..., description='The number of partitions for the topic'),
+        replication_factor: int = Field(..., description='The replication factor for the topic'),
+        configs: Optional[str] = Field(
+            None, description='Topic configurations encoded as a Base64 string'
+        ),
     ):
         """
         Creates a topic in the specified MSK cluster.
@@ -62,11 +64,11 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
-        
+
         # Call create_topic with configs only if provided
         if configs is not None:
             return create_topic(
@@ -78,20 +80,22 @@ def register_module(mcp: FastMCP) -> None:
             )
 
     @mcp.tool(
-        name="update_topic",
-        description="Updates the configuration of the specified topic.",
+        name='update_topic',
+        description='Updates the configuration of the specified topic.',
     )
     def update_topic_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        topic_name: str = Field(..., description="The name of the topic to update configuration for"),
+        topic_name: str = Field(
+            ..., description='The name of the topic to update configuration for'
+        ),
         configs: Optional[str] = Field(
-            None, description="The new topic configurations encoded as a Base64 string"
+            None, description='The new topic configurations encoded as a Base64 string'
         ),
         partition_count: Optional[int] = Field(
-            None, description="The new total number of partitions for the topic"
+            None, description='The new total number of partitions for the topic'
         ),
     ):
         """
@@ -112,29 +116,27 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
-        
+
         # Build kwargs conditionally to avoid passing None values
         kwargs = {}
         if configs is not None:
             kwargs['configs'] = configs
         if partition_count is not None:
             kwargs['partition_count'] = partition_count
-        
+
         return update_topic(cluster_arn, topic_name, client, **kwargs)
 
-    @mcp.tool(
-        name="delete_topic", description="Deletes a topic in the specified MSK cluster."
-    )
+    @mcp.tool(name='delete_topic', description='Deletes a topic in the specified MSK cluster.')
     def delete_topic_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        topic_name: str = Field(..., description="The name of the topic to delete"),
+        topic_name: str = Field(..., description='The name of the topic to delete'),
         confirm_delete: str = Field(
             ..., description='Must be exactly "DELETE" to confirm the destructive operation'
         ),
@@ -165,8 +167,8 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
         return delete_topic(cluster_arn, topic_name, client, confirm_delete)

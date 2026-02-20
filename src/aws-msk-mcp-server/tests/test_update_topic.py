@@ -62,7 +62,9 @@ class TestUpdateTopic:
         mock_client.update_topic.return_value = expected_response
 
         # Act
-        result = update_topic(cluster_arn, topic_name, mock_client, partition_count=partition_count)
+        result = update_topic(
+            cluster_arn, topic_name, mock_client, partition_count=partition_count
+        )
 
         # Assert
         mock_client.update_topic.assert_called_once_with(

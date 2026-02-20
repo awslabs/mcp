@@ -49,20 +49,20 @@ def list_topics(
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from list_topics_tool."
+            'Client must be provided. This function should only be called from list_topics_tool.'
         )
 
     # Build parameters for the API call
-    params: dict[str, Any] = {"ClusterArn": cluster_arn}
+    params: dict[str, Any] = {'ClusterArn': cluster_arn}
 
     if topic_name_filter is not None:
-        params["TopicNameFilter"] = topic_name_filter
+        params['TopicNameFilter'] = topic_name_filter
 
     if max_results is not None:
-        params["MaxResults"] = max_results
+        params['MaxResults'] = max_results
 
     if next_token is not None:
-        params["NextToken"] = next_token
+        params['NextToken'] = next_token
 
     # Make the API call using the new MSK Topics API
     response = client.list_topics(**params)

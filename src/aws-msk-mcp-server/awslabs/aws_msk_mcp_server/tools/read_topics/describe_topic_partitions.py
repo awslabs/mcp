@@ -48,17 +48,17 @@ def describe_topic_partitions(
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from describe_topic_partitions_tool."
+            'Client must be provided. This function should only be called from describe_topic_partitions_tool.'
         )
 
     # Build parameters for the API call
-    params: dict[str, Any] = {"ClusterArn": cluster_arn, "TopicName": topic_name}
+    params: dict[str, Any] = {'ClusterArn': cluster_arn, 'TopicName': topic_name}
 
     if max_results is not None:
-        params["MaxResults"] = max_results
+        params['MaxResults'] = max_results
 
     if next_token is not None:
-        params["NextToken"] = next_token
+        params['NextToken'] = next_token
 
     # Make the API call using the MSK describe_topic_partitions API
     response = client.describe_topic_partitions(**params)

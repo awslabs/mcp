@@ -36,24 +36,24 @@ def delete_topic(cluster_arn, topic_name, client, confirm_delete=None):
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from delete_topic_tool."
+            'Client must be provided. This function should only be called from delete_topic_tool.'
         )
 
     # Safety check: require explicit confirmation
-    if confirm_delete != "DELETE":
+    if confirm_delete != 'DELETE':
         raise ValueError(
             f"Safety confirmation required: To delete topic '{topic_name}', you must set "
             f"confirm_delete parameter to exactly 'DELETE' (case-sensitive). "
-            f"This is a destructive operation that will permanently delete the topic and all its data. "
+            f'This is a destructive operation that will permanently delete the topic and all its data. '
             f"Current confirm_delete value: '{confirm_delete}'"
         )
 
     # Additional safety: prevent deletion of topics with system-like names
-    system_prefixes = ["__", "_internal", "_confluent", "_kafka", "_schema"]
+    system_prefixes = ['__', '_internal', '_confluent', '_kafka', '_schema']
     if any(topic_name.startswith(prefix) for prefix in system_prefixes):
         raise ValueError(
             f"Cannot delete topic '{topic_name}': Topics starting with system prefixes "
-            f"{system_prefixes} are protected from deletion for safety."
+            f'{system_prefixes} are protected from deletion for safety.'
         )
 
     # Make the API call using the MSK delete_topic API

@@ -110,7 +110,9 @@ class TestListTopics:
         mock_client.list_topics.return_value = expected_response
 
         # Act
-        result = list_topics(cluster_arn, mock_client, max_results=max_results, next_token=next_token)
+        result = list_topics(
+            cluster_arn, mock_client, max_results=max_results, next_token=next_token
+        )
 
         # Assert
         mock_client.list_topics.assert_called_once_with(

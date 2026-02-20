@@ -32,22 +32,22 @@ from .list_topics import list_topics
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="list_topics", description="Returns all topics in an MSK cluster.")
+    @mcp.tool(name='list_topics', description='Returns all topics in an MSK cluster.')
     def list_topics_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
         topic_name_filter: Optional[str] = Field(
-            None, description="Returns topics starting with given name"
+            None, description='Returns topics starting with given name'
         ),
         max_results: Optional[int] = Field(
             None,
-            description="The maximum number of results to return in the response (default maximum 100 results per API call)",
+            description='The maximum number of results to return in the response (default maximum 100 results per API call)',
         ),
         next_token: Optional[str] = Field(
             None,
-            description="The paginated results marker. When the result of the operation is truncated, the call returns NextToken in the response",
+            description='The paginated results marker. When the result of the operation is truncated, the call returns NextToken in the response',
         ),
     ):
         """
@@ -74,11 +74,11 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
-        
+
         # Build kwargs conditionally to avoid passing None values
         kwargs = {}
         if topic_name_filter is not None:
@@ -87,18 +87,19 @@ def register_module(mcp: FastMCP) -> None:
             kwargs['max_results'] = max_results
         if next_token is not None:
             kwargs['next_token'] = next_token
-        
+
         return list_topics(cluster_arn, client, **kwargs)
 
     @mcp.tool(
-        name="describe_topic", description="Returns details for a specific topic on an MSK cluster."
+        name='describe_topic',
+        description='Returns details for a specific topic on an MSK cluster.',
     )
     def describe_topic_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        topic_name: str = Field(..., description="The name of the topic to describe"),
+        topic_name: str = Field(..., description='The name of the topic to describe'),
     ):
         """
         Returns details for a specific topic on an MSK cluster.
@@ -119,24 +120,28 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
         return describe_topic(cluster_arn, topic_name, client)
 
     @mcp.tool(
-        name="describe_topic_partitions",
-        description="Returns partition information for a specific topic on an MSK cluster.",
+        name='describe_topic_partitions',
+        description='Returns partition information for a specific topic on an MSK cluster.',
     )
     def describe_topic_partitions_tool(
-        region: str = Field(..., description="AWS region"),
+        region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(
-            ..., description="The Amazon Resource Name (ARN) that uniquely identifies the cluster"
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        topic_name: str = Field(..., description="The name of the topic to describe partitions for"),
-        max_results: Optional[int] = Field(None, description="Maximum number of partitions to return"),
-        next_token: Optional[str] = Field(None, description="Token for pagination"),
+        topic_name: str = Field(
+            ..., description='The name of the topic to describe partitions for'
+        ),
+        max_results: Optional[int] = Field(
+            None, description='Maximum number of partitions to return'
+        ),
+        next_token: Optional[str] = Field(None, description='Token for pagination'),
     ):
         """
         Returns partition information for a specific topic on an MSK cluster.
@@ -159,16 +164,16 @@ def register_module(mcp: FastMCP) -> None:
         """
         # Create a boto3 client
         client = boto3.client(
-            "kafka",
+            'kafka',
             region_name=region,
-            config=Config(user_agent_extra=f"awslabs/mcp/aws-msk-mcp-server/{__version__}"),
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
-        
+
         # Build kwargs conditionally to avoid passing None values
         kwargs = {}
         if max_results is not None:
             kwargs['max_results'] = max_results
         if next_token is not None:
             kwargs['next_token'] = next_token
-        
+
         return describe_topic_partitions(cluster_arn, topic_name, client, **kwargs)

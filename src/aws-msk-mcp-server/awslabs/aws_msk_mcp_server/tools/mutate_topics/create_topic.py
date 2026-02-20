@@ -47,20 +47,20 @@ def create_topic(
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from create_topic_tool."
+            'Client must be provided. This function should only be called from create_topic_tool.'
         )
 
     # Build parameters for the API call
     params = {
-        "ClusterArn": cluster_arn,
-        "TopicName": topic_name,
-        "PartitionCount": partition_count,
-        "ReplicationFactor": replication_factor,
+        'ClusterArn': cluster_arn,
+        'TopicName': topic_name,
+        'PartitionCount': partition_count,
+        'ReplicationFactor': replication_factor,
     }
 
     # Add optional configs parameter if provided
     if configs is not None:
-        params["Configs"] = configs
+        params['Configs'] = configs
 
     # Make the API call using the MSK create_topic API
     response = client.create_topic(**params)

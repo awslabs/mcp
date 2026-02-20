@@ -45,21 +45,21 @@ def update_topic(
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from update_topic_tool."
+            'Client must be provided. This function should only be called from update_topic_tool.'
         )
 
     # Build parameters for the API call
     params: dict[str, Any] = {
-        "ClusterArn": cluster_arn,
-        "TopicName": topic_name,
+        'ClusterArn': cluster_arn,
+        'TopicName': topic_name,
     }
 
     # Add optional parameters if provided
     if configs is not None:
-        params["Configs"] = configs
+        params['Configs'] = configs
 
     if partition_count is not None:
-        params["PartitionCount"] = partition_count
+        params['PartitionCount'] = partition_count
 
     # Make the API call using the MSK update_topic API
     response = client.update_topic(**params)

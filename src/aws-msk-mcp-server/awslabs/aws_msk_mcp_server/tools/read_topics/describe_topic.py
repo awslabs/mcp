@@ -38,7 +38,7 @@ def describe_topic(cluster_arn, topic_name, client):
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from describe_topic_tool."
+            'Client must be provided. This function should only be called from describe_topic_tool.'
         )
 
     # Make the API call using the MSK describe_topic API
