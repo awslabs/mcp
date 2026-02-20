@@ -57,26 +57,20 @@ done
 
 echo "Creating Aurora DSQL cluster in $REGION..."
 
-# Build the AWS CLI command
-CMD="aws dsql create-cluster --region $REGION"
+# Build the AWS CLI command as an array to avoid eval and shell injection
+CMD=(aws dsql create-cluster --region "$REGION")
 
 # Add tags if provided
 if [[ -n "$TAGS" ]]; then
-  # Convert comma-separated tags to JSON format
-  TAG_JSON=$(echo "$TAGS" | awk -F',' '{
-    printf "{"
-    for (i=1; i<=NF; i++) {
-      split($i, kv, "=")
-      printf "\"%s\":\"%s\"", kv[1], kv[2]
-      if (i < NF) printf ","
-    }
-    printf "}"
-  }')
-  CMD="$CMD --tags '$TAG_JSON'"
+  # Convert comma-separated tags to JSON format using jq for safe escaping
+  TAG_JSON=$(printf '%s\n' "$TAGS" | tr ',' '\n' | jq -Rn '
+    [inputs | split("=") | {(.[0]): .[1:] | join("=")}] | add // {}
+  ')
+  CMD+=(--tags "$TAG_JSON")
 fi
 
-# Execute the command
-eval $CMD > /tmp/dsql-cluster-create.json
+# Execute the command directly (no eval)
+"${CMD[@]}" > /tmp/dsql-cluster-create.json
 
 # Extract cluster identifier and endpoint
 CLUSTER_ID=$(jq -r '.identifier' /tmp/dsql-cluster-create.json)
