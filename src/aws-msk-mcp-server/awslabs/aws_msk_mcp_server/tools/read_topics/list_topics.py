@@ -27,8 +27,7 @@ def list_topics(
     max_results: Optional[int] = None,
     next_token: Optional[str] = None,
 ):
-    """
-    Returns all topics in an MSK cluster.
+    """Returns all topics in an MSK cluster.
 
     Args:
         cluster_arn (str): The ARN of the cluster to list topics for

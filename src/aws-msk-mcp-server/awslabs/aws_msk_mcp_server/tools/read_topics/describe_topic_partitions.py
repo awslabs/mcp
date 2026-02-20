@@ -27,8 +27,7 @@ def describe_topic_partitions(
     max_results: Optional[int] = None,
     next_token: Optional[str] = None,
 ):
-    """
-    Returns partition information for a topic on an MSK cluster.
+    """Returns partition information for a topic on an MSK cluster.
 
     Args:
         cluster_arn (str): The ARN of the cluster containing the topic

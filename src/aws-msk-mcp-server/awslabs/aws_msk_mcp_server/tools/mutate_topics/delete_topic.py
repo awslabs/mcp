@@ -19,8 +19,7 @@ Maps to AWS MSK API: delete_topic.
 
 
 def delete_topic(cluster_arn, topic_name, client, confirm_delete=None):
-    """
-    Deletes a topic in the specified MSK cluster.
+    """Deletes a topic in the specified MSK cluster.
 
     Args:
         cluster_arn (str): The Amazon Resource Name (ARN) that uniquely identifies the cluster

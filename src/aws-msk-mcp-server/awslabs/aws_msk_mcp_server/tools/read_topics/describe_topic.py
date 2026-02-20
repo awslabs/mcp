@@ -19,8 +19,7 @@ Maps to AWS MSK API: GET /v1/clusters/{clusterArn}/topics/{topicName}.
 
 
 def describe_topic(cluster_arn, topic_name, client):
-    """
-    Returns details for a topic on an MSK cluster.
+    """Returns details for a topic on an MSK cluster.
 
     Args:
         cluster_arn (str): The ARN of the cluster containing the topic

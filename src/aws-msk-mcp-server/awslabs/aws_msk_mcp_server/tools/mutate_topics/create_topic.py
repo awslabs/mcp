@@ -28,8 +28,7 @@ def create_topic(
     client,
     configs: Optional[str] = None,
 ):
-    """
-    Creates a topic in the specified MSK cluster.
+    """Creates a topic in the specified MSK cluster.
 
     Args:
         cluster_arn (str): The Amazon Resource Name (ARN) that uniquely identifies the cluster

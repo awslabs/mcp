@@ -27,8 +27,7 @@ def update_topic(
     configs: Optional[str] = None,
     partition_count: Optional[int] = None,
 ):
-    """
-    Updates the configuration of the specified topic.
+    """Updates the configuration of the specified topic.
 
     Args:
         cluster_arn (str): The Amazon Resource Name (ARN) that uniquely identifies the cluster
