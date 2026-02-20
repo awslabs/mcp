@@ -1,0 +1,17 @@
+{
+  "name": "simple-express-server-for-local-testing",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "node express-app.js"
+  },
+  "private": true,
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.922.0",
+    "express": "^5.1.0",
+    "pino": "^10.1.0"
+  }
+}
