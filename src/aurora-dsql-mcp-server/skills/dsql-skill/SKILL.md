@@ -56,6 +56,10 @@ sampled in [.mcp.json](mcp/.mcp.json)
 **When:** MUST load when trying to perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT functionality
 **Contains:** Table recreation patterns, batched migration for large tables, data validation
 
+### [mysql-to-dsql-migrations.md](references/mysql-to-dsql-migrations.md)
+**When:** MUST load when migrating from MySQL to DSQL or translating MySQL DDL to DSQL-compatible equivalents
+**Contains:** MySQL data type mappings, DDL operation translations, AUTO_INCREMENT/ENUM/SET/FOREIGN KEY migration patterns, ALTER TABLE ALTER COLUMN and DROP COLUMN via table recreation
+
 ---
 
 ## MCP Tools Available
@@ -212,6 +216,32 @@ Always use CREATE INDEX ASYNC in separate transaction
 - MUST validate data compatibility before type changes (abort if incompatible)
 - MUST NOT drop original table until new table is verified
 - MUST recreate all indexes after table swap using ASYNC
+
+### Workflow 6: MySQL to DSQL Schema Migration
+
+**Goal:** Migrate MySQL table schemas and DDL operations to DSQL-compatible equivalents, including data type mapping, ALTER TABLE ALTER COLUMN, and DROP COLUMN operations.
+
+**MUST load [mysql-to-dsql-migrations.md](references/mysql-to-dsql-migrations.md) for detailed guidance.**
+
+**Steps:**
+1. MUST map all MySQL data types to DSQL equivalents (e.g., AUTO_INCREMENT → UUID/IDENTITY/SEQUENCE, ENUM → VARCHAR with CHECK, JSON → TEXT)
+2. MUST remove MySQL-specific features (ENGINE, FOREIGN KEY, ON UPDATE CURRENT_TIMESTAMP, FULLTEXT INDEX)
+3. MUST implement application-layer replacements for removed features (referential integrity, timestamp updates)
+4. For `ALTER TABLE ... ALTER COLUMN col datatype` or `MODIFY COLUMN`: MUST use table recreation pattern
+5. For `ALTER TABLE ... DROP COLUMN col`: MUST use table recreation pattern
+6. MUST convert all index creation to `CREATE INDEX ASYNC` in separate transactions
+7. MUST validate data compatibility before type changes (abort if incompatible)
+
+**Rules:**
+- MUST use table recreation pattern for ALTER COLUMN and DROP COLUMN (not directly supported)
+- MUST replace FOREIGN KEY with application-layer referential integrity
+- MUST replace ENUM with VARCHAR and CHECK constraint
+- MUST replace SET with TEXT (comma-separated)
+- MUST replace JSON columns with TEXT
+- MUST convert AUTO_INCREMENT to UUID, IDENTITY column, or SEQUENCE (SERIAL not supported)
+- MUST replace UNSIGNED integers with CHECK (col >= 0)
+- MUST use batching for tables exceeding 3,000 rows
+- MUST NOT drop original table until new table is verified
 
 ---
 

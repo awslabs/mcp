@@ -314,4 +314,4 @@ The AWS IAM MCP Server **fully complies** with all established design guidelines
 - ✅ **100% Documentation Standards**
 - ✅ **100% Testing Requirements**
 
-The server follows all established patterns from existing AWS MCP servers while providing comprehensive IAM management capabilities with security best practices built-in.
+The server follows all established patterns from existing MCP servers for AWS while providing comprehensive IAM management capabilities with security best practices built-in.
