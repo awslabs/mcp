@@ -81,7 +81,7 @@ async def test_call_aws_success(
     mock_validate.return_value = mock_response
 
     # Execute
-    result = await call_aws.fn('aws s3api list-buckets', DummyCtx())
+    result = await call_aws('aws s3api list-buckets', DummyCtx())
 
     # Verify - the result should be the ProgramInterpretationResponse object
     assert result == mock_result
@@ -120,7 +120,7 @@ async def test_suggest_aws_commands_success(mock_get_session):
 
     mock_get_session.return_value = mock_session
 
-    result = await suggest_aws_commands.fn('List all S3 buckets', DummyCtx())
+    result = await suggest_aws_commands('List all S3 buckets', DummyCtx())
 
     assert result == mock_suggestions
     mock_session.post.assert_called_once()
@@ -134,7 +134,7 @@ async def test_suggest_aws_commands_success(mock_get_session):
 async def test_suggest_aws_commands_empty_query():
     """Test suggest_aws_commands raises error for empty query."""
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await suggest_aws_commands.fn('', DummyCtx())
+        await suggest_aws_commands('', DummyCtx())
 
     assert 'Empty query provided' in str(exc_info.value)
 
@@ -153,7 +153,7 @@ async def test_suggest_aws_commands_exception(mock_get_session):
     mock_get_session.return_value = mock_session
 
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await suggest_aws_commands.fn('List S3 buckets', DummyCtx())
+        await suggest_aws_commands('List S3 buckets', DummyCtx())
 
     assert 'Failed to execute tool due to internal error' in str(exc_info.value)
     mock_response.raise_for_status.assert_called_once()
@@ -298,7 +298,7 @@ async def test_call_aws_with_consent_and_accept(
     mock_ctx.elicit.return_value = AcceptedElicitation(data=Consent(answer=True))
 
     # Execute
-    result = await call_aws.fn('aws s3api create-bucket --bucket somebucket', mock_ctx)
+    result = await call_aws('aws s3api create-bucket --bucket somebucket', mock_ctx)
 
     # Verify that consent was requested
     assert result == mock_result
@@ -343,7 +343,7 @@ async def test_call_aws_with_consent_and_reject(
 
     # Execute and verify that consent was requested and error is raised
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api create-bucket --bucket somebucket', mock_ctx)
+        await call_aws('aws s3api create-bucket --bucket somebucket', mock_ctx)
 
     assert 'User rejected the execution of the command' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
@@ -393,7 +393,7 @@ async def test_call_aws_without_consent(
     mock_validate.return_value = mock_response
 
     # Execute
-    result = await call_aws.fn('aws s3api create-bucket --bucket somebucket', DummyCtx())
+    result = await call_aws('aws s3api create-bucket --bucket somebucket', DummyCtx())
 
     # Verify that consent was requested
     assert result == mock_result
@@ -413,7 +413,7 @@ async def test_call_aws_validation_error_awsmcp_error(mock_translate_cli_to_ir):
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws invalid-service invalid-operation', DummyCtx())
+        await call_aws('aws invalid-service invalid-operation', DummyCtx())
 
     assert 'Invalid command syntax' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with('aws invalid-service invalid-operation')
@@ -426,7 +426,7 @@ async def test_call_aws_validation_error_generic_exception(mock_translate_cli_to
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Generic validation error' in str(exc_info.value)
 
@@ -459,7 +459,7 @@ async def test_call_aws_no_credentials_error(
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'No AWS credentials found' in str(exc_info.value)
 
@@ -502,7 +502,7 @@ async def test_call_aws_execution_error_awsmcp_error(
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Execution failed' in str(exc_info.value)
 
@@ -541,7 +541,7 @@ async def test_call_aws_execution_error_generic_exception(
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Generic execution error' in str(exc_info.value)
 
@@ -554,7 +554,7 @@ async def test_call_aws_non_aws_command():
         mock_translate_cli_to_ir.side_effect = ValueError("Command must start with 'aws'")
 
         with pytest.raises(AwsApiMcpError) as exc_info:
-            await call_aws.fn('s3api list-buckets', DummyCtx())
+            await call_aws('s3api list-buckets', DummyCtx())
 
         assert "Command must start with 'aws'" in str(exc_info.value)
 
@@ -592,7 +592,7 @@ async def test_when_operation_is_not_allowed(
 
     # Execute and verify
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Execution of this operation is not allowed because read only mode is enabled' in str(
         exc_info.value
@@ -625,7 +625,7 @@ async def test_call_aws_validation_failures(mock_translate_cli_to_ir, mock_valid
 
     # Execute and verify
     with pytest.raises(CommandValidationError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Invalid parameter value' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api list-buckets')
@@ -658,7 +658,7 @@ async def test_call_aws_failed_constraints(mock_translate_cli_to_ir, mock_valida
 
     # Execute and verify
     with pytest.raises(CommandValidationError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     assert 'Resource limit exceeded' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api list-buckets')
@@ -691,7 +691,7 @@ async def test_call_aws_both_validation_failures_and_constraints(
 
     # Execute and verify
     with pytest.raises(CommandValidationError) as exc_info:
-        await call_aws.fn('aws s3api list-buckets', DummyCtx())
+        await call_aws('aws s3api list-buckets', DummyCtx())
 
     error_msg = str(exc_info.value)
     assert 'Invalid parameter value' in error_msg
@@ -726,7 +726,7 @@ async def test_call_aws_awscli_customization_success(
     expected_response = AwsCliAliasResponse(response='Command executed successfully', error=None)
     mock_execute_awscli_customization.return_value = expected_response
 
-    result = await call_aws.fn('aws configure list', DummyCtx())
+    result = await call_aws('aws configure list', DummyCtx())
 
     assert result == expected_response
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
@@ -767,7 +767,7 @@ async def test_call_aws_awscli_customization_error(
     )
 
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws configure list', DummyCtx())
+        await call_aws('aws configure list', DummyCtx())
 
     assert 'Configuration file not found' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
@@ -855,7 +855,7 @@ async def test_get_execution_plan_is_available_when_env_var_is_set():
 
     from awslabs.aws_api_mcp_server.server import server
 
-    tools = await server._list_tools_middleware()
+    tools = await server.list_tools()
     tool_names = [tool.name for tool in tools]
     assert 'get_execution_plan' in tool_names
 
@@ -871,7 +871,7 @@ async def test_get_execution_plan_is_available_when_env_var_is_not_set():
 
     from awslabs.aws_api_mcp_server.server import server
 
-    tools = await server._list_tools_middleware()
+    tools = await server.list_tools()
     tool_names = [tool.name for tool in tools]
     assert 'get_execution_plan' not in tool_names
 
@@ -894,7 +894,7 @@ async def test_get_execution_plan_script_not_found():
         mock_agent_scripts_manager.get_script.return_value = None
 
         with pytest.raises(AwsApiMcpError) as exc_info:
-            await get_execution_plan.fn('non-existent-script', DummyCtx())
+            await get_execution_plan('non-existent-script', DummyCtx())
 
         assert 'Script non-existent-script not found' in str(exc_info.value)
         mock_agent_scripts_manager.get_script.assert_called_once_with('non-existent-script')
@@ -918,7 +918,7 @@ async def test_get_execution_plan_exception_handling():
         mock_agent_scripts_manager.get_script.side_effect = Exception('Test exception')
 
         with pytest.raises(AwsApiMcpError) as exc_info:
-            await get_execution_plan.fn('test-script', DummyCtx())
+            await get_execution_plan('test-script', DummyCtx())
 
         assert 'Test exception' in str(exc_info.value)
 
@@ -1006,7 +1006,7 @@ async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
 
     ctx = DummyCtx()
 
-    result = await call_aws.fn('aws s3api list-buckets', ctx)
+    result = await call_aws('aws s3api list-buckets', ctx)
 
     mock_call_aws_helper.assert_called_once_with(
         cli_command='aws s3api list-buckets', ctx=ctx, max_results=None, credentials=None
@@ -1052,7 +1052,7 @@ async def test_call_aws_help_command_success(service, operation):
         failed_constraints=None,
     )
 
-    result = await call_aws.fn(f'aws {service} {operation} help', DummyCtx())
+    result = await call_aws(f'aws {service} {operation} help', DummyCtx())
 
     assert result == expected_response
 
@@ -1079,7 +1079,7 @@ async def test_call_aws_help_command_failure(
     mock_get_help_document.side_effect = AwsApiMcpError('Failed to generate help document')
 
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws non-existing-service non-existing-operation help', DummyCtx())
+        await call_aws('aws non-existing-service non-existing-operation help', DummyCtx())
 
     assert 'Failed to generate help document' in str(exc_info.value)
     mock_translate_cli_to_ir.assert_called_once_with(
