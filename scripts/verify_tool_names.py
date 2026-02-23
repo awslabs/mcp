@@ -104,7 +104,15 @@ def calculate_fully_qualified_name(server_name: str, tool_name: str) -> str:
 
 
 def find_tool_decorators(file_path: Path) -> List[Tuple[str, int]]:
-    """Find all @mcp.tool decorators in a Python file and extract tool names.
+    """Find all tool definitions in a Python file and extract tool names.
+
+    Supports all tool registration patterns:
+    - Pattern 1: @mcp.tool(name='tool_name')
+    - Pattern 2: @mcp.tool() (uses function name)
+    - Pattern 3: app.tool('tool_name')(function)
+    - Pattern 4: mcp.tool()(function) (uses function name)
+    - Pattern 5: self.mcp.tool(name='tool_name')(function)
+    - Pattern 6: @<var>.tool(name='tool_name')
 
     Returns:
         List of tuples: (tool_name, line_number)
@@ -124,27 +132,63 @@ def find_tool_decorators(file_path: Path) -> List[Tuple[str, int]]:
         return []
 
     for node in ast.walk(tree):
+        # PATTERN 1 & 2 & 6: Decorator patterns
+        # @mcp.tool(name='...') or @mcp.tool() or @server.tool(name='...')
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
-                # Handle @mcp.tool(name='...') and @mcp.tool(name="...")
                 if isinstance(decorator, ast.Call):
-                    # Check if decorator is mcp.tool
-                    is_mcp_tool = False
-                    if isinstance(decorator.func, ast.Attribute):
-                        if (
-                            decorator.func.attr == 'tool'
-                            and isinstance(decorator.func.value, ast.Name)
-                            and decorator.func.value.id == 'mcp'
-                        ):
-                            is_mcp_tool = True
-
-                    if is_mcp_tool:
-                        # Look for name argument
+                    # Check if decorator is *.tool(...)
+                    if isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'tool':
+                        # Pattern 1: @mcp.tool(name='tool_name')
+                        # Pattern 6: @server.tool(name='tool_name')
+                        tool_name = None
                         for keyword in decorator.keywords:
                             if keyword.arg == 'name' and isinstance(keyword.value, ast.Constant):
                                 tool_name = keyword.value.value
-                                line_number = node.lineno
-                                tools.append((tool_name, line_number))
+                                break
+
+                        # Pattern 2: @mcp.tool() or @server.tool() - use function name
+                        if tool_name is None:
+                            tool_name = node.name
+
+                        if tool_name:
+                            tools.append((tool_name, node.lineno))
+
+        # PATTERN 3, 4, 5: Method registration patterns
+        # app.tool('name')(func) or mcp.tool()(func) or self.mcp.tool(name='...')(func)
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            call = node.value
+            # Check if this is a chained call like app.tool('name')(func)
+            if isinstance(call.func, ast.Call):
+                inner_call = call.func
+                if isinstance(inner_call.func, ast.Attribute) and inner_call.func.attr == 'tool':
+                    tool_name = None
+
+                    # Pattern 3 & 5: Explicit name in first argument or 'name' keyword
+                    # app.tool('tool_name')(func) or self.mcp.tool(name='tool_name')(func)
+                    if inner_call.args and isinstance(inner_call.args[0], ast.Constant):
+                        tool_name = inner_call.args[0].value
+                    else:
+                        # Check for name keyword argument
+                        for keyword in inner_call.keywords:
+                            if keyword.arg == 'name' and isinstance(keyword.value, ast.Constant):
+                                tool_name = keyword.value.value
+                                break
+
+                    # Pattern 4: mcp.tool()(func) - extract function name from argument
+                    if tool_name is None:
+                        # Get the function being passed to the tool decorator
+                        if call.args:
+                            func_arg = call.args[0]
+                            # Handle simple name: my_function
+                            if isinstance(func_arg, ast.Name):
+                                tool_name = func_arg.id
+                            # Handle attribute access: module.my_function
+                            elif isinstance(func_arg, ast.Attribute):
+                                tool_name = func_arg.attr
+
+                    if tool_name and isinstance(tool_name, str):
+                        tools.append((tool_name, node.lineno))
 
     return tools
 
@@ -190,6 +234,13 @@ def validate_tool_name(tool_name: str) -> Tuple[List[str], List[str]]:
         errors.append('Tool name cannot be empty')
         return errors, warnings
 
+    # Check length (MCP SEP-986: tool names should be 1-64 characters)
+    if len(tool_name) > MAX_TOOL_NAME_LENGTH:
+        errors.append(
+            f"Tool name '{tool_name}' ({len(tool_name)} chars) exceeds the {MAX_TOOL_NAME_LENGTH} "
+            f'character limit specified in MCP SEP-986. Please shorten the tool name.'
+        )
+
     # Check if name matches the valid pattern
     if not VALID_TOOL_NAME_PATTERN.match(tool_name):
         if tool_name[0].isdigit():
@@ -226,23 +277,11 @@ def validate_tool_names(
         - list_of_errors: Critical issues that fail the build
         - list_of_warnings: Recommendations that don't fail the build
     """
-    server_name = convert_package_name_to_server_format(package_name)
     errors = []
     warnings = []
 
     for tool_name, file_path, line_number in tools:
-        # PRIMARY CHECK: Validate fully qualified name length (REQUIRED - issue #616)
-        fully_qualified_name = calculate_fully_qualified_name(server_name, tool_name)
-        fqn_length = len(fully_qualified_name)
-
-        if fqn_length > MAX_TOOL_NAME_LENGTH:
-            errors.append(
-                f'{file_path}:{line_number} - Tool name "{tool_name}" results in fully qualified name '
-                f'"{fully_qualified_name}" ({fqn_length} chars) which exceeds the {MAX_TOOL_NAME_LENGTH} '
-                f'character limit. Consider shortening the tool name.'
-            )
-
-        # SECONDARY CHECK: Validate naming conventions
+        # Validate tool name (length, characters, conventions)
         naming_errors, naming_warnings = validate_tool_name(tool_name)
         for error in naming_errors:
             errors.append(f'{file_path}:{line_number} - {error}')
@@ -254,9 +293,7 @@ def validate_tool_names(
             style_note = ''
             if naming_warnings:
                 style_note = ' (non-snake_case)'
-            print(
-                f'  {status} {tool_name} -> {fully_qualified_name} ({fqn_length} chars){style_note}'
-            )
+            print(f'  {status} {tool_name} ({len(tool_name)} chars){style_note}')
 
     return len(errors) == 0, errors, warnings
 
