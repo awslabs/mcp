@@ -48,9 +48,7 @@ class InspectorTools:
 
     def _get_inspector_client(self, region: str):
         """Create an Inspector2 client for the specified region."""
-        config = Config(
-            user_agent_extra=f'awslabs/mcp/inspector-mcp-server/{MCP_SERVER_VERSION}'
-        )
+        config = Config(user_agent_extra=f'awslabs/mcp/inspector-mcp-server/{MCP_SERVER_VERSION}')
 
         try:
             if aws_profile := os.environ.get('AWS_PROFILE'):
@@ -77,9 +75,7 @@ class InspectorTools:
         self,
         ctx: Context,
         severity: Annotated[
-            Optional[
-                Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']
-            ],
+            Optional[Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']],
             Field(description='Filter findings by severity level'),
         ] = None,
         resource_type: Annotated[
@@ -282,9 +278,7 @@ class InspectorTools:
             Field(description='Filter aggregation by resource type'),
         ] = None,
         severity: Annotated[
-            Optional[
-                Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']
-            ],
+            Optional[Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']],
             Field(description='Filter aggregation by severity level'),
         ] = None,
         max_results: Annotated[
@@ -352,13 +346,9 @@ class InspectorTools:
             if next_token:
                 params['nextToken'] = next_token
 
-            logger.info(
-                f'Listing finding aggregations by {aggregation_type} in region {region}'
-            )
+            logger.info(f'Listing finding aggregations by {aggregation_type} in region {region}')
 
-            response = inspector_client.list_finding_aggregations(
-                **remove_null_values(params)
-            )
+            response = inspector_client.list_finding_aggregations(**remove_null_values(params))
 
             # Extract aggregation responses
             counts = response.get('responses', [])
@@ -538,9 +528,7 @@ class InspectorTools:
 
             logger.info(f'Listing coverage statistics in region {region}')
 
-            response = inspector_client.list_coverage_statistics(
-                **remove_null_values(params)
-            )
+            response = inspector_client.list_coverage_statistics(**remove_null_values(params))
 
             result: Dict[str, Any] = {
                 'total_counts': response.get('totalCounts'),
@@ -604,8 +592,7 @@ class InspectorTools:
             }
 
             logger.info(
-                f'Successfully retrieved status for {len(accounts)} accounts '
-                f'from region {region}'
+                f'Successfully retrieved status for {len(accounts)} accounts from region {region}'
             )
             return result
 
@@ -634,9 +621,7 @@ class InspectorTools:
             Field(description='Format of the report (CSV or JSON)'),
         ] = 'JSON',
         severity: Annotated[
-            Optional[
-                Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']
-            ],
+            Optional[Literal['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFORMATIONAL', 'UNTRIAGED']],
             Field(description='Filter report findings by severity'),
         ] = None,
         resource_type: Annotated[
@@ -723,9 +708,7 @@ class InspectorTools:
             error_message = None
 
             while elapsed_time < max_wait_time:
-                status_response = inspector_client.get_findings_report_status(
-                    reportId=report_id
-                )
+                status_response = inspector_client.get_findings_report_status(reportId=report_id)
                 status = status_response.get('status', 'UNKNOWN')
 
                 if status in ['SUCCEEDED', 'FAILED', 'CANCELLED']:

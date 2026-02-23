@@ -34,9 +34,7 @@ class Finding(BaseModel):
     title: Optional[str] = Field(None, alias='title')
     type: Optional[str] = Field(None, alias='type')
     inspector_score: Optional[float] = Field(None, alias='inspectorScore')
-    inspector_score_details: Optional[Dict[str, Any]] = Field(
-        None, alias='inspectorScoreDetails'
-    )
+    inspector_score_details: Optional[Dict[str, Any]] = Field(None, alias='inspectorScoreDetails')
     network_reachability_details: Optional[Dict[str, Any]] = Field(
         None, alias='networkReachabilityDetails'
     )
@@ -78,9 +76,7 @@ class FindingDetail(BaseModel):
     title: Optional[str] = Field(None, alias='title')
     type: Optional[str] = Field(None, alias='type')
     inspector_score: Optional[float] = Field(None, alias='inspectorScore')
-    inspector_score_details: Optional[Dict[str, Any]] = Field(
-        None, alias='inspectorScoreDetails'
-    )
+    inspector_score_details: Optional[Dict[str, Any]] = Field(None, alias='inspectorScoreDetails')
     network_reachability_details: Optional[Dict[str, Any]] = Field(
         None, alias='networkReachabilityDetails'
     )

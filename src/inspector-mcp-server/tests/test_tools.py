@@ -194,9 +194,7 @@ class TestListFindings:
         mock_get_client.return_value = mock_client
         mock_client.list_findings.return_value = {'findings': sample_findings}
 
-        result = await tools.list_findings(
-            mock_context, resource_type='AWS_EC2_INSTANCE'
-        )
+        result = await tools.list_findings(mock_context, resource_type='AWS_EC2_INSTANCE')
 
         assert len(result['findings']) == 2
         call_kwargs = mock_client.list_findings.call_args[1]
@@ -214,9 +212,7 @@ class TestListFindings:
             'findings': [sample_findings[1]],
         }
 
-        result = await tools.list_findings(
-            mock_context, finding_type='NETWORK_REACHABILITY'
-        )
+        result = await tools.list_findings(mock_context, finding_type='NETWORK_REACHABILITY')
 
         assert len(result['findings']) == 1
         call_kwargs = mock_client.list_findings.call_args[1]
@@ -274,9 +270,7 @@ class TestListFindings:
             'nextToken': 'new-token-456',
         }
 
-        result = await tools.list_findings(
-            mock_context, next_token='previous-token-123'
-        )
+        result = await tools.list_findings(mock_context, next_token='previous-token-123')
 
         assert len(result['findings']) == 2
         assert result['next_token'] == 'new-token-456'
@@ -317,20 +311,18 @@ class TestListFindings:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_findings_max_results_boundary(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_findings_max_results_boundary(self, mock_get_client, tools, mock_context):
         """Test list_findings max_results boundary conditions."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
         mock_client.list_findings.return_value = {'findings': []}
 
         test_cases = [
-            (None, 10),   # Default
-            (1, 1),       # Minimum
-            (100, 100),   # Maximum
-            (0, 1),       # Below minimum
-            (200, 100),   # Above maximum
+            (None, 10),  # Default
+            (1, 1),  # Minimum
+            (100, 100),  # Maximum
+            (0, 1),  # Below minimum
+            (200, 100),  # Above maximum
         ]
 
         for input_val, expected_val in test_cases:
@@ -340,9 +332,7 @@ class TestListFindings:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_findings_empty_results(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_findings_empty_results(self, mock_get_client, tools, mock_context):
         """Test list_findings with empty results."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -355,9 +345,7 @@ class TestListFindings:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_findings_error_handling(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_findings_error_handling(self, mock_get_client, tools, mock_context):
         """Test list_findings error handling."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -370,9 +358,7 @@ class TestListFindings:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_findings_with_all_filters(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_findings_with_all_filters(self, mock_get_client, tools, mock_context):
         """Test list_findings with all filters applied."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -486,9 +472,7 @@ class TestGetFindingDetails:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_get_finding_details_not_found(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_get_finding_details_not_found(self, mock_get_client, tools, mock_context):
         """Test get_finding_details when finding is not found."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -535,9 +519,7 @@ class TestGetFindingDetails:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_get_finding_details_error_handling(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_get_finding_details_error_handling(self, mock_get_client, tools, mock_context):
         """Test get_finding_details error handling."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -593,9 +575,7 @@ class TestListFindingAggregations:
         mock_get_client.return_value = mock_client
         mock_client.list_finding_aggregations.return_value = sample_severity_aggregation
 
-        result = await tools.list_finding_aggregations(
-            mock_context, aggregation_type='SEVERITY'
-        )
+        result = await tools.list_finding_aggregations(mock_context, aggregation_type='SEVERITY')
 
         assert result['aggregation_type'] == 'SEVERITY'
         assert result['counts'] is not None
@@ -619,9 +599,7 @@ class TestListFindingAggregations:
             ],
         }
 
-        result = await tools.list_finding_aggregations(
-            mock_context, aggregation_type='ACCOUNT_ID'
-        )
+        result = await tools.list_finding_aggregations(mock_context, aggregation_type='ACCOUNT_ID')
 
         assert result['aggregation_type'] == 'ACCOUNT_ID'
         assert len(result['counts']) == 2
@@ -698,9 +676,7 @@ class TestListFindingAggregations:
         mock_client.list_finding_aggregations.side_effect = Exception('Service error')
 
         with pytest.raises(Exception, match='Service error'):
-            await tools.list_finding_aggregations(
-                mock_context, aggregation_type='SEVERITY'
-            )
+            await tools.list_finding_aggregations(mock_context, aggregation_type='SEVERITY')
 
         mock_context.error.assert_called_once()
 
@@ -777,9 +753,7 @@ class TestListCoverage:
             'coveredResources': [sample_coverage[0]],
         }
 
-        result = await tools.list_coverage(
-            mock_context, resource_type='AWS_EC2_INSTANCE'
-        )
+        result = await tools.list_coverage(mock_context, resource_type='AWS_EC2_INSTANCE')
 
         assert len(result['covered_resources']) == 1
         call_kwargs = mock_client.list_coverage.call_args[1]
@@ -833,9 +807,7 @@ class TestListCoverage:
             'nextToken': 'new-cov-token',
         }
 
-        result = await tools.list_coverage(
-            mock_context, next_token='prev-cov-token'
-        )
+        result = await tools.list_coverage(mock_context, next_token='prev-cov-token')
 
         assert result['next_token'] == 'new-cov-token'
         call_kwargs = mock_client.list_coverage.call_args[1]
@@ -843,9 +815,7 @@ class TestListCoverage:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_coverage_empty_results(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_coverage_empty_results(self, mock_get_client, tools, mock_context):
         """Test list_coverage with empty results."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -874,9 +844,7 @@ class TestListCoverage:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_list_coverage_error_handling(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_list_coverage_error_handling(self, mock_get_client, tools, mock_context):
         """Test list_coverage error handling."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -940,9 +908,7 @@ class TestListCoverageStatistics:
         mock_get_client.return_value = mock_client
         mock_client.list_coverage_statistics.return_value = sample_coverage_statistics
 
-        await tools.list_coverage_statistics(
-            mock_context, group_by='RESOURCE_TYPE'
-        )
+        await tools.list_coverage_statistics(mock_context, group_by='RESOURCE_TYPE')
 
         call_kwargs = mock_client.list_coverage_statistics.call_args[1]
         assert call_kwargs['groupBy'] == 'RESOURCE_TYPE'
@@ -960,9 +926,7 @@ class TestListCoverageStatistics:
             'countsByGroup': [],
         }
 
-        await tools.list_coverage_statistics(
-            mock_context, resource_type='AWS_EC2_INSTANCE'
-        )
+        await tools.list_coverage_statistics(mock_context, resource_type='AWS_EC2_INSTANCE')
 
         call_kwargs = mock_client.list_coverage_statistics.call_args[1]
         assert 'filterCriteria' in call_kwargs
@@ -978,9 +942,7 @@ class TestListCoverageStatistics:
         mock_get_client.return_value = mock_client
         mock_client.list_coverage_statistics.return_value = sample_coverage_statistics
 
-        await tools.list_coverage_statistics(
-            mock_context, region='ap-northeast-1'
-        )
+        await tools.list_coverage_statistics(mock_context, region='ap-northeast-1')
 
         mock_get_client.assert_called_with('ap-northeast-1')
 
@@ -1061,9 +1023,7 @@ class TestGetAccountStatus:
         mock_get_client.return_value = mock_client
         mock_client.batch_get_account_status.return_value = sample_account_status
 
-        await tools.get_account_status(
-            mock_context, account_ids=['123456789012', '987654321098']
-        )
+        await tools.get_account_status(mock_context, account_ids=['123456789012', '987654321098'])
 
         mock_client.batch_get_account_status.assert_called_once_with(
             accountIds=['123456789012', '987654321098']
@@ -1088,9 +1048,7 @@ class TestGetAccountStatus:
             ],
         }
 
-        result = await tools.get_account_status(
-            mock_context, account_ids=['111111111111']
-        )
+        result = await tools.get_account_status(mock_context, account_ids=['111111111111'])
 
         assert len(result['accounts']) == 0
         assert len(result['failed_accounts']) == 1
@@ -1112,9 +1070,7 @@ class TestGetAccountStatus:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_get_account_status_error_handling(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_get_account_status_error_handling(self, mock_get_client, tools, mock_context):
         """Test get_account_status error handling."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -1171,9 +1127,7 @@ class TestCreateFindingsReport:
 
     @pytest.mark.asyncio
     @patch.object(InspectorTools, '_get_inspector_client')
-    async def test_create_findings_report_no_polling(
-        self, mock_get_client, tools, mock_context
-    ):
+    async def test_create_findings_report_no_polling(self, mock_get_client, tools, mock_context):
         """Test create_findings_report without polling for completion."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client

@@ -57,13 +57,9 @@ def build_date_filter(
     """
     date_filter: Dict[str, Any] = {}
     if start:
-        date_filter['startInclusive'] = datetime.fromisoformat(
-            start.replace('Z', '+00:00')
-        )
+        date_filter['startInclusive'] = datetime.fromisoformat(start.replace('Z', '+00:00'))
     if end:
-        date_filter['endInclusive'] = datetime.fromisoformat(
-            end.replace('Z', '+00:00')
-        )
+        date_filter['endInclusive'] = datetime.fromisoformat(end.replace('Z', '+00:00'))
     if date_filter:
         return [date_filter]
     return []
