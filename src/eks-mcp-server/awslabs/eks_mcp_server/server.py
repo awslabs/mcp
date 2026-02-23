@@ -18,9 +18,11 @@ This module implements the EKS MCP Server, which provides tools for managing Ama
 and Kubernetes resources through the Model Context Protocol (MCP).
 
 Environment Variables:
-    AWS_REGION: AWS region to use for AWS API calls (default region when not using cluster config)
-    AWS_PROFILE: AWS profile to use for credentials (default profile when not using cluster config)
+    AWS_REGION: AWS region to use for AWS API calls (default: us-east-1 if not specified)
+    AWS_PROFILE: AWS profile to use for credentials
     EKS_CLUSTER_CONFIG: Path to JSON file containing cluster configuration for multi-region/account support
+                        If not provided, the server will automatically discover clusters using default
+                        credentials in the region specified by AWS_REGION (or us-east-1)
     FASTMCP_LOG_LEVEL: Log level (default: WARNING)
 """
 
@@ -149,12 +151,39 @@ def main():
         try:
             ConfigManager.load_config(cluster_config_path)
             logger.info(f'Loaded cluster configuration from {cluster_config_path}')
+
+            # Perform automatic cluster discovery if no explicit clusters configured
+            if not ConfigManager.has_explicit_clusters():
+                logger.info('Performing automatic cluster discovery at startup...')
+                discovered_clusters = EKSDiscoveryHandler.discover_clusters_at_startup()
+                if discovered_clusters:
+                    ConfigManager.set_discovered_clusters(discovered_clusters)
+                    logger.info(
+                        f'Successfully discovered and stored {len(discovered_clusters)} clusters'
+                    )
+                else:
+                    logger.info('No clusters discovered in configured accounts/regions')
         except FileNotFoundError as e:
             logger.error(f'Cluster configuration file not found: {e}')
             raise SystemExit(1)
         except Exception as e:
             logger.error(f'Failed to load cluster configuration: {e}')
             raise SystemExit(1)
+    else:
+        # No config file provided - discover clusters using default credentials
+        try:
+            logger.info('No config file provided - discovering clusters using default credentials')
+            discovered_clusters = EKSDiscoveryHandler.discover_clusters_with_default_credentials()
+            if discovered_clusters:
+                ConfigManager.set_discovered_clusters(discovered_clusters)
+                logger.info(
+                    f'Successfully discovered and stored {len(discovered_clusters)} clusters using default credentials'
+                )
+            else:
+                logger.info('No clusters discovered using default credentials')
+        except Exception as e:
+            logger.warning(f'Failed to discover clusters using default credentials: {e}')
+            logger.info('Server will start without any pre-configured clusters')
 
     # Log startup mode
     mode_info = []
@@ -183,7 +212,7 @@ def main():
     # Run server
     mcp.run()
 
-    return mcp
+    # return mcp
 
 
 if __name__ == '__main__':

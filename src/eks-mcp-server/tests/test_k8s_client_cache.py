@@ -41,20 +41,20 @@ class TestK8sClientCache:
         assert hasattr(cache, '_client_cache')
         assert cache._client_cache.maxsize == 100
 
-        # Verify that the STS event handlers flag is initialized
+        # Verify that the STS event handlers flag is initialized (now a dict)
         assert hasattr(cache, '_sts_event_handlers_registered')
-        assert cache._sts_event_handlers_registered is False
+        assert isinstance(cache._sts_event_handlers_registered, dict)
 
         # Verify that the initialization flag is set
         assert cache._initialized is True
 
-    def test_get_sts_client(self):
-        """Test _get_sts_client method."""
+    def test_get_sts_client_for_cluster_default_credentials(self):
+        """Test _get_sts_client_for_cluster method with default credentials."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
         # Reset the STS event handlers flag
-        cache._sts_event_handlers_registered = False
+        cache._sts_event_handlers_registered = {}
 
         # Mock the AwsHelper.create_boto3_client method
         with patch(
@@ -66,8 +66,8 @@ class TestK8sClientCache:
             # Mock the meta.events.register method
             mock_sts_client.meta.events.register = MagicMock()
 
-            # Get the STS client
-            client = cache._get_sts_client()
+            # Get the STS client with default credentials (no cluster_config)
+            client = cache._get_sts_client_for_cluster(None)
 
             # Verify that AwsHelper.create_boto3_client was called with the correct parameters
             mock_create_client.assert_called_once_with('sts')
@@ -75,8 +75,8 @@ class TestK8sClientCache:
             # Verify that the event handlers were registered
             assert mock_sts_client.meta.events.register.call_count == 2
 
-            # Verify that the STS event handlers flag was set
-            assert cache._sts_event_handlers_registered is True
+            # Verify that the STS event handlers flag was set for 'default'
+            assert 'default' in cache._sts_event_handlers_registered
 
             # Verify that the client was returned
             assert client == mock_sts_client
@@ -85,8 +85,8 @@ class TestK8sClientCache:
             mock_create_client.reset_mock()
             mock_sts_client.meta.events.register.reset_mock()
 
-            # Call _get_sts_client again
-            cache._get_sts_client()
+            # Call _get_sts_client_for_cluster again with the same credentials
+            cache._get_sts_client_for_cluster(None)
 
             # Verify that AwsHelper.create_boto3_client was called again
             mock_create_client.assert_called_once_with('sts')
@@ -148,41 +148,44 @@ class TestK8sClientCache:
         assert K8S_AWS_ID_HEADER not in mock_request.headers
 
     def test_get_client_success(self):
-        """Test get_client method with successful client creation."""
+        """Test get_client method with successful client creation using default credentials."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
         # Clear the client cache
         cache._client_cache.clear()
 
-        # Mock the _get_cluster_credentials method
-        with patch.object(
-            cache,
-            '_get_cluster_credentials',
-            return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
-        ) as mock_cache:
-            # Mock the K8sApis constructor
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_k8s_apis_class:
-                mock_k8s_apis = MagicMock()
-                mock_k8s_apis_class.return_value = mock_k8s_apis
+        # Mock ConfigManager to return None (no config loaded)
+        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+                # Mock the _get_cluster_credentials_default method
+                with patch.object(
+                    cache,
+                    '_get_cluster_credentials_default',
+                    return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
+                ) as mock_credentials:
+                    # Mock the K8sApis constructor
+                    with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_k8s_apis_class:
+                        mock_k8s_apis = MagicMock()
+                        mock_k8s_apis_class.return_value = mock_k8s_apis
 
-                # Get a client
-                client = cache.get_client('test-cluster')
+                        # Get a client
+                        client = cache.get_client('test-cluster')
 
-                # Verify that _get_cluster_credentials was called
-                mock_cache.assert_called_once_with('test-cluster')
+                        # Verify that _get_cluster_credentials_default was called
+                        mock_credentials.assert_called_once_with('test-cluster')
 
-                # Verify that K8sApis was initialized with the correct parameters
-                mock_k8s_apis_class.assert_called_once_with(
-                    'https://test-endpoint', 'test-token', 'test-ca-data'
-                )
+                        # Verify that K8sApis was initialized with the correct parameters
+                        mock_k8s_apis_class.assert_called_once_with(
+                            'https://test-endpoint', 'test-token', 'test-ca-data'
+                        )
 
-                # Verify that the client was cached
-                assert 'test-cluster' in cache._client_cache
-                assert cache._client_cache['test-cluster'] == mock_k8s_apis
+                        # Verify that the client was cached with simple key
+                        assert 'test-cluster' in cache._client_cache
+                        assert cache._client_cache['test-cluster'] == mock_k8s_apis
 
-                # Verify that the client was returned
-                assert client == mock_k8s_apis
+                        # Verify that the client was returned
+                        assert client == mock_k8s_apis
 
     def test_get_client_cached(self):
         """Test get_client method with cached client."""
@@ -194,16 +197,19 @@ class TestK8sClientCache:
         cache._client_cache.clear()
         cache._client_cache['test-cluster'] = mock_k8s_apis
 
-        # Mock the _get_cluster_credentials method
-        with patch.object(cache, '_get_cluster_credentials') as mock_get_credentials:
-            # Get a client
-            client = cache.get_client('test-cluster')
+        # Mock ConfigManager to return None (no config loaded)
+        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+                # Mock the credential methods to ensure they're not called
+                with patch.object(cache, '_get_cluster_credentials_default') as mock_get_credentials:
+                    # Get a client
+                    client = cache.get_client('test-cluster')
 
-            # Verify that _get_cluster_credentials was not called
-            mock_get_credentials.assert_not_called()
+                    # Verify that credential method was not called
+                    mock_get_credentials.assert_not_called()
 
-            # Verify that the cached client was returned
-            assert client == mock_k8s_apis
+                    # Verify that the cached client was returned
+                    assert client == mock_k8s_apis
 
     def test_get_client_invalid_credentials(self):
         """Test get_client method with invalid credentials."""
@@ -213,41 +219,47 @@ class TestK8sClientCache:
         # Clear the client cache
         cache._client_cache.clear()
 
-        # Mock _get_cluster_credentials to return invalid credentials
-        with patch.object(
-            cache, '_get_cluster_credentials', return_value=(None, None, None)
-        ) as mock_cache:
-            # Get a client - should raise ValueError
-            with pytest.raises(ValueError, match='Invalid cluster credentials'):
-                cache.get_client('test-cluster')
+        # Mock ConfigManager to return None (no config loaded)
+        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+                # Mock _get_cluster_credentials_default to return invalid credentials
+                with patch.object(
+                    cache, '_get_cluster_credentials_default', return_value=(None, None, None)
+                ) as mock_credentials:
+                    # Get a client - should raise ValueError
+                    with pytest.raises(ValueError, match='Invalid cluster credentials'):
+                        cache.get_client('test-cluster')
 
-            # Verify that _get_cluster_credentials was called
-            mock_cache.assert_called_once_with('test-cluster')
+                    # Verify that _get_cluster_credentials_default was called
+                    mock_credentials.assert_called_once_with('test-cluster')
 
-            # Verify that the client was not cached
-            assert 'test-cluster' not in cache._client_cache
+                    # Verify that the client was not cached
+                    assert 'test-cluster' not in cache._client_cache
 
     def test_get_client_error(self):
-        """Test get_client method with error from _get_cluster_credentials."""
+        """Test get_client method with error from credential methods."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
         # Clear the client cache
         cache._client_cache.clear()
 
-        # Mock _get_cluster_credentials to raise an exception
-        with patch.object(
-            cache, '_get_cluster_credentials', side_effect=Exception('Test error')
-        ) as mock_cache:
-            # Get a client - should raise Exception
-            with pytest.raises(Exception, match='Failed to get cluster credentials: Test error'):
-                cache.get_client('test-cluster')
+        # Mock ConfigManager to return None (no config loaded)
+        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+                # Mock _get_cluster_credentials_default to raise an exception
+                with patch.object(
+                    cache, '_get_cluster_credentials_default', side_effect=Exception('Test error')
+                ) as mock_credentials:
+                    # Get a client - should raise Exception
+                    with pytest.raises(Exception, match='Failed to get cluster credentials: Test error'):
+                        cache.get_client('test-cluster')
 
-            # Verify that _get_cluster_credentials was called
-            mock_cache.assert_called_once_with('test-cluster')
+                    # Verify that _get_cluster_credentials_default was called
+                    mock_credentials.assert_called_once_with('test-cluster')
 
-            # Verify that the client was not cached
-            assert 'test-cluster' not in cache._client_cache
+                    # Verify that the client was not cached
+                    assert 'test-cluster' not in cache._client_cache
 
     def test_ttl_cache_expiration(self):
         """Test that the TTLCache expires entries after the TTL."""
@@ -266,43 +278,46 @@ class TestK8sClientCache:
 
             cache._client_cache = TTLCache(maxsize=100, ttl=test_ttl)
 
-            # Mock _get_cluster_credentials to return valid credentials
-            with patch.object(
-                cache,
-                '_get_cluster_credentials',
-                return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
-            ):
-                # Mock the K8sApis constructor to return different instances each time
-                with patch(
-                    'awslabs.eks_mcp_server.k8s_client_cache.K8sApis'
-                ) as mock_k8s_apis_class:
-                    # Create two different mock instances
-                    mock_k8s_apis1 = MagicMock()
-                    mock_k8s_apis2 = MagicMock()
+            # Mock ConfigManager to return None (no config loaded)
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
+                with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+                    # Mock _get_cluster_credentials_default to return valid credentials
+                    with patch.object(
+                        cache,
+                        '_get_cluster_credentials_default',
+                        return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
+                    ):
+                        # Mock the K8sApis constructor to return different instances each time
+                        with patch(
+                            'awslabs.eks_mcp_server.k8s_client_cache.K8sApis'
+                        ) as mock_k8s_apis_class:
+                            # Create two different mock instances
+                            mock_k8s_apis1 = MagicMock()
+                            mock_k8s_apis2 = MagicMock()
 
-                    # Set up the mock to return different instances on consecutive calls
-                    mock_k8s_apis_class.side_effect = [mock_k8s_apis1, mock_k8s_apis2]
+                            # Set up the mock to return different instances on consecutive calls
+                            mock_k8s_apis_class.side_effect = [mock_k8s_apis1, mock_k8s_apis2]
 
-                    # Get a client - should create a new one
-                    client1 = cache.get_client('test-cluster')
+                            # Get a client - should create a new one
+                            client1 = cache.get_client('test-cluster')
 
-                    # Verify that K8sApis was initialized
-                    assert mock_k8s_apis_class.call_count == 1
+                            # Verify that K8sApis was initialized
+                            assert mock_k8s_apis_class.call_count == 1
 
-                    # Wait for the cache entry to expire
-                    time.sleep(test_ttl + 0.1)
+                            # Wait for the cache entry to expire
+                            time.sleep(test_ttl + 0.1)
 
-                    # Get a client again - should create a new one because the cache entry expired
-                    client2 = cache.get_client('test-cluster')
+                            # Get a client again - should create a new one because the cache entry expired
+                            client2 = cache.get_client('test-cluster')
 
-                    # Verify that K8sApis was initialized again
-                    assert mock_k8s_apis_class.call_count == 2
+                            # Verify that K8sApis was initialized again
+                            assert mock_k8s_apis_class.call_count == 2
 
-                    # Verify that we got different client instances
-                    assert client1 != client2
+                            # Verify that we got different client instances
+                            assert client1 != client2
 
-    def test_get_cluster_credentials(self):
-        """Test _get_cluster_credentials method."""
+    def test_get_cluster_credentials_default(self):
+        """Test _get_cluster_credentials_default method."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
@@ -319,20 +334,20 @@ class TestK8sClientCache:
         mock_sts_client = MagicMock()
         mock_sts_client.generate_presigned_url.return_value = 'https://test-presigned-url'
 
-        # Mock the AwsHelper.create_boto3_client and _get_sts_client methods
+        # Mock the AwsHelper.create_boto3_client and _get_sts_client_for_cluster methods
         with patch(
             'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
             side_effect=[mock_eks_client, mock_sts_client],
         ) as mock_create_client:
             with patch.object(
-                cache, '_get_sts_client', return_value=mock_sts_client
+                cache, '_get_sts_client_for_cluster', return_value=mock_sts_client
             ) as mocked_sts_client:
                 # Get cluster credentials
-                endpoint, token, ca_data = cache._get_cluster_credentials('test-cluster')
+                endpoint, token, ca_data = cache._get_cluster_credentials_default('test-cluster')
 
                 # Verify that AwsHelper.create_boto3_client was called for eks
                 mock_create_client.assert_any_call('eks')
-                mocked_sts_client.assert_called_once()
+                mocked_sts_client.assert_called_once_with(None)
 
                 # Verify that describe_cluster was called with the correct parameters
                 mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
@@ -352,8 +367,8 @@ class TestK8sClientCache:
                 )  # Token is base64 encoded, so we just check the prefix
                 assert ca_data == 'test-ca-data'
 
-    def test_get_cluster_credentials_error(self):
-        """Test _get_cluster_credentials method with error."""
+    def test_get_cluster_credentials_default_error(self):
+        """Test _get_cluster_credentials_default method with error."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
@@ -361,8 +376,8 @@ class TestK8sClientCache:
         mock_eks_client = MagicMock()
         mock_eks_client.describe_cluster.side_effect = Exception('Test error')
 
-        # Mock the _get_sts_client method to avoid the second boto3 client call
-        with patch.object(cache, '_get_sts_client') as mock_get_sts_client:
+        # Mock the _get_sts_client_for_cluster method to avoid the second boto3 client call
+        with patch.object(cache, '_get_sts_client_for_cluster') as mock_get_sts_client:
             # Mock the AwsHelper.create_boto3_client method
             with patch(
                 'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
@@ -370,19 +385,19 @@ class TestK8sClientCache:
             ) as mock_create_client:
                 # Get cluster credentials - should raise Exception
                 with pytest.raises(Exception, match='Test error'):
-                    cache._get_cluster_credentials('test-cluster')
+                    cache._get_cluster_credentials_default('test-cluster')
 
                 # Verify that AwsHelper.create_boto3_client was called with 'eks'
                 mock_create_client.assert_called_once_with('eks')
 
-                # Verify that _get_sts_client was called
-                mock_get_sts_client.assert_called_once()
+                # Verify that _get_sts_client_for_cluster was called
+                mock_get_sts_client.assert_called_once_with(None)
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
 
-    def test_get_cluster_credentials_missing_data(self):
-        """Test _get_cluster_credentials method with missing data."""
+    def test_get_cluster_credentials_default_missing_data(self):
+        """Test _get_cluster_credentials_default method with missing data."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
@@ -395,8 +410,8 @@ class TestK8sClientCache:
             }
         }
 
-        # Mock the _get_sts_client method to avoid the second boto3 client call
-        with patch.object(cache, '_get_sts_client') as mock_get_sts_client:
+        # Mock the _get_sts_client_for_cluster method to avoid the second boto3 client call
+        with patch.object(cache, '_get_sts_client_for_cluster') as mock_get_sts_client:
             # Mock the AwsHelper.create_boto3_client method
             with patch(
                 'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
@@ -404,13 +419,13 @@ class TestK8sClientCache:
             ) as mock_create_client:
                 # Get cluster credentials - should raise KeyError
                 with pytest.raises(KeyError):
-                    cache._get_cluster_credentials('test-cluster')
+                    cache._get_cluster_credentials_default('test-cluster')
 
                 # Verify that AwsHelper.create_boto3_client was called with 'eks'
                 mock_create_client.assert_called_once_with('eks')
 
-                # Verify that _get_sts_client was called
-                mock_get_sts_client.assert_called_once()
+                # Verify that _get_sts_client_for_cluster was called
+                mock_get_sts_client.assert_called_once_with(None)
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')

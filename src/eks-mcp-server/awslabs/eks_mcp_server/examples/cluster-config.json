@@ -1,23 +1,39 @@
 {
+    "accounts": [
+        {
+            "account_id": "123456789012",
+            "regions": ["us-west-2", "us-east-1"]
+        },
+        {
+            "account_id": "987654321098",
+            "role_arn": "arn:aws:iam::987654321098:role/CustomEKSRole",
+            "external_id": "my-external-id",
+            "regions": ["us-east-1", "eu-west-1"]
+        },
+        {
+            "account_id": "555555555555",
+            "profile": "staging-profile",
+            "regions": ["ap-northeast-1"]
+        }
+    ],
     "clusters": [
         {
             "name": "dev-cluster",
             "region": "us-west-2",
-            "description": "Development cluster in us-west-2",
-            "account_id": "123456789012"
+            "account_id": "123456789012",
+            "description": "Development cluster"
         },
         {
             "name": "prod-cluster",
             "region": "us-east-1",
-            "description": "Production cluster in account 987654321098",
             "account_id": "987654321098",
-            "role_arn": "arn:aws:iam::987654321098:role/EKSMCPServerRole"
+            "description": "Production cluster"
         },
         {
             "name": "staging-cluster",
-            "region": "eu-west-1",
-            "description": "Staging cluster using named profile",
-            "profile": "staging-profile"
+            "region": "ap-northeast-1",
+            "account_id": "555555555555",
+            "description": "Staging cluster"
         }
     ]
 }

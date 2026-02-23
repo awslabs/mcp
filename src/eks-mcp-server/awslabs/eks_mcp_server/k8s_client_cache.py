@@ -83,7 +83,13 @@ class K8sClientCache:
         """
         if cluster_config:
             sts_client = AwsHelper.create_boto3_client_for_cluster(cluster_config, 'sts')
-            client_id = f'{cluster_config.region}:{cluster_config.role_arn or cluster_config.profile or "default"}'
+            # Get account config to determine credential context
+            account = ConfigManager.get_account(cluster_config.account_id)
+            if account:
+                credential_context = account.role_arn or account.profile or 'default'
+            else:
+                credential_context = 'default'
+            client_id = f'{cluster_config.region}:{cluster_config.account_id}:{credential_context}'
         else:
             sts_client = AwsHelper.create_boto3_client('sts')
             client_id = 'default'
@@ -194,7 +200,8 @@ class K8sClientCache:
 
         This method first checks if the cluster is configured in the cluster
         configuration file. If so, it uses the configured credentials (role
-        assumption or profile). Otherwise, it falls back to default credentials.
+        assumption or profile). If configuration is in discovery mode (no explicit
+        clusters), it uses default credentials. Otherwise, it falls back to default credentials.
 
         Args:
             cluster_name: Name of the EKS cluster
@@ -208,24 +215,32 @@ class K8sClientCache:
         """
         # Check if cluster configuration is available
         cluster_config = ConfigManager.get_cluster(cluster_name)
-
+        logger.debug(cluster_config)
         if cluster_config:
-            # Build cache key including credential context
-            credential_context = cluster_config.role_arn or cluster_config.profile or 'default'
-            cache_key = f'{cluster_name}:{cluster_config.region}:{credential_context}'
+            # Cluster configuration found (explicit or discovered)
+            account = ConfigManager.get_account(cluster_config.account_id)
+            if account:
+                credential_context = account.role_arn or account.profile or 'default'
+            else:
+                credential_context = 'default'
+
+            cache_key = f'{cluster_name}:{cluster_config.region}:{cluster_config.account_id}:{credential_context}'
             logger.debug(
                 f'Using cluster config for {cluster_name} '
-                f'(region: {cluster_config.region}, access: {cluster_config.get_access_method()})'
+                f'(region: {cluster_config.region}, account: {cluster_config.account_id}, '
+                f'access: {account.get_access_method() if account else "default"})'
             )
-        elif ConfigManager.is_configured():
-            # Config is loaded but cluster not found - this is an error
+        elif ConfigManager.is_configured() and (
+            ConfigManager.has_explicit_clusters() or ConfigManager.has_discovered_clusters()
+        ):
+            # Config is loaded with clusters (explicit or discovered), but this cluster not found - error
             available_clusters = ConfigManager.get_cluster_names()
             raise ValueError(
                 f"Cluster '{cluster_name}' not found in configuration. "
                 f'Available clusters: {", ".join(available_clusters)}'
             )
         else:
-            # No config loaded, use default behavior (backward compatibility)
+            # No config loaded - use default behavior
             cache_key = cluster_name
             logger.debug(f'No cluster config loaded, using default credentials for {cluster_name}')
 

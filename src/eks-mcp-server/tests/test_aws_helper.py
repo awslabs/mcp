@@ -199,11 +199,12 @@ class TestAwsHelper:
                 assert cf_client is not s3_client
 
     @patch('boto3.client')
-    def test_same_service_different_regions_cached_together(self, mock_boto3_client):
-        """Test that clients for the same service are cached together regardless of region."""
-        # Create mock client
-        mock_client = MagicMock()
-        mock_boto3_client.return_value = mock_client
+    def test_same_service_different_regions_cached_separately(self, mock_boto3_client):
+        """Test that clients for the same service in different regions are cached separately."""
+        # Create mock clients
+        mock_client_us = MagicMock()
+        mock_client_eu = MagicMock()
+        mock_boto3_client.side_effect = [mock_client_us, mock_client_eu]
 
         # Mock the get_aws_profile method
         with patch.object(AwsHelper, 'get_aws_profile', return_value=None):
@@ -215,11 +216,13 @@ class TestAwsHelper:
                 'cloudformation', region_name='eu-west-1'
             )
 
-            # Verify that boto3.client was called only once
-            mock_boto3_client.assert_called_once()
+            # Verify that boto3.client was called twice (once for each region)
+            assert mock_boto3_client.call_count == 2
 
-            # Verify that the same client instance was returned both times
-            assert us_west_client is eu_west_client
+            # Verify that different client instances were returned
+            assert us_west_client is not eu_west_client
+            assert us_west_client is mock_client_us
+            assert eu_west_client is mock_client_eu
 
     @patch('boto3.client')
     def test_error_handling(self, mock_boto3_client):
@@ -238,13 +241,16 @@ class TestAwsHelper:
                     assert 'Failed to create boto3 client for cloudformation: Test error' in str(e)
 
     @patch('boto3.Session')
-    def test_same_service_different_profiles_cached_together(self, mock_boto3_session):
-        """Test that clients for the same service are cached together regardless of profile."""
-        # Create mock session and client
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_boto3_session.return_value = mock_session
+    def test_same_service_different_profiles_cached_separately(self, mock_boto3_session):
+        """Test that clients for the same service with different profiles are cached separately."""
+        # Create mock sessions and clients
+        mock_session1 = MagicMock()
+        mock_session2 = MagicMock()
+        mock_client1 = MagicMock()
+        mock_client2 = MagicMock()
+        mock_session1.client.return_value = mock_client1
+        mock_session2.client.return_value = mock_client2
+        mock_boto3_session.side_effect = [mock_session1, mock_session2]
 
         # Call create_boto3_client with different profiles
         with patch.object(AwsHelper, 'get_aws_profile', return_value='profile1'):
@@ -255,8 +261,10 @@ class TestAwsHelper:
             with patch.object(AwsHelper, 'get_aws_region', return_value=None):
                 client2 = AwsHelper.create_boto3_client('cloudformation')
 
-        # Verify that boto3.Session was called only once
-        mock_boto3_session.assert_called_once()
+        # Verify that boto3.Session was called twice (once for each profile)
+        assert mock_boto3_session.call_count == 2
 
-        # Verify that the same client instance was returned both times
-        assert client1 is client2
+        # Verify that different client instances were returned
+        assert client1 is not client2
+        assert client1 is mock_client1
+        assert client2 is mock_client2
