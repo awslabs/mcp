@@ -156,8 +156,13 @@ class TestK8sClientCache:
         cache._client_cache.clear()
 
         # Mock ConfigManager to return None (no config loaded)
-        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None
+        ):
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured',
+                return_value=False,
+            ):
                 # Mock the _get_cluster_credentials_default method
                 with patch.object(
                     cache,
@@ -165,7 +170,9 @@ class TestK8sClientCache:
                     return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
                 ) as mock_credentials:
                     # Mock the K8sApis constructor
-                    with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_k8s_apis_class:
+                    with patch(
+                        'awslabs.eks_mcp_server.k8s_client_cache.K8sApis'
+                    ) as mock_k8s_apis_class:
                         mock_k8s_apis = MagicMock()
                         mock_k8s_apis_class.return_value = mock_k8s_apis
 
@@ -198,10 +205,17 @@ class TestK8sClientCache:
         cache._client_cache['test-cluster'] = mock_k8s_apis
 
         # Mock ConfigManager to return None (no config loaded)
-        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None
+        ):
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured',
+                return_value=False,
+            ):
                 # Mock the credential methods to ensure they're not called
-                with patch.object(cache, '_get_cluster_credentials_default') as mock_get_credentials:
+                with patch.object(
+                    cache, '_get_cluster_credentials_default'
+                ) as mock_get_credentials:
                     # Get a client
                     client = cache.get_client('test-cluster')
 
@@ -220,8 +234,13 @@ class TestK8sClientCache:
         cache._client_cache.clear()
 
         # Mock ConfigManager to return None (no config loaded)
-        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None
+        ):
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured',
+                return_value=False,
+            ):
                 # Mock _get_cluster_credentials_default to return invalid credentials
                 with patch.object(
                     cache, '_get_cluster_credentials_default', return_value=(None, None, None)
@@ -245,14 +264,21 @@ class TestK8sClientCache:
         cache._client_cache.clear()
 
         # Mock ConfigManager to return None (no config loaded)
-        with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None
+        ):
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured',
+                return_value=False,
+            ):
                 # Mock _get_cluster_credentials_default to raise an exception
                 with patch.object(
                     cache, '_get_cluster_credentials_default', side_effect=Exception('Test error')
                 ) as mock_credentials:
                     # Get a client - should raise Exception
-                    with pytest.raises(Exception, match='Failed to get cluster credentials: Test error'):
+                    with pytest.raises(
+                        Exception, match='Failed to get cluster credentials: Test error'
+                    ):
                         cache.get_client('test-cluster')
 
                     # Verify that _get_cluster_credentials_default was called
@@ -279,8 +305,14 @@ class TestK8sClientCache:
             cache._client_cache = TTLCache(maxsize=100, ttl=test_ttl)
 
             # Mock ConfigManager to return None (no config loaded)
-            with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster', return_value=None):
-                with patch('awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured', return_value=False):
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_cluster',
+                return_value=None,
+            ):
+                with patch(
+                    'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.is_configured',
+                    return_value=False,
+                ):
                     # Mock _get_cluster_credentials_default to return valid credentials
                     with patch.object(
                         cache,

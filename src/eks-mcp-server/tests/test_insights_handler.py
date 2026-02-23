@@ -120,7 +120,9 @@ class TestInsightsHandler:
         handler = InsightsHandler(mock_mcp)
         with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
             # Call the implementation method directly
-            result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
         # Verify API calls
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
@@ -284,7 +286,9 @@ class TestInsightsHandler:
             data = json.loads(result.content[1].text)
             assert data['cluster_name'] == 'test-cluster'
             assert len(data['insights']) == 2
-            assert data['next_token'] == 'test-next-token-value'  # Verify next_token is passed through
+            assert (
+                data['next_token'] == 'test-next-token-value'
+            )  # Verify next_token is passed through
 
             # Verify success message
             assert isinstance(result.content[0], TextContent)
@@ -301,7 +305,9 @@ class TestInsightsHandler:
         handler = InsightsHandler(mock_mcp)
         with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
             # Call the implementation method
-            result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
             # Verify API call was attempted
             mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
@@ -327,7 +333,9 @@ class TestInsightsHandler:
         handler = InsightsHandler(mock_mcp)
         with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
             # Call the implementation method
-            result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
             # Verify API call was made
             mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
@@ -399,7 +407,9 @@ class TestInsightsHandler:
         handler = InsightsHandler(mock_mcp)
         with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
             # Call the implementation method directly in list mode
-            result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
             # Verify list_insights was called with correct parameters
             mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
