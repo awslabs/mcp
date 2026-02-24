@@ -376,7 +376,7 @@ class TestListConnections:
                     {
                         'connection_id': 'aws_default',
                         'conn_type': 'aws',
-                        'password': 'secret123',
+                        'password': 'secret123',  # pragma: allowlist secret
                         'extra': '{"key": "value"}',
                     }
                 ],
@@ -1135,7 +1135,7 @@ class TestRedactConnections:
             'connections': [
                 {
                     'connection_id': 'test',
-                    'password': 'secret',
+                    'password': 'secret',  # pragma: allowlist secret
                     'extra': '{"token": "abc"}',
                     'host': 'localhost',
                 }
