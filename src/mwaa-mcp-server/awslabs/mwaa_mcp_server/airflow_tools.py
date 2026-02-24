@@ -87,6 +87,41 @@ class AirflowTools:
                 'Restart the server with --allow-write to enable mutations.'
             )
 
+    def _resolve_environment(
+        self,
+        environment_name: Optional[str],
+        region: Optional[str] = None,
+        profile_name: Optional[str] = None,
+    ) -> str:
+        """Resolve the environment name, auto-selecting if only one exists.
+
+        Args:
+            environment_name: Explicit environment name, or None to auto-detect.
+            region: AWS region override.
+            profile_name: AWS CLI profile name override.
+
+        Returns:
+            The resolved environment name.
+
+        Raises:
+            ValueError: If no environments found or multiple found without explicit name.
+        """
+        if environment_name:
+            return environment_name
+
+        client = get_mwaa_client(region_name=region, profile_name=profile_name)
+        response = client.list_environments()
+        envs = response.get('Environments', [])
+
+        if len(envs) == 0:
+            raise ValueError('No MWAA environments found in this region.')
+        if len(envs) == 1:
+            logger.info(f'Auto-selected environment: {envs[0]}')
+            return envs[0]
+
+        env_list = '\n'.join(f'  - {e}' for e in envs)
+        raise ValueError(f'Multiple MWAA environments found. Please specify one:\n{env_list}')
+
     @staticmethod
     def _validate_environment_name(name: str) -> None:
         """Validate an MWAA environment name.
@@ -190,9 +225,9 @@ class AirflowTools:
     async def list_dags(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         limit: Optional[int] = Field(
             default=None,
@@ -233,6 +268,7 @@ class AirflowTools:
             CallToolResult with the list of DAGs.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             query_params: dict = {}
             if limit is not None:
                 query_params['limit'] = str(limit)
@@ -285,9 +321,9 @@ class AirflowTools:
     async def get_dag(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -318,6 +354,7 @@ class AirflowTools:
             CallToolResult with DAG details.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             path = DAG_PATH.format(dag_id=dag_id)
 
@@ -364,9 +401,9 @@ class AirflowTools:
     async def get_dag_source(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         file_token: str = Field(
             ...,
@@ -397,6 +434,7 @@ class AirflowTools:
             CallToolResult with the DAG source code.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(file_token, 'file_token')
             path = DAG_SOURCE_PATH.format(file_token=file_token)
 
@@ -443,9 +481,9 @@ class AirflowTools:
     async def list_dag_runs(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -490,6 +528,7 @@ class AirflowTools:
             CallToolResult with the list of DAG runs.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             path = DAG_RUNS_PATH.format(dag_id=dag_id)
 
@@ -545,9 +584,9 @@ class AirflowTools:
     async def get_dag_run(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -583,6 +622,7 @@ class AirflowTools:
             CallToolResult with DAG run details.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             self._sanitize_path_param(dag_run_id, 'dag_run_id')
             path = DAG_RUN_PATH.format(dag_id=dag_id, dag_run_id=dag_run_id)
@@ -630,9 +670,9 @@ class AirflowTools:
     async def list_task_instances(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -668,6 +708,7 @@ class AirflowTools:
             CallToolResult with the list of task instances.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             self._sanitize_path_param(dag_run_id, 'dag_run_id')
             path = TASK_INSTANCES_PATH.format(dag_id=dag_id, dag_run_id=dag_run_id)
@@ -718,9 +759,9 @@ class AirflowTools:
     async def get_task_instance(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -761,6 +802,7 @@ class AirflowTools:
             CallToolResult with task instance details.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             self._sanitize_path_param(dag_run_id, 'dag_run_id')
             self._sanitize_path_param(task_id, 'task_id')
@@ -812,9 +854,9 @@ class AirflowTools:
     async def get_task_logs(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -860,6 +902,7 @@ class AirflowTools:
             CallToolResult with the task logs.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             self._sanitize_path_param(dag_run_id, 'dag_run_id')
             self._sanitize_path_param(task_id, 'task_id')
@@ -916,9 +959,9 @@ class AirflowTools:
     async def list_connections(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         limit: Optional[int] = Field(
             default=None,
@@ -953,6 +996,7 @@ class AirflowTools:
             CallToolResult with the list of connections (passwords redacted).
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             query_params: dict = {}
             if limit is not None:
                 query_params['limit'] = str(limit)
@@ -1008,9 +1052,9 @@ class AirflowTools:
     async def list_variables(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         limit: Optional[int] = Field(
             default=None,
@@ -1045,6 +1089,7 @@ class AirflowTools:
             CallToolResult with the list of variables.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             query_params: dict = {}
             if limit is not None:
                 query_params['limit'] = str(limit)
@@ -1095,9 +1140,9 @@ class AirflowTools:
     async def get_import_errors(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         region: Optional[str] = Field(
             default=None,
@@ -1123,6 +1168,7 @@ class AirflowTools:
             CallToolResult with import errors.
         """
         try:
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             response = await self._invoke_airflow_api(
                 environment_name=environment_name,
                 method='GET',
@@ -1166,9 +1212,9 @@ class AirflowTools:
     async def trigger_dag_run(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -1212,6 +1258,7 @@ class AirflowTools:
         """
         try:
             self._check_write_access()
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             path = DAG_RUNS_PATH.format(dag_id=dag_id)
 
@@ -1273,9 +1320,9 @@ class AirflowTools:
     async def pause_dag(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -1308,6 +1355,7 @@ class AirflowTools:
         """
         try:
             self._check_write_access()
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             path = DAG_PATH.format(dag_id=dag_id)
 
@@ -1363,9 +1411,9 @@ class AirflowTools:
     async def unpause_dag(
         self,
         ctx: Context,
-        environment_name: str = Field(
-            ...,
-            description='Name of the MWAA environment.',
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
         ),
         dag_id: str = Field(
             ...,
@@ -1398,6 +1446,7 @@ class AirflowTools:
         """
         try:
             self._check_write_access()
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
             self._sanitize_path_param(dag_id, 'dag_id')
             path = DAG_PATH.format(dag_id=dag_id)
 

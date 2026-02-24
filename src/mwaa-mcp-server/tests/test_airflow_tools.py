@@ -1155,3 +1155,49 @@ class TestRedactConnections:
         response = {'connections': []}
         result = AirflowTools._redact_connections(response)
         assert result['connections'] == []
+
+
+class TestResolveEnvironment:
+    def test_explicit_name_returned_as_is(self, mock_mcp):
+        handler = AirflowTools(mock_mcp, allow_write=False)
+        result = handler._resolve_environment('my-env')
+        assert result == 'my-env'
+
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    def test_single_env_auto_selected(self, mock_get_client, mock_mcp):
+        mock_client = MagicMock()
+        mock_client.list_environments.return_value = {
+            'Environments': ['only-env'],
+        }
+        mock_get_client.return_value = mock_client
+
+        handler = AirflowTools(mock_mcp, allow_write=False)
+        result = handler._resolve_environment(None)
+
+        assert result == 'only-env'
+
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    def test_multiple_envs_raises_with_list(self, mock_get_client, mock_mcp):
+        mock_client = MagicMock()
+        mock_client.list_environments.return_value = {
+            'Environments': ['env-a', 'env-b', 'env-c'],
+        }
+        mock_get_client.return_value = mock_client
+
+        handler = AirflowTools(mock_mcp, allow_write=False)
+
+        with pytest.raises(ValueError, match='Multiple MWAA environments found'):
+            handler._resolve_environment(None)
+
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    def test_no_envs_raises(self, mock_get_client, mock_mcp):
+        mock_client = MagicMock()
+        mock_client.list_environments.return_value = {
+            'Environments': [],
+        }
+        mock_get_client.return_value = mock_client
+
+        handler = AirflowTools(mock_mcp, allow_write=False)
+
+        with pytest.raises(ValueError, match='No MWAA environments found'):
+            handler._resolve_environment(None)
