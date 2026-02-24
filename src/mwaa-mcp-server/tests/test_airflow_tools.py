@@ -1302,3 +1302,142 @@ class TestRestApiClientExceptionEnrichment:
         assert result.isError
         assert 'HTTP 404' in result.content[0].text
         assert 'DAG not found' in result.content[0].text
+
+
+class TestClearTaskInstances:
+    @pytest.mark.asyncio
+    async def test_clear_blocked_readonly(self, handler_readonly, mock_ctx):
+        result = await handler_readonly.clear_task_instances(
+            mock_ctx, environment_name='test-env', dag_id='my_dag'
+        )
+
+        assert result.isError
+        assert '--allow-write' in result.content[0].text
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_clear_dry_run_success(self, mock_get_client, handler_writable, mock_ctx):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.return_value = {
+            'RestApiResponse': {'task_instances': [{'task_id': 't1', 'state': 'failed'}]},
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await handler_writable.clear_task_instances(
+            mock_ctx,
+            environment_name='test-env',
+            dag_id='my_dag',
+            dag_run_id=None,
+            task_ids=None,
+            dry_run=True,
+            only_failed=True,
+            reset_dag_runs=False,
+            include_downstream=False,
+            include_upstream=False,
+        )
+
+        assert not result.isError
+        assert 'Would clear' in result.content[0].text
+        call_kwargs = mock_client.invoke_rest_api.call_args[1]
+        assert call_kwargs['Method'] == 'POST'
+        assert call_kwargs['Body']['dry_run'] is True
+        assert call_kwargs['Body']['only_failed'] is True
+        assert call_kwargs['Body']['reset_dag_runs'] is False
+        assert 'dag_run_id' not in call_kwargs['Body']
+        assert 'task_ids' not in call_kwargs['Body']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_clear_actual_run(self, mock_get_client, handler_writable, mock_ctx):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.return_value = {
+            'RestApiResponse': {'task_instances': []},
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await handler_writable.clear_task_instances(
+            mock_ctx, environment_name='test-env', dag_id='my_dag', dry_run=False
+        )
+
+        assert not result.isError
+        assert 'Cleared' in result.content[0].text
+        assert 'Would clear' not in result.content[0].text
+        call_kwargs = mock_client.invoke_rest_api.call_args[1]
+        assert call_kwargs['Body']['dry_run'] is False
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_clear_with_all_params(self, mock_get_client, handler_writable, mock_ctx):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.return_value = {
+            'RestApiResponse': {'task_instances': []},
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await handler_writable.clear_task_instances(
+            mock_ctx,
+            environment_name='test-env',
+            dag_id='my_dag',
+            dag_run_id='run-123',
+            task_ids=['task_a', 'task_b'],
+            only_failed=False,
+            dry_run=False,
+            reset_dag_runs=True,
+            include_downstream=True,
+            include_upstream=True,
+        )
+
+        assert not result.isError
+        call_kwargs = mock_client.invoke_rest_api.call_args[1]
+        body = call_kwargs['Body']
+        assert body['dag_run_id'] == 'run-123'
+        assert body['task_ids'] == ['task_a', 'task_b']
+        assert body['only_failed'] is False
+        assert body['dry_run'] is False
+        assert body['reset_dag_runs'] is True
+        assert body['include_downstream'] is True
+        assert body['include_upstream'] is True
+
+    @pytest.mark.asyncio
+    async def test_clear_path_traversal(self, handler_writable, mock_ctx):
+        result = await handler_writable.clear_task_instances(
+            mock_ctx, environment_name='test-env', dag_id='../etc/passwd'
+        )
+
+        assert result.isError
+        assert 'path traversal' in result.content[0].text
+
+
+class TestClearTaskInstancesErrors:
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_clear_client_error(self, mock_get_client, handler_writable, mock_ctx):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Denied'}},
+            'InvokeRestApi',
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await handler_writable.clear_task_instances(
+            mock_ctx, environment_name='test-env', dag_id='my_dag'
+        )
+
+        assert result.isError
+        assert 'AWS API error' in result.content[0].text
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_clear_botocore_error(self, mock_get_client, handler_writable, mock_ctx):
+        from botocore.exceptions import BotoCoreError
+
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.side_effect = BotoCoreError()
+        mock_get_client.return_value = mock_client
+
+        result = await handler_writable.clear_task_instances(
+            mock_ctx, environment_name='test-env', dag_id='my_dag'
+        )
+
+        assert result.isError
+        assert 'AWS SDK error' in result.content[0].text

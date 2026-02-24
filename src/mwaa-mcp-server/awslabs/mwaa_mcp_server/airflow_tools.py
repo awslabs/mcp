@@ -19,6 +19,7 @@ import os
 import re
 from awslabs.mwaa_mcp_server.aws_client import get_mwaa_client
 from awslabs.mwaa_mcp_server.consts import (
+    CLEAR_TASK_INSTANCES_PATH,
     CONNECTION_SENSITIVE_FIELDS,
     CONNECTIONS_PATH,
     DAG_PATH,
@@ -76,6 +77,7 @@ class AirflowTools:
         self.mcp.tool(name='trigger-dag-run')(self.trigger_dag_run)
         self.mcp.tool(name='pause-dag')(self.pause_dag)
         self.mcp.tool(name='unpause-dag')(self.unpause_dag)
+        self.mcp.tool(name='clear-task-instances')(self.clear_task_instances)
 
     def _check_write_access(self) -> None:
         """Check if write access is enabled.
@@ -1517,6 +1519,149 @@ class AirflowTools:
             )
         except BotoCoreError as e:
             error_message = f'AWS SDK error unpausing DAG: {e}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def clear_task_instances(
+        self,
+        ctx: Context,
+        environment_name: Optional[str] = Field(
+            default=None,
+            description='Name of the MWAA environment. If omitted and only one environment exists, it is used automatically.',
+        ),
+        dag_id: str = Field(
+            ...,
+            description='The DAG ID.',
+        ),
+        dag_run_id: Optional[str] = Field(
+            default=None,
+            description='Clear task instances only for this DAG run ID.',
+        ),
+        task_ids: Optional[list[str]] = Field(
+            default=None,
+            description='List of task IDs to clear. If omitted, all tasks are cleared.',
+        ),
+        only_failed: Optional[bool] = Field(
+            default=None,
+            description='Only clear failed task instances. Defaults to true if omitted.',
+        ),
+        dry_run: Optional[bool] = Field(
+            default=None,
+            description='If true, return the list of task instances that would be cleared without actually clearing them. Defaults to true if omitted.',
+        ),
+        reset_dag_runs: Optional[bool] = Field(
+            default=None,
+            description='Set state of affected DAG runs to RUNNING. Defaults to false if omitted.',
+        ),
+        include_downstream: Optional[bool] = Field(
+            default=None,
+            description='Also clear downstream tasks. Defaults to false if omitted.',
+        ),
+        include_upstream: Optional[bool] = Field(
+            default=None,
+            description='Also clear upstream tasks. Defaults to false if omitted.',
+        ),
+        region: Optional[str] = Field(
+            default=None,
+            description='AWS region override.',
+        ),
+        profile_name: Optional[str] = Field(
+            default=None,
+            description='AWS CLI profile name override.',
+        ),
+    ) -> CallToolResult:
+        """Clear task instances for a DAG, allowing them to be re-run.
+
+        Resets task instances to a cleared state so they can be retried. By default
+        only clears failed tasks and runs in dry-run mode for safety.
+
+        Requires the --allow-write flag.
+
+        Args:
+            ctx: The MCP context.
+            environment_name: Name of the MWAA environment.
+            dag_id: The DAG identifier.
+            dag_run_id: Optional DAG run ID to scope the clear.
+            task_ids: Optional list of task IDs to clear.
+            only_failed: Only clear failed tasks (default: true).
+            dry_run: Preview without clearing (default: true).
+            reset_dag_runs: Set DAG runs to RUNNING (default: false).
+            include_downstream: Also clear downstream tasks.
+            include_upstream: Also clear upstream tasks.
+            region: AWS region override.
+            profile_name: AWS CLI profile name override.
+
+        Returns:
+            CallToolResult with the cleared (or previewed) task instances.
+        """
+        try:
+            self._check_write_access()
+            environment_name = self._resolve_environment(environment_name, region, profile_name)
+            self._sanitize_path_param(dag_id, 'dag_id')
+            path = CLEAR_TASK_INSTANCES_PATH.format(dag_id=dag_id)
+
+            body: dict = {
+                'dry_run': dry_run if dry_run is not None else True,
+                'only_failed': only_failed if only_failed is not None else True,
+                'reset_dag_runs': reset_dag_runs if reset_dag_runs is not None else False,
+                'include_downstream': include_downstream
+                if include_downstream is not None
+                else False,
+                'include_upstream': include_upstream if include_upstream is not None else False,
+            }
+            if dag_run_id is not None:
+                body['dag_run_id'] = dag_run_id
+            if task_ids is not None:
+                body['task_ids'] = task_ids
+
+            response = await self._invoke_airflow_api(
+                environment_name=environment_name,
+                method='POST',
+                path=path,
+                body=body,
+                region=region,
+                profile_name=profile_name,
+            )
+
+            is_dry_run = dry_run is not False
+            action = 'Would clear' if is_dry_run else 'Cleared'
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=f'{action} task instances for DAG: {dag_id}'),
+                    TextContent(type='text', text=json.dumps(response, default=str)),
+                ],
+            )
+        except PermissionError as e:
+            error_message = str(e)
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+        except ValueError as e:
+            error_message = str(e)
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+        except ClientError as e:
+            error_message = f'AWS API error clearing task instances: {e}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+        except BotoCoreError as e:
+            error_message = f'AWS SDK error clearing task instances: {e}'
             logger.error(error_message)
             await ctx.error(error_message)
             return CallToolResult(

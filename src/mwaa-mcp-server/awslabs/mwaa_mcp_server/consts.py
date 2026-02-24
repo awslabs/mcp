@@ -43,6 +43,7 @@ DAG_RUN_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}'
 TASK_INSTANCES_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances'
 TASK_INSTANCE_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}'
 TASK_LOGS_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}'
+CLEAR_TASK_INSTANCES_PATH = '/dags/{dag_id}/clearTaskInstances'
 
 # Other endpoints
 CONNECTIONS_PATH = '/connections'
