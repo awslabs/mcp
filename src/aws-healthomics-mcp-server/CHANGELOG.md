@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v0.0.28
+  - **Run Cache Management Tools**: Added four new MCP tools for managing HealthOmics Run Caches
+    - **CreateAHORunCache**: Create run caches with S3 URI validation and configurable cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
+    - **GetAHORunCache**: Retrieve detailed run cache configuration and metadata with ISO 8601 datetime serialization
+    - **ListAHORunCaches**: List and filter run caches by name, status, or cache behavior with pagination support
+    - **UpdateAHORunCache**: Update run cache behavior, name, or description
+
 - v0.0.27
   - **Run Group Management Tools**: Added four new MCP tools for managing HealthOmics Run Groups
     - **CreateAHORunGroup**: Create run groups with configurable resource limits (CPUs, GPUs, duration, concurrent runs)
