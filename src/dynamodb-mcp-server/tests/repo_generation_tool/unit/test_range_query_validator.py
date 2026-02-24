@@ -130,7 +130,7 @@ class TestValidateParameterCount(TestRangeQueryValidator):
 
         assert len(errors) == 1
         error = errors[0]
-        assert "Range condition 'between'" in error.message
+        assert "Range condition 'between' requires at least 3 parameters" in error.message
         assert 'got 2' in error.message
         assert (
             'at least 3 parameters' in error.suggestion or 'Provide at least 3' in error.suggestion
@@ -166,7 +166,7 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         errors = self.validator.validate_parameter_count(pattern)
 
         assert len(errors) == 1
-        assert "Range condition 'begins_with'" in errors[0].message
+        assert "Range condition 'begins_with' requires at least 2 parameters" in errors[0].message
         assert 'got 1' in errors[0].message
 
     def test_comparison_operators_parameter_count(self):
@@ -197,7 +197,7 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         )
         errors = self.validator.validate_parameter_count(pattern)
         assert len(errors) == 1
-        assert "Range condition '>='" in errors[0].message
+        assert "Range condition '>=' requires at least 2 parameters" in errors[0].message
         assert 'got 1' in errors[0].message
 
     def test_no_range_condition_parameter_count(self):
@@ -257,6 +257,101 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         errors = self.validator.validate_parameter_count(pattern)
         assert len(errors) == 1
         assert 'requires exactly 2 parameters' in errors[0].message
+        assert 'Provide exactly 2 parameters' in errors[0].suggestion
+
+    def test_filter_expression_params_excluded_from_count(self):
+        """Test that filter_expression params are excluded from range_condition parameter count."""
+        pattern = AccessPattern(
+            pattern_id=1,
+            name='test_pattern',
+            description='Test pattern',
+            operation='Query',
+            parameters=[
+                {'name': 'pk'},
+                {'name': 'sk_prefix'},
+                {'name': 'excluded_status'},
+            ],
+            return_type='entity_list',
+            range_condition='begins_with',
+            filter_expression={
+                'conditions': [{'field': 'status', 'operator': '<>', 'param': 'excluded_status'}],
+            },
+        )
+
+        errors = self.validator.validate_parameter_count(pattern)
+        assert errors == []  # 2 key params (pk + sk_prefix), 1 filter param excluded
+
+    def test_filter_expression_params_excluded_reveals_missing_key_param(self):
+        """Test that excluding filter params reveals missing key param for range_condition."""
+        pattern = AccessPattern(
+            pattern_id=1,
+            name='test_pattern',
+            description='Test pattern',
+            operation='Query',
+            parameters=[
+                {'name': 'pk'},
+                {'name': 'excluded_status'},
+            ],
+            return_type='entity_list',
+            range_condition='begins_with',
+            filter_expression={
+                'conditions': [{'field': 'status', 'operator': '<>', 'param': 'excluded_status'}],
+            },
+        )
+
+        errors = self.validator.validate_parameter_count(pattern)
+        assert len(errors) == 1
+        assert 'excluding filter_expression parameters' in errors[0].message
+        assert 'got 1' in errors[0].message
+
+    def test_filter_expression_between_params_excluded(self):
+        """Test that between filter params (param + param2) are excluded from count."""
+        pattern = AccessPattern(
+            pattern_id=1,
+            name='test_pattern',
+            description='Test pattern',
+            operation='Query',
+            parameters=[
+                {'name': 'pk'},
+                {'name': 'sk_prefix'},
+                {'name': 'min_fee'},
+                {'name': 'max_fee'},
+            ],
+            return_type='entity_list',
+            range_condition='begins_with',
+            filter_expression={
+                'conditions': [
+                    {
+                        'field': 'fee',
+                        'operator': 'between',
+                        'param': 'min_fee',
+                        'param2': 'max_fee',
+                    }
+                ],
+            },
+        )
+
+        errors = self.validator.validate_parameter_count(pattern)
+        assert errors == []  # 2 key params (pk + sk_prefix), 2 filter params excluded
+
+    def test_no_filter_expression_counts_all_params(self):
+        """Test that without filter_expression, all params are counted as before."""
+        pattern = AccessPattern(
+            pattern_id=1,
+            name='test_pattern',
+            description='Test pattern',
+            operation='Query',
+            parameters=[
+                {'name': 'pk'},
+                {'name': 'sk_prefix'},
+                {'name': 'extra'},
+            ],
+            return_type='entity_list',
+            range_condition='begins_with',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern)
+        assert len(errors) == 1  # 3 params but begins_with expects 2
 
 
 @pytest.mark.unit
@@ -367,7 +462,7 @@ class TestValidateCompleteRangeQuery(TestRangeQueryValidator):
         # Should catch both parameter count and operation errors
         assert len(errors) == 2
         error_messages = [error.message for error in errors]
-        assert any('at least 3 parameters' in msg for msg in error_messages)
+        assert any('requires at least 3 parameters' in msg for msg in error_messages)
         assert any("Range conditions require 'Query' operation" in msg for msg in error_messages)
 
     def test_no_range_condition_returns_empty(self):
@@ -615,3 +710,33 @@ class TestMultiAttributeSortKeyRangeQueries(TestRangeQueryValidator):
 
         errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
         assert errors == [], f'Expected no errors but got: {errors}'
+
+    def test_filter_expression_in_params_excluded(self):
+        """Test that 'in' operator filter params (params list) are excluded from count."""
+        pattern = AccessPattern(
+            pattern_id=1,
+            name='test_pattern',
+            description='Test pattern',
+            operation='Query',
+            parameters=[
+                {'name': 'pk'},
+                {'name': 'sk_prefix'},
+                {'name': 'status1'},
+                {'name': 'status2'},
+                {'name': 'status3'},
+            ],
+            return_type='entity_list',
+            range_condition='begins_with',
+            filter_expression={
+                'conditions': [
+                    {
+                        'field': 'status',
+                        'operator': 'in',
+                        'params': ['status1', 'status2', 'status3'],
+                    }
+                ],
+            },
+        )
+
+        errors = self.validator.validate_parameter_count(pattern)
+        assert errors == []  # 2 key params (pk + sk_prefix), 3 filter params excluded

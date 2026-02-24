@@ -944,6 +944,7 @@ class GSIValidator:
                             return_type=pattern_data.get('return_type', ''),
                             index_name=pattern_data.get('index_name'),
                             range_condition=pattern_data.get('range_condition'),
+                            filter_expression=pattern_data.get('filter_expression'),
                         )
                     )
 

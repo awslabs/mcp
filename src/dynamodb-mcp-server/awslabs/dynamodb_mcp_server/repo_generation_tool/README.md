@@ -438,6 +438,12 @@ Control read consistency for your access patterns. Strongly consistent reads ens
   - Works on main table sort keys and GSI sort keys
   - Supports multi-attribute sort keys with range conditions on last attribute
   - Automatic validation and helpful error messages
+- **Filter Expression Support**: Server-side filtering on non-key attributes for Query and Scan operations ([details](docs/FILTER_EXPRESSIONS.md))
+  - Comparison operators: `=`, `<>`, `<`, `<=`, `>`, `>=`
+  - Range and set operators: `between`, `in`
+  - Functions: `contains`, `begins_with`, `attribute_exists`, `attribute_not_exists`, `size`
+  - Logical operators: `AND`, `OR` for combining multiple conditions
+  - Comprehensive validation with helpful error messages
 - **Type Safety**: Language-specific type mappings and validation
 
 ## 🔑 GSI (Global Secondary Index) Support
@@ -548,6 +554,7 @@ For comprehensive information, see the detailed documentation:
 
 - **[Cross-Table Transactions](docs/TRANSACTIONS.md)** - Complete guide to atomic transaction support across multiple tables
 - **[Range Queries](docs/RANGE_QUERIES.md)** - Complete guide to range query support for main table and GSI sort keys
+- **[Filter Expressions](docs/FILTER_EXPRESSIONS.md)** - Complete guide to server-side filter expression support
 - **[GSI Support](docs/GSI_SUPPORT.md)** - Complete guide to Global Secondary Index support
 - **[Schema Validation](docs/SCHEMA_VALIDATION.md)** - Detailed validation rules, error handling, and schema structure
 - **[Testing Framework](docs/TESTING.md)** - Complete testing guide with unit, integration, and snapshot tests

@@ -391,6 +391,62 @@ def range_query_method(
         raise RuntimeError(f"Failed to range query {self.model_class.__name__}: {e}")
 ```
 
+### Filter Expression Operations
+```python
+# Filter expressions: applied AFTER data is read, before returning to client
+# Use ONLY for non-key attributes (fields NOT used in PK, SK, or GSI keys)
+# Examples: fulfillment_status, order_total, tags — never filter on key attributes
+def filter_query_method(
+    self,
+    customer_id: str,
+    min_order_total: Decimal,
+    excluded_fulfillment_status: str = "CANCELLED",
+    limit: int = 100,
+    exclusive_start_key: dict | None = None,
+    skip_invalid_items: bool = True
+) -> tuple[list[Entity], dict | None]:
+    """
+    Query with filter expression.
+
+    Filter Expression: #fulfillment_status <> :excluded_fulfillment_status AND #order_total >= :min_order_total
+    Note: Read capacity consumed based on items read, not items returned.
+    """
+    try:
+        partition_key = Entity.build_pk_for_lookup(customer_id)
+        query_parameters = {
+            'KeyConditionExpression': Key(self.pkey_name).eq(partition_key),
+            'FilterExpression': '#fulfillment_status <> :excluded_fulfillment_status AND #order_total >= :min_order_total',
+            'ExpressionAttributeNames': {
+                '#fulfillment_status': 'fulfillment_status',
+                '#order_total': 'order_total'
+            },
+            'ExpressionAttributeValues': {
+                ':excluded_fulfillment_status': excluded_fulfillment_status,
+                ':min_order_total': min_order_total
+            },
+            'Limit': limit
+        }
+        if exclusive_start_key:
+            query_parameters['ExclusiveStartKey'] = exclusive_start_key
+
+        response = self.table.query(**query_parameters)
+        return self._parse_query_response(response, skip_invalid_items)
+    except ClientError as e:
+        raise RuntimeError(f"Failed to filter query {self.model_class.__name__}: {e}")
+```
+
+**Filter expression functions** (attribute_exists, contains, size):
+```python
+# attribute_exists/attribute_not_exists - no ExpressionAttributeValues needed
+'FilterExpression': 'attribute_exists(#special_instructions) AND attribute_not_exists(#cancelled_at)'
+
+# contains - check if array/string contains a value
+'FilterExpression': 'contains(#tags, :skill_tag)'
+
+# size - returns the attribute size (string: length in bytes, list/set/map: number of elements)
+'FilterExpression': 'size(#items) > :min_items'
+```
+
 ### Cross-Table Transaction Operations (TransactionService)
 
 **TransactWrite Operations** - Atomic writes across multiple tables:

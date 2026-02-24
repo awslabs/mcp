@@ -17,6 +17,33 @@
 {{ param }}: {{ get_param_type(param, fields) }}{% if not loop.last %}, {% endif %}
 {%- endfor -%}
 {%- endmacro -%}
+{#- Macro to build a filter expression string from conditions -#}
+{%- macro build_filter_expression_string(filter_expr) -%}
+{%- set conditions = filter_expr.get('conditions', []) -%}
+{%- set logical_op = filter_expr.get('logical_operator', 'AND') -%}
+{%- for cond in conditions -%}
+{%- if cond.get('function') == 'attribute_exists' -%}
+attribute_exists(#{{ cond.field }})
+{%- elif cond.get('function') == 'attribute_not_exists' -%}
+attribute_not_exists(#{{ cond.field }})
+{%- elif cond.get('function') == 'size' and cond.get('operator') == 'between' -%}
+size(#{{ cond.field }}) BETWEEN :{{ cond.param }} AND :{{ cond.param2 }}
+{%- elif cond.get('function') == 'size' -%}
+size(#{{ cond.field }}) {{ cond.operator }} :{{ cond.param }}
+{%- elif cond.get('function') == 'contains' -%}
+contains(#{{ cond.field }}, :{{ cond.param }})
+{%- elif cond.get('function') == 'begins_with' -%}
+begins_with(#{{ cond.field }}, :{{ cond.param }})
+{%- elif cond.get('operator') == 'between' -%}
+#{{ cond.field }} BETWEEN :{{ cond.param }} AND :{{ cond.param2 }}
+{%- elif cond.get('operator') == 'in' -%}
+#{{ cond.field }} IN ({% for p in cond.params %}:{{ p }}{% if not loop.last %}, {% endif %}{% endfor %})
+{%- else -%}
+#{{ cond.field }} {{ cond.operator }} :{{ cond.param }}
+{%- endif -%}
+{%- if not loop.last %} {{ logical_op }} {% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
 {#- Macro to generate multi-attribute sort key conditions in KeyConditionExpression comments.
     pk_offset: number of PK parameters to skip (e.g., 2 for multi-attr PK, 1 for single PK)
     matching_gsi: the GSI definition with sort_key array
@@ -237,6 +264,12 @@ class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
             limit: Maximum items per page (default: 100)
             exclusive_start_key: Continuation token from previous page
             skip_invalid_items: If True, skip items that fail deserialization and continue. If False, raise exception on validation errors.
+{%- if pattern.get('filter_expression') %}
+
+        Filter Expression: {{ build_filter_expression_string(pattern.filter_expression) }}
+        Note: Filter expressions are applied AFTER data is read from DynamoDB.
+        Read capacity is consumed based on items read, not items returned.
+{%- endif %}
 
         Returns:
             tuple: (items, last_evaluated_key)
@@ -254,9 +287,38 @@ class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
 {%- endif %}
 {%- endif %}
         # TODO: Implement Access Pattern #{{ pattern.pattern_id }}
-        # Operation: {{ pattern.operation }} | Index: {% if pattern.get('index_name') %}{{ pattern.index_name }} (GSI){% else %}Main Table{% endif %}{% if pattern.get('range_condition') %} | Range Condition: {{ pattern.range_condition }}{% endif %}
+        # Operation: {{ pattern.operation }} | Index: {% if pattern.get('index_name') %}{{ pattern.index_name }} (GSI){% else %}Main Table{% endif %}{% if pattern.get('range_condition') %} | Range Condition: {{ pattern.range_condition }}{% endif %}{% if pattern.get('filter_expression') %} | Filter Expression: {{ build_filter_expression_string(pattern.filter_expression) }}{% endif %}
 {%- if pattern.get('range_condition') %}
         # Note: '{{ pattern.range_condition }}' requires {% if pattern.range_condition == 'between' %}2 parameters (min, max){% else %}1 parameter{% endif %} for the range condition
+{%- endif %}
+{%- if pattern.get('filter_expression') %}
+        #
+        # Filter Expression Implementation:
+        #     'FilterExpression': '{{ build_filter_expression_string(pattern.filter_expression) }}',
+        #     'ExpressionAttributeNames': {
+{%- for cond in pattern.filter_expression.conditions %}
+        #         '#{{ cond.field }}': '{{ cond.field }}',
+{%- endfor %}
+        #     },
+        #     'ExpressionAttributeValues': {
+{%- for cond in pattern.filter_expression.conditions %}
+{%- if cond.get('function') in ['attribute_exists', 'attribute_not_exists'] %}
+        #         {# no value needed for {{ cond.function }} #}
+{%- elif cond.get('operator') == 'between' %}
+        #         ':{{ cond.param }}': {{ cond.param }},
+        #         ':{{ cond.param2 }}': {{ cond.param2 }},
+{%- elif cond.get('operator') == 'in' %}
+{%- for p in cond.params %}
+        #         ':{{ p }}': {{ p }},
+{%- endfor %}
+{%- elif cond.get('function') == 'size' and cond.get('operator') == 'between' %}
+        #         ':{{ cond.param }}': {{ cond.param }},
+        #         ':{{ cond.param2 }}': {{ cond.param2 }},
+{%- elif cond.get('param') %}
+        #         ':{{ cond.param }}': {{ cond.param }},
+{%- endif %}
+{%- endfor %}
+        #     },
 {%- endif %}
         #
 {%- if pattern.get('index_name') %}
