@@ -25,32 +25,28 @@ DEFAULT_REGION = 'us-east-1'
 # Environment name validation pattern (1-80 chars, starts with letter)
 ENVIRONMENT_NAME_PATTERN = r'^[a-zA-Z][0-9a-zA-Z\-_]{0,79}$'
 
-# Airflow REST API v2 path templates
-AIRFLOW_API_PREFIX = '/api/v2'
+# Airflow REST API path templates
+# The AWS invoke_rest_api handles API version routing internally,
+# so paths should not include /api/v1 or /api/v2 prefixes.
 
 # DAG endpoints
-DAGS_PATH = f'{AIRFLOW_API_PREFIX}/dags'
-DAG_PATH = f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}'
-DAG_SOURCE_PATH = f'{AIRFLOW_API_PREFIX}/dagSources/{{file_token}}'
+DAGS_PATH = '/dags'
+DAG_PATH = '/dags/{dag_id}'
+DAG_SOURCE_PATH = '/dagSources/{file_token}'
 
 # DAG run endpoints
-DAG_RUNS_PATH = f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}/dagRuns'
-DAG_RUN_PATH = f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}/dagRuns/{{dag_run_id}}'
+DAG_RUNS_PATH = '/dags/{dag_id}/dagRuns'
+DAG_RUN_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}'
 
 # Task instance endpoints
-TASK_INSTANCES_PATH = f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}/dagRuns/{{dag_run_id}}/taskInstances'
-TASK_INSTANCE_PATH = (
-    f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}/dagRuns/{{dag_run_id}}/taskInstances/{{task_id}}'
-)
-TASK_LOGS_PATH = (
-    f'{AIRFLOW_API_PREFIX}/dags/{{dag_id}}/dagRuns/{{dag_run_id}}'
-    f'/taskInstances/{{task_id}}/logs/{{try_number}}'
-)
+TASK_INSTANCES_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances'
+TASK_INSTANCE_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}'
+TASK_LOGS_PATH = '/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}'
 
 # Other endpoints
-CONNECTIONS_PATH = f'{AIRFLOW_API_PREFIX}/connections'
-VARIABLES_PATH = f'{AIRFLOW_API_PREFIX}/variables'
-IMPORT_ERRORS_PATH = f'{AIRFLOW_API_PREFIX}/importErrors'
+CONNECTIONS_PATH = '/connections'
+VARIABLES_PATH = '/variables'
+IMPORT_ERRORS_PATH = '/importErrors'
 
 # Sensitive fields to redact from connection responses
 CONNECTION_SENSITIVE_FIELDS = ('password', 'extra')

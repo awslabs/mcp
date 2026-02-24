@@ -47,14 +47,14 @@ class TestInvokeAirflowApi:
         response = await handler_readonly._invoke_airflow_api(
             environment_name='test-env',
             method='GET',
-            path='/api/v2/dags',
+            path='/dags',
         )
 
         assert response == {'dags': [], 'total_entries': 0}
         mock_client.invoke_rest_api.assert_called_once_with(
             Name='test-env',
             Method='GET',
-            Path='/api/v2/dags',
+            Path='/dags',
         )
 
     @pytest.mark.asyncio
@@ -70,7 +70,7 @@ class TestInvokeAirflowApi:
         response = await handler_readonly._invoke_airflow_api(
             environment_name='test-env',
             method='POST',
-            path='/api/v2/dags/my_dag/dagRuns',
+            path='/dags/my_dag/dagRuns',
             body={'conf': {'key': 'value'}},
             query_parameters={'limit': '10'},
         )
@@ -86,7 +86,7 @@ class TestInvokeAirflowApi:
             await handler_readonly._invoke_airflow_api(
                 environment_name='123-bad',
                 method='GET',
-                path='/api/v2/dags',
+                path='/dags',
             )
 
 

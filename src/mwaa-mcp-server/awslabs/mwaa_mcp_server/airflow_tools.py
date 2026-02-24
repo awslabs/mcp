@@ -137,10 +137,13 @@ class AirflowTools:
     ) -> dict:
         """Invoke an Airflow REST API endpoint via MWAA invoke_rest_api.
 
+        The AWS invoke_rest_api handles API version routing internally,
+        so paths should not include /api/v1 or /api/v2 prefixes.
+
         Args:
             environment_name: Name of the MWAA environment.
             method: HTTP method (GET, POST, PATCH, PUT, DELETE).
-            path: Airflow REST API path.
+            path: Airflow REST API path (e.g. '/dags' or '/dags/{dag_id}/dagRuns').
             body: Optional request body.
             query_parameters: Optional query parameters.
             region: AWS region override.
