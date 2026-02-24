@@ -127,6 +127,8 @@ def build_result(
                     service_name,
                     operation_name,
                 )
-                return _finalize_result(result, page_iterator, response_metadata, client_side_filter)
+                return _finalize_result(
+                    result, page_iterator, response_metadata, client_side_filter
+                )
 
     return _finalize_result(result, page_iterator, response_metadata, client_side_filter)
