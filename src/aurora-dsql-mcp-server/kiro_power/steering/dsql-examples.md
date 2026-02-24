@@ -18,6 +18,7 @@ For additional samples, including in alternative language and driver support, re
 PGPASSWORD="$(aws dsql generate-db-connect-admin-auth-token \
   --hostname ${CLUSTER}.dsql.${REGION}.on.aws \
   --region ${REGION})" \
+PGAPPNAME="<app-name>/<model-id>" \
 psql -h ${CLUSTER}.dsql.${REGION}.on.aws -U admin -d postgres \
   -c "SELECT COUNT(*) FROM objectives WHERE tenant_id = 'tenant-123';"
 ```
@@ -37,6 +38,7 @@ function createPool(clusterEndpoint, user) {
   return new AuroraDSQLPool({
     host: clusterEndpoint,
     user: user,
+    application_name: "<app-name>/<model-id>",
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,

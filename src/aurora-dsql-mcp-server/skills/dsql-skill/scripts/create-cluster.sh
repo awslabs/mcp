@@ -16,15 +16,16 @@ set -euo pipefail
 
 # create-cluster.sh - Create an Aurora DSQL cluster
 #
-# Usage: ./create-cluster.sh [--region REGION] [--tags KEY=VALUE,...]
+# Usage: ./create-cluster.sh --created-by MODEL_ID [--region REGION] [--tags KEY=VALUE,...]
 #
 # Examples:
-#   ./create-cluster.sh
-#   ./create-cluster.sh --region us-east-1
-#   ./create-cluster.sh --region us-west-2 --tags Environment=dev,Project=myapp
+#   ./create-cluster.sh --created-by claude-opus-4-6
+#   ./create-cluster.sh --created-by claude-opus-4-6 --region us-east-1
+#   ./create-cluster.sh --created-by claude-opus-4-6 --region us-west-2 --tags Environment=dev,Project=myapp
 
 REGION="${AWS_REGION:-us-east-1}"
 TAGS=""
+CREATED_BY=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -37,6 +38,10 @@ while [[ $# -gt 0 ]]; do
       TAGS="$2"
       shift 2
       ;;
+    --created-by)
+      CREATED_BY="$2"
+      shift 2
+      ;;
     -h|--help)
       echo "Usage: $0 [--region REGION] [--tags KEY=VALUE,...]"
       echo ""
@@ -45,6 +50,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --region REGION    AWS region (default: \$AWS_REGION or us-east-1)"
       echo "  --tags TAGS        Comma-separated tags (e.g., Env=dev,Project=app)"
+      echo "  --created-by ID    Model/agent identifier added as a 'created_by' cluster tag"
       echo "  -h, --help         Show this help message"
       exit 0
       ;;
@@ -56,6 +62,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "Creating Aurora DSQL cluster in $REGION..."
+
+# Prepend created_by tag if --created-by was provided
+if [[ -n "$CREATED_BY" ]]; then
+  # Validate: allow only alphanumeric, hyphens, underscores, and dots (e.g. claude-opus-4-6)
+  if [[ ! "$CREATED_BY" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+    echo "Error: --created-by must contain only alphanumeric characters, hyphens, underscores, and dots." >&2
+    exit 1
+  fi
+  if [[ -n "$TAGS" ]]; then
+    TAGS="created_by=${CREATED_BY},${TAGS}"
+  else
+    TAGS="created_by=${CREATED_BY}"
+  fi
+fi
 
 # Build the AWS CLI command as an array to avoid eval and shell injection
 CMD=(aws dsql create-cluster --region "$REGION")
