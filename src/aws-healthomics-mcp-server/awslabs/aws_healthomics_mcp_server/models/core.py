@@ -20,7 +20,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, field_validator, model_validator
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class WorkflowType(str, Enum):
@@ -255,3 +255,29 @@ class ContainerRegistryMap(BaseModel):
     def convert_none_to_empty_list(cls, v: Any) -> List[Any]:
         """Convert None values to empty lists for consistency."""
         return [] if v is None else v
+
+
+class RunGroupSummary(BaseModel):
+    """Summary information about a run group."""
+
+    id: str
+    arn: str
+    name: Optional[str] = None
+    maxCpus: Optional[int] = None
+    maxGpus: Optional[int] = None
+    maxDuration: Optional[int] = None
+    maxRuns: Optional[int] = None
+    creationTime: datetime
+
+
+class RunGroupDetail(RunGroupSummary):
+    """Detailed run group information including tags."""
+
+    tags: Optional[Dict[str, str]] = None
+
+
+class RunGroupListResponse(BaseModel):
+    """Response model for listing run groups."""
+
+    runGroups: List[RunGroupSummary]
+    nextToken: Optional[str] = None

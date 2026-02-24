@@ -159,6 +159,10 @@ async def start_run(
         None,
         description='Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)',
     ),
+    run_group_id: Optional[str] = Field(
+        None,
+        description='Optional ID of a run group to associate with this run',
+    ),
 ) -> Dict[str, Any]:
     """Start a workflow run.
 
@@ -179,6 +183,7 @@ async def start_run(
         storage_capacity: Storage capacity in GB (required for STATIC)
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
+        run_group_id: Optional ID of a run group to associate with this run
 
     Returns:
         Dictionary containing the run information or error dict
@@ -243,6 +248,9 @@ async def start_run(
         if cache_behavior:
             params['cacheBehavior'] = cache_behavior
 
+    if run_group_id:
+        params['runGroupId'] = run_group_id
+
     try:
         response = client.start_run(**params)
 
@@ -254,6 +262,7 @@ async def start_run(
             'workflowId': workflow_id,
             'workflowVersionName': workflow_version_name,
             'outputUri': output_uri,
+            'runGroupId': run_group_id,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')
@@ -283,6 +292,10 @@ async def list_runs(
         None,
         description='Filter for runs created before this timestamp (ISO format)',
     ),
+    run_group_id: Optional[str] = Field(
+        None,
+        description='Optional run group ID to filter runs',
+    ),
 ) -> Dict[str, Any]:
     """List workflow runs.
 
@@ -293,6 +306,7 @@ async def list_runs(
         status: Filter by run status
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
+        run_group_id: Optional run group ID to filter runs
 
     Returns:
         Dictionary containing run information and next token if available, or error dict
@@ -337,6 +351,9 @@ async def list_runs(
 
             if status:
                 params['status'] = status
+
+            if run_group_id:
+                params['runGroupId'] = run_group_id
 
             response = client.list_runs(**params)
 
