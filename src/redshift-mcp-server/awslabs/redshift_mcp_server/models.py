@@ -84,29 +84,10 @@ class RedshiftSchema(BaseModel):
     )
 
 
-class RedshiftTable(BaseModel):
-    """Information about a table in a Redshift database.
-
-    Based on the SVV_ALL_TABLES system view.
-    """
-
-    database_name: str = Field(..., description='The name of the database where the table exists')
-    schema_name: str = Field(..., description='The schema name for the table')
-    table_name: str = Field(..., description='The name of the table')
-    table_acl: Optional[str] = Field(
-        None, description='The permissions for the specified user or user group for the table'
-    )
-    table_type: Optional[str] = Field(
-        None,
-        description='The type of the table (views, base tables, external tables, shared tables)',
-    )
-    remarks: Optional[str] = Field(None, description='Remarks about the table')
-
-
 class RedshiftColumn(BaseModel):
     """Information about a column in a Redshift table.
 
-    Based on the SVV_ALL_COLUMNS system view.
+    Based on SVV_REDSHIFT_COLUMNS and SVV_EXTERNAL_COLUMNS with UNION ALL.
     """
 
     database_name: str = Field(..., description='The name of the database')
@@ -127,6 +108,68 @@ class RedshiftColumn(BaseModel):
     numeric_precision: Optional[int] = Field(None, description='The numeric precision')
     numeric_scale: Optional[int] = Field(None, description='The numeric scale')
     remarks: Optional[str] = Field(None, description='Remarks about the column')
+    # Redshift-specific properties (from SVV_REDSHIFT_COLUMNS)
+    redshift_encoding: Optional[str] = Field(None, description='Compression encoding')
+    redshift_distkey: Optional[bool] = Field(
+        None, description='Whether this column is the distribution key'
+    )
+    redshift_sortkey: Optional[int] = Field(
+        None, description='Sort key position (0 if not a sort key, 1+ for position)'
+    )
+    # External table properties (from SVV_EXTERNAL_COLUMNS)
+    external_type: Optional[str] = Field(None, description='External column type')
+    external_part_key: Optional[int] = Field(
+        None,
+        description='Partition key order (0 if not a partition key, 1+ for partition key position)',
+    )
+
+
+class RedshiftTable(BaseModel):
+    """Information about a table in a Redshift database.
+
+    Based on SVV_REDSHIFT_TABLES and SVV_EXTERNAL_TABLES with UNION ALL.
+    Additional metadata from PG_TABLES_SQL is fetched separately and merged.
+    """
+
+    database_name: str = Field(..., description='The name of the database where the table exists')
+    schema_name: str = Field(..., description='The schema name for the table')
+    table_name: str = Field(..., description='The name of the table')
+    table_acl: Optional[str] = Field(
+        None, description='The permissions for the specified user or user group for the table'
+    )
+    table_type: Optional[str] = Field(
+        None,
+        description='The type of the table (TABLE, EXTERNAL TABLE)',
+    )
+    remarks: Optional[str] = Field(None, description='Remarks about the table')
+    # Redshift-specific properties (from PG_TABLES_SQL using pg_catalog tables)
+    redshift_diststyle: Optional[str] = Field(
+        None, description='Distribution style (KEY, EVEN, ALL, AUTO)'
+    )
+    redshift_sortkey1: Optional[str] = Field(None, description='Primary sort key column name')
+    redshift_encoded: Optional[str] = Field(
+        None, description='Whether the table has compression encoding (Y/N)'
+    )
+    redshift_tbl_rows: Optional[int] = Field(None, description='Approximate number of rows')
+    redshift_size: Optional[int] = Field(None, description='Table size in MB')
+    redshift_pct_used: Optional[float] = Field(
+        None, description='Percentage of table capacity used'
+    )
+    redshift_stats_off: Optional[float] = Field(
+        None, description='Percentage that table statistics are out of date'
+    )
+    redshift_skew_rows: Optional[float] = Field(
+        None, description='Ratio of rows in largest slice to smallest slice'
+    )
+    # External table properties (from SVV_EXTERNAL_TABLES)
+    external_location: Optional[str] = Field(None, description='External table location (S3 path)')
+    external_parameters: Optional[str] = Field(
+        None, description='External table parameters (JSON)'
+    )
+    # Column design information (only populated in execution plan analysis)
+    columns: Optional[list[RedshiftColumn]] = Field(
+        None, description='Column design information (only populated in execution plan analysis)'
+    )
 
 
 class QueryResult(BaseModel):
@@ -139,3 +182,45 @@ class QueryResult(BaseModel):
         None, description='Query execution time in milliseconds'
     )
     query_id: str = Field(..., description='Unique identifier for the query execution')
+
+
+class ExecutionPlanNode(BaseModel):
+    """Individual node in the query execution plan tree."""
+
+    node_id: int = Field(..., description='Unique node identifier')
+    parent_node_id: Optional[int] = Field(None, description='Parent node ID')
+    level: int = Field(..., description='Tree depth (0 = root)')
+    operation: str = Field(..., description='Operation type')
+    relation_name: Optional[str] = Field(None, description='Table or view name')
+    prefix: Optional[str] = Field(None, description='Execution prefix (e.g., XN)')
+    distribution_type: Optional[str] = Field(None, description='Data distribution method')
+    cost_startup: Optional[float] = Field(None, description='Startup cost')
+    cost_total: Optional[float] = Field(None, description='Total cost')
+    rows: Optional[int] = Field(None, description='Estimated rows')
+    width: Optional[int] = Field(None, description='Row width in bytes')
+    scan_relid: Optional[int] = Field(None, description='Relation ID for scan operations')
+    join_type: Optional[str] = Field(None, description='Join type (Inner, Left, etc.)')
+    join_condition: Optional[str] = Field(None, description='Join condition')
+    filter_condition: Optional[str] = Field(None, description='Filter condition')
+    sort_key: Optional[str] = Field(None, description='Sort key info')
+    agg_strategy: Optional[str] = Field(None, description='Aggregation strategy')
+    data_movement: Optional[str] = Field(None, description='Data movement type')
+    output_columns: Optional[list[str]] = Field(None, description='Output columns')
+
+
+class ExecutionPlan(BaseModel):
+    """Result of an EXPLAIN VERBOSE query execution."""
+
+    query_id: str = Field(..., description='Explain execution identifier')
+    explained_query: str = Field(..., description='Original SQL query')
+    planning_time_ms: Optional[int] = Field(None, description='Planning time in milliseconds')
+    plan_nodes: list[ExecutionPlanNode] = Field(..., description='Execution plan nodes')
+    table_designs: list[RedshiftTable] = Field(
+        default_factory=list, description='Table design information for referenced tables'
+    )
+    human_readable_plan: Optional[str] = Field(
+        None, description='Human-readable plan text (show only if fits on screen)'
+    )
+    suggestions: list[str] = Field(
+        default_factory=list, description='Performance optimization suggestions'
+    )

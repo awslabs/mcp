@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server.consts import (
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
+    ExecutionPlan,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -30,6 +31,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftTable,
 )
 from awslabs.redshift_mcp_server.redshift import (
+    describe_execution_plan,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -82,6 +84,10 @@ This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+
+### describe_execution_plan
+Generates and analyzes the execution plan for a SQL query without executing it.
+Returns structured plan nodes for performance optimization analysis.
 
 ## Getting Started
 
@@ -349,6 +355,8 @@ async def list_tables_tool(
     that the user has access to in the specified schema, including base tables,
     views, external tables, and shared tables.
 
+    Enhanced metadata from pg_catalog tables is fetched separately and merged when available.
+
     ## Usage Requirements
 
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
@@ -376,6 +384,20 @@ async def list_tables_tool(
     - table_type: The type of the table (views, base tables, external tables, shared tables).
     - remarks: Remarks about the table.
 
+    Redshift-specific properties (from pg_catalog tables, may be None on serverless):
+    - redshift_diststyle: Distribution style (KEY, EVEN, ALL, AUTO).
+    - redshift_sortkey1: Primary sort key column name.
+    - redshift_encoded: Whether compression encoding is enabled (Y/N).
+    - redshift_tbl_rows: Approximate number of rows in the table.
+    - redshift_size: Table size in MB.
+    - redshift_pct_used: Percentage of table capacity used.
+    - redshift_stats_off: Percentage that table statistics are out of date (0-100).
+    - redshift_skew_rows: Data distribution skew ratio (largest slice / smallest slice).
+
+    External table properties (from SVV_EXTERNAL_TABLES):
+    - external_location: S3 location for external tables (Spectrum).
+    - external_parameters: JSON parameters for external tables (e.g., partition columns).
+
     ## Usage Tips
 
     1. First use list_clusters to get valid cluster identifiers.
@@ -383,6 +405,7 @@ async def list_tables_tool(
     3. Then use list_schemas to get valid schema names for the database.
     4. Ensure the cluster status is 'available' before querying tables.
     5. Note table types to understand if they are base tables, views, external tables, or shared tables.
+    6. Use table statistics (redshift_stats_off, redshift_skew_rows) to identify optimization opportunities.
 
     ## Interpretation Best Practices
 
@@ -392,6 +415,7 @@ async def list_tables_tool(
     4. 'SHARED TABLE' types indicate tables from datashares.
     5. Use table names for subsequent column discovery and query operations.
     6. Consider table permissions (table_acl) for access planning.
+    7. Monitor table statistics and run ANALYZE when needed for accurate query planning.
     """
     try:
         logger.info(
@@ -482,6 +506,11 @@ async def list_columns_tool(
     - numeric_precision: The numeric precision.
     - numeric_scale: The numeric scale.
     - remarks: Remarks about the column.
+    - redshift_encoding: Compression encoding for Redshift columns.
+    - redshift_distkey: Whether this column is the distribution key for Redshift tables.
+    - redshift_sortkey: Sort key position (0 if not a sort key, 1+ for position) for Redshift tables.
+    - external_type: Data type for external table columns (Spectrum).
+    - external_part_key: Partition key position (0 if not a partition key, 1+ for position) for external tables.
 
     ## Usage Tips
 
@@ -619,6 +648,99 @@ async def execute_query_tool(
         logger.error(f'Error in execute_query_tool: {str(e)}')
         await ctx.error(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
+        )
+        raise
+
+
+@mcp.tool(name='describe_execution_plan')
+async def describe_execution_plan_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to explain the query on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        ...,
+        description='The database name to explain the query against. Must be a valid database name from the list_databases tool.',
+    ),
+    sql: str = Field(
+        ...,
+        description='The SQL statement to generate an execution plan for. Should be a single SQL statement without the EXPLAIN prefix.',
+    ),
+) -> ExecutionPlan:
+    """Get the execution plan for a SQL query without executing it.
+
+    Uses EXPLAIN VERBOSE to generate a structured execution plan for query optimization analysis.
+    This tool provides insights into query performance without running the actual query.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The user must have appropriate permissions to execute queries in the specified database.
+
+    ## Parameters
+
+    - cluster_identifier: The Redshift cluster identifier from list_clusters.
+    - database_name: The database name from list_databases.
+    - sql: SQL statement to explain (do not include EXPLAIN keyword).
+
+    ## Response Structure
+
+    Returns an ExecutionPlan with:
+    - query_id: Unique identifier for this explain execution.
+    - explained_query: The original SQL query.
+    - planning_time_ms: Time to generate the plan.
+    - plan_nodes: List of ExecutionPlanNode objects with hierarchy (node_id, parent_node_id, level, operation, distribution_type, costs, etc.).
+    - table_designs: List of table design info (DISTKEY, SORTKEY, encoding) for referenced tables.
+    - human_readable_plan: Human-readable plan text from EXPLAIN output.
+    - suggestions: Performance optimization suggestions based on plan analysis.
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Do NOT include EXPLAIN keyword in your SQL - the tool adds it automatically.
+    4. Run ANALYZE on tables before checking execution plans for accurate cost estimates.
+    5. Compare plans before and after schema changes to measure optimization impact.
+    6. Use this tool to validate query performance before running expensive queries.
+
+    ## Interpretation Best Practices
+
+    1. Read the plan bottom-up: leaf nodes execute first, results flow upward.
+    2. Focus on high-cost nodes first - they have the biggest optimization potential.
+    3. Check distribution_type for data movement: DS_DIST_NONE is optimal, DS_BCAST_INNER/DS_DIST_INNER indicate redistribution.
+    4. Look for Nested Loop joins on large tables - usually indicates missing join condition.
+    5. High row estimates with Seq Scan suggest missing or ineffective SORTKEY.
+    6. Review suggestions field for actionable optimization recommendations.
+    7. Check table_designs to verify DISTKEY/SORTKEY alignment with query patterns.
+    8. Monitor table statistics and run ANALYZE when needed for accurate query planning.
+
+    Note: Redshift does NOT support indexes. Focus on DISTKEY, SORTKEY, and compression optimization.
+    """
+    try:
+        logger.info(
+            f'Getting execution plan for query on cluster {cluster_identifier} in database {database_name}'
+        )
+
+        plan_result_data = await describe_execution_plan(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+        )
+
+        # Convert to ExecutionPlan model
+        execution_plan = ExecutionPlan(**plan_result_data)
+
+        logger.info(
+            f'Successfully generated execution plan on cluster {cluster_identifier}: '
+            f'{len(execution_plan.plan_nodes)} nodes in {execution_plan.planning_time_ms}ms'
+        )
+        return execution_plan
+
+    except Exception as e:
+        logger.error(f'Error in describe_execution_plan_tool: {str(e)}')
+        await ctx.error(
+            f'Failed to get execution plan on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
         raise
 
