@@ -33,6 +33,7 @@ from awslabs.mwaa_mcp_server.consts import (
     TASK_INSTANCE_PATH,
     TASK_INSTANCES_PATH,
     TASK_LOGS_PATH,
+    VARIABLE_SENSITIVE_KEY_PATTERNS,
     VARIABLES_PATH,
 )
 from botocore.exceptions import BotoCoreError, ClientError
@@ -118,8 +119,10 @@ class AirflowTools:
             return env_default
 
         client = get_mwaa_client(region_name=region, profile_name=profile_name)
-        response = client.list_environments()
-        envs = response.get('Environments', [])
+        envs: list[str] = []
+        paginator = client.get_paginator('list_environments')
+        for page in paginator.paginate():
+            envs.extend(page.get('Environments', []))
 
         if len(envs) == 0:
             raise ValueError('No MWAA environments found in this region.')
@@ -247,6 +250,27 @@ class AirflowTools:
             for field in CONNECTION_SENSITIVE_FIELDS:
                 if field in conn:
                     conn[field] = '***REDACTED***'
+        return response
+
+    @staticmethod
+    def _redact_variables(response: dict) -> dict:
+        """Redact values of sensitive variables based on key patterns.
+
+        Matches Airflow UI behavior: variables whose keys contain sensitive
+        substrings (e.g. 'secret', 'password', 'token') have their values masked.
+
+        Args:
+            response: The API response containing variable data.
+
+        Returns:
+            The response with sensitive variable values redacted.
+        """
+        variables = response.get('variables', [])
+        for var in variables:
+            key = var.get('key', '')
+            key_lower = key.lower()
+            if any(pattern in key_lower for pattern in VARIABLE_SENSITIVE_KEY_PATTERNS):
+                var['value'] = '***REDACTED***'
         return response
 
     async def list_dags(
@@ -1131,6 +1155,8 @@ class AirflowTools:
                 region=region,
                 profile_name=profile_name,
             )
+
+            response = self._redact_variables(response)
 
             return CallToolResult(
                 isError=False,

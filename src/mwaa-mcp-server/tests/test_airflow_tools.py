@@ -1157,6 +1157,57 @@ class TestRedactConnections:
         assert result['connections'] == []
 
 
+class TestRedactVariables:
+    def test_redact_sensitive_keys(self):
+        response = {
+            'variables': [
+                {'key': 'api_key_github', 'value': 'ghp_abc123'},  # pragma: allowlist secret
+                {'key': 'db_password', 'value': 'hunter2'},  # pragma: allowlist secret
+                {'key': 'auth_token', 'value': 'tok_xyz'},  # pragma: allowlist secret
+                {'key': 'my_secret', 'value': 'shhh'},  # pragma: allowlist secret
+                {'key': 'aws_conn_string', 'value': 'postgres://...'},
+                {'key': 'private_key_path', 'value': '/keys/id_rsa'},
+            ]
+        }
+        result = AirflowTools._redact_variables(response)
+        for var in result['variables']:
+            assert var['value'] == '***REDACTED***', f'Expected {var["key"]} to be redacted'
+
+    def test_non_sensitive_keys_preserved(self):
+        response = {
+            'variables': [
+                {'key': 'dag_schedule', 'value': '0 * * * *'},
+                {'key': 'batch_size', 'value': '100'},
+                {'key': 'env_name', 'value': 'production'},
+            ]
+        }
+        result = AirflowTools._redact_variables(response)
+        assert result['variables'][0]['value'] == '0 * * * *'
+        assert result['variables'][1]['value'] == '100'
+        assert result['variables'][2]['value'] == 'production'
+
+    def test_case_insensitive_matching(self):
+        response = {
+            'variables': [
+                {'key': 'MY_API_KEY', 'value': 'abc'},  # pragma: allowlist secret
+                {'key': 'SecretValue', 'value': 'xyz'},  # pragma: allowlist secret
+            ]
+        }
+        result = AirflowTools._redact_variables(response)
+        assert result['variables'][0]['value'] == '***REDACTED***'
+        assert result['variables'][1]['value'] == '***REDACTED***'
+
+    def test_empty_variables(self):
+        response = {'variables': []}
+        result = AirflowTools._redact_variables(response)
+        assert result['variables'] == []
+
+    def test_no_variables_key(self):
+        response = {'total_entries': 0}
+        result = AirflowTools._redact_variables(response)
+        assert result == {'total_entries': 0}
+
+
 class TestResolveEnvironment:
     def test_explicit_name_returned_as_is(self, mock_mcp):
         handler = AirflowTools(mock_mcp, allow_write=False)
@@ -1166,9 +1217,9 @@ class TestResolveEnvironment:
     @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
     def test_single_env_auto_selected(self, mock_get_client, mock_mcp):
         mock_client = MagicMock()
-        mock_client.list_environments.return_value = {
-            'Environments': ['only-env'],
-        }
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{'Environments': ['only-env']}]
+        mock_client.get_paginator.return_value = mock_paginator
         mock_get_client.return_value = mock_client
 
         handler = AirflowTools(mock_mcp, allow_write=False)
@@ -1179,9 +1230,9 @@ class TestResolveEnvironment:
     @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
     def test_multiple_envs_raises_with_list(self, mock_get_client, mock_mcp):
         mock_client = MagicMock()
-        mock_client.list_environments.return_value = {
-            'Environments': ['env-a', 'env-b', 'env-c'],
-        }
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{'Environments': ['env-a', 'env-b', 'env-c']}]
+        mock_client.get_paginator.return_value = mock_paginator
         mock_get_client.return_value = mock_client
 
         handler = AirflowTools(mock_mcp, allow_write=False)
@@ -1192,9 +1243,9 @@ class TestResolveEnvironment:
     @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
     def test_no_envs_raises(self, mock_get_client, mock_mcp):
         mock_client = MagicMock()
-        mock_client.list_environments.return_value = {
-            'Environments': [],
-        }
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{'Environments': []}]
+        mock_client.get_paginator.return_value = mock_paginator
         mock_get_client.return_value = mock_client
 
         handler = AirflowTools(mock_mcp, allow_write=False)
@@ -1218,9 +1269,9 @@ class TestResolveEnvironment:
     def test_env_var_ignored_when_empty(self, mock_get_client, mock_mcp, monkeypatch):
         monkeypatch.setenv('MWAA_ENVIRONMENT', '')
         mock_client = MagicMock()
-        mock_client.list_environments.return_value = {
-            'Environments': ['only-env'],
-        }
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [{'Environments': ['only-env']}]
+        mock_client.get_paginator.return_value = mock_paginator
         mock_get_client.return_value = mock_client
 
         handler = AirflowTools(mock_mcp, allow_write=False)

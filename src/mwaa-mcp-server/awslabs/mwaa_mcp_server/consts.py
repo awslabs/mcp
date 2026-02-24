@@ -52,3 +52,17 @@ IMPORT_ERRORS_PATH = '/importErrors'
 
 # Sensitive fields to redact from connection responses
 CONNECTION_SENSITIVE_FIELDS = ('password', 'extra')
+
+# Patterns for identifying sensitive variable keys (case-insensitive substrings)
+# Matches Airflow UI behavior for masking sensitive variables
+VARIABLE_SENSITIVE_KEY_PATTERNS = (
+    'secret',
+    'password',
+    'passwd',
+    'token',
+    'api_key',
+    'apikey',
+    'conn',
+    'credential',
+    'private_key',
+)
