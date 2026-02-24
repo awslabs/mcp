@@ -186,9 +186,7 @@ async def get_available_services(
         return error_msg
 
     if response.status_code >= 400:
-        error_msg = (
-            f'Failed to fetch AWS-CN services page - status code {response.status_code}'
-        )
+        error_msg = f'Failed to fetch AWS-CN services page - status code {response.status_code}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return error_msg
