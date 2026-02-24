@@ -1006,6 +1006,28 @@
       ]
     },
     {
+      "category": "Infrastructure & Deployment",
+      "description": "Manage and monitor Apache Airflow environments, DAGs, runs, and tasks",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "mwaa-mcp-server",
+      "name": "Amazon MWAA MCP Server",
+      "source_path": "src/mwaa-mcp-server/",
+      "subcategory": "Workflow Orchestration",
+      "tags": [
+        "mwaa",
+        "airflow",
+        "workflows",
+        "orchestration",
+        "data-pipelines",
+        "dag-management",
+        "autonomous",
+        "workflow-integration"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Integration & Messaging",
       "description": "Execute complex workflows and business processes",
       "icon": "\ud83d\udce1",
