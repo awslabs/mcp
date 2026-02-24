@@ -41,16 +41,20 @@ class ClusterInfo(BaseModel):
         version: Kubernetes version - only populated when validate=True
     """
 
-    name: str = Field(..., description='EKS cluster name')
-    region: str = Field(..., description='AWS region')
-    account_id: Optional[str] = Field(None, description='AWS account ID')
-    description: Optional[str] = Field(None, description='Cluster description')
+    name: str = Field(..., description="EKS cluster name")
+    region: str = Field(..., description="AWS region")
+    account_id: Optional[str] = Field(None, description="AWS account ID")
+    description: Optional[str] = Field(None, description="Cluster description")
     access_method: str = Field(
         ...,
-        description='Credential access method: role_assumption, profile, or default',
+        description="Credential access method: role_assumption, profile, or default",
     )
-    status: Optional[str] = Field(None, description='Cluster status (only when validated)')
-    version: Optional[str] = Field(None, description='Kubernetes version (only when validated)')
+    status: Optional[str] = Field(
+        None, description="Cluster status (only when validated)"
+    )
+    version: Optional[str] = Field(
+        None, description="Kubernetes version (only when validated)"
+    )
 
 
 class DiscoveryError(BaseModel):
@@ -64,11 +68,11 @@ class DiscoveryError(BaseModel):
         actionable_guidance: Guidance on how to fix the error
     """
 
-    account_id: str = Field(..., description='AWS account ID')
-    region: str = Field(..., description='AWS region')
-    error_type: str = Field(..., description='Error type')
-    error_message: str = Field(..., description='Error message')
-    actionable_guidance: str = Field(..., description='How to fix this error')
+    account_id: str = Field(..., description="AWS account ID")
+    region: str = Field(..., description="AWS region")
+    error_type: str = Field(..., description="Error type")
+    error_message: str = Field(..., description="Error message")
+    actionable_guidance: str = Field(..., description="How to fix this error")
 
 
 class ListClustersData(BaseModel):
@@ -80,10 +84,10 @@ class ListClustersData(BaseModel):
         errors: List of errors encountered during discovery (if any)
     """
 
-    count: int = Field(..., description='Number of configured clusters')
-    clusters: List[ClusterInfo] = Field(..., description='List of cluster information')
+    count: int = Field(..., description="Number of configured clusters")
+    clusters: List[ClusterInfo] = Field(..., description="List of cluster information")
     errors: List[DiscoveryError] = Field(
-        default_factory=list, description='Errors encountered during discovery'
+        default_factory=list, description="Errors encountered during discovery"
     )
 
 
@@ -103,7 +107,7 @@ class EKSDiscoveryHandler:
         self.mcp = mcp
 
         # Register tools
-        self.mcp.tool(name='list_eks_clusters')(self.list_eks_clusters)
+        self.mcp.tool(name="list_eks_clusters")(self.list_eks_clusters)
 
     @staticmethod
     def discover_clusters_with_default_credentials() -> List[ClusterConfig]:
@@ -129,15 +133,15 @@ class EKSDiscoveryHandler:
 
         try:
             # Get default credentials and account info using STS
-            sts_client = AwsHelper.create_boto3_client('sts')
+            sts_client = AwsHelper.create_boto3_client("sts")
             caller_identity = sts_client.get_caller_identity()
-            account_id = caller_identity['Account']
+            account_id = caller_identity["Account"]
 
-            logger.info(f'Using default credentials for account {account_id}')
+            logger.info(f"Using default credentials for account {account_id}")
 
             # Get default region from environment or use us-east-1
-            region_name = AwsHelper.get_aws_region() or 'us-east-1'
-            logger.info(f'Discovering clusters in region {region_name}')
+            region_name = AwsHelper.get_aws_region() or "us-east-1"
+            logger.info(f"Discovering clusters in region {region_name}")
 
             # Create a minimal config with this account/region
             account_config = AccountConfig(
@@ -150,16 +154,20 @@ class EKSDiscoveryHandler:
             )
             # Set the minimal config in ConfigManager
             ConfigManager._config = minimal_config
-            logger.debug(f'Created minimal config for account {account_id}, region {region_name}')
+            logger.debug(
+                f"Created minimal config for account {account_id}, region {region_name}"
+            )
 
             # Create EKS client with default credentials
-            eks_client = AwsHelper.create_boto3_client('eks', region_name=region_name)
+            eks_client = AwsHelper.create_boto3_client("eks", region_name=region_name)
 
             # List clusters in the region
             response = eks_client.list_clusters()
-            cluster_names = response.get('clusters', [])
+            cluster_names = response.get("clusters", [])
 
-            logger.info(f'Found {len(cluster_names)} clusters in {region_name}: {cluster_names}')
+            logger.info(
+                f"Found {len(cluster_names)} clusters in {region_name}: {cluster_names}"
+            )
 
             # Create ClusterConfig for each discovered cluster
             for cluster_name in cluster_names:
@@ -167,22 +175,26 @@ class EKSDiscoveryHandler:
                     name=cluster_name,
                     region=region_name,
                     account_id=account_id,
-                    description=f'Auto-discovered cluster using default credentials in {region_name}',
+                    description=f"Auto-discovered cluster using default credentials in {region_name}",
                     validated=True,  # Discovery process confirms cluster exists
                 )
                 discovered_clusters.append(cluster_config)
-                logger.debug(f'Discovered cluster: {cluster_name} in {region_name}')
+                logger.debug(f"Discovered cluster: {cluster_name} in {region_name}")
 
             if discovered_clusters:
                 logger.info(
-                    f'Successfully discovered {len(discovered_clusters)} clusters '
-                    f'in account {account_id}, region {region_name}'
+                    f"Successfully discovered {len(discovered_clusters)} clusters "
+                    f"in account {account_id}, region {region_name}"
                 )
             else:
-                logger.info(f'No clusters found in account {account_id}, region {region_name}')
+                logger.info(
+                    f"No clusters found in account {account_id}, region {region_name}"
+                )
 
         except Exception as e:
-            error_msg = f'Failed to discover clusters using default credentials: {str(e)}'
+            error_msg = (
+                f"Failed to discover clusters using default credentials: {str(e)}"
+            )
             logger.error(error_msg)
             raise Exception(error_msg)
 
@@ -208,19 +220,21 @@ class EKSDiscoveryHandler:
 
         # Check if configuration is loaded
         if not ConfigManager.is_configured():
-            logger.warning('No cluster configuration loaded - skipping discovery')
+            logger.warning("No cluster configuration loaded - skipping discovery")
             return discovered_clusters
 
         # Only discover if no explicit clusters are configured
         if ConfigManager.has_explicit_clusters():
-            logger.info('Explicit clusters configured - skipping automatic discovery')
+            logger.info("Explicit clusters configured - skipping automatic discovery")
             return discovered_clusters
 
-        logger.info('No explicit clusters configured - starting automatic cluster discovery')
+        logger.info(
+            "No explicit clusters configured - starting automatic cluster discovery"
+        )
 
         account_region_combos = ConfigManager.list_account_region_combinations()
         logger.info(
-            f'Discovering clusters in {len(account_region_combos)} account/region combinations'
+            f"Discovering clusters in {len(account_region_combos)} account/region combinations"
         )
 
         errors_encountered = []
@@ -228,19 +242,21 @@ class EKSDiscoveryHandler:
         for account_id, region_name in account_region_combos:
             account = ConfigManager.get_account(account_id)
             if not account:
-                logger.warning(f'Account {account_id} not found in configuration')
+                logger.warning(f"Account {account_id} not found in configuration")
                 continue
 
             try:
-                logger.debug(f'Discovering clusters in account {account_id}, region {region_name}')
+                logger.debug(
+                    f"Discovering clusters in account {account_id}, region {region_name}"
+                )
                 eks_client = AwsHelper.create_boto3_client_for_account_region(
-                    account_id, region_name, 'eks'
+                    account_id, region_name, "eks"
                 )
                 response = eks_client.list_clusters()
-                cluster_names = response.get('clusters', [])
+                cluster_names = response.get("clusters", [])
 
                 logger.debug(
-                    f'Found {len(cluster_names)} clusters in {account_id}/{region_name}: {cluster_names}'
+                    f"Found {len(cluster_names)} clusters in {account_id}/{region_name}: {cluster_names}"
                 )
 
                 for cluster_name in cluster_names:
@@ -248,28 +264,32 @@ class EKSDiscoveryHandler:
                         name=cluster_name,
                         region=region_name,
                         account_id=account_id,
-                        description=f'Auto-discovered cluster in {region_name}',
+                        description=f"Auto-discovered cluster in {region_name}",
                         validated=True,  # Discovery process confirms cluster exists
                     )
                     discovered_clusters.append(cluster_config)
-                    logger.debug(f'Discovered cluster: {cluster_name} in {region_name}')
+                    logger.debug(f"Discovered cluster: {cluster_name} in {region_name}")
 
             except Exception as e:
-                error_msg = f'Failed to discover clusters in {account_id}/{region_name}: {str(e)}'
+                error_msg = f"Failed to discover clusters in {account_id}/{region_name}: {str(e)}"
                 logger.warning(error_msg)
                 errors_encountered.append(error_msg)
 
         if discovered_clusters:
             logger.info(
-                f'Successfully discovered {len(discovered_clusters)} clusters '
-                f'across {len(account_region_combos)} account/region combinations'
+                f"Successfully discovered {len(discovered_clusters)} clusters "
+                f"across {len(account_region_combos)} account/region combinations"
             )
             if errors_encountered:
-                logger.warning(f'{len(errors_encountered)} errors occurred during discovery')
+                logger.warning(
+                    f"{len(errors_encountered)} errors occurred during discovery"
+                )
         else:
-            logger.info('No clusters discovered in configured accounts/regions')
+            logger.info("No clusters discovered in configured accounts/regions")
             if errors_encountered:
-                logger.warning(f'{len(errors_encountered)} errors occurred during discovery')
+                logger.warning(
+                    f"{len(errors_encountered)} errors occurred during discovery"
+                )
 
         return discovered_clusters
 
@@ -291,68 +311,71 @@ class EKSDiscoveryHandler:
         error_type = type(error).__name__
 
         # Check for AccessDeniedException
-        if 'AccessDeniedException' in error_str or 'not authorized' in error_str.lower():
-            error_type = 'AccessDeniedException'
+        if (
+            "AccessDeniedException" in error_str
+            or "not authorized" in error_str.lower()
+        ):
+            error_type = "AccessDeniedException"
 
             # Extract the specific permission that's missing
-            if 'eks:ListClusters' in error_str:
+            if "eks:ListClusters" in error_str:
                 return (
                     error_type,
-                    f'Missing IAM permission: eks:ListClusters. '
-                    f'Update the IAM role/user for account {account_id} to include '
-                    f'eks:ListClusters permission. '
+                    f"Missing IAM permission: eks:ListClusters. "
+                    f"Update the IAM role/user for account {account_id} to include "
+                    f"eks:ListClusters permission. "
                     f'Example policy: {{"Effect": "Allow", "Action": "eks:ListClusters", '
                     f'"Resource": "arn:aws:eks:{region}:{account_id}:cluster/*"}}',
                 )
-            elif 'eks:DescribeCluster' in error_str:
+            elif "eks:DescribeCluster" in error_str:
                 return (
                     error_type,
-                    f'Missing IAM permission: eks:DescribeCluster. '
-                    f'Update the IAM role/user for account {account_id} to include '
-                    f'eks:DescribeCluster permission.',
+                    f"Missing IAM permission: eks:DescribeCluster. "
+                    f"Update the IAM role/user for account {account_id} to include "
+                    f"eks:DescribeCluster permission.",
                 )
-            elif 'sts:AssumeRole' in error_str:
+            elif "sts:AssumeRole" in error_str:
                 return (
                     error_type,
-                    f'Missing IAM permission: sts:AssumeRole or trust relationship not configured. '
-                    f'Ensure the role has a trust relationship allowing the current principal to assume it.',
+                    "Missing IAM permission: sts:AssumeRole or trust relationship not configured. "
+                    "Ensure the role has a trust relationship allowing the current principal to assume it.",
                 )
             else:
                 return (
                     error_type,
-                    f'Access denied in account {account_id}, region {region}. '
-                    f'Verify IAM permissions for EKS operations. Full error: {error_str}',
+                    f"Access denied in account {account_id}, region {region}. "
+                    f"Verify IAM permissions for EKS operations. Full error: {error_str}",
                 )
 
         # Check for credential errors
-        elif 'credential' in error_str.lower() or 'InvalidClientTokenId' in error_str:
+        elif "credential" in error_str.lower() or "InvalidClientTokenId" in error_str:
             return (
-                'CredentialError',
-                f'Invalid or missing AWS credentials for account {account_id}. '
-                f'Verify AWS credentials configuration (AWS_PROFILE, role_arn, etc.).',
+                "CredentialError",
+                f"Invalid or missing AWS credentials for account {account_id}. "
+                f"Verify AWS credentials configuration (AWS_PROFILE, role_arn, etc.).",
             )
 
         # Check for service errors
-        elif 'ServiceException' in error_str or 'InternalFailure' in error_str:
+        elif "ServiceException" in error_str or "InternalFailure" in error_str:
             return (
-                'ServiceException',
-                f'AWS service error in {region}. This is typically temporary. '
-                f'Retry the operation or check AWS service health.',
+                "ServiceException",
+                f"AWS service error in {region}. This is typically temporary. "
+                f"Retry the operation or check AWS service health.",
             )
 
         # Check for region errors
-        elif 'InvalidRegion' in error_str or 'region' in error_str.lower():
+        elif "InvalidRegion" in error_str or "region" in error_str.lower():
             return (
-                'RegionError',
-                f'Invalid or unsupported region: {region}. '
-                f'Verify the region name is correct and EKS is available in this region.',
+                "RegionError",
+                f"Invalid or unsupported region: {region}. "
+                f"Verify the region name is correct and EKS is available in this region.",
             )
 
         # Generic error
         return (
             error_type,
-            f'Error in account {account_id}, region {region}: {error_str}. '
-            f'Check AWS service status and verify configuration.',
+            f"Error in account {account_id}, region {region}: {error_str}. "
+            f"Check AWS service status and verify configuration.",
         )
 
     async def list_eks_clusters(
@@ -406,30 +429,35 @@ class EKSDiscoveryHandler:
             # Check if configuration is loaded
             if not ConfigManager.is_configured():
                 error_msg = (
-                    'No cluster configuration loaded. '
-                    'Please provide a cluster configuration file via --cluster-config flag '
-                    'or EKS_CLUSTER_CONFIG environment variable.'
+                    "No cluster configuration loaded. "
+                    "Please provide a cluster configuration file via --cluster-config flag "
+                    "or EKS_CLUSTER_CONFIG environment variable."
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
                     isError=True,
-                    content=[TextContent(type='text', text=error_msg)],
+                    content=[TextContent(type="text", text=error_msg)],
                 )
 
             results: List[ClusterInfo] = []
             errors: List[DiscoveryError] = []
 
             # Check if we have clusters to process (explicit or pre-discovered)
-            if ConfigManager.has_explicit_clusters() or ConfigManager.has_discovered_clusters():
+            if (
+                ConfigManager.has_explicit_clusters()
+                or ConfigManager.has_discovered_clusters()
+            ):
                 # Use clusters from ConfigManager (which returns explicit or discovered clusters)
                 clusters = ConfigManager.list_clusters()
                 cluster_source = (
-                    'explicitly configured'
+                    "explicitly configured"
                     if ConfigManager.has_explicit_clusters()
-                    else 'pre-discovered'
+                    else "pre-discovered"
                 )
                 log_with_request_id(
-                    ctx, LogLevel.INFO, f'Found {len(clusters)} {cluster_source} clusters'
+                    ctx,
+                    LogLevel.INFO,
+                    f"Found {len(clusters)} {cluster_source} clusters",
                 )
 
                 # Process clusters
@@ -439,7 +467,7 @@ class EKSDiscoveryHandler:
                         log_with_request_id(
                             ctx,
                             LogLevel.WARNING,
-                            f'Account {cluster.account_id} not found for cluster {cluster.name}',
+                            f"Account {cluster.account_id} not found for cluster {cluster.name}",
                         )
                         continue
 
@@ -460,7 +488,7 @@ class EKSDiscoveryHandler:
                             log_with_request_id(
                                 ctx,
                                 LogLevel.DEBUG,
-                                f'Cluster {cluster.name} already validated, skipping API call',
+                                f"Cluster {cluster.name} already validated, skipping API call",
                             )
                         else:
                             # Cluster not validated yet, call API to validate
@@ -468,30 +496,32 @@ class EKSDiscoveryHandler:
                                 log_with_request_id(
                                     ctx,
                                     LogLevel.DEBUG,
-                                    f'Validating cluster {cluster.name} in {cluster.region}',
+                                    f"Validating cluster {cluster.name} in {cluster.region}",
                                 )
                                 eks_client = AwsHelper.create_boto3_client_for_cluster(
-                                    cluster, 'eks'
+                                    cluster, "eks"
                                 )
-                                response = eks_client.describe_cluster(name=cluster.name)
-                                info.status = response['cluster']['status']
-                                info.version = response['cluster']['version']
+                                response = eks_client.describe_cluster(
+                                    name=cluster.name
+                                )
+                                info.status = response["cluster"]["status"]
+                                info.version = response["cluster"]["version"]
                                 # Update validated flag
                                 cluster.validated = True
                                 log_with_request_id(
                                     ctx,
                                     LogLevel.DEBUG,
-                                    f'Cluster {cluster.name}: status={info.status}, version={info.version}',
+                                    f"Cluster {cluster.name}: status={info.status}, version={info.version}",
                                 )
                             except Exception as e:
                                 error_type, guidance = self._parse_error_for_guidance(
                                     e, cluster.account_id, cluster.region
                                 )
-                                info.status = f'{error_type}: {guidance}'
+                                info.status = f"{error_type}: {guidance}"
                                 log_with_request_id(
                                     ctx,
                                     LogLevel.WARNING,
-                                    f'Failed to validate cluster {cluster.name}: {e}',
+                                    f"Failed to validate cluster {cluster.name}: {e}",
                                 )
 
                     results.append(info)
@@ -499,9 +529,9 @@ class EKSDiscoveryHandler:
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Successfully listed {len(results)} clusters'
-                + (' with validation' if validate else '')
-                + (f' ({len(errors)} errors)' if errors else ''),
+                f"Successfully listed {len(results)} clusters"
+                + (" with validation" if validate else "")
+                + (f" ({len(errors)} errors)" if errors else ""),
             )
 
             data = ListClustersData(
@@ -515,39 +545,41 @@ class EKSDiscoveryHandler:
             # Build response message
             response_parts = []
             response_parts.append(
-                f'Found {len(results)} EKS clusters'
-                + (' (discovered)' if discovery_mode else ' (configured)')
-                + (' (validated)' if validate else '')
+                f"Found {len(results)} EKS clusters"
+                + (" (discovered)" if discovery_mode else " (configured)")
+                + (" (validated)" if validate else "")
             )
 
             # Add error summary if there are errors
             if errors:
-                response_parts.append(f'\n\n⚠️  {len(errors)} error(s) occurred during discovery:')
+                response_parts.append(
+                    f"\n\n⚠️  {len(errors)} error(s) occurred during discovery:"
+                )
                 for err in errors:
                     response_parts.append(
-                        f'\n• Account {err.account_id}, Region {err.region}: {err.error_type}'
+                        f"\n• Account {err.account_id}, Region {err.region}: {err.error_type}"
                     )
-                    response_parts.append(f'  → {err.actionable_guidance}')
+                    response_parts.append(f"  → {err.actionable_guidance}")
 
             return CallToolResult(
                 isError=False,
                 content=[
                     TextContent(
-                        type='text',
-                        text=''.join(response_parts),
+                        type="text",
+                        text="".join(response_parts),
                     ),
                     TextContent(
-                        type='text',
+                        type="text",
                         text=json.dumps(data.model_dump()),
                     ),
                 ],
             )
 
         except Exception as e:
-            error_msg = f'Failed to list EKS clusters: {str(e)}'
+            error_msg = f"Failed to list EKS clusters: {str(e)}"
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             return CallToolResult(
                 isError=True,
-                content=[TextContent(type='text', text=error_msg)],
+                content=[TextContent(type="text", text=error_msg)],
             )

@@ -461,3 +461,328 @@ class TestK8sClientCache:
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+
+    def test_clear_cache(self):
+        """Test clear_cache method."""
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Add some items to the cache
+        mock_client = MagicMock()
+        cache._client_cache['test-cluster'] = mock_client
+        cache._sts_event_handlers_registered['test-region'] = True
+
+        # Verify the cache has items
+        assert len(cache._client_cache) > 0
+        assert len(cache._sts_event_handlers_registered) > 0
+
+        # Clear the cache
+        cache.clear_cache()
+
+        # Verify both caches are empty
+        assert len(cache._client_cache) == 0
+        assert len(cache._sts_event_handlers_registered) == 0
+
+    def test_get_sts_client_for_cluster_with_config(self):
+        """Test _get_sts_client_for_cluster method with cluster configuration."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Reset the STS event handlers flag
+        cache._sts_event_handlers_registered = {}
+
+        # Setup test configuration
+        account_config = AccountConfig(
+            account_id='123456789012', regions=['us-west-2'], profile='test-profile'
+        )
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Create test cluster config
+        cluster_config = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='123456789012'
+        )
+
+        # Mock the AwsHelper.create_boto3_client_for_cluster method
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client_for_cluster'
+        ) as mock_create_client:
+            mock_sts_client = MagicMock()
+            mock_create_client.return_value = mock_sts_client
+
+            # Mock the meta.events.register method
+            mock_sts_client.meta.events.register = MagicMock()
+
+            # Get the STS client with cluster_config
+            client = cache._get_sts_client_for_cluster(cluster_config)
+
+            # Verify that AwsHelper.create_boto3_client_for_cluster was called
+            mock_create_client.assert_called_once_with(cluster_config, 'sts')
+
+            # Verify that the event handlers were registered
+            assert mock_sts_client.meta.events.register.call_count == 2
+
+            # Verify the client_id format includes region, account, and credential context
+            expected_client_id = 'us-west-2:123456789012:test-profile'
+            assert expected_client_id in cache._sts_event_handlers_registered
+
+            # Verify that the client was returned
+            assert client == mock_sts_client
+
+    def test_get_sts_client_for_cluster_with_config_no_account(self):
+        """Test _get_sts_client_for_cluster when account is not found."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Reset the STS event handlers flag
+        cache._sts_event_handlers_registered = {}
+
+        # Setup configuration with a different account
+        account_config = AccountConfig(account_id='999999999999', regions=['us-east-1'])
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Create test cluster config with different account ID
+        cluster_config = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='123456789012'
+        )
+
+        # Mock the AwsHelper.create_boto3_client_for_cluster method
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client_for_cluster'
+        ) as mock_create_client:
+            mock_sts_client = MagicMock()
+            mock_create_client.return_value = mock_sts_client
+
+            # Mock the meta.events.register method
+            mock_sts_client.meta.events.register = MagicMock()
+
+            # Mock ConfigManager.get_account to return None
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.ConfigManager.get_account',
+                return_value=None,
+            ):
+                # Get the STS client with cluster_config
+                client = cache._get_sts_client_for_cluster(cluster_config)
+
+                # Verify that the client_id defaults to 'default'
+                expected_client_id = 'us-west-2:123456789012:default'
+                assert expected_client_id in cache._sts_event_handlers_registered
+
+    def test_get_cluster_credentials_with_config(self):
+        """Test _get_cluster_credentials_with_config method."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Setup test configuration
+        account_config = AccountConfig(
+            account_id='123456789012', regions=['us-west-2'], profile='test-profile'
+        )
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Create test cluster config
+        cluster_config = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='123456789012'
+        )
+
+        # Mock the EKS client
+        mock_eks_client = MagicMock()
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {
+                'endpoint': 'https://test-endpoint',
+                'certificateAuthority': {'data': 'test-ca-data'},
+            }
+        }
+
+        # Mock the STS client
+        mock_sts_client = MagicMock()
+        mock_sts_client.generate_presigned_url.return_value = 'https://test-presigned-url'
+
+        # Mock the helper methods
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client_for_cluster',
+            return_value=mock_eks_client,
+        ) as mock_create_client:
+            with patch.object(
+                cache, '_get_sts_client_for_cluster', return_value=mock_sts_client
+            ) as mock_get_sts:
+                # Get cluster credentials
+                endpoint, token, ca_data = cache._get_cluster_credentials_with_config(
+                    cluster_config
+                )
+
+                # Verify that create_boto3_client_for_cluster was called for eks
+                mock_create_client.assert_called_once_with(cluster_config, 'eks')
+
+                # Verify that _get_sts_client_for_cluster was called with cluster config
+                mock_get_sts.assert_called_once_with(cluster_config)
+
+                # Verify that describe_cluster was called with the correct parameters
+                mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+
+                # Verify that generate_presigned_url was called with correct parameters
+                mock_sts_client.generate_presigned_url.assert_called_once()
+                args, kwargs = mock_sts_client.generate_presigned_url.call_args
+                assert args[0] == 'get_caller_identity'
+                assert kwargs['Params'] == {'x-k8s-aws-id': 'test-cluster'}
+                assert kwargs['ExpiresIn'] == 60
+                assert kwargs['HttpMethod'] == 'GET'
+
+                # Verify the returned values
+                assert endpoint == 'https://test-endpoint'
+                assert 'k8s-aws-v1.' in token
+                assert ca_data == 'test-ca-data'
+
+    def test_get_client_with_cluster_config(self):
+        """Test get_client method with cluster configuration."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Clear the client cache
+        cache._client_cache.clear()
+
+        # Setup test configuration
+        account_config = AccountConfig(
+            account_id='123456789012',
+            regions=['us-west-2'],
+            role_arn='arn:aws:iam::123456789012:role/TestRole',
+        )
+        cluster = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='123456789012'
+        )
+        config = ClustersConfig(accounts=[account_config], clusters=[cluster])
+        ConfigManager._config = config
+
+        # Mock the _get_cluster_credentials_with_config method
+        with patch.object(
+            cache,
+            '_get_cluster_credentials_with_config',
+            return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
+        ) as mock_credentials:
+            # Mock the K8sApis constructor
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_k8s_apis_class:
+                mock_k8s_apis = MagicMock()
+                mock_k8s_apis_class.return_value = mock_k8s_apis
+
+                # Get a client
+                client = cache.get_client('test-cluster')
+
+                # Verify that _get_cluster_credentials_with_config was called
+                mock_credentials.assert_called_once()
+                assert mock_credentials.call_args[0][0].name == 'test-cluster'
+
+                # Verify that K8sApis was initialized
+                mock_k8s_apis_class.assert_called_once_with(
+                    'https://test-endpoint', 'test-token', 'test-ca-data'
+                )
+
+                # Verify the cache key includes region, account, and credential context
+                expected_key = (
+                    'test-cluster:us-west-2:123456789012:arn:aws:iam::123456789012:role/TestRole'
+                )
+                assert expected_key in cache._client_cache
+
+                # Verify that the client was returned
+                assert client == mock_k8s_apis
+
+    def test_get_client_cluster_not_found_in_config(self):
+        """Test get_client when cluster is not found in configuration."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Clear the client cache
+        cache._client_cache.clear()
+
+        # Setup test configuration with one cluster
+        account_config = AccountConfig(account_id='123456789012', regions=['us-west-2'])
+        cluster1 = ClusterConfig(
+            name='existing-cluster', region='us-west-2', account_id='123456789012'
+        )
+        config = ClustersConfig(accounts=[account_config], clusters=[cluster1])
+        ConfigManager._config = config
+
+        # Try to get a client for a non-existent cluster
+        with pytest.raises(ValueError, match="Cluster 'non-existent-cluster' not found"):
+            cache.get_client('non-existent-cluster')
+
+    def test_get_client_with_discovered_clusters(self):
+        """Test get_client with discovered clusters."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create a K8sClientCache instance
+        cache = K8sClientCache()
+
+        # Clear the client cache
+        cache._client_cache.clear()
+
+        # Setup test configuration with discovered cluster
+        account_config = AccountConfig(account_id='123456789012', regions=['us-west-2'])
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Add a discovered cluster
+        discovered_cluster = ClusterConfig(
+            name='discovered-cluster',
+            region='us-west-2',
+            account_id='123456789012',
+            validated=True,
+        )
+        ConfigManager._discovered_clusters = [discovered_cluster]
+
+        # Mock the _get_cluster_credentials_with_config method
+        with patch.object(
+            cache,
+            '_get_cluster_credentials_with_config',
+            return_value=('https://test-endpoint', 'test-token', 'test-ca-data'),
+        ):
+            # Mock the K8sApis constructor
+            with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_k8s_apis_class:
+                mock_k8s_apis = MagicMock()
+                mock_k8s_apis_class.return_value = mock_k8s_apis
+
+                # Get a client for the discovered cluster
+                client = cache.get_client('discovered-cluster')
+
+                # Verify that the client was returned
+                assert client == mock_k8s_apis

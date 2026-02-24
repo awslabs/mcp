@@ -22,7 +22,7 @@ import json
 import os
 import yaml
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
-from awslabs.eks_mcp_server.config import ClusterConfig, ConfigManager
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.consts import (
     CFN_CAPABILITY_IAM,
     CFN_ON_FAILURE_DELETE,
@@ -42,7 +42,7 @@ from awslabs.eks_mcp_server.models import (
 from mcp.server.fastmcp import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple
 
 
 class EksStackHandler:

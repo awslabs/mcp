@@ -268,3 +268,320 @@ class TestAwsHelper:
         assert client1 is not client2
         assert client1 is mock_client1
         assert client2 is mock_client2
+
+    def test_clear_cache(self):
+        """Test that clear_cache clears both client and assumed role caches."""
+        # Add some items to the caches
+        AwsHelper._client_cache['test_key'] = 'test_client'
+        AwsHelper._assumed_role_cache['test_role'] = 'test_credentials'
+
+        # Clear the cache
+        AwsHelper.clear_cache()
+
+        # Verify that both caches are empty
+        assert len(AwsHelper._client_cache) == 0
+        assert len(AwsHelper._assumed_role_cache) == 0
+
+    @patch('boto3.client')
+    def test_assume_role_success(self, mock_boto3_client):
+        """Test successful role assumption."""
+        from datetime import datetime, timezone, timedelta
+
+        # Mock STS client
+        mock_sts_client = MagicMock()
+        mock_boto3_client.return_value = mock_sts_client
+
+        # Mock assume_role response
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        mock_sts_client.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'AKIAIOSFODNN7EXAMPLE',
+                'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                'SessionToken': 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c',
+                'Expiration': expiration_time,
+            }
+        }
+
+        # Call assume_role
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_sts_client):
+            credentials = AwsHelper.assume_role(
+                role_arn='arn:aws:iam::123456789012:role/TestRole',
+                external_id='test-external-id',
+            )
+
+        # Verify the result
+        assert credentials['AccessKeyId'] == 'AKIAIOSFODNN7EXAMPLE'
+        assert credentials['SecretAccessKey'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        assert credentials['SessionToken'] == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c'
+
+        # Verify assume_role was called with correct parameters
+        mock_sts_client.assume_role.assert_called_once_with(
+            RoleArn='arn:aws:iam::123456789012:role/TestRole',
+            RoleSessionName='eks-mcp-server',
+            ExternalId='test-external-id',
+        )
+
+    @patch('boto3.client')
+    def test_assume_role_without_external_id(self, mock_boto3_client):
+        """Test role assumption without external ID."""
+        from datetime import datetime, timezone, timedelta
+
+        # Mock STS client
+        mock_sts_client = MagicMock()
+        mock_boto3_client.return_value = mock_sts_client
+
+        # Mock assume_role response
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        mock_sts_client.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'AKIAIOSFODNN7EXAMPLE',
+                'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                'SessionToken': 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c',
+                'Expiration': expiration_time,
+            }
+        }
+
+        # Call assume_role without external_id
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_sts_client):
+            credentials = AwsHelper.assume_role(
+                role_arn='arn:aws:iam::123456789012:role/TestRole'
+            )
+
+        # Verify assume_role was called without ExternalId
+        mock_sts_client.assume_role.assert_called_once_with(
+            RoleArn='arn:aws:iam::123456789012:role/TestRole',
+            RoleSessionName='eks-mcp-server',
+        )
+
+    @patch('boto3.client')
+    def test_assume_role_caching(self, mock_boto3_client):
+        """Test that assumed role credentials are cached."""
+        from datetime import datetime, timezone, timedelta
+
+        # Clear cache first
+        AwsHelper.clear_cache()
+
+        # Mock STS client
+        mock_sts_client = MagicMock()
+        mock_boto3_client.return_value = mock_sts_client
+
+        # Mock assume_role response
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        mock_sts_client.assume_role.return_value = {
+            'Credentials': {
+                'AccessKeyId': 'AKIAIOSFODNN7EXAMPLE',
+                'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                'SessionToken': 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c',
+                'Expiration': expiration_time,
+            }
+        }
+
+        # Call assume_role twice with the same parameters
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_sts_client):
+            credentials1 = AwsHelper.assume_role(
+                role_arn='arn:aws:iam::123456789012:role/TestRole'
+            )
+            credentials2 = AwsHelper.assume_role(
+                role_arn='arn:aws:iam::123456789012:role/TestRole'
+            )
+
+        # Verify assume_role was called only once (second call used cache)
+        mock_sts_client.assume_role.assert_called_once()
+
+        # Verify both calls returned the same credentials
+        assert credentials1 == credentials2
+
+    @patch('boto3.client')
+    def test_assume_role_error(self, mock_boto3_client):
+        """Test error handling in assume_role."""
+        # Clear cache to ensure clean test
+        AwsHelper.clear_cache()
+
+        # Mock STS client to raise an exception
+        mock_sts_client = MagicMock()
+        mock_sts_client.assume_role.side_effect = Exception('AccessDenied')
+        mock_boto3_client.return_value = mock_sts_client
+
+        # Verify that the exception is re-raised with more context
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_sts_client):
+            try:
+                AwsHelper.assume_role(role_arn='arn:aws:iam::123456789012:role/TestRoleError')
+                assert False, 'Exception was not raised'
+            except Exception as e:
+                assert 'Failed to assume role' in str(e)
+                assert 'arn:aws:iam::123456789012:role/TestRoleError' in str(e)
+
+    @patch('boto3.client')
+    def test_create_boto3_client_for_account_region_with_profile(self, mock_boto3_client):
+        """Test creating a client for a specific account and region using profile."""
+        from awslabs.eks_mcp_server.config import AccountConfig, ClustersConfig, ConfigManager
+
+        # Create test account config with profile
+        account_config = AccountConfig(
+            account_id='123456789012', regions=['us-west-2'], profile='test-profile'
+        )
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Mock boto3.Session
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+
+        # Call create_boto3_client_for_account_region
+        with patch('boto3.Session', return_value=mock_session):
+            result = AwsHelper.create_boto3_client_for_account_region(
+                account_id='123456789012', region_name='us-west-2', service_name='eks'
+            )
+
+        # Verify that Session was created with the profile
+        assert result == mock_client
+
+    @patch('boto3.client')
+    def test_create_boto3_client_for_account_region_with_role(self, mock_boto3_client):
+        """Test creating a client for a specific account and region using role assumption."""
+        from awslabs.eks_mcp_server.config import AccountConfig, ClustersConfig, ConfigManager
+        from datetime import datetime, timezone, timedelta
+
+        # Clear cache first
+        AwsHelper.clear_cache()
+
+        # Create test account config with role_arn
+        account_config = AccountConfig(
+            account_id='123456789012',
+            regions=['us-west-2'],
+            role_arn='arn:aws:iam::123456789012:role/TestRole',
+        )
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Mock credentials
+        expiration_time = datetime.now(timezone.utc) + timedelta(hours=1)
+        mock_credentials = {
+            'AccessKeyId': 'AKIAIOSFODNN7EXAMPLE',
+            'SecretAccessKey': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+            'SessionToken': 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c',
+            'Expiration': expiration_time,
+        }
+
+        # Mock client
+        mock_client = MagicMock()
+        mock_boto3_client.return_value = mock_client
+
+        # Call create_boto3_client_for_account_region
+        with patch.object(AwsHelper, 'assume_role', return_value=mock_credentials):
+            result = AwsHelper.create_boto3_client_for_account_region(
+                account_id='123456789012', region_name='us-west-2', service_name='eks'
+            )
+
+        # Verify boto3.client was called with credentials
+        assert result == mock_client
+        mock_boto3_client.assert_called_once()
+        call_kwargs = mock_boto3_client.call_args[1]
+        assert call_kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        assert call_kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        assert (
+            call_kwargs['aws_session_token']
+            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c'
+        )
+
+    def test_create_boto3_client_for_account_region_account_not_found(self):
+        """Test error when account is not found in configuration."""
+        from awslabs.eks_mcp_server.config import AccountConfig, ClustersConfig, ConfigManager
+
+        # Set config with one account, but request a different one
+        account_config = AccountConfig(account_id='123456789012', regions=['us-west-2'])
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Verify that an exception is raised for non-existent account
+        try:
+            AwsHelper.create_boto3_client_for_account_region(
+                account_id='999999999999', region_name='us-west-2', service_name='eks'
+            )
+            assert False, 'Exception was not raised'
+        except Exception as e:
+            assert 'Account 999999999999 not found' in str(e)
+
+    def test_create_boto3_client_for_account_region_region_not_configured(self):
+        """Test error when region is not configured for account."""
+        from awslabs.eks_mcp_server.config import AccountConfig, ClustersConfig, ConfigManager
+
+        # Create test account config with only us-east-1
+        account_config = AccountConfig(account_id='123456789012', regions=['us-east-1'])
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Verify that an exception is raised for unconfigured region
+        try:
+            AwsHelper.create_boto3_client_for_account_region(
+                account_id='123456789012', region_name='us-west-2', service_name='eks'
+            )
+            assert False, 'Exception was not raised'
+        except Exception as e:
+            assert 'Region us-west-2 not configured' in str(e)
+
+    @patch('boto3.client')
+    def test_create_boto3_client_for_cluster(self, mock_boto3_client):
+        """Test creating a client for a specific cluster."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Create test config
+        account_config = AccountConfig(
+            account_id='123456789012', regions=['us-west-2'], profile='test-profile'
+        )
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Create test cluster
+        cluster = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='123456789012'
+        )
+
+        # Mock the client
+        mock_client = MagicMock()
+        mock_boto3_client.return_value = mock_client
+
+        # Call create_boto3_client_for_cluster
+        with patch.object(
+            AwsHelper, 'create_boto3_client_for_account_region', return_value=mock_client
+        ) as mock_create:
+            result = AwsHelper.create_boto3_client_for_cluster(cluster, 'eks')
+
+        # Verify the result
+        assert result == mock_client
+        mock_create.assert_called_once_with(
+            account_id='123456789012', region_name='us-west-2', service_name='eks'
+        )
+
+    def test_create_boto3_client_for_cluster_error(self):
+        """Test error handling in create_boto3_client_for_cluster."""
+        from awslabs.eks_mcp_server.config import (
+            AccountConfig,
+            ClusterConfig,
+            ClustersConfig,
+            ConfigManager,
+        )
+
+        # Set config with one account, but cluster references a different account
+        account_config = AccountConfig(account_id='123456789012', regions=['us-west-2'])
+        config = ClustersConfig(accounts=[account_config])
+        ConfigManager._config = config
+
+        # Create test cluster with non-existent account
+        cluster = ClusterConfig(
+            name='test-cluster', region='us-west-2', account_id='999999999999'
+        )
+
+        # Verify that an exception is raised with cluster context
+        try:
+            AwsHelper.create_boto3_client_for_cluster(cluster, 'eks')
+            assert False, 'Exception was not raised'
+        except Exception as e:
+            assert 'Failed to create boto3 client for eks' in str(e)
+            assert 'cluster: test-cluster' in str(e)

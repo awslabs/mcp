@@ -41,7 +41,7 @@ Configuration File Format:
         ]
     }
 
-    Notes:
+Notes:
     - accounts: Required list defining which account/region combinations can be managed
     - role_arn: Optional at account level, if not specified defaults to "arn:aws:iam::{account_id}:role/McpEksOpsRole"
     - profile: Optional alternative to role_arn for authentication (mutually exclusive with role_arn)
@@ -69,50 +69,55 @@ class AccountConfig(BaseModel):
         regions: List of region names to manage in this account
     """
 
-    account_id: str = Field(..., description='AWS account ID')
+    account_id: str = Field(..., description="AWS account ID")
     role_arn: Optional[str] = Field(
-        None,
-        description='IAM role ARN for cross-account access (defaults to McpEksOpsRole if not specified)',
+        default=None,
+        description="IAM role ARN for cross-account access (defaults to McpEksOpsRole if not specified)",
     )
     external_id: Optional[str] = Field(
-        None, description='External ID for role assumption (security best practice)'
+        default=None,
+        description="External ID for role assumption (security best practice)",
     )
     profile: Optional[str] = Field(
-        None, description='AWS CLI profile name for cross-account access'
+        default=None, description="AWS CLI profile name for cross-account access"
     )
-    regions: List[str] = Field(..., description='List of region names to manage in this account')
+    regions: List[str] = Field(
+        ..., description="List of region names to manage in this account"
+    )
 
-    @field_validator('account_id')
+    @field_validator("account_id")
     @classmethod
     def validate_account_id(cls, v: str) -> str:
         """Validate AWS account ID format."""
         if not v or not isinstance(v, str):
-            raise ValueError('Account ID must be a non-empty string')
+            raise ValueError("Account ID must be a non-empty string")
         if not v.isdigit() or len(v) != 12:
-            raise ValueError(f'Invalid AWS account ID: {v}. Must be a 12-digit number')
+            raise ValueError(f"Invalid AWS account ID: {v}. Must be a 12-digit number")
         return v
 
-    @field_validator('role_arn')
+    @field_validator("role_arn")
     @classmethod
     def validate_role_arn(cls, v: Optional[str]) -> Optional[str]:
         """Validate IAM role ARN format."""
-        if v and not v.startswith('arn:aws:iam::'):
-            raise ValueError(f"Invalid IAM role ARN format: {v}. Must start with 'arn:aws:iam::'")
+        if v and not v.startswith("arn:aws:iam::"):
+            raise ValueError(
+                f"Invalid IAM role ARN format: {v}. Must start with 'arn:aws:iam::'"
+            )
         return v
 
-    @field_validator('regions')
+    @field_validator("regions")
     @classmethod
     def validate_regions(cls, v: List[str]) -> List[str]:
         """Validate that at least one region is specified and all regions are valid."""
         if not v or len(v) == 0:
-            raise ValueError('At least one region must be specified for each account')
+            raise ValueError("At least one region must be specified for each account")
 
         # Validate each region format
         for region in v:
             if not region or not isinstance(region, str):
-                raise ValueError(f'Region must be a non-empty string: {region}')
+                raise ValueError(f"Region must be a non-empty string: {region}")
             # Basic validation - AWS regions follow pattern like us-east-1, eu-west-1, etc.
-            parts = region.split('-')
+            parts = region.split("-")
             if len(parts) < 3:
                 raise ValueError(
                     f"Invalid AWS region format: {region}. Expected format like 'us-east-1'"
@@ -121,7 +126,9 @@ class AccountConfig(BaseModel):
         # Check for duplicate region names
         duplicates = [name for name in v if v.count(name) > 1]
         if duplicates:
-            raise ValueError(f'Duplicate region names found in account: {list(set(duplicates))}')
+            raise ValueError(
+                f"Duplicate region names found in account: {list(set(duplicates))}"
+            )
 
         return v
 
@@ -133,7 +140,7 @@ class AccountConfig(BaseModel):
         """
         if self.role_arn:
             return self.role_arn
-        return f'arn:aws:iam::{self.account_id}:role/McpEksOpsRole'
+        return f"arn:aws:iam::{self.account_id}:role/McpEksOpsRole"
 
     def get_access_method(self) -> str:
         """Determine the access method for this account.
@@ -144,9 +151,9 @@ class AccountConfig(BaseModel):
             'default' otherwise
         """
         if self.profile:
-            return 'profile'
+            return "profile"
         else:
-            return 'role_assumption'
+            return "role_assumption"
 
 
 class ClusterConfig(BaseModel):
@@ -160,36 +167,38 @@ class ClusterConfig(BaseModel):
         validated: Whether the cluster has been validated to exist (used for caching)
     """
 
-    name: str = Field(..., description='EKS cluster name')
-    region: str = Field(..., description='AWS region where the cluster is located')
-    account_id: str = Field(..., description='AWS account ID')
+    name: str = Field(..., description="EKS cluster name")
+    region: str = Field(..., description="AWS region where the cluster is located")
+    account_id: str = Field(..., description="AWS account ID")
     description: Optional[str] = Field(
-        None, description='Human-readable description of the cluster'
+        default=None, description="Human-readable description of the cluster"
     )
     validated: bool = Field(
-        default=False, description='Whether the cluster has been validated to exist'
+        default=False, description="Whether the cluster has been validated to exist"
     )
 
-    @field_validator('account_id')
+    @field_validator("account_id")
     @classmethod
     def validate_account_id(cls, v: str) -> str:
         """Validate AWS account ID format."""
         if not v or not isinstance(v, str):
-            raise ValueError('Account ID must be a non-empty string')
+            raise ValueError("Account ID must be a non-empty string")
         if not v.isdigit() or len(v) != 12:
-            raise ValueError(f'Invalid AWS account ID: {v}. Must be a 12-digit number')
+            raise ValueError(f"Invalid AWS account ID: {v}. Must be a 12-digit number")
         return v
 
-    @field_validator('region')
+    @field_validator("region")
     @classmethod
     def validate_region(cls, v: str) -> str:
         """Validate AWS region format."""
         if not v or not isinstance(v, str):
-            raise ValueError('Region must be a non-empty string')
+            raise ValueError("Region must be a non-empty string")
         # Basic validation - AWS regions follow pattern like us-east-1, eu-west-1, etc.
-        parts = v.split('-')
+        parts = v.split("-")
         if len(parts) < 3:
-            raise ValueError(f"Invalid AWS region format: {v}. Expected format like 'us-east-1'")
+            raise ValueError(
+                f"Invalid AWS region format: {v}. Expected format like 'us-east-1'"
+            )
         return v
 
 
@@ -201,34 +210,38 @@ class ClustersConfig(BaseModel):
         clusters: Optional list of specific cluster configurations
     """
 
-    accounts: List[AccountConfig] = Field(..., description='List of AWS account configurations')
+    accounts: List[AccountConfig] = Field(
+        ..., description="List of AWS account configurations"
+    )
     clusters: Optional[List[ClusterConfig]] = Field(
-        default=None, description='Optional list of specific EKS cluster configurations'
+        default=None, description="Optional list of specific EKS cluster configurations"
     )
 
-    @field_validator('accounts')
+    @field_validator("accounts")
     @classmethod
     def validate_accounts(cls, v: List[AccountConfig]) -> List[AccountConfig]:
         """Validate accounts configuration."""
         if not v or len(v) == 0:
-            raise ValueError('At least one account must be configured')
+            raise ValueError("At least one account must be configured")
         # Check for duplicate account IDs
         account_ids = [a.account_id for a in v]
         duplicates = [aid for aid in account_ids if account_ids.count(aid) > 1]
         if duplicates:
-            raise ValueError(f'Duplicate account IDs found: {list(set(duplicates))}')
+            raise ValueError(f"Duplicate account IDs found: {list(set(duplicates))}")
         return v
 
-    @field_validator('clusters')
+    @field_validator("clusters")
     @classmethod
-    def validate_clusters(cls, v: Optional[List[ClusterConfig]]) -> Optional[List[ClusterConfig]]:
+    def validate_clusters(
+        cls, v: Optional[List[ClusterConfig]]
+    ) -> Optional[List[ClusterConfig]]:
         """Validate that all cluster names are unique if clusters are provided."""
         if v is None:
             return v
         names = [c.name for c in v]
         duplicates = [name for name in names if names.count(name) > 1]
         if duplicates:
-            raise ValueError(f'Duplicate cluster names found: {list(set(duplicates))}')
+            raise ValueError(f"Duplicate cluster names found: {list(set(duplicates))}")
         return v
 
     def validate_cluster_references(self) -> None:
@@ -296,32 +309,32 @@ class ConfigManager:
             config_path = os.path.abspath(config_path)
 
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f'Configuration file not found: {config_path}')
+            raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
         # Detect file format by extension
         _, ext = os.path.splitext(config_path)
         ext = ext.lower()
 
-        logger.info(f'Loading cluster configuration from: {config_path}')
+        logger.info(f"Loading cluster configuration from: {config_path}")
 
-        with open(config_path, 'r') as f:
-            if ext == '.json':
+        with open(config_path, "r") as f:
+            if ext == ".json":
                 try:
                     data = json.load(f)
                 except json.JSONDecodeError as e:
                     raise json.JSONDecodeError(
-                        f'Invalid JSON in configuration file: {e.msg}',
+                        f"Invalid JSON in configuration file: {e.msg}",
                         e.doc,
                         e.pos,
                     )
-            elif ext in ('.yaml', '.yml'):
+            elif ext in (".yaml", ".yml"):
                 try:
                     data = yaml.safe_load(f)
                 except yaml.YAMLError as e:
-                    raise ValueError(f'Invalid YAML in configuration file: {e}')
+                    raise ValueError(f"Invalid YAML in configuration file: {e}")
             else:
                 raise ValueError(
-                    f'Unsupported configuration file format: {ext}. Use .json, .yaml, or .yml'
+                    f"Unsupported configuration file format: {ext}. Use .json, .yaml, or .yml"
                 )
 
         cls._config = ClustersConfig(**data)
@@ -332,19 +345,23 @@ class ConfigManager:
         cls._config_path = config_path
 
         # Log configuration summary
-        logger.info(f'Loaded configuration for {len(cls._config.accounts)} accounts')
+        logger.info(f"Loaded configuration for {len(cls._config.accounts)} accounts")
         for account in cls._config.accounts:
             logger.debug(
-                f'  - Account {account.account_id}: regions={account.regions}, '
-                f'access={account.get_access_method()}'
+                f"  - Account {account.account_id}: regions={account.regions}, "
+                f"access={account.get_access_method()}"
             )
 
         if cls._config.clusters:
-            logger.info(f'Loaded configuration for {len(cls._config.clusters)} specific clusters')
+            logger.info(
+                f"Loaded configuration for {len(cls._config.clusters)} specific clusters"
+            )
             for cluster in cls._config.clusters:
-                logger.debug(f'  - {cluster.name} ({cluster.region}, {cluster.account_id})')
+                logger.debug(
+                    f"  - {cluster.name} ({cluster.region}, {cluster.account_id})"
+                )
         else:
-            logger.info('No specific clusters configured - discovery mode enabled')
+            logger.info("No specific clusters configured - discovery mode enabled")
 
         return cls._config
 
@@ -509,7 +526,7 @@ class ConfigManager:
             clusters: List of discovered ClusterConfig objects
         """
         cls._discovered_clusters = clusters
-        logger.info(f'Stored {len(clusters)} discovered clusters')
+        logger.info(f"Stored {len(clusters)} discovered clusters")
 
     @classmethod
     def get_discovered_clusters(cls) -> List[ClusterConfig]:
@@ -527,4 +544,6 @@ class ConfigManager:
         Returns:
             True if clusters were discovered, False otherwise
         """
-        return cls._discovered_clusters is not None and len(cls._discovered_clusters) > 0
+        return (
+            cls._discovered_clusters is not None and len(cls._discovered_clusters) > 0
+        )

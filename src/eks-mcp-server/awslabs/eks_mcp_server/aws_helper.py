@@ -22,12 +22,10 @@ role assumption and named profiles.
 import boto3
 import os
 from awslabs.eks_mcp_server import __version__
+from awslabs.eks_mcp_server.config import ClusterConfig
 from botocore.config import Config
 from loguru import logger
-from typing import Any, Dict, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from awslabs.eks_mcp_server.config import ClusterConfig
+from typing import Any, Dict, Optional
 
 
 class AwsHelper:
@@ -54,19 +52,19 @@ class AwsHelper:
     @staticmethod
     def get_aws_region() -> Optional[str]:
         """Get the AWS region from the environment if set."""
-        return os.environ.get('AWS_REGION')
+        return os.environ.get("AWS_REGION")
 
     @staticmethod
     def get_aws_profile() -> Optional[str]:
         """Get the AWS profile from the environment if set."""
-        return os.environ.get('AWS_PROFILE')
+        return os.environ.get("AWS_PROFILE")
 
     @classmethod
     def assume_role(
         cls,
         role_arn: str,
         external_id: Optional[str] = None,
-        session_name: str = 'eks-mcp-server',
+        session_name: str = "eks-mcp-server",
         region_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Assume an IAM role and return temporary credentials.
@@ -95,26 +93,28 @@ class AwsHelper:
             # Check if credentials are still valid (with 5 minute buffer)
             from datetime import datetime, timezone
 
-            expiration = cached.get('Expiration')
-            if expiration and expiration.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
-                logger.debug(f'Using cached assumed role credentials for {role_arn}')
+            expiration = cached.get("Expiration")
+            if expiration and expiration.replace(tzinfo=timezone.utc) > datetime.now(
+                timezone.utc
+            ):
+                logger.debug(f"Using cached assumed role credentials for {role_arn}")
                 return cached
 
         try:
             # Get STS client (use default credentials to assume the role)
-            sts_client = cls.create_boto3_client('sts', region_name=region_name)
+            sts_client = cls.create_boto3_client("sts", region_name=region_name)
 
             # Build assume role parameters
             params = {
-                'RoleArn': role_arn,
-                'RoleSessionName': session_name,
+                "RoleArn": role_arn,
+                "RoleSessionName": session_name,
             }
             if external_id:
-                params['ExternalId'] = external_id
+                params["ExternalId"] = external_id
 
-            logger.info(f'Assuming role {role_arn}')
+            logger.info(f"Assuming role {role_arn}")
             response = sts_client.assume_role(**params)
-            credentials = response['Credentials']
+            credentials = response["Credentials"]
 
             # Cache the credentials
             cls._assumed_role_cache[cache_key] = credentials
@@ -122,10 +122,12 @@ class AwsHelper:
             return credentials
 
         except Exception as e:
-            raise Exception(f'Failed to assume role {role_arn}: {str(e)}')
+            raise Exception(f"Failed to assume role {role_arn}: {str(e)}")
 
     @classmethod
-    def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
+    def create_boto3_client(
+        cls, service_name: str, region_name: Optional[str] = None
+    ) -> Any:
         """Create or retrieve a cached boto3 client with the appropriate profile and region.
 
         The client is configured with a custom user agent suffix 'awslabs/mcp/eks-mcp-server/{version}'
@@ -156,22 +158,28 @@ class AwsHelper:
 
             # Check if client is already in cache
             if cache_key in cls._client_cache:
-                logger.debug(f'Using cached boto3 client for {service_name}')
+                logger.debug(f"Using cached boto3 client for {service_name}")
                 return cls._client_cache[cache_key]
 
             # Create config with user agent suffix
-            config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
+            config = Config(
+                user_agent_extra=f"awslabs/mcp/eks-mcp-server/{__version__}"
+            )
 
             # Create session with profile if specified
             if profile:
                 session = boto3.Session(profile_name=profile)
                 if region is not None:
-                    client = session.client(service_name, region_name=region, config=config)
+                    client = session.client(
+                        service_name, region_name=region, config=config
+                    )
                 else:
                     client = session.client(service_name, config=config)
             else:
                 if region is not None:
-                    client = boto3.client(service_name, region_name=region, config=config)
+                    client = boto3.client(
+                        service_name, region_name=region, config=config
+                    )
                 else:
                     client = boto3.client(service_name, config=config)
 
@@ -181,11 +189,13 @@ class AwsHelper:
             return client
         except Exception as e:
             # Re-raise with more context
-            raise Exception(f'Failed to create boto3 client for {service_name}: {str(e)}')
+            raise Exception(
+                f"Failed to create boto3 client for {service_name}: {str(e)}"
+            )
 
     @classmethod
     def create_boto3_client_for_account_region(
-        cls, account_id: str, region_name: str, service_name: str = 'eks'
+        cls, account_id: str, region_name: str, service_name: str = "eks"
     ) -> Any:
         """Create a boto3 client with credentials appropriate for the specified account and region.
 
@@ -211,44 +221,50 @@ class AwsHelper:
             # Get account configuration
             account = ConfigManager.get_account(account_id)
             if not account:
-                raise ValueError(f'Account {account_id} not found in configuration')
+                raise ValueError(f"Account {account_id} not found in configuration")
 
             # Check if the region is configured for this account
             if region_name not in account.regions:
                 raise ValueError(
-                    f'Region {region_name} not configured for account {account_id}. '
-                    f'Configured regions: {account.regions}'
+                    f"Region {region_name} not configured for account {account_id}. "
+                    f"Configured regions: {account.regions}"
                 )
 
             # Build cache key including credentials context
-            credential_context = account.role_arn or account.profile or 'default'
-            cache_key = f'{service_name}:{region_name}:{account_id}:{credential_context}'
+            credential_context = account.role_arn or account.profile or "default"
+            cache_key = (
+                f"{service_name}:{region_name}:{account_id}:{credential_context}"
+            )
 
             # Check if client is already in cache
             if cache_key in cls._client_cache:
                 logger.debug(
-                    f'Using cached boto3 client for {service_name} '
-                    f'(account: {account_id}, region: {region_name})'
+                    f"Using cached boto3 client for {service_name} "
+                    f"(account: {account_id}, region: {region_name})"
                 )
                 return cls._client_cache[cache_key]
 
             # Create config with user agent suffix
-            config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
+            config = Config(
+                user_agent_extra=f"awslabs/mcp/eks-mcp-server/{__version__}"
+            )
 
             if account.profile:
                 # Use named profile
                 logger.info(
                     f"Creating {service_name} client with profile '{account.profile}' "
-                    f'for account {account_id}, region {region_name}'
+                    f"for account {account_id}, region {region_name}"
                 )
                 session = boto3.Session(profile_name=account.profile)
-                client = session.client(service_name, region_name=region_name, config=config)
+                client = session.client(
+                    service_name, region_name=region_name, config=config
+                )
             else:
                 # Use role assumption (with configured or default role)
                 effective_role_arn = account.get_effective_role_arn()
                 logger.info(
-                    f'Creating {service_name} client with role assumption ({effective_role_arn}) '
-                    f'for account {account_id}, region {region_name}'
+                    f"Creating {service_name} client with role assumption ({effective_role_arn}) "
+                    f"for account {account_id}, region {region_name}"
                 )
                 credentials = cls.assume_role(
                     role_arn=effective_role_arn,
@@ -258,9 +274,9 @@ class AwsHelper:
                 client = boto3.client(
                     service_name,
                     region_name=region_name,
-                    aws_access_key_id=credentials['AccessKeyId'],
-                    aws_secret_access_key=credentials['SecretAccessKey'],
-                    aws_session_token=credentials['SessionToken'],
+                    aws_access_key_id=credentials["AccessKeyId"],
+                    aws_secret_access_key=credentials["SecretAccessKey"],
+                    aws_session_token=credentials["SessionToken"],
                     config=config,
                 )
 
@@ -271,13 +287,13 @@ class AwsHelper:
 
         except Exception as e:
             raise Exception(
-                f'Failed to create boto3 client for {service_name} '
-                f'(account: {account_id}, region: {region_name}): {str(e)}'
+                f"Failed to create boto3 client for {service_name} "
+                f"(account: {account_id}, region: {region_name}): {str(e)}"
             )
 
     @classmethod
     def create_boto3_client_for_cluster(
-        cls, cluster: 'ClusterConfig', service_name: str = 'eks'
+        cls, cluster: "ClusterConfig", service_name: str = "eks"
     ) -> Any:
         """Create a boto3 client with credentials appropriate for the specified cluster.
 
@@ -302,8 +318,8 @@ class AwsHelper:
             )
         except Exception as e:
             raise Exception(
-                f'Failed to create boto3 client for {service_name} '
-                f'(cluster: {cluster.name}): {str(e)}'
+                f"Failed to create boto3 client for {service_name} "
+                f"(cluster: {cluster.name}): {str(e)}"
             )
 
     @classmethod
@@ -314,4 +330,4 @@ class AwsHelper:
         """
         cls._client_cache.clear()
         cls._assumed_role_cache.clear()
-        logger.debug('Cleared AWS client and credential caches')
+        logger.debug("Cleared AWS client and credential caches")

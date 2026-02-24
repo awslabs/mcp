@@ -216,6 +216,7 @@ class TestClustersConfig:
             ],
         )
         assert len(config.accounts) == 1
+        assert config.clusters is not None
         assert len(config.clusters) == 1
 
     def test_no_accounts(self):
