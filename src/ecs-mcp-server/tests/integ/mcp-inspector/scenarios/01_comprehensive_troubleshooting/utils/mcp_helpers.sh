@@ -9,6 +9,10 @@ MCP_CONFIG_FILE="/tmp/mcp-config.json"
 MCP_SERVER_NAME="local-ecs-mcp-server"
 INSTALL_COMMAND_MCP_INSPECTOR="npm install -g @modelcontextprotocol/inspector"
 
+# Python helper for tools/call with properly typed JSON arguments
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MCP_CALL_TOOL_SCRIPT="${SCRIPT_DIR}/../../../utils/mcp_call_tool.py"
+
 # Validate MCP configuration exists
 check_mcp_config() {
     if [ ! -f "$MCP_CONFIG_FILE" ]; then
@@ -46,21 +50,25 @@ call_mcp_troubleshooting_tool() {
 
     echo "🔧 Calling MCP tool: action=$action, parameters=$parameters" >&2
 
-    # Execute MCP Inspector CLI command using existing config
+    # Build the full arguments JSON with properly typed parameters (dict, not string)
+    local arguments
+    arguments=$(jq -n --arg action "$action" --argjson params "$parameters" \
+        '{"action": $action, "parameters": $params}')
+
+    # Use Python helper for tools/call to send properly typed JSON arguments.
+    # mcp-inspector CLI passes all --tool-arg values as strings, which breaks
+    # tools expecting dict-typed parameters (fastmcp 3.0.0+).
     local response
-    response=$(mcp-inspector \
+    response=$(python3 "$MCP_CALL_TOOL_SCRIPT" \
         --config "$MCP_CONFIG_FILE" \
         --server "$MCP_SERVER_NAME" \
-        --cli \
-        --method tools/call \
         --tool-name ecs_troubleshooting_tool \
-        --tool-arg "action=$action" \
-        --tool-arg "parameters=${parameters}" 2>&1)
+        --arguments "$arguments" 2>&1)
 
     local exit_code=$?
 
     if [ $exit_code -ne 0 ]; then
-        echo "❌ MCP Inspector command failed with exit code $exit_code" >&2
+        echo "❌ MCP tool call failed with exit code $exit_code" >&2
         echo "Error output: $response" >&2
         return 1
     fi
