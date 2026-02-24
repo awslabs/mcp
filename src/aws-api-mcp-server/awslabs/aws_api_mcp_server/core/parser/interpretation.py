@@ -14,7 +14,6 @@
 
 import boto3
 import json
-from collections import OrderedDict
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
@@ -24,6 +23,7 @@ from ..common.config import CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS, get_u
 from ..common.file_system_controls import validate_file_path
 from ..common.helpers import Boto3Encoder, operation_timer
 from botocore.config import Config
+from collections import OrderedDict
 from jmespath.parser import ParsedResult
 from loguru import logger
 from typing import Any
