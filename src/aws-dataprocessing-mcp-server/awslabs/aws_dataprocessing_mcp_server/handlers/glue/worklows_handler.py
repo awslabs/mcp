@@ -14,7 +14,6 @@
 
 """GlueEtlJobsHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
     CreateTriggerData,
     CreateWorkflowData,
@@ -199,7 +198,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -249,7 +248,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -282,7 +281,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -312,7 +311,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -374,7 +373,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -570,7 +569,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -620,7 +619,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -644,7 +643,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -670,7 +669,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -720,7 +719,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -770,7 +769,7 @@ class GlueWorkflowAndTriggerHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
