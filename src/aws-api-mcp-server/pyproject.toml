@@ -20,7 +20,7 @@ dependencies = [
     "requests>=2.32.4",
     "python-frontmatter>=1.1.0",
     "fastmcp>=3.0.1",
-    "awscli==1.44.44",
+    "awscli==1.44.45",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
