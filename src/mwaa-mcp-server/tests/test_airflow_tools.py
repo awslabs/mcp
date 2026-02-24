@@ -1202,6 +1202,31 @@ class TestResolveEnvironment:
         with pytest.raises(ValueError, match='No MWAA environments found'):
             handler._resolve_environment(None)
 
+    def test_env_var_used_when_no_explicit_name(self, mock_mcp, monkeypatch):
+        monkeypatch.setenv('MWAA_ENVIRONMENT', 'env-from-var')
+        handler = AirflowTools(mock_mcp, allow_write=False)
+        result = handler._resolve_environment(None)
+        assert result == 'env-from-var'
+
+    def test_explicit_name_takes_precedence_over_env_var(self, mock_mcp, monkeypatch):
+        monkeypatch.setenv('MWAA_ENVIRONMENT', 'env-from-var')
+        handler = AirflowTools(mock_mcp, allow_write=False)
+        result = handler._resolve_environment('explicit-env')
+        assert result == 'explicit-env'
+
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    def test_env_var_ignored_when_empty(self, mock_get_client, mock_mcp, monkeypatch):
+        monkeypatch.setenv('MWAA_ENVIRONMENT', '')
+        mock_client = MagicMock()
+        mock_client.list_environments.return_value = {
+            'Environments': ['only-env'],
+        }
+        mock_get_client.return_value = mock_client
+
+        handler = AirflowTools(mock_mcp, allow_write=False)
+        result = handler._resolve_environment(None)
+        assert result == 'only-env'
+
 
 class TestRestApiClientExceptionEnrichment:
     @pytest.mark.asyncio

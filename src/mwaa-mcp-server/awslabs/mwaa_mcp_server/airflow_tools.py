@@ -15,6 +15,7 @@
 """Airflow REST API tools for the MWAA MCP Server via invoke_rest_api."""
 
 import json
+import os
 import re
 from awslabs.mwaa_mcp_server.aws_client import get_mwaa_client
 from awslabs.mwaa_mcp_server.consts import (
@@ -25,6 +26,7 @@ from awslabs.mwaa_mcp_server.consts import (
     DAG_RUNS_PATH,
     DAG_SOURCE_PATH,
     DAGS_PATH,
+    ENV_MWAA_ENVIRONMENT,
     ENVIRONMENT_NAME_PATTERN,
     IMPORT_ERRORS_PATH,
     TASK_INSTANCE_PATH,
@@ -108,6 +110,10 @@ class AirflowTools:
         """
         if environment_name:
             return environment_name
+
+        env_default = os.environ.get(ENV_MWAA_ENVIRONMENT)
+        if env_default:
+            return env_default
 
         client = get_mwaa_client(region_name=region, profile_name=profile_name)
         response = client.list_environments()

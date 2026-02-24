@@ -20,6 +20,7 @@ environments and Airflow workflows through the Model Context Protocol (MCP).
 Environment Variables:
     AWS_REGION: AWS region to use for AWS API calls
     AWS_PROFILE: AWS profile to use for credentials
+    MWAA_ENVIRONMENT: Default MWAA environment name (avoids per-call specification)
     FASTMCP_LOG_LEVEL: Log level (default: WARNING)
 """
 
@@ -45,6 +46,9 @@ direct AWS CLI or Airflow CLI commands.
 
 - By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write
   operations such as triggering DAG runs or pausing/unpausing DAGs.
+- Set the `MWAA_ENVIRONMENT` environment variable to specify a default environment name. This
+  avoids having to pass `environment_name` on every tool call and eliminates errors when multiple
+  environments exist in a region.
 - All Airflow API operations go through AWS invoke_rest_api — no CLI or web tokens are exposed.
 - Connection passwords and extra fields are automatically redacted in responses.
 
