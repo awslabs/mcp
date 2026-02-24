@@ -16,7 +16,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Managed Workflows for
 
 - Python 3.10+
 - AWS credentials configured (via environment variables, AWS CLI profile, or IAM role)
-- An Amazon MWAA environment (Airflow 2.x)
+- An Amazon MWAA environment (Airflow 2.x or 3.x)
 
 ## Installation
 
@@ -116,11 +116,12 @@ For write access:
 | `get-task-instance` | Get details of a specific task instance | Read |
 | `get-task-logs` | Get logs for a task instance try | Read |
 | `list-connections` | List Airflow connections (passwords redacted) | Read |
-| `list-variables` | List Airflow variables | Read |
+| `list-variables` | List Airflow variables (sensitive values redacted) | Read |
 | `get-import-errors` | Get DAG import/parsing errors | Read |
 | `trigger-dag-run` | Trigger a new DAG run | Write |
 | `pause-dag` | Pause a DAG | Write |
 | `unpause-dag` | Unpause a DAG | Write |
+| `clear-task-instances` | Clear task instances for a DAG, allowing re-runs | Write |
 
 ## IAM Permissions
 
