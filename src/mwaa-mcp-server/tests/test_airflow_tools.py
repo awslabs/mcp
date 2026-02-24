@@ -1201,3 +1201,79 @@ class TestResolveEnvironment:
 
         with pytest.raises(ValueError, match='No MWAA environments found'):
             handler._resolve_environment(None)
+
+
+class TestRestApiClientExceptionEnrichment:
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_enriched_error_message(self, mock_get_client, handler_readonly):
+        """RestApiClientException should be re-raised with HTTP status and response body."""
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.side_effect = ClientError(
+            {
+                'Error': {'Code': 'RestApiClientException', 'Message': ''},
+                'RestApiStatusCode': 404,
+                'RestApiResponse': {
+                    'detail': 'DAG not found',
+                    'status': 404,
+                    'title': 'Not Found',
+                },
+            },
+            'InvokeRestApi',
+        )
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(ClientError) as exc_info:
+            await handler_readonly._invoke_airflow_api(
+                environment_name='test-env',
+                method='GET',
+                path='/dags/nonexistent/dagRuns',
+            )
+
+        error_message = str(exc_info.value)
+        assert 'HTTP 404' in error_message
+        assert 'DAG not found' in error_message
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_non_rest_api_error_passes_through(self, mock_get_client, handler_readonly):
+        """Non-RestApiClientException errors should pass through unchanged."""
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+            'InvokeRestApi',
+        )
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(ClientError) as exc_info:
+            await handler_readonly._invoke_airflow_api(
+                environment_name='test-env',
+                method='GET',
+                path='/dags',
+            )
+
+        assert 'AccessDeniedException' in str(exc_info.value)
+        assert 'Access denied' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_tool_surfaces_enriched_error(self, mock_get_client, handler_readonly, mock_ctx):
+        """Tool method should surface the enriched RestApiClientException in CallToolResult."""
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.side_effect = ClientError(
+            {
+                'Error': {'Code': 'RestApiClientException', 'Message': ''},
+                'RestApiStatusCode': 404,
+                'RestApiResponse': {'detail': 'DAG not found', 'status': 404},
+            },
+            'InvokeRestApi',
+        )
+        mock_get_client.return_value = mock_client
+
+        result = await handler_readonly.list_dag_runs(
+            mock_ctx, environment_name='test-env', dag_id='nonexistent_dag'
+        )
+
+        assert result.isError
+        assert 'HTTP 404' in result.content[0].text
+        assert 'DAG not found' in result.content[0].text

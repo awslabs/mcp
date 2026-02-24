@@ -200,7 +200,26 @@ class AirflowTools:
         if query_parameters is not None:
             kwargs['QueryParameters'] = query_parameters
 
-        response = client.invoke_rest_api(**kwargs)
+        try:
+            response = client.invoke_rest_api(**kwargs)
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == 'RestApiClientException':
+                status_code = e.response.get('RestApiStatusCode', 'unknown')
+                rest_response = e.response.get('RestApiResponse', {})
+                detail = (
+                    json.dumps(rest_response, default=str) if rest_response else 'no response body'
+                )
+                raise ClientError(
+                    {
+                        'Error': {
+                            'Code': 'RestApiClientException',
+                            'Message': f'Airflow REST API returned HTTP {status_code}: {detail}',
+                        },
+                    },
+                    e.operation_name,
+                ) from e
+            raise
 
         rest_api_response = response.get('RestApiResponse', {})
         return rest_api_response
