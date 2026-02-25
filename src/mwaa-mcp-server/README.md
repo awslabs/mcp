@@ -68,7 +68,9 @@ Add to your Claude Desktop MCP configuration:
       "args": ["awslabs.mwaa-mcp-server"],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "my-profile"
+        "AWS_PROFILE": "my-profile",
+        "MWAA_ENVIRONMENT": "my-environment",
+        "FASTMCP_LOG_LEVEL": "INFO"
       }
     }
   }
@@ -85,7 +87,9 @@ For write access:
       "args": ["awslabs.mwaa-mcp-server", "--allow-write"],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "my-profile"
+        "AWS_PROFILE": "my-profile",
+        "MWAA_ENVIRONMENT": "my-environment",
+        "FASTMCP_LOG_LEVEL": "INFO"
       }
     }
   }
