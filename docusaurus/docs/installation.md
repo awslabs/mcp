@@ -322,3 +322,27 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
   }
 }
 ```
+
+### Getting Started with AdaL CLI
+
+[AdaL CLI](https://sylph.ai/) is a unified AI agent for software engineering with built-in [MCP support](https://docs.sylph.ai/features/mcp-support-proposed). Add AWS MCP servers directly from the AdaL CLI prompt:
+
+```text
+# Run inside the AdaL CLI prompt:
+
+# Add core AWS services
+/mcp add aws-api --command uvx --args "awslabs.aws-api-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add aws-cdk --command uvx --args "awslabs.cdk-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add aws-docs --command uvx --args "awslabs.aws-documentation-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR,AWS_DOCUMENTATION_PARTITION=aws"
+
+# Add AI/ML and Bedrock services
+/mcp add nova-canvas --command uvx --args "awslabs.nova-canvas-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR,AWS_REGION=us-east-1"
+/mcp add bedrock-kb --command uvx --args "awslabs.bedrock-kb-retrieval-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+
+# Add data and analytics services
+/mcp add aws-dataprocessing --command uvx --args "awslabs.aws-dataprocessing-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add valkey --command uvx --args "awslabs.valkey-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+
+# List installed servers
+/mcp list
+```
