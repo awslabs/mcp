@@ -1,5 +1,5 @@
 ---
-name: dsql
+name: amazon aurora dsql
 description: Build with Aurora DSQL - manage schemas, execute queries, and handle migrations with DSQL-specific requirements. Use when developing a scalable or distributed database/application or user requests DSQL.
 ---
 
