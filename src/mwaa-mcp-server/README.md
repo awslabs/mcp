@@ -47,6 +47,7 @@ docker run -it awslabs.mwaa-mcp-server
 |----------|-------------|---------|
 | `AWS_REGION` | AWS region for API calls | `us-east-1` |
 | `AWS_PROFILE` | AWS CLI profile name | Default credential chain |
+| `MWAA_ENVIRONMENT` | Default MWAA environment name (avoids per-call specification) | Auto-detect |
 | `FASTMCP_LOG_LEVEL` | Log level (ERROR, WARNING, INFO, DEBUG) | `WARNING` |
 
 ### CLI Arguments
@@ -170,6 +171,7 @@ For write access:
 
 - **No token exposure**: Unlike other MWAA tools, this server does not expose `create_cli_token` or `create_web_login_token` as tools. All Airflow API operations go through the AWS-native `invoke_rest_api`.
 - **Password redaction**: Connection passwords and extra fields are automatically redacted in responses.
+- **Variable redaction**: Variable values with sensitive keys (matching patterns like `secret`, `password`, `token`, `api_key`) are automatically redacted.
 - **Input validation**: Environment names and path parameters are validated to prevent injection.
 - **Read-only by default**: Write operations are disabled unless `--allow-write` is explicitly passed.
 
