@@ -5,6 +5,7 @@ import datetime
 from .history_handler import history
 from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from copy import deepcopy
+from fastmcp import Context
 from unittest.mock import MagicMock, patch
 
 
@@ -292,14 +293,14 @@ def patch_botocore():
             yield
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Mock implementation of MCP context for testing purposes."""
 
-    async def error(self, message):
-        """Mock MCP ctx.error with the given message.
+    def __init__(self):
+        """Initialize DummyCtx with a mock FastMCP instance."""
+        super().__init__(fastmcp=MagicMock())
 
-        Args:
-            message: The error message
-        """
+    async def error(self, message, logger_name=None, extra=None):
+        """Mock MCP ctx.error with the given message."""
         # Do nothing because MCP ctx.error doesn't throw exception
         pass

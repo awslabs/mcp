@@ -1,0 +1,154 @@
+# Auto-generated transaction service
+"""Cross-table transaction service for atomic operations.
+
+This service provides methods for executing atomic transactions across multiple
+DynamoDB tables using TransactWriteItems and TransactGetItems APIs.
+
+Currently supports:
+- TransactWrite: Atomic write operations (Put, Update, Delete, ConditionCheck)
+- TransactGet: Atomic read operations (Get)
+
+Future versions may support additional cross-table patterns.
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+from typing import Any
+
+import boto3
+from botocore.exceptions import ClientError
+
+from entities import {{ entity_imports }}
+
+
+class TransactionService:
+    """Service for cross-table transactional operations.
+
+    This service handles atomic operations that span multiple DynamoDB tables.
+    All operations are atomic - either all succeed or all fail together.
+
+    Attributes:
+        dynamodb: Boto3 DynamoDB resource for multi-table access
+        client: Boto3 DynamoDB client for transaction operations
+    """
+
+    def __init__(self, dynamodb_resource: boto3.resource):
+        """Initialize transaction service.
+
+        Args:
+            dynamodb_resource: Boto3 DynamoDB resource configured for your region
+                              Example: boto3.resource('dynamodb', region_name='us-west-2')
+        """
+        self.dynamodb = dynamodb_resource
+        self.client = dynamodb_resource.meta.client
+
+    {% for pattern in cross_table_patterns %}
+    def {{ pattern.name }}(self, {{ format_parameters(pattern.parameters) }}) -> {{ map_return_type(pattern.return_type) }}:
+        """{{ pattern.description }}
+
+        Args:
+            {%- for param in pattern.parameters %}
+            {{ param.name }}: {{ get_param_description(param) }}
+            {%- endfor %}
+
+        Returns:
+            {{ map_return_type(pattern.return_type) }}: {{ get_return_description(pattern) }}
+
+        Raises:
+            ValueError: If entity validation fails or relationships are invalid
+            ClientError: If transaction fails (e.g., condition check failure, item already exists)
+        """
+        # TODO: Implement Access Pattern #{{ pattern.pattern_id }}
+        # Operation: {{ pattern.operation }} | Tables: {{ format_table_names(pattern) }}
+        #
+        # Cross-Table Transaction Example:
+        {% if pattern.operation == 'TransactWrite' -%}
+        # Step 1: Validate entity relationships (if needed)
+        # Example: Ensure email_lookup.user_id matches user.user_id
+        #
+        # Step 2: Build keys for all entities
+        {% for entity_inv in pattern.entities_involved -%}
+        # {{ entity_inv.entity }}.build_pk_for_lookup(...)
+        {% if entity_inv.get('condition') -%}
+        # Condition: {{ entity_inv.condition }}
+        {% endif -%}
+        {% endfor -%}
+        #
+        # Step 3: Convert entities to DynamoDB items and add keys
+        {% for param in pattern.parameters if param.type == 'entity' -%}
+        # {{ param.name }}_item = {{ param.name }}.model_dump(exclude_none=True)
+        # {{ param.name }}_item['{{ entity_to_table_config[param.entity_type].partition_key }}'] = {{ param.name }}.pk()
+        {% if entity_to_table_config[param.entity_type].get('sort_key') -%}
+        # {{ param.name }}_item['{{ entity_to_table_config[param.entity_type].sort_key }}'] = {{ param.name }}.sk()
+        {% endif -%}
+        {% endfor -%}
+        #
+        # Step 4: Execute transaction
+        # response = self.client.transact_write_items(
+        #     TransactItems=[
+        {% for entity_inv in pattern.entities_involved -%}
+        #         {
+        #             '{{ entity_inv.action }}': {
+        #                 'TableName': '{{ entity_inv.table }}',
+        {% if entity_inv.action in ['Put'] -%}
+        #                 'Item': <entity>_item,  # Item includes partition key from Step 3
+        {% elif entity_inv.action in ['Update'] -%}
+        #                 'Key': {'{{ entity_to_table_config[entity_inv.entity].partition_key }}': <pk_value>{% if entity_to_table_config[entity_inv.entity].get('sort_key') %}, '{{ entity_to_table_config[entity_inv.entity].sort_key }}': <sk_value>{% endif %}},
+        #                 'UpdateExpression': 'SET #field = :val',
+        #                 'ExpressionAttributeNames': {'#field': 'field_name'},
+        #                 'ExpressionAttributeValues': {':val': value},
+        {% elif entity_inv.action in ['Delete', 'ConditionCheck'] -%}
+        #                 'Key': {'{{ entity_to_table_config[entity_inv.entity].partition_key }}': <pk_value>{% if entity_to_table_config[entity_inv.entity].get('sort_key') %}, '{{ entity_to_table_config[entity_inv.entity].sort_key }}': <sk_value>{% endif %}},
+        {% endif -%}
+        {% if entity_inv.get('condition') -%}
+        #                 'ConditionExpression': '{{ entity_inv.condition }}'
+        {% endif -%}
+        #             }
+        #         },
+        {% endfor -%}
+        #     ]
+        # )
+        #
+        # Step 5: Handle errors
+        # try:
+        #     response = self.client.transact_write_items(...)
+        #     return True  # or appropriate return value
+        # except ClientError as e:
+        #     if e.response['Error']['Code'] == 'TransactionCanceledException':
+        #         # Handle condition check failures
+        #         reasons = e.response['Error'].get('CancellationReasons', [])
+        #         # Parse reasons to determine which condition failed
+        #         raise ValueError(f"Transaction failed: {reasons}")
+        #     raise
+        {% elif pattern.operation == 'TransactGet' -%}
+        # Step 1: Build keys for all entities
+        {% for entity_inv in pattern.entities_involved -%}
+        # {{ entity_inv.entity }}.build_pk_for_lookup(...)
+        {% endfor -%}
+        #
+        # Step 2: Execute transaction
+        # response = self.client.transact_get_items(
+        #     TransactItems=[
+        {% for entity_inv in pattern.entities_involved -%}
+        #         {
+        #             'Get': {
+        #                 'TableName': '{{ entity_inv.table }}',
+        #                 'Key': {'{{ entity_to_table_config[entity_inv.entity].partition_key }}': <pk_value>{% if entity_to_table_config[entity_inv.entity].get('sort_key') %}, '{{ entity_to_table_config[entity_inv.entity].sort_key }}': <sk_value>{% endif %}}
+        #             }
+        #         },
+        {% endfor -%}
+        #     ]
+        # )
+        #
+        # Step 3: Parse and return results
+        # items = response.get('Responses', [])
+        # result = {}
+        {% for entity_inv in pattern.entities_involved -%}
+        # if items[{{ loop.index0 }}].get('Item'):
+        #     result['{{ entity_inv.entity | lower }}'] = {{ entity_inv.entity }}(**items[{{ loop.index0 }}]['Item'])
+        {% endfor -%}
+        # return result
+        {% endif -%}
+        pass
+
+    {% endfor -%}

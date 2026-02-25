@@ -213,6 +213,15 @@ class Jinja2Generator(BaseGenerator):
             print(f'Warning: Could not load usage examples template: {e}')
             self.usage_examples_template = None
 
+        # Load transaction service template if it exists
+        try:
+            self.transaction_service_template = self.env.get_template(
+                'transaction_service_template.j2'
+            )
+        except Exception as e:
+            print(f'Warning: Could not load transaction service template: {e}')
+            self.transaction_service_template = None
+
     def _is_pure_field_reference(self, template: str) -> bool:
         """Check if template is a pure field reference like '{field_name}'.
 
@@ -467,10 +476,7 @@ class Jinja2Generator(BaseGenerator):
 
                 if is_range_param:
                     # Range parameters are always valid, don't skip
-                    if param.get('type') == 'entity':
-                        param_type = param.get('entity_type', 'Any')
-                    else:
-                        param_type = self.type_mapper.map_parameter_type(param)
+                    param_type = self.type_mapper.map_parameter_type(param)
                     formatted.append(f'{param["name"]}: {param_type}')
                     continue
 
@@ -482,10 +488,7 @@ class Jinja2Generator(BaseGenerator):
                     # Parameter doesn't exist in entity, skip it
                     continue
 
-                if param.get('type') == 'entity':
-                    param_type = param.get('entity_type', 'Any')
-                else:
-                    param_type = self.type_mapper.map_parameter_type(param)
+                param_type = self.type_mapper.map_parameter_type(param)
                 formatted.append(f'{param["name"]}: {param_type}')
             # Return empty string if no valid parameters (avoid trailing comma)
             return ', '.join(formatted) if formatted else ''
@@ -539,13 +542,215 @@ class Jinja2Generator(BaseGenerator):
 
         return repo_code, entity_mapping
 
+    def _format_parameters(self, params: list[dict[str, Any]]) -> str:
+        """Format parameter list for transaction method signature.
+
+        Args:
+            params: List of parameter dicts from cross-table pattern
+
+        Returns:
+            Comma-separated string of formatted parameters
+        """
+        formatted = []
+        for param in params:
+            param_type = self.type_mapper.map_parameter_type(param)
+            formatted.append(f'{param["name"]}: {param_type}')
+        return ', '.join(formatted) if formatted else ''
+
+    def _get_param_description(self, param: dict[str, Any]) -> str:
+        """Get description for a parameter in docstring.
+
+        Args:
+            param: Parameter dict from cross-table pattern
+
+        Returns:
+            Description string for the parameter
+        """
+        param_type = self.type_mapper.map_parameter_type(param)
+
+        if param.get('type') == 'entity':
+            return f'{param_type} entity to process'
+        else:
+            return f'{param_type} value'
+
+    def _get_return_description(self, pattern: dict[str, Any]) -> str:
+        """Get description for return value in docstring.
+
+        Args:
+            pattern: Cross-table pattern dict
+
+        Returns:
+            Description string for the return value
+        """
+        return_type = pattern.get('return_type', 'boolean')
+        operation = pattern.get('operation', 'TransactWrite')
+
+        if return_type == 'boolean':
+            return 'True if transaction succeeded, False otherwise'
+        elif return_type == 'object':
+            if operation == 'TransactGet':
+                return 'Dictionary containing retrieved entities'
+            return 'Result object from transaction'
+        elif return_type == 'array':
+            return 'List of results from transaction'
+        else:
+            return 'Transaction result'
+
+    def _get_table_list(self, pattern: dict[str, Any]) -> str:
+        """Get comma-separated list of tables involved in pattern.
+
+        Args:
+            pattern: Cross-table pattern dict
+
+        Returns:
+            Comma-separated string of table names
+        """
+        entities_involved = pattern.get('entities_involved', [])
+        tables = [entity_inv['table'] for entity_inv in entities_involved]
+        return ', '.join(tables)
+
+    def _get_entity_imports(self, cross_table_patterns: list[dict[str, Any]]) -> str:
+        """Get comma-separated list of unique entity names for imports.
+
+        Args:
+            cross_table_patterns: List of cross-table pattern dicts
+
+        Returns:
+            Comma-separated string of entity names for import statement
+        """
+        entity_names = self._extract_entity_names(cross_table_patterns)
+        return ', '.join(sorted(entity_names))
+
+    def _extract_entity_names(self, cross_table_patterns: list[dict[str, Any]]) -> set[str]:
+        """Extract unique entity names from cross-table patterns.
+
+        Args:
+            cross_table_patterns: List of cross-table pattern dicts
+
+        Returns:
+            Set of unique entity names
+        """
+        entity_names = set()
+        for pattern in cross_table_patterns:
+            for entity_inv in pattern.get('entities_involved', []):
+                entity_names.add(entity_inv['entity'])
+        return entity_names
+
+    def _build_entities_involved_list(self, pattern: dict[str, Any]) -> list[dict[str, Any]]:
+        """Build entities_involved array with table, entity, and action.
+
+        Args:
+            pattern: Cross-table pattern definition
+
+        Returns:
+            List of entity involvement dicts with table, entity, and action fields
+        """
+        entities_involved = []
+        for entity_inv in pattern.get('entities_involved', []):
+            entities_involved.append(
+                {
+                    'table': entity_inv['table'],
+                    'entity': entity_inv['entity'],
+                    'action': entity_inv['action'],
+                }
+            )
+        return entities_involved
+
+    def _create_transaction_pattern_mapping(self, pattern: dict[str, Any]) -> dict[str, Any]:
+        """Create access pattern mapping entry for a cross-table transaction pattern.
+
+        Args:
+            pattern: Cross-table pattern definition from schema
+
+        Returns:
+            Dictionary with pattern metadata for access_pattern_mapping.json
+        """
+        # Get the actual return type
+        schema_return_type = pattern.get('return_type', 'boolean')
+        operation = pattern.get('operation', 'TransactWrite')
+
+        # Map return type using type mapper
+        if self.type_mapper:
+            actual_return_type = self.type_mapper.map_return_type(schema_return_type, None)
+        else:
+            actual_return_type = schema_return_type
+
+        # Build entities_involved array with table, entity, and action
+        entities_involved = self._build_entities_involved_list(pattern)
+
+        # Create mapping entry with service field instead of repository
+        mapping_entry = {
+            'pattern_id': pattern['pattern_id'],
+            'description': pattern['description'],
+            'service': 'TransactionService',
+            'method_name': pattern['name'],
+            'parameters': pattern.get('parameters', []),
+            'return_type': actual_return_type,
+            'operation': operation,
+            'entities_involved': entities_involved,
+            'transaction_type': 'cross_table',
+        }
+
+        return mapping_entry
+
+    def generate_transaction_service(
+        self,
+        cross_table_patterns: list[dict[str, Any]],
+        all_entities: dict[str, Any],
+    ) -> str:
+        """Generate transaction service code using Jinja2.
+
+        Args:
+            cross_table_patterns: List of cross-table pattern definitions from schema
+            all_entities: Dictionary of all entity configurations keyed by entity name
+
+        Returns:
+            Generated transaction service code as a string, or empty string if no patterns
+        """
+        if not self.transaction_service_template:
+            return ''
+
+        # Return empty string if no patterns to generate
+        if not cross_table_patterns:
+            return ''
+
+        # Extract unique entity names for imports
+        entity_names = self._extract_entity_names(cross_table_patterns)
+
+        # Build entity to table mapping for key lookups
+        entity_to_table_config = {}
+        for table in self.schema['tables']:
+            table_config = table['table_config']
+            for entity_name in table['entities'].keys():
+                entity_to_table_config[entity_name] = table_config
+
+        # Render template with all required context
+        return self.transaction_service_template.render(
+            cross_table_patterns=cross_table_patterns,
+            entity_imports=', '.join(sorted(entity_names)),
+            entity_to_table_config=entity_to_table_config,
+            format_parameters=self._format_parameters,
+            map_return_type=self.type_mapper.map_return_type,
+            get_param_description=self._get_param_description,
+            get_return_description=self._get_return_description,
+            format_table_names=self._get_table_list,
+        )
+
     def generate_usage_examples(
         self,
         access_pattern_mapping: dict[str, Any],
         all_entities: dict[str, Any],
         all_tables: list[dict[str, Any]],
+        cross_table_patterns: list[dict[str, Any]] | None = None,
     ) -> str:
-        """Generate usage examples using Jinja2."""
+        """Generate usage examples using Jinja2.
+
+        Args:
+            access_pattern_mapping: Mapping of access pattern IDs to implementations
+            all_entities: Dictionary of all entity configurations
+            all_tables: List of all table configurations
+            cross_table_patterns: List of all cross-table patterns (all operation types)
+        """
         if not self.usage_examples_template:
             return '# Usage examples template not found'
 
@@ -555,11 +760,18 @@ class Jinja2Generator(BaseGenerator):
         # For single table scenarios, use the first table's config
         table_config = all_tables[0]['table_config'] if all_tables else {}
 
+        # Default to empty list if None
+        if cross_table_patterns is None:
+            cross_table_patterns = []
+
         def generate_sample_value_wrapper(field: dict[str, Any], **kwargs) -> str:
             """Wrapper to handle use_access_pattern_data flag."""
             use_access_pattern_data = kwargs.pop('use_access_pattern_data', False)
+            use_transaction_data = kwargs.pop('use_transaction_data', False)
             if use_access_pattern_data:
                 kwargs['use_access_pattern_data'] = True
+            if use_transaction_data:
+                kwargs['use_transaction_data'] = True
             return self.sample_generator.generate_sample_value(field, **kwargs)
 
         def get_parameter_value_wrapper(
@@ -582,11 +794,13 @@ class Jinja2Generator(BaseGenerator):
             table_config=table_config,
             tables=all_tables,
             access_patterns=access_pattern_mapping,
+            cross_table_patterns=cross_table_patterns,
             generate_sample_value=generate_sample_value_wrapper,
             get_updatable_field=self.sample_generator.get_updatable_field,
             generate_update_value=self.sample_generator.generate_update_value,
             get_all_key_params=self.sample_generator.get_all_key_params,
             get_parameter_value=get_parameter_value_wrapper,
+            get_entity_config=lambda entity_type: all_entities.get(entity_type, {}),
             to_snake_case=to_snake_case,
         )
 
@@ -630,8 +844,15 @@ class Jinja2Generator(BaseGenerator):
         # Generate usage examples if requested
         usage_examples_code = ''
         if generate_usage_examples:
+            # Pass all cross-table patterns to usage examples
+            # The template will handle different operation types appropriately
+            cross_table_patterns = self.schema.get('cross_table_access_patterns', [])
+
             usage_examples_code = self.generate_usage_examples(
-                access_pattern_mapping, preprocessed_entities, all_tables
+                access_pattern_mapping,
+                preprocessed_entities,
+                all_tables,
+                cross_table_patterns=cross_table_patterns,
             )
 
         # Check if Any import is needed (for dict return types from KEYS_ONLY or unsafe INCLUDE projections)
@@ -706,6 +927,29 @@ class Jinja2Generator(BaseGenerator):
                     content=usage_examples_code,
                 )
             )
+
+        # Generate transaction service if cross-table patterns exist
+        cross_table_patterns = self.schema.get('cross_table_access_patterns', [])
+        if cross_table_patterns and self.transaction_service_template:
+            transaction_service_code = self.generate_transaction_service(
+                cross_table_patterns, all_entities
+            )
+
+            if transaction_service_code:
+                generated_files.append(
+                    GeneratedFile(
+                        path='transaction_service.py',
+                        description=f'{len(cross_table_patterns)} cross-table transaction patterns',
+                        category='services',
+                        content=transaction_service_code,
+                        count=len(cross_table_patterns),
+                    )
+                )
+
+                # Add cross-table patterns to access pattern mapping
+                for pattern in cross_table_patterns:
+                    pattern_mapping = self._create_transaction_pattern_mapping(pattern)
+                    access_pattern_mapping[str(pattern['pattern_id'])] = pattern_mapping
 
         # Create generation result
         generation_result = GenerationResult(

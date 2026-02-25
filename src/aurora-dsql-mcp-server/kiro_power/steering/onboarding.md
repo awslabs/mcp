@@ -105,7 +105,7 @@ aws dsql list-clusters --region $REGION
 **Create cluster command (if needed):**
 
 ```bash
-aws dsql create-cluster --region $REGION --tags Key=Name,Value=my-dsql-cluster
+aws dsql create-cluster --region $REGION --tags '{"Name":"my-dsql-cluster","created_by":"<model-id>"}'
 ```
 
 **Wait for ACTIVE status** (takes ~60 seconds):
@@ -153,6 +153,7 @@ export PGPASSWORD=$(aws dsql generate-db-connect-admin-auth-token \
   --expires-in 3600)
 
 export PGSSLMODE=require
+export PGAPPNAME="<app-name>/<model-id>"
 
 psql --quiet -h $CLUSTER_ENDPOINT -U admin -d postgres
 ```
@@ -224,7 +225,7 @@ cargo add aws-sdk-dsql tokio --features full
 - Show what you found
 - Ask: "Found existing schema definitions. Want to migrate these to DSQL?"
 - If yes, MUST verify DSQL compatibility:
-  - No SERIAL types (use UUID or generated values)
+  - No SERIAL types (use UUID, generated values, or `GENERATED AS IDENTITY` for sequences)
   - No foreign keys (implement in application)
   - No array/JSON column types (serialize as TEXT)
   - Reference [`./development-guide.md`](./development-guide.md) for full constraints
