@@ -61,6 +61,155 @@ class Finding(BaseModel):
         return super().model_dump(**kwargs)
 
 
+class CvssMetrics(BaseModel):
+    """Model for CVSS score breakdown."""
+
+    base_score: Optional[float] = None
+    base_severity: Optional[str] = None
+    vector_string: Optional[str] = None
+    attack_vector: Optional[str] = None
+    attack_complexity: Optional[str] = None
+    privileges_required: Optional[str] = None
+    user_interaction: Optional[str] = None
+    scope: Optional[str] = None
+    confidentiality_impact: Optional[str] = None
+    integrity_impact: Optional[str] = None
+    availability_impact: Optional[str] = None
+    exploitability_score: Optional[float] = None
+    impact_score: Optional[float] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class CveReference(BaseModel):
+    """Model for a CVE reference link."""
+
+    url: Optional[str] = None
+    source: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class AffectedVersion(BaseModel):
+    """Model for an affected product version range."""
+
+    criteria: Optional[str] = None
+    version_start_including: Optional[str] = None
+    version_end_excluding: Optional[str] = None
+    version_end_including: Optional[str] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class CveDetails(BaseModel):
+    """Model for full CVE information from NVD."""
+
+    cve_id: str
+    description: Optional[str] = None
+    published: Optional[str] = None
+    last_modified: Optional[str] = None
+    nvd_url: str
+    cvss_v31: Optional[CvssMetrics] = None
+    cvss_v2: Optional[CvssMetrics] = None
+    weaknesses: Optional[List[str]] = None
+    affected_versions: Optional[List[AffectedVersion]] = None
+    references: Optional[List[CveReference]] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class FindingExplanation(BaseModel):
+    """Model for an explained Inspector finding with CVE enrichment."""
+
+    finding_arn: str
+    title: Optional[str] = None
+    severity: Optional[str] = None
+    description: Optional[str] = None
+    finding_type: Optional[str] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    inspector_score: Optional[float] = None
+    exploit_available: Optional[str] = None
+    fix_available: Optional[str] = None
+    remediation: Optional[Dict[str, Any]] = None
+    cve_details: Optional[CveDetails] = None
+    cve_ids: Optional[List[str]] = None
+    cve_links: Optional[List[str]] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class SecuritySummary(BaseModel):
+    """Model for a security posture summary report."""
+
+    generated_at: str
+    region: str
+    account_status: Optional[Dict] = None
+    coverage_statistics: Optional[Dict] = None
+    finding_counts_by_severity: Optional[Dict] = None
+    top_critical_findings: Optional[List[Dict]] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class DigestFinding(BaseModel):
+    """Model for a single finding entry within a findings digest."""
+
+    finding_arn: Optional[str] = None
+    title: Optional[str] = None
+    severity: Optional[str] = None
+    status: Optional[str] = None
+    type: Optional[str] = None
+    inspector_score: Optional[float] = None
+    exploit_available: Optional[str] = None
+    fix_available: Optional[str] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    cve_ids: Optional[List[str]] = None
+    cve_links: Optional[List[str]] = None
+    remediation: Optional[Dict[str, Any]] = None
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
+class FindingsDigest(BaseModel):
+    """Model for a findings digest report over a time range."""
+
+    generated_at: str
+    region: str
+    time_range: Dict[str, str]
+    total_findings: int
+    severity_breakdown: Dict[str, int]
+    findings: List[DigestFinding]
+
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values."""
+        kwargs.setdefault('exclude_none', True)
+        return super().model_dump(**kwargs)
+
+
 class FindingDetail(BaseModel):
     """Model for a detailed Inspector finding from batch_get_findings."""
 

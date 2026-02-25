@@ -21,7 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     'awslabs.inspector-mcp-server',
-    instructions='Use this MCP server to query Amazon Inspector findings for vulnerability analysis, security posture monitoring, and compliance reporting. Supports listing and filtering findings by severity, resource type, and time range, retrieving detailed finding information including CVSS scores and remediation guidance, aggregating findings for dashboard views, checking scan coverage across resources, monitoring account scanning status, and generating findings reports exported to S3.',
+    instructions='Use this MCP server to query Amazon Inspector findings for vulnerability analysis, security posture monitoring, and compliance reporting. Supports listing and filtering findings by severity, resource type, and time range, retrieving detailed finding information including CVSS scores and remediation guidance, aggregating findings for dashboard views, checking scan coverage across resources, monitoring account scanning status, generating findings reports exported to S3, enriching findings with CVE data from the National Vulnerability Database (NVD), explaining individual findings with full vulnerability context, generating security posture summaries, and creating findings digests over time ranges.',
     dependencies=[
         'boto3',
         'botocore',

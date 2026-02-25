@@ -14,19 +14,28 @@
 
 """Comprehensive tests for Inspector MCP server tools."""
 
+import httpx
 import pytest
 from awslabs.inspector_mcp_server.models import (
     AccountStatus,
+    AffectedVersion,
     CoverageResource,
+    CveDetails,
+    CveReference,
+    CvssMetrics,
+    DigestFinding,
     Finding,
     FindingAggregation,
     FindingDetail,
+    FindingExplanation,
+    FindingsDigest,
     ReportResult,
+    SecuritySummary,
 )
 from awslabs.inspector_mcp_server.tools import InspectorTools
 from datetime import datetime, timezone
 from mcp.server.fastmcp import Context
-from unittest.mock import AsyncMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 
 class TestInspectorToolsInitialization:
@@ -1303,13 +1312,17 @@ class TestToolRegistration:
             call(name='list_coverage_statistics'),
             call(name='get_account_status'),
             call(name='create_findings_report'),
+            call(name='get_cve_details'),
+            call(name='explain_finding'),
+            call(name='generate_security_summary'),
+            call(name='generate_findings_digest'),
         ]
 
-        assert mock_mcp.tool.call_count == 7
+        assert mock_mcp.tool.call_count == 11
         mock_mcp.tool.assert_has_calls(expected_calls, any_order=True)
 
         # Verify decorators were applied
-        assert mock_tool_decorator.call_count == 7
+        assert mock_tool_decorator.call_count == 11
 
 
 class TestModels:
@@ -1434,6 +1447,894 @@ class TestModels:
         result_dict = finding.model_dump()
         assert result_dict['first_observed_at'] == '2024-01-01T12:00:00+00:00'
         assert result_dict['last_observed_at'] == '2024-01-15T12:00:00+00:00'
+
+    def test_cvss_metrics_model(self):
+        """Test CvssMetrics model creation and exclude_none."""
+        metrics = CvssMetrics(
+            base_score=9.8,
+            base_severity='CRITICAL',
+            vector_string='CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H',
+            attack_vector='NETWORK',
+        )
+
+        assert metrics.base_score == 9.8
+        result_dict = metrics.model_dump()
+        assert 'attack_complexity' not in result_dict
+        assert result_dict['base_severity'] == 'CRITICAL'
+
+    def test_cve_reference_model(self):
+        """Test CveReference model creation."""
+        ref = CveReference(
+            url='https://example.com/advisory',
+            source='example.com',
+            tags=['Vendor Advisory'],
+        )
+
+        assert ref.url == 'https://example.com/advisory'
+        result_dict = ref.model_dump()
+        assert result_dict['tags'] == ['Vendor Advisory']
+
+    def test_affected_version_model(self):
+        """Test AffectedVersion model creation."""
+        version = AffectedVersion(
+            criteria='cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*',
+            version_end_excluding='2.0.0',
+        )
+
+        assert version.version_end_excluding == '2.0.0'
+        result_dict = version.model_dump()
+        assert 'version_start_including' not in result_dict
+
+    def test_cve_details_model(self):
+        """Test CveDetails model creation."""
+        details = CveDetails(
+            cve_id='CVE-2023-1234',
+            description='A test vulnerability',
+            nvd_url='https://nvd.nist.gov/vuln/detail/CVE-2023-1234',
+            cvss_v31=CvssMetrics(base_score=9.8, base_severity='CRITICAL'),
+            weaknesses=['CWE-79'],
+        )
+
+        assert details.cve_id == 'CVE-2023-1234'
+        result_dict = details.model_dump()
+        assert result_dict['cvss_v31']['base_score'] == 9.8
+        assert 'cvss_v2' not in result_dict
+
+    def test_finding_explanation_model(self):
+        """Test FindingExplanation model creation."""
+        explanation = FindingExplanation(
+            finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-1',
+            title='CVE-2023-1234',
+            severity='HIGH',
+            cve_ids=['CVE-2023-1234'],
+            cve_links=['https://nvd.nist.gov/vuln/detail/CVE-2023-1234'],
+        )
+
+        assert explanation.finding_arn == 'arn:aws:inspector2:us-east-1:123:finding/f-1'
+        result_dict = explanation.model_dump()
+        assert 'description' not in result_dict
+        assert result_dict['cve_ids'] == ['CVE-2023-1234']
+
+    def test_security_summary_model(self):
+        """Test SecuritySummary model creation."""
+        summary = SecuritySummary(
+            generated_at='2024-01-01T00:00:00+00:00',
+            region='us-east-1',
+            account_status={'accounts': []},
+        )
+
+        assert summary.region == 'us-east-1'
+        result_dict = summary.model_dump()
+        assert 'coverage_statistics' not in result_dict
+
+    def test_digest_finding_model(self):
+        """Test DigestFinding model creation."""
+        digest_finding = DigestFinding(
+            finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-1',
+            title='CVE-2023-1234',
+            severity='HIGH',
+            status='ACTIVE',
+            cve_ids=['CVE-2023-1234'],
+        )
+
+        assert digest_finding.severity == 'HIGH'
+        result_dict = digest_finding.model_dump()
+        assert 'inspector_score' not in result_dict
+
+    def test_findings_digest_model(self):
+        """Test FindingsDigest model creation."""
+        digest = FindingsDigest(
+            generated_at='2024-01-01T00:00:00+00:00',
+            region='us-east-1',
+            time_range={'start_time': '2024-01-01T00:00:00Z', 'end_time': '2024-01-31T23:59:59Z'},
+            total_findings=2,
+            severity_breakdown={'HIGH': 1, 'MEDIUM': 1},
+            findings=[
+                DigestFinding(
+                    finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-1',
+                    severity='HIGH',
+                ),
+            ],
+        )
+
+        assert digest.total_findings == 2
+        result_dict = digest.model_dump()
+        assert result_dict['severity_breakdown'] == {'HIGH': 1, 'MEDIUM': 1}
+        assert len(result_dict['findings']) == 1
+
+
+class TestFetchCveFromNvd:
+    """Test the _fetch_cve_from_nvd private helper."""
+
+    @pytest.fixture
+    def tools(self):
+        """Create InspectorTools instance."""
+        return InspectorTools()
+
+    @pytest.fixture
+    def sample_nvd_response(self):
+        """Sample NVD API response for testing."""
+        return {
+            'vulnerabilities': [
+                {
+                    'cve': {
+                        'id': 'CVE-2023-1234',
+                        'published': '2023-03-15T10:00:00.000',
+                        'lastModified': '2023-04-01T12:00:00.000',
+                        'descriptions': [
+                            {'lang': 'en', 'value': 'A critical vulnerability in test package'},
+                            {'lang': 'es', 'value': 'Una vulnerabilidad critica'},
+                        ],
+                        'metrics': {
+                            'cvssMetricV31': [
+                                {
+                                    'cvssData': {
+                                        'baseScore': 9.8,
+                                        'baseSeverity': 'CRITICAL',
+                                        'vectorString': 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H',
+                                        'attackVector': 'NETWORK',
+                                        'attackComplexity': 'LOW',
+                                        'privilegesRequired': 'NONE',
+                                        'userInteraction': 'NONE',
+                                        'scope': 'UNCHANGED',
+                                        'confidentialityImpact': 'HIGH',
+                                        'integrityImpact': 'HIGH',
+                                        'availabilityImpact': 'HIGH',
+                                    },
+                                    'exploitabilityScore': 3.9,
+                                    'impactScore': 5.9,
+                                }
+                            ],
+                        },
+                        'weaknesses': [
+                            {
+                                'description': [
+                                    {'lang': 'en', 'value': 'CWE-79'},
+                                ]
+                            }
+                        ],
+                        'configurations': [
+                            {
+                                'nodes': [
+                                    {
+                                        'cpeMatch': [
+                                            {
+                                                'criteria': 'cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*',
+                                                'versionEndExcluding': '2.0.0',
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ],
+                        'references': [
+                            {
+                                'url': 'https://example.com/advisory/123',
+                                'source': 'example.com',
+                                'tags': ['Vendor Advisory'],
+                            }
+                        ],
+                    }
+                }
+            ]
+        }
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.httpx.AsyncClient')
+    async def test_fetch_basic(self, mock_client_class, tools, sample_nvd_response):
+        """Test basic CVE fetch from NVD."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = sample_nvd_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = await tools._fetch_cve_from_nvd('CVE-2023-1234')
+
+        assert result is not None
+        assert result.cve_id == 'CVE-2023-1234'
+        assert result.description == 'A critical vulnerability in test package'
+        assert result.nvd_url == 'https://nvd.nist.gov/vuln/detail/CVE-2023-1234'
+        assert result.cvss_v31 is not None
+        assert result.cvss_v31.base_score == 9.8
+        assert result.cvss_v31.base_severity == 'CRITICAL'
+        assert result.cvss_v31.attack_vector == 'NETWORK'
+        assert result.cvss_v31.exploitability_score == 3.9
+        assert result.weaknesses == ['CWE-79']
+        assert result.affected_versions is not None
+        assert len(result.affected_versions) == 1
+        assert result.affected_versions[0].version_end_excluding == '2.0.0'
+        assert result.references is not None
+        assert len(result.references) == 1
+        assert result.references[0].url == 'https://example.com/advisory/123'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.httpx.AsyncClient')
+    async def test_fetch_not_found(self, mock_client_class, tools):
+        """Test CVE fetch when NVD returns 404."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            '404 Not Found', request=MagicMock(), response=MagicMock(status_code=404)
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = await tools._fetch_cve_from_nvd('CVE-2099-99999')
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.httpx.AsyncClient')
+    async def test_fetch_network_error(self, mock_client_class, tools):
+        """Test CVE fetch with network error."""
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = httpx.HTTPError('Connection refused')
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = await tools._fetch_cve_from_nvd('CVE-2023-1234')
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.httpx.AsyncClient')
+    async def test_fetch_no_cvss_v31(self, mock_client_class, tools):
+        """Test CVE fetch with only CVSS v2 metrics."""
+        nvd_response = {
+            'vulnerabilities': [
+                {
+                    'cve': {
+                        'id': 'CVE-2020-1234',
+                        'descriptions': [
+                            {'lang': 'en', 'value': 'An old vulnerability'},
+                        ],
+                        'metrics': {
+                            'cvssMetricV2': [
+                                {
+                                    'cvssData': {
+                                        'baseScore': 7.5,
+                                        'vectorString': 'AV:N/AC:L/Au:N/C:P/I:P/A:P',
+                                        'accessVector': 'NETWORK',
+                                        'accessComplexity': 'LOW',
+                                    },
+                                    'baseSeverity': 'HIGH',
+                                    'exploitabilityScore': 10.0,
+                                    'impactScore': 6.4,
+                                }
+                            ],
+                        },
+                        'weaknesses': [],
+                        'references': [],
+                    }
+                }
+            ]
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = nvd_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = await tools._fetch_cve_from_nvd('CVE-2020-1234')
+
+        assert result is not None
+        assert result.cvss_v31 is None
+        assert result.cvss_v2 is not None
+        assert result.cvss_v2.base_score == 7.5
+        assert result.cvss_v2.base_severity == 'HIGH'
+        assert result.cvss_v2.attack_vector == 'NETWORK'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.httpx.AsyncClient')
+    async def test_fetch_minimal_response(self, mock_client_class, tools):
+        """Test CVE fetch with minimal/sparse data."""
+        nvd_response = {
+            'vulnerabilities': [
+                {
+                    'cve': {
+                        'id': 'CVE-2023-9999',
+                        'descriptions': [],
+                        'metrics': {},
+                        'weaknesses': [],
+                        'references': [],
+                    }
+                }
+            ]
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = nvd_response
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        result = await tools._fetch_cve_from_nvd('CVE-2023-9999')
+
+        assert result is not None
+        assert result.cve_id == 'CVE-2023-9999'
+        assert result.description is None
+        assert result.cvss_v31 is None
+        assert result.cvss_v2 is None
+        assert result.weaknesses is None
+        assert result.affected_versions is None
+        assert result.references is None
+
+
+class TestGetCveDetails:
+    """Test the get_cve_details tool."""
+
+    @pytest.fixture
+    def tools(self):
+        """Create InspectorTools instance."""
+        return InspectorTools()
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock Context."""
+        return AsyncMock(spec=Context)
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    async def test_basic(self, mock_fetch, tools, mock_context):
+        """Test basic get_cve_details functionality."""
+        mock_fetch.return_value = CveDetails(
+            cve_id='CVE-2023-1234',
+            description='A test vulnerability',
+            nvd_url='https://nvd.nist.gov/vuln/detail/CVE-2023-1234',
+            cvss_v31=CvssMetrics(base_score=9.8, base_severity='CRITICAL'),
+        )
+
+        result = await tools.get_cve_details(mock_context, cve_id='CVE-2023-1234')
+
+        assert result['cve_id'] == 'CVE-2023-1234'
+        assert result['description'] == 'A test vulnerability'
+        assert result['cvss_v31']['base_score'] == 9.8
+        mock_fetch.assert_called_once_with('CVE-2023-1234')
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    async def test_not_found(self, mock_fetch, tools, mock_context):
+        """Test get_cve_details when CVE is not found."""
+        mock_fetch.return_value = None
+
+        result = await tools.get_cve_details(mock_context, cve_id='CVE-2099-99999')
+
+        assert 'error' in result
+        assert 'not found' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_invalid_cve_format(self, tools, mock_context):
+        """Test get_cve_details with invalid CVE format."""
+        result = await tools.get_cve_details(mock_context, cve_id='invalid-cve')
+
+        assert 'error' in result
+        assert 'Invalid CVE ID format' in result['error']
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    async def test_error_handling(self, mock_fetch, tools, mock_context):
+        """Test get_cve_details error handling."""
+        mock_fetch.side_effect = Exception('Unexpected error')
+
+        with pytest.raises(Exception, match='Unexpected error'):
+            await tools.get_cve_details(mock_context, cve_id='CVE-2023-1234')
+
+        mock_context.error.assert_called_once()
+
+
+class TestExplainFinding:
+    """Test the explain_finding tool."""
+
+    @pytest.fixture
+    def tools(self):
+        """Create InspectorTools instance."""
+        return InspectorTools()
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock Context."""
+        return AsyncMock(spec=Context)
+
+    @pytest.fixture
+    def sample_finding_with_cve(self):
+        """Sample finding with package vulnerability details."""
+        return {
+            'finding': {
+                'finding_arn': 'arn:aws:inspector2:us-east-1:123:finding/f-1',
+                'title': 'CVE-2023-1234 - foo',
+                'severity': 'HIGH',
+                'description': 'CVE-2023-1234 in package foo',
+                'type': 'PACKAGE_VULNERABILITY',
+                'inspector_score': 8.5,
+                'exploit_available': 'YES',
+                'fix_available': 'YES',
+                'remediation': {'recommendation': {'text': 'Update foo to 2.0.0'}},
+                'resources': [{'type': 'AWS_EC2_INSTANCE', 'id': 'i-1234567890abcdef0'}],
+                'package_vulnerability_details': {
+                    'vulnerabilityId': 'CVE-2023-1234',
+                    'relatedVulnerabilities': ['CVE-2023-5678'],
+                },
+            },
+            'failed_findings': [],
+        }
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_basic(
+        self, mock_get_finding, mock_fetch_cve, tools, mock_context, sample_finding_with_cve
+    ):
+        """Test basic explain_finding functionality."""
+        mock_get_finding.return_value = sample_finding_with_cve
+        mock_fetch_cve.return_value = CveDetails(
+            cve_id='CVE-2023-1234',
+            description='A critical vuln',
+            nvd_url='https://nvd.nist.gov/vuln/detail/CVE-2023-1234',
+        )
+
+        finding_arn = 'arn:aws:inspector2:us-east-1:123:finding/f-1'
+        result = await tools.explain_finding(mock_context, finding_arn=finding_arn)
+
+        assert result['finding_arn'] == finding_arn
+        assert result['title'] == 'CVE-2023-1234 - foo'
+        assert result['severity'] == 'HIGH'
+        assert result['resource_type'] == 'AWS_EC2_INSTANCE'
+        assert result['resource_id'] == 'i-1234567890abcdef0'
+        assert result['cve_details']['cve_id'] == 'CVE-2023-1234'
+        assert result['cve_ids'] == ['CVE-2023-1234', 'CVE-2023-5678']
+        assert len(result['cve_links']) == 2
+
+        mock_get_finding.assert_called_once_with(
+            mock_context, finding_arn=finding_arn, region='us-east-1'
+        )
+        mock_fetch_cve.assert_called_once_with('CVE-2023-1234')
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_no_cve(self, mock_get_finding, mock_fetch_cve, tools, mock_context):
+        """Test explain_finding for a non-package finding (no CVE)."""
+        mock_get_finding.return_value = {
+            'finding': {
+                'finding_arn': 'arn:aws:inspector2:us-east-1:123:finding/f-2',
+                'title': 'Port 22 reachable',
+                'severity': 'MEDIUM',
+                'type': 'NETWORK_REACHABILITY',
+                'resources': [{'type': 'AWS_EC2_INSTANCE', 'id': 'i-abcdef'}],
+            },
+            'failed_findings': [],
+        }
+
+        result = await tools.explain_finding(
+            mock_context,
+            finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-2',
+        )
+
+        assert result['title'] == 'Port 22 reachable'
+        assert 'cve_details' not in result
+        assert 'cve_ids' not in result
+        mock_fetch_cve.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_cve_lookup_fails(
+        self, mock_get_finding, mock_fetch_cve, tools, mock_context, sample_finding_with_cve
+    ):
+        """Test explain_finding when CVE lookup fails."""
+        mock_get_finding.return_value = sample_finding_with_cve
+        mock_fetch_cve.return_value = None
+
+        result = await tools.explain_finding(
+            mock_context,
+            finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-1',
+        )
+
+        assert result['title'] == 'CVE-2023-1234 - foo'
+        assert 'cve_details' not in result
+        assert result['cve_ids'] == ['CVE-2023-1234', 'CVE-2023-5678']
+        assert result['cve_links'] is not None
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_finding_not_found(self, mock_get_finding, tools, mock_context):
+        """Test explain_finding when finding is not found."""
+        mock_get_finding.return_value = {
+            'finding': None,
+            'failed_findings': [{'findingArn': 'arn:missing', 'errorCode': 'FINDING_NOT_FOUND'}],
+        }
+
+        result = await tools.explain_finding(
+            mock_context,
+            finding_arn='arn:missing',
+        )
+
+        assert 'error' in result
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_error_handling(self, mock_get_finding, tools, mock_context):
+        """Test explain_finding error handling."""
+        mock_get_finding.side_effect = Exception('API error')
+
+        with pytest.raises(Exception, match='API error'):
+            await tools.explain_finding(
+                mock_context,
+                finding_arn='arn:aws:inspector2:us-east-1:123:finding/f-1',
+            )
+
+        mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, '_fetch_cve_from_nvd')
+    @patch.object(InspectorTools, 'get_finding_details')
+    async def test_region_passthrough(
+        self, mock_get_finding, mock_fetch_cve, tools, mock_context, sample_finding_with_cve
+    ):
+        """Test explain_finding passes region to get_finding_details."""
+        mock_get_finding.return_value = sample_finding_with_cve
+        mock_fetch_cve.return_value = None
+
+        await tools.explain_finding(
+            mock_context,
+            finding_arn='arn:aws:inspector2:eu-west-1:123:finding/f-1',
+            region='eu-west-1',
+        )
+
+        mock_get_finding.assert_called_once_with(
+            mock_context,
+            finding_arn='arn:aws:inspector2:eu-west-1:123:finding/f-1',
+            region='eu-west-1',
+        )
+
+
+class TestGenerateSecuritySummary:
+    """Test the generate_security_summary tool."""
+
+    @pytest.fixture
+    def tools(self):
+        """Create InspectorTools instance."""
+        return InspectorTools()
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock Context."""
+        return AsyncMock(spec=Context)
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    @patch.object(InspectorTools, 'list_finding_aggregations')
+    @patch.object(InspectorTools, 'list_coverage_statistics')
+    @patch.object(InspectorTools, 'get_account_status')
+    async def test_basic(
+        self,
+        mock_account_status,
+        mock_coverage_stats,
+        mock_aggregations,
+        mock_findings,
+        tools,
+        mock_context,
+    ):
+        """Test basic generate_security_summary functionality."""
+        mock_account_status.return_value = {'accounts': [{'account_id': '123'}]}
+        mock_coverage_stats.return_value = {'total_counts': 50}
+        mock_aggregations.return_value = {'aggregation_type': 'SEVERITY', 'counts': []}
+        mock_findings.return_value = {
+            'findings': [{'title': 'Critical vuln', 'severity': 'CRITICAL'}]
+        }
+
+        result = await tools.generate_security_summary(mock_context)
+
+        assert 'generated_at' in result
+        assert result['region'] == 'us-east-1'
+        assert result['account_status'] is not None
+        assert result['coverage_statistics'] is not None
+        assert result['finding_counts_by_severity'] is not None
+        assert result['top_critical_findings'] is not None
+        assert len(result['top_critical_findings']) == 1
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    @patch.object(InspectorTools, 'list_finding_aggregations')
+    @patch.object(InspectorTools, 'list_coverage_statistics')
+    @patch.object(InspectorTools, 'get_account_status')
+    async def test_partial_failure(
+        self,
+        mock_account_status,
+        mock_coverage_stats,
+        mock_aggregations,
+        mock_findings,
+        tools,
+        mock_context,
+    ):
+        """Test generate_security_summary with partial failures."""
+        mock_account_status.return_value = {'accounts': [{'account_id': '123'}]}
+        mock_coverage_stats.side_effect = Exception('Coverage error')
+        mock_aggregations.return_value = {'aggregation_type': 'SEVERITY', 'counts': []}
+        mock_findings.side_effect = Exception('Findings error')
+
+        result = await tools.generate_security_summary(mock_context)
+
+        assert result['account_status'] is not None
+        assert 'coverage_statistics' not in result
+        assert result['finding_counts_by_severity'] is not None
+        assert 'top_critical_findings' not in result
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    @patch.object(InspectorTools, 'list_finding_aggregations')
+    @patch.object(InspectorTools, 'list_coverage_statistics')
+    @patch.object(InspectorTools, 'get_account_status')
+    async def test_all_fail(
+        self,
+        mock_account_status,
+        mock_coverage_stats,
+        mock_aggregations,
+        mock_findings,
+        tools,
+        mock_context,
+    ):
+        """Test generate_security_summary when all internal calls fail."""
+        mock_account_status.side_effect = Exception('Account error')
+        mock_coverage_stats.side_effect = Exception('Coverage error')
+        mock_aggregations.side_effect = Exception('Aggregation error')
+        mock_findings.side_effect = Exception('Findings error')
+
+        result = await tools.generate_security_summary(mock_context)
+
+        assert 'generated_at' in result
+        assert result['region'] == 'us-east-1'
+        assert 'account_status' not in result
+        assert 'coverage_statistics' not in result
+        assert 'finding_counts_by_severity' not in result
+        assert 'top_critical_findings' not in result
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    @patch.object(InspectorTools, 'list_finding_aggregations')
+    @patch.object(InspectorTools, 'list_coverage_statistics')
+    @patch.object(InspectorTools, 'get_account_status')
+    async def test_custom_top_count(
+        self,
+        mock_account_status,
+        mock_coverage_stats,
+        mock_aggregations,
+        mock_findings,
+        tools,
+        mock_context,
+    ):
+        """Test generate_security_summary with custom top_critical_count."""
+        mock_account_status.return_value = {'accounts': []}
+        mock_coverage_stats.return_value = {'total_counts': 0}
+        mock_aggregations.return_value = {'aggregation_type': 'SEVERITY', 'counts': []}
+        mock_findings.return_value = {'findings': []}
+
+        await tools.generate_security_summary(mock_context, top_critical_count=10)
+
+        mock_findings.assert_called_once_with(
+            mock_context, severity='CRITICAL', max_results=10, region='us-east-1'
+        )
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    @patch.object(InspectorTools, 'list_finding_aggregations')
+    @patch.object(InspectorTools, 'list_coverage_statistics')
+    @patch.object(InspectorTools, 'get_account_status')
+    async def test_region_passthrough(
+        self,
+        mock_account_status,
+        mock_coverage_stats,
+        mock_aggregations,
+        mock_findings,
+        tools,
+        mock_context,
+    ):
+        """Test generate_security_summary passes region to all internal calls."""
+        mock_account_status.return_value = {'accounts': []}
+        mock_coverage_stats.return_value = {'total_counts': 0}
+        mock_aggregations.return_value = {'aggregation_type': 'SEVERITY', 'counts': []}
+        mock_findings.return_value = {'findings': []}
+
+        await tools.generate_security_summary(mock_context, region='eu-west-1')
+
+        mock_account_status.assert_called_once_with(mock_context, region='eu-west-1')
+        mock_coverage_stats.assert_called_once_with(mock_context, region='eu-west-1')
+        mock_aggregations.assert_called_once_with(
+            mock_context, aggregation_type='SEVERITY', region='eu-west-1'
+        )
+        mock_findings.assert_called_once_with(
+            mock_context, severity='CRITICAL', max_results=5, region='eu-west-1'
+        )
+
+
+class TestGenerateFindingsDigest:
+    """Test the generate_findings_digest tool."""
+
+    @pytest.fixture
+    def tools(self):
+        """Create InspectorTools instance."""
+        return InspectorTools()
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create mock Context."""
+        return AsyncMock(spec=Context)
+
+    @pytest.fixture
+    def sample_findings_response(self):
+        """Sample findings response for digest testing."""
+        return {
+            'findings': [
+                {
+                    'finding_arn': 'arn:aws:inspector2:us-east-1:123:finding/f-1',
+                    'title': 'CVE-2023-1234 - foo',
+                    'severity': 'CRITICAL',
+                    'status': 'ACTIVE',
+                    'type': 'PACKAGE_VULNERABILITY',
+                    'inspector_score': 9.8,
+                    'exploit_available': 'YES',
+                    'fix_available': 'YES',
+                    'resources': [{'type': 'AWS_EC2_INSTANCE', 'id': 'i-123'}],
+                    'package_vulnerability_details': {
+                        'vulnerabilityId': 'CVE-2023-1234',
+                    },
+                    'remediation': {'recommendation': {'text': 'Update foo'}},
+                },
+                {
+                    'finding_arn': 'arn:aws:inspector2:us-east-1:123:finding/f-2',
+                    'title': 'Port 22 open',
+                    'severity': 'HIGH',
+                    'status': 'ACTIVE',
+                    'type': 'NETWORK_REACHABILITY',
+                    'resources': [{'type': 'AWS_EC2_INSTANCE', 'id': 'i-456'}],
+                },
+            ],
+        }
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_basic(self, mock_list_findings, tools, mock_context, sample_findings_response):
+        """Test basic generate_findings_digest functionality."""
+        mock_list_findings.return_value = sample_findings_response
+
+        result = await tools.generate_findings_digest(
+            mock_context,
+            start_time='2024-01-01T00:00:00Z',
+            end_time='2024-01-31T23:59:59Z',
+        )
+
+        assert 'generated_at' in result
+        assert result['region'] == 'us-east-1'
+        assert result['time_range']['start_time'] == '2024-01-01T00:00:00Z'
+        assert result['time_range']['end_time'] == '2024-01-31T23:59:59Z'
+        assert result['total_findings'] == 2
+        assert len(result['findings']) == 2
+        assert result['findings'][0]['title'] == 'CVE-2023-1234 - foo'
+        assert result['findings'][0]['cve_ids'] == ['CVE-2023-1234']
+        assert result['findings'][0]['cve_links'] == [
+            'https://nvd.nist.gov/vuln/detail/CVE-2023-1234'
+        ]
+        assert result['findings'][0]['resource_type'] == 'AWS_EC2_INSTANCE'
+        assert result['findings'][1]['title'] == 'Port 22 open'
+        assert 'cve_ids' not in result['findings'][1]
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_empty(self, mock_list_findings, tools, mock_context):
+        """Test generate_findings_digest with no findings."""
+        mock_list_findings.return_value = {'findings': []}
+
+        result = await tools.generate_findings_digest(
+            mock_context,
+            start_time='2024-01-01T00:00:00Z',
+            end_time='2024-01-31T23:59:59Z',
+        )
+
+        assert result['total_findings'] == 0
+        assert result['findings'] == []
+        assert result['severity_breakdown'] == {}
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_severity_filter(self, mock_list_findings, tools, mock_context):
+        """Test generate_findings_digest with severity filter."""
+        mock_list_findings.return_value = {'findings': []}
+
+        await tools.generate_findings_digest(
+            mock_context,
+            start_time='2024-01-01T00:00:00Z',
+            severity='CRITICAL',
+        )
+
+        mock_list_findings.assert_called_once()
+        call_kwargs = mock_list_findings.call_args[1]
+        assert call_kwargs['severity'] == 'CRITICAL'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.inspector_mcp_server.tools.datetime')
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_default_end_time(self, mock_list_findings, mock_datetime, tools, mock_context):
+        """Test generate_findings_digest defaults end_time to now."""
+        fixed_now = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = fixed_now
+        mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
+        mock_list_findings.return_value = {'findings': []}
+
+        await tools.generate_findings_digest(
+            mock_context,
+            start_time='2024-01-01T00:00:00Z',
+        )
+
+        call_kwargs = mock_list_findings.call_args[1]
+        assert call_kwargs['end_time'] == fixed_now.isoformat()
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_severity_breakdown(
+        self, mock_list_findings, tools, mock_context, sample_findings_response
+    ):
+        """Test generate_findings_digest severity breakdown counts."""
+        mock_list_findings.return_value = sample_findings_response
+
+        result = await tools.generate_findings_digest(
+            mock_context,
+            start_time='2024-01-01T00:00:00Z',
+            end_time='2024-01-31T23:59:59Z',
+        )
+
+        assert result['severity_breakdown'] == {'CRITICAL': 1, 'HIGH': 1}
+
+    @pytest.mark.asyncio
+    @patch.object(InspectorTools, 'list_findings')
+    async def test_error_handling(self, mock_list_findings, tools, mock_context):
+        """Test generate_findings_digest error handling."""
+        mock_list_findings.side_effect = Exception('API error')
+
+        with pytest.raises(Exception, match='API error'):
+            await tools.generate_findings_digest(
+                mock_context,
+                start_time='2024-01-01T00:00:00Z',
+            )
+
+        mock_context.error.assert_called_once()
 
 
 if __name__ == '__main__':
