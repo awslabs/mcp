@@ -332,7 +332,7 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
 
 # Add core AWS services
 /mcp add aws-api --command uvx --args "awslabs.aws-api-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
-/mcp add aws-cdk --command uvx --args "awslabs.cdk-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add aws-iac --command uvx --args "awslabs.aws-iac-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
 /mcp add aws-docs --command uvx --args "awslabs.aws-documentation-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR,AWS_DOCUMENTATION_PARTITION=aws"
 
 # Add AI/ML and Bedrock services
