@@ -105,7 +105,7 @@ aws dsql list-clusters --region $REGION
 **Create cluster command (if needed):**
 
 ```bash
-aws dsql create-cluster --region $REGION --tags Key=Name,Value=my-dsql-cluster
+aws dsql create-cluster --region $REGION --tags '{"Name":"my-dsql-cluster","created_by":"<model-id>"}'
 ```
 
 **Wait for ACTIVE status** (takes ~60 seconds):
@@ -153,6 +153,7 @@ export PGPASSWORD=$(aws dsql generate-db-connect-admin-auth-token \
   --expires-in 3600)
 
 export PGSSLMODE=require
+export PGAPPNAME="<app-name>/<model-id>"
 
 psql --quiet -h $CLUSTER_ENDPOINT -U admin -d postgres
 ```

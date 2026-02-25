@@ -73,11 +73,19 @@ PREFER using the [DSQL Python Connector](https://docs.aws.amazon.com/aurora-dsql
 - See [aurora-dsql-samples/python/jupyter](https://github.com/aws-samples/aurora-dsql-samples/blob/main/python/jupyter/)
 
 ### Go
-**pgx** (recommended)
+PREFER using the [DSQL Go Connector](https://github.com/awslabs/aurora-dsql-connectors/tree/main/go/pgx) for automatic IAM auth with token caching:
+- `import "github.com/awslabs/aurora-dsql-connectors/go/pgx/dsql"`
+- `pool, err := dsql.NewPool(ctx, dsql.Config{Host: "<endpoint>"})`
+- Automatic token refresh at 80% of token lifetime
+- SSL/TLS with `verify-full` enabled by default
+- Set `application_name` in connection string to `<app-name>/<model-id>`
+- See [aurora-dsql-connectors/go/pgx](https://github.com/awslabs/aurora-dsql-connectors/tree/main/go/pgx)
+
+**pgx** (manual token management)
 - Use `aws-sdk-go-v2/feature/dsql/auth` for token generation
 - Implement `BeforeConnect` hook: `config.BeforeConnect = func() { cfg.Password = token }`
 - Use `pgxpool` for connection pooling with max lifetime < 1 hour
-- Set `sslmode=verify-full` in connection string
+- Set `sslmode=verify-full&application_name=<app-name>/<model-id>` in connection string
 - See [aurora-dsql-samples/go/pgx](https://github.com/aws-samples/aurora-dsql-samples/tree/main/go/pgx)
 
 ### JavaScript/TypeScript
@@ -127,7 +135,7 @@ PREFER using JDBC with the [DSQL JDBC Connector](https://docs.aws.amazon.com/aur
 
 **SQLx** (async)
 - Use `aws-sdk-dsql` for token generation
-- Connection format: `postgres://admin:{token}@{endpoint}:5432/postgres?sslmode=verify-full`
+- Connection format: `postgres://admin:{token}@{endpoint}:5432/postgres?sslmode=verify-full&application_name=<app-name>/<model-id>`
 - Use `after_connect` hook: `.after_connect(|conn, _| conn.execute("SET search_path = public"))`
 - Implement periodic token refresh with `tokio::spawn`
 - See [aurora-dsql-samples/rust/sqlx](https://github.com/aws-samples/aurora-dsql-samples/tree/main/rust/sqlx)
