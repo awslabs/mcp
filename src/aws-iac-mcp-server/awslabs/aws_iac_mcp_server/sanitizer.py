@@ -13,19 +13,6 @@
 # limitations under the License.
 
 
-# Common prompt injection patterns
-ATTACK_PATTERNS = [
-    'ignore previous instructions',
-    'disregard',
-    'forget',
-    'bypass',
-    'system prompt',
-    'as an ai',
-    'you are now',
-    'new instructions',
-]
-
-
 def sanitize_tool_response(content: str) -> str:
     """Sanitize tool response content before providing to LLM.
 
@@ -46,9 +33,6 @@ def sanitize_tool_response(content: str) -> str:
     # Filter unicode tag characters (0xE0000 to 0xE007F)
     filtered = filter_unicode_tags(content)
 
-    # Detect suspicious patterns
-    validate_content(filtered)
-
     # Wrap in XML tags for clear boundaries
     return encapsulate_content(filtered)
 
@@ -60,20 +44,6 @@ def filter_unicode_tags(text: str) -> str:
     to hide malicious instructions from human review.
     """
     return ''.join(char for char in text if not (0xE0000 <= ord(char) <= 0xE007F))
-
-
-def validate_content(text: str) -> None:
-    """Validate content for prompt injection patterns.
-
-    Raises:
-        ValueError: If suspicious patterns detected
-    """
-    text_lower = text.lower()
-
-    # Check for common attack patterns
-    for pattern in ATTACK_PATTERNS:
-        if pattern in text_lower:
-            raise ValueError(f'Suspicious pattern detected: {pattern}')
 
 
 def encapsulate_content(text: str) -> str:

@@ -16,7 +16,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
 - **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
 - **ALWAYS Batch under 3,000 rows** - maintain transaction limits
-- **REQUIRED: Use parameterized queries** - Prevent SQL injection with $1, $2 placeholders
+- **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/mcp-tools.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential itegrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
 - **REQUIRED use DELETE for truncation** - DELETE is the only supported operation for truncation
 - **SHOULD test any migrations** - Verify DDL on dev clusters before production
