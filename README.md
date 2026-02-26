@@ -6,6 +6,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
 [![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp)](https://app.codecov.io/gh/awslabs/mcp)
 [![OSSF-Scorecard Score](https://img.shields.io/ossf-scorecard/github.com/awslabs/mcp)](https://scorecard.dev/viewer/?uri=github.com/awslabs/mcp)
+[![AgentAudit Security](https://agentaudit.dev/api/badge/awslabs-mcp)](https://agentaudit.dev/packages/awslabs-mcp)
 
 ## Table of Contents
 
