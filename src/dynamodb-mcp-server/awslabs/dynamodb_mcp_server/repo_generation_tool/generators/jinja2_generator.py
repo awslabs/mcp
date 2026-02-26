@@ -295,6 +295,75 @@ class Jinja2Generator(BaseGenerator):
         field_type = self._get_field_type(params[0], fields)
         return self._is_numeric_type(field_type)
 
+    def _extract_template_fields(self, template: str | list[str] | None) -> list[str]:
+        """Extract field names from template(s), handling both string and list.
+
+        Args:
+            template: Single template string, list of templates, or None
+
+        Returns:
+            List of field names extracted from {field_name} placeholders
+        """
+        if isinstance(template, list):
+            fields = []
+            for tmpl in template:
+                fields.extend(re.findall(r'\{([^}]+)\}', tmpl))
+            return fields
+        elif template:
+            return re.findall(r'\{([^}]+)\}', template)
+        return []
+
+    def _process_key_template(
+        self, template: str | list[str] | None, fields: list[dict[str, Any]], key_name: str = 'key'
+    ) -> dict[str, Any]:
+        """Process a key template (PK or SK) and return metadata.
+
+        Args:
+            template: Template string, list of templates, or None
+            fields: List of field definitions for numeric type checking
+            key_name: Name of the key for error messages (e.g., 'partition_key', 'sort_key')
+
+        Returns:
+            Dictionary with keys: params, is_multi_attribute, templates, is_numeric
+
+        Raises:
+            ValueError: If multi-attribute key has invalid number of attributes (not 1-4)
+        """
+        if isinstance(template, list):
+            # Multi-attribute key
+            if not (1 <= len(template) <= 4):
+                raise ValueError(
+                    f'Multi-attribute {key_name} must have 1-4 attributes, got {len(template)}'
+                )
+
+            all_params = []
+            for tmpl in template:
+                all_params.extend(self.template_parser.extract_parameters(tmpl))
+
+            return {
+                'params': all_params,
+                'is_multi_attribute': True,
+                'templates': template,
+                'is_numeric': False,  # Multi-attribute keys return tuples, not single numeric values
+            }
+        elif template:
+            # Single-attribute key
+            params = self.template_parser.extract_parameters(template)
+            return {
+                'params': params,
+                'is_multi_attribute': False,
+                'templates': None,
+                'is_numeric': self._check_template_is_pure_numeric(template, params, fields),
+            }
+        else:
+            # No key
+            return {
+                'params': [],
+                'is_multi_attribute': False,
+                'templates': None,
+                'is_numeric': False,
+            }
+
     def _preprocess_entity_config(self, entity_config: dict[str, Any]) -> dict[str, Any]:
         """Preprocess entity config to extract template parameters and add GSI data."""
         # Create a copy to avoid modifying the original
@@ -330,20 +399,29 @@ class Jinja2Generator(BaseGenerator):
             original_name = gsi_mapping.get('name', '')
             processed_mapping['safe_name'] = to_snake_case(original_name)
 
-            processed_mapping['pk_params'] = self.template_parser.extract_parameters(
-                gsi_pk_template
-            )
-            processed_mapping['sk_params'] = self.template_parser.extract_parameters(
-                gsi_sk_template
-            )
+            # Process partition key template
+            try:
+                pk_metadata = self._process_key_template(
+                    gsi_pk_template, fields, f"partition_key for GSI '{original_name}'"
+                )
+                processed_mapping['pk_params'] = pk_metadata['params']
+                processed_mapping['pk_is_multi_attribute'] = pk_metadata['is_multi_attribute']
+                processed_mapping['pk_templates'] = pk_metadata['templates']
+                processed_mapping['pk_is_numeric'] = pk_metadata['is_numeric']
+            except ValueError as e:
+                raise ValueError(f"Invalid GSI '{original_name}': {e}") from e
 
-            # Check if GSI PK/SK are pure numeric field references
-            processed_mapping['pk_is_numeric'] = self._check_template_is_pure_numeric(
-                gsi_pk_template, processed_mapping['pk_params'], fields
-            )
-            processed_mapping['sk_is_numeric'] = self._check_template_is_pure_numeric(
-                gsi_sk_template, processed_mapping['sk_params'], fields
-            )
+            # Process sort key template
+            try:
+                sk_metadata = self._process_key_template(
+                    gsi_sk_template, fields, f"sort_key for GSI '{original_name}'"
+                )
+                processed_mapping['sk_params'] = sk_metadata['params']
+                processed_mapping['sk_is_multi_attribute'] = sk_metadata['is_multi_attribute']
+                processed_mapping['sk_templates'] = sk_metadata['templates']
+                processed_mapping['sk_is_numeric'] = sk_metadata['is_numeric']
+            except ValueError as e:
+                raise ValueError(f"Invalid GSI '{original_name}': {e}") from e
 
             processed_gsi_mappings.append(processed_mapping)
 
@@ -409,9 +487,9 @@ class Jinja2Generator(BaseGenerator):
             (m for m in entity_config.get('gsi_mappings', []) if m['name'] == gsi['name']), None
         )
         if gsi_mapping:
-            # Extract field names from templates like "{field_name}"
-            pk_fields = re.findall(r'\{([^}]+)\}', gsi_mapping.get('pk_template', ''))
-            sk_fields = re.findall(r'\{([^}]+)\}', gsi_mapping.get('sk_template', ''))
+            # Extract field names from templates (handles both string and list)
+            pk_fields = self._extract_template_fields(gsi_mapping.get('pk_template'))
+            sk_fields = self._extract_template_fields(gsi_mapping.get('sk_template'))
             key_fields.update(pk_fields + sk_fields)
 
         # Check if any non-projected, non-key fields are required

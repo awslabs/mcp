@@ -1,0 +1,259 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "TestEntity": {
+          "access_patterns": [
+            {
+              "description": "Get test entity",
+              "name": "get_test",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "TEST",
+          "fields": [
+            {
+              "name": "test_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [],
+          "pk_template": "TEST#{test_id}",
+          "sk_template": "DATA"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "EmptyArrayPK",
+          "partition_key": [],
+          "sort_key": "sk_attr"
+        },
+        {
+          "name": "TooManyPKAttrs",
+          "partition_key": [
+            "a1",
+            "a2",
+            "a3",
+            "a4",
+            "a5"
+          ],
+          "sort_key": "sk_attr"
+        },
+        {
+          "name": "EmptyArraySK",
+          "partition_key": "pk_attr",
+          "sort_key": []
+        },
+        {
+          "name": "TooManySKAttrs",
+          "partition_key": "pk_attr",
+          "sort_key": [
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "s5"
+          ]
+        },
+        {
+          "name": "NonStringInPKArray",
+          "partition_key": [
+            "valid_attr",
+            123
+          ],
+          "sort_key": "sk_attr"
+        },
+        {
+          "name": "EmptyStringInSKArray",
+          "partition_key": "pk_attr",
+          "sort_key": [
+            "valid_attr",
+            ""
+          ]
+        }
+      ],
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "TestTable1"
+      }
+    },
+    {
+      "entities": {
+        "MismatchEntity": {
+          "access_patterns": [
+            {
+              "description": "Get mismatch entity",
+              "name": "get_mismatch",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "entity_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "MISMATCH",
+          "fields": [
+            {
+              "name": "entity_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "attr1",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "attr2",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "sk_attr",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "extra",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "TypeMismatchGSI",
+              "pk_template": "{attr1}",
+              "sk_template": [
+                "{sk_attr}",
+                "{extra}"
+              ]
+            }
+          ],
+          "pk_template": "{entity_id}"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "TypeMismatchGSI",
+          "partition_key": [
+            "attr1",
+            "attr2"
+          ],
+          "sort_key": "sk_attr"
+        }
+      ],
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "TestTable2"
+      }
+    },
+    {
+      "entities": {
+        "LengthMismatchEntity": {
+          "access_patterns": [
+            {
+              "description": "Get length test entity",
+              "name": "get_length_test",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "entity_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "LENGTH_TEST",
+          "fields": [
+            {
+              "name": "entity_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "order_id",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "LengthMismatchGSI",
+              "pk_template": "{city}",
+              "sk_template": [
+                "{status}"
+              ]
+            }
+          ],
+          "pk_template": "{entity_id}"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "LengthMismatchGSI",
+          "partition_key": "city",
+          "sort_key": [
+            "status",
+            "created_at",
+            "order_id"
+          ]
+        }
+      ],
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "TestTable3"
+      }
+    }
+  ]
+}
