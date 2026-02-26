@@ -478,6 +478,45 @@ class TestFormatCustomLineItems:
         assert 'creation_time' in result[0]
         assert 'last_modified_time' in result[0]
 
+    def test_format_without_timestamps(self):
+        """Test formatting custom line items without timestamps."""
+        items = [{'Arn': 'arn:test'}]
+        result = _format_custom_line_items(items)
+        assert 'creation_time' not in result[0]
+        assert 'last_modified_time' not in result[0]
+
+    def test_format_charge_details_with_line_item_filters(self):
+        """Test formatting charge details that include line item filters."""
+        items = [
+            {
+                'Arn': 'arn:test',
+                'ChargeDetails': {
+                    'Type': 'FEE',
+                    'Percentage': {'PercentageValue': 10.0},
+                    'LineItemFilters': [
+                        {
+                            'Attribute': 'LINE_ITEM_TYPE',
+                            'MatchOption': 'NOT_EQUAL',
+                            'Values': ['SAVINGS_PLAN_NEGATION'],
+                        },
+                        {
+                            'Attribute': 'USAGE_TYPE',
+                            'MatchOption': 'EQUAL',
+                            'AttributeValues': ['BoxUsage'],
+                        },
+                    ],
+                },
+            }
+        ]
+        result = _format_custom_line_items(items)
+        charge = result[0]['charge_details']
+        assert 'line_item_filters' in charge
+        filters = charge['line_item_filters']
+        assert len(filters) == 2
+        assert filters[0]['attribute'] == 'LINE_ITEM_TYPE'
+        assert filters[0]['values'] == ['SAVINGS_PLAN_NEGATION']
+        assert filters[1]['attribute_values'] == ['BoxUsage']
+
 
 # --- List Custom Line Items Operation Tests ---
 
@@ -550,6 +589,18 @@ class TestListCustomLineItems:
         assert result['data']['total_count'] == 0
 
     @patch(PATCH_BC_CLIENT)
+    async def test_list_custom_line_items_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test that next_token is returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_custom_line_items.return_value = {
+            'CustomLineItems': [{'Arn': 'a1'}],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_custom_line_items(mock_ctx, max_pages=1)
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+
+    @patch(PATCH_BC_CLIENT)
     async def test_list_custom_line_items_aws_error(self, mock_create_client, mock_ctx):
         """Test handling of AWS service errors."""
         mock_client = MagicMock()
@@ -594,6 +645,43 @@ class TestListCustomLineItemVersions:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['total_count'] == 1
         assert result['data']['arn'] == CUSTOM_LINE_ITEM_ARN_1
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_custom_line_item_versions.return_value = {
+            'CustomLineItemVersions': [
+                {
+                    'Arn': 'a1',
+                    'ChargeDetails': {'Type': 'FEE', 'Flat': {'ChargeValue': 50.0}},
+                    'StartTime': 1700000000,
+                    'CreationTime': 1700000000,
+                    'LastModifiedTime': 1700100000,
+                }
+            ],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_custom_line_item_versions(
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 1, None
+        )
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['custom_line_item_versions'][0]['charge_details']['type'] == 'FEE'
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_with_filters(self, mock_create_client, mock_ctx):
+        """Test with BillingPeriodRange filter."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_custom_line_item_versions.return_value = {'CustomLineItemVersions': []}
+        filters_str = '{"BillingPeriodRange": {"StartBillingPeriod": "2025-01"}}'
+        result = await list_custom_line_item_versions(
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, filters_str, 10, None
+        )
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.list_custom_line_item_versions.call_args[1]
+        assert 'Filters' in call_kwargs
 
     @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
@@ -657,6 +745,35 @@ class TestListResourcesAssociatedToCustomLineItem:
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_resources_associated_to_custom_line_item.call_args[1]
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_resources_associated_to_custom_line_item.return_value = {
+            'AssociatedResources': [{'Arn': 'a1'}],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_resources_associated_to_custom_line_item(
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, max_pages=1
+        )
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_with_filters(self, mock_create_client, mock_ctx):
+        """Test with Relationship filter."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_resources_associated_to_custom_line_item.return_value = {
+            'AssociatedResources': []
+        }
+        filters_str = '{"Relationship": "CHILD"}'
+        await list_resources_associated_to_custom_line_item(
+            mock_ctx, CUSTOM_LINE_ITEM_ARN_1, filters=filters_str
+        )
+        call_kwargs = mock_client.list_resources_associated_to_custom_line_item.call_args[1]
+        assert call_kwargs['Filters'] == {'Relationship': 'CHILD'}
 
     @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
@@ -861,6 +978,18 @@ class TestListPricingRules:
         assert result['data']['total_count'] == 0
 
     @patch(PATCH_BC_CLIENT)
+    async def test_list_pricing_rules_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_pricing_rules.return_value = {
+            'PricingRules': [{'Arn': 'a1'}],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_pricing_rules(mock_ctx, max_pages=1)
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+
+    @patch(PATCH_BC_CLIENT)
     async def test_list_pricing_rules_aws_error(self, mock_create_client, mock_ctx):
         """Test handling of AWS service errors."""
         mock_client = MagicMock()
@@ -915,6 +1044,18 @@ class TestListPricingPlans:
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_pricing_plans.call_args[1]
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_list_pricing_plans_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_pricing_plans.return_value = {
+            'PricingPlans': [{'Arn': 'a1'}],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_pricing_plans(mock_ctx, max_pages=1)
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_list_pricing_plans_aws_error(self, mock_create_client, mock_ctx):
@@ -975,6 +1116,20 @@ class TestListPricingRulesAssociatedToPricingPlan:
         assert call_kwargs['BillingPeriod'] == BILLING_PERIOD
 
     @patch(PATCH_BC_CLIENT)
+    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_pricing_rules_associated_to_pricing_plan.return_value = {
+            'PricingRuleArns': ['a1'],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_pricing_rules_associated_to_pricing_plan(
+            mock_ctx, PRICING_PLAN_ARN_1, max_pages=1
+        )
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+
+    @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
         """Test handling of AWS service errors."""
         mock_client = MagicMock()
@@ -1013,6 +1168,20 @@ class TestListPricingPlansAssociatedWithPricingRule:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['total_count'] == 2
         assert PRICING_PLAN_ARN_1 in result['data']['pricing_plan_arns']
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_max_pages_next_token(self, mock_create_client, mock_ctx):
+        """Test next_token returned when max_pages reached."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.list_pricing_plans_associated_with_pricing_rule.return_value = {
+            'PricingPlanArns': ['a1'],
+            'NextToken': NEXT_TOKEN_MORE,
+        }
+        result = await list_pricing_plans_associated_with_pricing_rule(
+            mock_ctx, PRICING_RULE_ARN_1, max_pages=1
+        )
+        assert result['data']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BC_CLIENT)
     async def test_aws_error(self, mock_create_client, mock_ctx):
