@@ -1,0 +1,1358 @@
+[
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Involve key stakeholders, including business, development, and operations teams, to determine where to focus efforts on external customer needs. This verifies that you have a thorough understanding of the operations support that is required to achieve your desired business outcomes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_ext_cust_needs.html",
+    "id": "OPS01-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Evaluate external customer needs",
+    "title_full": "OPS01-BP01 Evaluate external customer needs"
+  },
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Involve key stakeholders, including business, development, and operations teams, when determining where to focus efforts on internal customer needs. This will ensure that you have a thorough understanding of the operations support that is required to achieve business outcomes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_int_cust_needs.html",
+    "id": "OPS01-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Evaluate internal customer needs",
+    "title_full": "OPS01-BP02 Evaluate internal customer needs"
+  },
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Governance is the set of policies, rules, or frameworks that a company uses to achieve its business goals. Governance requirements are generated from within your organization. They can affect the types of technologies you choose or influence the way you operate your workload. Incorporate organizational governance requirements into your workload. Conformance is the ability to demonstrate that you have implemented governance requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_governance_reqs.html",
+    "id": "OPS01-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Evaluate governance requirements",
+    "title_full": "OPS01-BP03 Evaluate governance requirements"
+  },
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Regulatory, industry, and internal compliance requirements are an important driver for defining your organization\u2019s priorities. Your compliance framework may preclude you from using specific technologies or geographic locations. Apply due diligence if no external compliance frameworks are identified. Generate audits or reports that validate compliance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_compliance_reqs.html",
+    "id": "OPS01-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "SEC01-BP03",
+      "SEC01-BP06",
+      "SEC07-BP02",
+      "SEC10-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Evaluate compliance requirements",
+    "title_full": "OPS01-BP04 Evaluate compliance requirements"
+  },
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Evaluate threats to the business (for example, competition, business risk and liabilities, operational risks, and information security threats) and maintain current information in a risk registry. Include the impact of risks when determining where to focus efforts.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_threat_landscape.html",
+    "id": "OPS01-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "SEC01-BP07"
+    ],
+    "risk": "MEDIUM",
+    "title": "Evaluate threat landscape",
+    "title_full": "OPS01-BP05 Evaluate threat landscape"
+  },
+  {
+    "area": [
+      "Organization",
+      "Organization priorities"
+    ],
+    "description": "Competing interests from multiple parties can make it challenging to prioritize efforts, build capabilities, and deliver outcomes aligned with business strategies. For example, you may be asked to accelerate speed-to-market for new features over optimizing IT infrastructure costs. This can put two interested parties in conflict with one another. In these situations, decisions need to be brought to a higher authority to resolve conflict. Data is required to remove emotional attachment from the decision-making process.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_priorities_eval_tradeoffs.html",
+    "id": "OPS01-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "SEC01-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Evaluate tradeoffs while managing benefits and risks",
+    "title_full": "OPS01-BP06 Evaluate tradeoffs while managing benefits and risks"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "Resources for your workload must have identified owners for change control, troubleshooting, and other functions. Owners are assigned for workloads, accounts, infrastructure, platforms, and applications. Ownership is recorded using tools like a central register or metadata attached to resources. The business value of components informs the processes and procedures applied to them.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_resource_owners.html",
+    "id": "OPS02-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02",
+      "OPS02-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Resources have identified owners",
+    "title_full": "OPS02-BP01 Resources have identified owners"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "Understand who has ownership of the definition of individual processes and procedures, why those specific process and procedures are used, and why that ownership exists. Understanding the reasons that specific processes and procedures are used aids in identification of improvement opportunities.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_proc_owners.html",
+    "id": "OPS02-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP01",
+      "OPS02-BP04",
+      "OPS11-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Processes and procedures have identified owners",
+    "title_full": "OPS02-BP02 Processes and procedures have identified owners"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "Understand who has responsibility to perform specific activities on defined workloads and why that responsibility exists. Understanding who has responsibility to perform activities informs who will conduct the activity, validate the result, and provide feedback to the owner of the activity.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_activity_owners.html",
+    "id": "OPS02-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP01",
+      "OPS02-BP02",
+      "OPS02-BP04",
+      "OPS02-BP05",
+      "OPS11-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Operations activities have identified owners responsible for their performance",
+    "title_full": "OPS02-BP03 Operations activities have identified owners responsible for their performance"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "Understand the responsibilities of your role and how you contribute to business outcomes, as this understanding informs the prioritization of your tasks and why your role is important. This helps team members recognize needs and respond appropriately. When team members know their role, they can establish ownership, identify improvement opportunities, and understand how to influence or make appropriate changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_responsibilities_ownership.html",
+    "id": "OPS02-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP06",
+      "OPS03-BP02",
+      "OPS03-BP03",
+      "OPS03-BP07",
+      "OPS09-BP01",
+      "OPS09-BP03",
+      "OPS11-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Mechanisms exist to manage responsibilities and ownership",
+    "title_full": "OPS02-BP04 Mechanisms exist to manage responsibilities and ownership"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "You can make requests to owners of processes, procedures, and resources. Requests include additions, changes, and exceptions. These requests go through a change management process. Make informed decisions to approve requests where viable and determined to be appropriate after an evaluation of benefits and risks.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_req_add_chg_exception.html",
+    "id": "OPS02-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP01",
+      "OPS02-BP02",
+      "OPS02-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Mechanisms exist to request additions, changes, and exceptions",
+    "title_full": "OPS02-BP05 Mechanisms exist to request additions, changes, and exceptions"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Relationships and ownership"
+    ],
+    "description": "Have defined or negotiated agreements between teams describing how they work with and support each other (for example, response times, service level objectives, or service-level agreements). Inter-team communications channels are documented. Understanding the impact of the teams\u2019 work on business outcomes and the outcomes of other teams and organizations informs the prioritization of their tasks and helps them respond appropriately.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ops_model_def_neg_team_agreements.html",
+    "id": "OPS02-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02",
+      "OPS02-BP03"
+    ],
+    "risk": "LOW",
+    "title": "Responsibilities between teams are predefined or negotiated",
+    "title_full": "OPS02-BP06 Responsibilities between teams are predefined or negotiated"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "At the highest level, senior leadership acts as the executive sponsor to clearly set expectations and direction for the organization's outcomes, including evaluating its success. The sponsor advocates and drives adoption of best practices and evolution of the organization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_executive_sponsor.html",
+    "id": "OPS03-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS03-BP04",
+      "OPS11-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Provide executive sponsorship",
+    "title_full": "OPS03-BP01 Provide executive sponsorship"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "A cultural behavior of ownership instilled by leadership results in any employee feeling empowered to act on behalf of the entire company beyond their defined scope of role and accountability. Employees can act to proactively identify risks as they emerge and take appropriate action. Such a culture allows employees to make high value decisions with situational awareness.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_emp_take_action.html",
+    "id": "OPS03-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP06",
+      "OPS01-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Team members are empowered to take action when outcomes are at risk",
+    "title_full": "OPS03-BP02 Team members are empowered to take action when outcomes are at risk"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "Team members are encouraged by leadership to escalate issues and concerns to higher-level decision makers and stakeholders if they believe desired outcomes are at risk and expected standards are not met. This is a feature of the organization's culture and is driven at all levels. Escalation should be done early and often so that risks can be identified and prevented from causing incidents. Leadership does not reprimand individuals for escalating an issue.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_escalation.html",
+    "id": "OPS03-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Escalation is encouraged",
+    "title_full": "OPS03-BP03 Escalation is encouraged"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "Leadership is responsible for the creation of strong and effective communications, especially when the organization adopts new strategies, technologies, or ways of working. Leaders should set expectations for all staff to work towards the company objectives. Devise communication mechanisms that create and maintain awareness among the teams responsible for running plans that are funded and sponsored by leadership. Make use of cross-organizational diversity, and listen attentively to multiple unique perspectives. Use this perspective to increase innovation, challenge your assumptions, and reduce the risk of confirmation bias. Foster inclusion, diversity, and accessibility within your teams to gain beneficial perspectives.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_effective_comms.html",
+    "id": "OPS03-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS03-BP01",
+      "OPS07-BP03",
+      "OPS07-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Communications are timely, clear, and actionable",
+    "title_full": "OPS03-BP04 Communications are timely, clear, and actionable"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "Experimentation is a catalyst for turning new ideas into products and features. It accelerates learning and keeps team members interested and engaged. Team members are encouraged to experiment often to drive innovation. Even when an undesired result occurs, there is value in knowing what not to do. Team members are not punished for successful experiments with undesired results.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_experiment.html",
+    "id": "OPS03-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP02",
+      "OPS11-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Experimentation is encouraged",
+    "title_full": "OPS03-BP05 Experimentation is encouraged"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "Teams must grow their skill sets to adopt new technologies, and to support changes in demand and responsibilities in support of your workloads. Growth of skills in new technologies is frequently a source of team member satisfaction and supports innovation. Support your team members' pursuit and maintenance of industry certifications that validate and acknowledge their growing skills. Cross train to promote knowledge transfer and reduce the risk of significant impact when you lose skilled and experienced team members with institutional knowledge. Provide dedicated structured time for learning.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_enc_learn.html",
+    "id": "OPS03-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS03-BP01",
+      "OPS11-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Team members are encouraged to maintain and grow their skill sets",
+    "title_full": "OPS03-BP06 Team members are encouraged to maintain and grow their skill sets"
+  },
+  {
+    "area": [
+      "Organization",
+      "Operating model",
+      "Organizational culture"
+    ],
+    "description": "Provision the right amount of proficient team members, and provide tools and resources to support your workload needs. Overburdening team members increases the risk of human error. Investments in tools and resources, such as automation, can scale the effectiveness of your team and help them support a greater number of workloads without requiring additional capacity.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_org_culture_team_res_appro.html",
+    "id": "OPS03-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS03-BP06",
+      "OPS09-BP04",
+      "OPS10-BP01",
+      "OPS10-BP07"
+    ],
+    "risk": "MEDIUM",
+    "title": "Resource teams appropriately",
+    "title_full": "OPS03-BP07 Resource teams appropriately"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Implement observability"
+    ],
+    "description": "Implementing observability in your workload starts with understanding its state and making data-driven decisions based on business requirements. One of the most effective ways to ensure alignment between monitoring activities and business objectives is by defining and monitoring key performance indicators (KPIs).",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_identify_kpis.html",
+    "id": "OPS04-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP02",
+      "OPS04-BP03",
+      "OPS04-BP04",
+      "OPS04-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Identify key performance indicators",
+    "title_full": "OPS04-BP01 Identify key performance indicators"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Implement observability"
+    ],
+    "description": "Application telemetry serves as the foundation for observability of your workload. It's crucial to emit telemetry that offers actionable insights into the state of your application and the achievement of both technical and business outcomes. From troubleshooting to measuring the impact of a new feature or ensuring alignment with business key performance indicators (KPIs), application telemetry informs the way you build, operate, and evolve your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_application_telemetry.html",
+    "id": "OPS04-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP03",
+      "OPS04-BP04",
+      "OPS04-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Implement application telemetry",
+    "title_full": "OPS04-BP02 Implement application telemetry"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Implement observability"
+    ],
+    "description": "Gaining deep insights into customer experiences and interactions with your application is crucial. Real user monitoring (RUM) and synthetic transactions serve as powerful tools for this purpose. RUM provides data about real user interactions granting an unfiltered perspective of user satisfaction, while synthetic transactions simulate user interactions, helping in detecting potential issues even before they impact real users.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_customer_telemetry.html",
+    "id": "OPS04-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS04-BP04",
+      "OPS04-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Implement user experience telemetry",
+    "title_full": "OPS04-BP03 Implement user experience telemetry"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Implement observability"
+    ],
+    "description": "Dependency telemetry is essential for monitoring the health and performance of the external services and components your workload relies on. It provides valuable insights into reachability, timeouts, and other critical events related to dependencies such as DNS, databases, or third-party APIs. When you instrument your application to emit metrics, logs, and traces about these dependencies, you gain a clearer understanding of potential bottlenecks, performance issues, or failures that might impact your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dependency_telemetry.html",
+    "id": "OPS04-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS04-BP03",
+      "OPS04-BP05",
+      "OPS08-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Implement dependency telemetry",
+    "title_full": "OPS04-BP04 Implement dependency telemetry"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Implement observability"
+    ],
+    "description": "Distributed tracing offers a way to monitor and visualize requests as they traverse through various components of a distributed system. By capturing trace data from multiple sources and analyzing it in a unified view, teams can better understand how requests flow, where bottlenecks exist, and where optimization efforts should focus.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_dist_trace.html",
+    "id": "OPS04-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS04-BP03",
+      "OPS04-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Implement distributed tracing",
+    "title_full": "OPS04-BP05 Implement distributed tracing"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Use version control to activate tracking of changes and releases.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_version_control.html",
+    "id": "OPS05-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Use version control",
+    "title_full": "OPS05-BP01 Use version control"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Every change deployed must be tested to avoid errors in production. This best practice is focused on testing changes from version control to artifact build. Besides application code changes, testing should include infrastructure, configuration, security controls, and operations procedures. Testing takes many forms, from unit tests to software component analysis (SCA). Move tests further to the left in the software integration and delivery process results in higher certainty of artifact quality.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_test_val_chg.html",
+    "id": "OPS05-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP01",
+      "OPS05-BP06",
+      "OPS05-BP07",
+      "OPS05-BP10"
+    ],
+    "risk": "HIGH",
+    "title": "Test and validate changes",
+    "title_full": "OPS05-BP02 Test and validate changes"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Use configuration management systems to make and track configuration changes. These systems reduce errors caused by manual processes and reduce the level of effort to deploy changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_conf_mgmt_sys.html",
+    "id": "OPS05-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS06-BP01",
+      "OPS06-BP02",
+      "OPS06-BP03",
+      "OPS06-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use configuration management systems",
+    "title_full": "OPS05-BP03 Use configuration management systems"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Use build and deployment management systems. These systems reduce errors caused by manual processes and reduce the level of effort to deploy changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_build_mgmt_sys.html",
+    "id": "OPS05-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS06-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use build and deployment management systems",
+    "title_full": "OPS05-BP04 Use build and deployment management systems"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Perform patch management to gain features, address issues, and remain compliant with governance. Automate patch management to reduce errors caused by manual processes, scale, and reduce the level of effort to patch.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_patch_mgmt.html",
+    "id": "OPS05-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS06-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Perform patch management",
+    "title_full": "OPS05-BP05 Perform patch management"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Share best practices across teams to increase awareness and maximize the benefits of development efforts. Document them and keep them up to date as your architecture evolves. If shared standards are enforced in your organization, it\u2019s critical that mechanisms exist to request additions, changes, and exceptions to standards. Without this option, standards become a constraint on innovation.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_share_design_stds.html",
+    "id": "OPS05-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP03",
+      "OPS01-BP04",
+      "OPS07-BP02",
+      "OPS11-BP01",
+      "OPS11-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Share design standards",
+    "title_full": "OPS05-BP06 Share design standards"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Implement practices to improve code quality and minimize defects. Some examples include test-driven development, code reviews, standards adoption, and pair programming. Incorporate these practices into your continuous integration and delivery process.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_code_quality.html",
+    "id": "OPS05-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP02",
+      "OPS05-BP06"
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement practices to improve code quality",
+    "title_full": "OPS05-BP07 Implement practices to improve code quality"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Use multiple environments to experiment, develop, and test your workload. Use increasing levels of controls as environments approach production to gain confidence your workload operates as intended when deployed.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_multi_env.html",
+    "id": "OPS05-BP08",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use multiple environments",
+    "title_full": "OPS05-BP08 Use multiple environments"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Frequent, small, and reversible changes reduce the scope and impact of a change. When used in conjunction with change management systems, configuration management systems, and build and delivery systems frequent, small, and reversible changes reduce the scope and impact of a change. This results in more effective troubleshooting and faster remediation with the option to roll back changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_freq_sm_rev_chg.html",
+    "id": "OPS05-BP09",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP03",
+      "OPS05-BP04",
+      "OPS06-BP04"
+    ],
+    "risk": "LOW",
+    "title": "Make frequent, small, reversible changes",
+    "title_full": "OPS05-BP09 Make frequent, small, reversible changes"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Design for operations"
+    ],
+    "description": "Automate build, deployment, and testing of the workload. This reduces errors caused by manual processes and reduces the effort to deploy changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_auto_integ_deploy.html",
+    "id": "OPS05-BP10",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP03",
+      "OPS05-BP04"
+    ],
+    "risk": "LOW",
+    "title": "Fully automate integration and deployment",
+    "title_full": "OPS05-BP10 Fully automate integration and deployment"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Mitigate deployment risks"
+    ],
+    "description": "Plan to revert to a known good state, or remediate in the production environment if the deployment causes an undesired outcome. Having a policy to establish such a plan helps all teams develop strategies to recover from failed changes. Some example strategies are deployment and rollback steps, change policies, feature flags, traffic isolation, and traffic shifting. A single release may include multiple related component changes. The strategy should provide the ability to withstand or recover from a failure of any component change.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_plan_for_unsucessful_changes.html",
+    "id": "OPS06-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS06-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Plan for unsuccessful changes",
+    "title_full": "OPS06-BP01 Plan for unsuccessful changes"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Mitigate deployment risks"
+    ],
+    "description": "Test release procedures in pre-production by using the same deployment configuration, security controls, steps, and procedures as in production. Validate that all deployed steps are completed as expected, such as inspecting files, configurations, and services. Further test all changes with functional, integration, and load tests, along with any monitoring such as health checks. By doing these tests, you can identify deployment issues early with an opportunity to plan and mitigate them prior to production.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_test_val_chg.html",
+    "id": "OPS06-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Test deployments",
+    "title_full": "OPS06-BP02 Test deployments"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Mitigate deployment risks"
+    ],
+    "description": "Safe production roll-outs control the flow of beneficial changes with an aim to minimize any perceived impact for customers from those changes. The safety controls provide inspection mechanisms to validate desired outcomes and limit the scope of impact from any defects introduced by the changes or from deployment failures. Safe roll-outs may include strategies such as feature-flags, one-box, rolling (canary releases), immutable, traffic splitting, and blue/green deployments.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_deploy_mgmt_sys.html",
+    "id": "OPS06-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP02",
+      "OPS05-BP09",
+      "OPS05-BP10"
+    ],
+    "risk": "MEDIUM",
+    "title": "Employ safe deployment strategies",
+    "title_full": "OPS06-BP03 Employ safe deployment strategies"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Mitigate deployment risks"
+    ],
+    "description": "To increase the speed, reliability, and confidence of your deployment process, have a strategy for automated testing and rollback capabilities in pre-production and production environments. Automate testing when deploying to production to simulate human and system interactions that verify the changes being deployed. Automate rollback to revert back to a previous known good state quickly. The rollback should be initiated automatically on pre-defined conditions such as when the desired outcome of your change is not achieved or when the automated test fails. Automating these two activities improves your success rate for your deployments, minimizes recovery time, and reduces the potential impact to the business.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_mit_deploy_risks_auto_testing_and_rollback.html",
+    "id": "OPS06-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS06-BP01",
+      "OPS06-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate testing and rollback",
+    "title_full": "OPS06-BP04 Automate testing and rollback"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "Have a mechanism to validate that you have the appropriate number of trained personnel to support the workload. They must be trained on the platform and services that make up your workload. Provide them with the knowledge necessary to operate the workload. You must have enough trained personnel to support the normal operation of the workload and troubleshoot any incidents that occur. Have enough personnel so that you can rotate during on-call and vacations to avoid burnout.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_personnel_capability.html",
+    "id": "OPS07-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Ensure personnel capability",
+    "title_full": "OPS07-BP01 Ensure personnel capability"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "Use Operational Readiness Reviews (ORRs) to validate that you can operate your workload. ORR is a mechanism developed at Amazon to validate that teams can safely operate their workloads. An ORR is a review and inspection process using a checklist of requirements. An ORR is a self-service experience that teams use to certify their workloads. ORRs include best practices from lessons learned from our years of building software.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_const_orr.html",
+    "id": "OPS07-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP03",
+      "OPS01-BP04",
+      "OPS03-BP07",
+      "OPS06-BP01",
+      "OPS07-BP01",
+      "SEC01-BP03",
+      "REL13-BP01",
+      "COST02-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Ensure a consistent review of operational readiness",
+    "title_full": "OPS07-BP02 Ensure a consistent review of operational readiness"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "A runbook is a documented process to achieve a specific outcome. Runbooks consist of a series of steps that someone follows to get something done. Runbooks have been used in operations going back to the early days of aviation. In cloud operations, we use runbooks to reduce risk and achieve desired outcomes. At its simplest, a runbook is a checklist to complete a task.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_runbooks.html",
+    "id": "OPS07-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02",
+      "OPS07-BP04",
+      "OPS10-BP01",
+      "OPS10-BP02",
+      "OPS11-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use runbooks to perform procedures",
+    "title_full": "OPS07-BP03 Use runbooks to perform procedures"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "Playbooks are step-by-step guides used to investigate an incident. When incidents happen, playbooks are used to investigate, scope impact, and identify a root cause. Playbooks are used for a variety of scenarios, from failed deployments to security incidents. In many cases, playbooks identify the root cause that a runbook is used to mitigate. Playbooks are an essential component of your organization's incident response plans.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_use_playbooks.html",
+    "id": "OPS07-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02",
+      "OPS07-BP03",
+      "OPS10-BP01",
+      "OPS10-BP02",
+      "OPS11-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use playbooks to investigate issues",
+    "title_full": "OPS07-BP04 Use playbooks to investigate issues"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "Have processes in place for successful and unsuccessful changes to your workload. A pre-mortem is an exercise where a team simulates a failure to develop mitigation strategies. Use pre-mortems to anticipate failure and create procedures where appropriate. Evaluate the benefits and risks of deploying changes to your workload. Verify that all changes comply with governance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_informed_deploy_decisions.html",
+    "id": "OPS07-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP03",
+      "OPS06-BP01",
+      "OPS06-BP02",
+      "OPS07-BP01"
+    ],
+    "risk": "LOW",
+    "title": "Make informed decisions to deploy systems and changes",
+    "title_full": "OPS07-BP05 Make informed decisions to deploy systems and changes"
+  },
+  {
+    "area": [
+      "Prepare",
+      "Operational readiness and change management"
+    ],
+    "description": "Enable support for any software and services that your production workload relies on. Select an appropriate support level to meet your production service-level needs. Support plans for these dependencies are necessary in case there is a service disruption or software issue. Document support plans and how to request support for all service and software vendors. Implement mechanisms that verify that support points of contacts are kept up to date.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_ready_to_support_enable_support_plans.html",
+    "id": "OPS07-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02"
+    ],
+    "risk": "LOW",
+    "title": "Create support plans for production workloads",
+    "title_full": "OPS07-BP06 Create support plans for production workloads"
+  },
+  {
+    "area": [
+      "Operate",
+      "Utilizing workload observability"
+    ],
+    "description": "After implementing application telemetry, regularly analyze the collected metrics. While latency, requests, errors, and capacity (or quotas) provide insights into system performance, it's vital to prioritize the review of business outcome metrics. This ensures you're making data-driven decisions aligned with your business objectives.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_metrics.html",
+    "id": "OPS08-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Analyze workload metrics",
+    "title_full": "OPS08-BP01 Analyze workload metrics"
+  },
+  {
+    "area": [
+      "Operate",
+      "Utilizing workload observability"
+    ],
+    "description": "Regularly analyzing workload logs is essential for gaining a deeper understanding of the operational aspects of your application. By efficiently sifting through, visualizing, and interpreting log data, you can continually optimize application performance and security.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_logs.html",
+    "id": "OPS08-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS08-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Analyze workload logs",
+    "title_full": "OPS08-BP02 Analyze workload logs"
+  },
+  {
+    "area": [
+      "Operate",
+      "Utilizing workload observability"
+    ],
+    "description": "Analyzing trace data is crucial for achieving a comprehensive view of an application's operational journey. By visualizing and understanding the interactions between various components, performance can be fine-tuned, bottlenecks identified, and user experiences enhanced.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_analyze_workload_traces.html",
+    "id": "OPS08-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP01",
+      "OPS08-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Analyze workload traces",
+    "title_full": "OPS08-BP03 Analyze workload traces"
+  },
+  {
+    "area": [
+      "Operate",
+      "Utilizing workload observability"
+    ],
+    "description": "Promptly detecting and responding to deviations in your application's behavior is crucial. Especially vital is recognizing when outcomes based on key performance indicators (KPIs) are at risk or when unexpected anomalies arise. Basing alerts on KPIs ensures that the signals you receive are directly tied to business or operational impact. This approach to actionable alerts promotes proactive responses and helps maintain system performance and reliability.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_alerts.html",
+    "id": "OPS08-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS04-BP03",
+      "OPS04-BP04",
+      "OPS04-BP05",
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Create actionable alerts",
+    "title_full": "OPS08-BP04 Create actionable alerts"
+  },
+  {
+    "area": [
+      "Operate",
+      "Utilizing workload observability"
+    ],
+    "description": "Dashboards are the human-centric view into the telemetry data of your workloads. While they provide a vital visual interface, they should not replace alerting mechanisms, but complement them. When crafted with care, not only can they offer rapid insights into system health and performance, but they can also present stakeholders with real-time information on business outcomes and the impact of issues.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_workload_observability_create_dashboards.html",
+    "id": "OPS08-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS08-BP01",
+      "OPS08-BP02",
+      "OPS08-BP03",
+      "OPS08-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Create dashboards",
+    "title_full": "OPS08-BP05 Create dashboards"
+  },
+  {
+    "area": [
+      "Operate",
+      "Understanding operational health"
+    ],
+    "description": "Obtain goals and KPIs that define operations success from your organization and determine that metrics reflect these. Set baselines as a point of reference and reevaluate regularly. Develop mechanisms to collect these metrics from teams for evaluation. The DevOps Research and Assessment (DORA) metrics provide a popular method to measure progress towards DevOps practices of software delivery.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_measure_ops_goals_kpis.html",
+    "id": "OPS09-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Measure operations goals and KPIs with metrics",
+    "title_full": "OPS09-BP01 Measure operations goals and KPIs with metrics"
+  },
+  {
+    "area": [
+      "Operate",
+      "Understanding operational health"
+    ],
+    "description": "Knowing the state of your operations and its trending direction is necessary to identify when outcomes may be at risk, whether or not added work can be supported, or the effects that changes have had to your teams. During operations events, having status pages that users and operations teams can refer to for information can reduce pressure on communication channels and disseminate information proactively.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_communicate_status_trends.html",
+    "id": "OPS09-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS09-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Communicate status and trends to ensure visibility into operation",
+    "title_full": "OPS09-BP02 Communicate status and trends to ensure visibility into operation"
+  },
+  {
+    "area": [
+      "Operate",
+      "Understanding operational health"
+    ],
+    "description": "Setting aside dedicated time and resources for reviewing the state of operations ensures that serving the day-to-day line of business remains a priority. Pull together operations leaders and stakeholders to regularly review metrics, reaffirm or modify goals and objectives, and prioritize improvements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_operations_health_review_ops_metrics_prioritize_improvement.html",
+    "id": "OPS09-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Review operations metrics and prioritize improvement",
+    "title_full": "OPS09-BP03 Review operations metrics and prioritize improvement"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "The ability to efficiently manage events, incidents, and problems is key to maintaining workload health and performance. It's crucial to recognize and understand the differences between these elements to develop an effective response and resolution strategy. Establishing and following a well-defined process for each aspect helps your team swiftly and effectively handle any operational challenges that arise.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_event_incident_problem_process.html",
+    "id": "OPS10-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP02",
+      "OPS07-BP03",
+      "OPS07-BP04",
+      "OPS08-BP01",
+      "OPS11-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Use a process for event, incident, and problem management",
+    "title_full": "OPS10-BP01 Use a process for event, incident, and problem management"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Establishing a clear and defined process for each alert in your system is essential for effective and efficient incident management. This practice ensures that every alert leads to a specific, actionable response, improving the reliability and responsiveness of your operations.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_process_per_alert.html",
+    "id": "OPS10-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS04-BP01",
+      "OPS04-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Have a process per alert",
+    "title_full": "OPS10-BP02 Have a process per alert"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Responding promptly to operational events is critical, but not all events are equal. When you prioritize based on business impact, you also prioritize addressing events with the potential for significant consequences, such as safety, financial loss, regulatory violations, or damage to reputation.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_prioritize_events.html",
+    "id": "OPS10-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS03-BP03",
+      "OPS08-BP04",
+      "OPS09-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Prioritize operational events based on business impact",
+    "title_full": "OPS10-BP03 Prioritize operational events based on business impact"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Establish clear escalation paths within your incident response protocols to facilitate timely and effective action. This includes specifying prompts for escalation, detailing the escalation process, and pre-approving actions to expedite decision-making and reduce mean time to resolution (MTTR).",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_define_escalation_paths.html",
+    "id": "OPS10-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02",
+      "OPS11-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Define escalation paths",
+    "title_full": "OPS10-BP04 Define escalation paths"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Effective communication during service impacting events is critical to maintain trust and transparency with customers. A well-defined communication plan helps your organization quickly and clearly share information, both internally and externally, during incidents.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_push_notify.html",
+    "id": "OPS10-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS07-BP03",
+      "OPS10-BP06",
+      "OPS11-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Define a customer communication plan for service-impacting events",
+    "title_full": "OPS10-BP05 Define a customer communication plan for service-impacting events"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Use dashboards as a strategic tool to convey real-time operational status and key metrics to different audiences, including internal technical teams, leadership, and customers. These dashboards offer a centralized, visual representation of system health and business performance, enhancing transparency and decision-making efficiency.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_dashboards.html",
+    "id": "OPS10-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Communicate status through dashboards",
+    "title_full": "OPS10-BP06 Communicate status through dashboards"
+  },
+  {
+    "area": [
+      "Operate",
+      "Responding to events"
+    ],
+    "description": "Automating event responses is key for fast, consistent, and error-free operational handling. Create streamlined processes and use tools to automatically manage and respond to events, minimizing manual interventions and enhancing operational effectiveness.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_event_response_auto_event_response.html",
+    "id": "OPS10-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP04",
+      "OPS10-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate responses to events",
+    "title_full": "OPS10-BP07 Automate responses to events"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Evaluate your workload against internal and external architecture best practices. Conduct frequent, intentional workload reviews. Prioritize improvement opportunities into your software development cadence.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_process_cont_imp.html",
+    "id": "OPS11-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP02",
+      "OPS11-BP08",
+      "OPS04"
+    ],
+    "risk": "HIGH",
+    "title": "Have a process for continuous improvement",
+    "title_full": "OPS11-BP01 Have a process for continuous improvement"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Review customer-impacting events and identify the contributing factors and preventative actions. Use this information to develop mitigations to limit or prevent recurrence. Develop procedures for prompt and effective responses. Communicate contributing factors and corrective actions as appropriate, tailored to target audiences.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_perform_rca_process.html",
+    "id": "OPS11-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP01",
+      "OPS04"
+    ],
+    "risk": "HIGH",
+    "title": "Perform post-incident analysis",
+    "title_full": "OPS11-BP02 Perform post-incident analysis"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Feedback loops provide actionable insights that drive decision making. Build feedback loops into your procedures and workloads. This helps you identify issues and areas that need improvement. They also validate investments made in improvements. These feedback loops are the foundation for continuously improving your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_feedback_loops.html",
+    "id": "OPS11-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP01",
+      "OPS01-BP02",
+      "OPS11-BP02",
+      "OPS11-BP07"
+    ],
+    "risk": "HIGH",
+    "title": "Implement feedback loops",
+    "title_full": "OPS11-BP03 Implement feedback loops"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Knowledge management helps team members find the information to perform their job. In learning organizations, information is freely shared which empowers individuals. The information can be discovered or searched. Information is accurate and up to date. Mechanisms exist to create new information, update existing information, and archive outdated information. The most common example of a knowledge management platform is a content management system like a wiki.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_knowledge_management.html",
+    "id": "OPS11-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS11-BP08"
+    ],
+    "risk": "HIGH",
+    "title": "Perform knowledge management",
+    "title_full": "OPS11-BP04 Perform knowledge management"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Identify drivers for improvement to help you evaluate and prioritize opportunities based on data and feedback loops. Explore improvement opportunities in your systems and processes, and automate where appropriate.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_drivers_for_imp.html",
+    "id": "OPS11-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01",
+      "OPS02",
+      "OPS04-BP01",
+      "OPS08",
+      "OPS09",
+      "OPS11-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Define drivers for improvement",
+    "title_full": "OPS11-BP05 Define drivers for improvement"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Review your analysis results and responses with cross-functional teams and business owners. Use these reviews to establish common understanding, identify additional impacts, and determine courses of action. Adjust responses as appropriate.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_validate_insights.html",
+    "id": "OPS11-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS01-BP06",
+      "OPS02-BP06",
+      "OPS11-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Validate insights",
+    "title_full": "OPS11-BP06 Validate insights"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Regularly perform retrospective analysis of operations metrics with cross-team participants from different areas of the business. Use these reviews to identify opportunities for improvement, potential courses of action, and to share lessons learned. Look for opportunities to improve in all of your environments (for example, development, test, and production).",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_metrics_review.html",
+    "id": "OPS11-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS08-BP05",
+      "OPS09-BP03",
+      "OPS10-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Perform operations metrics reviews",
+    "title_full": "OPS11-BP07 Perform operations metrics reviews"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Document and share lessons learned from the operations activities so that you can use them internally and across teams. You should share what your teams learn to increase the benefit across your organization. Share information and resources to prevent avoidable errors and ease development efforts, and focus on delivery of desired features.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_share_lessons_learned.html",
+    "id": "OPS11-BP08",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS02-BP06",
+      "OPS05-BP01",
+      "OPS05-BP06",
+      "OPS11-BP03",
+      "OPS11-BP07"
+    ],
+    "risk": "LOW",
+    "title": "Document and share lessons learned",
+    "title_full": "OPS11-BP08 Document and share lessons learned"
+  },
+  {
+    "area": [
+      "Evolve",
+      "Learn, share, and improve"
+    ],
+    "description": "Dedicate time and resources within your processes to make continuous incremental improvements possible.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_evolve_ops_allocate_time_for_imp.html",
+    "id": "OPS11-BP09",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "OPERATIONAL_EXCELLENCE",
+    "relatedIds": [
+      "OPS05-BP08"
+    ],
+    "risk": "LOW",
+    "title": "Allocate time to make improvements",
+    "title_full": "OPS11-BP09 Allocate time to make improvements"
+  }
+]

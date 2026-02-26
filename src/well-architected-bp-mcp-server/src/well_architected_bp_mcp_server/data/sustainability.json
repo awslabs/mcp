@@ -1,0 +1,426 @@
+[
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Use elasticity of the cloud and scale your infrastructure dynamically to match supply of cloud resources to demand and avoid overprovisioned capacity in your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a2.html",
+    "id": "SUS02-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Scale workload infrastructure dynamically",
+    "title_full": "SUS02-BP01 Scale workload infrastructure dynamically"
+  },
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Review and optimize workload service-level agreements (SLA) based on your sustainability goals to minimize the resources required to support your workload while continuing to meet business needs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a3.html",
+    "id": "SUS02-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Align SLAs with sustainability goals",
+    "title_full": "SUS02-BP02 Align SLAs with sustainability goals"
+  },
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Decommission unused assets in your workload to reduce the number of cloud resources required to support your demand and minimize waste.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a4.html",
+    "id": "SUS02-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Stop the creation and maintenance of unused assets",
+    "title_full": "SUS02-BP03 Stop the creation and maintenance of unused assets"
+  },
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Select cloud location and services for your workload that reduce the distance network traffic must travel and decrease the total network resources required to support your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a5.html",
+    "id": "SUS02-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Optimize geographic placement of workloads based on their networking requirements",
+    "title_full": "SUS02-BP04 Optimize geographic placement of workloads based on their networking requirements"
+  },
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Optimize resources provided to team members to minimize the environmental sustainability impact while supporting their needs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a6.html",
+    "id": "SUS02-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Optimize team member resources for activities performed",
+    "title_full": "SUS02-BP05 Optimize team member resources for activities performed"
+  },
+  {
+    "area": [
+      "Alignment to demand"
+    ],
+    "description": "Buffering and throttling flatten the demand curve and reduce the provisioned capacity required for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_user_a7.html",
+    "id": "SUS02-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Implement buffering or throttling to flatten the demand curve",
+    "title_full": "SUS02-BP06 Implement buffering or throttling to flatten the demand curve"
+  },
+  {
+    "area": [
+      "Software and architecture"
+    ],
+    "description": "Use efficient software and architecture patterns such as queue-driven to maintain consistent high utilization of deployed resources.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a2.html",
+    "id": "SUS03-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Optimize software and architecture for asynchronous and scheduled jobs",
+    "title_full": "SUS03-BP01 Optimize software and architecture for asynchronous and scheduled jobs"
+  },
+  {
+    "area": [
+      "Software and architecture"
+    ],
+    "description": "Remove components that are unused and no longer required, and refactor components with little utilization to minimize waste in your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a3.html",
+    "id": "SUS03-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Remove or refactor workload components with low or no use",
+    "title_full": "SUS03-BP02 Remove or refactor workload components with low or no use"
+  },
+  {
+    "area": [
+      "Software and architecture"
+    ],
+    "description": "Optimize your code that runs within different components of your architecture to minimize resource usage while maximizing performance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a4.html",
+    "id": "SUS03-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Optimize areas of code that consume the most time or resources",
+    "title_full": "SUS03-BP03 Optimize areas of code that consume the most time or resources"
+  },
+  {
+    "area": [
+      "Software and architecture"
+    ],
+    "description": "Understand the devices and equipment used in your architecture and use strategies to reduce their usage. This can minimize the overall environmental impact of your cloud workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a5.html",
+    "id": "SUS03-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Optimize impact on devices and equipment",
+    "title_full": "SUS03-BP04 Optimize impact on devices and equipment"
+  },
+  {
+    "area": [
+      "Software and architecture"
+    ],
+    "description": "Understand how data is used within your workload, consumed by your users, transferred, and stored. Use software patterns and architectures that best support data access and storage to minimize the compute, networking, and storage resources required to support the workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_software_a6.html",
+    "id": "SUS03-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use software patterns and architectures that best support data access and storage patterns",
+    "title_full": "SUS03-BP05 Use software patterns and architectures that best support data access and storage patterns"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Classify data to understand its criticality to business outcomes and choose the right energy-efficient storage tier to store the data.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a2.html",
+    "id": "SUS04-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Implement a data classification policy",
+    "title_full": "SUS04-BP01 Implement a data classification policy"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Use storage technologies that best support how your data is accessed and stored to minimize the resources provisioned while supporting your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a3.html",
+    "id": "SUS04-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Use technologies that support data access and storage patterns",
+    "title_full": "SUS04-BP02 Use technologies that support data access and storage patterns"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Manage the lifecycle of all of your data and automatically enforce deletion to minimize the total storage required for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a4.html",
+    "id": "SUS04-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use policies to manage the lifecycle of your datasets",
+    "title_full": "SUS04-BP03 Use policies to manage the lifecycle of your datasets"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Use elasticity and automation to expand block storage or file system as data grows to minimize the total provisioned storage.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a5.html",
+    "id": "SUS04-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use elasticity and automation to expand block storage or file system",
+    "title_full": "SUS04-BP04 Use elasticity and automation to expand block storage or file system"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Remove unneeded or redundant data to minimize the storage resources required to store your datasets.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a6.html",
+    "id": "SUS04-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Remove unneeded or redundant data",
+    "title_full": "SUS04-BP05 Remove unneeded or redundant data"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Adopt shared file systems or storage to avoid data duplication and allow for more efficient infrastructure for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a7.html",
+    "id": "SUS04-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use shared file systems or storage to access common data",
+    "title_full": "SUS04-BP06 Use shared file systems or storage to access common data"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Use shared file systems or object storage to access common data and minimize the total networking resources required to support data movement for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a8.html",
+    "id": "SUS04-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Minimize data movement across networks",
+    "title_full": "SUS04-BP07 Minimize data movement across networks"
+  },
+  {
+    "area": [
+      "Data management"
+    ],
+    "description": "Avoid backing up data that has no business value to minimize storage resources requirements for your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a9.html",
+    "id": "SUS04-BP08",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [
+      "REL09-BP01",
+      "REL09-BP03",
+      "REL13-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Back up data only when difficult to recreate",
+    "title_full": "SUS04-BP08 Back up data only when difficult to recreate"
+  },
+  {
+    "area": [
+      "Hardware and services"
+    ],
+    "description": "Use the minimum amount of hardware for your workload to efficiently meet your business needs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a2.html",
+    "id": "SUS05-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use the minimum amount of hardware to meet your needs",
+    "title_full": "SUS05-BP01 Use the minimum amount of hardware to meet your needs"
+  },
+  {
+    "area": [
+      "Hardware and services"
+    ],
+    "description": "Continually monitor and use new instance types to take advantage of energy efficiency improvements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a3.html",
+    "id": "SUS05-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use instance types with the least impact",
+    "title_full": "SUS05-BP02 Use instance types with the least impact"
+  },
+  {
+    "area": [
+      "Hardware and services"
+    ],
+    "description": "Use managed services to operate more efficiently in the cloud.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a4.html",
+    "id": "SUS05-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Use managed services",
+    "title_full": "SUS05-BP03 Use managed services"
+  },
+  {
+    "area": [
+      "Hardware and services"
+    ],
+    "description": "Optimize your use of accelerated computing instances to reduce the physical infrastructure demands of your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_hardware_a5.html",
+    "id": "SUS05-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Optimize your use of hardware-based compute accelerators",
+    "title_full": "SUS05-BP04 Optimize your use of hardware-based compute accelerators"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Technology is a key enabler of sustainability. IT teams play a crucial role in driving meaningful change towards your organization's sustainability goals. These teams should clearly understand the company's sustainability targets and work to communicate and cascade those priorities across its operations.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a1.html",
+    "id": "SUS06-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Communicate and cascade your sustainability goals",
+    "title_full": "SUS06-BP01 Communicate and cascade your sustainability goals"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Adopt methods and processes to validate potential improvements, minimize testing costs, and deliver small improvements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a2.html",
+    "id": "SUS06-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Adopt methods that can rapidly introduce sustainability improvements",
+    "title_full": "SUS06-BP02 Adopt methods that can rapidly introduce sustainability improvements"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Keep your workload up-to-date to adopt efficient features, remove issues, and improve the overall efficiency of your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a3.html",
+    "id": "SUS06-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Keep your workload up-to-date",
+    "title_full": "SUS06-BP03 Keep your workload up-to-date"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Increase the utilization of resources to develop, test, and build your workloads.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a4.html",
+    "id": "SUS06-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Increase utilization of build environments",
+    "title_full": "SUS06-BP04 Increase utilization of build environments"
+  },
+  {
+    "area": [
+      "Process and culture"
+    ],
+    "description": "Use managed device farms to efficiently test a new feature on a representative set of hardware.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_dev_a5.html",
+    "id": "SUS06-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Use managed device farms for testing",
+    "title_full": "SUS06-BP05 Use managed device farms for testing"
+  }
+]

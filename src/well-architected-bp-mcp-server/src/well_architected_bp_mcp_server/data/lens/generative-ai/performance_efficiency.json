@@ -1,0 +1,140 @@
+[
+  {
+    "area": [
+      "Establish performance evaluation processes"
+    ],
+    "description": "Ground truth data facilitates model testing for use case specific scenarios and should be developed and curated for generative AI workloads. Ground truth data, also known as a golden dataset, is data classified to be true and is vital for the efficient testing of data-driven workloads, particularly generative AI workloads. Ground truth data for generative AI traditionally consists of a prompt and a desirable response to said prompt. For prompts that supplement responses with data from external sources, customers can extend the ground truth data to include source documentation or other useful metadata.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp01.html",
+    "id": "GENPERF01-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice improves the performance of model selection by measuring a model's performance on task specific prompt-response pairs.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Define a ground truth data set of prompts and responses",
+    "title_full": "GENPERF01-BP01 Define a ground truth data set of prompts and responses"
+  },
+  {
+    "area": [
+      "Establish performance evaluation processes"
+    ],
+    "description": "Foundation models perform well on a wide-variety of tasks, but they are not always suited to specific tasks. Collecting performance metrics from generative AI workloads helps capture and improve the performance of your generative AI models in production. This includes monitoring response quality, latency, throughput, token usage, and other relevant metrics that indicate how well your models are performing for your specific use cases.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf01-bp02.html",
+    "id": "GENPERF01-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice enables continuous monitoring and improvement of generative AI model performance in production environments.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Collect performance metrics from generative AI workloads",
+    "title_full": "GENPERF01-BP02 Collect performance metrics from generative AI workloads"
+  },
+  {
+    "area": [
+      "Maintaining model performance"
+    ],
+    "description": "Foundation models are inherently non-deterministic and compute-intensive resources that may require tuning and customization to meet your organization requirements. Load testing model endpoints helps verify your generative AI workload maintains acceptable performance levels under various load conditions. This includes testing throughput, latency, and response quality under different traffic patterns and identifying performance bottlenecks before they impact production workloads.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp01.html",
+    "id": "GENPERF02-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice ensures your generative AI workload can maintain acceptable performance levels under expected and peak load conditions.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF03-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Load test model endpoints",
+    "title_full": "GENPERF02-BP01 Load test model endpoints"
+  },
+  {
+    "area": [
+      "Maintaining model performance"
+    ],
+    "description": "Foundation models have various inference parameters that can be tuned to optimize response quality for specific use cases. These parameters include temperature, top-p, top-k, max tokens, and others that control the randomness and creativity of model responses. Optimizing these parameters helps balance response quality, consistency, and performance based on your specific requirements and use cases.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp02.html",
+    "id": "GENPERF02-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice improves response quality and consistency by optimizing inference parameters for your specific use cases and requirements.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF04-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize inference parameters to improve response quality",
+    "title_full": "GENPERF02-BP02 Optimize inference parameters to improve response quality"
+  },
+  {
+    "area": [
+      "Maintaining model performance"
+    ],
+    "description": "Different foundation models have varying capabilities, performance characteristics, and cost profiles. Selecting and customizing the appropriate model for your use case ensures optimal performance and cost efficiency. This includes evaluating different models against your ground truth data, considering factors like model size, latency requirements, accuracy needs, and implementing fine-tuning or customization when necessary to meet specific performance requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf02-bp03.html",
+    "id": "GENPERF02-BP03",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice ensures you are using the most appropriate and optimized model for your specific use case, maximizing both performance and cost efficiency.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF01-BP01",
+      "PERF01-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Select and customize the appropriate model for your use case",
+    "title_full": "GENPERF02-BP03 Select and customize the appropriate model for your use case"
+  },
+  {
+    "area": [
+      "Optimize high-performance compute"
+    ],
+    "description": "Foundation models require high processing power to customize and deliver inference at scale. Using managed solutions for model hosting and customization helps optimize computational resources required for high-performance distributed computation tasks. Managed solutions like Amazon Bedrock and Amazon SageMaker provide optimized infrastructure, automatic scaling, and performance optimizations that would be difficult to achieve with self-managed solutions.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf03-bp01.html",
+    "id": "GENPERF03-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes computational resources and reduces operational overhead while meeting performance requirements for foundation model hosting and customization.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF02-BP01",
+      "PERF02-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use managed solutions for model hosting and customization",
+    "title_full": "GENPERF03-BP01 Use managed solutions for model hosting and customization"
+  },
+  {
+    "area": [
+      "Vector store optimization"
+    ],
+    "description": "Data retrieval systems like vector databases support some of the most popular design patterns for generative AI systems. A performance bottleneck in a data retrieval system can have cascading downstream effects, which are difficult to identify and account for. Testing vector store features for latency and relevant performance helps improve the performance of data retrieval systems and ensures they can meet the demands of your generative AI applications.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp01.html",
+    "id": "GENPERF04-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice ensures vector store performance meets requirements and prevents bottlenecks that could impact overall generative AI application performance.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF03-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Test vector store features for latency and relevant performance",
+    "title_full": "GENPERF04-BP01 Test vector store features for latency and relevant performance"
+  },
+  {
+    "area": [
+      "Vector store optimization"
+    ],
+    "description": "Vector sizes directly impact both storage requirements and query performance in vector databases. Optimizing vector sizes for your use case involves balancing accuracy requirements with performance and storage constraints. This includes selecting appropriate embedding models, dimensionality reduction techniques when applicable, and testing different vector sizes to find the optimal balance for your specific use case and performance requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/genperf04-bp02.html",
+    "id": "GENPERF04-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes vector database performance and storage efficiency by using appropriately sized vectors for your specific use case requirements.",
+    "pillar": "PERFORMANCE_EFFICIENCY",
+    "relatedIds": [
+      "PERF03-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize vector sizes for your use case",
+    "title_full": "GENPERF04-BP02 Optimize vector sizes for your use case"
+  }
+]

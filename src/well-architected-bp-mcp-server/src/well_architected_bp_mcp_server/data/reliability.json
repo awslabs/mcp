@@ -1,0 +1,1256 @@
+[
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "Be aware of your default quotas and manage your quota increase requests for your workload architecture. Know which cloud resource constraints, such as disk or network, are potentially impactful.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_quotas_and_constraints.html",
+    "id": "REL01-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP02",
+      "REL01-BP03",
+      "REL01-BP04",
+      "REL01-BP05",
+      "REL01-BP06",
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Aware of service quotas and constraints",
+    "title_full": "REL01-BP01 Aware of service quotas and constraints"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "If you are using multiple accounts or Regions, request the appropriate quotas in all environments in which your production workloads run.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_limits_considered.html",
+    "id": "REL01-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP01",
+      "REL01-BP03",
+      "REL01-BP04",
+      "REL01-BP05",
+      "REL01-BP06",
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Manage service quotas across accounts and regions",
+    "title_full": "REL01-BP02 Manage service quotas across accounts and regions"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "Be aware of unchangeable service quotas, service constraints, and physical resource limits. Design architectures for applications and services to prevent these limits from impacting reliability.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_aware_fixed_limits.html",
+    "id": "REL01-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP01",
+      "REL01-BP02",
+      "REL01-BP04",
+      "REL01-BP05",
+      "REL01-BP06",
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Accommodate fixed service quotas and constraints through architecture",
+    "title_full": "REL01-BP03 Accommodate fixed service quotas and constraints through architecture"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "Evaluate your potential usage and increase your quotas appropriately, allowing for planned growth in usage.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_monitor_manage_limits.html",
+    "id": "REL01-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP01",
+      "REL01-BP02",
+      "REL01-BP03",
+      "REL01-BP05",
+      "REL01-BP06",
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Monitor and manage quotas",
+    "title_full": "REL01-BP04 Monitor and manage quotas"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "Service quotas, also referred to as limits in AWS services, are the maximum values for the resources in your AWS account. Each AWS service defines a set of quotas and their default values. To provide your workload access to all the resources it needs, you might need to increase your service quota values.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_automated_monitor_limits.html",
+    "id": "REL01-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL10-BP07"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate quota management",
+    "title_full": "REL01-BP05 Automate quota management"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Manage service quotas and constraints"
+    ],
+    "description": "This article explains how to maintain space between the resource quota and your usage, and how it can benefit your organization. After you finish using a resource, the usage quota may continue to account for that resource. This can result in a failing or inaccessible resource. Prevent resource failure by verifying that your quotas cover the overlap of inaccessible resources and their replacements. Consider cases like network failure, Availability Zone failure, or Region failures when calculating this gap.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_manage_service_limits_suff_buffer_limits.html",
+    "id": "REL01-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP01",
+      "REL01-BP02",
+      "REL01-BP03",
+      "REL01-BP04",
+      "REL01-BP05",
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Ensure that a sufficient gap exists between the current quotas and the maximum usage to accommodate failover",
+    "title_full": "REL01-BP06 Ensure that a sufficient gap exists between the current quotas and the maximum usage to accommodate failover"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Plan your network topology"
+    ],
+    "description": "Building highly available network connectivity to public endpoints of your workloads can help you reduce downtime due to loss of connectivity and improve the availability and SLA of your workload. To achieve this, use highly available DNS, content delivery networks (CDNs), API gateways, load balancing, or reverse proxies.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_users.html",
+    "id": "REL02-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL10-BP01",
+      "REL11-BP04",
+      "REL11-BP06"
+    ],
+    "risk": "HIGH",
+    "title": "Use highly available network connectivity for your workload public endpoints",
+    "title_full": "REL02-BP01 Use highly available network connectivity for your workload public endpoints"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Plan your network topology"
+    ],
+    "description": "Implement redundancy in your connections between private networks in the cloud and on-premises environments to achieve connectivity resilience. This can be accomplished by deploying two or more links and traffic paths, preserving connectivity in the event of network failures.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ha_conn_private_networks.html",
+    "id": "REL02-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Provision redundant connectivity between private networks in the cloud and on-premises environments",
+    "title_full": "REL02-BP02 Provision redundant connectivity between private networks in the cloud and on-premises environments"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Plan your network topology"
+    ],
+    "description": "Amazon VPC IP address ranges must be large enough to accommodate workload requirements, including factoring in future expansion and allocation of IP addresses to subnets across Availability Zones. This includes load balancers, EC2 instances, and container-based applications.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_ip_subnet_allocation.html",
+    "id": "REL02-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL02-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Ensure IP subnet allocation accounts for expansion and availability",
+    "title_full": "REL02-BP03 Ensure IP subnet allocation accounts for expansion and availability"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Plan your network topology"
+    ],
+    "description": "When connecting multiple private networks, such as Virtual Private Clouds (VPCs) and on-premises networks, opt for a hub-and-spoke topology over a meshed one. Unlike meshed topologies, where each network connects directly to the others and increases the complexity and management overhead, the hub-and-spoke architecture centralizes connections through a single hub. This centralization simplifies the network structure and enhances its operability, scalability, and control.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_prefer_hub_and_spoke.html",
+    "id": "REL02-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL02-BP03",
+      "REL02-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Prefer hub-and-spoke topologies over many-to-many mesh",
+    "title_full": "REL02-BP04 Prefer hub-and-spoke topologies over many-to-many mesh"
+  },
+  {
+    "area": [
+      "Foundations",
+      "Plan your network topology"
+    ],
+    "description": "The IP address ranges of each of your VPCs must not overlap when peered, connected via Transit Gateway, or connected over VPN. Avoid IP address conflicts between a VPC and on-premises environments or with other cloud providers that you use. You must also have a way to allocate private IP address ranges when needed. An IP address management (IPAM) system can help with automating this.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_network_topology_non_overlap_ip.html",
+    "id": "REL02-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Enforce non-overlapping private IP address ranges in all private address spaces where they are connected",
+    "title_full": "REL02-BP05 Enforce non-overlapping private IP address ranges in all private address spaces where they are connected"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design your workload service architecture"
+    ],
+    "description": "Workload segmentation is important when determining the resilience requirements of your application. Monolithic architecture should be avoided whenever possible. Instead, carefully consider which application components can be broken out into microservices. Depending on your application requirements, this may end up being a combination of a service-oriented architecture (SOA) with microservices where possible. Workloads that are capable of statelessness are more capable of being deployed as microservices.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_monolith_soa_microservice.html",
+    "id": "REL03-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL03-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Choose how to segment your workload",
+    "title_full": "REL03-BP01 Choose how to segment your workload"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design your workload service architecture"
+    ],
+    "description": "Service-oriented architectures (SOA) define services with well-delineated functions defined by business needs. Microservices use domain models and bounded context to draw service boundaries along business context boundaries. Focusing on business domains and functionality helps teams define independent reliability requirements for their services. Bounded contexts isolate and encapsulate business logic, allowing teams to better reason about how to handle failures.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_business_domains.html",
+    "id": "REL03-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL03-BP01",
+      "REL03-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Build services focused on specific business domains and functionality",
+    "title_full": "REL03-BP02 Build services focused on specific business domains and functionality"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design your workload service architecture"
+    ],
+    "description": "Service contracts are documented agreements between API producers and consumers defined in a machine-readable API definition. A contract versioning strategy allows consumers to continue using the existing API and migrate their applications to a newer API when they are ready. Producer deployment can happen any time as long as the contract is followed. Service teams can use the technology stack of their choice to satisfy the API contract.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_service_architecture_api_contracts.html",
+    "id": "REL03-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL03-BP01",
+      "REL03-BP02",
+      "REL04-BP02",
+      "REL05-BP03",
+      "REL05-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Provide service contracts per API",
+    "title_full": "REL03-BP03 Provide service contracts per API"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to prevent failures"
+    ],
+    "description": "Distributed systems can be synchronous, asynchronous, or batch. Synchronous systems must process requests as quickly as possible and communicate with each other by making synchronous request and response calls using HTTP/S, REST, or remote procedure call (RPC) protocols. Asynchronous systems communicate with each other by exchanging data asynchronously through an intermediary service without coupling individual systems. Batch systems receive a large volume of input data, run automated data processes without human intervention, and generate output data.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_identify.html",
+    "id": "REL04-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Identify the kind of distributed systems you depend on",
+    "title_full": "REL04-BP01 Identify the kind of distributed systems you depend on"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to prevent failures"
+    ],
+    "description": "Dependencies such as queuing systems, streaming systems, workflows, and load balancers are loosely coupled. Loose coupling helps isolate behavior of a component from other components that depend on it, increasing resiliency and agility.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_loosely_coupled_system.html",
+    "id": "REL04-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement loosely coupled dependencies",
+    "title_full": "REL04-BP02 Implement loosely coupled dependencies"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to prevent failures"
+    ],
+    "description": "Systems can fail when there are large, rapid changes in load. For example, if your workload is doing a health check that monitors the health of thousands of servers, it should send the same size payload (a full snapshot of the current state) each time. Whether no servers are failing, or all of them, the health check system is doing constant work with no large, rapid changes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_constant_work.html",
+    "id": "REL04-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Do constant work",
+    "title_full": "REL04-BP03 Do constant work"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to prevent failures"
+    ],
+    "description": "An idempotent service promises that each request is processed exactly once, such that making multiple identical requests has the same effect as making a single request. This makes it easier for a client to implement retries without fear that a request is erroneously processed multiple times. To do this, clients can issue API requests with an idempotency token, which is used whenever the request is repeated. An idempotent service API uses the token to return a response identical to the response that was returned the first time that the request was completed, even if the underlying state of the system has changed.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_prevent_interaction_failure_idempotent.html",
+    "id": "REL04-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL05-BP03",
+      "REL06-BP01",
+      "REL06-BP03",
+      "REL08-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Make mutating operations idempotent",
+    "title_full": "REL04-BP04 Make mutating operations idempotent"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Application components should continue to perform their core function even if dependencies become unavailable. They might be serving slightly stale data, alternate data, or even no data. This ensures overall system function is only minimally impeded by localized failures while delivering the central business value.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html",
+    "id": "REL05-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement graceful degradation to transform applicable hard dependencies into soft dependencies",
+    "title_full": "REL05-BP01 Implement graceful degradation to transform applicable hard dependencies into soft dependencies"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Throttle requests to mitigate resource exhaustion due to unexpected increases in demand. Requests below throttling rates are processed while those over the defined limit are rejected with a return message indicating the request was throttled.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_throttle_requests.html",
+    "id": "REL05-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL04-BP03",
+      "REL05-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Throttle requests",
+    "title_full": "REL05-BP02 Throttle requests"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Use exponential backoff to retry requests at progressively longer intervals between each retry. Introduce jitter between retries to randomize retry intervals. Limit the maximum number of retries.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_limit_retries.html",
+    "id": "REL05-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL04-BP04",
+      "REL05-BP02",
+      "REL05-BP04",
+      "REL05-BP05",
+      "REL11-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Control and limit retry calls",
+    "title_full": "REL05-BP03 Control and limit retry calls"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "When a service is unable to respond successfully to a request, fail fast. This allows resources associated with a request to be released, and permits a service to recover if it\u2019s running out of resources. Failing fast is a well-established software design pattern that can be leveraged to build highly reliable workloads in the cloud. Queuing is also a well-established enterprise integration pattern that can smooth load and allow clients to release resources when asynchronous processing can be tolerated. When a service is able to respond successfully under normal conditions but fails when the rate of requests is too high, use a queue to buffer requests. However, do not allow a buildup of long queue backlogs that can result in processing stale requests that a client has already given up on.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_fail_fast.html",
+    "id": "REL05-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL04-BP02",
+      "REL05-BP02",
+      "REL05-BP03",
+      "REL06-BP02",
+      "REL06-BP07"
+    ],
+    "risk": "HIGH",
+    "title": "Fail fast and limit queues",
+    "title_full": "REL05-BP04 Fail fast and limit queues"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Set timeouts appropriately on connections and requests, verify them systematically, and do not rely on default values as they are not aware of workload specifics.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_client_timeouts.html",
+    "id": "REL05-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL05-BP03",
+      "REL05-BP04",
+      "REL06-BP07"
+    ],
+    "risk": "HIGH",
+    "title": "Set client timeouts",
+    "title_full": "REL05-BP05 Set client timeouts"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Systems should either not require state, or should offload state such that between different client requests, there is no dependence on locally stored data on disk and in memory. This allows servers to be replaced at will without causing an availability impact.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_stateless.html",
+    "id": "REL05-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Make systems stateless where possible",
+    "title_full": "REL05-BP06 Make systems stateless where possible"
+  },
+  {
+    "area": [
+      "Workload architecture",
+      "Design interactions in a distributed system to mitigate or withstand failures"
+    ],
+    "description": "Emergency levers are rapid processes that can mitigate availability impact on your workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_emergency_levers.html",
+    "id": "REL05-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL05-BP01",
+      "REL05-BP02",
+      "REL11-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement emergency levers",
+    "title_full": "REL05-BP07 Implement emergency levers"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Monitor the components of the workload with Amazon CloudWatch or third-party tools. Monitor AWS services with AWS Health Dashboard.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_monitor_resources.html",
+    "id": "REL06-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Monitor all components for the workload (Generation)",
+    "title_full": "REL06-BP01 Monitor all components for the workload (Generation)"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Collect metrics and logs from your workload components and calculate relevant aggregate metrics from them. These metrics provide broad and deep observability of your workload and can significantly improve your resilience posture.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_aggregation.html",
+    "id": "REL06-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL06-BP01",
+      "REL06-BP03",
+      "REL06-BP04",
+      "REL06-BP05",
+      "REL06-BP06",
+      "REL06-BP07"
+    ],
+    "risk": "HIGH",
+    "title": "Define and calculate metrics (Aggregation)",
+    "title_full": "REL06-BP02 Define and calculate metrics (Aggregation)"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "When organizations detect potential issues, they send real-time notifications and alerts to the appropriate personnel and systems in order to respond quickly and effectively to these issues.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_notification_monitor.html",
+    "id": "REL06-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL06-BP01",
+      "REL06-BP02",
+      "REL12-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Send notifications (Real-time processing and alarming)",
+    "title_full": "REL06-BP03 Send notifications (Real-time processing and alarming)"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Use automation to take action when an event is detected, for example, to replace failed components.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_automate_response_monitor.html",
+    "id": "REL06-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL06-BP01",
+      "REL06-BP02",
+      "REL06-BP03",
+      "REL08-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate responses (Real-time processing and alarming)",
+    "title_full": "REL06-BP04 Automate responses (Real-time processing and alarming)"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Collect log files and metrics histories and analyze these for broader trends and workload insights.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_storage_analytics.html",
+    "id": "REL06-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Analyze logs",
+    "title_full": "REL06-BP05 Analyze logs"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Frequently review how workload monitoring is implemented, and update it as your workload and its architecture evolves. Regular audits of your monitoring helps reduce the risk of missed or overlooked trouble indicators and further helps your workload meet its availability goals.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_review_monitoring.html",
+    "id": "REL06-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL06-BP01",
+      "REL06-BP02",
+      "REL06-BP07",
+      "REL12-BP02",
+      "REL12-BP06"
+    ],
+    "risk": "MEDIUM",
+    "title": "Regularly review monitoring scope and metrics",
+    "title_full": "REL06-BP06 Regularly review monitoring scope and metrics"
+  },
+  {
+    "area": [
+      "Change management",
+      "Monitor workload resources"
+    ],
+    "description": "Trace requests as they process through service components so product teams can more easily analyze and debug issues and improve performance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_monitor_aws_resources_end_to_end.html",
+    "id": "REL06-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL06-BP01",
+      "REL11-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Monitor end-to-end tracing of requests through your system",
+    "title_full": "REL06-BP07 Monitor end-to-end tracing of requests through your system"
+  },
+  {
+    "area": [
+      "Change management",
+      "Design your workload to adapt to changes in demand"
+    ],
+    "description": "A cornerstone of reliability in the cloud is the programmatic definition, provisioning, and management of your infrastructure and resources. Automation helps you streamline resource provisioning, facilitate consistent and secure deployments, and scale resources across your entire infrastructure.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_autoscale_adapt.html",
+    "id": "REL07-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use automation when obtaining or scaling resources",
+    "title_full": "REL07-BP01 Use automation when obtaining or scaling resources"
+  },
+  {
+    "area": [
+      "Change management",
+      "Design your workload to adapt to changes in demand"
+    ],
+    "description": "Scale resources reactively when necessary if availability is impacted, to restore workload availability.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_reactive_adapt_auto.html",
+    "id": "REL07-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL07-BP01",
+      "REL11-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Obtain resources upon detection of impairment to a workload",
+    "title_full": "REL07-BP02 Obtain resources upon detection of impairment to a workload"
+  },
+  {
+    "area": [
+      "Change management",
+      "Design your workload to adapt to changes in demand"
+    ],
+    "description": "One of the most valuable features of cloud computing is the ability to provision resources dynamically.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_proactive_adapt_auto.html",
+    "id": "REL07-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Obtain resources upon detection that more resources are needed for a workload",
+    "title_full": "REL07-BP03 Obtain resources upon detection that more resources are needed for a workload"
+  },
+  {
+    "area": [
+      "Change management",
+      "Design your workload to adapt to changes in demand"
+    ],
+    "description": "Adopt a load testing methodology to measure if scaling activity meets workload requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_adapt_to_changes_load_tested_adapt.html",
+    "id": "REL07-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Load test your workload",
+    "title_full": "REL07-BP04 Load test your workload"
+  },
+  {
+    "area": [
+      "Change management",
+      "Implement change"
+    ],
+    "description": "Runbooks are the predefined procedures to achieve specific outcomes. Use runbooks to perform standard activities, whether done manually or automatically. Examples include deploying a workload, patching a workload, or making DNS modifications.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_planned_changemgmt.html",
+    "id": "REL08-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use runbooks for standard activities such as deployment",
+    "title_full": "REL08-BP01 Use runbooks for standard activities such as deployment"
+  },
+  {
+    "area": [
+      "Change management",
+      "Implement change"
+    ],
+    "description": "Use techniques such as unit tests and integration tests that validate required functionality.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_functional_testing.html",
+    "id": "REL08-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL07-BP04",
+      "REL08-BP03",
+      "REL12-BP04"
+    ],
+    "risk": "HIGH",
+    "title": "Integrate functional testing as part of your deployment",
+    "title_full": "REL08-BP02 Integrate functional testing as part of your deployment"
+  },
+  {
+    "area": [
+      "Change management",
+      "Implement change"
+    ],
+    "description": "Integrate resiliency testing by consciously introducing failures in your system to measure its capability in case of disruptive scenarios. Resilience tests are different from unit and function tests that are usually integrated in deployment cycles, as they focus on the identification of unanticipated failures in your system. While it is safe to start with resiliency testing integration in pre-production, set a goal to implement these tests in production as a part of your game days.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_resiliency_testing.html",
+    "id": "REL08-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Integrate resiliency testing as part of your deployment",
+    "title_full": "REL08-BP03 Integrate resiliency testing as part of your deployment"
+  },
+  {
+    "area": [
+      "Change management",
+      "Implement change"
+    ],
+    "description": "Immutable infrastructure is a model that mandates that no updates, security patches, or configuration changes happen in-place on production workloads. When a change is needed, the architecture is built onto new infrastructure and deployed into production.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_immutable_infrastructure.html",
+    "id": "REL08-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL08-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Deploy using immutable infrastructure",
+    "title_full": "REL08-BP04 Deploy using immutable infrastructure"
+  },
+  {
+    "area": [
+      "Change management",
+      "Implement change"
+    ],
+    "description": "Deployments and patching are automated to eliminate negative impact.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_tracking_change_management_automated_changemgmt.html",
+    "id": "REL08-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "OPS05-BP04",
+      "OPS05-BP10",
+      "OPS06-BP02",
+      "OPS06-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Deploy changes with automation",
+    "title_full": "REL08-BP05 Deploy changes with automation"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Back up data"
+    ],
+    "description": "Understand and use the backup capabilities of the data services and resources used by the workload. Most services provide capabilities to back up workload data.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_identified_backups_data.html",
+    "id": "REL09-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL13-BP01",
+      "REL13-BP02"
+    ],
+    "risk": "HIGH",
+    "title": "Identify and back up all data that needs to be backed up, or reproduce the data from sources",
+    "title_full": "REL09-BP01 Identify and back up all data that needs to be backed up, or reproduce the data from sources"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Back up data"
+    ],
+    "description": "Control and detect access to backups using authentication and authorization. Prevent and detect if data integrity of backups is compromised using encryption.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_secured_backups_data.html",
+    "id": "REL09-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Secure and encrypt backups",
+    "title_full": "REL09-BP02 Secure and encrypt backups"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Back up data"
+    ],
+    "description": "Configure backups to be taken automatically based on a periodic schedule informed by the Recovery Point Objective (RPO), or by changes in the dataset. Critical datasets with low data loss requirements need to be backed up automatically on a frequent basis, whereas less critical data where some loss is acceptable can be backed up less frequently.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_automated_backups_data.html",
+    "id": "REL09-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Perform data backup automatically",
+    "title_full": "REL09-BP03 Perform data backup automatically"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Back up data"
+    ],
+    "description": "Validate that your backup process implementation meets your Recovery Time Objectives (RTO) and Recovery Point Objectives (RPO) by performing a recovery test.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_periodic_recovery_testing_data.html",
+    "id": "PREL09-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Perform periodic recovery of the data to verify backup integrity and processes",
+    "title_full": "REL09-BP04 Perform periodic recovery of the data to verify backup integrity and processes"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Use fault isolation to protect your workload"
+    ],
+    "description": "Distribute workload data and resources across multiple Availability Zones or, where necessary, across AWS Regions.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_multiaz_region_system.html",
+    "id": "REL10-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL02-BP03",
+      "REL13-BP01",
+      "REL11-BP05"
+    ],
+    "risk": "HIGH",
+    "title": "Deploy the workload to multiple locations",
+    "title_full": "REL10-BP01 Deploy the workload to multiple locations"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Use fault isolation to protect your workload"
+    ],
+    "description": "If components of the workload can only run in a single Availability Zone or in an on-premises data center, implement the capability to do a complete rebuild of the workload within your defined recovery objectives.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_single_az_system.html",
+    "id": "REL10-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL02-BP03",
+      "REL13-BP01",
+      "REL11-BP05"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate recovery for components constrained to a single location",
+    "title_full": "REL10-BP02 Automate recovery for components constrained to a single location"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Use fault isolation to protect your workload"
+    ],
+    "description": "Implement bulkhead architectures (also known as cell-based architectures) to restrict the effect of failure within a workload to a limited number of components.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_fault_isolation_use_bulkhead.html",
+    "id": "REL10-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL07-BP04",
+      "REL10-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Use bulkhead architectures to limit scope of impact",
+    "title_full": "REL10-BP03 Use bulkhead architectures to limit scope of impact"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Continually monitor the health of your workload so that you and your automated systems are aware of failures or degradations as soon as they occur. Monitor for key performance indicators (KPIs) based on business value.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_monitoring_health.html",
+    "id": "REL11-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP06"
+    ],
+    "risk": "HIGH",
+    "title": "Monitor all components of the workload to detect failures",
+    "title_full": "REL11-BP01 Monitor all components of the workload to detect failures"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "If a resource failure occurs, healthy resources should continue to serve requests. For location impairments (such as Availability Zone or AWS Region), ensure that you have systems in place to fail over to healthy resources in unimpaired locations.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_failover2good.html",
+    "id": "REL11-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL10",
+      "REL13"
+    ],
+    "risk": "HIGH",
+    "title": "Fail over to healthy resources",
+    "title_full": "REL11-BP02 Fail over to healthy resources"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Upon detection of a failure, use automated capabilities to perform actions to remediate. Degradations may be automatically healed through internal service mechanisms or require resources to be restarted or removed through remediation actions.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_auto_healing_system.html",
+    "id": "REL11-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Automate healing on all layers",
+    "title_full": "REL11-BP03 Automate healing on all layers"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Control planes provide the administrative APIs used to create, read and describe, update, delete, and list (CRUDL) resources, while data planes handle day-to-day service traffic. When implementing recovery or mitigation responses to potentially resiliency-impacting events, focus on using a minimal number of control plane operations to recover, rescale, restore, heal, or failover the service. Data plane action should supersede any activity during these degradation events.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_avoid_control_plane.html",
+    "id": "REL11-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Rely on the data plane and not the control plane during recovery",
+    "title_full": "REL11-BP04 Rely on the data plane and not the control plane during recovery"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Workloads should be statically stable and only operate in a single normal mode. Bimodal behavior is when your workload exhibits different behavior under normal and failure modes.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_static_stability.html",
+    "id": "REL11-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL11-BP01",
+      "REL11-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use static stability to prevent bimodal behavior",
+    "title_full": "REL11-BP05 Use static stability to prevent bimodal behavior"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Notifications are sent upon the detection of thresholds breached, even if the event causing the issue was automatically resolved.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_notifications_sent_system.html",
+    "id": "REL11-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Send notifications when events impact availability",
+    "title_full": "REL11-BP06 Send notifications when events impact availability"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Design your workload to withstand component failures"
+    ],
+    "description": "Architect your product to meet availability targets and uptime service level agreements (SLAs). If you publish or privately agree to availability targets or uptime SLAs, verify that your architecture and operational processes are designed to support them.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_withstand_component_failures_service_level_agreements.html",
+    "id": "REL11-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL03-BP01",
+      "REL10-BP01",
+      "REL11-BP01",
+      "REL11-BP03",
+      "REL12-BP04",
+      "REL13-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Architect your product to meet availability targets and uptime service level agreements (SLAs)",
+    "title_full": "REL11-BP07 Architect your product to meet availability targets and uptime service level agreements (SLAs)"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Test reliability"
+    ],
+    "description": "Permit consistent and prompt responses to failure scenarios that are not well understood, by documenting the investigation process in playbooks. Playbooks are the predefined steps performed to identify the factors contributing to a failure scenario. The results from any process step are used to determine the next steps to take until the issue is identified or escalated.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_playbook_resiliency.html",
+    "id": "REL12-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Use playbooks to investigate failures",
+    "title_full": "REL12-BP01 Use playbooks to investigate failures"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Test reliability"
+    ],
+    "description": "Review customer-impacting events, and identify the contributing factors and preventative action items. Use this information to develop mitigations to limit or prevent recurrence. Develop procedures for prompt and effective responses. Communicate contributing factors and corrective actions as appropriate, tailored to target audiences. Have a method to communicate these causes to others as needed.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_rca_resiliency.html",
+    "id": "REL12-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform post-incident analysis",
+    "title_full": "REL12-BP02 Perform post-incident analysis"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Test reliability"
+    ],
+    "description": "Use techniques such as load testing to validate that the workload meets scaling and performance requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_test_non_functional.html",
+    "id": "REL12-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP04",
+      "REL06-BP01",
+      "REL06-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Test scalability and performance requirements",
+    "title_full": "REL12-BP03 Test scalability and performance requirements"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Test reliability"
+    ],
+    "description": "Run chaos experiments regularly in environments that are in or as close to production as possible to understand how your system responds to adverse conditions.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_failure_injection_resiliency.html",
+    "id": "REL12-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL08-BP03",
+      "REL13-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Test resiliency using chaos engineering",
+    "title_full": "REL12-BP04 Test resiliency using chaos engineering"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Test reliability"
+    ],
+    "description": "Conduct game days to regularly exercise your procedures for responding to workload-impacting events and impairments. Involve the same teams who would be responsible for handling production scenarios. These exercises help enforce measures to prevent user impact caused by production events. When you practice your response procedures in realistic conditions, you can identify and address any gaps or weaknesses before a real event occurs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_testing_resiliency_game_days_resiliency.html",
+    "id": "REL12-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL12-BP01",
+      "REL12-BP04",
+      "OPS04-BP01",
+      "OPS07-BP03",
+      "OPS10-BP01"
+    ],
+    "risk": "MEDIUM",
+    "title": "Conduct game days regularly",
+    "title_full": "REL12-BP05 Conduct game days regularly"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Plan for Disaster Recovery (DR)"
+    ],
+    "description": "Failures can impact your business in several ways. First, failures can cause service interruption (downtime). Second, failures can cause data to become lost, inconsistent, or stale. In order to guide how you respond and recover from failures, define a Recovery Time Objective (RTO) and Recovery Point Objective (RPO) for each workload. Recovery Time Objective (RTO) is the maximum acceptable delay between the interruption of service and restoration of service. Recovery Point Objective (RPO)  is the maximum acceptable time after the last data recovery point.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_objective_defined_recovery.html",
+    "id": "REL13-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL09-BP04",
+      "REL12-BP01",
+      "OPS13-BP02",
+      "OPS13-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Define recovery objectives for downtime and data loss",
+    "title_full": "REL13-BP01 Define recovery objectives for downtime and data loss"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Plan for Disaster Recovery (DR)"
+    ],
+    "description": "Define a disaster recovery (DR) strategy that meets your workload's recovery objectives. Choose a strategy such as backup and restore, standby (active/passive), or active/active.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_disaster_recovery.html",
+    "id": "REL13-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL09-BP01",
+      "REL11-BP04",
+      "OPS13-BP01"
+    ],
+    "risk": "HIGH",
+    "title": "Use defined recovery strategies to meet the recovery objectives",
+    "title_full": "REL13-BP02 Use defined recovery strategies to meet the recovery objectives"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Plan for Disaster Recovery (DR)"
+    ],
+    "description": "Regularly test failover to your recovery site to verify that it operates properly and that RTO and RPO are met.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_dr_tested.html",
+    "id": "REL13-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Test disaster recovery implementation to validate the implementation",
+    "title_full": "REL13-BP03 Test disaster recovery implementation to validate the implementation"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Plan for Disaster Recovery (DR)"
+    ],
+    "description": "To perform a successful disaster recovery (DR) procedure, your workload must be able to resume normal operations in a timely manner with no relevant loss of functionality or data once the DR environment has been brought online. To achieve this goal, it's essential to maintain consistent infrastructure, data, and configurations between your DR environment and the primary environment.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_config_drift.html",
+    "id": "REL13-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL01-BP01",
+      "REL01-BP02",
+      "REL01-BP04",
+      "REL13-BP03"
+    ],
+    "risk": "HIGH",
+    "title": "Manage configuration drift at the DR site or Region",
+    "title_full": "REL13-BP04 Manage configuration drift at the DR site or Region"
+  },
+  {
+    "area": [
+      "Failure management",
+      "Plan for Disaster Recovery (DR)"
+    ],
+    "description": "Implement tested and automated recovery mechanisms that are reliable, observable, and reproducible to reduce the risk and business impact of failure.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_auto_recovery.html",
+    "id": "REL13-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "RELIABILITY",
+    "relatedIds": [
+      "REL07-BP01",
+      "REL11-BP01",
+      "REL13-BP02",
+      "REL13-BP03",
+      "REL13-BP04"
+    ],
+    "risk": "MEDIUM",
+    "title": "Automate recovery",
+    "title_full": "REL13-BP05 Automate recovery"
+  }
+]

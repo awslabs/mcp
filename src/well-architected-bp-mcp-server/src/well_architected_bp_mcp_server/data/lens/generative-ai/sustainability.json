@@ -1,0 +1,73 @@
+[
+  {
+    "area": [
+      "Energy-efficient infrastructure and services"
+    ],
+    "description": "Adopt efficient and sustainable AI/ML practices to minimize resource usage, reduce costs, and lower environmental impact. Use serverless architectures, auto scaling, and specialized hardware to optimize resource utilization. This approach enhances performance efficiency, aligns with cost optimization, and supports sustainability goals. Adopting serverless architectures and auto-scaling capabilities is essential for verifying that resources are provisioned and consumed only when needed. This approach minimizes idle consumption and reduces the associated environmental impact. Amazon Bedrock and Amazon Q are fully-managed services, which means that AWS handles the infrastructure management, scaling, and maintenance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensus01-bp01.html",
+    "id": "GENSUS01-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "After implementing this best practice, customers can improve the elasticity of their generative AI workloads and benefit from the efficiencies of scale of the AWS Cloud.",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [
+      "SUS02-BP01",
+      "SUS02-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement auto scaling and serverless architectures to optimize resource utilization",
+    "title_full": "GENSUS01-BP01 Implement auto scaling and serverless architectures to optimize resource utilization"
+  },
+  {
+    "area": [
+      "Energy-efficient infrastructure and services"
+    ],
+    "description": "Model customization can be resource-intensive and impact sustainability. Using efficient model customization services helps minimize the computational resources needed for training and customizing generative AI workloads. This includes leveraging managed services that provide optimized infrastructure, using efficient training techniques, and selecting appropriate customization methods that balance performance with resource consumption.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensus01-bp02.html",
+    "id": "GENSUS01-BP02",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice reduces the environmental impact of model customization while maintaining model quality and performance.",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [
+      "SUS02-BP03"
+    ],
+    "risk": "MEDIUM",
+    "title": "Use efficient model customization services",
+    "title_full": "GENSUS01-BP02 Use efficient model customization services"
+  },
+  {
+    "area": [
+      "Consume sustainable data processing and storage services"
+    ],
+    "description": "To optimize computational resources for data processing pipelines, storage systems, and infrastructure in generative AI workloads, consider adopting serverless architectures and auto scaling mechanisms. Employ columnar formats and compression to minimize transfer and processing requirements. Implement serverless query and ETL services to reduce the need for persistent infrastructure, which promotes efficient resource utilization and sustainability.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensus02-bp01.html",
+    "id": "GENSUS02-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice optimizes data processing and storage to minimize energy consumption and maximize efficiency in generative AI workloads.",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [
+      "SUS03-BP01",
+      "SUS03-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Optimize data processing and storage to minimize energy consumption",
+    "title_full": "GENSUS02-BP01 Optimize data processing and storage to minimize energy consumption"
+  },
+  {
+    "area": [
+      "Consume energy efficient models"
+    ],
+    "description": "Explore strategies for enhancing model efficiency and resource optimization in large language models, focusing on techniques like quantization, pruning, and fine-tuning smaller models for specific tasks. Consider the benefits of model distillation to create efficient, task-specific models. Aim to balance performance with computational requirements, helping achieve optimal resource utilization in generative AI applications. Leveraging smaller models when they meet performance requirements significantly reduces the carbon footprint and energy consumption of generative AI workloads.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gensus03-bp01.html",
+    "id": "GENSUS03-BP01",
+    "lens": "GENERATIVE_AI",
+    "outcome": "When implemented, this best practice maintains model efficiency and resource optimization while reducing the environmental impact of generative AI workloads.",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [
+      "SUS04-BP01",
+      "SUS04-BP02"
+    ],
+    "risk": "LOW",
+    "title": "Leverage smaller models to reduce carbon footprint",
+    "title_full": "GENSUS03-BP01 Leverage smaller models to reduce carbon footprint"
+  }
+]

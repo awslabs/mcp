@@ -1,0 +1,813 @@
+[
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Create a team (Cloud Business Office, Cloud Center of Excellence, or FinOps team) that is responsible for establishing and maintaining cost awareness across your organization. The owner of cost optimization can be an individual or a team (requires people from finance, technology, and business teams) that understands the entire organization and cloud finance.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_function.html",
+    "id": "COST01-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Establish ownership of cost optimization",
+    "title_full": "COST01-BP01 Establish ownership of cost optimization"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Involve finance and technology teams in cost and usage discussions at all stages of your cloud journey. Teams regularly meet and discuss topics such as organizational goals and targets, current state of cost and usage, and financial and accounting practices.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_partnership.html",
+    "id": "COST01-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Establish a partnership between finance and technology",
+    "title_full": "COST01-BP02 Establish a partnership between finance and technology"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Adjust existing organizational budgeting and forecasting processes to be compatible with the highly variable nature of cloud costs and usage. Processes must be dynamic, using trend-based or business driver-based algorithms or a combination of both.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_budget_forecast.html",
+    "id": "COST01-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Establish cloud budgets and forecasts",
+    "title_full": "COST01-BP03 Establish cloud budgets and forecasts"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Implement cost awareness, create transparency, and accountability of costs into new or existing processes that impact usage, and leverage existing processes for cost awareness. Implement cost awareness into employee training.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_cost_awareness.html",
+    "id": "COST01-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement cost awareness in your organizational processes",
+    "title_full": "COST01-BP04 Implement cost awareness in your organizational processes"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Set up cloud budgets and configure mechanisms to detect anomalies in usage. Configure related tools for cost and usage alerts against pre-defined targets and receive notifications when any usage exceeds those targets. Have regular meetings to analyze the cost-effectiveness of your workloads and promote cost awareness.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_usage_report.html",
+    "id": "COST01-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Report and notify on cost optimization",
+    "title_full": "COST01-BP05 Report and notify on cost optimization"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Implement tooling and dashboards to monitor cost proactively for the workload. Regularly review the costs with configured tools or out of the box tools, do not just look at costs and categories when you receive notifications. Monitoring and analyzing costs proactively helps to identify positive trends and allows you to promote them throughout your organization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_proactive_process.html",
+    "id": "COST01-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Monitor cost proactively",
+    "title_full": "COST01-BP06 Monitor cost proactively"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Consult regularly with experts or AWS Partners to consider which services and features provide lower cost. Review AWS blogs and other information sources.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_scheduled.html",
+    "id": "COST01-BP07",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Keep up-to-date with new service releases",
+    "title_full": "COST01-BP07 Keep up-to-date with new service releases"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Implement changes or programs across your organization to create a cost-aware culture. It is recommended to start small, then as your capabilities increase and your organization\u2019s use of the cloud increases, implement large and wide ranging programs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_culture.html",
+    "id": "COST01-BP08",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Create a cost-aware culture",
+    "title_full": "COST01-BP08 Create a cost-aware culture"
+  },
+  {
+    "area": [
+      "Practice Cloud Financial Management"
+    ],
+    "description": "Quantifying business value from cost optimization allows you to understand the entire set of benefits to your organization. Because cost optimization is a necessary investment, quantifying business value allows you to explain the return on investment to stakeholders. Quantifying business value can help you gain more buy-in from stakeholders on future cost optimization investments, and provides a framework to measure the outcomes for your organization\u2019s cost optimization activities.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_cloud_financial_management_quantify_value.html",
+    "id": "COST01-BP09",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Quantify business value from cost optimization",
+    "title_full": "COST01-BP09 Quantify business value from cost optimization"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Develop policies that define how resources are managed by your organization and inspect them periodically. Policies should cover the cost aspects of resources and workloads, including creation, modification, and decommissioning over a resource\u2019s lifetime.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_policies.html",
+    "id": "COST02-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Develop policies based on your organization requirements",
+    "title_full": "COST02-BP01 Develop policies based on your organization requirements"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Implement both cost and usage goals and targets for your workload. Goals provide direction to your organization on expected outcomes, and targets provide specific measurable outcomes to be achieved for your workloads.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_goal_target.html",
+    "id": "COST02-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement goals and targets",
+    "title_full": "COST02-BP02 Implement goals and targets"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Implement a structure of accounts that maps to your organization. This assists in allocating and managing costs throughout your organization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_account_structure.html",
+    "id": "COST02-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement an account structure",
+    "title_full": "COST02-BP03 Implement an account structure"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Implement groups and roles that align to your policies and control who can create, modify, or decommission instances and resources in each group. For example, implement development, test, and production groups. This applies to AWS services and third-party solutions.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_groups_roles.html",
+    "id": "COST02-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Implement groups and roles",
+    "title_full": "COST02-BP04 Implement groups and roles"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Implement controls based on organization policies and defined groups and roles. These certify that costs are only incurred as defined by organization requirements such as control access to regions or resource types.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_controls.html",
+    "id": "COST02-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Implement cost controls",
+    "title_full": "COST02-BP05 Implement cost controls"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Governance"
+    ],
+    "description": "Track, measure, and audit the lifecycle of projects, teams, and environments to avoid using and paying for unnecessary resources.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_govern_usage_track_lifecycle.html",
+    "id": "COST02-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Track project lifecycle",
+    "title_full": "COST02-BP06 Track project lifecycle"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Set up cost management and reporting tools for enhanced analysis and transparency of cost and usage data. Configure your workload to create log entries that facilitate the tracking and segregation of costs and usage.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_detailed_source.html",
+    "id": "COST03-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Configure detailed information sources",
+    "title_full": "COST03-BP01 Configure detailed information sources"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Define a tagging schema based on your organization, workload attributes, and cost allocation categories so that you can filter and search for resources or monitor cost and usage in cost management tools. Implement consistent tagging across all resources where possible by purpose, team, environment, or other criteria relevant to your business.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_org_information.html",
+    "id": "COST03-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Add organization information to cost and usage",
+    "title_full": "COST03-BP02 Add organization information to cost and usage"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Identify organization categories such as business units, departments or projects that could be used to allocate cost within your organization to the internal consuming entities. Use those categories to enforce spend accountability, create cost awareness and drive effective consumption behaviors.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_define_attribution.html",
+    "id": "COST03-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Identify cost attribution categories",
+    "title_full": "COST03-BP03 Identify cost attribution categories"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Establish the organization metrics that are required for this workload. Example metrics of a workload are customer reports produced, or web pages served to customers.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_define_kpi.html",
+    "id": "COST03-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Establish organization metrics",
+    "title_full": "COST03-BP04 Establish organization metrics"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Configure cost management tools that meet your organization's policies to manage and optimize cloud spending. This includes services, tools, and resources to organize and track cost and usage data, enhance control through consolidated billing and access permission, improve planning through budgeting and forecasts, receive notifications or alerts, and lower cost with resources and pricing optimizations.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_config_tools.html",
+    "id": "COST03-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Configure billing and cost management tools",
+    "title_full": "COST03-BP05 Configure billing and cost management tools"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Monitor cost and usage"
+    ],
+    "description": "Allocate the workload's costs based on usage metrics or business outcomes to measure workload cost efficiency. Implement a process to analyze the cost and usage data with analytics services, which can provide insight and charge back capability.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_monitor_usage_allocate_outcome.html",
+    "id": "COST03-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Allocate costs based on workload metrics",
+    "title_full": "COST03-BP06 Allocate costs based on workload metrics"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Decommission resources"
+    ],
+    "description": "Define and implement a method to track resources and their associations with systems over their lifetime. You can use tagging to identify the workload or function of the resource.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_track.html",
+    "id": "COST04-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Track resources over their lifetime",
+    "title_full": "COST04-BP01 Track resources over their lifetime"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Decommission resources"
+    ],
+    "description": "Implement a process to identify and decommission unused resources.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_implement_process.html",
+    "id": "COST04-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Implement a decommissioning process",
+    "title_full": "COST04-BP02 Implement a decommissioning process"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Decommission resources"
+    ],
+    "description": "Decommission resources initiated by events such as periodic audits, or changes in usage. Decommissioning is typically performed periodically and can be manual or automated.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_decommission.html",
+    "id": "COST04-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Decommission resources",
+    "title_full": "COST04-BP03 Decommission resources"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Decommission resources"
+    ],
+    "description": "Design your workload to gracefully handle resource termination as you identify and decommission non-critical resources, resources that are not required, or resources with low utilization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_decomm_automated.html",
+    "id": "COST04-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Decommission resources automatically",
+    "title_full": "COST04-BP04 Decommission resources automatically"
+  },
+  {
+    "area": [
+      "Expenditure and usage awareness",
+      "Decommission resources"
+    ],
+    "description": "Define data retention policies on supported resources to handle object deletion per your organizations\u2019 requirements. Identify and delete unnecessary or orphaned resources and objects that are no longer required.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_decomissioning_resources_data_retention.html",
+    "id": "COST04-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Enforce data retention policies",
+    "title_full": "COST04-BP05 Enforce data retention policies"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Work with team members to define the balance between cost optimization and other pillars, such as performance and reliability, for this workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_requirements.html",
+    "id": "COST05-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "REL11-BP07",
+      "OPS01-BP06"
+    ],
+    "risk": "HIGH",
+    "title": "Identify organization requirements for cost",
+    "title_full": "COST05-BP01 Identify organization requirements for cost"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Verify every workload component is analyzed, regardless of current size or current costs. The review effort should reflect the potential benefit, such as current and projected costs.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_analyze_all.html",
+    "id": "COST05-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Analyze all components of the workload",
+    "title_full": "COST05-BP02 Analyze all components of the workload"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Look at overall cost to the organization of each component. Calculate the total cost of ownership by factoring in cost of operations and management, especially when using managed services by cloud provider. The review effort should reflect potential benefit (for example, time spent analyzing is proportional to component cost).",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_thorough_analysis.html",
+    "id": "COST05-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform a thorough analysis of each component",
+    "title_full": "COST05-BP03 Perform a thorough analysis of each component"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Open-source software eliminates software licensing costs, which can contribute significant costs to workloads. Where licensed software is required, avoid licenses bound to arbitrary attributes such as CPUs, look for licenses that are bound to output or outcomes. The cost of these licenses scales more closely to the benefit they provide.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_licensing.html",
+    "id": "COST05-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Select software with cost-effective licensing",
+    "title_full": "COST05-BP04 Select software with cost-effective licensing"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Factor in cost when selecting all components for your workload. This includes using application-level and managed services or serverless, containers, or event-driven architecture to reduce overall cost. Minimize license costs by using open-source software, software that does not have license fees, or alternatives to reduce spending.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_select_for_cost.html",
+    "id": "COST05-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Select components of this workload to optimize cost in line with organization priorities",
+    "title_full": "COST05-BP05 Select components of this workload to optimize cost in line with organization priorities"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Evaluate cost when selecting services"
+    ],
+    "description": "Workloads can change over time. Some services or features are more cost effective at different usage levels. By performing the analysis on each component over time and at projected usage, the workload remains cost-effective over its lifetime.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_select_service_analyze_over_time.html",
+    "id": "COST05-BP06",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Perform cost analysis for different usage over time",
+    "title_full": "COST05-BP06 Perform cost analysis for different usage over time"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the correct resource type, size, and number"
+    ],
+    "description": "Identify organization requirements (such as business needs and existing commitments) and perform cost modeling (overall costs) of the workload and each of its components. Perform benchmark activities for the workload under different predicted loads and compare the costs. The modeling effort should reflect the potential benefit. For example, time spent is proportional to component cost.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_cost_modeling.html",
+    "id": "COST06-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform cost modeling",
+    "title_full": "COST06-BP01 Perform cost modeling"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the correct resource type, size, and number"
+    ],
+    "description": "Select resource size or type based on data about the workload and resource characteristics. For example, compute, memory, throughput, or write intensive. This selection is typically made using a previous (on-premises) version of the workload, using documentation, or using other sources of information about the workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_data.html",
+    "id": "COST06-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Select resource type, size, and number based on data",
+    "title_full": "COST06-BP02 Select resource type, size, and number based on data"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the correct resource type, size, and number"
+    ],
+    "description": "Use metrics from the currently running workload to select the right size and type to optimize for cost. Appropriately provision throughput, sizing, and storage for compute, storage, data, and networking services. This can be done with a feedback loop such as automatic scaling or by custom code in the workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_metrics.html",
+    "id": "COST06-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Select resource type, size, and number automatically based on metrics",
+    "title_full": "COST06-BP03 Select resource type, size, and number automatically based on metrics"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the correct resource type, size, and number"
+    ],
+    "description": "For already-deployed services at the organization level for multiple business units, consider using shared resources to increase utilization and reduce total cost of ownership (TCO). Using shared resources can be a cost-effective option to centralize the management and costs by using existing solutions, sharing components, or both. Manage common functions like monitoring, backups, and connectivity either within an account boundary or in a dedicated account. You can also reduce cost by implementing standardization, reducing duplication, and reducing complexity.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_type_size_number_resources_shared.html",
+    "id": "COST06-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "SEC03-BP08"
+    ],
+    "risk": "MEDIUM",
+    "title": "Consider using shared resources",
+    "title_full": "COST06-BP04 Consider using shared resources"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the best pricing model"
+    ],
+    "description": "Analyze each component of the workload. Determine if the component and resources will be running for extended periods (for commitment discounts) or dynamic and short-running (for spot or on-demand). Perform an analysis on the workload using the recommendations in cost management tools and apply business rules to those recommendations to achieve high returns.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_analysis.html",
+    "id": "COST07-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform pricing model analysis",
+    "title_full": "COST07-BP01 Perform pricing model analysis"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the best pricing model"
+    ],
+    "description": "Resource pricing may be different in each Region. Identify Regional cost differences and only deploy in Regions with higher costs to meet latency, data residency and data sovereignty requirements. Factoring in Region cost helps you pay the lowest overall price for this workload.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_region_cost.html",
+    "id": "COST07-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Choose Regions based on cost",
+    "title_full": "COST07-BP02 Choose Regions based on cost"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the best pricing model"
+    ],
+    "description": "Cost efficient agreements and terms ensure the cost of these services scales with the benefits they provide. Select agreements and pricing that scale when they provide additional benefits to your organization.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_third_party.html",
+    "id": "COST07-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Select third-party agreements with cost-efficient terms",
+    "title_full": "COST07-BP03 Select third-party agreements with cost-efficient terms"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the best pricing model"
+    ],
+    "description": "Permanently running resources should utilize reserved capacity such as Savings Plans or Reserved Instances. Short-term capacity is configured to use Spot Instances, or Spot Fleet. On-Demand Instances are only used for short-term workloads that cannot be interrupted and do not run long enough for reserved capacity, between 25% to 75% of the period, depending on the resource type.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_implement_models.html",
+    "id": "COST07-BP04",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Implement pricing models for all components of this workload",
+    "title_full": "COST07-BP04 Implement pricing models for all components of this workload"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Select the best pricing model"
+    ],
+    "description": "Check billing and cost management tools and see recommended discounts with commitments and reservations to perform regular analysis at the management account level.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_pricing_model_master_analysis.html",
+    "id": "COST07-BP05",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Perform pricing model analysis at the management account level",
+    "title_full": "COST07-BP05 Perform pricing model analysis at the management account level"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Plan for data transfer"
+    ],
+    "description": "Gather organization requirements and perform data transfer modeling of the workload and each of its components. This identifies the lowest cost point for its current data transfer requirements.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_modeling.html",
+    "id": "COST08-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform data transfer modeling",
+    "title_full": "COST08-BP01 Perform data transfer modeling"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Plan for data transfer"
+    ],
+    "description": "All components are selected, and architecture is designed to reduce data transfer costs. This includes using components such as wide-area-network (WAN) optimization and Multi-Availability Zone (AZ) configurations.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_optimized_components.html",
+    "id": "COST08-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Select components to optimize data transfer cost",
+    "title_full": "COST08-BP02 Select components to optimize data transfer cost"
+  },
+  {
+    "area": [
+      "Cost effective resources",
+      "Plan for data transfer"
+    ],
+    "description": "Implement services to reduce data transfer. For example, use edge locations or content delivery networks (CDN) to deliver content to end users, build caching layers in front of your application servers or databases, and use dedicated network connections instead of VPN for connectivity to the cloud.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_data_transfer_implement_services.html",
+    "id": "COST08-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Implement services to reduce data transfer costs",
+    "title_full": "COST08-BP03 Implement services to reduce data transfer costs"
+  },
+  {
+    "area": [
+      "Manage demand and supply resources"
+    ],
+    "description": "Analyze the demand of the workload over time. Verify that the analysis covers seasonal trends and accurately represents operating conditions over the full workload lifetime. Analysis effort should reflect the potential benefit, for example, time spent is proportional to the workload cost.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_cost_analysis.html",
+    "id": "COST09-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Perform an analysis on the workload demand",
+    "title_full": "COST09-BP01 Perform an analysis on the workload demand"
+  },
+  {
+    "area": [
+      "Manage demand and supply resources"
+    ],
+    "description": "Buffering and throttling modify the demand on your workload, smoothing out any peaks. Implement throttling when your clients perform retries. Implement buffering to store the request and defer processing until a later time. Verify that your throttles and buffers are designed so clients receive a response in the required time.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_buffer_throttle.html",
+    "id": "COST09-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [
+      "SUS02-BP06",
+      "REL05-BP02"
+    ],
+    "risk": "MEDIUM",
+    "title": "Implement a buffer or throttle to manage demand",
+    "title_full": "COST09-BP02 Implement a buffer or throttle to manage demand"
+  },
+  {
+    "area": [
+      "Manage demand and supply resources"
+    ],
+    "description": "Resources are provisioned in a planned manner. This can be demand-based, such as through automatic scaling, or time-based, where demand is predictable and resources are provided based on time. These methods result in the least amount of over-provisioning or under-provisioning.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_manage_demand_resources_dynamic.html",
+    "id": "COST09-BP03",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Supply resources dynamically",
+    "title_full": "COST09-BP03 Supply resources dynamically"
+  },
+  {
+    "area": [
+      "Optimize over time",
+      "Define a review process and analyze your workload regularly"
+    ],
+    "description": "Develop a process that defines the criteria and process for workload review. The review effort should reflect potential benefit. For example, core workloads or workloads with a value of over ten percent of the bill are reviewed quarterly or every six months, while workloads below ten percent are reviewed annually.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_process.html",
+    "id": "COST10-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "HIGH",
+    "title": "Develop a workload review process",
+    "title_full": "COST10-BP01 Develop a workload review process"
+  },
+  {
+    "area": [
+      "Optimize over time",
+      "Define a review process and analyze your workload regularly"
+    ],
+    "description": "Existing workloads are regularly reviewed based on each defined process to find out if new services can be adopted, existing services can be replaced, or workloads can be re-architected.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_new_services_review_workload.html",
+    "id": "COST10-BP02",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Review and analyze this workload regularly",
+    "title_full": "COST10-BP02 Review and analyze this workload regularly"
+  },
+  {
+    "area": [
+      "Optimize over time",
+      "Automating operations"
+    ],
+    "description": "Evaluate the operational costs on the cloud, focusing on quantifying the time and effort savings in administrative tasks, deployments, mitigating the risk of human errors, compliance, and other operations through automation. Assess the time and associated costs required for operational efforts and implement automation for administrative tasks to minimize manual effort wherever feasible.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/cost_evaluate_cost_effort_automations_operations.html",
+    "id": "COST11-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "COST_OPTIMIZATION",
+    "relatedIds": [],
+    "risk": "LOW",
+    "title": "Perform automation for operations",
+    "title_full": "COST11-BP01 Perform automation for operations"
+  },
+  {
+    "area": [
+      "Region selection"
+    ],
+    "description": "Choose a Region for your workload based on both your business requirements and sustainability goals to optimize its KPIs, including performance, cost, and carbon footprint.",
+    "href": "https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_region_a2.html",
+    "id": "SUS01-BP01",
+    "lens": "FRAMEWORK",
+    "outcome": "",
+    "pillar": "SUSTAINABILITY",
+    "relatedIds": [],
+    "risk": "MEDIUM",
+    "title": "Choose Region based on both business requirements and sustainability goals",
+    "title_full": "SUS01-BP01 Choose Region based on both business requirements and sustainability goals"
+  }
+]

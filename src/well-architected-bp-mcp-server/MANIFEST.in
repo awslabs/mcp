@@ -1,0 +1,2 @@
+include README.md
+recursive-include src/well_architected_bp_mcp_server/data *.json
