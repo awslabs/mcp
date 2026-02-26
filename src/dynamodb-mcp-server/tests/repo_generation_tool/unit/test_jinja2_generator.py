@@ -1630,3 +1630,658 @@ class TestJinja2GeneratorEdgeCases:
         assert 'gsi_mappings' in result
         # Should detect numeric sort key in GSI
         assert result['gsi_mappings'][0]['sk_is_numeric'] is True
+
+
+class TestMultiAttributeKeyHelpers:
+    """Test helper methods for multi-attribute key processing."""
+
+    @pytest.fixture
+    def valid_schema_file(self, mock_schema_data, tmp_path):
+        """Create a temporary valid schema file."""
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(mock_schema_data))
+        return str(schema_file)
+
+    @pytest.fixture
+    def generator(self, valid_schema_file):
+        """Create a Jinja2Generator instance for testing."""
+        return Jinja2Generator(valid_schema_file, language='python')
+
+    @pytest.fixture
+    def sample_fields(self):
+        """Sample field definitions for testing."""
+        return [
+            {'name': 'status', 'type': 'string'},
+            {'name': 'created_at', 'type': 'string'},
+            {'name': 'score', 'type': 'integer'},
+            {'name': 'price', 'type': 'decimal'},
+        ]
+
+    # Tests for _extract_template_fields
+    def test_extract_template_fields_from_string(self, generator):
+        """Test extracting fields from a single template string."""
+        result = generator._extract_template_fields('{status}')
+        assert result == ['status']
+
+        result = generator._extract_template_fields('STATUS#{status}#DATE#{created_at}')
+        assert result == ['status', 'created_at']
+
+    def test_extract_template_fields_from_list(self, generator):
+        """Test extracting fields from a list of templates."""
+        result = generator._extract_template_fields(['{status}', '{created_at}'])
+        assert result == ['status', 'created_at']
+
+        result = generator._extract_template_fields(['STATUS#{status}', 'DATE#{created_at}'])
+        assert result == ['status', 'created_at']
+
+    def test_extract_template_fields_from_none(self, generator):
+        """Test extracting fields from None returns empty list."""
+        result = generator._extract_template_fields(None)
+        assert result == []
+
+    def test_extract_template_fields_from_empty_string(self, generator):
+        """Test extracting fields from empty string returns empty list."""
+        result = generator._extract_template_fields('')
+        assert result == []
+
+    def test_extract_template_fields_from_empty_list(self, generator):
+        """Test extracting fields from empty list returns empty list."""
+        result = generator._extract_template_fields([])
+        assert result == []
+
+    # Tests for _process_key_template
+    def test_process_key_template_single_attribute_string(self, generator, sample_fields):
+        """Test processing a single-attribute string template."""
+        result = generator._process_key_template('{status}', sample_fields, 'test_key')
+        assert result['params'] == ['status']
+        assert result['is_multi_attribute'] is False
+        assert result['templates'] is None
+        assert result['is_numeric'] is False
+
+    def test_process_key_template_single_attribute_numeric(self, generator, sample_fields):
+        """Test processing a single-attribute numeric template."""
+        result = generator._process_key_template('{score}', sample_fields, 'test_key')
+        assert result['params'] == ['score']
+        assert result['is_multi_attribute'] is False
+        assert result['templates'] is None
+        assert result['is_numeric'] is True
+
+    def test_process_key_template_multi_attribute_two_attrs(self, generator, sample_fields):
+        """Test processing a multi-attribute template with 2 attributes."""
+        result = generator._process_key_template(
+            ['{status}', '{created_at}'], sample_fields, 'sort_key'
+        )
+        assert result['params'] == ['status', 'created_at']
+        assert result['is_multi_attribute'] is True
+        assert result['templates'] == ['{status}', '{created_at}']
+        assert result['is_numeric'] is False
+
+    def test_process_key_template_multi_attribute_four_attrs(self, generator, sample_fields):
+        """Test processing a multi-attribute template with 4 attributes (max)."""
+        fields = sample_fields + [
+            {'name': 'attr3', 'type': 'string'},
+            {'name': 'attr4', 'type': 'string'},
+        ]
+        result = generator._process_key_template(
+            ['{status}', '{created_at}', '{attr3}', '{attr4}'], fields, 'sort_key'
+        )
+        assert result['params'] == ['status', 'created_at', 'attr3', 'attr4']
+        assert result['is_multi_attribute'] is True
+        assert len(result['templates']) == 4
+        assert result['is_numeric'] is False
+
+    def test_process_key_template_multi_attribute_empty_list_raises(
+        self, generator, sample_fields
+    ):
+        """Test that empty list raises ValueError."""
+        with pytest.raises(ValueError, match='must have 1-4 attributes, got 0'):
+            generator._process_key_template([], sample_fields, 'partition_key')
+
+    def test_process_key_template_multi_attribute_too_many_raises(self, generator, sample_fields):
+        """Test that >4 attributes raises ValueError."""
+        fields = sample_fields + [
+            {'name': 'a3', 'type': 'string'},
+            {'name': 'a4', 'type': 'string'},
+        ]
+        with pytest.raises(ValueError, match='must have 1-4 attributes, got 5'):
+            generator._process_key_template(
+                ['{status}', '{created_at}', '{a3}', '{a4}', '{score}'], fields, 'sort_key'
+            )
+
+    def test_process_key_template_none_returns_empty(self, generator, sample_fields):
+        """Test processing None template returns empty metadata."""
+        result = generator._process_key_template(None, sample_fields, 'test_key')
+        assert result['params'] == []
+        assert result['is_multi_attribute'] is False
+        assert result['templates'] is None
+        assert result['is_numeric'] is False
+
+    def test_process_key_template_empty_string_returns_empty(self, generator, sample_fields):
+        """Test processing empty string returns empty metadata."""
+        result = generator._process_key_template('', sample_fields, 'test_key')
+        assert result['params'] == []
+        assert result['is_multi_attribute'] is False
+        assert result['templates'] is None
+        assert result['is_numeric'] is False
+
+
+@pytest.mark.unit
+class TestMultiAttributeKeyPreprocessing:
+    """Test preprocessing of entity configs with multi-attribute keys."""
+
+    @pytest.fixture
+    def valid_schema_file(self, mock_schema_data, tmp_path):
+        """Create a temporary valid schema file."""
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(mock_schema_data))
+        return str(schema_file)
+
+    @pytest.fixture
+    def generator(self, valid_schema_file):
+        """Create a Jinja2Generator instance for testing."""
+        return Jinja2Generator(valid_schema_file, language='python')
+
+    def test_preprocess_entity_with_multi_attribute_sk(self, generator):
+        """Test preprocessing entity with multi-attribute sort key."""
+        entity_config = {
+            'entity_type': 'ORDER',
+            'pk_template': '{order_id}',
+            'fields': [
+                {'name': 'order_id', 'type': 'string'},
+                {'name': 'store_id', 'type': 'string'},
+                {'name': 'status', 'type': 'string'},
+                {'name': 'created_at', 'type': 'string'},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'StoreIndex',
+                    'pk_template': '{store_id}',
+                    'sk_template': ['{status}', '{created_at}'],
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        gsi = result['gsi_mappings'][0]
+
+        assert gsi['pk_is_multi_attribute'] is False
+        assert gsi['sk_is_multi_attribute'] is True
+        assert gsi['sk_params'] == ['status', 'created_at']
+        assert gsi['sk_templates'] == ['{status}', '{created_at}']
+        assert gsi['sk_is_numeric'] is False
+
+    def test_preprocess_entity_with_multi_attribute_pk(self, generator):
+        """Test preprocessing entity with multi-attribute partition key."""
+        entity_config = {
+            'entity_type': 'MATCH',
+            'pk_template': '{match_id}',
+            'fields': [
+                {'name': 'match_id', 'type': 'string'},
+                {'name': 'tournament_id', 'type': 'string'},
+                {'name': 'region', 'type': 'string'},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'TournamentIndex',
+                    'pk_template': ['{tournament_id}', '{region}'],
+                    'sk_template': None,
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        gsi = result['gsi_mappings'][0]
+
+        assert gsi['pk_is_multi_attribute'] is True
+        assert gsi['pk_params'] == ['tournament_id', 'region']
+        assert gsi['pk_templates'] == ['{tournament_id}', '{region}']
+        assert gsi['pk_is_numeric'] is False
+
+    def test_preprocess_entity_with_multi_attribute_pk_and_sk(self, generator):
+        """Test preprocessing entity with both multi-attribute PK and SK."""
+        entity_config = {
+            'entity_type': 'MATCH',
+            'pk_template': '{match_id}',
+            'fields': [
+                {'name': 'match_id', 'type': 'string'},
+                {'name': 'tournament_id', 'type': 'string'},
+                {'name': 'region', 'type': 'string'},
+                {'name': 'round', 'type': 'string'},
+                {'name': 'bracket', 'type': 'string'},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'TournamentRegionIndex',
+                    'pk_template': ['{tournament_id}', '{region}'],
+                    'sk_template': ['{round}', '{bracket}'],
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        gsi = result['gsi_mappings'][0]
+
+        assert gsi['pk_is_multi_attribute'] is True
+        assert gsi['pk_params'] == ['tournament_id', 'region']
+        assert gsi['sk_is_multi_attribute'] is True
+        assert gsi['sk_params'] == ['round', 'bracket']
+
+    def test_preprocess_entity_with_invalid_multi_attribute_pk_raises(self, generator):
+        """Test that >4 attributes in PK raises ValueError."""
+        entity_config = {
+            'entity_type': 'TEST',
+            'pk_template': '{id}',
+            'fields': [
+                {'name': 'id', 'type': 'string'},
+                {'name': 'a1', 'type': 'string'},
+                {'name': 'a2', 'type': 'string'},
+                {'name': 'a3', 'type': 'string'},
+                {'name': 'a4', 'type': 'string'},
+                {'name': 'a5', 'type': 'string'},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'TestIndex',
+                    'pk_template': ['{a1}', '{a2}', '{a3}', '{a4}', '{a5}'],
+                    'sk_template': None,
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        with pytest.raises(
+            ValueError, match="Invalid GSI 'TestIndex'.*must have 1-4 attributes, got 5"
+        ):
+            generator._preprocess_entity_config(entity_config)
+
+    def test_preprocess_entity_with_invalid_multi_attribute_sk_raises(self, generator):
+        """Test that >4 attributes in SK raises ValueError."""
+        entity_config = {
+            'entity_type': 'TEST',
+            'pk_template': '{id}',
+            'fields': [
+                {'name': 'id', 'type': 'string'},
+                {'name': 'pk', 'type': 'string'},
+                {'name': 's1', 'type': 'string'},
+                {'name': 's2', 'type': 'string'},
+                {'name': 's3', 'type': 'string'},
+                {'name': 's4', 'type': 'string'},
+                {'name': 's5', 'type': 'string'},
+            ],
+            'gsi_mappings': [
+                {
+                    'name': 'TestIndex',
+                    'pk_template': '{pk}',
+                    'sk_template': ['{s1}', '{s2}', '{s3}', '{s4}', '{s5}'],
+                }
+            ],
+            'access_patterns': [],
+        }
+
+        with pytest.raises(
+            ValueError, match="Invalid GSI 'TestIndex'.*must have 1-4 attributes, got 5"
+        ):
+            generator._preprocess_entity_config(entity_config)
+
+
+@pytest.mark.unit
+class TestMultiAttributeKeyCodeGeneration:
+    """Test code generation for multi-attribute keys."""
+
+    def test_generate_entity_with_multi_attribute_sk(self, tmp_path):
+        """Test entity generation with multi-attribute sort key."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Orders', 'partition_key': 'order_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'StoreIndex',
+                            'partition_key': 'store_id',
+                            'sort_key': ['status', 'created_at'],
+                            'projection': 'ALL',
+                        }
+                    ],
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': '{order_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'StoreIndex',
+                                    'pk_template': '{store_id}',
+                                    'sk_template': ['{status}', '{created_at}'],
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'store_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                                {'name': 'created_at', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        entity_config = schema['tables'][0]['entities']['Order']
+        result = generator.generate_entity('Order', entity_config)
+
+        # Check for tuple return type
+        assert (
+            'def build_gsi_sk_for_lookup_store_index(cls, status, created_at) -> tuple:' in result
+        )
+        # Check for tuple return statement
+        assert (
+            'return (f"{status}", f"{created_at}")' in result
+            or "return (f'{status}', f'{created_at}')" in result
+        )
+        # Check instance method
+        assert 'def build_gsi_sk_store_index(self) -> tuple:' in result
+        assert (
+            'return (f"{self.status}", f"{self.created_at}")' in result
+            or "return (f'{self.status}', f'{self.created_at}')" in result
+        )
+
+    def test_generate_entity_with_multi_attribute_pk(self, tmp_path):
+        """Test entity generation with multi-attribute partition key."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Matches', 'partition_key': 'match_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'TournamentIndex',
+                            'partition_key': ['tournament_id', 'region'],
+                            'projection': 'ALL',
+                        }
+                    ],
+                    'entities': {
+                        'Match': {
+                            'entity_type': 'MATCH',
+                            'pk_template': '{match_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'TournamentIndex',
+                                    'pk_template': ['{tournament_id}', '{region}'],
+                                    'sk_template': None,
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'match_id', 'type': 'string', 'required': True},
+                                {'name': 'tournament_id', 'type': 'string', 'required': True},
+                                {'name': 'region', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        entity_config = schema['tables'][0]['entities']['Match']
+        result = generator.generate_entity('Match', entity_config)
+
+        # Check for tuple return type on PK
+        assert (
+            'def build_gsi_pk_for_lookup_tournament_index(cls, tournament_id, region) -> tuple:'
+            in result
+        )
+        assert (
+            'return (f"{tournament_id}", f"{region}")' in result
+            or "return (f'{tournament_id}', f'{region}')" in result
+        )
+
+    def test_repository_with_multi_attribute_sk_range_query(self, tmp_path):
+        """Test repository with multi-attribute SK and range condition."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Orders', 'partition_key': 'order_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'StoreIndex',
+                            'partition_key': 'store_id',
+                            'sort_key': ['status', 'created_at'],
+                            'projection': 'ALL',
+                        }
+                    ],
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': '{order_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'StoreIndex',
+                                    'pk_template': '{store_id}',
+                                    'sk_template': ['{status}', '{created_at}'],
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'store_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                                {'name': 'created_at', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_store_orders_by_status',
+                                    'description': 'Get store orders filtered by status',
+                                    'operation': 'Query',
+                                    'index_name': 'StoreIndex',
+                                    'range_condition': 'begins_with',
+                                    'parameters': [
+                                        {'name': 'store_id', 'type': 'string'},
+                                        {'name': 'status', 'type': 'string'},
+                                        {'name': 'created_at', 'type': 'string'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+        result = generator.generate_repository(
+            'Order', entity_config, table_config, schema['tables'][0]
+        )
+
+        # Should generate multi-attribute query with range condition
+        assert "Key('store_id').eq(gsi_pk)" in result
+        assert "Key('status').eq(status)" in result
+        assert "Key('created_at').begins_with(created_at)" in result
+
+    def test_repository_with_multi_attribute_pk_query(self, tmp_path):
+        """Test repository with multi-attribute PK query."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Matches', 'partition_key': 'match_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'TournamentRegionIndex',
+                            'partition_key': ['tournament_id', 'region'],
+                            'sort_key': ['round', 'bracket'],
+                            'projection': 'ALL',
+                        }
+                    ],
+                    'entities': {
+                        'Match': {
+                            'entity_type': 'MATCH',
+                            'pk_template': '{match_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'TournamentRegionIndex',
+                                    'pk_template': ['{tournament_id}', '{region}'],
+                                    'sk_template': ['{round}', '{bracket}'],
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'match_id', 'type': 'string', 'required': True},
+                                {'name': 'tournament_id', 'type': 'string', 'required': True},
+                                {'name': 'region', 'type': 'string', 'required': True},
+                                {'name': 'round', 'type': 'string', 'required': True},
+                                {'name': 'bracket', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_tournament_matches',
+                                    'description': 'Get tournament matches',
+                                    'operation': 'Query',
+                                    'index_name': 'TournamentRegionIndex',
+                                    'parameters': [
+                                        {'name': 'tournament_id', 'type': 'string'},
+                                        {'name': 'region', 'type': 'string'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        entity_config = schema['tables'][0]['entities']['Match']
+        table_config = schema['tables'][0]['table_config']
+        result = generator.generate_repository(
+            'Match', entity_config, table_config, schema['tables'][0]
+        )
+
+        # Should generate multi-attribute PK query
+        assert 'gsi_pk_tuple = Match.build_gsi_pk_for_lookup_tournament_region_index' in result
+        assert "Key('tournament_id').eq(gsi_pk_tuple[0])" in result
+        assert "Key('region').eq(gsi_pk_tuple[1])" in result
+
+    def test_is_unsafe_include_projection_with_multi_attribute_templates(self, tmp_path):
+        """Test _is_unsafe_include_projection handles multi-attribute templates."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Orders', 'partition_key': 'order_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'StoreIndex',
+                            'partition_key': 'store_id',
+                            'sort_key': ['status', 'created_at'],
+                            'projection': 'INCLUDE',
+                            'included_attributes': ['driver_id'],
+                        }
+                    ],
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': '{order_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'StoreIndex',
+                                    'pk_template': '{store_id}',
+                                    'sk_template': ['{status}', '{created_at}'],
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'store_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                                {'name': 'created_at', 'type': 'string', 'required': True},
+                                {'name': 'driver_id', 'type': 'string', 'required': False},
+                                {'name': 'customer_address', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        gsi = schema['tables'][0]['gsi_list'][0]
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+
+        # customer_address is required but not projected (and not a key field)
+        # status and created_at are in multi-attribute SK template (always projected)
+        result = generator._is_unsafe_include_projection(gsi, entity_config, table_config)
+        assert result is True
+
+    def test_is_unsafe_include_projection_safe_with_multi_attribute_keys(self, tmp_path):
+        """Test _is_unsafe_include_projection returns False when all required fields are projected."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {'table_name': 'Orders', 'partition_key': 'order_id'},
+                    'gsi_list': [
+                        {
+                            'name': 'StoreIndex',
+                            'partition_key': 'store_id',
+                            'sort_key': ['status', 'created_at'],
+                            'projection': 'INCLUDE',
+                            'included_attributes': ['customer_address'],
+                        }
+                    ],
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': '{order_id}',
+                            'gsi_mappings': [
+                                {
+                                    'name': 'StoreIndex',
+                                    'pk_template': '{store_id}',
+                                    'sk_template': ['{status}', '{created_at}'],
+                                }
+                            ],
+                            'fields': [
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'store_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                                {'name': 'created_at', 'type': 'string', 'required': True},
+                                {'name': 'customer_address', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [],
+                        }
+                    },
+                }
+            ]
+        }
+
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        generator = Jinja2Generator(str(schema_file))
+
+        gsi = schema['tables'][0]['gsi_list'][0]
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+
+        # All required fields are either projected or in key templates
+        result = generator._is_unsafe_include_projection(gsi, entity_config, table_config)
+        assert result is False

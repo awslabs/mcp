@@ -6,6 +6,7 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.range_query_validator
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
     AccessPattern,
+    GSIDefinition,
 )
 
 
@@ -129,9 +130,11 @@ class TestValidateParameterCount(TestRangeQueryValidator):
 
         assert len(errors) == 1
         error = errors[0]
-        assert "Range condition 'between' requires exactly 3 parameters" in error.message
+        assert "Range condition 'between'" in error.message
         assert 'got 2' in error.message
-        assert 'Add 1 more parameters' in error.suggestion
+        assert (
+            'at least 3 parameters' in error.suggestion or 'Provide at least 3' in error.suggestion
+        )
 
     def test_begins_with_correct_count(self):
         """Test validation passes for 'begins_with' with 2 parameters."""
@@ -163,7 +166,8 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         errors = self.validator.validate_parameter_count(pattern)
 
         assert len(errors) == 1
-        assert "Range condition 'begins_with' requires exactly 2 parameters" in errors[0].message
+        assert "Range condition 'begins_with'" in errors[0].message
+        assert 'got 1' in errors[0].message
 
     def test_comparison_operators_parameter_count(self):
         """Test validation for comparison operators with correct and incorrect count."""
@@ -193,7 +197,8 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         )
         errors = self.validator.validate_parameter_count(pattern)
         assert len(errors) == 1
-        assert "Range condition '>=' requires exactly 2 parameters" in errors[0].message
+        assert "Range condition '>='" in errors[0].message
+        assert 'got 1' in errors[0].message
 
     def test_no_range_condition_parameter_count(self):
         """Test validation passes when no range condition is specified."""
@@ -227,8 +232,12 @@ class TestValidateParameterCount(TestRangeQueryValidator):
         assert len(errors) == 1
         assert 'Access patterns with range_condition must have parameters' in errors[0].message
 
-    def test_too_many_parameters(self):
-        """Test validation fails when too many parameters provided."""
+    def test_too_many_parameters_without_gsi(self):
+        """Test validation rejects extra parameters for main table range queries.
+
+        Without GSI context, main table queries use single-attribute keys,
+        so parameter count must be exact (PK + range params).
+        """
         pattern = AccessPattern(
             pattern_id=1,
             name='test_pattern',
@@ -241,13 +250,13 @@ class TestValidateParameterCount(TestRangeQueryValidator):
                 {'name': 'p3'},
             ],  # 4 parameters
             return_type='entity_list',
-            range_condition='begins_with',  # Only needs 2
+            range_condition='begins_with',  # Expects exactly 2 (1 PK + 1 range)
         )
 
+        # Without GSI context, enforce exact count for single-attribute keys
         errors = self.validator.validate_parameter_count(pattern)
-
         assert len(errors) == 1
-        assert 'Remove 2 parameters' in errors[0].suggestion
+        assert 'requires exactly 2 parameters' in errors[0].message
 
 
 @pytest.mark.unit
@@ -348,9 +357,9 @@ class TestValidateCompleteRangeQuery(TestRangeQueryValidator):
             name='test_pattern',
             description='Test pattern',
             operation='GetItem',  # Wrong operation
-            parameters=[{'name': 'pk'}],  # Wrong parameter count
+            parameters=[{'name': 'pk'}],  # Wrong parameter count (needs at least 3 for between)
             return_type='single_entity',
-            range_condition='between',  # Needs 3 parameters
+            range_condition='between',  # Needs at least 3 parameters
         )
 
         errors = self.validator.validate_complete_range_query(pattern)
@@ -358,7 +367,7 @@ class TestValidateCompleteRangeQuery(TestRangeQueryValidator):
         # Should catch both parameter count and operation errors
         assert len(errors) == 2
         error_messages = [error.message for error in errors]
-        assert any('requires exactly 3 parameters' in msg for msg in error_messages)
+        assert any('at least 3 parameters' in msg for msg in error_messages)
         assert any("Range conditions require 'Query' operation" in msg for msg in error_messages)
 
     def test_no_range_condition_returns_empty(self):
@@ -434,3 +443,175 @@ class TestRangeQueryValidatorRealisticScenarios(TestRangeQueryValidator):
         )
         errors = self.validator.validate_complete_range_query(pattern)
         assert errors == []
+
+
+@pytest.mark.unit
+class TestMultiAttributeSortKeyRangeQueries(TestRangeQueryValidator):
+    """Test range queries on multi-attribute sort keys with partial attribute usage."""
+
+    def test_multi_attribute_sk_range_on_second_attribute(self):
+        """Test range condition on second SK attribute (not using third).
+
+        GSI: category (PK), [subcategory, price, productId] (SK)
+        Query: category = X AND subcategory = Y AND price <= Z
+
+        This should be valid - you can stop at any point in left-to-right order.
+        """
+        gsi_def = GSIDefinition(
+            name='CategoryPriceIndex',
+            partition_key='category',
+            sort_key=['subcategory', 'price', 'productId'],
+            projection='ALL',
+        )
+
+        pattern = AccessPattern(
+            pattern_id=5,
+            name='query_by_price_under',
+            description='Products under price in category/subcategory',
+            operation='Query',
+            parameters=[
+                {'name': 'category', 'type': 'string'},
+                {'name': 'subcategory', 'type': 'string'},
+                {'name': 'max_price', 'type': 'decimal'},
+            ],
+            return_type='entity_list',
+            index_name='CategoryPriceIndex',
+            range_condition='<=',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
+        assert errors == [], f'Expected no errors but got: {errors}'
+
+    def test_multi_attribute_sk_range_on_first_attribute(self):
+        """Test range condition on first SK attribute (not using second or third).
+
+        GSI: category (PK), [subcategory, price, productId] (SK)
+        Query: category = X AND subcategory >= Y
+
+        This should be valid - range on first SK attribute.
+        """
+        gsi_def = GSIDefinition(
+            name='CategoryPriceIndex',
+            partition_key='category',
+            sort_key=['subcategory', 'price', 'productId'],
+            projection='ALL',
+        )
+
+        pattern = AccessPattern(
+            pattern_id=6,
+            name='query_by_subcategory_prefix',
+            description='Products with subcategory prefix',
+            operation='Query',
+            parameters=[
+                {'name': 'category', 'type': 'string'},
+                {'name': 'subcategory_prefix', 'type': 'string'},
+            ],
+            return_type='entity_list',
+            index_name='CategoryPriceIndex',
+            range_condition='begins_with',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
+        assert errors == [], f'Expected no errors but got: {errors}'
+
+    def test_multi_attribute_sk_range_on_last_attribute(self):
+        """Test range condition on last SK attribute (using all SK attributes).
+
+        GSI: category (PK), [subcategory, price, productId] (SK)
+        Query: category = X AND subcategory = Y AND price = Z AND productId >= W
+
+        This should be valid - all SK attributes used with range on last.
+        """
+        gsi_def = GSIDefinition(
+            name='CategoryPriceIndex',
+            partition_key='category',
+            sort_key=['subcategory', 'price', 'productId'],
+            projection='ALL',
+        )
+
+        pattern = AccessPattern(
+            pattern_id=7,
+            name='query_by_product_range',
+            description='Products with productId range',
+            operation='Query',
+            parameters=[
+                {'name': 'category', 'type': 'string'},
+                {'name': 'subcategory', 'type': 'string'},
+                {'name': 'price', 'type': 'decimal'},
+                {'name': 'min_product_id', 'type': 'string'},
+            ],
+            return_type='entity_list',
+            index_name='CategoryPriceIndex',
+            range_condition='>=',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
+        assert errors == [], f'Expected no errors but got: {errors}'
+
+    def test_multi_attribute_sk_too_many_params_fails(self):
+        """Test that too many parameters fails validation.
+
+        GSI: category (PK), [subcategory, price] (SK)
+        Query with 5 params should fail (max is 1 PK + 1 SK equality + 1 range = 3)
+        """
+        gsi_def = GSIDefinition(
+            name='CategoryPriceIndex',
+            partition_key='category',
+            sort_key=['subcategory', 'price'],
+            projection='ALL',
+        )
+
+        pattern = AccessPattern(
+            pattern_id=8,
+            name='invalid_query',
+            description='Too many parameters',
+            operation='Query',
+            parameters=[
+                {'name': 'p1', 'type': 'string'},
+                {'name': 'p2', 'type': 'string'},
+                {'name': 'p3', 'type': 'string'},
+                {'name': 'p4', 'type': 'string'},
+                {'name': 'p5', 'type': 'string'},
+            ],
+            return_type='entity_list',
+            index_name='CategoryPriceIndex',
+            range_condition='<=',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
+        assert len(errors) == 1
+        assert 'at most' in errors[0].message
+
+    def test_multi_attribute_pk_with_multi_attribute_sk(self):
+        """Test multi-attribute PK with multi-attribute SK.
+
+        GSI: [tournament, region] (PK), [round, bracket, matchId] (SK)
+        Query: tournament = X AND region = Y AND round = Z AND bracket <= W
+
+        This should be valid.
+        """
+        gsi_def = GSIDefinition(
+            name='TournamentRegionIndex',
+            partition_key=['tournament', 'region'],
+            sort_key=['round', 'bracket', 'matchId'],
+            projection='ALL',
+        )
+
+        pattern = AccessPattern(
+            pattern_id=9,
+            name='query_tournament_matches',
+            description='Tournament matches by bracket',
+            operation='Query',
+            parameters=[
+                {'name': 'tournament', 'type': 'string'},
+                {'name': 'region', 'type': 'string'},
+                {'name': 'round', 'type': 'string'},
+                {'name': 'bracket_prefix', 'type': 'string'},
+            ],
+            return_type='entity_list',
+            index_name='TournamentRegionIndex',
+            range_condition='begins_with',
+        )
+
+        errors = self.validator.validate_parameter_count(pattern, 'test_path', gsi_def)
+        assert errors == [], f'Expected no errors but got: {errors}'

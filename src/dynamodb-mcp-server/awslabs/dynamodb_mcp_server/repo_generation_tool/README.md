@@ -249,6 +249,83 @@ GSIs can have sort keys for sorted queries, or be partition-key-only for simple 
 }
 ```
 
+### Multi-Attribute Keys Example (Advanced GSI Pattern)
+
+Multi-attribute keys allow GSIs to use up to 4 attributes per key, enabling hierarchical queries without synthetic key concatenation:
+
+```json
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "Orders",
+        "partition_key": "order_id"
+      },
+      "gsi_list": [
+        {
+          "name": "StoreActiveDeliveries",
+          "partition_key": "store_id",
+          "sort_key": ["status", "created_at"],
+          "projection": "INCLUDE",
+          "included_attributes": ["driver_id"]
+        }
+      ],
+      "entities": {
+        "Order": {
+          "entity_type": "ORDER",
+          "pk_template": "{order_id}",
+          "gsi_mappings": [
+            {
+              "name": "StoreActiveDeliveries",
+              "pk_template": "{store_id}",
+              "sk_template": ["{status}", "{created_at}"]
+            }
+          ],
+          "fields": [
+            { "name": "order_id", "type": "string", "required": true },
+            { "name": "store_id", "type": "string", "required": true },
+            { "name": "status", "type": "string", "required": true },
+            { "name": "created_at", "type": "string", "required": true },
+            { "name": "driver_id", "type": "string", "required": true }
+          ],
+          "access_patterns": [
+            {
+              "pattern_id": 1,
+              "name": "get_store_deliveries",
+              "description": "Get all deliveries for a store",
+              "operation": "Query",
+              "index_name": "StoreActiveDeliveries",
+              "parameters": [{ "name": "store_id", "type": "string" }],
+              "return_type": "entity_list"
+            },
+            {
+              "pattern_id": 2,
+              "name": "get_store_in_transit_deliveries",
+              "description": "Get in-transit deliveries filtered by status",
+              "operation": "Query",
+              "index_name": "StoreActiveDeliveries",
+              "range_condition": "begins_with",
+              "parameters": [
+                { "name": "store_id", "type": "string" },
+                { "name": "status", "type": "string" },
+                { "name": "created_at", "type": "string" }
+              ],
+              "return_type": "entity_list"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+**Multi-Attribute Key Rules:**
+- Partition key: ALL attributes must be specified with equality conditions
+- Sort key: Query left-to-right without skipping attributes
+- Range conditions: Only on the LAST sort key attribute in your query
+- Generated key builders return tuples for multi-attribute keys
+
 ### Consistent Read Example
 
 Control read consistency for your access patterns. Strongly consistent reads ensure you get the most up-to-date data, while eventually consistent reads (default) offer better performance and lower cost:
@@ -336,12 +413,18 @@ Control read consistency for your access patterns. Strongly consistent reads ens
 - **Cross-Table Transaction Support**: Atomic operations across multiple tables using TransactWriteItems and TransactGetItems ([details](docs/TRANSACTIONS.md))
 - **Flexible Key Design**: Support for both composite keys (PK+SK) and partition-key-only tables
 - **Template-Based Keys**: Flexible PK/SK generation with parameter substitution
+- **Multi-Attribute Keys**: GSIs can use up to 4 attributes per partition key and 4 per sort key
+  - Follows AWS DynamoDB multi-attribute key specifications
+  - Automatic tuple-based key builders for multi-attribute keys
+  - Correct KeyConditionExpression generation with left-to-right SK queries
+  - Validation for 1-4 attribute limit per key
 - **Numeric Key Support**: Full support for `integer` and `decimal` partition/sort keys
   - Numeric keys return raw values (not f-strings) for correct DynamoDB sorting
   - Repository methods use correct parameter types (`int`, `Decimal`)
   - Works on both main table and GSI keys
 - **Full GSI Support**: Global Secondary Indexes with automatic key builders and query helpers ([details](docs/GSI_SUPPORT.md))
   - Supports GSIs with or without sort keys
+  - Supports single-attribute and multi-attribute keys
   - Automatic generation of appropriate key builder methods
 - **Consistent Read Support**: Optional `consistent_read` parameter for read operations
   - Control read consistency at the access pattern level
@@ -353,6 +436,7 @@ Control read consistency for your access patterns. Strongly consistent reads ens
 - **Range Query Support**: Full support for range conditions on both main table and GSI sort keys ([details](docs/RANGE_QUERIES.md))
   - Operators: `begins_with`, `between`, `>=`, `<=`, `>`, `<`
   - Works on main table sort keys and GSI sort keys
+  - Supports multi-attribute sort keys with range conditions on last attribute
   - Automatic validation and helpful error messages
 - **Type Safety**: Language-specific type mappings and validation
 
