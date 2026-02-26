@@ -15,9 +15,11 @@
 """Kubernetes client cache for the EKS MCP Server."""
 
 import base64
+import os
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from cachetools import TTLCache
+from loguru import logger
 
 
 # Presigned url timeout in seconds
@@ -27,6 +29,14 @@ K8S_AWS_ID_HEADER = 'x-k8s-aws-id'
 
 # 14 minutes in seconds (buffer before the 15-minute token expiration)
 TOKEN_TTL = 14 * 60
+
+# Auth mode constants
+AUTH_MODE_IAM = 'iam'
+AUTH_MODE_KUBECONFIG = 'kubeconfig'
+DEFAULT_AUTH_MODE = AUTH_MODE_IAM
+
+# 30 minutes for kubeconfig mode - longer because kubernetes library handles token refresh
+KUBECONFIG_TTL = 30 * 60
 
 
 class K8sClientCache:
@@ -52,13 +62,31 @@ class K8sClientCache:
         if hasattr(self, '_initialized') and self._initialized:
             return
 
+        # Determine auth mode from environment
+        self._auth_mode = os.environ.get('EKS_AUTH_MODE', DEFAULT_AUTH_MODE).lower()
+        if self._auth_mode not in (AUTH_MODE_IAM, AUTH_MODE_KUBECONFIG):
+            logger.warning(
+                f'Invalid EKS_AUTH_MODE: {self._auth_mode}. '
+                f'Falling back to {DEFAULT_AUTH_MODE}.'
+            )
+            self._auth_mode = DEFAULT_AUTH_MODE
+
+        # Choose TTL based on auth mode
+        ttl = KUBECONFIG_TTL if self._auth_mode == AUTH_MODE_KUBECONFIG else TOKEN_TTL
+
         # Client cache with TTL to handle token expiration
-        self._client_cache = TTLCache(maxsize=100, ttl=TOKEN_TTL)
+        self._client_cache = TTLCache(maxsize=100, ttl=ttl)
 
         # Flag to track if STS event handlers have been registered
         self._sts_event_handlers_registered = False
 
+        logger.info(f'K8sClientCache initialized with auth mode: {self._auth_mode}')
         self._initialized = True
+
+    @property
+    def auth_mode(self) -> str:
+        """Return the current authentication mode."""
+        return self._auth_mode
 
     def _get_sts_client(self):
         """Get the STS client with event handlers registered."""
@@ -124,13 +152,47 @@ class K8sClientCache:
 
         return endpoint, token, ca_data
 
+    def _get_kubeconfig_client(self, context_name: str) -> K8sApis:
+        """Get a K8sApis instance using kubeconfig authentication.
+
+        Uses kubernetes.config.new_client_from_config() which handles
+        all auth methods: OIDC exec plugins, certificates, tokens, etc.
+
+        Args:
+            context_name: The kubeconfig context name to use.
+
+        Returns:
+            K8sApis instance configured from kubeconfig.
+
+        Raises:
+            Exception: If there's an error loading the kubeconfig or creating the client.
+        """
+        from kubernetes import config
+
+        kubeconfig_path = os.environ.get('KUBECONFIG', None)
+
+        logger.debug(
+            f'Loading kubeconfig for context: {context_name}'
+            + (f' from {kubeconfig_path}' if kubeconfig_path else ' from default location')
+        )
+
+        api_client = config.new_client_from_config(
+            config_file=kubeconfig_path,
+            context=context_name,
+        )
+
+        return K8sApis.from_api_client(api_client)
+
     def get_client(self, cluster_name: str) -> K8sApis:
         """Get a Kubernetes client for the specified cluster.
 
         This is the only public method to access K8s API clients.
 
+        In IAM mode, cluster_name is the EKS cluster name.
+        In kubeconfig mode, cluster_name is interpreted as a kubeconfig context name.
+
         Args:
-            cluster_name: Name of the EKS cluster
+            cluster_name: Name of the EKS cluster (IAM mode) or kubeconfig context name (kubeconfig mode)
 
         Returns:
             K8sApis instance
@@ -141,14 +203,17 @@ class K8sClientCache:
         """
         if cluster_name not in self._client_cache:
             try:
-                # Create a new client
-                endpoint, token, ca_data = self._get_cluster_credentials(cluster_name)
+                if self._auth_mode == AUTH_MODE_KUBECONFIG:
+                    self._client_cache[cluster_name] = self._get_kubeconfig_client(cluster_name)
+                else:
+                    # IAM mode (existing behavior)
+                    endpoint, token, ca_data = self._get_cluster_credentials(cluster_name)
 
-                # Validate credentials
-                if not endpoint or not token or endpoint is None or token is None:
-                    raise ValueError('Invalid cluster credentials')
+                    # Validate credentials
+                    if not endpoint or not token or endpoint is None or token is None:
+                        raise ValueError('Invalid cluster credentials')
 
-                self._client_cache[cluster_name] = K8sApis(endpoint, token, ca_data)
+                    self._client_cache[cluster_name] = K8sApis(endpoint, token, ca_data)
             except ValueError:
                 # Re-raise ValueError for invalid credentials
                 raise

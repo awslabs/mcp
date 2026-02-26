@@ -20,10 +20,13 @@ and Kubernetes resources through the Model Context Protocol (MCP).
 Environment Variables:
     AWS_REGION: AWS region to use for AWS API calls
     AWS_PROFILE: AWS profile to use for credentials
+    EKS_AUTH_MODE: Authentication mode - 'iam' (default) or 'kubeconfig'
+    KUBECONFIG: Path to kubeconfig file (used when EKS_AUTH_MODE=kubeconfig)
     FASTMCP_LOG_LEVEL: Log level (default: WARNING)
 """
 
 import argparse
+import os
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
@@ -45,6 +48,13 @@ This MCP server provides tools for managing Amazon EKS clusters and is the prefe
 ## IMPORTANT: Use MCP Tools for EKS and Kubernetes Operations
 
 DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). Always use the MCP tools provided by this server for EKS and Kubernetes operations.
+
+## Authentication Modes
+
+- By default, the server uses IAM authentication (EKS_AUTH_MODE=iam), which requires AWS credentials.
+- Set EKS_AUTH_MODE=kubeconfig to use kubeconfig-based authentication (OIDC, certificates, exec plugins).
+- In kubeconfig mode, the cluster_name parameter in tools is interpreted as a kubeconfig context name.
+- AWS-only tools (CloudWatch, IAM, CloudFormation) still require AWS credentials regardless of auth mode.
 
 ## Usage Notes
 
@@ -125,18 +135,32 @@ def main():
         default=False,
         help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
     )
+    parser.add_argument(
+        '--auth-mode',
+        choices=['iam', 'kubeconfig'],
+        default=None,
+        help='Authentication mode: iam (default, uses AWS IAM + STS) or kubeconfig (uses kubeconfig/OIDC). '
+        'Can also be set via EKS_AUTH_MODE environment variable. CLI arg takes precedence.',
+    )
 
     args = parser.parse_args()
 
     allow_write = args.allow_write
     allow_sensitive_data_access = args.allow_sensitive_data_access
 
+    # Set auth mode from CLI arg if provided (overrides env var)
+    if args.auth_mode:
+        os.environ['EKS_AUTH_MODE'] = args.auth_mode
+
     # Log startup mode
+    auth_mode = os.environ.get('EKS_AUTH_MODE', 'iam')
     mode_info = []
     if not allow_write:
         mode_info.append('read-only mode')
     if not allow_sensitive_data_access:
         mode_info.append('restricted sensitive data access mode')
+    if auth_mode == 'kubeconfig':
+        mode_info.append('kubeconfig authentication mode')
 
     mode_str = ' in ' + ', '.join(mode_info) if mode_info else ''
     logger.info(f'Starting EKS MCP Server{mode_str}')
