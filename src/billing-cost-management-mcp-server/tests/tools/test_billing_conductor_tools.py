@@ -171,7 +171,7 @@ class TestListBillingGroupsTool:
     async def test_list_billing_groups_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_groups
+        real_fn = bc_mod.list_billing_groups  # type: ignore
 
         with patch.object(bc_mod, '_list_billing_groups', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -192,7 +192,7 @@ class TestListBillingGroupsTool:
     async def test_list_billing_groups_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_groups
+        real_fn = bc_mod.list_billing_groups  # type: ignore
 
         with patch.object(bc_mod, '_list_billing_groups', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -219,7 +219,7 @@ class TestListBillingGroupsTool:
     async def test_list_billing_groups_handles_operation_error(self, mock_ctx):
         """Test that errors from the operation are returned properly."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_groups
+        real_fn = bc_mod.list_billing_groups  # type: ignore
 
         with patch.object(bc_mod, '_list_billing_groups', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -235,7 +235,7 @@ class TestListBillingGroupsTool:
     async def test_list_billing_groups_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_groups
+        real_fn = bc_mod.list_billing_groups  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_billing_groups', new_callable=AsyncMock) as mock_op,
@@ -263,7 +263,7 @@ class TestListBillingGroupCostReportsTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_group_cost_reports
+        real_fn = bc_mod.list_billing_group_cost_reports  # type: ignore
 
         with patch.object(
             bc_mod, '_list_billing_group_cost_reports', new_callable=AsyncMock
@@ -285,7 +285,7 @@ class TestListBillingGroupCostReportsTool:
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_group_cost_reports
+        real_fn = bc_mod.list_billing_group_cost_reports  # type: ignore
 
         with patch.object(
             bc_mod, '_list_billing_group_cost_reports', new_callable=AsyncMock
@@ -306,7 +306,7 @@ class TestListBillingGroupCostReportsTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_billing_group_cost_reports
+        real_fn = bc_mod.list_billing_group_cost_reports  # type: ignore
 
         with (
             patch.object(
@@ -333,7 +333,7 @@ class TestGetBillingGroupCostReportTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.get_billing_group_cost_report
+        real_fn = bc_mod.get_billing_group_cost_report  # type: ignore
 
         with patch.object(
             bc_mod, '_get_billing_group_cost_report', new_callable=AsyncMock
@@ -355,7 +355,7 @@ class TestGetBillingGroupCostReportTool:
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.get_billing_group_cost_report
+        real_fn = bc_mod.get_billing_group_cost_report  # type: ignore
 
         with patch.object(
             bc_mod, '_get_billing_group_cost_report', new_callable=AsyncMock
@@ -380,7 +380,7 @@ class TestGetBillingGroupCostReportTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.get_billing_group_cost_report
+        real_fn = bc_mod.get_billing_group_cost_report  # type: ignore
 
         with (
             patch.object(
@@ -407,7 +407,7 @@ class TestListPricingRulesTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_rules
+        real_fn = bc_mod.list_pricing_rules  # type: ignore
 
         with patch.object(bc_mod, '_list_pricing_rules', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -423,7 +423,7 @@ class TestListPricingRulesTool:
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_rules
+        real_fn = bc_mod.list_pricing_rules  # type: ignore
 
         with patch.object(bc_mod, '_list_pricing_rules', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
@@ -437,7 +437,7 @@ class TestListPricingRulesTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_rules
+        real_fn = bc_mod.list_pricing_rules  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_pricing_rules', new_callable=AsyncMock) as mock_op,
@@ -462,7 +462,7 @@ class TestListPricingPlansTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_plans
+        real_fn = bc_mod.list_pricing_plans  # type: ignore
 
         with patch.object(bc_mod, '_list_pricing_plans', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -478,7 +478,7 @@ class TestListPricingPlansTool:
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_plans
+        real_fn = bc_mod.list_pricing_plans  # type: ignore
 
         with patch.object(bc_mod, '_list_pricing_plans', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
@@ -492,7 +492,7 @@ class TestListPricingPlansTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_plans
+        real_fn = bc_mod.list_pricing_plans  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_pricing_plans', new_callable=AsyncMock) as mock_op,
@@ -517,7 +517,7 @@ class TestListPricingRulesForPlanTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_rules_associated_to_pricing_plan
+        real_fn = bc_mod.list_pricing_rules_associated_to_pricing_plan  # type: ignore
 
         with patch.object(bc_mod, '_list_rules_for_plan', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -533,7 +533,7 @@ class TestListPricingRulesForPlanTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_rules_associated_to_pricing_plan
+        real_fn = bc_mod.list_pricing_rules_associated_to_pricing_plan  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_rules_for_plan', new_callable=AsyncMock) as mock_op,
@@ -558,7 +558,7 @@ class TestListPricingPlansForRuleTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_plans_associated_with_pricing_rule
+        real_fn = bc_mod.list_pricing_plans_associated_with_pricing_rule  # type: ignore
 
         with patch.object(bc_mod, '_list_plans_for_rule', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -574,7 +574,7 @@ class TestListPricingPlansForRuleTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_pricing_plans_associated_with_pricing_rule
+        real_fn = bc_mod.list_pricing_plans_associated_with_pricing_rule  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_plans_for_rule', new_callable=AsyncMock) as mock_op,
@@ -599,7 +599,7 @@ class TestListCustomLineItemsTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_custom_line_items
+        real_fn = bc_mod.list_custom_line_items  # type: ignore
 
         with patch.object(bc_mod, '_list_custom_line_items', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -615,7 +615,7 @@ class TestListCustomLineItemsTool:
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_custom_line_items
+        real_fn = bc_mod.list_custom_line_items  # type: ignore
 
         with patch.object(bc_mod, '_list_custom_line_items', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
@@ -629,7 +629,7 @@ class TestListCustomLineItemsTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_custom_line_items
+        real_fn = bc_mod.list_custom_line_items  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_custom_line_items', new_callable=AsyncMock) as mock_op,
@@ -654,7 +654,7 @@ class TestListCustomLineItemVersionsTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_custom_line_item_versions
+        real_fn = bc_mod.list_custom_line_item_versions  # type: ignore
 
         with patch.object(
             bc_mod, '_list_custom_line_item_versions', new_callable=AsyncMock
@@ -672,7 +672,7 @@ class TestListCustomLineItemVersionsTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_custom_line_item_versions
+        real_fn = bc_mod.list_custom_line_item_versions  # type: ignore
 
         with (
             patch.object(
@@ -699,7 +699,7 @@ class TestListResourcesAssociatedToCustomLineItemTool:
     async def test_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_resources_associated_to_custom_line_item
+        real_fn = bc_mod.list_resources_associated_to_custom_line_item  # type: ignore
 
         with patch.object(
             bc_mod, '_list_resources_associated_to_cli', new_callable=AsyncMock
@@ -719,7 +719,7 @@ class TestListResourcesAssociatedToCustomLineItemTool:
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_resources_associated_to_custom_line_item
+        real_fn = bc_mod.list_resources_associated_to_custom_line_item  # type: ignore
 
         with (
             patch.object(
@@ -746,7 +746,7 @@ class TestListAccountAssociationsTool:
     async def test_list_account_associations_delegates_to_operation(self, mock_ctx):
         """Test that the tool delegates to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_account_associations
+        real_fn = bc_mod.list_account_associations  # type: ignore
 
         with patch.object(bc_mod, '_list_account_associations', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -769,7 +769,7 @@ class TestListAccountAssociationsTool:
     async def test_list_account_associations_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through to the operation function."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_account_associations
+        real_fn = bc_mod.list_account_associations  # type: ignore
 
         with patch.object(bc_mod, '_list_account_associations', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {
@@ -796,7 +796,7 @@ class TestListAccountAssociationsTool:
     async def test_list_account_associations_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
         bc_mod = _reload_bc_with_identity_decorator()
-        real_fn = bc_mod.list_account_associations
+        real_fn = bc_mod.list_account_associations  # type: ignore
 
         with (
             patch.object(bc_mod, '_list_account_associations', new_callable=AsyncMock) as mock_op,
