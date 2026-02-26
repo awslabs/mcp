@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v0.0.27
+  - **Run Group Management Tools**: Added four new MCP tools for managing HealthOmics Run Groups
+    - **CreateAHORunGroup**: Create run groups with configurable resource limits (CPUs, GPUs, duration, concurrent runs)
+    - **GetAHORunGroup**: Retrieve detailed run group configuration and metadata
+    - **ListAHORunGroups**: List and filter run groups with pagination support
+    - **UpdateAHORunGroup**: Update run group resource limits and configuration
+    - Added optional `run_group_id` parameter to **StartAHORun** for associating runs with a run group
+    - Added optional `run_group_id` parameter to **ListAHORuns** for filtering runs by run group
+
 - v0.0.25
   - **Agent Identification**: Added support for an `AGENT` environment variable that appends `agent/<value>` to the User-Agent string on all boto3 API calls, enabling traceability and attribution of requests to specific AI agents via CloudTrail and AWS service logs
     - New `AGENT_ENV` constant in `consts.py`

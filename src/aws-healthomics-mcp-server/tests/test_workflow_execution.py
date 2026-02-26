@@ -310,6 +310,7 @@ async def test_list_runs_success():
             status=None,
             created_after=None,
             created_before=None,
+            run_group_id=None,
         )
 
     # Verify client was called correctly
@@ -360,6 +361,7 @@ async def test_list_runs_with_filters():
             status='COMPLETED',
             created_after=None,
             created_before=None,
+            run_group_id=None,
         )
 
     # Verify client was called with status filter only (no date filters)
@@ -615,6 +617,7 @@ async def test_list_runs_default_parameters():
             status=None,
             created_after=None,
             created_before=None,
+            run_group_id=None,
         )
 
     # Verify client was called with default parameters only
@@ -673,6 +676,7 @@ async def test_list_runs_with_date_filters():
             status=None,
             created_after='2023-06-10T00:00:00Z',
             created_before=None,
+            run_group_id=None,
         )
 
     # Should return runs created after 2023-06-10 (run-2 and run-3)
@@ -1032,6 +1036,7 @@ async def test_start_run_success():
             storage_capacity=None,
             cache_id=None,
             cache_behavior=None,
+            run_group_id=None,
         )
 
     # Verify client was called correctly
@@ -1049,6 +1054,7 @@ async def test_start_run_success():
     assert result['status'] == 'PENDING'
     assert result['name'] == 'test-run'
     assert result['workflowId'] == 'wfl-12345'
+    assert result['runGroupId'] is None
 
 
 @pytest.mark.asyncio
@@ -1084,6 +1090,7 @@ async def test_start_run_with_static_storage():
             storage_capacity=1000,
             cache_id=None,
             cache_behavior=None,
+            run_group_id=None,
         )
 
     # Verify client was called with static storage parameters

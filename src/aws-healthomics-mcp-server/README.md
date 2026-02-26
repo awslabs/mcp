@@ -69,6 +69,13 @@ This MCP server provides tools for:
 
 1. **SearchGenomicsFiles** - Intelligent search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with pattern matching, file association detection, and relevance scoring
 
+### Run Group Management Tools
+
+1. **CreateAHORunGroup** - Create a new run group with optional resource limits (maxCpus, maxGpus, maxDuration, maxRuns) and tags
+2. **GetAHORunGroup** - Retrieve detailed information about a specific run group
+3. **ListAHORunGroups** - List available run groups with optional name filtering and pagination
+4. **UpdateAHORunGroup** - Update an existing run group's name or resource limits
+
 ### Region Management Tools
 
 1. **GetAHOSupportedRegions** - List AWS regions where HealthOmics is available
@@ -458,6 +465,10 @@ The following IAM permissions are required:
                 "omics:GetRun",
                 "omics:ListRunTasks",
                 "omics:GetRunTask",
+                "omics:CreateRunGroup",
+                "omics:GetRunGroup",
+                "omics:ListRunGroups",
+                "omics:UpdateRunGroup",
                 "omics:ListSequenceStores",
                 "omics:ListReadSets",
                 "omics:GetReadSetMetadata",
