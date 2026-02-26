@@ -556,3 +556,86 @@ class TestASTDangerousFunctions:
         results = check_dangerous_functions(code)
         funcs = [r['function'] for r in results]
         assert 'compile' in funcs
+
+
+class TestVariableAliasingBypass:
+    """Tests documenting variable aliasing bypass vectors.
+
+    These tests verify that the scanner does NOT catch aliased calls
+    (a known limitation of static AST analysis). The primary defense
+    against these vectors is removing dangerous modules from the
+    execution namespace, not scanner detection.
+    """
+
+    def test_scanner_misses_module_alias_os_system(self):
+        """Scanner does not catch os.system via module alias.
+
+        The fix is removing os from the namespace, not scanner detection.
+        """
+        code = 'x = os\nx.system("echo test")'
+        results = check_dangerous_functions(code)
+        # Scanner sees x.system, not os.system — this is expected behavior.
+        # The defense is that os is not in the execution namespace.
+        assert not any(r['function'] == 'os.system' for r in results)
+
+    def test_scanner_misses_module_alias_os_popen(self):
+        """Scanner does not catch os.popen via module alias."""
+        code = 'x = os\nx.popen("echo test")'
+        results = check_dangerous_functions(code)
+        assert not any(r['function'] == 'os.popen' for r in results)
+
+    def test_scanner_misses_function_extraction(self):
+        """Scanner does not catch extracted function references."""
+        code = 'f = os.system\nf("echo test")'
+        results = check_dangerous_functions(code)
+        # f("echo test") is Name(id='f'), not in dangerous_builtins
+        assert not any(r['function'] == 'os.system' for r in results)
+
+    def test_scanner_misses_builtin_alias_exec(self):
+        """Scanner does not catch aliased exec."""
+        code = 'e = exec\ne("print(1)")'
+        results = check_dangerous_functions(code)
+        # e is Name(id='e'), not 'exec'
+        funcs = [r['function'] for r in results]
+        assert 'exec' not in funcs
+
+    def test_scanner_misses_builtin_alias_eval(self):
+        """Scanner does not catch aliased eval."""
+        code = 'v = eval\nv("2+2")'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'eval' not in funcs
+
+
+class TestNamespaceSecurityIntegration:
+    """Integration tests for namespace security.
+
+    Verifies that dangerous modules are NOT in the execution namespace,
+    preventing aliasing attacks at runtime.
+    """
+
+    @pytest.mark.asyncio
+    async def test_os_alias_bypasses_scanner(self):
+        """Verify the scanner does not catch os.system via variable alias.
+
+        This documents the known scanner limitation. The actual defense is
+        that os is not in the execution namespace (tested in test_diagrams.py
+        TestNamespaceRCEPrevention).
+        """
+        code = 'x = os\nx.system("echo test")'
+        result = await scan_python_code(code)
+        # The aliased call bypasses the scanner — this is expected.
+        # The runtime NameError (os not in namespace) is the real defense.
+        assert result.has_errors is False
+
+    def test_os_system_direct_still_caught(self):
+        """Verify that direct os.system calls are still caught by scanner."""
+        code = 'os.system("echo test")'
+        results = check_dangerous_functions(code)
+        assert any(r['function'] == 'os.system' for r in results)
+
+    def test_os_popen_direct_still_caught(self):
+        """Verify that direct os.popen calls are still caught by scanner."""
+        code = 'os.popen("echo test")'
+        results = check_dangerous_functions(code)
+        assert any(r['function'] == 'os.popen' for r in results)

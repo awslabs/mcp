@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import signal
+import tempfile
 import threading
 import uuid
 from awslabs.aws_diagram_mcp_server.models import (
@@ -31,9 +32,142 @@ from awslabs.aws_diagram_mcp_server.models import (
 )
 from awslabs.aws_diagram_mcp_server.scanner import scan_python_code
 from typing import Optional
+from urllib.parse import urlparse
+from urllib.request import urlretrieve as _real_urlretrieve
 
 
 logger = logging.getLogger(__name__)
+
+# Allowed image extensions for icon downloads via urlretrieve.
+_ALLOWED_ICON_EXTENSIONS = frozenset(
+    {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.bmp', '.webp'}
+)
+
+
+def _safe_urlretrieve(url: str, filename: str = '') -> tuple:
+    """Download an icon file for use with Custom diagram nodes.
+
+    Validates URL scheme and filename to restrict downloads to HTTP(S) image
+    files and writes into an isolated temporary directory to reduce the risk of
+    arbitrary file writes. This helper does not by itself prevent SSRF; callers
+    must ensure URLs are trusted.
+
+    Args:
+        url: HTTP/HTTPS URL to download from.
+        filename: Desired filename (basename only, must be an image extension).
+
+    Returns:
+        Tuple of (local_path, headers) matching urllib.request.urlretrieve API.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f'Only http/https URLs are allowed, got: {parsed.scheme!r}')
+
+    # Use URL basename as filename if not provided
+    if not filename:
+        filename = os.path.basename(parsed.path) or 'icon.png'
+
+    # Sanitize filename: strip path components to prevent traversal
+    safe_name = os.path.basename(filename)
+    if not safe_name:
+        raise ValueError('Filename cannot be empty')
+
+    _, ext = os.path.splitext(safe_name)
+    if ext.lower() not in _ALLOWED_ICON_EXTENSIONS:
+        raise ValueError(
+            f'Only image files are allowed '
+            f'({", ".join(sorted(_ALLOWED_ICON_EXTENSIONS))}), got: {ext!r}'
+        )
+
+    # Download to a per-invocation unique temp directory to avoid symlink attacks
+    download_dir = tempfile.mkdtemp(prefix='diagram-icons-')
+    download_path = os.path.join(download_dir, safe_name)
+
+    _, headers = _real_urlretrieve(url, download_path)  # nosec B310 - scheme validated above
+    return download_path, headers
+
+
+# Restricted builtins for user code execution. Excludes dangerous functions
+# (__import__, exec, eval, compile, open, getattr, setattr, delattr, globals,
+# locals, vars, breakpoint) to provide defense-in-depth against scanner bypasses.
+_SAFE_BUILTINS = {
+    # Constants
+    'True': True,
+    'False': False,
+    'None': None,
+    # Types
+    'bool': bool,
+    'int': int,
+    'float': float,
+    'str': str,
+    'list': list,
+    'tuple': tuple,
+    'dict': dict,
+    'set': set,
+    'frozenset': frozenset,
+    'bytes': bytes,
+    'bytearray': bytearray,
+    'complex': complex,
+    'slice': slice,
+    'object': object,
+    'type': type,
+    'super': super,
+    'property': property,
+    'classmethod': classmethod,
+    'staticmethod': staticmethod,
+    # Safe functions
+    'abs': abs,
+    'all': all,
+    'any': any,
+    'ascii': ascii,
+    'bin': bin,
+    'callable': callable,
+    'chr': chr,
+    'divmod': divmod,
+    'enumerate': enumerate,
+    'filter': filter,
+    'format': format,
+    'hash': hash,
+    'hex': hex,
+    'id': id,
+    'isinstance': isinstance,
+    'issubclass': issubclass,
+    'iter': iter,
+    'len': len,
+    'map': map,
+    'max': max,
+    'min': min,
+    'next': next,
+    'oct': oct,
+    'ord': ord,
+    'pow': pow,
+    'print': print,
+    'range': range,
+    'repr': repr,
+    'reversed': reversed,
+    'round': round,
+    'sorted': sorted,
+    'sum': sum,
+    'zip': zip,
+    # Exceptions
+    'ArithmeticError': ArithmeticError,
+    'AssertionError': AssertionError,
+    'AttributeError': AttributeError,
+    'EOFError': EOFError,
+    'Exception': Exception,
+    'IndexError': IndexError,
+    'KeyError': KeyError,
+    'LookupError': LookupError,
+    'NameError': NameError,
+    'NotImplementedError': NotImplementedError,
+    'OSError': OSError,
+    'OverflowError': OverflowError,
+    'RuntimeError': RuntimeError,
+    'StopIteration': StopIteration,
+    'TypeError': TypeError,
+    'ValueError': ValueError,
+    'ZeroDivisionError': ZeroDivisionError,
+}
 
 
 async def generate_diagram(
@@ -111,16 +245,12 @@ async def generate_diagram(
         namespace = {}
 
         # Import necessary modules directly in the namespace
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'import os',
-            namespace,
-        )
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'import diagrams', namespace
-        )
+        # Security: Do NOT import 'os' or bare 'diagrams' into the namespace.
+        # The 'os' module exposes os.system/os.popen which can be aliased to bypass
+        # the scanner (CVE: variable aliasing RCE). The bare 'diagrams' module leaks
+        # 'os' via diagrams.os since the package imports os at module level.
+        # The diagrams package uses os internally via its own module-level import,
+        # so user code does not need os in the execution namespace.
         # nosec B102 - These exec calls are necessary to import modules in the namespace
         exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             'from diagrams import Diagram, Cluster, Edge', namespace
@@ -250,10 +380,17 @@ from diagrams.aws.enduser import *
 """,
             namespace,
         )
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'from urllib.request import urlretrieve', namespace
-        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
+        # Inject safe urlretrieve wrapper instead of the raw urllib function.
+        # The raw urlretrieve allows arbitrary file writes to any path; the safe
+        # wrapper validates URL scheme, filename extension, and downloads to a
+        # temp directory only.
+        namespace['urlretrieve'] = _safe_urlretrieve
+
+        # Restrict __builtins__ to a safe subset. This must happen AFTER the
+        # import exec() calls above (which need full builtins) but BEFORE the
+        # user code exec(). Removes __import__, exec, eval, compile, open,
+        # getattr/setattr/delattr, globals/locals/vars, and breakpoint.
+        namespace['__builtins__'] = _SAFE_BUILTINS
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
@@ -581,8 +718,7 @@ def get_diagram_examples(diagram_type: DiagramType = DiagramType.ALL) -> Diagram
     if diagram_type in [DiagramType.CUSTOM, DiagramType.ALL]:
         examples['custom_rabbitmq'] = """# Download an image to be used into a Custom Node class
 rabbitmq_url = "https://jpadilla.github.io/rabbitmqapp/assets/img/icon.png"
-rabbitmq_icon = "rabbitmq.png"
-urlretrieve(rabbitmq_url, rabbitmq_icon)
+rabbitmq_icon, _ = urlretrieve(rabbitmq_url, "rabbitmq.png")
 
 with Diagram("Broker Consumers", show=False):
     with Cluster("Consumers"):
