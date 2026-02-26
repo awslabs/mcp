@@ -303,7 +303,7 @@ jobs:
       # Clear up space for specific large projects
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["core-mcp-server"]'), matrix.changed-directory)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@16fbeff0b6ac1bb09b767aec95f5d89fd3b30cd2
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@11841059cfcc830c367325450a1898ebffef6e01
       #TODO: remove local action checkout when working...
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -350,7 +350,7 @@ jobs:
 
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
