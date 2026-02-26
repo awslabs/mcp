@@ -183,7 +183,7 @@ class TestListBillingGroupsTool:
                 },
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             assert result['data']['total_count'] == 1
@@ -205,7 +205,7 @@ class TestListBillingGroupsTool:
             }
 
             filters_str = '{"Statuses": ["ACTIVE"]}'
-            result = await real_fn(
+            result = await real_fn(  # type: ignore
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
@@ -228,7 +228,7 @@ class TestListBillingGroupsTool:
                 'message': 'You do not have sufficient access',
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
 
@@ -247,7 +247,7 @@ class TestListBillingGroupsTool:
                 'message': 'Unexpected error',
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -277,7 +277,7 @@ class TestListBillingGroupCostReportsTool:
                 },
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
@@ -293,7 +293,7 @@ class TestListBillingGroupCostReportsTool:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
             filters_str = '{"BillingGroupArns": ["arn:test"]}'
-            await real_fn(
+            await real_fn(  # type: ignore
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
@@ -317,7 +317,7 @@ class TestListBillingGroupCostReportsTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -347,7 +347,7 @@ class TestGetBillingGroupCostReportTool:
                 },
             }
 
-            result = await real_fn(mock_ctx, arn=BILLING_GROUP_ARN_1)
+            result = await real_fn(mock_ctx, arn=BILLING_GROUP_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, BILLING_GROUP_ARN_1, None, None, 10, None)
@@ -364,7 +364,7 @@ class TestGetBillingGroupCostReportTool:
 
             range_str = '{"InclusiveStartBillingPeriod": "2025-01"}'
             group_by_str = '["PRODUCT_NAME"]'
-            await real_fn(
+            await real_fn(  # type: ignore
                 mock_ctx,
                 arn=BILLING_GROUP_ARN_1,
                 billing_period_range=range_str,
@@ -391,7 +391,7 @@ class TestGetBillingGroupCostReportTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx, arn=BILLING_GROUP_ARN_1)
+            result = await real_fn(mock_ctx, arn=BILLING_GROUP_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -415,7 +415,7 @@ class TestListPricingRulesTool:
                 'data': {'pricing_rules': [], 'total_count': 0, 'billing_period': 'current'},
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
@@ -428,7 +428,7 @@ class TestListPricingRulesTool:
         with patch.object(bc_mod, '_list_pricing_rules', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
-            await real_fn(
+            await real_fn(  # type: ignore
                 mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=2, next_token='t'
             )
 
@@ -446,7 +446,7 @@ class TestListPricingRulesTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -470,7 +470,7 @@ class TestListPricingPlansTool:
                 'data': {'pricing_plans': [], 'total_count': 0, 'billing_period': 'current'},
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
@@ -483,7 +483,7 @@ class TestListPricingPlansTool:
         with patch.object(bc_mod, '_list_pricing_plans', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
-            await real_fn(
+            await real_fn(  # type: ignore
                 mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=3, next_token='x'
             )
 
@@ -501,7 +501,7 @@ class TestListPricingPlansTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -525,7 +525,7 @@ class TestListPricingRulesForPlanTool:
                 'data': {'pricing_rule_arns': [PRICING_RULE_ARN_1], 'total_count': 1},
             }
 
-            result = await real_fn(mock_ctx, pricing_plan_arn=PRICING_PLAN_ARN_1)
+            result = await real_fn(mock_ctx, pricing_plan_arn=PRICING_PLAN_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, PRICING_PLAN_ARN_1, None, None, 10, None)
@@ -542,7 +542,7 @@ class TestListPricingRulesForPlanTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx, pricing_plan_arn=PRICING_PLAN_ARN_1)
+            result = await real_fn(mock_ctx, pricing_plan_arn=PRICING_PLAN_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -566,7 +566,7 @@ class TestListPricingPlansForRuleTool:
                 'data': {'pricing_plan_arns': [PRICING_PLAN_ARN_1], 'total_count': 1},
             }
 
-            result = await real_fn(mock_ctx, pricing_rule_arn=PRICING_RULE_ARN_1)
+            result = await real_fn(mock_ctx, pricing_rule_arn=PRICING_RULE_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, PRICING_RULE_ARN_1, None, None, 10, None)
@@ -583,7 +583,7 @@ class TestListPricingPlansForRuleTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx, pricing_rule_arn=PRICING_RULE_ARN_1)
+            result = await real_fn(mock_ctx, pricing_rule_arn=PRICING_RULE_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -607,7 +607,7 @@ class TestListCustomLineItemsTool:
                 'data': {'custom_line_items': [], 'total_count': 0, 'billing_period': 'current'},
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
@@ -620,7 +620,7 @@ class TestListCustomLineItemsTool:
         with patch.object(bc_mod, '_list_custom_line_items', new_callable=AsyncMock) as mock_op:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
-            await real_fn(
+            await real_fn(  # type: ignore
                 mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=5, next_token='n'
             )
 
@@ -638,7 +638,7 @@ class TestListCustomLineItemsTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -664,7 +664,7 @@ class TestListCustomLineItemVersionsTool:
                 'data': {'custom_line_item_versions': [], 'total_count': 0},
             }
 
-            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)
+            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 10, None)
@@ -683,7 +683,7 @@ class TestListCustomLineItemVersionsTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)
+            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -709,7 +709,7 @@ class TestListResourcesAssociatedToCustomLineItemTool:
                 'data': {'associated_resources': [], 'total_count': 0},
             }
 
-            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)
+            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(
@@ -730,7 +730,7 @@ class TestListResourcesAssociatedToCustomLineItemTool:
             mock_op.side_effect = RuntimeError('boom')
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
-            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)
+            result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
@@ -760,7 +760,7 @@ class TestListAccountAssociationsTool:
                 },
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
             assert result['data']['total_count'] == 1
@@ -782,7 +782,7 @@ class TestListAccountAssociationsTool:
             }
 
             filters_str = '{"Association": "MONITORED"}'
-            result = await real_fn(
+            result = await real_fn(  # type: ignore
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
@@ -808,7 +808,7 @@ class TestListAccountAssociationsTool:
                 'message': 'Unexpected error',
             }
 
-            result = await real_fn(mock_ctx)
+            result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()

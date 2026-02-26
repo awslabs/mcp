@@ -27,8 +27,4 @@ def epoch_seconds_to_utc_iso_string(epoch_seconds: Union[int, float]) -> str:
     Returns:
         ISO 8601 formatted date string (e.g., "2023-11-14T22:13:20").
     """
-    return (
-        datetime.fromtimestamp(epoch_seconds, tz=timezone.utc)
-        .replace(tzinfo=None)
-        .isoformat()
-    )
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).replace(tzinfo=None).isoformat()

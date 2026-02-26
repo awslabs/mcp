@@ -29,12 +29,12 @@ if __name__ == '__main__':
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    billing_conductor_server,
-)
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     bcm_pricing_calculator_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
+    billing_conductor_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (

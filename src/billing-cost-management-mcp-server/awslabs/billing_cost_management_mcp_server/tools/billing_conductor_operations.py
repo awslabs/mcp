@@ -313,8 +313,7 @@ async def list_billing_group_cost_reports(
             all_cost_reports.extend(page_cost_reports)
 
             await ctx.info(
-                f'Retrieved {len(page_cost_reports)} cost reports '
-                f'(total: {len(all_cost_reports)})'
+                f'Retrieved {len(page_cost_reports)} cost reports (total: {len(all_cost_reports)})'
             )
 
             current_token = response.get('NextToken')
@@ -335,9 +334,7 @@ async def list_billing_group_cost_reports(
         return format_response('success', response_data)
 
     except Exception as e:
-        return await handle_aws_error(
-            ctx, e, 'listBillingGroupCostReports', 'Billing Conductor'
-        )
+        return await handle_aws_error(ctx, e, 'listBillingGroupCostReports', 'Billing Conductor')
 
 
 async def get_billing_group_cost_report(
@@ -390,8 +387,7 @@ async def get_billing_group_cost_report(
             all_results.extend(page_results)
 
             await ctx.info(
-                f'Retrieved {len(page_results)} cost report results '
-                f'(total: {len(all_results)})'
+                f'Retrieved {len(page_results)} cost report results (total: {len(all_results)})'
             )
 
             current_token = response.get('NextToken')
@@ -412,9 +408,7 @@ async def get_billing_group_cost_report(
         return format_response('success', response_data)
 
     except Exception as e:
-        return await handle_aws_error(
-            ctx, e, 'getBillingGroupCostReport', 'Billing Conductor'
-        )
+        return await handle_aws_error(ctx, e, 'getBillingGroupCostReport', 'Billing Conductor')
 
 
 def _format_billing_group_cost_reports(
@@ -617,9 +611,7 @@ async def list_custom_line_item_versions(
         return format_response('success', response_data)
 
     except Exception as e:
-        return await handle_aws_error(
-            ctx, e, 'listCustomLineItemVersions', 'Billing Conductor'
-        )
+        return await handle_aws_error(ctx, e, 'listCustomLineItemVersions', 'Billing Conductor')
 
 
 async def list_resources_associated_to_custom_line_item(
@@ -665,9 +657,7 @@ async def list_resources_associated_to_custom_line_item(
                 request_params['NextToken'] = current_token
 
             await ctx.info(f'Fetching associated resources page {page_count}')
-            response = bc_client.list_resources_associated_to_custom_line_item(
-                **request_params
-            )
+            response = bc_client.list_resources_associated_to_custom_line_item(**request_params)
 
             page_resources = response.get('AssociatedResources', [])
             all_resources.extend(page_resources)
@@ -810,9 +800,7 @@ def _format_custom_line_item_versions(
         }
 
         if 'ChargeDetails' in version:
-            formatted_version['charge_details'] = _format_charge_details(
-                version['ChargeDetails']
-            )
+            formatted_version['charge_details'] = _format_charge_details(version['ChargeDetails'])
 
         if 'PresentationDetails' in version:
             formatted_version['presentation_details'] = {
@@ -902,8 +890,7 @@ async def list_pricing_rules(
             all_pricing_rules.extend(page_rules)
 
             await ctx.info(
-                f'Retrieved {len(page_rules)} pricing rules '
-                f'(total: {len(all_pricing_rules)})'
+                f'Retrieved {len(page_rules)} pricing rules (total: {len(all_pricing_rules)})'
             )
 
             current_token = response.get('NextToken')
@@ -974,8 +961,7 @@ async def list_pricing_plans(
             all_pricing_plans.extend(page_plans)
 
             await ctx.info(
-                f'Retrieved {len(page_plans)} pricing plans '
-                f'(total: {len(all_pricing_plans)})'
+                f'Retrieved {len(page_plans)} pricing plans (total: {len(all_pricing_plans)})'
             )
 
             current_token = response.get('NextToken')
@@ -1042,12 +1028,8 @@ async def list_pricing_rules_associated_to_pricing_plan(
             if current_token:
                 request_params['NextToken'] = current_token
 
-            await ctx.info(
-                f'Fetching pricing rules associated to pricing plan page {page_count}'
-            )
-            response = bc_client.list_pricing_rules_associated_to_pricing_plan(
-                **request_params
-            )
+            await ctx.info(f'Fetching pricing rules associated to pricing plan page {page_count}')
+            response = bc_client.list_pricing_rules_associated_to_pricing_plan(**request_params)
 
             page_arns = response.get('PricingRuleArns', [])
             all_pricing_rule_arns.extend(page_arns)
@@ -1130,9 +1112,7 @@ async def list_pricing_plans_associated_with_pricing_rule(
             await ctx.info(
                 f'Fetching pricing plans associated with pricing rule page {page_count}'
             )
-            response = bc_client.list_pricing_plans_associated_with_pricing_rule(
-                **request_params
-            )
+            response = bc_client.list_pricing_plans_associated_with_pricing_rule(**request_params)
 
             page_arns = response.get('PricingPlanArns', [])
             all_pricing_plan_arns.extend(page_arns)
