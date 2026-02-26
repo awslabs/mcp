@@ -76,6 +76,13 @@ This MCP server provides tools for:
 3. **ListAHORunGroups** - List available run groups with optional name filtering and pagination
 4. **UpdateAHORunGroup** - Update an existing run group's name or resource limits
 
+### Run Cache Management Tools
+
+1. **CreateAHORunCache** - Create a new run cache with a cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE), S3 URI for cache storage, and optional name, description, tags, and cross-account bucket owner ID
+2. **GetAHORunCache** - Retrieve detailed information about a specific run cache including configuration, status, and metadata
+3. **ListAHORunCaches** - List available run caches with optional filtering by name, status, or cache behavior, with pagination support
+4. **UpdateAHORunCache** - Update an existing run cache's cache behavior, name, or description
+
 ### Region Management Tools
 
 1. **GetAHOSupportedRegions** - List AWS regions where HealthOmics is available
@@ -469,6 +476,10 @@ The following IAM permissions are required:
                 "omics:GetRunGroup",
                 "omics:ListRunGroups",
                 "omics:UpdateRunGroup",
+                "omics:CreateRunCache",
+                "omics:GetRunCache",
+                "omics:ListRunCaches",
+                "omics:UpdateRunCache",
                 "omics:ListSequenceStores",
                 "omics:ListReadSets",
                 "omics:GetReadSetMetadata",
@@ -486,7 +497,8 @@ The following IAM permissions are required:
             "Action": [
                 "s3:ListBucket",
                 "s3:GetObject",
-                "s3:GetObjectTagging"
+                "s3:GetObjectTagging",
+                "s3:HeadBucket"
             ],
             "Resource": [
                 "arn:aws:s3:::*genomics*",
@@ -514,7 +526,8 @@ The following IAM permissions are required:
     "Action": [
         "s3:ListBucket",
         "s3:GetObject",
-        "s3:GetObjectTagging"
+        "s3:GetObjectTagging",
+        "s3:HeadBucket"
     ],
     "Resource": [
         "arn:aws:s3:::my-genomics-data",

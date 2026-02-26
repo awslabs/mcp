@@ -281,3 +281,38 @@ class RunGroupListResponse(BaseModel):
 
     runGroups: List[RunGroupSummary]
     nextToken: Optional[str] = None
+
+
+class RunCacheStatus(str, Enum):
+    """Enum for run cache statuses."""
+
+    ACTIVE = 'ACTIVE'
+    DELETED = 'DELETED'
+    FAILED = 'FAILED'
+
+
+class RunCacheSummary(BaseModel):
+    """Summary information about a run cache."""
+
+    id: str
+    arn: str
+    name: Optional[str] = None
+    status: str
+    cacheBehavior: Optional[str] = None
+    creationTime: datetime
+
+
+class RunCacheDetail(RunCacheSummary):
+    """Detailed run cache information."""
+
+    cacheS3Uri: Optional[str] = None
+    cacheBucketOwnerId: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[Dict[str, str]] = None
+
+
+class RunCacheListResponse(BaseModel):
+    """Response model for listing run caches."""
+
+    runCaches: List[RunCacheSummary]
+    nextToken: Optional[str] = None
