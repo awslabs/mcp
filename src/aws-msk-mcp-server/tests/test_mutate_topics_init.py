@@ -14,11 +14,12 @@
 
 """Tests for the mutate_topics/__init__.py module."""
 
+from typing import cast
+from unittest.mock import MagicMock, patch
+
 import pytest
 from awslabs.aws_msk_mcp_server.tools.mutate_topics import register_module
 from mcp.server.fastmcp import FastMCP
-from typing import cast
-from unittest.mock import MagicMock, patch
 
 
 class TestMutateTopicsInit:
@@ -40,11 +41,12 @@ class TestMutateTopicsInit:
         assert 'delete_topic' in tool_names
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.create_topic')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
     def test_create_topic_tool_with_configs(
-        self, mock_config, mock_create_topic, mock_boto3_client
+        self, mock_config, mock_create_topic, mock_check_tag, mock_boto3_client
     ):
         """Test the create_topic tool wrapper with configs parameter."""
         # Arrange
@@ -69,6 +71,8 @@ class TestMutateTopicsInit:
 
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = True
 
         expected_response = {'TopicArn': 'arn:test', 'Status': 'CREATING'}
         mock_create_topic.return_value = expected_response
@@ -101,11 +105,12 @@ class TestMutateTopicsInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.create_topic')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
     def test_create_topic_tool_without_configs(
-        self, mock_config, mock_create_topic, mock_boto3_client
+        self, mock_config, mock_create_topic, mock_check_tag, mock_boto3_client
     ):
         """Test the create_topic tool wrapper without configs parameter."""
         # Arrange
@@ -130,6 +135,8 @@ class TestMutateTopicsInit:
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
 
+        mock_check_tag.return_value = True
+
         expected_response = {'TopicArn': 'arn:test', 'Status': 'CREATING'}
         mock_create_topic.return_value = expected_response
 
@@ -152,6 +159,51 @@ class TestMutateTopicsInit:
             mock_kafka_client,
         )
         assert result == expected_response
+
+    @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
+    def test_create_topic_tool_tag_check_fails(
+        self, mock_config, mock_check_tag, mock_boto3_client
+    ):
+        """Test the create_topic tool wrapper raises ValueError when tag check fails."""
+        # Arrange
+        decorated_functions = {}
+
+        class MockMCP:
+            @staticmethod
+            def tool(name=None, **kwargs):
+                def decorator(func):
+                    decorated_functions[name] = func
+                    return func
+
+                return decorator
+
+        register_module(cast(FastMCP, MockMCP()))
+
+        create_topic_tool = decorated_functions['create_topic']
+
+        mock_kafka_client = MagicMock()
+        mock_boto3_client.return_value = mock_kafka_client
+
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = False
+
+        # Act & Assert
+        with pytest.raises(ValueError) as excinfo:
+            create_topic_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123:cluster/test/abc',
+                topic_name='new-topic',
+                partition_count=3,
+                replication_factor=2,
+                configs=None,
+            )
+
+        assert "does not have the 'MCP Generated' tag" in str(excinfo.value)
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
