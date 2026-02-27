@@ -26,6 +26,7 @@ from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
+from ..common_functions import check_mcp_generated_tag
 from .create_topic import create_topic
 from .delete_topic import delete_topic
 from .update_topic import update_topic
@@ -61,6 +62,12 @@ def register_module(mcp: FastMCP) -> None:
                 - TopicArn (str): The Amazon Resource Name (ARN) of the topic
                 - TopicName (str): The name of the topic that was created
                 - Status (str): The status of the topic creation (CREATING, UPDATING, DELETING, ACTIVE)
+
+        Note:
+            After creating a topic, you should follow up with a tag_resource tool call
+            to add the "MCP Generated" tag to the cluster if not already tagged.
+            Example:
+            tag_resource_tool(resource_arn=cluster_arn, tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
         client = boto3.client(
@@ -113,6 +120,10 @@ def register_module(mcp: FastMCP) -> None:
                 - TopicArn (str): The Amazon Resource Name (ARN) of the topic
                 - TopicName (str): The name of the topic whose configuration was updated
                 - Status (str): The status of the topic update (CREATING, UPDATING, DELETING, ACTIVE)
+
+        Note:
+            This operation can ONLY be performed on resources tagged with "MCP Generated".
+            Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
         client = boto3.client(
@@ -120,6 +131,13 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
+
+        # Check if the resource has the "MCP Generated" tag
+        if not check_mcp_generated_tag(cluster_arn, client):
+            raise ValueError(
+                f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
+                "This operation can only be performed on resources tagged with 'MCP Generated'."
+            )
 
         # Build kwargs conditionally to avoid passing None values
         kwargs = {}
@@ -164,6 +182,10 @@ def register_module(mcp: FastMCP) -> None:
 
         Raises:
             ValueError: If confirm_delete is not "DELETE" or if topic has protected system prefix
+
+        Note:
+            This operation can ONLY be performed on resources tagged with "MCP Generated".
+            Ensure the resource has this tag before attempting to delete it.
         """
         # Create a boto3 client
         client = boto3.client(
@@ -171,4 +193,12 @@ def register_module(mcp: FastMCP) -> None:
             region_name=region,
             config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
+
+        # Check if the resource has the "MCP Generated" tag
+        if not check_mcp_generated_tag(cluster_arn, client):
+            raise ValueError(
+                f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
+                "This operation can only be performed on resources tagged with 'MCP Generated'."
+            )
+
         return delete_topic(cluster_arn, topic_name, client, confirm_delete)

@@ -14,6 +14,7 @@
 
 """Tests for the mutate_topics/__init__.py module."""
 
+import pytest
 from awslabs.aws_msk_mcp_server.tools.mutate_topics import register_module
 from mcp.server.fastmcp import FastMCP
 from typing import cast
@@ -153,11 +154,12 @@ class TestMutateTopicsInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.update_topic')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
     def test_update_topic_tool_with_both_params(
-        self, mock_config, mock_update_topic, mock_boto3_client
+        self, mock_config, mock_update_topic, mock_check_tag, mock_boto3_client
     ):
         """Test the update_topic tool wrapper with both optional parameters."""
         # Arrange
@@ -182,6 +184,8 @@ class TestMutateTopicsInit:
 
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = True
 
         expected_response = {'TopicArn': 'arn:test', 'Status': 'UPDATING'}
         mock_update_topic.return_value = expected_response
@@ -212,11 +216,12 @@ class TestMutateTopicsInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.update_topic')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
     def test_update_topic_tool_without_optional_params(
-        self, mock_config, mock_update_topic, mock_boto3_client
+        self, mock_config, mock_update_topic, mock_check_tag, mock_boto3_client
     ):
         """Test the update_topic tool wrapper without optional parameters."""
         # Arrange
@@ -241,6 +246,8 @@ class TestMutateTopicsInit:
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
 
+        mock_check_tag.return_value = True
+
         expected_response = {'TopicArn': 'arn:test', 'Status': 'UPDATING'}
         mock_update_topic.return_value = expected_response
 
@@ -262,10 +269,57 @@ class TestMutateTopicsInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
+    def test_update_topic_tool_tag_check_fails(
+        self, mock_config, mock_check_tag, mock_boto3_client
+    ):
+        """Test the update_topic tool wrapper raises ValueError when tag check fails."""
+        # Arrange
+        decorated_functions = {}
+
+        class MockMCP:
+            @staticmethod
+            def tool(name=None, **kwargs):
+                def decorator(func):
+                    decorated_functions[name] = func
+                    return func
+
+                return decorator
+
+        register_module(cast(FastMCP, MockMCP()))
+
+        update_topic_tool = decorated_functions['update_topic']
+
+        mock_kafka_client = MagicMock()
+        mock_boto3_client.return_value = mock_kafka_client
+
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = False
+
+        # Act & Assert
+        with pytest.raises(ValueError) as excinfo:
+            update_topic_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123:cluster/test/abc',
+                topic_name='test-topic',
+                configs=None,
+                partition_count=None,
+            )
+
+        assert "does not have the 'MCP Generated' tag" in str(excinfo.value)
+
+    @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.delete_topic')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
-    def test_delete_topic_tool(self, mock_config, mock_delete_topic, mock_boto3_client):
+    def test_delete_topic_tool(
+        self, mock_config, mock_delete_topic, mock_check_tag, mock_boto3_client
+    ):
         """Test the delete_topic tool wrapper."""
         # Arrange
         decorated_functions = {}
@@ -289,6 +343,8 @@ class TestMutateTopicsInit:
 
         mock_config_instance = MagicMock()
         mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = True
 
         expected_response = {'TopicArn': 'arn:test', 'Status': 'DELETING'}
         mock_delete_topic.return_value = expected_response
@@ -315,3 +371,46 @@ class TestMutateTopicsInit:
             'DELETE',
         )
         assert result == expected_response
+
+    @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.check_mcp_generated_tag')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_topics.__version__', '1.0.0')
+    def test_delete_topic_tool_tag_check_fails(
+        self, mock_config, mock_check_tag, mock_boto3_client
+    ):
+        """Test the delete_topic tool wrapper raises ValueError when tag check fails."""
+        # Arrange
+        decorated_functions = {}
+
+        class MockMCP:
+            @staticmethod
+            def tool(name=None, **kwargs):
+                def decorator(func):
+                    decorated_functions[name] = func
+                    return func
+
+                return decorator
+
+        register_module(cast(FastMCP, MockMCP()))
+
+        delete_topic_tool = decorated_functions['delete_topic']
+
+        mock_kafka_client = MagicMock()
+        mock_boto3_client.return_value = mock_kafka_client
+
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
+        mock_check_tag.return_value = False
+
+        # Act & Assert
+        with pytest.raises(ValueError) as excinfo:
+            delete_topic_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123:cluster/test/abc',
+                topic_name='test-topic',
+                confirm_delete='DELETE',
+            )
+
+        assert "does not have the 'MCP Generated' tag" in str(excinfo.value)
