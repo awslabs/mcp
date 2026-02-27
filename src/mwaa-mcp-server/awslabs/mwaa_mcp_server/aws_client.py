@@ -15,7 +15,7 @@
 """AWS client factory for the MWAA MCP Server."""
 
 from awslabs.mwaa_mcp_server import MCP_SERVER_VERSION
-from awslabs.mwaa_mcp_server.consts import DEFAULT_REGION, ENV_AWS_PROFILE
+from awslabs.mwaa_mcp_server.consts import DEFAULT_REGION, ENV_AWS_PROFILE, ENV_AWS_REGION
 from boto3 import Session
 from botocore.config import Config
 from os import getenv
@@ -49,6 +49,6 @@ def get_mwaa_client(
     else:
         session = Session()
 
-    region = region_name or session.region_name or DEFAULT_REGION
+    region = region_name or getenv(ENV_AWS_REGION, None) or session.region_name or DEFAULT_REGION
 
     return session.client('mwaa', region_name=region, config=config)
