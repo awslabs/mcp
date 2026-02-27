@@ -1631,6 +1631,40 @@ class TestJinja2GeneratorEdgeCases:
         # Should detect numeric sort key in GSI
         assert result['gsi_mappings'][0]['sk_is_numeric'] is True
 
+    def test_preprocess_entity_config_deduplicates_sk_params(self, generator):
+        """Test that sk_params are deduplicated when same field appears in both PK and SK templates."""
+        entity_config = {
+            'entity_type': 'RESTAURANT',
+            'pk_template': 'REST#{restaurant_id}',
+            'sk_template': 'REST#{restaurant_id}',
+            'fields': [
+                {'name': 'restaurant_id', 'type': 'string', 'required': True},
+                {'name': 'name', 'type': 'string', 'required': True},
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        assert result['pk_params'] == ['restaurant_id']
+        assert result['sk_params'] == []  # Deduplicated — restaurant_id already in pk_params
+
+    def test_preprocess_entity_config_keeps_unique_sk_params(self, generator):
+        """Test that sk_params are preserved when they differ from pk_params."""
+        entity_config = {
+            'entity_type': 'ORDER',
+            'pk_template': 'USER#{user_id}',
+            'sk_template': 'ORDER#{order_id}',
+            'fields': [
+                {'name': 'user_id', 'type': 'string', 'required': True},
+                {'name': 'order_id', 'type': 'string', 'required': True},
+            ],
+            'access_patterns': [],
+        }
+
+        result = generator._preprocess_entity_config(entity_config)
+        assert result['pk_params'] == ['user_id']
+        assert result['sk_params'] == ['order_id']
+
 
 class TestMultiAttributeKeyHelpers:
     """Test helper methods for multi-attribute key processing."""
@@ -2285,3 +2319,220 @@ class TestMultiAttributeKeyCodeGeneration:
         # All required fields are either projected or in key templates
         result = generator._is_unsafe_include_projection(gsi, entity_config, table_config)
         assert result is False
+
+
+@pytest.mark.unit
+class TestJinja2GeneratorFilterExpression:
+    """Tests for filter expression code generation paths in Jinja2Generator."""
+
+    @pytest.fixture
+    def valid_schema_file(self, mock_schema_data, tmp_path):
+        """Create a temporary valid schema file."""
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(mock_schema_data))
+        return str(schema_file)
+
+    @pytest.fixture
+    def generator(self, valid_schema_file):
+        """Create a Jinja2Generator instance for testing."""
+        return Jinja2Generator(valid_schema_file, language='python')
+
+    def test_generate_repository_with_filter_expression_comparison(self, generator, tmp_path):
+        """Test repository generation with a filter expression using comparison operator."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {
+                        'table_name': 'Orders',
+                        'partition_key': 'pk',
+                        'sort_key': 'sk',
+                    },
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': 'CUST#{customer_id}',
+                            'sk_template': 'ORDER#{order_id}',
+                            'fields': [
+                                {'name': 'customer_id', 'type': 'string', 'required': True},
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                                {'name': 'total', 'type': 'decimal', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_active_orders',
+                                    'description': 'Get non-cancelled orders with minimum total',
+                                    'operation': 'Query',
+                                    'consistent_read': False,
+                                    'filter_expression': {
+                                        'conditions': [
+                                            {
+                                                'field': 'status',
+                                                'operator': '<>',
+                                                'param': 'excluded_status',
+                                            },
+                                            {
+                                                'field': 'total',
+                                                'operator': '>=',
+                                                'param': 'min_total',
+                                            },
+                                        ],
+                                        'logical_operator': 'AND',
+                                    },
+                                    'parameters': [
+                                        {'name': 'customer_id', 'type': 'string'},
+                                        {
+                                            'name': 'excluded_status',
+                                            'type': 'string',
+                                            'default': 'CANCELLED',
+                                        },
+                                        {'name': 'min_total', 'type': 'decimal'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        gen = Jinja2Generator(str(schema_file), language='python')
+
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+        result = gen.generate_repository('Order', entity_config, table_config, schema['tables'][0])
+
+        # Filter params should appear in method signature
+        assert 'excluded_status' in result
+        assert 'min_total' in result
+        # Filter expression should appear in docstring
+        assert 'Filter Expression' in result
+        assert '#status <> :excluded_status' in result
+
+    def test_generate_repository_with_filter_expression_between(self, generator, tmp_path):
+        """Test repository generation with filter expression using between operator."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {
+                        'table_name': 'Orders',
+                        'partition_key': 'pk',
+                        'sort_key': 'sk',
+                    },
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': 'CUST#{customer_id}',
+                            'sk_template': 'ORDER#{order_id}',
+                            'fields': [
+                                {'name': 'customer_id', 'type': 'string', 'required': True},
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'delivery_fee', 'type': 'decimal', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_orders_by_fee_range',
+                                    'description': 'Get orders within fee range',
+                                    'operation': 'Query',
+                                    'consistent_read': False,
+                                    'filter_expression': {
+                                        'conditions': [
+                                            {
+                                                'field': 'delivery_fee',
+                                                'operator': 'between',
+                                                'param': 'min_fee',
+                                                'param2': 'max_fee',
+                                            }
+                                        ]
+                                    },
+                                    'parameters': [
+                                        {'name': 'customer_id', 'type': 'string'},
+                                        {'name': 'min_fee', 'type': 'decimal'},
+                                        {'name': 'max_fee', 'type': 'decimal'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        gen = Jinja2Generator(str(schema_file), language='python')
+
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+        result = gen.generate_repository('Order', entity_config, table_config, schema['tables'][0])
+
+        assert 'min_fee' in result
+        assert 'max_fee' in result
+        assert 'BETWEEN :min_fee AND :max_fee' in result
+
+    def test_generate_repository_with_filter_expression_in_operator(self, generator, tmp_path):
+        """Test repository generation with filter expression using in operator (params list)."""
+        schema = {
+            'tables': [
+                {
+                    'table_config': {
+                        'table_name': 'Orders',
+                        'partition_key': 'pk',
+                        'sort_key': 'sk',
+                    },
+                    'entities': {
+                        'Order': {
+                            'entity_type': 'ORDER',
+                            'pk_template': 'CUST#{customer_id}',
+                            'sk_template': 'ORDER#{order_id}',
+                            'fields': [
+                                {'name': 'customer_id', 'type': 'string', 'required': True},
+                                {'name': 'order_id', 'type': 'string', 'required': True},
+                                {'name': 'status', 'type': 'string', 'required': True},
+                            ],
+                            'access_patterns': [
+                                {
+                                    'pattern_id': 1,
+                                    'name': 'get_orders_by_statuses',
+                                    'description': 'Get orders matching statuses',
+                                    'operation': 'Query',
+                                    'consistent_read': False,
+                                    'filter_expression': {
+                                        'conditions': [
+                                            {
+                                                'field': 'status',
+                                                'operator': 'in',
+                                                'params': ['status1', 'status2', 'status3'],
+                                            }
+                                        ]
+                                    },
+                                    'parameters': [
+                                        {'name': 'customer_id', 'type': 'string'},
+                                        {'name': 'status1', 'type': 'string'},
+                                        {'name': 'status2', 'type': 'string'},
+                                        {'name': 'status3', 'type': 'string'},
+                                    ],
+                                    'return_type': 'entity_list',
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+        }
+        schema_file = tmp_path / 'schema.json'
+        schema_file.write_text(json.dumps(schema))
+        gen = Jinja2Generator(str(schema_file), language='python')
+
+        entity_config = schema['tables'][0]['entities']['Order']
+        table_config = schema['tables'][0]['table_config']
+        result = gen.generate_repository('Order', entity_config, table_config, schema['tables'][0])
+
+        assert 'status1' in result
+        assert 'status2' in result
+        assert 'status3' in result
+        assert 'IN (:status1, :status2, :status3)' in result

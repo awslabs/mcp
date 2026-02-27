@@ -115,6 +115,9 @@ class RangeQueryValidator:
         - Query "a = X AND b <= Y" is valid (range on b, c not used)
         - Query "a = X AND b = Y AND c <= Z" is valid (range on c)
 
+        When filter_expression is also present, filter-only parameters are excluded
+        from the count since they don't participate in the KeyConditionExpression.
+
         Args:
             pattern: AccessPattern object to validate
             pattern_path: Path context for error reporting
@@ -143,8 +146,30 @@ class RangeQueryValidator:
         if gsi_def and gsi_def.partition_key:
             pk_count = len(gsi_def.partition_key) if isinstance(gsi_def.partition_key, list) else 1
 
-        param_count = len(pattern.parameters)
+        # When filter_expression is present, exclude filter-only params from count
+        filter_param_names = set()
+        filter_expr = pattern.filter_expression if hasattr(pattern, 'filter_expression') else None
+        if isinstance(filter_expr, dict):
+            for cond in filter_expr.get('conditions', []):
+                if cond.get('param'):
+                    filter_param_names.add(cond['param'])
+                if cond.get('param2'):
+                    filter_param_names.add(cond['param2'])
+                if cond.get('params'):
+                    filter_param_names.update(cond['params'])
+
+        if filter_param_names:
+            non_filter_params = [
+                p
+                for p in pattern.parameters
+                if isinstance(p, dict) and p.get('name') not in filter_param_names
+            ]
+            param_count = len(non_filter_params)
+        else:
+            param_count = len(pattern.parameters)
+
         range_condition = pattern.range_condition
+        filter_note = ' (excluding filter_expression parameters)' if filter_param_names else ''
 
         # Range parameters: 2 for 'between', 1 for all others
         range_param_count = 2 if range_condition == RangeCondition.BETWEEN.value else 1
@@ -168,7 +193,7 @@ class RangeQueryValidator:
             errors.append(
                 ValidationError(
                     path=f'{pattern_path}.parameters',
-                    message=f"Range condition '{range_condition}' requires at least {min_params} parameters ({pk_count} PK + {range_param_count} range value(s)), got {param_count}",
+                    message=f"Range condition '{range_condition}' requires at least {min_params} parameters ({pk_count} PK + {range_param_count} range value(s)){filter_note}, got {param_count}",
                     suggestion=f'Provide at least {min_params} parameters',
                 )
             )
@@ -177,7 +202,7 @@ class RangeQueryValidator:
             errors.append(
                 ValidationError(
                     path=f'{pattern_path}.parameters',
-                    message=f"Range condition '{range_condition}' requires exactly {min_params} parameters ({pk_count} PK + {range_param_count} range value(s)), got {param_count}",
+                    message=f"Range condition '{range_condition}' requires exactly {min_params} parameters ({pk_count} PK + {range_param_count} range value(s)){filter_note}, got {param_count}",
                     suggestion=f'Provide exactly {min_params} parameters for main table range queries',
                 )
             )
@@ -186,7 +211,7 @@ class RangeQueryValidator:
             errors.append(
                 ValidationError(
                     path=f'{pattern_path}.parameters',
-                    message=f"Range condition '{range_condition}' allows at most {max_params} parameters ({pk_count} PK + {sk_equality_max} SK equality + {range_param_count} range value(s)), got {param_count}",
+                    message=f"Range condition '{range_condition}' allows at most {max_params} parameters ({pk_count} PK + {sk_equality_max} SK equality + {range_param_count} range value(s)){filter_note}, got {param_count}",
                     suggestion=f'Provide at most {max_params} parameters. SK attributes must be queried left-to-right.',
                 )
             )

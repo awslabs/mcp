@@ -179,6 +179,31 @@ All examples use the `tables` array format with flexible partition and sort key 
 
 **Use Cases**: User registration, email uniqueness, account deletion, consistency verification, atomic multi-table operations
 
+### 9. Food Delivery Service (`food_delivery_app/`)
+
+**Domain**: Food delivery / last-mile delivery service with filter expression support
+**Tables**: DeliveryTable, RestaurantTable, DriverTable (Multi-Table with Mixed Key Designs)
+**Key Features**:
+
+- **Filter expression support**: Primary test fixture for all DynamoDB filter expression variants
+- **Comparison operators**: `=`, `<>`, `>=` for status exclusion, minimum totals, boolean matching
+- **Range filters**: `between` for delivery fee ranges, `in` for multi-status matching
+- **Function filters**: `contains`, `begins_with`, `attribute_exists`, `attribute_not_exists`, `size`
+- **Logical operators**: `AND` and `OR` combinations of multiple filter conditions
+- **Mixed key designs**: Composite keys (DeliveryTable, RestaurantTable) and partition-key-only (DriverTable)
+- **Query and Scan filters**: Filter expressions on both Query and Scan operations
+
+**Filter Expression Patterns**:
+
+- Status exclusion: `status <> "CANCELLED" AND total >= 50.00`
+- Fee range: `delivery_fee BETWEEN 3.00 AND 10.00`
+- Multi-status: `status IN ("PENDING", "PREPARING", "EN_ROUTE")`
+- Existence checks: `attribute_exists(special_instructions) AND attribute_not_exists(cancelled_at)`
+- Array size: `size(items) > 3`, `size(items) BETWEEN 2 AND 5`
+- Text matching: `contains(tags, "express")`, `begins_with(name, "A")`
+
+**Use Cases**: Active order tracking, fee analysis, status filtering, driver search, restaurant discovery, large order detection
+
 ## Design Pattern Comparison
 
 ### Single Table Design Benefits

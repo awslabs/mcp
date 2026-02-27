@@ -264,6 +264,13 @@ class PythonSampleGenerator(LanguageSampleGeneratorInterface):
             if realistic_value is not None:
                 return realistic_value
 
+            # Try filter_values (for filter expression parameters)
+            filter_value = self.usage_data_loader.get_filter_value_for_param(
+                param_name, param_type, entity_name
+            )
+            if filter_value is not None:
+                return filter_value
+
         # Parameter doesn't exist in entity fields and has no usage_data
         if not generate_fallback:
             # Return None to signal parameter should be skipped (for phantom parameters)

@@ -1,0 +1,703 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "Delivery": {
+          "access_patterns": [
+            {
+              "description": "Get delivery details by customer and delivery ID",
+              "name": "get_delivery_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "order_date",
+                  "type": "string"
+                },
+                {
+                  "name": "delivery_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Get non-cancelled deliveries for a customer with minimum total",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "<>",
+                    "param": "excluded_status"
+                  },
+                  {
+                    "field": "total",
+                    "operator": ">=",
+                    "param": "min_total"
+                  }
+                ],
+                "logical_operator": "AND"
+              },
+              "name": "get_active_customer_deliveries",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "default": "CANCELLED",
+                  "name": "excluded_status",
+                  "type": "string"
+                },
+                {
+                  "name": "min_total",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get deliveries for a customer within a delivery fee range",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "delivery_fee",
+                    "operator": "between",
+                    "param": "min_fee",
+                    "param2": "max_fee"
+                  }
+                ]
+              },
+              "name": "get_customer_deliveries_by_fee_range",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "min_fee",
+                  "type": "decimal"
+                },
+                {
+                  "name": "max_fee",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get deliveries for a customer matching specific statuses",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "in",
+                    "params": [
+                      "status1",
+                      "status2",
+                      "status3"
+                    ]
+                  }
+                ]
+              },
+              "name": "get_customer_deliveries_by_status",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "status1",
+                  "type": "string"
+                },
+                {
+                  "name": "status2",
+                  "type": "string"
+                },
+                {
+                  "name": "status3",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get deliveries that have special instructions and are not cancelled",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "special_instructions",
+                    "function": "attribute_exists"
+                  },
+                  {
+                    "field": "cancelled_at",
+                    "function": "attribute_not_exists"
+                  }
+                ],
+                "logical_operator": "AND"
+              },
+              "name": "get_deliveries_with_special_instructions",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get deliveries with more than a minimum number of items",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "items",
+                    "function": "size",
+                    "operator": ">",
+                    "param": "min_items"
+                  }
+                ]
+              },
+              "name": "get_deliveries_with_min_items",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "min_items",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get deliveries with item count within a range",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "items",
+                    "function": "size",
+                    "operator": "between",
+                    "param": "min_count",
+                    "param2": "max_count"
+                  }
+                ]
+              },
+              "name": "get_deliveries_with_items_in_range",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "min_count",
+                  "type": "integer"
+                },
+                {
+                  "name": "max_count",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get active deliveries with high total or generous tip",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "total",
+                    "operator": ">=",
+                    "param": "min_total"
+                  },
+                  {
+                    "field": "tip",
+                    "operator": ">=",
+                    "param": "min_tip"
+                  }
+                ],
+                "logical_operator": "OR"
+              },
+              "name": "get_high_value_active_deliveries",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "customer_id",
+                  "type": "string"
+                },
+                {
+                  "name": "min_total",
+                  "type": "decimal"
+                },
+                {
+                  "name": "min_tip",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Create a new delivery",
+              "name": "create_delivery",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "Delivery",
+                  "name": "delivery",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "DELIVERY",
+          "fields": [
+            {
+              "name": "customer_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "delivery_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "order_date",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "restaurant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "driver_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "delivery_fee",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "tip",
+              "required": false,
+              "type": "decimal"
+            },
+            {
+              "item_type": "string",
+              "name": "items",
+              "required": true,
+              "type": "array"
+            },
+            {
+              "name": "special_instructions",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "cancelled_at",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "estimated_delivery_time",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "CUSTOMER#{customer_id}",
+          "sk_template": "DELIVERY#{order_date}#{delivery_id}"
+        },
+        "DeliveryEvent": {
+          "access_patterns": [
+            {
+              "description": "Get all events for a delivery",
+              "name": "get_delivery_events",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "delivery_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get delivery events matching a specific event type prefix",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "event_type",
+                    "function": "begins_with",
+                    "param": "type_prefix"
+                  }
+                ]
+              },
+              "name": "get_delivery_events_by_type",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "delivery_id",
+                  "type": "string"
+                },
+                {
+                  "name": "type_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "DELIVERY_EVENT",
+          "fields": [
+            {
+              "name": "delivery_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "event_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "event_timestamp",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "event_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "actor",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "DELIVERY#{delivery_id}",
+          "sk_template": "EVENT#{event_timestamp}#{event_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "DeliveryTable"
+      }
+    },
+    {
+      "entities": {
+        "Restaurant": {
+          "access_patterns": [
+            {
+              "description": "Get restaurant profile",
+              "name": "get_restaurant",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "restaurant_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Scan restaurants filtering by cuisine type containing a keyword",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "cuisine_type",
+                    "function": "contains",
+                    "param": "cuisine_keyword"
+                  }
+                ]
+              },
+              "name": "scan_restaurants_by_cuisine",
+              "operation": "Scan",
+              "parameters": [
+                {
+                  "name": "cuisine_keyword",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 13,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Scan for active restaurants with rating above threshold",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "rating",
+                    "operator": ">=",
+                    "param": "min_rating"
+                  },
+                  {
+                    "field": "is_active",
+                    "operator": "=",
+                    "param": "active_status"
+                  }
+                ],
+                "logical_operator": "AND"
+              },
+              "name": "scan_high_rated_active_restaurants",
+              "operation": "Scan",
+              "parameters": [
+                {
+                  "name": "min_rating",
+                  "type": "decimal"
+                },
+                {
+                  "default": true,
+                  "name": "active_status",
+                  "type": "boolean"
+                }
+              ],
+              "pattern_id": 14,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "RESTAURANT",
+          "fields": [
+            {
+              "name": "restaurant_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "cuisine_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "rating",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "is_active",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "address",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "RESTAURANT#{restaurant_id}",
+          "sk_template": "PROFILE"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "RestaurantTable"
+      }
+    },
+    {
+      "entities": {
+        "Driver": {
+          "access_patterns": [
+            {
+              "description": "Get driver by ID",
+              "name": "get_driver",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "driver_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 15,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Scan drivers filtering by a skill tag and name prefix",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "tags",
+                    "function": "contains",
+                    "param": "skill_tag"
+                  },
+                  {
+                    "field": "name",
+                    "function": "begins_with",
+                    "param": "name_prefix"
+                  }
+                ],
+                "logical_operator": "AND"
+              },
+              "name": "scan_drivers_by_skill",
+              "operation": "Scan",
+              "parameters": [
+                {
+                  "name": "skill_tag",
+                  "type": "string"
+                },
+                {
+                  "name": "name_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 16,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Scan for available drivers with minimum deliveries and rating",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "is_available",
+                    "operator": "=",
+                    "param": "available_flag"
+                  },
+                  {
+                    "field": "total_deliveries",
+                    "operator": ">=",
+                    "param": "min_deliveries"
+                  },
+                  {
+                    "field": "rating",
+                    "operator": ">=",
+                    "param": "min_rating"
+                  }
+                ],
+                "logical_operator": "AND"
+              },
+              "name": "scan_available_experienced_drivers",
+              "operation": "Scan",
+              "parameters": [
+                {
+                  "default": true,
+                  "name": "available_flag",
+                  "type": "boolean"
+                },
+                {
+                  "name": "min_deliveries",
+                  "type": "integer"
+                },
+                {
+                  "name": "min_rating",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 17,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "DRIVER",
+          "fields": [
+            {
+              "name": "driver_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "vehicle_type",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "item_type": "string",
+              "name": "tags",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "name": "rating",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "total_deliveries",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "is_available",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "pk_template": "DRIVER#{driver_id}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "table_name": "DriverTable"
+      }
+    }
+  ]
+}

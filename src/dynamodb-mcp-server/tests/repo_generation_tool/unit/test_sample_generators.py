@@ -619,3 +619,117 @@ class TestSampleValueGeneratorIntegration:
             )
             == 'created_entities["User"].user_id'
         )
+
+    def test_get_all_key_params_deduplicates_shared_fields(self, generator):
+        """Test that get_all_key_params deduplicates when same field is in both PK and SK templates."""
+        # Same field in both PK and SK (e.g., pk_template: "REST#{id}", sk_template: "REST#{id}")
+        result = generator.get_all_key_params(
+            {'pk_template': 'REST#{restaurant_id}', 'sk_template': 'REST#{restaurant_id}'}
+        )
+        assert result == ['restaurant_id']  # Should appear only once
+
+    def test_get_all_key_params_preserves_unique_fields(self, generator):
+        """Test that get_all_key_params preserves unique fields from both templates."""
+        result = generator.get_all_key_params(
+            {'pk_template': 'USER#{user_id}', 'sk_template': 'ORDER#{order_id}'}
+        )
+        assert result == ['user_id', 'order_id']
+
+    def test_get_all_key_params_partial_overlap(self, generator):
+        """Test dedup with partial overlap between PK and SK params."""
+        result = generator.get_all_key_params(
+            {
+                'pk_template': 'TENANT#{tenant_id}#USER#{user_id}',
+                'sk_template': 'DATA#{user_id}#{record_id}',
+            }
+        )
+        # user_id appears in both, should only appear once (from pk_params)
+        assert result == ['tenant_id', 'user_id', 'record_id']
+
+    def test_get_parameter_value_uses_filter_values(self, tmp_path):
+        """Test that get_parameter_value falls through to filter_values when param not in entity fields."""
+        usage_data = {
+            'entities': {
+                'Order': {
+                    'sample_data': {'order_id': 'ord-001', 'customer_id': 'cust-001'},
+                    'access_pattern_data': {'order_id': 'ord-002'},
+                    'update_data': {'status': 'SHIPPED'},
+                    'filter_values': {
+                        'excluded_status': 'CANCELLED',
+                    },
+                }
+            }
+        }
+        usage_file = tmp_path / 'usage.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        generator = PythonSampleGenerator(usage_data_path=str(usage_file))
+
+        entity_config = {
+            'entity_type': 'ORDER',
+            'pk_template': 'CUST#{customer_id}',
+            'sk_template': 'ORDER#{order_id}',
+            'fields': [
+                {'name': 'customer_id', 'type': 'string', 'required': True},
+                {'name': 'order_id', 'type': 'string', 'required': True},
+            ],
+        }
+
+        # excluded_status is NOT in entity fields — should come from filter_values
+        param = {'name': 'excluded_status', 'type': 'string'}
+        result = generator.get_parameter_value(
+            param, 'Order', {'Order': entity_config}, generate_fallback=False
+        )
+        assert result == '"CANCELLED"'
+
+    def test_get_parameter_value_filter_value_is_none_falls_through(self, tmp_path):
+        """Test that when filter_value is None, falls through to generate_fallback (branch 271->275)."""
+        usage_data = {
+            'entities': {
+                'Order': {
+                    'sample_data': {'order_id': 'ord-001'},
+                    'access_pattern_data': {'order_id': 'ord-002'},
+                    'update_data': {'status': 'SHIPPED'},
+                    'filter_values': {},  # Empty — param not in filter_values
+                }
+            }
+        }
+        usage_file = tmp_path / 'usage.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        generator = PythonSampleGenerator(usage_data_path=str(usage_file))
+        entity_config = {
+            'entity_type': 'ORDER',
+            'pk_template': 'CUST#{customer_id}',
+            'sk_template': 'ORDER#{order_id}',
+            'fields': [
+                {'name': 'customer_id', 'type': 'string', 'required': True},
+                {'name': 'order_id', 'type': 'string', 'required': True},
+            ],
+        }
+
+        # param not in entity fields and not in filter_values — with generate_fallback=True
+        # should return a generated default, not None
+        param = {'name': 'some_threshold', 'type': 'decimal'}
+        result = generator.get_parameter_value(
+            param, 'Order', {'Order': entity_config}, generate_fallback=True
+        )
+        assert result is not None  # fallback generated
+
+    def test_get_gsi_sample_value_integer_no_timestamp(self):
+        """Test get_gsi_sample_value for integer field without timestamp (branch 99->114)."""
+        generator = PythonSampleGenerator()
+        result = generator.get_gsi_sample_value('integer', 'score')
+        assert result == '42'
+
+    def test_get_gsi_sample_value_decimal_no_price(self):
+        """Test get_gsi_sample_value for decimal field without price (branch 102->114)."""
+        generator = PythonSampleGenerator()
+        result = generator.get_gsi_sample_value('decimal', 'rating')
+        assert result == 'Decimal("3.14")'
+
+    def test_get_update_value_array_unknown_item_type(self):
+        """Test get_update_value for array with unknown item_type falls back (branch 140->150)."""
+        generator = PythonSampleGenerator()
+        result = generator.get_update_value('array', 'items', item_type='object')
+        assert result == '["updated1", "updated2"]'

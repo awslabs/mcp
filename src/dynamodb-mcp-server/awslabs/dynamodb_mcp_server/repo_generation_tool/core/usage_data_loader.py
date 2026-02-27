@@ -119,6 +119,27 @@ class UsageDataLoader:
         entities = self.usage_data.get('entities', {})
         return entities.get(entity_name, {}).get('update_data', {})
 
+    def get_filter_value_for_param(
+        self, param_name: str, param_type: str, entity_name: Optional[str] = None
+    ) -> Optional[str]:
+        """Get a filter value for a filter expression parameter.
+
+        Lookup hierarchy:
+        1. Entity-specific filter_values
+        2. Return None if not found
+        """
+        if not self.formatter:
+            return None
+
+        if entity_name:
+            entities = self.usage_data.get('entities', {})
+            if entity_name in entities:
+                filter_values = entities[entity_name].get('filter_values', {})
+                if param_name in filter_values:
+                    return self.formatter.format_value(filter_values[param_name], param_type)
+
+        return None
+
     def _load_usage_data(self) -> None:
         """Load the usage data JSON file."""
         try:

@@ -1,0 +1,159 @@
+{
+  "entities": {
+    "Delivery": {
+      "access_pattern_data": {
+        "created_at": "2024-03-18T19:30:00Z",
+        "customer_id": "cust-002",
+        "delivery_fee": 7.5,
+        "delivery_id": "del-20002",
+        "driver_id": "drv-202",
+        "estimated_delivery_time": "2024-03-18T20:15:00Z",
+        "items": [
+          "Margherita Pizza",
+          "Caesar Salad",
+          "Garlic Bread",
+          "Tiramisu"
+        ],
+        "order_date": "2024-03-18",
+        "restaurant_id": "rest-502",
+        "special_instructions": "Ring doorbell twice",
+        "status": "EN_ROUTE",
+        "tip": 12.0,
+        "total": 67.8
+      },
+      "filter_values": {
+        "excluded_status": "CANCELLED",
+        "max_count": 5,
+        "max_fee": 10.0,
+        "min_count": 2,
+        "min_fee": 3.0,
+        "min_items": 3,
+        "min_tip": 5.0,
+        "min_total": 25.0,
+        "status1": "PENDING",
+        "status2": "PREPARING",
+        "status3": "EN_ROUTE"
+      },
+      "sample_data": {
+        "created_at": "2024-03-15T18:45:00Z",
+        "customer_id": "cust-001",
+        "delivery_fee": 5.99,
+        "delivery_id": "del-10001",
+        "driver_id": "drv-201",
+        "estimated_delivery_time": "2024-03-15T19:30:00Z",
+        "items": [
+          "Pad Thai",
+          "Spring Rolls",
+          "Thai Iced Tea"
+        ],
+        "order_date": "2024-03-15",
+        "restaurant_id": "rest-501",
+        "special_instructions": "Leave at door",
+        "status": "DELIVERED",
+        "tip": 8.0,
+        "total": 42.5
+      },
+      "update_data": {
+        "driver_id": "drv-203",
+        "status": "DELIVERED",
+        "tip": 10.0
+      }
+    },
+    "DeliveryEvent": {
+      "access_pattern_data": {
+        "actor": "system",
+        "delivery_id": "del-20002",
+        "description": "Driver assigned to delivery",
+        "event_id": "evt-010",
+        "event_timestamp": "2024-03-18T19:30:00Z",
+        "event_type": "DRIVER_ASSIGNED"
+      },
+      "filter_values": {
+        "type_prefix": "ORDER"
+      },
+      "sample_data": {
+        "actor": "cust-001",
+        "delivery_id": "del-10001",
+        "description": "Order placed by customer",
+        "event_id": "evt-001",
+        "event_timestamp": "2024-03-15T18:45:00Z",
+        "event_type": "ORDER_PLACED"
+      },
+      "update_data": {
+        "description": "Updated event description"
+      }
+    },
+    "Driver": {
+      "access_pattern_data": {
+        "created_at": "2023-04-20T09:00:00Z",
+        "driver_id": "drv-202",
+        "is_available": true,
+        "name": "Maria Garcia",
+        "phone": "+1-555-0202",
+        "rating": 4.7,
+        "tags": [
+          "express",
+          "eco-friendly"
+        ],
+        "total_deliveries": 830,
+        "vehicle_type": "bicycle"
+      },
+      "filter_values": {
+        "available_flag": true,
+        "min_deliveries": 500,
+        "min_rating": 4.5,
+        "name_prefix": "A",
+        "skill_tag": "express"
+      },
+      "sample_data": {
+        "created_at": "2023-01-10T08:00:00Z",
+        "driver_id": "drv-201",
+        "is_available": true,
+        "name": "Alex Thompson",
+        "phone": "+1-555-0201",
+        "rating": 4.9,
+        "tags": [
+          "express",
+          "fragile-items",
+          "large-orders"
+        ],
+        "total_deliveries": 1250,
+        "vehicle_type": "car"
+      },
+      "update_data": {
+        "is_available": false,
+        "rating": 4.85,
+        "total_deliveries": 1251
+      }
+    },
+    "Restaurant": {
+      "access_pattern_data": {
+        "address": "456 Oak Ave, Seattle, WA 98102",
+        "created_at": "2023-07-15T09:00:00Z",
+        "cuisine_type": "Italian",
+        "is_active": true,
+        "name": "Bella Italia",
+        "rating": 4.8,
+        "restaurant_id": "rest-502"
+      },
+      "filter_values": {
+        "active_status": true,
+        "cuisine_keyword": "Italian",
+        "min_rating": 4.0
+      },
+      "sample_data": {
+        "address": "123 Main St, Seattle, WA 98101",
+        "created_at": "2023-06-01T10:00:00Z",
+        "cuisine_type": "Thai",
+        "is_active": true,
+        "name": "Thai Garden",
+        "rating": 4.5,
+        "restaurant_id": "rest-501"
+      },
+      "update_data": {
+        "is_active": false,
+        "rating": 4.6
+      }
+    }
+  }
+}

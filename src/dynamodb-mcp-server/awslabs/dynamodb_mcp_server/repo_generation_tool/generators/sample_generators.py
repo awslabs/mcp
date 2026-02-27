@@ -136,7 +136,10 @@ class SampleValueGenerator:
         """
         pk_params = self.template_parser.extract_parameters(entity_config.get('pk_template', ''))
         sk_params = self.template_parser.extract_parameters(entity_config.get('sk_template', ''))
-        return pk_params + sk_params
+        # Deduplicate: remove sk_params that already appear in pk_params
+        pk_param_set = set(pk_params)
+        unique_sk_params = [p for p in sk_params if p not in pk_param_set]
+        return pk_params + unique_sk_params
 
     def get_parameter_value(
         self,

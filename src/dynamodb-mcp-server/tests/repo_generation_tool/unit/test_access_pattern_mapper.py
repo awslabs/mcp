@@ -397,3 +397,114 @@ class TestAccessPatternMapper:
         # Non-Query/Scan operations should use TypeMapper
         assert result['1']['return_type'] == 'dict'
         type_mapper.map_return_type.assert_called_once_with('mixed_data', 'TestEntity')
+
+
+@pytest.mark.unit
+class TestAccessPatternMapperFilterExpression:
+    """Tests for filter_expression in access pattern mapping."""
+
+    @pytest.fixture
+    def mapper(self, mock_language_config):
+        """Create an AccessPatternMapper instance for testing."""
+        return AccessPatternMapper(mock_language_config)
+
+    def test_mapping_includes_filter_expression_when_present(self, mapper):
+        """Test that mapping includes filter_expression when pattern has one."""
+        entity_config = {
+            'entity_type': 'ORDER',
+            'pk_template': 'CUSTOMER#{customer_id}',
+            'sk_template': 'ORDER#{order_date}',
+            'fields': [
+                {'name': 'customer_id', 'type': 'string', 'required': True},
+                {'name': 'order_date', 'type': 'string', 'required': True},
+                {'name': 'status', 'type': 'string', 'required': True},
+                {'name': 'total', 'type': 'decimal', 'required': True},
+            ],
+            'access_patterns': [
+                {
+                    'pattern_id': 1,
+                    'name': 'get_active_orders',
+                    'description': 'Get active orders',
+                    'operation': 'Query',
+                    'parameters': [
+                        {'name': 'customer_id', 'type': 'string'},
+                        {'name': 'excluded_status', 'type': 'string'},
+                        {'name': 'min_total', 'type': 'decimal'},
+                    ],
+                    'return_type': 'entity_list',
+                    'filter_expression': {
+                        'conditions': [
+                            {'field': 'status', 'operator': '<>', 'param': 'excluded_status'},
+                            {'field': 'total', 'operator': '>=', 'param': 'min_total'},
+                        ],
+                        'logical_operator': 'AND',
+                    },
+                }
+            ],
+        }
+
+        mapping = mapper.generate_mapping('Order', entity_config)
+        assert '1' in mapping
+        assert 'filter_expression' in mapping['1']
+        assert mapping['1']['filter_expression']['logical_operator'] == 'AND'
+        assert len(mapping['1']['filter_expression']['conditions']) == 2
+
+    def test_mapping_omits_filter_expression_when_absent(self, mapper):
+        """Test that mapping omits filter_expression when pattern has none."""
+        entity_config = {
+            'entity_type': 'USER',
+            'pk_template': '{user_id}',
+            'fields': [
+                {'name': 'user_id', 'type': 'string', 'required': True},
+            ],
+            'access_patterns': [
+                {
+                    'pattern_id': 1,
+                    'name': 'get_user',
+                    'description': 'Get user by ID',
+                    'operation': 'GetItem',
+                    'parameters': [{'name': 'user_id', 'type': 'string'}],
+                    'return_type': 'single_entity',
+                }
+            ],
+        }
+
+        mapping = mapper.generate_mapping('User', entity_config)
+        assert '1' in mapping
+        assert 'filter_expression' not in mapping['1']
+
+    def test_mapping_preserves_filter_expression_structure(self, mapper):
+        """Test that the full filter_expression structure is preserved in mapping."""
+        filter_expr = {
+            'conditions': [
+                {'field': 'tags', 'function': 'contains', 'param': 'skill_tag'},
+                {'field': 'name', 'function': 'begins_with', 'param': 'name_prefix'},
+            ],
+            'logical_operator': 'AND',
+        }
+        entity_config = {
+            'entity_type': 'DRIVER',
+            'pk_template': 'DRIVER#{driver_id}',
+            'fields': [
+                {'name': 'driver_id', 'type': 'string', 'required': True},
+                {'name': 'tags', 'type': 'array', 'required': False},
+                {'name': 'name', 'type': 'string', 'required': True},
+            ],
+            'access_patterns': [
+                {
+                    'pattern_id': 10,
+                    'name': 'scan_drivers_by_skill',
+                    'description': 'Scan drivers by skill',
+                    'operation': 'Scan',
+                    'parameters': [
+                        {'name': 'skill_tag', 'type': 'string'},
+                        {'name': 'name_prefix', 'type': 'string'},
+                    ],
+                    'return_type': 'entity_list',
+                    'filter_expression': filter_expr,
+                }
+            ],
+        }
+
+        mapping = mapper.generate_mapping('Driver', entity_config)
+        assert mapping['10']['filter_expression'] == filter_expr

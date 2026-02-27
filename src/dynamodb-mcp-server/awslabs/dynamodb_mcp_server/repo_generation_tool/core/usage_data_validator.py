@@ -32,6 +32,8 @@ class UsageDataValidator:
 
     # Constants for better maintainability - use frozenset for immutability and performance
     REQUIRED_SECTIONS = frozenset(['sample_data', 'access_pattern_data', 'update_data'])
+    OPTIONAL_SECTIONS = frozenset(['filter_values'])
+    ALL_VALID_SECTIONS = REQUIRED_SECTIONS | OPTIONAL_SECTIONS
     KNOWN_TOP_LEVEL_KEYS = frozenset(['entities'])
 
     def __init__(self):
@@ -189,12 +191,20 @@ class UsageDataValidator:
                 self._validate_entity_section(
                     entity_name, section_name, section_data, f'{path}.{section_name}', valid_fields
                 )
+            elif section_name in self.OPTIONAL_SECTIONS:
+                # Optional sections like filter_values are allowed but not validated against entity fields
+                if not isinstance(section_data, dict):
+                    self.result.add_error(
+                        f'{path}.{section_name}',
+                        f"Section '{section_name}' in entity '{entity_name}' must be an object",
+                        f'Change {section_name} to a JSON object with field values',
+                    )
             else:
                 # Unknown section name
                 self.result.add_error(
                     f'{path}.{section_name}',
                     f"Unknown section '{section_name}' in entity '{entity_name}'",
-                    f'Valid sections are: {", ".join(sorted(self.REQUIRED_SECTIONS))}',
+                    f'Valid sections are: {", ".join(sorted(self.ALL_VALID_SECTIONS))}',
                 )
 
     def _validate_entity_section(
