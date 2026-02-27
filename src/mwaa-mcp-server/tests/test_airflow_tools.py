@@ -247,6 +247,55 @@ class TestListDagRuns:
         call_kwargs = mock_client.invoke_rest_api.call_args[1]
         assert call_kwargs['QueryParameters']['state'] == 'failed'
 
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_list_dag_runs_with_date_range(
+        self, mock_get_client, handler_readonly, mock_ctx
+    ):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.return_value = {
+            'RestApiResponse': {'dag_runs': [], 'total_entries': 0},
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await handler_readonly.list_dag_runs(
+            mock_ctx,
+            environment_name='test-env',
+            dag_id='my_dag',
+            order_by='-execution_date',
+            execution_date_gte='2026-02-20T00:00:00+00:00',
+            execution_date_lte='2026-02-21T00:00:00+00:00',
+        )
+
+        assert not result.isError
+        call_kwargs = mock_client.invoke_rest_api.call_args[1]
+        query_params = call_kwargs['QueryParameters']
+        assert query_params['execution_date_gte'] == '2026-02-20T00:00:00+00:00'
+        assert query_params['execution_date_lte'] == '2026-02-21T00:00:00+00:00'
+        assert query_params['order_by'] == '-execution_date'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.mwaa_mcp_server.airflow_tools.get_mwaa_client')
+    async def test_list_dag_runs_custom_order_by(
+        self, mock_get_client, handler_readonly, mock_ctx
+    ):
+        mock_client = MagicMock()
+        mock_client.invoke_rest_api.return_value = {
+            'RestApiResponse': {'dag_runs': [], 'total_entries': 0},
+        }
+        mock_get_client.return_value = mock_client
+
+        result = await handler_readonly.list_dag_runs(
+            mock_ctx,
+            environment_name='test-env',
+            dag_id='my_dag',
+            order_by='-start_date',
+        )
+
+        assert not result.isError
+        call_kwargs = mock_client.invoke_rest_api.call_args[1]
+        assert call_kwargs['QueryParameters']['order_by'] == '-start_date'
+
 
 class TestGetDagRun:
     @pytest.mark.asyncio
