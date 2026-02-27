@@ -62,12 +62,6 @@ def register_module(mcp: FastMCP) -> None:
                 - TopicArn (str): The Amazon Resource Name (ARN) of the topic
                 - TopicName (str): The name of the topic that was created
                 - Status (str): The status of the topic creation (CREATING, UPDATING, DELETING, ACTIVE)
-
-        Note:
-            After creating a topic, you should follow up with a tag_resource tool call
-            to add the "MCP Generated" tag to the cluster if not already tagged.
-            Example:
-            tag_resource_tool(resource_arn=cluster_arn, tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
         client = boto3.client(
