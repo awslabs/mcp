@@ -202,11 +202,13 @@ class K8sClientCache:
             Exception: If there's an error getting the cluster credentials
         """
         if cluster_name not in self._client_cache:
+            # Create a new client
             try:
+                # KUBECONFIG mode
                 if self._auth_mode == AUTH_MODE_KUBECONFIG:
                     self._client_cache[cluster_name] = self._get_kubeconfig_client(cluster_name)
                 else:
-                    # IAM mode (existing behavior)
+                    # IAM mode
                     endpoint, token, ca_data = self._get_cluster_credentials(cluster_name)
 
                     # Validate credentials
