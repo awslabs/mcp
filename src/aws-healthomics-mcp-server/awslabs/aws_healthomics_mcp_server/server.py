@@ -37,6 +37,18 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     get_supported_regions,
     package_workflow,
 )
+from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
+    cancel_reference_import_job,
+    create_reference_store,
+    get_reference_import_job,
+    get_reference_metadata,
+    get_reference_store,
+    list_reference_import_jobs,
+    list_reference_stores,
+    list_references,
+    start_reference_import_job,
+    update_reference_store,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
 from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
     create_run_cache,
@@ -51,6 +63,23 @@ from awslabs.aws_healthomics_mcp_server.tools.run_group import (
     update_run_group,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
+from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
+    activate_read_sets,
+    archive_read_sets,
+    cancel_read_set_import_job,
+    create_sequence_store,
+    get_read_set_export_job,
+    get_read_set_import_job,
+    get_read_set_metadata,
+    get_sequence_store,
+    list_read_set_export_jobs,
+    list_read_set_import_jobs,
+    list_read_sets,
+    list_sequence_stores,
+    start_read_set_export_job,
+    start_read_set_import_job,
+    update_sequence_store,
+)
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs,
@@ -153,6 +182,35 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **CreateCodeConnection**: Create a new CodeConnection to a Git provider
 - **GetCodeConnection**: Get details about a specific CodeConnection
 
+### Sequence Store Management
+- **CreateAHOSequenceStore**: Create a new HealthOmics sequence store
+- **ListAHOSequenceStores**: List available sequence stores
+- **GetAHOSequenceStore**: Get details about a specific sequence store
+- **UpdateAHOSequenceStore**: Update a sequence store's configuration
+- **ListAHOReadSets**: List read sets in a sequence store with filtering
+- **GetAHOReadSetMetadata**: Get metadata for a specific read set
+- **StartAHOReadSetImportJob**: Import genomic files from S3 into a sequence store
+- **GetAHOReadSetImportJob**: Get status of a read set import job
+- **ListAHOReadSetImportJobs**: List import jobs for a sequence store
+- **CancelAHOReadSetImportJob**: Cancel a running import job
+- **StartAHOReadSetExportJob**: Export read sets from a sequence store to S3
+- **GetAHOReadSetExportJob**: Get status of a read set export job
+- **ListAHOReadSetExportJobs**: List export jobs for a sequence store
+- **ActivateAHOReadSets**: Activate archived read sets
+- **ArchiveAHOReadSets**: Archive read sets to lower-cost storage
+
+### Reference Store Management
+- **CreateAHOReferenceStore**: Create a new HealthOmics reference store
+- **ListAHOReferenceStores**: List available reference stores
+- **GetAHOReferenceStore**: Get details about a specific reference store
+- **UpdateAHOReferenceStore**: Update a reference store's configuration
+- **ListAHOReferences**: List references in a reference store with filtering
+- **GetAHOReferenceMetadata**: Get metadata for a specific reference
+- **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
+- **GetAHOReferenceImportJob**: Get status of a reference import job
+- **ListAHOReferenceImportJobs**: List import jobs for a reference store
+- **CancelAHOReferenceImportJob**: Cancel a running reference import job
+
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
 """,
@@ -228,6 +286,35 @@ mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
 mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
 mcp.tool(name='CreateContainerRegistryMap')(create_container_registry_map)
 mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
+
+# Register sequence store tools
+mcp.tool(name='CreateAHOSequenceStore')(create_sequence_store)
+mcp.tool(name='ListAHOSequenceStores')(list_sequence_stores)
+mcp.tool(name='GetAHOSequenceStore')(get_sequence_store)
+mcp.tool(name='UpdateAHOSequenceStore')(update_sequence_store)
+mcp.tool(name='ListAHOReadSets')(list_read_sets)
+mcp.tool(name='GetAHOReadSetMetadata')(get_read_set_metadata)
+mcp.tool(name='StartAHOReadSetImportJob')(start_read_set_import_job)
+mcp.tool(name='GetAHOReadSetImportJob')(get_read_set_import_job)
+mcp.tool(name='ListAHOReadSetImportJobs')(list_read_set_import_jobs)
+mcp.tool(name='CancelAHOReadSetImportJob')(cancel_read_set_import_job)
+mcp.tool(name='StartAHOReadSetExportJob')(start_read_set_export_job)
+mcp.tool(name='GetAHOReadSetExportJob')(get_read_set_export_job)
+mcp.tool(name='ListAHOReadSetExportJobs')(list_read_set_export_jobs)
+mcp.tool(name='ActivateAHOReadSets')(activate_read_sets)
+mcp.tool(name='ArchiveAHOReadSets')(archive_read_sets)
+
+# Register reference store tools
+mcp.tool(name='CreateAHOReferenceStore')(create_reference_store)
+mcp.tool(name='ListAHOReferenceStores')(list_reference_stores)
+mcp.tool(name='GetAHOReferenceStore')(get_reference_store)
+mcp.tool(name='UpdateAHOReferenceStore')(update_reference_store)
+mcp.tool(name='ListAHOReferences')(list_references)
+mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
+mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
+mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
+mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
+mcp.tool(name='CancelAHOReferenceImportJob')(cancel_reference_import_job)
 
 
 def main():

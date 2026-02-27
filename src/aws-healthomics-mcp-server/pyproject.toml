@@ -94,6 +94,7 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+"tests/**" = ["D102"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
