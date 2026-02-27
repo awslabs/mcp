@@ -232,6 +232,89 @@ def gsi_query_method(
 
 **Critical:** Never attempt entity parsing when return type is `list[dict[str, Any]]` - it will fail validation.
 
+### Multi-Attribute Key GSI Query Operations
+
+**Multi-attribute keys** allow GSIs to use up to 4 attributes per key (partition or sort). DynamoDB automatically hashes partition key attributes together and sorts by sort key attributes left-to-right.
+
+**Key Rules:**
+1. **Partition key attributes**: ALL must be specified with equality conditions
+2. **Sort key attributes**: Must be queried left-to-right without skipping
+3. **Inequality conditions**: Can only be used on the LAST sort key attribute
+
+```python
+def multi_attr_gsi_query(
+    self,
+    tournament_id: str,
+    region: str,
+    round: str = None,
+    bracket_prefix: str = None,
+    limit: int = 100,
+    exclusive_start_key: dict | None = None,
+    skip_invalid_items: bool = True
+) -> tuple[list[Entity], dict | None]:
+    """
+    Query using multi-attribute key GSI.
+
+    GSI: TournamentRegionIndex
+    - Partition Key: tournamentId + region (2 attributes - both required)
+    - Sort Key: round + bracket + matchId (3 attributes - query left-to-right)
+
+    Examples:
+    - query(tournament_id, region) → All matches for tournament/region
+    - query(tournament_id, region, round) → Matches in specific round
+    - query(tournament_id, region, round, bracket_prefix) → Matches in round with bracket prefix
+    """
+    try:
+        # Multi-attribute PK returns tuple
+        gsi_pk_tuple = Entity.build_gsi_pk_for_lookup_tournamentregionindex(tournament_id, region)
+
+        # Build KeyConditionExpression - ALL PK attributes with equality
+        key_condition = (
+            Key('tournamentId').eq(gsi_pk_tuple[0]) &
+            Key('region').eq(gsi_pk_tuple[1])
+        )
+
+        # Add SK conditions left-to-right (optional)
+        if round:
+            key_condition = key_condition & Key('round').eq(round)
+            if bracket_prefix:
+                # Inequality must be on LAST attribute in condition
+                key_condition = key_condition & Key('bracket').begins_with(bracket_prefix)
+
+        query_parameters = {
+            'IndexName': 'TournamentRegionIndex',
+            'KeyConditionExpression': key_condition,
+            'Limit': limit
+        }
+        if exclusive_start_key:
+            query_parameters['ExclusiveStartKey'] = exclusive_start_key
+
+        response = self.table.query(**query_parameters)
+        entities, last_evaluated_key = self._parse_query_response(response, skip_invalid_items)
+        return entities, last_evaluated_key
+    except ClientError as e:
+        raise RuntimeError(f"Failed to query multi-attribute GSI: {e}")
+```
+
+**Invalid multi-attribute queries:**
+```python
+# ❌ INVALID: Skipping first sort key attribute
+Key('round').eq(round) & Key('matchId').eq(match_id)  # Cannot skip 'bracket'
+
+# ❌ INVALID: Inequality not on last attribute
+Key('round').begins_with('SEMI') & Key('bracket').eq('UPPER')  # Inequality must be last
+
+# ❌ INVALID: Missing partition key attribute
+Key('tournamentId').eq(tournament_id)  # Must also specify 'region'
+```
+
+**Valid patterns:**
+- PK: `tournamentId = X AND region = Y` (all PK attributes with equality)
+- SK: `round = X` (first SK attribute only)
+- SK: `round = X AND bracket = Y` (first two SK attributes)
+- SK: `round = X AND bracket = Y AND matchId = Z` (all three SK attributes)
+- SK: `round = X AND bracket >= Y` (equality + inequality on last)
+
 ### UpdateItem Access Pattern Operations (Partial Updates)
 ```python
 def update_method(self, key_param1: str, key_param2: str, field_value) -> Entity | None:

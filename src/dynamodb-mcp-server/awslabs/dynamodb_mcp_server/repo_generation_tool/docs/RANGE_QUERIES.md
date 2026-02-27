@@ -138,6 +138,60 @@ Define range queries on GSI by specifying both `index_name` and `range_condition
 - GSI must be defined in `gsi_list` before use
 - Entity must have corresponding `gsi_mappings` entry
 
+### Multi-Attribute Keys with Range Queries
+
+GSIs can use multi-attribute keys (up to 4 attributes per key). Range conditions apply to the LAST sort key attribute:
+
+```json
+{
+  "gsi_list": [
+    {
+      "name": "StoreActiveDeliveries",
+      "partition_key": "store_id",
+      "sort_key": ["status", "created_at"],
+      "projection": "ALL"
+    }
+  ],
+  "entities": {
+    "Order": {
+      "gsi_mappings": [
+        {
+          "name": "StoreActiveDeliveries",
+          "pk_template": "{store_id}",
+          "sk_template": ["{status}", "{created_at}"]
+        }
+      ],
+      "access_patterns": [
+        {
+          "pattern_id": 1,
+          "name": "get_store_in_transit_deliveries",
+          "description": "Get in-transit deliveries filtered by status",
+          "operation": "Query",
+          "index_name": "StoreActiveDeliveries",
+          "range_condition": "begins_with",
+          "parameters": [
+            { "name": "store_id", "type": "string" },
+            { "name": "status", "type": "string" },
+            { "name": "created_at", "type": "string" }
+          ],
+          "return_type": "entity_list"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Multi-Attribute Range Query Rules:**
+- Sort key attributes must be queried left-to-right — you can stop at any point
+- The range condition applies to the LAST QUERIED SK attribute, not necessarily the last attribute in the GSI definition
+- Minimum parameter count = PK attributes + range parameters (range on first SK attribute)
+- Maximum parameter count = PK attributes + (SK attributes - 1) + range parameters (all SK equality + range on last)
+- Example with 1 PK + 2 SK attributes (`begins_with`):
+  - Minimum: 1 PK + 1 range = 2 params (range on first SK)
+  - Maximum: 1 PK + 1 SK equality + 1 range = 3 params (equality on first SK, range on second)
+- Generated query: `Key('status').eq(status) & Key('created_at').begins_with(prefix)`
+
 ### Generated Code Example
 
 ```python
@@ -301,8 +355,8 @@ The generator performs comprehensive validation:
 - Clear error messages with suggestions
 
 ### 2. Parameter Count Validation
-- `between` requires exactly 3 parameters (PK + 2 range values)
-- All other conditions require exactly 2 parameters (PK + 1 range value)
+- For single-attribute keys: `between` requires exactly 3 parameters (PK + 2 range values), all others require exactly 2 (PK + 1 range value)
+- For multi-attribute keys: parameter count must be between minimum (PK count + range values) and maximum (PK count + SK count - 1 + range values), following the left-to-right SK query rule
 - Helpful error messages indicate how many parameters to add/remove
 
 ### 3. Operation Compatibility

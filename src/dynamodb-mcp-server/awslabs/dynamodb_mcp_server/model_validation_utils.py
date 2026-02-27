@@ -15,6 +15,7 @@
 import boto3
 import os
 import psutil
+import re
 import shutil
 import socket
 import subprocess
@@ -26,7 +27,7 @@ import urllib.request
 from botocore.exceptions import ClientError, EndpointConnectionError
 from loguru import logger
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 
@@ -44,6 +45,17 @@ class DynamoDBLocalConfig:
     JAVA_PROPERTY_NAME = CONTAINER_NAME.replace('-', '.')
     DOWNLOAD_TIMEOUT = 30
     BATCH_SIZE = 25
+    MINIMUM_VERSION_TUPLE: Tuple[int, int, int] = (
+        3,
+        3,
+        0,
+    )  # Minimum required DynamoDB Local version
+
+
+class DynamoDBLocalVersionError(Exception):
+    """Raised when DynamoDB Local version is below minimum requirement."""
+
+    pass
 
 
 class ContainerTools:
@@ -141,6 +153,115 @@ def _parse_container_port(ports_output: str) -> Optional[str]:
     if '->' in ports_output:
         return ports_output.split('->')[0].split(':')[-1]
     return None
+
+
+def _parse_dynamodb_local_version(output: str) -> Optional[Tuple[int, int, int]]:
+    """Parse DynamoDB Local version from command output into tuple of integers.
+
+    Args:
+        output: Command output that may contain version string
+
+    Returns:
+        Optional[Tuple[int, int, int]]: (major, minor, patch) version numbers, or None if not found
+    """
+    match = re.search(r'(\d+)\.(\d+)\.(\d+)', output)
+    if match:
+        return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    return None
+
+
+def _format_version(version: Tuple[int, int, int]) -> str:
+    """Format version tuple as string.
+
+    Args:
+        version: Version tuple (major, minor, patch)
+
+    Returns:
+        str: Version string (e.g., "3.3.0")
+    """
+    return '.'.join(str(v) for v in version)
+
+
+def _get_dynamodb_local_container_version(container_path: str) -> Optional[Tuple[int, int, int]]:
+    """Get DynamoDB Local version from existing container using docker inspect.
+
+    Args:
+        container_path: Path to container tool executable
+
+    Returns:
+        Optional[Tuple[int, int, int]]: (major, minor, patch) version tuple, or None if not found
+    """
+    # Use docker inspect to get version from container labels
+    version_cmd = [
+        container_path,
+        'inspect',
+        DynamoDBLocalConfig.CONTAINER_NAME,
+        '--format',
+        '{{index .Config.Labels "aws.java.sdk.version"}}',
+    ]
+
+    result = _run_subprocess_safely(version_cmd, timeout=10)
+
+    if result and result.stdout.strip():
+        return _parse_dynamodb_local_version(result.stdout.strip())
+
+    return None
+
+
+def _get_dynamodb_local_java_version(
+    java_path: str, jar_path: str
+) -> Optional[Tuple[int, int, int]]:
+    """Get DynamoDB Local version from Java JAR.
+
+    Args:
+        java_path: Path to Java executable
+        jar_path: Path to DynamoDBLocal.jar
+
+    Returns:
+        Optional[Tuple[int, int, int]]: (major, minor, patch) version tuple, or None if not found
+    """
+    if not os.path.exists(jar_path):
+        return None
+
+    # Get lib path for Java library path
+    _, _, lib_path = _get_dynamodb_local_paths()
+
+    version_cmd = [
+        java_path,
+        f'-Djava.library.path={lib_path}',
+        '-jar',
+        jar_path,
+        '-version',
+    ]
+
+    try:
+        _validate_java_executable(java_path)
+    except ValueError:
+        return None
+
+    result = _run_subprocess_safely(version_cmd, timeout=10)
+    if result:
+        # Check both stdout and stderr as version info might be in either
+        output = (result.stdout or '') + (result.stderr or '')
+        if output:
+            return _parse_dynamodb_local_version(output)
+
+    return None
+
+
+def _check_version_meets_minimum(current_version: Optional[Tuple[int, int, int]]) -> bool:
+    """Check if current version meets minimum requirement.
+
+    Args:
+        current_version: Current version tuple or None
+
+    Returns:
+        bool: True if version meets minimum, False otherwise
+    """
+    if not current_version:
+        return False
+
+    return current_version >= DynamoDBLocalConfig.MINIMUM_VERSION_TUPLE
 
 
 def _container_exists(container_path: str) -> bool:
@@ -303,10 +424,31 @@ def _try_container_setup() -> Optional[str]:
         return None
 
     try:
-        # Check if our container is already running
-        existing_endpoint = get_existing_container_dynamodb_local_endpoint(container_path)
-        if existing_endpoint:
-            return existing_endpoint
+        # Check if our container exists
+        if _container_exists(container_path):
+            # Check version
+            current_version = _get_dynamodb_local_container_version(container_path)
+            if current_version:
+                logger.info(f'Found DynamoDB Local container version: {current_version}')
+
+            if not _check_version_meets_minimum(current_version):
+                container_tool = os.path.basename(container_path)
+                min_version = _format_version(DynamoDBLocalConfig.MINIMUM_VERSION_TUPLE)
+                current_version_str = (
+                    _format_version(current_version) if current_version else 'unknown'
+                )
+                raise DynamoDBLocalVersionError(
+                    f'DynamoDB Local container version {current_version_str} is below minimum required version {min_version}.\n\n'
+                    f'ACTION REQUIRED: The user must manually remove the outdated container by running these commands in their terminal:\n\n'
+                    f'  {container_tool} stop {DynamoDBLocalConfig.CONTAINER_NAME}\n'
+                    f'  {container_tool} rm {DynamoDBLocalConfig.CONTAINER_NAME}\n\n'
+                    f'After removing the container, run the data model validation tool again to proceed.'
+                )
+
+            # Version is sufficient, check if running
+            existing_endpoint = get_existing_container_dynamodb_local_endpoint(container_path)
+            if existing_endpoint:
+                return existing_endpoint
 
         # Find available port and start container
         port = find_available_port(DynamoDBLocalConfig.DEFAULT_PORT)
@@ -324,6 +466,44 @@ def _try_java_setup() -> Optional[str]:
         return None
 
     try:
+        # Check if JAR exists and get version
+        dynamodb_dir, jar_path, _ = _get_dynamodb_local_paths()
+        current_version = (
+            _get_dynamodb_local_java_version(java_path, jar_path)
+            if os.path.exists(jar_path)
+            else None
+        )
+        if current_version:
+            logger.info(f'Found DynamoDB Local Java version: {current_version}')
+
+        # Check if version meets minimum
+        if current_version and not _check_version_meets_minimum(current_version):
+            min_version = _format_version(DynamoDBLocalConfig.MINIMUM_VERSION_TUPLE)
+            current_version_str = _format_version(current_version)
+
+            # Check if process is running to provide appropriate instructions
+            existing_endpoint = get_existing_java_dynamodb_local_endpoint()
+
+            kill_cmd = f'pkill -f "{DynamoDBLocalConfig.JAVA_PROPERTY_NAME}"'
+            rm_cmd = f'rm -rf {dynamodb_dir}'
+
+            if sys.platform == 'win32':
+                kill_cmd = f'powershell "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -match \'{DynamoDBLocalConfig.JAVA_PROPERTY_NAME}\' }} | %{{ Stop-Process -Id $_.ProcessId -Force }}"'
+                rm_cmd = f'rmdir /S /Q "{dynamodb_dir}"'
+
+            steps = []
+            if existing_endpoint:
+                steps.append(kill_cmd)
+            steps.append(rm_cmd)
+
+            commands = '\n  '.join(steps)
+            raise DynamoDBLocalVersionError(
+                f'DynamoDB Local Java version {current_version_str} is below minimum required version {min_version}.\n\n'
+                f'ACTION REQUIRED: The user must manually run these commands in their terminal:\n\n'
+                f'  {commands}\n\n'
+                f'After completing these steps, run the data model validation tool again to proceed.'
+            )
+
         # Check if our Java process is already running
         existing_endpoint = get_existing_java_dynamodb_local_endpoint()
         if existing_endpoint:
@@ -543,6 +723,22 @@ def download_dynamodb_local_jar() -> tuple[str, str]:
     return jar_path, lib_path
 
 
+def _validate_java_executable(java_path: str) -> None:
+    """Validate that the path points to a Java executable.
+
+    Args:
+        java_path: Path to validate
+
+    Raises:
+        ValueError: If path is not a valid Java executable
+    """
+    base_cmd = os.path.basename(java_path)
+    if base_cmd.endswith('.exe'):
+        base_cmd = base_cmd[:-4]
+    if base_cmd != 'java':
+        raise ValueError(f'Invalid Java executable: {base_cmd}')
+
+
 def start_java_process(java_path: str, port: int) -> str:
     """Start DynamoDB Local using Java and return endpoint URL.
 
@@ -557,6 +753,9 @@ def start_java_process(java_path: str, port: int) -> str:
         RuntimeError: If Java process fails to start, JAR download fails, or service
                      doesn't become ready within timeout period
     """
+    # Validate Java path before any operations
+    _validate_java_executable(java_path)
+
     jar_path, lib_path = download_dynamodb_local_jar()
 
     cmd = [
@@ -573,13 +772,6 @@ def start_java_process(java_path: str, port: int) -> str:
     ]
 
     try:
-        # Validate command before execution
-        base_cmd = os.path.basename(java_path)
-        if base_cmd.endswith('.exe'):
-            base_cmd = base_cmd[:-4]
-        if base_cmd != 'java':
-            raise RuntimeError(f'Invalid Java executable: {base_cmd}')
-
         logger.info(f'Starting DynamoDB Local with Java on port {port}')
 
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

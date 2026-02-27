@@ -46,12 +46,104 @@ class GSIValidator:
     - Template parameter validation
     - Range condition validation
     - Parameter count validation for range queries
+    - Multi-attribute key validation (up to 4 attributes per key)
     """
 
     def __init__(self):
         """Initialize GSI validator with template parser and range query validator."""
         self.template_parser = KeyTemplateParser()
         self.range_query_validator = RangeQueryValidator()
+
+    @staticmethod
+    def _validate_multi_attribute_key(
+        key_value: str | list[str] | None, key_name: str, path: str, is_required: bool = True
+    ) -> list[ValidationError]:
+        """Validate multi-attribute key (partition_key or sort_key).
+
+        Args:
+            key_value: String, list of strings, or None
+            key_name: 'partition_key' or 'sort_key'
+            path: Path for error reporting
+            is_required: Whether the key is required
+
+        Returns:
+            List of ValidationError objects
+        """
+        errors = []
+
+        # Handle None
+        if key_value is None:
+            if is_required:
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.{key_name}',
+                        message=f'Missing required {key_name}',
+                        suggestion=f'Add {key_name} as a string or array of 1-4 attribute names',
+                    )
+                )
+            return errors
+
+        # Validate type
+        if not isinstance(key_value, (str, list)):
+            errors.append(
+                ValidationError(
+                    path=f'{path}.{key_name}',
+                    message=f'{key_name} must be a string or array of strings',
+                    suggestion='Use a single attribute name (string) or array of 1-4 attribute names',
+                )
+            )
+            return errors
+
+        # Validate string
+        if isinstance(key_value, str):
+            if not key_value.strip():
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.{key_name}',
+                        message=f'{key_name} cannot be empty',
+                        suggestion='Provide a valid attribute name',
+                    )
+                )
+            return errors
+
+        # Validate array
+        if not key_value:  # Empty array
+            errors.append(
+                ValidationError(
+                    path=f'{path}.{key_name}',
+                    message=f'{key_name} array cannot be empty',
+                    suggestion='Provide at least one attribute name',
+                )
+            )
+        elif len(key_value) > 4:
+            errors.append(
+                ValidationError(
+                    path=f'{path}.{key_name}',
+                    message=f'{key_name} array cannot have more than 4 attributes (found {len(key_value)})',
+                    suggestion=f'DynamoDB multi-attribute keys support up to 4 attributes. Remove {len(key_value) - 4} attribute(s)',
+                )
+            )
+
+        # Validate array elements
+        for i, attr in enumerate(key_value):
+            if not isinstance(attr, str):
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.{key_name}[{i}]',
+                        message=f'Attribute at index {i} must be a string',
+                        suggestion=f'Ensure all attributes in {key_name} array are strings',
+                    )
+                )
+            elif not attr.strip():
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.{key_name}[{i}]',
+                        message=f'Attribute at index {i} cannot be empty',
+                        suggestion='Provide a valid attribute name',
+                    )
+                )
+
+        return errors
 
     def validate_gsi_names_unique(
         self, gsi_list: list[GSIDefinition], table_path: str = 'gsi_list'
@@ -162,21 +254,101 @@ class GSIValidator:
 
     def validate_template_parameters(
         self,
-        template: str,
+        template: str | list[str],
         entity_fields: list[Field],
         template_path: str,
         template_type: str = 'template',
     ) -> list[ValidationError]:
-        """Validate that all template parameters exist as entity fields using KeyTemplateParser.
+        """Validate template parameters exist as entity fields.
 
         Args:
-            template: Template string to validate (e.g., "USER#{user_id}#STATUS#{status}")
-            entity_fields: List of Field objects from entity definition
-            template_path: Path context for error reporting
-            template_type: Type of template for error messages (e.g., "pk_template", "sk_template")
+            template: Template string or list of template strings
+            entity_fields: List of Field objects
+            template_path: Path for error reporting
+            template_type: Template type (e.g., "pk_template")
 
         Returns:
-            List of ValidationError objects for missing template parameters
+            List of ValidationError objects
+        """
+        errors = []
+
+        # Validate type
+        if not isinstance(template, (str, list)):
+            errors.append(
+                ValidationError(
+                    path=f'{template_path}.{template_type}',
+                    message=f'{template_type} must be a string or array of strings',
+                    suggestion='Use a single template (string) or array of 1-4 templates',
+                )
+            )
+            return errors
+
+        # Handle string template
+        if isinstance(template, str):
+            return self._validate_single_template(
+                template, entity_fields, template_path, template_type
+            )
+
+        # Handle array template - validate array constraints first
+        if not template:  # Empty array
+            errors.append(
+                ValidationError(
+                    path=f'{template_path}.{template_type}',
+                    message=f'{template_type} array cannot be empty',
+                    suggestion='Provide at least one template string',
+                )
+            )
+            return errors
+
+        if len(template) > 4:
+            errors.append(
+                ValidationError(
+                    path=f'{template_path}.{template_type}',
+                    message=f'{template_type} array cannot have more than 4 templates (found {len(template)})',
+                    suggestion=f'DynamoDB multi-attribute keys support up to 4 attributes. Remove {len(template) - 4} template(s)',
+                )
+            )
+
+        # Validate each template in array
+        for i, tmpl in enumerate(template):
+            if not isinstance(tmpl, str):
+                errors.append(
+                    ValidationError(
+                        path=f'{template_path}.{template_type}[{i}]',
+                        message=f'Template at index {i} must be a string',
+                        suggestion='Ensure all templates in array are strings',
+                    )
+                )
+                continue
+
+            # Validate template content
+            tmpl_errors = self._validate_single_template(
+                tmpl,
+                entity_fields,
+                f'{template_path}.{template_type}[{i}]',
+                f'{template_type}[{i}]',
+            )
+            errors.extend(tmpl_errors)
+
+        return errors
+
+    def _validate_single_template(
+        self,
+        template: str,
+        entity_fields: list[Field],
+        template_path: str,
+        template_type: str,
+    ) -> list[ValidationError]:
+        """Validate a single template string.
+
+        Args:
+            template: Template string
+            entity_fields: List of Field objects
+            template_path: Path for error reporting
+            template_type: Template type
+
+        Returns:
+            List of ValidationError objects
         """
         errors = []
 
@@ -213,6 +385,110 @@ class GSIValidator:
 
         return errors
 
+    def _validate_key_template_length_match(
+        self,
+        gsi_def: GSIDefinition,
+        mapping: GSIMapping,
+        mapping_path: str,
+    ) -> list[ValidationError]:
+        """Validate that template array lengths match GSI key array lengths.
+
+        When both the GSI key (partition_key/sort_key) and the mapping template
+        (pk_template/sk_template) are arrays, they must have the same length.
+
+        Args:
+            gsi_def: GSI definition from gsi_list
+            mapping: GSI mapping from entity
+            mapping_path: Path for error reporting
+
+        Returns:
+            List of ValidationError objects for length mismatches
+        """
+        errors = []
+
+        # Cross-validate partition key
+        errors.extend(
+            self._validate_single_key_template_match(
+                gsi_def.partition_key,
+                mapping.pk_template,
+                'partition_key',
+                'pk_template',
+                gsi_def.name,
+                mapping_path,
+            )
+        )
+
+        # Cross-validate sort key (only when both exist)
+        if gsi_def.sort_key is not None and mapping.sk_template is not None:
+            errors.extend(
+                self._validate_single_key_template_match(
+                    gsi_def.sort_key,
+                    mapping.sk_template,
+                    'sort_key',
+                    'sk_template',
+                    gsi_def.name,
+                    mapping_path,
+                )
+            )
+
+        return errors
+
+    @staticmethod
+    def _validate_single_key_template_match(
+        key_value: str | list[str],
+        template_value: str | list[str],
+        key_name: str,
+        template_name: str,
+        gsi_name: str,
+        mapping_path: str,
+    ) -> list[ValidationError]:
+        """Validate that a single key/template pair have matching types and lengths.
+
+        Args:
+            key_value: GSI key definition (from gsi_list)
+            template_value: Mapping template (from gsi_mappings)
+            key_name: Key field name for messages (e.g., 'partition_key')
+            template_name: Template field name for messages (e.g., 'pk_template')
+            gsi_name: GSI name for messages
+            mapping_path: Path for error reporting
+
+        Returns:
+            List of ValidationError objects
+        """
+        key_is_list = isinstance(key_value, list)
+        tmpl_is_list = isinstance(template_value, list)
+
+        if key_is_list != tmpl_is_list:
+            key_type = 'array' if key_is_list else 'string'
+            tmpl_type = 'array' if tmpl_is_list else 'string'
+            return [
+                ValidationError(
+                    path=f'{mapping_path}.{template_name}',
+                    message=(
+                        f'{template_name} type ({tmpl_type}) does not match '
+                        f"{key_name} type ({key_type}) in GSI '{gsi_name}'"
+                    ),
+                    suggestion=f'{template_name} must be {key_type} to match {key_name} definition',
+                )
+            ]
+
+        if key_is_list and len(key_value) != len(template_value):
+            return [
+                ValidationError(
+                    path=f'{mapping_path}.{template_name}',
+                    message=(
+                        f'{template_name} array length ({len(template_value)}) does not match '
+                        f"{key_name} array length ({len(key_value)}) in GSI '{gsi_name}'"
+                    ),
+                    suggestion=(
+                        f'{template_name} must have {len(key_value)} template(s) to match '
+                        f'{key_name}: {key_value}'
+                    ),
+                )
+            ]
+
+        return []
+
     def validate_range_conditions(
         self, range_condition: str, pattern_path: str = 'range_condition'
     ) -> list[ValidationError]:
@@ -230,20 +506,22 @@ class GSIValidator:
         return self.range_query_validator.validate_range_condition(range_condition, pattern_path)
 
     def validate_parameter_count(
-        self, pattern: AccessPattern, pattern_path: str = 'access_pattern'
+        self,
+        pattern: AccessPattern,
+        pattern_path: str = 'access_pattern',
+        gsi_def: GSIDefinition | None = None,
     ) -> list[ValidationError]:
         """Validate parameter count matches range condition requirements.
-
-        Delegates to RangeQueryValidator for common validation logic.
 
         Args:
             pattern: AccessPattern object to validate
             pattern_path: Path context for error reporting
+            gsi_def: GSI definition (for multi-attribute partition key support)
 
         Returns:
             List of ValidationError objects for incorrect parameter counts
         """
-        return self.range_query_validator.validate_parameter_count(pattern, pattern_path)
+        return self.range_query_validator.validate_parameter_count(pattern, pattern_path, gsi_def)
 
     def validate_gsi_access_patterns(
         self,
@@ -300,8 +578,13 @@ class GSIValidator:
                 )
                 errors.extend(range_errors)
 
+                # Find the GSI definition for this pattern (if using GSI)
+                gsi_def = None
+                if pattern.index_name and gsi_list:
+                    gsi_def = next((g for g in gsi_list if g.name == pattern.index_name), None)
+
                 # Validate parameter count for range conditions
-                param_count_errors = self.validate_parameter_count(pattern, pattern_path)
+                param_count_errors = self.validate_parameter_count(pattern, pattern_path, gsi_def)
                 errors.extend(param_count_errors)
 
         return errors
@@ -344,7 +627,7 @@ class GSIValidator:
         # Validate included_attributes reference valid fields
         if 'entities' in table_data:
             attr_errors = self._validate_included_attributes_exist(
-                gsi_list, table_data['entities'], table_path
+                gsi_list, table_data['entities'], table_data.get('table_config', {}), table_path
             )
             errors.extend(attr_errors)
 
@@ -422,6 +705,27 @@ class GSIValidator:
                             suggestion=f'Add missing fields: {", ".join(missing_fields)}',
                         )
                     )
+                    continue
+
+                # Validate multi-attribute keys
+                pk_errors = self._validate_multi_attribute_key(
+                    gsi.get('partition_key'),
+                    'partition_key',
+                    f'{table_path}.gsi_list[{i}]',
+                    is_required=True,
+                )
+                errors.extend(pk_errors)
+
+                sk_errors = self._validate_multi_attribute_key(
+                    gsi.get('sort_key'),
+                    'sort_key',
+                    f'{table_path}.gsi_list[{i}]',
+                    is_required=False,
+                )
+                errors.extend(sk_errors)
+
+                # Skip adding GSI if validation failed
+                if pk_errors or sk_errors:
                     continue
 
                 gsi_list.append(
@@ -563,9 +867,17 @@ class GSIValidator:
             )
             errors.extend(mapping_errors)
 
-            # Validate GSI mapping templates
+            # Validate GSI mapping templates and cross-validate with GSI definitions
             for i, mapping in enumerate(gsi_mappings):
                 mapping_path = f'{entity_path}.gsi_mappings[{i}]'
+
+                # Cross-validate template array lengths against GSI key definitions
+                gsi_def = next((g for g in gsi_list if g.name == mapping.name), None)
+                if gsi_def:
+                    key_template_errors = self._validate_key_template_length_match(
+                        gsi_def, mapping, mapping_path
+                    )
+                    errors.extend(key_template_errors)
 
                 # Validate pk_template
                 pk_errors = self.validate_template_parameters(
@@ -822,23 +1134,36 @@ class GSIValidator:
 
                     uses_gsi = True
 
-                    # Extract fields from GSI templates (these are always projected by DynamoDB)
-                    if 'pk_template' in mapping:
-                        gsi_template_fields.update(
-                            self.template_parser.extract_parameters(mapping['pk_template'])
-                        )
-                    if 'sk_template' in mapping and mapping['sk_template']:
-                        gsi_template_fields.update(
-                            self.template_parser.extract_parameters(mapping['sk_template'])
-                        )
+                    # Extract fields from GSI templates (always projected by DynamoDB)
+                    for key in ['pk_template', 'sk_template']:
+                        if key not in mapping or not mapping[key]:
+                            continue
+
+                        tmpl = mapping[key]
+                        if isinstance(tmpl, list):
+                            for t in tmpl:
+                                gsi_template_fields.update(
+                                    self.template_parser.extract_parameters(t)
+                                )
+                        else:
+                            gsi_template_fields.update(
+                                self.template_parser.extract_parameters(tmpl)
+                            )
 
                 if not uses_gsi:
                     continue
 
-                # Build set of always-projected fields (table keys + GSI template fields)
+                # Build set of always-projected fields
                 always_projected = {table_config.get('partition_key', '')}
                 if table_config.get('sort_key'):
                     always_projected.add(table_config['sort_key'])
+
+                # Add GSI key attributes (always projected by DynamoDB)
+                for key in [gsi.partition_key, gsi.sort_key]:
+                    if key:
+                        always_projected.update(key if isinstance(key, list) else [key])
+
+                # Add fields from GSI templates (for composite keys)
                 always_projected.update(gsi_template_fields)
 
                 # Check for required fields not in projection
@@ -870,13 +1195,18 @@ class GSIValidator:
         return warnings
 
     def _validate_included_attributes_exist(
-        self, gsi_list: list[GSIDefinition], entities: dict[str, Any], table_path: str
+        self,
+        gsi_list: list[GSIDefinition],
+        entities: dict[str, Any],
+        table_config: dict[str, Any],
+        table_path: str,
     ) -> list[ValidationError]:
         """Validate that included_attributes reference valid entity fields.
 
         Args:
             gsi_list: List of GSI definitions
             entities: Dictionary of entity configurations
+            table_config: Table configuration with base table keys
             table_path: Path context for error reporting
 
         Returns:
@@ -889,6 +1219,31 @@ class GSIValidator:
                 continue
 
             gsi_name = gsi.name
+
+            # Get ALL key attributes (automatically included by DynamoDB)
+            key_attrs = set()
+
+            # Add base table keys
+            if table_config.get('partition_key'):
+                key_attrs.add(table_config['partition_key'])
+            if table_config.get('sort_key'):
+                key_attrs.add(table_config['sort_key'])
+
+            # Add GSI keys
+            for key in [gsi.partition_key, gsi.sort_key]:
+                if key:
+                    key_attrs.update(key if isinstance(key, list) else [key])
+
+            # Check for unnecessary key attributes in included_attributes
+            unnecessary_attrs = key_attrs & set(gsi.included_attributes)
+            if unnecessary_attrs:
+                errors.append(
+                    ValidationError(
+                        path=f'{table_path}.gsi_list',
+                        message=f"GSI '{gsi_name}' includes key attributes in included_attributes: {sorted(unnecessary_attrs)}",
+                        suggestion=f'Remove {sorted(unnecessary_attrs)} from included_attributes - key attributes are automatically included by DynamoDB',
+                    )
+                )
 
             # Collect all fields from entities that use this GSI
             entity_fields = set()

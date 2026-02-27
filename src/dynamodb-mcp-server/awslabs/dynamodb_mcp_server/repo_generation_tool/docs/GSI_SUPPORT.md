@@ -47,6 +47,83 @@ Define GSIs in the `gsi_list` array within `table_config`. GSIs can have sort ke
 
 **Note**: The `sort_key` field is optional. Omit it for partition-key-only GSIs used for simple lookups.
 
+### Multi-Attribute Keys (Advanced)
+
+GSIs support multi-attribute keys with up to 4 attributes per partition key and 4 per sort key. This eliminates the need for synthetic key concatenation:
+
+```json
+{
+  "gsi_list": [
+    {
+      "name": "StoreActiveDeliveries",
+      "partition_key": "store_id",
+      "sort_key": ["status", "created_at"],
+      "projection": "INCLUDE",
+      "included_attributes": ["driver_id"]
+    },
+    {
+      "name": "TournamentRegionIndex",
+      "partition_key": ["tournament_id", "region"],
+      "sort_key": ["round", "bracket", "match_id"],
+      "projection": "ALL"
+    }
+  ]
+}
+```
+
+**Multi-Attribute Key Rules:**
+- Use arrays for multi-attribute keys: `["attr1", "attr2"]`
+- Partition key: 1-4 attributes (all must be queried with equality)
+- Sort key: 1-4 attributes (query left-to-right without skipping)
+- Range conditions: Only on the LAST sort key attribute
+- Backward compatible: Single-attribute keys use string format
+
+**Entity Mappings for Multi-Attribute Keys:**
+
+```json
+{
+  "gsi_mappings": [
+    {
+      "name": "StoreActiveDeliveries",
+      "pk_template": "{store_id}",
+      "sk_template": ["{status}", "{created_at}"]
+    },
+    {
+      "name": "TournamentRegionIndex",
+      "pk_template": ["{tournament_id}", "{region}"],
+      "sk_template": ["{round}", "{bracket}", "{match_id}"]
+    }
+  ]
+}
+```
+
+**Generated Key Builders:**
+
+Multi-attribute key builders return tuples:
+
+```python
+# Single-attribute (returns KeyType)
+gsi_pk = Order.build_gsi_pk_for_lookup_storeindex(store_id)
+
+# Multi-attribute (returns tuple)
+gsi_sk_tuple = Order.build_gsi_sk_for_lookup_storeindex(status, created_at)
+# Returns: (f"{status}", f"{created_at}")
+```
+
+**Query Patterns:**
+
+```python
+# Query with multi-attribute sort key
+query_parameters = {
+    'IndexName': 'StoreActiveDeliveries',
+    'KeyConditionExpression': (
+        Key('store_id').eq(gsi_pk) &
+        Key('status').eq(status) &              # First SK attribute (equality)
+        Key('created_at').begins_with(prefix)   # Second SK attribute (range - must be last)
+    )
+}
+```
+
 ### Entity GSI Mappings
 
 Map entity fields to GSI keys using `gsi_mappings`. The `sk_template` is optional for partition-key-only GSIs:

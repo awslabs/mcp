@@ -59,10 +59,21 @@ USER_REGISTRATION_USAGE_DATA = (
     VALID_USAGE_DATA_DIR / 'user_registration' / 'user_registration_usage_data.json'
 )
 
+# Package Delivery App (for multi-attribute GSI key testing)
+PACKAGE_DELIVERY_SCHEMA = (
+    VALID_SCHEMAS_DIR / 'package_delivery_app' / 'package_delivery_app_schema.json'
+)
+PACKAGE_DELIVERY_USAGE_DATA = (
+    VALID_USAGE_DATA_DIR / 'package_delivery_app' / 'package_delivery_app_usage_data.json'
+)
+
 # Invalid Schemas
 INVALID_COMPREHENSIVE_SCHEMA = INVALID_SCHEMAS_DIR / 'comprehensive_invalid_schema.json'
 INVALID_ENTITY_REF_SCHEMA = INVALID_SCHEMAS_DIR / 'test_entity_ref_schema.json'
 INVALID_CROSS_TABLE_SCHEMA = INVALID_SCHEMAS_DIR / 'test_cross_table_refs.json'
+INVALID_MULTI_ATTRIBUTE_KEYS_SCHEMA = (
+    INVALID_SCHEMAS_DIR / 'invalid_multi_attribute_keys_schema.json'
+)
 INVALID_GSI_SCHEMA = INVALID_SCHEMAS_DIR / 'invalid_gsi_schema.json'
 
 
@@ -94,9 +105,11 @@ def sample_schemas():
         'user_analytics': USER_ANALYTICS_SCHEMA,
         'deals': DEALS_SCHEMA,
         'user_registration': USER_REGISTRATION_SCHEMA,
+        'package_delivery': PACKAGE_DELIVERY_SCHEMA,
         'invalid_comprehensive': INVALID_COMPREHENSIVE_SCHEMA,
         'invalid_entity_ref': INVALID_ENTITY_REF_SCHEMA,
         'invalid_cross_table': INVALID_CROSS_TABLE_SCHEMA,
+        'invalid_multi_attribute_keys': INVALID_MULTI_ATTRIBUTE_KEYS_SCHEMA,
         'invalid_gsi': INVALID_GSI_SCHEMA,
     }
 
@@ -197,6 +210,7 @@ def code_generator(repo_generation_tool_path):
         USER_ANALYTICS_SCHEMA: USER_ANALYTICS_USAGE_DATA,
         DEALS_SCHEMA: DEALS_USAGE_DATA,
         USER_REGISTRATION_SCHEMA: USER_REGISTRATION_USAGE_DATA,
+        PACKAGE_DELIVERY_SCHEMA: PACKAGE_DELIVERY_USAGE_DATA,
     }
 
     def _generate_code(

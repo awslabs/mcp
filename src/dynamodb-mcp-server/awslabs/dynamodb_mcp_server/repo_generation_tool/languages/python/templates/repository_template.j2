@@ -17,6 +17,39 @@
 {{ param }}: {{ get_param_type(param, fields) }}{% if not loop.last %}, {% endif %}
 {%- endfor -%}
 {%- endmacro -%}
+{#- Macro to generate multi-attribute sort key conditions in KeyConditionExpression comments.
+    pk_offset: number of PK parameters to skip (e.g., 2 for multi-attr PK, 1 for single PK)
+    matching_gsi: the GSI definition with sort_key array
+    pattern: the access pattern with parameters and range_condition
+    indent: the comment indentation prefix (e.g., "        #                              ")
+-#}
+{%- macro multi_attr_sk_conditions(pk_offset, matching_gsi, pattern, indent) -%}
+{%- set total_params = pattern.parameters | length -%}
+{%- if total_params > pk_offset -%}
+{%- if pattern.get('range_condition') -%}
+{%- for i in range((matching_gsi.sort_key | length) - 1) -%}
+{%- if (pk_offset + i) < total_params -%}
+{{ "\n" }}{{ indent }}& Key('{{ matching_gsi.sort_key[i] }}').eq({{ pattern.parameters[pk_offset + i].name }})
+{%- endif -%}
+{%- endfor -%}
+{%- set last_sk_idx = (matching_gsi.sort_key | length) - 1 -%}
+{%- set range_param_idx = pk_offset + last_sk_idx -%}
+{%- if range_param_idx < total_params -%}
+{{ "\n" }}{{ indent }}& Key('{{ matching_gsi.sort_key[last_sk_idx] }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' and (range_param_idx + 1) < total_params %}{{ pattern.parameters[range_param_idx].name }}, {{ pattern.parameters[range_param_idx + 1].name }}{% else %}{{ pattern.parameters[range_param_idx].name }}{% endif %}),
+{%- else -%}
+{{ "\n" }}{{ indent }},
+{%- endif -%}
+{%- else -%}
+{%- for i in range(matching_gsi.sort_key | length) -%}
+{%- if (pk_offset + i) < total_params -%}
+{{ "\n" }}{{ indent }}& Key('{{ matching_gsi.sort_key[i] }}').eq({{ pattern.parameters[pk_offset + i].name }}){{ "," if loop.last else "" }}
+{%- endif -%}
+{%- endfor -%}
+{%- endif -%}
+{%- else -%}
+{{ "\n" }}{{ indent }},
+{%- endif -%}
+{%- endmacro -%}
 class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
     """Repository for {{ entity_name }} entity operations"""
 
@@ -88,13 +121,29 @@ class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
             {#- Extract fields from GSI templates (these are always projected) -#}
             {%- set gsi_mapping = entity_config.gsi_mappings | selectattr('name', 'equalto', pattern.index_name) | first %}
             {%- if gsi_mapping %}
-                {#- Extract parameters from pk_template -#}
-                {%- set pk_template_params = gsi_mapping.pk_template | regex_findall('{([^}]+)}') %}
+                {#- Extract parameters from pk_template (handle both string and list) -#}
+                {%- if gsi_mapping.pk_template is string %}
+                    {%- set pk_template_params = gsi_mapping.pk_template | regex_findall('{([^}]+)}') %}
+                {%- else %}
+                    {#- Multi-attribute PK: extract from all templates -#}
+                    {%- set pk_template_params = [] %}
+                    {%- for tmpl in gsi_mapping.pk_template %}
+                        {%- set pk_template_params = pk_template_params + (tmpl | regex_findall('{([^}]+)}')) %}
+                    {%- endfor %}
+                {%- endif %}
                 {%- set key_field_list = key_field_list + pk_template_params %}
 
-                {#- Extract parameters from sk_template if exists -#}
+                {#- Extract parameters from sk_template if exists (handle both string and list) -#}
                 {%- if gsi_mapping.sk_template %}
-                    {%- set sk_template_params = gsi_mapping.sk_template | regex_findall('{([^}]+)}') %}
+                    {%- if gsi_mapping.sk_template is string %}
+                        {%- set sk_template_params = gsi_mapping.sk_template | regex_findall('{([^}]+)}') %}
+                    {%- else %}
+                        {#- Multi-attribute SK: extract from all templates -#}
+                        {%- set sk_template_params = [] %}
+                        {%- for tmpl in gsi_mapping.sk_template %}
+                            {%- set sk_template_params = sk_template_params + (tmpl | regex_findall('{([^}]+)}')) %}
+                        {%- endfor %}
+                    {%- endif %}
                     {%- set key_field_list = key_field_list + sk_template_params %}
                 {%- endif %}
             {%- endif %}
@@ -212,21 +261,78 @@ class {{ entity_name }}Repository(BaseRepository[{{ entity_name }}]):
         #
 {%- if pattern.get('index_name') %}
 {%- if pattern.operation == 'Query' %}
-        # gsi_pk = {{ entity_name }}.build_gsi_pk_for_lookup_{{ pattern.index_name | to_snake_case }}({{ pattern.parameters[0].name }})
+{%- set gsi_mapping = get_gsi_mapping_for_index(pattern.index_name) %}
+{%- if gsi_mapping and gsi_mapping.pk_is_multi_attribute %}
+        # Multi-attribute partition key GSI query
+        # gsi_pk_tuple = {{ entity_name }}.build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name }}({{ gsi_mapping.pk_params | join(', ') }})
         # query_params = {
         #     'IndexName': '{{ pattern.index_name }}',
-{%- if table_data and table_data.get('gsi_list') %}
+{% if table_data and table_data.get('gsi_list') %}
 {%- set matching_gsi = table_data.gsi_list | selectattr('name', 'equalto', pattern.index_name) | first %}
-{%- if matching_gsi %}
-        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk){% if matching_gsi.sort_key and pattern.get('range_condition') %} & Key('{{ matching_gsi.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}){% endif %},
+{% if matching_gsi %}
+{% if matching_gsi.partition_key is string %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk_tuple[0]){% if matching_gsi.sort_key %} & Key('{{ matching_gsi.sort_key }}').eq(gsi_sk_tuple[0]){% endif %},
+{%- else %}
+{#- Multi-attribute partition key -#}
+{%- for i in range(matching_gsi.partition_key | length) %}
+{%- if loop.first %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key[i] }}').eq(gsi_pk_tuple[{{ i }}])
+{%- else %}
+        #                              & Key('{{ matching_gsi.partition_key[i] }}').eq(gsi_pk_tuple[{{ i }}])
+{%- endif %}
+{%- endfor %}
+{%- if matching_gsi.sort_key %}
+{%- if matching_gsi.sort_key is string %}
+        #                              & Key('{{ matching_gsi.sort_key }}').eq(gsi_sk_value),
+{%- else %}
+{#- Multi-attribute sort key — use shared macro -#}
+{%- set pk_attr_count = matching_gsi.partition_key | length if matching_gsi.partition_key is not string else 1 -%}
+{{- multi_attr_sk_conditions(pk_attr_count, matching_gsi, pattern, "        #                             ") }}
+{%- endif %}
+{%- else %}
+        #                              ,
+{%- endif %}
+{%- endif %}
+{% else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk_tuple[0]){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+{% else %}
+        #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk_tuple[0]){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
+{%- endif %}
+        #     'Limit': limit
+        # }
+{%- else %}
+        # gsi_pk = {{ entity_name }}.build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name if gsi_mapping else (pattern.index_name | to_snake_case) }}({{ pattern.parameters[0].name }})
+        # query_params = {
+        #     'IndexName': '{{ pattern.index_name }}',
+{%- if table_data and table_data.get('gsi_list') -%}
+{%- set matching_gsi = table_data.gsi_list | selectattr('name', 'equalto', pattern.index_name) | first -%}
+{%- if matching_gsi -%}
+{%- if matching_gsi.sort_key and matching_gsi.sort_key is string %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('{{ matching_gsi.sort_key }}').{{ pattern.range_condition }}({% if pattern.range_condition == 'between' %}{{ pattern.parameters[1].name }}, {{ pattern.parameters[2].name }}{% else %}{{ pattern.parameters[1].name }}{% endif %}){% endif %},
+{%- elif matching_gsi.sort_key -%}
+{#- Multi-attribute sort key — use shared macro -#}
+{%- if pattern.get('range_condition') and pattern.parameters | length > 1 %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk)
+{{- multi_attr_sk_conditions(1, matching_gsi, pattern, "        #                             ") }}
+{%- elif pattern.parameters | length > 1 %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk)
+{{- multi_attr_sk_conditions(1, matching_gsi, pattern, "        #                             ") }}
+{%- else %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk),
+{%- endif -%}
+{%- else %}
+        #     'KeyConditionExpression': Key('{{ matching_gsi.partition_key }}').eq(gsi_pk),
+{%- endif -%}
 {%- else %}
         #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
-{%- endif %}
+{%- endif -%}
 {%- else %}
         #     'KeyConditionExpression': Key('gsi_pk').eq(gsi_pk){% if pattern.get('range_condition') %} & Key('gsi_sk').{{ pattern.range_condition }}(range_value){% endif %},
 {%- endif %}
         #     'Limit': limit
         # }
+{%- endif %}
         # if exclusive_start_key:
         #     query_params['ExclusiveStartKey'] = exclusive_start_key
         # response = self.table.query(**query_params)
