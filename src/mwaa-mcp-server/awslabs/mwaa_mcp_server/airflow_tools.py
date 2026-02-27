@@ -558,6 +558,16 @@ class AirflowTools:
             'Default: "-execution_date" (newest first). '
             'Examples: "execution_date", "-start_date", "-end_date".',
         ),
+        execution_date_gte: Optional[str] = Field(
+            default=None,
+            description='Filter runs with execution date >= this value '
+            '(ISO 8601, e.g., "2026-02-20T00:00:00+00:00").',
+        ),
+        execution_date_lte: Optional[str] = Field(
+            default=None,
+            description='Filter runs with execution date <= this value '
+            '(ISO 8601, e.g., "2026-02-21T00:00:00+00:00").',
+        ),
         region: Optional[str] = Field(
             default=None,
             description='AWS region override.',
@@ -580,6 +590,8 @@ class AirflowTools:
             offset: Pagination offset.
             state: Filter by run state.
             order_by: Sort order (default: "-execution_date", newest first).
+            execution_date_gte: Filter runs on or after this date (ISO 8601).
+            execution_date_lte: Filter runs on or before this date (ISO 8601).
             region: AWS region override.
             profile_name: AWS CLI profile name override.
 
@@ -600,6 +612,10 @@ class AirflowTools:
                 query_params['state'] = state
             if order_by is not None:
                 query_params['order_by'] = order_by
+            if execution_date_gte is not None:
+                query_params['execution_date_gte'] = execution_date_gte
+            if execution_date_lte is not None:
+                query_params['execution_date_lte'] = execution_date_lte
 
             response = await self._invoke_airflow_api(
                 environment_name=environment_name,
