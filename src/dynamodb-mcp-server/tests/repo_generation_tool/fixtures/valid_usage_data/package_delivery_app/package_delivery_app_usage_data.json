@@ -1,0 +1,189 @@
+{
+  "entities": {
+    "Courier": {
+      "access_pattern_data": {
+        "city": "Portland",
+        "courier_id": "cour_5432",
+        "created_at": "2026-02-03T07:30:00Z",
+        "email": "lisa@email.com",
+        "name": "Lisa Park",
+        "phone": "+1-555-0544",
+        "vehicle_type": "car"
+      },
+      "sample_data": {
+        "city": "Seattle",
+        "courier_id": "cour_7891",
+        "created_at": "2026-02-01T08:00:00Z",
+        "email": "mike@email.com",
+        "name": "Mike Chen",
+        "phone": "+1-555-0788",
+        "vehicle_type": "motorcycle"
+      },
+      "update_data": {
+        "city": "Redmond",
+        "email": "mike.updated@email.com",
+        "name": "Mike Chen-Updated",
+        "phone": "+1-555-8888",
+        "vehicle_type": "bicycle"
+      }
+    },
+    "Product": {
+      "access_pattern_data": {
+        "available": true,
+        "category": "Accessories",
+        "city": "Portland",
+        "description": "USB Cable",
+        "price": 5.99,
+        "product_id": "prod_543",
+        "sort_key": "MENU#Accessories#prod_543",
+        "warehouse_id": "wh_5432"
+      },
+      "sample_data": {
+        "available": true,
+        "category": "Electronics",
+        "city": "Seattle",
+        "description": "Wireless Headphones",
+        "price": 15.99,
+        "product_id": "prod_789",
+        "sort_key": "MENU#Electronics#prod_789",
+        "warehouse_id": "wh_7891"
+      },
+      "update_data": {
+        "available": false,
+        "city": "Seattle",
+        "description": "Wireless Headphones (Noise Cancelling)",
+        "price": 16.99
+      }
+    },
+    "Rating": {
+      "access_pattern_data": {
+        "created_at": "2026-02-18T12:00:00Z",
+        "feedback": "Good service, a bit slow.",
+        "rating_id": "rat_543",
+        "recipient_name": "Tom Hardy",
+        "score": 3,
+        "sort_key": "REVIEW#2026-02-18T12:00:00Z#rat_543",
+        "warehouse_id": "wh_5432"
+      },
+      "sample_data": {
+        "created_at": "2026-02-19T16:00:00Z",
+        "feedback": "Excellent service and fast processing!",
+        "rating_id": "rat_789",
+        "recipient_name": "Sarah Connor",
+        "score": 5,
+        "sort_key": "REVIEW#2026-02-19T16:00:00Z#rat_789",
+        "warehouse_id": "wh_7891"
+      },
+      "update_data": {
+        "feedback": "Updated: Excellent service and fast processing!",
+        "score": 4
+      }
+    },
+    "Recipient": {
+      "access_pattern_data": {
+        "city": "Portland",
+        "created_at": "2026-02-05T10:30:00Z",
+        "email": "tom@email.com",
+        "name": "Tom Hardy",
+        "phone": "+1-555-0543",
+        "recipient_id": "rcpt_5432"
+      },
+      "sample_data": {
+        "city": "Seattle",
+        "created_at": "2026-02-01T09:00:00Z",
+        "email": "sarah@email.com",
+        "name": "Sarah Connor",
+        "phone": "+1-555-0789",
+        "recipient_id": "rcpt_7891"
+      },
+      "update_data": {
+        "city": "Bellevue",
+        "email": "sarah.updated@email.com",
+        "name": "Sarah Connor-Updated",
+        "phone": "+1-555-9999"
+      }
+    },
+    "Shipment": {
+      "access_pattern_data": {
+        "available_city": "Portland",
+        "created_at": "2026-02-19T15:30:00Z",
+        "destination_address": "200 Birch Ln",
+        "origin_address": "200 Oak Blvd",
+        "packages": [
+          {
+            "name": "USB Cable",
+            "product_id": "prod_543",
+            "qty": 1,
+            "weight": 0.1
+          }
+        ],
+        "recipient_id": "rcpt_5432",
+        "recipient_name": "Tom Hardy",
+        "shipment_id": "shp_5432",
+        "status": "READY_FOR_PICKUP",
+        "total_weight": 0.1,
+        "updated_at": "2026-02-19T15:45:00Z",
+        "warehouse_id": "wh_5432",
+        "warehouse_name": "Harbor Storage"
+      },
+      "sample_data": {
+        "courier_id": "cour_7891",
+        "created_at": "2026-02-19T14:00:00Z",
+        "destination_address": "100 Maple Ave",
+        "origin_address": "500 Pine St",
+        "packages": [
+          {
+            "name": "Wireless Headphones",
+            "product_id": "prod_789",
+            "qty": 2,
+            "weight": 0.5
+          }
+        ],
+        "recipient_id": "rcpt_7891",
+        "recipient_name": "Sarah Connor",
+        "shipment_id": "shp_7891",
+        "status": "DELIVERED",
+        "total_weight": 1.0,
+        "updated_at": "2026-02-19T15:00:00Z",
+        "warehouse_id": "wh_7891",
+        "warehouse_name": "Metro Warehouse"
+      },
+      "update_data": {
+        "active_delivery": "cour_7891",
+        "courier_id": "cour_7891",
+        "status": "IN_TRANSIT",
+        "updated_at": "2026-02-19T15:10:00Z"
+      }
+    },
+    "WarehouseProfile": {
+      "access_pattern_data": {
+        "address": "200 Oak Blvd",
+        "category": "Accessories",
+        "city": "Portland",
+        "created_at": "2026-02-03T00:00:00Z",
+        "name": "Harbor Storage",
+        "processing_time": 40,
+        "rating": 4.3,
+        "sort_key": "PROFILE",
+        "warehouse_id": "wh_5432"
+      },
+      "sample_data": {
+        "address": "500 Pine St",
+        "category": "Electronics",
+        "city": "Seattle",
+        "created_at": "2026-02-01T00:00:00Z",
+        "name": "Metro Warehouse",
+        "processing_time": 35,
+        "rating": 4.6,
+        "sort_key": "PROFILE",
+        "warehouse_id": "wh_7891"
+      },
+      "update_data": {
+        "address": "501 Pine St",
+        "name": "Metro Warehouse Updated",
+        "processing_time": 30,
+        "rating": 4.7
+      }
+    }
+  }
+}

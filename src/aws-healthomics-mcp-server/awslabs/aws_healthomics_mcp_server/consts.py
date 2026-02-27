@@ -227,3 +227,8 @@ FASTQ_PAIR_PATTERNS = [
 
 # FASTQ file extensions
 FASTQ_EXTENSIONS = ['fastq', 'fq', 'fastq.gz', 'fq.gz']
+
+# Run group constants
+RUN_GROUP_MAX_NAME_LENGTH = 128
+RUN_GROUP_MAX_RESOURCE_LIMIT = 100000
+RUN_GROUP_ID_MAX_LENGTH = 18
