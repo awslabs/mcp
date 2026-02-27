@@ -62,6 +62,10 @@ def register_module(mcp: FastMCP) -> None:
                 - TopicArn (str): The Amazon Resource Name (ARN) of the topic
                 - TopicName (str): The name of the topic that was created
                 - Status (str): The status of the topic creation (CREATING, UPDATING, DELETING, ACTIVE)
+
+        Note:
+            This operation can ONLY be performed on resources tagged with "MCP Generated".
+            Ensure the cluster has this tag before attempting to create topics.
         """
         # Create a boto3 client
         client = boto3.client(
@@ -124,7 +128,7 @@ def register_module(mcp: FastMCP) -> None:
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
-            Ensure the resource has this tag before attempting to update it.
+            Ensure the cluster has this tag before attempting to update topics.
         """
         # Create a boto3 client
         client = boto3.client(
@@ -186,7 +190,7 @@ def register_module(mcp: FastMCP) -> None:
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
-            Ensure the resource has this tag before attempting to delete it.
+            Ensure the cluster has this tag before attempting to delete topics.
         """
         # Create a boto3 client
         client = boto3.client(
