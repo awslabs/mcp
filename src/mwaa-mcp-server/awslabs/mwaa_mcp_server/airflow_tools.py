@@ -552,6 +552,12 @@ class AirflowTools:
             default=None,
             description='Filter by run state (e.g., "success", "failed", "running").',
         ),
+        order_by: Optional[str] = Field(
+            default='-execution_date',
+            description='Sort order for results. Prefix with "-" for descending. '
+            'Default: "-execution_date" (newest first). '
+            'Examples: "execution_date", "-start_date", "-end_date".',
+        ),
         region: Optional[str] = Field(
             default=None,
             description='AWS region override.',
@@ -564,6 +570,7 @@ class AirflowTools:
         """List DAG runs for a specific DAG.
 
         Returns a list of DAG runs with their execution dates, states, and run IDs.
+        Results are sorted by execution date descending (newest first) by default.
 
         Args:
             ctx: The MCP context.
@@ -572,6 +579,7 @@ class AirflowTools:
             limit: Maximum number of results.
             offset: Pagination offset.
             state: Filter by run state.
+            order_by: Sort order (default: "-execution_date", newest first).
             region: AWS region override.
             profile_name: AWS CLI profile name override.
 
@@ -590,6 +598,8 @@ class AirflowTools:
                 query_params['offset'] = str(offset)
             if state is not None:
                 query_params['state'] = state
+            if order_by is not None:
+                query_params['order_by'] = order_by
 
             response = await self._invoke_airflow_api(
                 environment_name=environment_name,
