@@ -10,7 +10,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
 
     def setUp(self):
         """Reset the singleton instance before each test."""
-        ValkeyConnectionManager._instance = None
+        ValkeyConnectionManager.reset()
 
     def test_basic_connection(self):
         """Test basic connection creation without cluster mode or SSL."""
@@ -23,11 +23,13 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.side_effect = lambda key, default=None: {
                 'username': None,
                 'password': '',
                 'ssl': False,
+                'max_connections_per_node': 300,
             }.get(key, default)
 
             # Get connection
@@ -46,7 +48,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 ssl_cert_reqs=None,
                 ssl_ca_certs=None,
                 decode_responses=True,
-                max_connections=10,
+                max_connections=300,
                 lib_name=f'valkey-py(mcp-server_v{__version__})',
             )
 
@@ -64,11 +66,13 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': True,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.side_effect = lambda key, default=None: {
                 'username': None,
                 'password': '',
                 'ssl': False,
+                'max_connections_per_node': 300,
             }.get(key, default)
 
             # Get connection
@@ -87,7 +91,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 ssl_cert_reqs=None,
                 ssl_ca_certs=None,
                 decode_responses=True,
-                max_connections_per_node=10,
+                max_connections_per_node=300,
                 lib_name=f'valkey-py(mcp-server_v{__version__})',
             )
 
@@ -105,6 +109,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.side_effect = lambda key, default=None: {
                 'username': None,
@@ -114,6 +119,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'ssl_keyfile': '/path/to/key',
                 'ssl_certfile': '/path/to/cert',
                 'ssl_ca_certs': '/path/to/certs',
+                'max_connections_per_node': 300,
             }.get(key, default)
 
             # Get connection and verify Valkey was instantiated with correct SSL parameters
@@ -130,7 +136,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 ssl_cert_reqs='required',
                 ssl_ca_certs='/path/to/certs',
                 decode_responses=True,
-                max_connections=10,
+                max_connections=300,
                 lib_name=f'valkey-py(mcp-server_v{__version__})',
             )
 
@@ -145,11 +151,13 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.side_effect = lambda key, default=None: {
                 'username': None,
                 'password': '',
                 'ssl': False,
+                'max_connections_per_node': 300,
             }.get(key, default)
 
             # Get connection twice
@@ -175,6 +183,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 
@@ -215,6 +224,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 
@@ -235,6 +245,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 
@@ -255,6 +266,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': True,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 
@@ -275,6 +287,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 
@@ -295,6 +308,7 @@ class TestValkeyConnectionManager(unittest.TestCase):
                 'cluster_mode': False,
                 'host': 'localhost',
                 'port': 6379,
+                'max_connections_per_node': 300,
             }.__getitem__
             mock_cfg.get.return_value = None
 

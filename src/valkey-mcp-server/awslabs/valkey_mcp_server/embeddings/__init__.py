@@ -12,22 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Tool imports for Valkey MCP Server.
-"""
+"""Embeddings provider abstraction layer."""
 
-from . import (
-    bitmap,
-    hash,
-    hyperloglog,
-    json,
-    list,
-    misc,
-    vss,
-    semantic_search,
-    server_management,
-    set,
-    sorted_set,
-    stream,
-    string,
-)
+from .base import EmbeddingsProvider
+from .factory import create_embeddings_provider
+from .providers import BedrockEmbeddings, HashEmbeddings, OllamaEmbeddings, OpenAIEmbeddings
+
+__all__ = [
+    'EmbeddingsProvider',
+    'OllamaEmbeddings',
+    'BedrockEmbeddings',
+    'OpenAIEmbeddings',
+    'HashEmbeddings',
+    'create_embeddings_provider',
+]

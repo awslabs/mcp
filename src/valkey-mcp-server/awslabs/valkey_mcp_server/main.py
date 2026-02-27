@@ -24,11 +24,13 @@ from awslabs.valkey_mcp_server.tools import (
     json,  # noqa: F401
     list,  # noqa: F401
     misc,  # noqa: F401
+    semantic_search,  # noqa: F401
     server_management,  # noqa: F401
     set,  # noqa: F401
     sorted_set,  # noqa: F401
     stream,  # noqa: F401
     string,  # noqa: F401
+    vss,  # noqa: F401
 )
 from loguru import logger
 from starlette.requests import Request  # noqa: F401
