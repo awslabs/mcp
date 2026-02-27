@@ -70,6 +70,13 @@ def register_module(mcp: FastMCP) -> None:
             config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
 
+        # Check if the resource has the "MCP Generated" tag
+        if not check_mcp_generated_tag(cluster_arn, client):
+            raise ValueError(
+                f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
+                "This operation can only be performed on resources tagged with 'MCP Generated'."
+            )
+
         # Call create_topic with configs only if provided
         if configs is not None:
             return create_topic(
