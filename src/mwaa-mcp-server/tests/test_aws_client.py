@@ -20,9 +20,13 @@ from unittest.mock import MagicMock, patch
 class TestGetMwaaClient:
     """Tests for the get_mwaa_client function."""
 
+    @patch.dict('os.environ', {}, clear=False)
     @patch('awslabs.mwaa_mcp_server.aws_client.Session')
     def test_default_region_fallback(self, mock_session_cls):
         """Test that us-east-1 is used when no region is specified."""
+        import os
+
+        os.environ.pop('AWS_REGION', None)
         mock_session = MagicMock()
         mock_session.region_name = None
         mock_session_cls.return_value = mock_session
@@ -33,9 +37,13 @@ class TestGetMwaaClient:
         call_kwargs = mock_session.client.call_args
         assert call_kwargs[1]['region_name'] == 'us-east-1'
 
+    @patch.dict('os.environ', {}, clear=False)
     @patch('awslabs.mwaa_mcp_server.aws_client.Session')
     def test_explicit_region(self, mock_session_cls):
-        """Test that explicit region_name parameter is used."""
+        """Test that explicit region_name parameter is used when no AWS_REGION env var."""
+        import os
+
+        os.environ.pop('AWS_REGION', None)
         mock_session = MagicMock()
         mock_session_cls.return_value = mock_session
 
@@ -45,9 +53,13 @@ class TestGetMwaaClient:
         call_kwargs = mock_session.client.call_args
         assert call_kwargs[1]['region_name'] == 'eu-west-1'
 
+    @patch.dict('os.environ', {}, clear=False)
     @patch('awslabs.mwaa_mcp_server.aws_client.Session')
     def test_session_region_fallback(self, mock_session_cls):
-        """Test that session region is used when no explicit region."""
+        """Test that session region is used when no explicit region and no AWS_REGION env var."""
+        import os
+
+        os.environ.pop('AWS_REGION', None)
         mock_session = MagicMock()
         mock_session.region_name = 'ap-southeast-1'
         mock_session_cls.return_value = mock_session
@@ -57,6 +69,47 @@ class TestGetMwaaClient:
         mock_session.client.assert_called_once()
         call_kwargs = mock_session.client.call_args
         assert call_kwargs[1]['region_name'] == 'ap-southeast-1'
+
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'})
+    @patch('awslabs.mwaa_mcp_server.aws_client.Session')
+    def test_region_from_env(self, mock_session_cls):
+        """Test that AWS_REGION env var is used when no explicit region."""
+        mock_session = MagicMock()
+        mock_session.region_name = None
+        mock_session_cls.return_value = mock_session
+
+        get_mwaa_client()
+
+        mock_session.client.assert_called_once()
+        call_kwargs = mock_session.client.call_args
+        assert call_kwargs[1]['region_name'] == 'eu-west-1'
+
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'})
+    @patch('awslabs.mwaa_mcp_server.aws_client.Session')
+    def test_env_region_overrides_explicit_param(self, mock_session_cls):
+        """Test that AWS_REGION env var takes precedence over explicit region_name."""
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        get_mwaa_client(region_name='us-west-2')
+
+        mock_session.client.assert_called_once()
+        call_kwargs = mock_session.client.call_args
+        assert call_kwargs[1]['region_name'] == 'eu-west-1'
+
+    @patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'})
+    @patch('awslabs.mwaa_mcp_server.aws_client.Session')
+    def test_env_region_overrides_session_region(self, mock_session_cls):
+        """Test that AWS_REGION env var takes precedence over session region."""
+        mock_session = MagicMock()
+        mock_session.region_name = 'ap-southeast-1'
+        mock_session_cls.return_value = mock_session
+
+        get_mwaa_client()
+
+        mock_session.client.assert_called_once()
+        call_kwargs = mock_session.client.call_args
+        assert call_kwargs[1]['region_name'] == 'eu-west-1'
 
     @patch('awslabs.mwaa_mcp_server.aws_client.Session')
     def test_explicit_profile(self, mock_session_cls):

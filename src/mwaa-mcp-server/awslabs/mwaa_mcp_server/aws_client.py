@@ -49,6 +49,6 @@ def get_mwaa_client(
     else:
         session = Session()
 
-    region = region_name or getenv(ENV_AWS_REGION, None) or session.region_name or DEFAULT_REGION
+    region = getenv(ENV_AWS_REGION, None) or region_name or session.region_name or DEFAULT_REGION
 
     return session.client('mwaa', region_name=region, config=config)
