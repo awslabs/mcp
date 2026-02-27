@@ -128,7 +128,7 @@ class Jinja2Generator(BaseGenerator):
                 all_entities: Dict of all entity configurations keyed by entity name
                 get_param_value_func: Function to resolve parameter to a value,
                     returns None if parameter cannot be resolved
-                pattern: Optional access pattern dict for context (e.g., range_condition)
+                pattern: Optional access pattern dict for context (e.g., range_condition, filter_expression)
 
             Returns:
                 List of resolved parameter values (strings), excluding any parameters
@@ -149,6 +149,17 @@ class Jinja2Generator(BaseGenerator):
                 parameter validity. See test_phantom_parameter_excluded_from_both_*
                 for the coupling test.
             """
+            # Collect filter parameter names for this pattern
+            filter_param_names = set()
+            if pattern and pattern.get('filter_expression'):
+                for cond in pattern['filter_expression'].get('conditions', []):
+                    if cond.get('param'):
+                        filter_param_names.add(cond['param'])
+                    if cond.get('param2'):
+                        filter_param_names.add(cond['param2'])
+                    if cond.get('params'):
+                        filter_param_names.update(cond['params'])
+
             valid_values = []
             for idx, param in enumerate(parameters):
                 # For range query parameters, always include them (they're intentionally different from field names)
@@ -159,15 +170,18 @@ class Jinja2Generator(BaseGenerator):
                     and idx > 0  # Not the first param (partition key)
                 )
 
-                if is_range_param:
-                    # Range parameters are always valid, get their value
+                # Filter expression parameters are always valid
+                is_filter_param = param['name'] in filter_param_names
+
+                if is_range_param or is_filter_param:
+                    # Range/filter parameters are always valid, get their value
                     # The wrapper will automatically enable fallback generation
                     value = get_param_value_func(param, entity_name, all_entities)
                     if value is not None:
                         valid_values.append(value)
                     continue
 
-                # For non-range parameters, check if they exist
+                # For non-range/non-filter parameters, check if they exist
                 value = get_param_value_func(param, entity_name, all_entities)
                 if value is not None:
                     valid_values.append(value)
@@ -375,7 +389,10 @@ class Jinja2Generator(BaseGenerator):
         sk_template = entity_config.get('sk_template', '')
 
         processed_config['pk_params'] = self.template_parser.extract_parameters(pk_template)
-        processed_config['sk_params'] = self.template_parser.extract_parameters(sk_template)
+        sk_params_raw = self.template_parser.extract_parameters(sk_template)
+        # Deduplicate: remove sk_params that already appear in pk_params (e.g., same field in both templates)
+        pk_param_set = set(processed_config['pk_params'])
+        processed_config['sk_params'] = [p for p in sk_params_raw if p not in pk_param_set]
 
         # Check if PK/SK are pure numeric field references
         processed_config['pk_is_numeric'] = self._check_template_is_pure_numeric(
@@ -537,12 +554,24 @@ class Jinja2Generator(BaseGenerator):
 
             Args:
                 params: List of parameter dicts from access pattern
-                pattern: Optional access pattern dict for context (e.g., range_condition)
+                pattern: Optional access pattern dict for context (e.g., range_condition, filter_expression)
 
             Returns:
                 Comma-separated string of formatted parameters
             """
+            # Collect filter parameter names for this pattern
+            filter_param_names = set()
+            if pattern and pattern.get('filter_expression'):
+                for cond in pattern['filter_expression'].get('conditions', []):
+                    if cond.get('param'):
+                        filter_param_names.add(cond['param'])
+                    if cond.get('param2'):
+                        filter_param_names.add(cond['param2'])
+                    if cond.get('params'):
+                        filter_param_names.update(cond['params'])
+
             formatted = []
+            defaults = []
             for idx, param in enumerate(params):
                 # For range query parameters, always include them (they're intentionally different from field names)
                 # Range parameters are typically the 2nd+ parameters when range_condition is present
@@ -552,13 +581,23 @@ class Jinja2Generator(BaseGenerator):
                     and idx > 0  # Not the first param (partition key)
                 )
 
-                if is_range_param:
-                    # Range parameters are always valid, don't skip
+                # Filter expression parameters are always valid
+                is_filter_param = param['name'] in filter_param_names
+
+                if is_range_param or is_filter_param:
                     param_type = self.type_mapper.map_parameter_type(param)
-                    formatted.append(f'{param["name"]}: {param_type}')
+                    param_str = f'{param["name"]}: {param_type}'
+                    if param.get('default') is not None:
+                        default_val = param['default']
+                        if isinstance(default_val, str):
+                            default_val = f'"{default_val}"'
+                        param_str += f' = {default_val}'
+                        defaults.append(param_str)
+                    else:
+                        formatted.append(param_str)
                     continue
 
-                # For non-range parameters, check if they exist in entity fields or usage_data
+                # For non-range/non-filter parameters, check if they exist in entity fields or usage_data
                 param_value = self.sample_generator.get_parameter_value(
                     param, entity_name, {entity_name: processed_config}
                 )
@@ -568,8 +607,10 @@ class Jinja2Generator(BaseGenerator):
 
                 param_type = self.type_mapper.map_parameter_type(param)
                 formatted.append(f'{param["name"]}: {param_type}')
+            # Put params with defaults after params without defaults
+            all_params = formatted + defaults
             # Return empty string if no valid parameters (avoid trailing comma)
-            return ', '.join(formatted) if formatted else ''
+            return ', '.join(all_params) if all_params else ''
 
         # table_config should always be provided
         if table_config is None:

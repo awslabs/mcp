@@ -62,6 +62,10 @@ def get_sample_schemas():
         / 'valid_schemas'
         / 'package_delivery_app'
         / 'package_delivery_app_schema.json',
+        'food_delivery': fixtures_path
+        / 'valid_schemas'
+        / 'food_delivery_app'
+        / 'food_delivery_schema.json',
     }
 
 

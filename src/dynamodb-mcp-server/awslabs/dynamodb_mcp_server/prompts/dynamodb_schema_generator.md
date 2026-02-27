@@ -65,8 +65,15 @@ The schema follows this structure (optional fields marked with `?`):
               "description": "Pattern description",
               "operation": "GetItem|PutItem|DeleteItem|Query|Scan|UpdateItem|BatchGetItem|BatchWriteItem",
               "index_name?": "GSIName",                     // Optional: only for GSI queries
-              "range_condition?": "begins_with|between|>=|<=|>|<",  // Optional: only for range queries
+              "range_condition?": "begins_with|between|>=|<=|>|<",  // Optional: sort key range operator (maps to SK portion of DynamoDB's KeyConditionExpression)
               "consistent_read?": true|false,               // Optional: defaults to false, only for read operations
+              "filter_expression?": {                       // Optional: server-side filtering for Query/Scan
+                "conditions": [
+                  { "field": "field_name", "operator": "=|<>|<|<=|>|>=|between|in", "param": "param_name", "param2?": "param_name", "params?": ["p1","p2"] },
+                  { "field": "field_name", "function": "contains|begins_with|attribute_exists|attribute_not_exists|size", "param?": "param_name" }
+                ],
+                "logical_operator?": "AND|OR"              // Optional: defaults to AND
+              },
               "parameters": [
                 {
                   "name": "param_name",
@@ -111,8 +118,9 @@ The schema follows this structure (optional fields marked with `?`):
 **Key Points**:
 - Fields marked with `?` are optional - only include them when needed
 - `index_name`: Only for Query/Scan operations that use a GSI
-- `range_condition`: Only for Query operations with range conditions (begins_with, between, etc.)
+- `range_condition`: Only for Query operations with sort key range conditions (begins_with, between, etc.). This maps to the sort key portion of DynamoDB's `KeyConditionExpression` — the PK equality is handled automatically via `pk_template`.
 - `consistent_read`: **Required for read operations** (GetItem, Query, Scan, BatchGetItem). Defaults to `false` (eventually consistent). Must be `false` for GSI. Omit for writes.
+- `filter_expression`: Only for Query/Scan operations. Filters on non-key attributes after data is read. Parameters referenced in conditions must be in the `parameters` array. Cannot filter on PK/SK fields.
 - `projection` and `included_attributes`: Only for GSI definitions (see GSI Projection Types below)
 - `gsi_list` and `gsi_mappings`: Only if the table/entity uses GSIs
 - `item_type`: Only when field type is "array"
@@ -225,8 +233,73 @@ Given GSI with `[tournamentId, region]` (PK) + `[round, bracket, matchId]` (SK):
 - ❌ Adding `range_condition` to "get all X" queries (simple PK query) → omit `range_condition`
 - ❌ Adding `range_condition` for equality queries on multi-attribute SK (use equality, not range) → omit `range_condition`
 - ❌ Inventing additional parameters not mentioned in the data model → only include parameters from the data model
+- ❌ Adding `range_condition: "begins_with"` just because the SK template uses a static prefix like `ORDER#` or `ITEM#` → static SK prefixes are part of the `sk_template` design and are handled automatically; `range_condition` is only for **user-provided dynamic values** like a date prefix or score threshold
 - ✅ Only use `range_condition` when user specifies comparison: "after", "before", "between", "starts with"
 - ✅ Use equality (no range_condition) when user specifies exact match: "with status=X", "where category=Y"
+- ✅ Use NO `range_condition` when querying all items under a PK (e.g., "get all deliveries for customer") — the SK prefix scoping is implicit in the `sk_template`
+
+### range_condition vs filter_expression — Don't Confuse Them
+
+🔴 **CRITICAL**: `range_condition` and `filter_expression` are completely different features. Never use both for the same filtering need.
+
+| Feature | `range_condition` | `filter_expression` |
+|---------|-------------------|---------------------|
+| **What it filters** | Sort key in KeyConditionExpression | Non-key attributes in FilterExpression (for Scan: any attribute, including PK/SK) |
+| **When to use** | Filtering on the table/GSI sort key | Filtering on non-key attributes (e.g., fulfillment_status, order_total, tags — never PK/SK fields) |
+| **Read capacity** | Only reads matching items | Reads ALL items, then filters |
+
+**Example — WRONG (range_condition without SK parameter):**
+```json
+{
+  "name": "get_active_orders",
+  "operation": "Query",
+  "range_condition": "begins_with",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded"}] },
+  "parameters": [{"name": "customer_id", "type": "string"}, {"name": "excluded", "type": "string"}]
+}
+```
+❌ `range_condition: "begins_with"` requires a range parameter (2 params total: PK + range value), but only PK + filter param are provided.
+
+**Example — CORRECT (both range_condition and filter_expression):**
+```json
+{
+  "name": "get_active_orders",
+  "operation": "Query",
+  "range_condition": "begins_with",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded"}] },
+  "parameters": [{"name": "customer_id", "type": "string"}, {"name": "sk_prefix", "type": "string"}, {"name": "excluded", "type": "string"}]
+}
+```
+✅ Both `range_condition` (for SK filtering) and `filter_expression` (for non-key filtering) with correct parameter count.
+
+**Example — CORRECT (filter_expression only, no SK filtering):**
+```json
+{
+  "name": "scan_active_restaurants",
+  "operation": "Scan",
+  "filter_expression": { "conditions": [{"field": "rating", "operator": ">=", "param": "min_rating"}] },
+  "parameters": [{"name": "min_rating", "type": "decimal"}]
+}
+```
+✅ Scan with only `filter_expression` — no sort key involved.
+
+**Example — CORRECT (item collection Query with filter, NO range_condition):**
+```json
+{
+  "name": "get_filtered_items",
+  "operation": "Query",
+  "filter_expression": { "conditions": [{"field": "status", "operator": "<>", "param": "excluded_status"}] },
+  "parameters": [{"name": "user_id", "type": "string"}, {"name": "date", "type": "string"}, {"name": "excluded_status", "type": "string"}]
+}
+```
+✅ Query scoped by a composite PK (e.g., `USER#{user_id}#{date}`) with filter on a non-key field. The SK prefix (e.g., `ITEM#`) is a static constant in `sk_template` — it does NOT require `range_condition`. Only add `range_condition` if the user wants to filter by a dynamic SK value like a date range or score threshold.
+
+**Rule of thumb:**
+- Filtering on sort key with a user-provided value → `range_condition`
+- Filtering on any non-key field → `filter_expression`
+- For Scan operations, `filter_expression` can also filter on key attributes (there is no `KeyConditionExpression` in a Scan)
+- Both can coexist: use `range_condition` for sort key filtering AND `filter_expression` for non-key attribute filtering in the same pattern — even when both use `begins_with`, they operate on different attributes
+- Don't add `range_condition` when there's no sort key filtering — only add it when the query narrows results using the sort key
 
 ## GSI Projection Types
 
@@ -639,6 +712,10 @@ Common validation errors and fixes:
 | Missing required field | Add required fields: name, type, required |
 | Invalid range_condition | Use valid condition: begins_with, between, >=, <=, >, < |
 | Wrong parameter count for range condition | Minimum: PK_count + range_params (1 or 2). Maximum: PK_count + (SK_count - 1) + range_params. Range applies to LAST QUERIED SK attribute. |
+| Invalid filter_expression field | Field must exist in entity fields and cannot be PK/SK |
+| Invalid filter operator/function | Use valid operators (=, <>, etc.) or functions (contains, begins_with, etc.) |
+| filter_expression on non-Query/Scan | Filter expressions only valid for Query and Scan operations |
+| range_condition with filter_expression | Both can coexist — ensure range_condition has correct parameter count (PK + range value) separate from filter params |
 | Same field for PK and SK | Use composite pattern: `"sk_template": "{field}#ENTITY_TYPE"` |
 | Non-string field in key template | If data model clearly indicates numeric type (like display_order as Number), use correct numeric type in fields but keep in key template - DynamoDB handles conversion |
 | Invalid consistent_read value | Use boolean `true` or `false`, not string or other types |

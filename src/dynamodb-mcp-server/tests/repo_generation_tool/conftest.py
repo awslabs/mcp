@@ -59,6 +59,12 @@ USER_REGISTRATION_USAGE_DATA = (
     VALID_USAGE_DATA_DIR / 'user_registration' / 'user_registration_usage_data.json'
 )
 
+# Food Delivery App (for filter expression testing)
+FOOD_DELIVERY_SCHEMA = VALID_SCHEMAS_DIR / 'food_delivery_app' / 'food_delivery_schema.json'
+FOOD_DELIVERY_USAGE_DATA = (
+    VALID_USAGE_DATA_DIR / 'food_delivery_app' / 'food_delivery_usage_data.json'
+)
+
 # Package Delivery App (for multi-attribute GSI key testing)
 PACKAGE_DELIVERY_SCHEMA = (
     VALID_SCHEMAS_DIR / 'package_delivery_app' / 'package_delivery_app_schema.json'
@@ -75,6 +81,7 @@ INVALID_MULTI_ATTRIBUTE_KEYS_SCHEMA = (
     INVALID_SCHEMAS_DIR / 'invalid_multi_attribute_keys_schema.json'
 )
 INVALID_GSI_SCHEMA = INVALID_SCHEMAS_DIR / 'invalid_gsi_schema.json'
+INVALID_FILTER_EXPRESSION_SCHEMA = INVALID_SCHEMAS_DIR / 'invalid_filter_expression_schema.json'
 
 
 # ============================================================================
@@ -105,12 +112,14 @@ def sample_schemas():
         'user_analytics': USER_ANALYTICS_SCHEMA,
         'deals': DEALS_SCHEMA,
         'user_registration': USER_REGISTRATION_SCHEMA,
+        'food_delivery': FOOD_DELIVERY_SCHEMA,
         'package_delivery': PACKAGE_DELIVERY_SCHEMA,
         'invalid_comprehensive': INVALID_COMPREHENSIVE_SCHEMA,
         'invalid_entity_ref': INVALID_ENTITY_REF_SCHEMA,
         'invalid_cross_table': INVALID_CROSS_TABLE_SCHEMA,
         'invalid_multi_attribute_keys': INVALID_MULTI_ATTRIBUTE_KEYS_SCHEMA,
         'invalid_gsi': INVALID_GSI_SCHEMA,
+        'invalid_filter_expression': INVALID_FILTER_EXPRESSION_SCHEMA,
     }
 
 
@@ -210,6 +219,7 @@ def code_generator(repo_generation_tool_path):
         USER_ANALYTICS_SCHEMA: USER_ANALYTICS_USAGE_DATA,
         DEALS_SCHEMA: DEALS_USAGE_DATA,
         USER_REGISTRATION_SCHEMA: USER_REGISTRATION_USAGE_DATA,
+        FOOD_DELIVERY_SCHEMA: FOOD_DELIVERY_USAGE_DATA,
         PACKAGE_DELIVERY_SCHEMA: PACKAGE_DELIVERY_USAGE_DATA,
     }
 
