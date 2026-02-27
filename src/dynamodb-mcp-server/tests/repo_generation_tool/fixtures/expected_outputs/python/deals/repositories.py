@@ -348,10 +348,10 @@ class UserWatchRepository(BaseRepository[UserWatch]):
         """Get all users watching a specific category (partition key only)
 
         Projection: INCLUDE
-        Projected Attributes: user_id, target_name, created_at
+        Projected Attributes: target_name, created_at
 
         Returns dict because required fields not in projection: watch_type
-        Use dict keys to access values: result[0]['user_id']
+        Use dict keys to access values: result[0]['target_name']
 
         To return typed UserWatch entities, either:
           1. Add these fields to included_attributes: ['watch_type']
@@ -391,7 +391,7 @@ class UserWatchRepository(BaseRepository[UserWatch]):
         """Get watches by target type
 
         Projection: INCLUDE
-        Projected Attributes: user_id, watch_key, created_at
+        Projected Attributes: target_name
         Returns UserWatch entities. Non-projected optional fields will be None.
 
         Args:

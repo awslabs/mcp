@@ -16,13 +16,14 @@ effortless scaling, multi-region viability, among other advantages.
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
 - **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
 - **ALWAYS Batch under 3,000 rows** - maintain transaction limits
-- **REQUIRED: Use parameterized queries** - Prevent SQL injection with $1, $2 placeholders
+- **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/mcp-tools.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential itegrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
 - **REQUIRED use DELETE for truncation** - DELETE is the only supported operation for truncation
 - **SHOULD test any migrations** - Verify DDL on dev clusters before production
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](#horizontal-scaling-best-practice)
 - **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](#connection-pooling-recommended)
 - **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](troubleshooting.md)
+- **ALWAYS use scoped roles for applications** - Create database roles with `dsql:DbConnect`; refer to [Access Control](access-control.md)
 
 ---
 
@@ -149,26 +150,15 @@ For production applications:
 
 ### Access Control
 
-**Database-level security:**
-- Create schema-specific users for applications
-- Grant minimal required privileges (SELECT, INSERT, UPDATE, DELETE)
-- Admin users should only perform administrative tasks
-- Regularly audit user permissions and access patterns
+**ALWAYS prefer scoped database roles over the `admin` role.**
+- **ALWAYS** use scoped database roles for application connections — reserve `admin` for initial setup and role management
+- **MUST** create purpose-specific database roles and connect with `dsql:DbConnect`
+- **MUST** place sensitive data (PII, credentials) in dedicated schemas — not `public`
+- **MUST** grant only the minimum privileges each role requires
+- **SHOULD** audit role mappings: `SELECT * FROM sys.iam_pg_role_mappings;`
 
-**Example IAM policy for non-admin users:**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "dsql:DbConnect",
-      "Resource": "arn:aws:dsql:*:*:cluster/*"
-    }
-  ]
-}
-```
+For complete role setup instructions, schema separation patterns, and IAM configuration,
+see [access-control.md](access-control.md).
 
 ---
 

@@ -65,8 +65,8 @@ The schema is validated against strict rules with helpful error messages:
         "gsi_list": [                // Optional: GSI definitions
           {
             "name": "string",        // Required: GSI name
-            "partition_key": "string",  // Required: GSI PK attribute
-            "sort_key": "string"     // Optional: GSI SK attribute (omit for PK-only GSIs)
+            "partition_key": "string" | ["string", ...],  // Required: Single or multi-attribute (1-4)
+            "sort_key": "string" | ["string", ...]        // Optional: Single or multi-attribute (1-4)
           }
         ]
       },
@@ -78,8 +78,8 @@ The schema is validated against strict rules with helpful error messages:
           "gsi_mappings": [                                  // Optional: GSI key templates
             {
               "name": "string",                              // Required: Must match gsi_list
-              "pk_template": "PREFIX#{field}",               // Required
-              "sk_template": "{field}|STATIC"                // Optional: Omit for PK-only GSIs
+              "pk_template": "PREFIX#{field}" | ["template1", ...],  // Required: Single or array (1-4)
+              "sk_template": "{field}|STATIC" | ["template1", ...]   // Optional: Single or array (1-4)
             }
           ],
           "fields": [...],                                   // Required, non-empty
@@ -169,7 +169,10 @@ The generator includes comprehensive validation for Global Secondary Indexes (GS
 
 - **GSI List**: Validates `gsi_list` array in `table_config`
 - **GSI Names**: Ensures GSI names are unique within a table
-- **GSI Keys**: Validates partition_key and sort_key are specified for each GSI
+- **GSI Keys**: Validates partition_key and sort_key (single or multi-attribute)
+  - Single-attribute: Must be a non-empty string
+  - Multi-attribute: Must be an array of 1-4 non-empty strings
+  - Validates array length, type, and empty values
 - **GSI Mappings**: Validates `gsi_mappings` array in entity definitions
 
 ### GSI Name Matching

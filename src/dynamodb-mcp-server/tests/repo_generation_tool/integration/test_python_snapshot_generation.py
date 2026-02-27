@@ -219,6 +219,32 @@ class TestPythonSnapshotGeneration:
             'python',
         )
 
+    def test_package_delivery_snapshot(
+        self, generation_output_dir, sample_schemas, code_generator
+    ):
+        """Test that package_delivery generation matches expected snapshot (multi-attribute GSI keys)."""
+        result = code_generator(
+            sample_schemas['package_delivery'],
+            generation_output_dir,
+            generate_sample_usage=True,
+        )
+
+        assert result.returncode == 0, f'Generation failed: {result.stderr}'
+
+        self._compare_with_snapshot(
+            'package_delivery',
+            generation_output_dir,
+            [
+                'entities.py',
+                'repositories.py',
+                'usage_examples.py',
+                'access_pattern_mapping.json',
+                'base_repository.py',
+                'ruff.toml',
+            ],
+            'python',
+        )
+
     def _compare_with_snapshot(
         self,
         schema_name: str,

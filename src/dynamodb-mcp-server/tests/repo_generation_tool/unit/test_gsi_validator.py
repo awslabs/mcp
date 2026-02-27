@@ -654,3 +654,665 @@ class TestPrivateHelperMethods(TestGSIValidator):
         }
         fields, errors = self.validator._parse_entity_fields(entity_data, 'entity')
         assert len(fields) == 1 and fields[0].name == 'valid_field' and errors == []
+
+
+@pytest.mark.unit
+class TestKeyTemplateLengthMatch(TestGSIValidator):
+    """Test cross-validation between GSI key definitions and mapping templates."""
+
+    def test_matching_string_pk_passes(self):
+        """String partition_key with string pk_template — no error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk_attr', sort_key='sk_attr')
+        mapping = GSIMapping(name='Idx', pk_template='PREFIX#{user_id}', sk_template='SK#{status}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert errors == []
+
+    def test_matching_array_pk_passes(self):
+        """Array partition_key with same-length array pk_template — no error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key=['a', 'b'], sort_key='sk')
+        mapping = GSIMapping(name='Idx', pk_template=['{a}', '{b}'], sk_template='{sk}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert errors == []
+
+    def test_matching_array_sk_passes(self):
+        """Array sort_key with same-length array sk_template — no error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk', sort_key=['s1', 's2', 's3'])
+        mapping = GSIMapping(name='Idx', pk_template='{pk}', sk_template=['{s1}', '{s2}', '{s3}'])
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert errors == []
+
+    def test_pk_array_length_mismatch(self):
+        """Array partition_key with different-length array pk_template — error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key=['a', 'b'], sort_key='sk')
+        mapping = GSIMapping(name='Idx', pk_template=['{a}'], sk_template='{sk}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 1
+        assert 'pk_template array length (1)' in errors[0].message
+        assert 'partition_key array length (2)' in errors[0].message
+
+    def test_sk_array_length_mismatch(self):
+        """Array sort_key with different-length array sk_template — error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk', sort_key=['s1', 's2', 's3'])
+        mapping = GSIMapping(name='Idx', pk_template='{pk}', sk_template=['{s1}', '{s2}'])
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 1
+        assert 'sk_template array length (2)' in errors[0].message
+        assert 'sort_key array length (3)' in errors[0].message
+
+    def test_pk_type_mismatch_array_vs_string(self):
+        """Array partition_key with string pk_template — type mismatch error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key=['a', 'b'], sort_key='sk')
+        mapping = GSIMapping(name='Idx', pk_template='{a}', sk_template='{sk}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 1
+        assert 'pk_template type (string)' in errors[0].message
+        assert 'partition_key type (array)' in errors[0].message
+
+    def test_pk_type_mismatch_string_vs_array(self):
+        """String partition_key with array pk_template — type mismatch error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk_attr', sort_key='sk')
+        mapping = GSIMapping(name='Idx', pk_template=['{a}', '{b}'], sk_template='{sk}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 1
+        assert 'pk_template type (array)' in errors[0].message
+        assert 'partition_key type (string)' in errors[0].message
+
+    def test_sk_type_mismatch(self):
+        """Array sort_key with string sk_template — type mismatch error."""
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk', sort_key=['s1', 's2'])
+        mapping = GSIMapping(name='Idx', pk_template='{pk}', sk_template='{s1}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 1
+        assert 'sk_template type (string)' in errors[0].message
+        assert 'sort_key type (array)' in errors[0].message
+
+    def test_sk_skipped_when_either_is_none(self):
+        """No SK cross-validation when sort_key or sk_template is None."""
+        # sort_key is None
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk', sort_key=None)
+        mapping = GSIMapping(name='Idx', pk_template='{pk}', sk_template='{something}')
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert errors == []
+
+        # sk_template is None
+        gsi_def = GSIDefinition(name='Idx', partition_key='pk', sort_key=['s1', 's2'])
+        mapping = GSIMapping(name='Idx', pk_template='{pk}', sk_template=None)
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert errors == []
+
+    def test_both_pk_and_sk_mismatch(self):
+        """Both PK and SK mismatches produce two errors."""
+        gsi_def = GSIDefinition(name='Idx', partition_key=['a', 'b'], sort_key=['s1', 's2', 's3'])
+        mapping = GSIMapping(name='Idx', pk_template=['{a}'], sk_template=['{s1}'])
+        errors = self.validator._validate_key_template_length_match(gsi_def, mapping, 'path')
+        assert len(errors) == 2
+        assert any('pk_template' in e.message for e in errors)
+        assert any('sk_template' in e.message for e in errors)
+
+    def test_integration_via_complete_gsi_configuration(self):
+        """Cross-validation fires through the full validate_complete_gsi_configuration path."""
+        table_data = {
+            'gsi_list': [
+                {
+                    'name': 'MultiIdx',
+                    'partition_key': ['tenant_id', 'region'],
+                    'sort_key': ['created_at', 'order_id'],
+                }
+            ],
+            'entities': {
+                'Order': {
+                    'fields': [
+                        {'name': 'tenant_id', 'type': 'string', 'required': True},
+                        {'name': 'region', 'type': 'string', 'required': True},
+                        {'name': 'created_at', 'type': 'string', 'required': True},
+                        {'name': 'order_id', 'type': 'string', 'required': True},
+                    ],
+                    'gsi_mappings': [
+                        {
+                            'name': 'MultiIdx',
+                            'pk_template': ['{tenant_id}'],  # length 1 vs partition_key length 2
+                            'sk_template': ['{created_at}', '{order_id}'],  # correct length
+                        }
+                    ],
+                }
+            },
+        }
+        errors = self.validator.validate_complete_gsi_configuration(table_data)
+        assert any('pk_template array length (1)' in e.message for e in errors)
+        # SK should pass — correct length
+        assert not any('sk_template array length' in e.message for e in errors)
+
+
+@pytest.mark.unit
+class TestValidateMultiAttributeKey(TestGSIValidator):
+    """Test _validate_multi_attribute_key static method."""
+
+    def test_none_required_key_errors(self):
+        """Required key that is None produces error."""
+        errors = GSIValidator._validate_multi_attribute_key(
+            None, 'partition_key', 'path', is_required=True
+        )
+        assert len(errors) == 1
+        assert 'Missing required partition_key' in errors[0].message
+
+    def test_none_optional_key_passes(self):
+        """Optional key that is None produces no error."""
+        errors = GSIValidator._validate_multi_attribute_key(
+            None, 'sort_key', 'path', is_required=False
+        )
+        assert errors == []
+
+    def test_invalid_type_errors(self):
+        """Non-string, non-list value produces error."""
+        errors = GSIValidator._validate_multi_attribute_key(123, 'partition_key', 'path')
+        assert len(errors) == 1
+        assert 'must be a string or array of strings' in errors[0].message
+
+    def test_empty_string_errors(self):
+        """Empty string key produces error."""
+        errors = GSIValidator._validate_multi_attribute_key('  ', 'partition_key', 'path')
+        assert len(errors) == 1
+        assert 'cannot be empty' in errors[0].message
+
+    def test_valid_string_passes(self):
+        """Valid string key produces no error."""
+        errors = GSIValidator._validate_multi_attribute_key('pk_attr', 'partition_key', 'path')
+        assert errors == []
+
+    def test_empty_array_errors(self):
+        """Empty array produces error."""
+        errors = GSIValidator._validate_multi_attribute_key([], 'partition_key', 'path')
+        assert len(errors) == 1
+        assert 'array cannot be empty' in errors[0].message
+
+    def test_array_over_four_errors(self):
+        """Array with >4 elements produces error."""
+        errors = GSIValidator._validate_multi_attribute_key(
+            ['a', 'b', 'c', 'd', 'e'], 'sort_key', 'path'
+        )
+        assert len(errors) == 1
+        assert 'more than 4 attributes' in errors[0].message
+
+    def test_array_non_string_element_errors(self):
+        """Non-string element in array produces error."""
+        errors = GSIValidator._validate_multi_attribute_key(['a', 123], 'partition_key', 'path')
+        assert len(errors) == 1
+        assert 'Attribute at index 1 must be a string' in errors[0].message
+
+    def test_array_empty_string_element_errors(self):
+        """Empty string element in array produces error."""
+        errors = GSIValidator._validate_multi_attribute_key(['a', '  '], 'sort_key', 'path')
+        assert len(errors) == 1
+        assert 'Attribute at index 1 cannot be empty' in errors[0].message
+
+    def test_valid_array_passes(self):
+        """Valid array with 1-4 string elements passes."""
+        errors = GSIValidator._validate_multi_attribute_key(
+            ['a', 'b', 'c'], 'partition_key', 'path'
+        )
+        assert errors == []
+
+
+@pytest.mark.unit
+class TestValidateTemplateParametersArray(TestGSIValidator):
+    """Test validate_template_parameters with array inputs."""
+
+    def test_invalid_type_errors(self):
+        """Non-string, non-list template produces error."""
+        errors = self.validator.validate_template_parameters(
+            123, self.sample_fields, 'path', 'pk_template'
+        )
+        assert len(errors) == 1
+        assert 'must be a string or array of strings' in errors[0].message
+
+    def test_empty_array_errors(self):
+        """Empty array template produces error."""
+        errors = self.validator.validate_template_parameters(
+            [], self.sample_fields, 'path', 'sk_template'
+        )
+        assert len(errors) == 1
+        assert 'array cannot be empty' in errors[0].message
+
+    def test_array_over_four_errors(self):
+        """Array with >4 templates produces error."""
+        errors = self.validator.validate_template_parameters(
+            ['{a}', '{b}', '{c}', '{d}', '{e}'], self.sample_fields, 'path', 'pk_template'
+        )
+        assert any('more than 4 templates' in e.message for e in errors)
+
+    def test_array_non_string_element_errors(self):
+        """Non-string element in template array produces error."""
+        errors = self.validator.validate_template_parameters(
+            ['{user_id}', 123], self.sample_fields, 'path', 'sk_template'
+        )
+        assert any('Template at index 1 must be a string' in e.message for e in errors)
+
+    def test_valid_array_with_field_validation(self):
+        """Valid array templates with existing fields pass."""
+        errors = self.validator.validate_template_parameters(
+            ['{user_id}', '{status}'], self.sample_fields, 'path', 'sk_template'
+        )
+        assert errors == []
+
+    def test_array_with_invalid_field_reference(self):
+        """Array template referencing non-existent field produces error."""
+        errors = self.validator.validate_template_parameters(
+            ['{user_id}', '{nonexistent}'], self.sample_fields, 'path', 'sk_template'
+        )
+        assert any('nonexistent' in e.message for e in errors)
+
+
+@pytest.mark.unit
+class TestParseGsiListMultiAttributeKeys(TestGSIValidator):
+    """Test _parse_gsi_list with multi-attribute key validation errors."""
+
+    def test_invalid_multi_attribute_pk_skips_gsi(self):
+        """GSI with invalid multi-attribute PK is skipped (not added to list)."""
+        table_data = {
+            'gsi_list': [
+                {
+                    'name': 'BadIdx',
+                    'partition_key': [],  # empty array — invalid
+                }
+            ]
+        }
+        gsi_list, errors = self.validator._parse_gsi_list(table_data, 'table')
+        assert gsi_list == []
+        assert len(errors) >= 1
+        assert any('array cannot be empty' in e.message for e in errors)
+
+    def test_invalid_multi_attribute_sk_skips_gsi(self):
+        """GSI with invalid multi-attribute SK is skipped."""
+        table_data = {
+            'gsi_list': [
+                {
+                    'name': 'BadIdx',
+                    'partition_key': 'pk',
+                    'sort_key': ['a', 'b', 'c', 'd', 'e'],  # >4 — invalid
+                }
+            ]
+        }
+        gsi_list, errors = self.validator._parse_gsi_list(table_data, 'table')
+        assert gsi_list == []
+        assert any('more than 4 attributes' in e.message for e in errors)
+
+    def test_valid_multi_attribute_keys_parsed(self):
+        """GSI with valid multi-attribute keys is parsed correctly."""
+        table_data = {
+            'gsi_list': [
+                {
+                    'name': 'MultiIdx',
+                    'partition_key': ['tenant', 'region'],
+                    'sort_key': ['date', 'id'],
+                }
+            ]
+        }
+        gsi_list, errors = self.validator._parse_gsi_list(table_data, 'table')
+        assert errors == []
+        assert len(gsi_list) == 1
+        assert gsi_list[0].partition_key == ['tenant', 'region']
+        assert gsi_list[0].sort_key == ['date', 'id']
+
+
+@pytest.mark.unit
+class TestIncludeProjectionSafety(TestGSIValidator):
+    """Test validate_include_projection_safety."""
+
+    def test_non_include_projection_skipped(self):
+        """GSIs with ALL or KEYS_ONLY projection produce no warnings."""
+        gsi_list = [GSIDefinition(name='Idx', partition_key='pk', sort_key='sk', projection='ALL')]
+        warnings = self.validator.validate_include_projection_safety(gsi_list, {}, {}, 'table')
+        assert warnings == []
+
+    def test_include_with_all_fields_projected_no_warning(self):
+        """INCLUDE projection where all required fields are projected — no warning."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                sort_key='gsi_sk',
+                projection='INCLUDE',
+                included_attributes=['email'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [
+                    {'name': 'Idx', 'pk_template': '{user_id}', 'sk_template': '{status}'}
+                ],
+                'fields': [
+                    {'name': 'user_id', 'type': 'string', 'required': True},
+                    {'name': 'status', 'type': 'string', 'required': True},
+                    {'name': 'email', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        table_config = {'partition_key': 'pk', 'sort_key': 'sk'}
+        warnings = self.validator.validate_include_projection_safety(
+            gsi_list, entities, table_config, 'table'
+        )
+        assert warnings == []
+
+    def test_include_with_required_non_projected_field_warns(self):
+        """INCLUDE projection missing a required field produces warning."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                sort_key='gsi_sk',
+                projection='INCLUDE',
+                included_attributes=['email'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'Idx', 'pk_template': '{user_id}'}],
+                'fields': [
+                    {'name': 'user_id', 'type': 'string', 'required': True},
+                    {'name': 'email', 'type': 'string', 'required': True},
+                    {'name': 'age', 'type': 'integer', 'required': True},  # not projected
+                ],
+            }
+        }
+        table_config = {'partition_key': 'pk'}
+        warnings = self.validator.validate_include_projection_safety(
+            gsi_list, entities, table_config, 'table'
+        )
+        assert len(warnings) == 1
+        assert 'age' in warnings[0].message
+        assert warnings[0].severity == 'warning'
+
+    def test_include_entity_not_using_gsi_skipped(self):
+        """Entity that doesn't use the INCLUDE GSI produces no warning."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                projection='INCLUDE',
+                included_attributes=['email'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'OtherIdx', 'pk_template': '{user_id}'}],
+                'fields': [
+                    {'name': 'user_id', 'type': 'string', 'required': True},
+                    {'name': 'missing_field', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        warnings = self.validator.validate_include_projection_safety(
+            gsi_list, entities, {}, 'table'
+        )
+        assert warnings == []
+
+    def test_include_with_multi_attribute_sk_template(self):
+        """INCLUDE projection with multi-attribute sk_template extracts fields correctly."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                sort_key=['s1', 's2'],
+                projection='INCLUDE',
+                included_attributes=['extra'],
+            )
+        ]
+        entities = {
+            'Order': {
+                'gsi_mappings': [
+                    {
+                        'name': 'Idx',
+                        'pk_template': '{store_id}',
+                        'sk_template': ['{status}', '{date}'],
+                    }
+                ],
+                'fields': [
+                    {'name': 'store_id', 'type': 'string', 'required': True},
+                    {'name': 'status', 'type': 'string', 'required': True},
+                    {'name': 'date', 'type': 'string', 'required': True},
+                    {'name': 'extra', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        table_config = {'partition_key': 'pk'}
+        warnings = self.validator.validate_include_projection_safety(
+            gsi_list, entities, table_config, 'table'
+        )
+        # store_id, status, date are in templates (always projected), extra is in included_attributes
+        assert warnings == []
+
+
+@pytest.mark.unit
+class TestValidateIncludedAttributesExist(TestGSIValidator):
+    """Test _validate_included_attributes_exist."""
+
+    def test_non_include_projection_skipped(self):
+        """GSIs without INCLUDE projection are skipped."""
+        gsi_list = [GSIDefinition(name='Idx', partition_key='pk', projection='ALL')]
+        errors = self.validator._validate_included_attributes_exist(gsi_list, {}, {}, 'table')
+        assert errors == []
+
+    def test_valid_included_attributes_pass(self):
+        """Included attributes that exist in entity fields pass."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                projection='INCLUDE',
+                included_attributes=['email'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'Idx', 'pk_template': '{user_id}'}],
+                'fields': [
+                    {'name': 'user_id', 'type': 'string', 'required': True},
+                    {'name': 'email', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        errors = self.validator._validate_included_attributes_exist(
+            gsi_list, entities, {}, 'table'
+        )
+        assert errors == []
+
+    def test_nonexistent_included_attribute_errors(self):
+        """Included attribute not in any entity field produces error."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                projection='INCLUDE',
+                included_attributes=['nonexistent'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'Idx', 'pk_template': '{user_id}'}],
+                'fields': [{'name': 'user_id', 'type': 'string', 'required': True}],
+            }
+        }
+        errors = self.validator._validate_included_attributes_exist(
+            gsi_list, entities, {}, 'table'
+        )
+        assert len(errors) == 1
+        assert "'nonexistent' not found" in errors[0].message
+
+    def test_key_attribute_in_included_attributes_errors(self):
+        """Key attributes in included_attributes produce error (redundant)."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                sort_key='gsi_sk',
+                projection='INCLUDE',
+                included_attributes=['gsi_pk', 'email'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'Idx', 'pk_template': '{user_id}'}],
+                'fields': [
+                    {'name': 'user_id', 'type': 'string', 'required': True},
+                    {'name': 'email', 'type': 'string', 'required': True},
+                    {'name': 'gsi_pk', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        table_config = {'partition_key': 'pk', 'sort_key': 'sk'}
+        errors = self.validator._validate_included_attributes_exist(
+            gsi_list, entities, table_config, 'table'
+        )
+        assert any('key attributes in included_attributes' in e.message for e in errors)
+
+    def test_entity_not_using_gsi_ignored(self):
+        """Entity that doesn't use the GSI is not checked for field existence."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key='gsi_pk',
+                projection='INCLUDE',
+                included_attributes=['special_field'],
+            )
+        ]
+        entities = {
+            'User': {
+                'gsi_mappings': [{'name': 'OtherIdx', 'pk_template': '{user_id}'}],
+                'fields': [{'name': 'user_id', 'type': 'string', 'required': True}],
+            }
+        }
+        errors = self.validator._validate_included_attributes_exist(
+            gsi_list, entities, {}, 'table'
+        )
+        # special_field not found in any entity using this GSI
+        assert any("'special_field' not found" in e.message for e in errors)
+
+    def test_multi_attribute_gsi_keys_detected_as_key_attrs(self):
+        """Multi-attribute GSI keys are correctly identified as key attributes."""
+        gsi_list = [
+            GSIDefinition(
+                name='Idx',
+                partition_key=['tenant', 'region'],
+                sort_key=['date'],
+                projection='INCLUDE',
+                included_attributes=['tenant', 'email'],
+            )
+        ]
+        entities = {
+            'Order': {
+                'gsi_mappings': [
+                    {
+                        'name': 'Idx',
+                        'pk_template': ['{tenant}', '{region}'],
+                        'sk_template': ['{date}'],
+                    }
+                ],
+                'fields': [
+                    {'name': 'tenant', 'type': 'string', 'required': True},
+                    {'name': 'region', 'type': 'string', 'required': True},
+                    {'name': 'date', 'type': 'string', 'required': True},
+                    {'name': 'email', 'type': 'string', 'required': True},
+                ],
+            }
+        }
+        table_config = {'partition_key': 'pk'}
+        errors = self.validator._validate_included_attributes_exist(
+            gsi_list, entities, table_config, 'table'
+        )
+        # 'tenant' is a GSI key attribute — should be flagged as unnecessary
+        assert any('tenant' in e.message and 'key attributes' in e.message for e in errors)
+
+
+@pytest.mark.unit
+class TestValidateGsiProjections(TestGSIValidator):
+    """Test _validate_gsi_projections."""
+
+    def test_valid_projections_pass(self):
+        """ALL, KEYS_ONLY, INCLUDE (with attributes) all pass."""
+        gsi_list_data = [
+            {'name': 'Idx1', 'partition_key': 'pk', 'projection': 'ALL'},
+            {'name': 'Idx2', 'partition_key': 'pk', 'projection': 'KEYS_ONLY'},
+            {
+                'name': 'Idx3',
+                'partition_key': 'pk',
+                'projection': 'INCLUDE',
+                'included_attributes': ['field1'],
+            },
+        ]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert errors == []
+
+    def test_invalid_projection_type_errors(self):
+        """Invalid projection type produces error."""
+        gsi_list_data = [{'name': 'Idx', 'partition_key': 'pk', 'projection': 'INVALID'}]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1
+        assert "invalid projection 'INVALID'" in errors[0].message
+
+    def test_include_missing_included_attributes_errors(self):
+        """INCLUDE projection without included_attributes produces error."""
+        gsi_list_data = [{'name': 'Idx', 'partition_key': 'pk', 'projection': 'INCLUDE'}]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1
+        assert "missing 'included_attributes'" in errors[0].message
+
+    def test_include_non_list_included_attributes_errors(self):
+        """INCLUDE projection with non-list included_attributes produces error."""
+        gsi_list_data = [
+            {
+                'name': 'Idx',
+                'partition_key': 'pk',
+                'projection': 'INCLUDE',
+                'included_attributes': 'not_a_list',
+            }
+        ]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1
+        assert 'must be an array' in errors[0].message
+
+    def test_include_empty_included_attributes_errors(self):
+        """INCLUDE projection with empty included_attributes produces error."""
+        gsi_list_data = [
+            {
+                'name': 'Idx',
+                'partition_key': 'pk',
+                'projection': 'INCLUDE',
+                'included_attributes': [],
+            }
+        ]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1
+        # Empty list is falsy, so it hits the "missing" check before the len==0 check
+        assert (
+            "missing 'included_attributes'" in errors[0].message
+            or 'cannot be empty' in errors[0].message
+        )
+
+    def test_non_include_with_included_attributes_errors(self):
+        """Non-INCLUDE projection with included_attributes produces error."""
+        gsi_list_data = [
+            {
+                'name': 'Idx',
+                'partition_key': 'pk',
+                'projection': 'ALL',
+                'included_attributes': ['field1'],
+            }
+        ]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1
+        assert 'only allowed for INCLUDE' in errors[0].message
+
+    def test_no_projection_field_passes(self):
+        """GSI without projection field produces no error."""
+        gsi_list_data = [{'name': 'Idx', 'partition_key': 'pk'}]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert errors == []
+
+    def test_non_dict_gsi_skipped(self):
+        """Non-dict entries in gsi_list are skipped."""
+        gsi_list_data = [
+            'not_a_dict',
+            {'name': 'Idx', 'partition_key': 'pk', 'projection': 'INVALID'},
+        ]
+        errors = self.validator._validate_gsi_projections(gsi_list_data, 'gsi_list')
+        assert len(errors) == 1  # only the dict entry produces an error

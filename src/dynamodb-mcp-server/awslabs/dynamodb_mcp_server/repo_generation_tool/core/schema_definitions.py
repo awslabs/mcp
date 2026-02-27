@@ -110,22 +110,29 @@ class GSIProjectionType(Enum):
 
 @dataclass
 class GSIDefinition:
-    """Definition of a Global Secondary Index."""
+    """Global Secondary Index definition.
+
+    Supports single-attribute (string) or multi-attribute (list of 1-4 strings) keys.
+    Attribute types are defined in entity fields, not here.
+    """
 
     name: str
-    partition_key: str
-    sort_key: str | None = None  # Optional: GSI can have only partition key
-    projection: str = 'ALL'  # ALL, KEYS_ONLY, INCLUDE (defaults to ALL)
-    included_attributes: list[str] | None = None  # Required when projection is INCLUDE
+    partition_key: str | list[str]
+    sort_key: str | list[str] | None = None
+    projection: str = 'ALL'
+    included_attributes: list[str] | None = None
 
 
 @dataclass
 class GSIMapping:
-    """Mapping of entity fields to GSI keys."""
+    """Entity field mapping to GSI keys.
+
+    Templates can be single (string) or multi-attribute (list of 1-4 strings).
+    """
 
     name: str
-    pk_template: str
-    sk_template: str | None = None  # Optional: GSI mapping can have only partition key
+    pk_template: str | list[str]
+    sk_template: str | list[str] | None = None
 
 
 @dataclass
@@ -147,9 +154,31 @@ class Parameter:
     entity_type: str | None = None  # Required when type is "entity"
 
 
+# Filter expression constants
+VALID_FILTER_OPERATORS = frozenset({'=', '<>', '<', '<=', '>', '>=', 'between', 'in'})
+VALID_FILTER_FUNCTIONS = frozenset(
+    {'contains', 'begins_with', 'attribute_exists', 'attribute_not_exists', 'size'}
+)
+VALID_FILTER_LOGICAL_OPERATORS = frozenset({'AND', 'OR'})
+
+
+@dataclass
+class FilterCondition:
+    """A single filter condition within a filter expression."""
+
+    field: str
+    operator: str | None = None  # =, <>, <, <=, >, >=, between, in
+    function: str | None = (
+        None  # contains, begins_with, attribute_exists, attribute_not_exists, size
+    )
+    param: str | None = None  # Reference to parameter name
+    param2: str | None = None  # Second param for 'between'
+    params: list[str] | None = None  # Multiple params for 'in'
+
+
 @dataclass
 class AccessPattern:
-    """Access pattern definition with GSI support."""
+    """Access pattern definition with GSI and filter support."""
 
     pattern_id: int
     name: str
@@ -159,6 +188,9 @@ class AccessPattern:
     return_type: str
     index_name: str | None = None  # GSI name for GSI queries
     range_condition: str | None = None  # Range condition for GSI range queries
+    filter_expression: dict | None = (
+        None  # {"conditions": [FilterCondition, ...], "logical_operator": "AND"|"OR"}
+    )
 
 
 @dataclass
@@ -175,10 +207,14 @@ class Entity:
 
 @dataclass
 class TableConfig:
-    """Table configuration."""
+    """Table configuration.
+
+    Note: Multi-attribute keys are only supported for GSIs, not base tables.
+    Base tables should use single-attribute keys (string format).
+    """
 
     table_name: str
-    partition_key: str
+    partition_key: str  # Base table uses single attribute only
     sort_key: str | None = None  # Optional: Table can have only partition key
 
 

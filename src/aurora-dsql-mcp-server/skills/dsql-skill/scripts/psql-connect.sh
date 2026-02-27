@@ -16,20 +16,20 @@ set -euo pipefail
 
 # psql-connect.sh - Connect to Aurora DSQL using psql with IAM auth
 #
-# Usage: ./psql-connect.sh [CLUSTER_ID] [--region REGION] [--user USER] [--admin] [--command "SQL"]
+# Usage: ./psql-connect.sh [CLUSTER_ID] [--region REGION] [--user USER] [--admin] [--ai-model MODEL_ID] [--command "SQL"]
 #
 # Examples:
-#   ./psql-connect.sh
-#   ./psql-connect.sh abc123def456 --region us-west-2
-#   ./psql-connect.sh --user myuser
-#   ./psql-connect.sh --admin
-#   ./psql-connect.sh --command "SELECT * FROM entities LIMIT 5"
+#   ./psql-connect.sh --ai-model claude-opus-4-6
+#   ./psql-connect.sh abc123def456 --ai-model claude-opus-4-6 --region us-west-2
+#   ./psql-connect.sh --ai-model claude-opus-4-6 --admin
+#   ./psql-connect.sh --ai-model claude-opus-4-6 --command "SELECT * FROM entities LIMIT 5"
 
 CLUSTER_ID="${CLUSTER:-}"
 REGION="${REGION:-${AWS_REGION:-us-east-1}}"
 USER="${DB_USER:-admin}"
 ADMIN=false
 COMMAND=""
+AI_MODEL=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -50,6 +50,10 @@ while [[ $# -gt 0 ]]; do
       COMMAND="$2"
       shift 2
       ;;
+    --ai-model)
+      AI_MODEL="$2"
+      shift 2
+      ;;
     -h|--help)
       echo "Usage: $0 [CLUSTER_ID] [--region REGION] [--user USER] [--admin] [--command SQL]"
       echo ""
@@ -63,6 +67,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --user USER        Database user (default: \$DB_USER or 'admin')"
       echo "  --admin            Generate admin token (uses generate-db-connect-admin-auth-token)"
       echo "  --command SQL      Execute SQL command and exit"
+      echo "  --ai-model ID      AI model identifier appended to application_name (e.g. claude-opus-4-6)"
       echo "  -h, --help         Show this help message"
       echo ""
       echo "Environment Variables:"
@@ -115,6 +120,18 @@ fi
 
 echo "Connecting to $ENDPOINT as $USER..." >&2
 echo "" >&2
+
+# Set application_name with AI model identifier if provided
+PGAPPNAME="dsql-skill"
+if [[ -n "$AI_MODEL" ]]; then
+  # Validate: allow only alphanumeric, hyphens, underscores, and dots
+  if [[ ! "$AI_MODEL" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+    echo "Error: --ai-model must contain only alphanumeric characters, hyphens, underscores, and dots." >&2
+    exit 1
+  fi
+  PGAPPNAME="dsql-skill/${AI_MODEL}"
+fi
+export PGAPPNAME
 
 # Connect with psql
 if [[ -n "$COMMAND" ]]; then
