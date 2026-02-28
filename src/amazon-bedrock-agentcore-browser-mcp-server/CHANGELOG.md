@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional `selector` parameter for `browser_snapshot` to scope the accessibility tree to a CSS-selected DOM subtree, reducing output verbosity on content-heavy pages
 - Initial release with 24 browser automation tools
 - Session lifecycle tools: start, get, stop, list browser sessions via AgentCore APIs
 - Navigation tools: navigate to URL, navigate back, navigate forward

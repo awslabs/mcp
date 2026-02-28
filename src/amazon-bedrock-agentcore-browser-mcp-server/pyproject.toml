@@ -119,6 +119,7 @@ asyncio_mode = "auto"
 addopts = "-m 'not live'"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "local_browser: marks tests that launch a local Chromium browser (deselect with '-m \"not local_browser\"')",
     "asyncio: marks tests that use asyncio",
 ]
 

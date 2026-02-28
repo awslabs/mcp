@@ -110,6 +110,26 @@ TEST_TABS_HTML = """
 </html>
 """
 
+TEST_SCOPED_HTML = """
+<html>
+<head><title>Scoped Snapshot Test</title></head>
+<body>
+    <nav aria-label="Site Navigation">
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+    </nav>
+    <main>
+        <h1>Main Content</h1>
+        <p>This is the main section.</p>
+        <button>Action</button>
+    </main>
+    <footer>
+        <a href="/privacy">Privacy Policy</a>
+    </footer>
+</body>
+</html>
+"""
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -552,6 +572,34 @@ class TestNavigationAndObservation:
         )
 
         assert 'Navigated forward' in result
+
+    async def test_snapshot_with_selector(self, nav_env):
+        """Scoped snapshot captures only the matched subtree."""
+        await _setup_page(nav_env['conn_mgr'], nav_env['sid'], TEST_SCOPED_HTML)
+        result = await nav_env['obs'].browser_snapshot(
+            ctx=nav_env['ctx'],
+            session_id=nav_env['sid'],
+            selector='main',
+        )
+
+        assert 'Main Content' in result
+        assert 'Action' in result
+        # Nav and footer content should not appear in a scoped snapshot
+        assert 'Site Navigation' not in result
+        assert 'Privacy Policy' not in result
+
+    async def test_snapshot_with_invalid_selector(self, nav_env):
+        """Invalid selector falls back to full-page snapshot."""
+        await _setup_page(nav_env['conn_mgr'], nav_env['sid'], TEST_SCOPED_HTML)
+        result = await nav_env['obs'].browser_snapshot(
+            ctx=nav_env['ctx'],
+            session_id=nav_env['sid'],
+            selector='#nonexistent',
+        )
+
+        # Fallback should include all page content
+        assert 'Main Content' in result
+        assert 'Warning' in result
 
 
 # ===========================================================================

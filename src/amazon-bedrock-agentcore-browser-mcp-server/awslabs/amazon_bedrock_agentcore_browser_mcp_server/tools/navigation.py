@@ -84,8 +84,11 @@ class NavigationTools:
         except Exception as e:
             error_msg = f'Error navigating to {url}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg
 
     async def browser_navigate_back(
         self,
@@ -114,8 +117,11 @@ class NavigationTools:
         except Exception as e:
             error_msg = f'Error navigating back in session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg
 
     async def browser_navigate_forward(
         self,
@@ -144,5 +150,8 @@ class NavigationTools:
         except Exception as e:
             error_msg = f'Error navigating forward in session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg

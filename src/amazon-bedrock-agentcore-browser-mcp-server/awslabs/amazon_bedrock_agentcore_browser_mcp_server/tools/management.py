@@ -84,15 +84,8 @@ class ManagementTools:
         logger.info(f'Tab action={action} in session {session_id}')
 
         try:
-            browser = self._connection_manager._connections.get(session_id)
-            if not browser:
-                return f'Error: No connection for session {session_id}.'
-
-            contexts = browser.contexts
-            if not contexts:
-                return 'Error: No browser context available.'
-
-            context = contexts[0]
+            browser = self._connection_manager.get_browser(session_id)
+            context = self._connection_manager.get_context(session_id)
             pages = context.pages
 
             if action == 'list':
@@ -113,7 +106,8 @@ class ManagementTools:
                         )
                     self._connection_manager.set_active_page(session_id, new_page)
                     title = await new_page.title()
-                    return f'Opened new tab [{len(pages)}]: {title} - {new_page.url}'
+                    snapshot = await self._snapshot_manager.capture(new_page, session_id)
+                    return f'Opened new tab [{len(pages)}]: {title} - {new_page.url}\n\n{snapshot}'
                 except Exception:
                     await new_page.close()
                     raise
@@ -141,16 +135,27 @@ class ManagementTools:
                 remaining = context.pages
                 if remaining:
                     self._connection_manager.set_active_page(session_id, remaining[-1])
+                    snapshot = await self._snapshot_manager.capture(remaining[-1], session_id)
+                    return (
+                        f'Closed tab [{tab_index}]: {title}. '
+                        f'{len(remaining)} tab(s) remaining.\n\n{snapshot}'
+                    )
                 return f'Closed tab [{tab_index}]: {title}. {len(remaining)} tab(s) remaining.'
 
             else:
                 return f'Error: Unknown action "{action}". Use list, new, select, or close.'
 
+        except ValueError as e:
+            return f'Error: {e}'
         except Exception as e:
             error_msg = f'Error managing tabs in session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                page = await self._connection_manager.get_page(session_id)
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg
 
     async def browser_close(
         self,
@@ -174,17 +179,25 @@ class ManagementTools:
             url = page.url
             await page.close()
 
-            browser = self._connection_manager._connections.get(session_id)
-            if browser and browser.contexts and browser.contexts[0].pages:
-                self._connection_manager.set_active_page(session_id, browser.contexts[0].pages[-1])
+            try:
+                context = self._connection_manager.get_context(session_id)
+                if context.pages:
+                    self._connection_manager.set_active_page(session_id, context.pages[-1])
+                    snapshot = await self._snapshot_manager.capture(context.pages[-1], session_id)
+                    return f'Closed page: {title} ({url})\n\n{snapshot}'
+            except ValueError:
+                pass
 
             return f'Closed page: {title} ({url})'
 
         except Exception as e:
             error_msg = f'Error closing page in session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg
 
     async def browser_resize(
         self,
@@ -213,12 +226,14 @@ class ManagementTools:
         try:
             page = await self._connection_manager.get_page(session_id)
             await page.set_viewport_size({'width': width, 'height': height})
+            snapshot = await self._snapshot_manager.capture(page, session_id)
+            return f'Viewport resized to {width}x{height}\n\n{snapshot}'
 
         except Exception as e:
             error_msg = f'Error resizing viewport in session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
-
-        snapshot = await self._snapshot_manager.capture(page, session_id)
-        return f'Viewport resized to {width}x{height}\n\n{snapshot}'
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg

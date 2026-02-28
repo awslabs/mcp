@@ -27,10 +27,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 @pytest.fixture
 def mock_connection_manager():
-    """Create a mock BrowserConnectionManager with connections dict."""
+    """Create a mock BrowserConnectionManager with public API."""
     cm = MagicMock(spec=BrowserConnectionManager)
     cm.get_page = AsyncMock()
-    cm._connections = {}
+    cm.get_browser = MagicMock()
+    cm.get_context = MagicMock()
     return cm
 
 
@@ -73,6 +74,12 @@ def management_tools(mock_connection_manager, mock_snapshot_manager):
     return ManagementTools(mock_connection_manager, mock_snapshot_manager)
 
 
+def _setup_browser(mock_connection_manager, mock_browser):
+    """Configure mock connection manager to return the mock browser."""
+    mock_connection_manager.get_browser.return_value = mock_browser
+    mock_connection_manager.get_context.return_value = mock_browser.contexts[0]
+
+
 class TestBrowserTabs:
     """Tests for browser_tabs tool."""
 
@@ -80,7 +87,7 @@ class TestBrowserTabs:
         self, management_tools, mock_ctx, mock_connection_manager, mock_browser
     ):
         """List tabs shows all open tabs."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        _setup_browser(mock_connection_manager, mock_browser)
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='list'
@@ -93,10 +100,11 @@ class TestBrowserTabs:
         assert '[1]' in result
 
     async def test_new_tab(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
+        mock_browser
     ):
-        """New tab creates a page in the context and sets it as active."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        """New tab creates a page, sets it as active, and returns snapshot."""
+        _setup_browser(mock_connection_manager, mock_browser)
         new_page = MagicMock()
         new_page.title = AsyncMock(return_value='New Tab')
         new_page.url = 'about:blank'
@@ -110,12 +118,14 @@ class TestBrowserTabs:
         mock_browser.contexts[0].new_page.assert_awaited_once()
         mock_connection_manager.set_active_page.assert_called_once_with('sess-1', new_page)
         assert 'Opened new tab' in result
+        mock_snapshot_manager.capture.assert_awaited_once_with(new_page, 'sess-1')
 
     async def test_new_tab_with_url(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
+        mock_browser
     ):
-        """New tab navigates to URL when provided and sets it as active."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        """New tab navigates to URL when provided and returns snapshot."""
+        _setup_browser(mock_connection_manager, mock_browser)
         new_page = MagicMock()
         new_page.title = AsyncMock(return_value='Example')
         new_page.url = 'https://example.com'
@@ -129,6 +139,7 @@ class TestBrowserTabs:
         new_page.goto.assert_awaited_once()
         mock_connection_manager.set_active_page.assert_called_once_with('sess-1', new_page)
         assert 'Example' in result
+        mock_snapshot_manager.capture.assert_awaited_once_with(new_page, 'sess-1')
 
     async def test_select_tab(
         self,
@@ -139,7 +150,7 @@ class TestBrowserTabs:
         mock_browser,
     ):
         """Select tab brings it to front, sets active page, and returns snapshot."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        _setup_browser(mock_connection_manager, mock_browser)
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='select', tab_index=1
@@ -156,7 +167,7 @@ class TestBrowserTabs:
         self, management_tools, mock_ctx, mock_connection_manager, mock_browser
     ):
         """Select tab with invalid index returns error."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        _setup_browser(mock_connection_manager, mock_browser)
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='select', tab_index=5
@@ -166,10 +177,11 @@ class TestBrowserTabs:
         assert 'out of range' in result
 
     async def test_close_tab(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
+        mock_browser
     ):
-        """Close tab removes it and updates active page to a remaining tab."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        """Close tab removes it, updates active page, and returns snapshot."""
+        _setup_browser(mock_connection_manager, mock_browser)
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='close', tab_index=1
@@ -178,6 +190,7 @@ class TestBrowserTabs:
         mock_browser.contexts[0].pages[1].close.assert_awaited_once()
         mock_connection_manager.set_active_page.assert_called_once()
         assert 'Closed tab [1]' in result
+        mock_snapshot_manager.capture.assert_awaited_once()
 
     async def test_close_last_tab_error(self, management_tools, mock_ctx, mock_connection_manager):
         """Cannot close the last remaining tab."""
@@ -187,7 +200,8 @@ class TestBrowserTabs:
         context = MagicMock()
         context.pages = [page]
         browser.contexts = [context]
-        mock_connection_manager._connections['sess-1'] = browser
+        mock_connection_manager.get_browser.return_value = browser
+        mock_connection_manager.get_context.return_value = context
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='close', tab_index=0
@@ -198,6 +212,10 @@ class TestBrowserTabs:
 
     async def test_no_connection(self, management_tools, mock_ctx, mock_connection_manager):
         """Tabs with no connection returns error."""
+        mock_connection_manager.get_browser.side_effect = ValueError(
+            'No connection for session nonexistent. Call start_browser_session first.'
+        )
+
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='nonexistent', action='list'
         )
@@ -209,7 +227,7 @@ class TestBrowserTabs:
         self, management_tools, mock_ctx, mock_connection_manager, mock_browser
     ):
         """Unknown tab action returns error."""
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        _setup_browser(mock_connection_manager, mock_browser)
 
         result = await management_tools.browser_tabs(
             ctx=mock_ctx, session_id='sess-1', action='invalid'
@@ -223,20 +241,22 @@ class TestBrowserClose:
     """Tests for browser_close tool."""
 
     async def test_close_page(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
+        mock_browser
     ):
-        """Close page closes the active page and updates active page tracking."""
+        """Close page closes the active page, updates tracking, and returns snapshot."""
         page = MagicMock()
         page.title = AsyncMock(return_value='Closing Page')
         page.url = 'https://example.com'
         page.close = AsyncMock()
         mock_connection_manager.get_page.return_value = page
-        mock_connection_manager._connections['sess-1'] = mock_browser
+        mock_connection_manager.get_context.return_value = mock_browser.contexts[0]
 
         result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
 
         page.close.assert_awaited_once()
         assert 'Closed page: Closing Page' in result
+        mock_snapshot_manager.capture.assert_awaited_once()
 
 
 class TestBrowserResize:

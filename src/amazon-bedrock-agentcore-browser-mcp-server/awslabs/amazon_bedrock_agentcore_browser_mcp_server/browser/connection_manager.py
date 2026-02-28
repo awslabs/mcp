@@ -84,6 +84,43 @@ class BrowserConnectionManager:
         logger.info(f'Connected to browser session {session_id}')
         return browser
 
+    def get_browser(self, session_id: str) -> Browser:
+        """Get the Browser instance for a session.
+
+        Args:
+            session_id: AgentCore browser session identifier.
+
+        Returns:
+            The Playwright Browser instance for the session.
+
+        Raises:
+            ValueError: If no connection exists for the session.
+        """
+        browser = self._connections.get(session_id)
+        if not browser:
+            raise ValueError(
+                f'No connection for session {session_id}. Call start_browser_session first.'
+            )
+        return browser
+
+    def get_context(self, session_id: str):
+        """Get the first browser context for a session.
+
+        Args:
+            session_id: AgentCore browser session identifier.
+
+        Returns:
+            The first BrowserContext for the session.
+
+        Raises:
+            ValueError: If no connection or context exists for the session.
+        """
+        browser = self.get_browser(session_id)
+        contexts = browser.contexts
+        if not contexts:
+            raise ValueError(f'No browser context available for session {session_id}')
+        return contexts[0]
+
     async def get_page(self, session_id: str) -> Page:
         """Get the active page for a session.
 

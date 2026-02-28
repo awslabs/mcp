@@ -268,7 +268,9 @@ class TestRefResolution:
         mock_locator = MagicMock()
         mock_nth_locator_0 = MagicMock(name='nth(0)')
         mock_nth_locator_1 = MagicMock(name='nth(1)')
-        mock_locator.nth = MagicMock(side_effect=lambda n: {0: mock_nth_locator_0, 1: mock_nth_locator_1}[n])
+        mock_locator.nth = MagicMock(
+            side_effect=lambda n: {0: mock_nth_locator_0, 1: mock_nth_locator_1}[n]
+        )
         mock_page.get_by_role.return_value = mock_locator
 
         # e1 is the first "126 comments" link -> nth(0)
@@ -291,6 +293,158 @@ class TestRefResolution:
         locator = await snapshot_manager.resolve_ref(mock_page, 'e3', 'sess-1')
         assert locator is mock_locator
         mock_locator.nth.assert_not_called()
+
+
+class TestScopedSnapshot:
+    """Tests for selector-scoped accessibility tree capture.
+
+    The scoping works by:
+    1. Resolving the CSS selector to a backendNodeId via DOM CDP calls
+    2. Calling Accessibility.queryAXTree(backendNodeId=X) to get the
+       scoped subtree directly from CDP
+    3. Falling back to getFullAXTree if queryAXTree fails
+    """
+
+    # Full-page nodes (no backendDOMNodeId — mirrors real CDP behavior)
+    FULL_PAGE_NODES = [
+        _node(1, 'RootWebArea', 'Test Page'),
+        _node(2, 'navigation', 'Nav', parent_id=1),
+        _node(3, 'link', 'Home', parent_id=2),
+        _node(4, 'group', 'Main Content', parent_id=1),
+        _node(5, 'heading', 'Welcome', parent_id=4, properties=[_prop('level', 1)]),
+        _node(6, 'button', 'Action', parent_id=4),
+    ]
+
+    # Scoped subtree that queryAXTree returns — only the target node
+    # and its descendants (no ancestors or siblings).
+    SCOPED_SUBTREE_NODES = [
+        _node(4, 'group', 'Main Content', parent_id=1),
+        _node(5, 'heading', 'Welcome', parent_id=4, properties=[_prop('level', 1)]),
+        _node(6, 'button', 'Action', parent_id=4),
+    ]
+
+    # backendNodeId returned by DOM.describeNode
+    MAIN_BACKEND_NODE_ID = 20
+
+    def _make_cdp_dispatcher(
+        self,
+        *,
+        match_node_id=42,
+        backend_node_id=None,
+        full_nodes=None,
+        partial_nodes=None,
+        partial_error=False,
+    ):
+        """Create a side_effect function that dispatches CDP calls by method name."""
+        full = full_nodes or self.FULL_PAGE_NODES
+        partial = partial_nodes if partial_nodes is not None else self.SCOPED_SUBTREE_NODES
+        bid = backend_node_id if backend_node_id is not None else self.MAIN_BACKEND_NODE_ID
+
+        async def dispatcher(method, params=None):
+            if method == 'DOM.enable':
+                return {}
+            if method == 'DOM.disable':
+                return {}
+            if method == 'DOM.getDocument':
+                return {'root': {'nodeId': 1}}
+            if method == 'DOM.querySelector':
+                return {'nodeId': match_node_id}
+            if method == 'DOM.describeNode':
+                return {'node': {'backendNodeId': bid}}
+            if method == 'Accessibility.queryAXTree':
+                if partial_error:
+                    raise Exception('queryAXTree not supported')
+                return {'nodes': partial}
+            if method == 'Accessibility.getFullAXTree':
+                return {'nodes': full}
+            return {}
+
+        return dispatcher
+
+    async def test_selector_scoped_capture(self, snapshot_manager, mock_page):
+        """When selector matches, queryAXTree is used and only subtree nodes are returned."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher())
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Action' in result
+        assert 'Welcome' in result
+        assert 'Warning' not in result
+        # Nav content should be filtered out
+        assert 'Home' not in result
+        assert 'Nav' not in result
+        # Verify DOM + partial AX tree calls were made
+        calls = [call.args[0] for call in cdp.send.call_args_list]
+        assert 'DOM.enable' in calls
+        assert 'DOM.querySelector' in calls
+        assert 'DOM.disable' in calls
+        assert 'Accessibility.queryAXTree' in calls
+        assert 'Accessibility.getFullAXTree' not in calls
+
+    async def test_selector_not_found_falls_back(self, snapshot_manager, mock_page):
+        """When selector doesn't match, falls back to full page with warning."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher(match_node_id=0))
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='#nonexistent')
+
+        assert 'Warning' in result
+        assert '#nonexistent' in result
+        # Full page content should still be present
+        assert 'Home' in result
+
+    async def test_no_selector_skips_dom_calls(self, snapshot_manager, mock_page):
+        """When selector is None, no DOM calls are made (existing behavior)."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(return_value={'nodes': self.FULL_PAGE_NODES})
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        # Only Accessibility.getFullAXTree should be called, no DOM methods
+        calls = [call.args[0] for call in cdp.send.call_args_list]
+        assert 'DOM.enable' not in calls
+        assert 'DOM.querySelector' not in calls
+        assert 'Accessibility.queryAXTree' not in calls
+        assert 'Home' in result
+
+    async def test_dom_error_falls_back(self, snapshot_manager, mock_page):
+        """When CDP DOM calls fail, falls back to full page capture."""
+        cdp = _get_cdp(mock_page)
+
+        async def failing_dispatcher(method, params=None):
+            if method == 'DOM.enable':
+                raise Exception('DOM not supported')
+            if method == 'DOM.disable':
+                return {}
+            if method == 'Accessibility.getFullAXTree':
+                return {'nodes': self.FULL_PAGE_NODES}
+            return {}
+
+        cdp.send = AsyncMock(side_effect=failing_dispatcher)
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        # Should fall back gracefully — warning prefix + full page content
+        assert 'Warning' in result
+        assert 'Home' in result
+
+    async def test_partial_ax_tree_failure_falls_back(self, snapshot_manager, mock_page):
+        """When queryAXTree fails, falls back to full page with warning."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher(partial_error=True))
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Warning' in result
+        assert 'failed to scope' in result
+        # Full page content should still be present
+        assert 'Home' in result
+        assert 'Action' in result
+        # Verify fallback used getFullAXTree
+        calls = [call.args[0] for call in cdp.send.call_args_list]
+        assert 'Accessibility.queryAXTree' in calls
+        assert 'Accessibility.getFullAXTree' in calls
 
 
 class TestCleanupSession:

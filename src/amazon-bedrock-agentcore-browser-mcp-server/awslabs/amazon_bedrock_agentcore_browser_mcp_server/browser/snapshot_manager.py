@@ -14,9 +14,10 @@
 
 """Accessibility tree snapshot capture and ref system.
 
-Captures the page's accessibility tree via CDP's Accessibility.getFullAXTree,
+Captures the page's accessibility tree via CDP's Accessibility domain,
 assigns sequential refs (e1, e2, ...) to interactable elements, and formats
-as YAML-like text for LLM consumption.
+as YAML-like text for LLM consumption.  When a CSS selector is provided,
+uses Accessibility.getPartialAXTree to fetch only the relevant subtree.
 """
 
 import asyncio
@@ -64,10 +65,12 @@ SKIP_ROLES = frozenset(
 class SnapshotManager:
     """Captures accessibility tree snapshots with element refs.
 
-    Uses CDP's Accessibility.getFullAXTree to get the accessibility tree,
-    which works reliably over CDP connections (including remote AgentCore
-    sessions). The ref system maps short identifiers (e1, e2, ...) to
-    element metadata for interaction via get_by_role locators.
+    Uses CDP's Accessibility domain to get the accessibility tree, which
+    works reliably over CDP connections (including remote AgentCore
+    sessions).  When a CSS selector is supplied, the tree is scoped via
+    ``Accessibility.getPartialAXTree``; otherwise ``getFullAXTree`` is
+    used.  The ref system maps short identifiers (e1, e2, ...) to element
+    metadata for interaction via get_by_role locators.
     """
 
     def __init__(self):
@@ -77,34 +80,38 @@ class SnapshotManager:
         self._nth_counters: dict[str, dict[tuple[str, str], int]] = {}
         self._previous_snapshots: dict[str, str] = {}
 
-    async def capture(self, page: Page, session_id: str) -> str:
+    async def capture(self, page: Page, session_id: str, *, selector: str | None = None) -> str:
         """Capture the accessibility tree and return formatted text.
 
-        Uses CDP Accessibility.getFullAXTree for reliable access over
-        remote CDP connections (page.accessibility was removed in
-        Playwright 1.42+).
+        When a selector is provided, uses CDP Accessibility.getPartialAXTree
+        for reliable subtree scoping.  Otherwise falls back to getFullAXTree.
 
         Args:
             page: Playwright Page to snapshot.
             session_id: Browser session identifier for scoping refs.
+            selector: Optional CSS selector to scope the snapshot to a DOM
+                subtree. If the selector matches an element, only that
+                element's accessibility subtree is returned. If it doesn't
+                match, falls back to a full-page capture with a warning.
 
         Returns:
             YAML-like text representation of the accessibility tree.
         """
+        warning_prefix = ''
         try:
             cdp = await page.context.new_cdp_session(page)
             try:
-                result = await asyncio.wait_for(
-                    cdp.send('Accessibility.getFullAXTree'),
-                    timeout=30.0,
-                )
+                nodes = await self._fetch_ax_nodes(cdp, selector)
+                if isinstance(nodes, str):
+                    # _fetch_ax_nodes returned a warning prefix string
+                    warning_prefix = nodes
+                    nodes = await self._fetch_full_ax_nodes(cdp)
             finally:
                 await cdp.detach()
         except Exception as e:
             logger.error(f'Failed to capture accessibility snapshot: {e}')
             return f'[Error capturing accessibility tree: {e}]'
 
-        nodes = result.get('nodes', [])
         if not nodes:
             return '[Empty page - no accessibility tree available]'
 
@@ -134,10 +141,144 @@ class SnapshotManager:
             root_id, node_map, children_map, lines, indent=0, session_id=session_id
         )
         formatted = '\n'.join(lines)
+
+        if not formatted.strip() and selector and not warning_prefix:
+            logger.warning('Scoped snapshot produced empty formatted output; falling back to full tree')
+            warning_prefix = (
+                f'[Warning: selector "{selector}" matched but produced an empty '
+                f'accessibility subtree, showing full page snapshot]\n\n'
+            )
+            try:
+                cdp = await page.context.new_cdp_session(page)
+                try:
+                    full_nodes = await self._fetch_full_ax_nodes(cdp)
+                finally:
+                    await cdp.detach()
+            except Exception as e:
+                logger.error(f'Failed to fetch full tree for fallback: {e}')
+                return warning_prefix
+            # Rebuild the tree from full nodes
+            self._ref_counters[session_id] = 0
+            self._ref_maps[session_id] = {}
+            self._nth_counters[session_id] = {}
+            node_map = {}
+            children_map = {}
+            root_id = None
+            for node in full_nodes:
+                nid = node.get('nodeId', '')
+                node_map[nid] = node
+                parent_id = node.get('parentId')
+                if parent_id:
+                    children_map.setdefault(parent_id, []).append(nid)
+                else:
+                    root_id = nid
+            if root_id:
+                lines = []
+                self._format_cdp_node(
+                    root_id, node_map, children_map, lines, indent=0, session_id=session_id
+                )
+                formatted = '\n'.join(lines)
+
         self._previous_snapshots[session_id] = formatted
 
         logger.debug(f'Captured snapshot with {self._ref_counters[session_id]} refs')
-        return formatted
+        return warning_prefix + formatted
+
+    async def _resolve_selector(self, cdp, selector: str) -> int | None:
+        """Resolve a CSS selector to a backend DOM node ID.
+
+        Args:
+            cdp: Active CDP session.
+            selector: CSS selector to find in the DOM.
+
+        Returns:
+            The ``backendNodeId`` for the matched element, or None if the
+            selector didn't match any element.
+        """
+        try:
+            await cdp.send('DOM.enable')
+            doc = await cdp.send('DOM.getDocument')
+            root_node_id = doc['root']['nodeId']
+            query_result = await cdp.send(
+                'DOM.querySelector',
+                {'nodeId': root_node_id, 'selector': selector},
+            )
+            matched_node_id = query_result.get('nodeId', 0)
+            if not matched_node_id:
+                return None
+            desc = await cdp.send('DOM.describeNode', {'nodeId': matched_node_id})
+            return desc['node']['backendNodeId']
+        except Exception as e:
+            logger.warning(f'Failed to resolve selector "{selector}": {e}')
+            return None
+        finally:
+            try:
+                await cdp.send('DOM.disable')
+            except Exception:
+                logger.debug('DOM.disable cleanup failed (session may already be detached)')
+
+    async def _fetch_ax_nodes(self, cdp, selector: str | None) -> list[dict] | str:
+        """Fetch accessibility nodes, optionally scoped by selector.
+
+        Returns either a list of AX nodes on success, or a warning-prefix
+        string when the caller should fall back to a full-page fetch.
+        """
+        if not selector:
+            return await self._fetch_full_ax_nodes(cdp)
+
+        backend_node_id = await self._resolve_selector(cdp, selector)
+        if backend_node_id is None:
+            return (
+                f'[Warning: selector "{selector}" not found on page, '
+                f'showing full page snapshot]\n\n'
+            )
+
+        # Use queryAXTree for reliable scoping — it returns the full
+        # accessibility subtree rooted at the given DOM node.
+        # getPartialAXTree only returns direct children (not the full
+        # subtree), and getFullAXTree + client-side backendDOMNodeId
+        # filtering fails because real AX nodes don't reliably include
+        # that field.
+        try:
+            result = await asyncio.wait_for(
+                cdp.send(
+                    'Accessibility.queryAXTree',
+                    {'backendNodeId': backend_node_id},
+                ),
+                timeout=30.0,
+            )
+            nodes = result.get('nodes', [])
+            if not nodes:
+                logger.warning('queryAXTree returned empty nodes; falling back to full tree')
+                return (
+                    f'[Warning: selector "{selector}" matched but produced an empty '
+                    f'accessibility subtree, showing full page snapshot]\n\n'
+                )
+            # Fix up the root: find the node whose parentId doesn't
+            # appear in the returned set and remove its parentId so
+            # tree-building logic can identify a root.
+            node_ids = {n.get('nodeId') for n in nodes}
+            nodes = [
+                {k: v for k, v in n.items() if k != 'parentId'}
+                if n.get('parentId') and n['parentId'] not in node_ids
+                else n
+                for n in nodes
+            ]
+            return nodes
+        except Exception as e:
+            logger.warning(f'queryAXTree failed ({e}); falling back to full tree')
+            return (
+                f'[Warning: failed to scope snapshot to selector "{selector}", '
+                f'showing full page snapshot]\n\n'
+            )
+
+    async def _fetch_full_ax_nodes(self, cdp) -> list[dict]:
+        """Fetch the complete accessibility tree."""
+        result = await asyncio.wait_for(
+            cdp.send('Accessibility.getFullAXTree'),
+            timeout=30.0,
+        )
+        return result.get('nodes', [])
 
     def _format_cdp_node(
         self,

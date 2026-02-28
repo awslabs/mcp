@@ -56,6 +56,16 @@ class ObservationTools:
             str,
             Field(description='Browser session identifier'),
         ],
+        selector: Annotated[
+            str | None,
+            Field(
+                description=(
+                    'Optional CSS selector to scope the snapshot to a specific '
+                    'section of the page (e.g., "main", "[role=main]", "#content"). '
+                    'If omitted, captures the full page.'
+                )
+            ),
+        ] = None,
     ) -> str:
         """Capture an accessibility tree snapshot of the current page.
 
@@ -69,21 +79,20 @@ class ObservationTools:
           - textbox "Password" [ref=e3]
           - button "Sign In" [ref=e4]
         """
-        logger.info(f'Taking snapshot of session {session_id}')
+        logger.info(f'Taking snapshot of session {session_id} (selector={selector})')
 
         try:
             page = await self._connection_manager.get_page(session_id)
             title = await page.title()
             url = page.url
-            snapshot = await self._snapshot_manager.capture(page, session_id)
+            snapshot = await self._snapshot_manager.capture(page, session_id, selector=selector)
 
             return f'Page: {title}\nURL: {url}\n\n{snapshot}'
 
         except Exception as e:
             error_msg = f'Error capturing snapshot for session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg
 
     async def browser_take_screenshot(
         self,
@@ -121,8 +130,7 @@ class ObservationTools:
         except Exception as e:
             error_msg = f'Error taking screenshot for session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg
 
     async def browser_wait_for(
         self,
@@ -216,8 +224,7 @@ class ObservationTools:
         except Exception as e:
             error_msg = f'Error getting console messages for session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg
 
     async def browser_network_requests(
         self,
@@ -267,8 +274,7 @@ class ObservationTools:
         except Exception as e:
             error_msg = f'Error getting network requests for session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg
 
     async def browser_evaluate(
         self,
@@ -312,5 +318,4 @@ class ObservationTools:
         except Exception as e:
             error_msg = f'Error evaluating JavaScript: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg

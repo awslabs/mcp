@@ -550,7 +550,7 @@ class TestObservationTools:
 
         result = await obs_tools.browser_snapshot(ctx=mock_ctx, session_id='sess-1')
 
-        mock_snapshot_manager.capture.assert_awaited_once_with(mock_page, 'sess-1')
+        mock_snapshot_manager.capture.assert_awaited_once_with(mock_page, 'sess-1', selector=None)
         assert 'Test Page' in result
         assert 'https://example.com' in result
 
@@ -738,13 +738,13 @@ class TestObservationTools:
     async def test_evaluate_error(
         self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
     ):
-        """Evaluate JS error raises and reports."""
+        """Evaluate JS error returns error string."""
         mock_connection_manager.get_page.return_value = mock_page
         mock_page.evaluate.side_effect = Exception('SyntaxError: Unexpected token')
 
-        with pytest.raises(Exception, match='SyntaxError'):
-            await obs_tools.browser_evaluate(
-                ctx=mock_ctx, session_id='sess-1', expression='invalid{{'
-            )
+        result = await obs_tools.browser_evaluate(
+            ctx=mock_ctx, session_id='sess-1', expression='invalid{{'
+        )
 
-        mock_ctx.error.assert_awaited_once()
+        assert 'Error evaluating JavaScript' in result
+        assert 'SyntaxError' in result

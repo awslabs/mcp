@@ -296,7 +296,10 @@ class InteractionTools:
 
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'Error: ref "{ref}" not found.\n\n{snapshot}'
+            return (
+                f'Error: ref "{ref}" not found in current page. '
+                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
+            )
         except Exception as e:
             error_msg = f'Error selecting option in ref={ref}: {e}'
             logger.error(error_msg)
@@ -331,9 +334,13 @@ class InteractionTools:
         try:
             locator = await self._snapshot_manager.resolve_ref(page, ref, session_id)
             await locator.hover(timeout=INTERACTION_TIMEOUT_MS)
+            await _wait_for_settled(page, timeout_ms=2000)
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'Error: ref "{ref}" not found.\n\n{snapshot}'
+            return (
+                f'Error: ref "{ref}" not found in current page. '
+                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
+            )
         except Exception as e:
             error_msg = f'Error hovering over ref={ref}: {e}'
             logger.error(error_msg)
@@ -375,8 +382,11 @@ class InteractionTools:
         except Exception as e:
             error_msg = f'Error pressing key "{key}": {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            try:
+                snapshot = await self._snapshot_manager.capture(page, session_id)
+                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            except Exception:
+                return error_msg
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         return f'Pressed key: {key}\n\n{snapshot}'
@@ -461,8 +471,7 @@ class InteractionTools:
         except Exception as e:
             error_msg = f'Error setting dialog handler for session {session_id}: {e}'
             logger.error(error_msg)
-            await ctx.error(error_msg)
-            raise
+            return error_msg
 
         msg = f'Dialog handler set: {action}'
         if prompt_text and action == 'accept':

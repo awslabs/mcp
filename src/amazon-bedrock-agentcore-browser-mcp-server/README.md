@@ -355,8 +355,10 @@ browser_handle_dialog(
 Capture the accessibility tree with element refs.
 
 ```python
-browser_snapshot(session_id: str) -> str
+browser_snapshot(session_id: str, selector: str | None = None) -> str
 ```
+
+- **`selector`** *(optional)* — CSS selector to scope the snapshot to a specific element's subtree. When provided, only the accessibility nodes within the matched element are returned. If the element is not found, returns a full-page snapshot with a warning.
 
 **Returns:** YAML-like text with element refs:
 ```

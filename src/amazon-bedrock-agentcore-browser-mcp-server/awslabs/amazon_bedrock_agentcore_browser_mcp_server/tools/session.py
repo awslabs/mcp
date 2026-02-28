@@ -108,15 +108,6 @@ class BrowserSessionTools:
             str | None,
             Field(description='AWS region for AgentCore APIs. Defaults to AWS_REGION env var.'),
         ] = None,
-        profile_name: Annotated[
-            str | None,
-            Field(
-                description=(
-                    'Deprecated: AWS credentials are now resolved from the environment '
-                    '(AWS_PROFILE, AWS_ACCESS_KEY_ID, IAM role). This parameter is ignored.'
-                )
-            ),
-        ] = None,
     ) -> BrowserSessionResponse:
         """Start a cloud browser session via Amazon Bedrock AgentCore.
 
@@ -132,12 +123,6 @@ class BrowserSessionTools:
         """
         browser_id = browser_identifier or DEFAULT_BROWSER_IDENTIFIER
         logger.info(f'Starting browser session: browser={browser_id}, timeout={timeout_seconds}s')
-
-        if profile_name:
-            logger.warning(
-                'profile_name parameter is deprecated. '
-                'Set AWS_PROFILE environment variable instead.'
-            )
 
         try:
             client = get_browser_client(region)
@@ -205,15 +190,6 @@ class BrowserSessionTools:
             str | None,
             Field(description='AWS region for AgentCore APIs'),
         ] = None,
-        profile_name: Annotated[
-            str | None,
-            Field(
-                description=(
-                    'Deprecated: AWS credentials are now resolved from the environment. '
-                    'This parameter is ignored.'
-                )
-            ),
-        ] = None,
     ) -> BrowserSessionResponse:
         """Get the status and metadata of a browser session.
 
@@ -267,15 +243,6 @@ class BrowserSessionTools:
             str | None,
             Field(description='AWS region for AgentCore APIs'),
         ] = None,
-        profile_name: Annotated[
-            str | None,
-            Field(
-                description=(
-                    'Deprecated: AWS credentials are now resolved from the environment. '
-                    'This parameter is ignored.'
-                )
-            ),
-        ] = None,
     ) -> BrowserSessionResponse:
         """Stop a browser session and release resources.
 
@@ -327,15 +294,6 @@ class BrowserSessionTools:
         region: Annotated[
             str | None,
             Field(description='AWS region for AgentCore APIs'),
-        ] = None,
-        profile_name: Annotated[
-            str | None,
-            Field(
-                description=(
-                    'Deprecated: AWS credentials are now resolved from the environment. '
-                    'This parameter is ignored.'
-                )
-            ),
         ] = None,
     ) -> SessionListResponse:
         """List active browser sessions.
