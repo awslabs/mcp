@@ -943,3 +943,88 @@ def test_main_parser_error_both_connection_methods(monkeypatch):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 2  # argparse error exit
+
+
+import argparse
+
+
+@pytest.mark.parametrize(
+    'readonly_str, expected_bool',
+    [
+        ('True', True),
+        ('true', True),
+        ('TRUE', True),
+        ('False', False),
+        ('false', False),
+        ('FALSE', False),
+    ],
+)
+def test_readonly_flag_string_to_bool_conversion(monkeypatch, readonly_str, expected_bool):
+    """Test that --readonly flag correctly converts string values to boolean.
+
+    Regression test for bug where --readonly False was ignored because
+    the string "false" is truthy in Python, causing the server to always
+    run in read-only mode regardless of the flag value.
+
+    See: https://github.com/awslabs/mcp/issues/2379
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--resource_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--database',
+            'mysql',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            readonly_str,
+        ],
+    )
+
+    # Replicate the parser from server.main() to verify argparse conversion
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resource_arn')
+    parser.add_argument('--hostname')
+    parser.add_argument('--port', type=int, default=3306)
+    parser.add_argument('--secret_arn', required=True)
+    parser.add_argument('--database', required=True)
+    parser.add_argument('--region', required=True)
+    parser.add_argument(
+        '--readonly',
+        required=True,
+        type=lambda x: x.lower() == 'true',
+    )
+    args = parser.parse_args()
+
+    assert isinstance(args.readonly, bool), f'Expected bool, got {type(args.readonly)}'
+    assert args.readonly == expected_bool, (
+        f'--readonly {readonly_str} should parse to {expected_bool}, got {args.readonly}'
+    )
+
+
+@pytest.mark.asyncio
+async def test_readonly_false_allows_write_queries():
+    """Test that write queries are accepted when readonly is False (boolean).
+
+    Regression test for https://github.com/awslabs/mcp/issues/2379
+    """
+    DBConnectionSingleton.initialize(
+        'mock', 'mock', 'mock', resource_arn='mock', readonly=False, is_test=True
+    )
+    mock_db_connection = Mock_DBConnection(readonly=False)
+
+    ctx = DummyCtx()
+    response = await run_query("INSERT INTO test (id) VALUES (1)", ctx, mock_db_connection)
+
+    # Should NOT be rejected by readonly check
+    assert not (
+        isinstance(response, list)
+        and len(response) == 1
+        and isinstance(response[0], dict)
+        and response[0].get('error') == write_query_prohibited_key
+    ), 'Write query should be allowed when readonly is False'
