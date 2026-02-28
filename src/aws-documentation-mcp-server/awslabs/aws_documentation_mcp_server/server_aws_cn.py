@@ -13,71 +13,22 @@
 # limitations under the License.
 """awslabs AWS China Documentation MCP Server implementation."""
 
-import httpx
 import re
 import uuid
-from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
-    read_documentation_impl,
-)
-
-# Import utility functions
-from awslabs.aws_documentation_mcp_server.util import (
-    extract_content_from_html,
-    format_documentation_result,
-    is_html_content,
-)
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import AnyUrl, Field
-from typing import Union
 
 
 SESSION_UUID = str(uuid.uuid4())
 
-mcp = FastMCP(
-    'awslabs.aws-documentation-mcp-server',
-    instructions="""
-    # AWS China Documentation MCP Server
-
-    This server provides tools to access public AWS China documentation, and get service differences between AWS China and global regions.
-
-    ## Best Practices
-
-    - Always use `get_available_services` first to checkout available services and their documentation URLs
-    - If a service is available, checkout the documentation URL for that service to see the feature differences and other documentation URLs
-    - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
-    - For very long documents (>30,000 characters), stop reading if you've found the needed information
-    - Always cite the documentation URL when providing information to users
-
-    ## Tool Selection Guide
-
-    - Use `get_available_services` when: You need to know what services are available in AWS China
-    - Use `read_documentation` when: You have a specific documentation URL and need its content
-    """,
-    dependencies=[
-        'pydantic',
-        'httpx',
-        'beautifulsoup4',
-    ],
-)
+# mcp instance - deferred to main()
+mcp = None
 
 
-@mcp.tool()
 async def read_documentation(
-    ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
-    max_length: int = Field(
-        default=5000,
-        description='Maximum number of characters to return.',
-        gt=0,
-        lt=1000000,
-    ),
-    start_index: int = Field(
-        default=0,
-        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
-        ge=0,
-    ),
+    ctx,
+    url: str,
+    max_length: int = 5000,
+    start_index: int = 0,
 ) -> str:
     """Fetch and convert an AWS China documentation page to markdown format.
 
@@ -120,6 +71,8 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS China documentation
     """
+    from awslabs.aws_documentation_mcp_server.server_utils import read_documentation_impl
+
     # Validate that URL is from docs.amazonaws.cn and ends with .html
     url_str = str(url)
     if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
@@ -134,9 +87,8 @@ async def read_documentation(
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
-@mcp.tool()
 async def get_available_services(
-    ctx: Context,
+    ctx,
 ) -> str:
     """Fetch available services from AWS China documentation.
 
@@ -158,6 +110,14 @@ async def get_available_services(
     Returns:
         Markdown content of the AWS China documentation about available services
     """
+    import httpx
+    from awslabs.aws_documentation_mcp_server.server_utils import get_default_user_agent
+    from awslabs.aws_documentation_mcp_server.util import (
+        extract_content_from_html,
+        format_documentation_result,
+        is_html_content,
+    )
+
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
     url_with_session = f'{url_str}?session={SESSION_UUID}'
 
@@ -168,14 +128,14 @@ async def get_available_services(
             response = await client.get(
                 url_with_session,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={'User-Agent': get_default_user_agent()},
                 timeout=30,
             )
             # Fetch the Table of Contents in the Services page, which contains the list of supported services
             toc_response = await client.get(
                 toc_url_with_session,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT, 'Content-Type': 'application/json'},
+                headers={'User-Agent': get_default_user_agent(), 'Content-Type': 'application/json'},
                 timeout=30,
             )
         except httpx.HTTPError as e:
@@ -239,11 +199,75 @@ async def get_available_services(
     return result + formatted_service_titles
 
 
+def _create_mcp():
+    """Create and configure the FastMCP instance with all tool registrations."""
+    from mcp.server.fastmcp import Context, FastMCP
+    from pydantic import AnyUrl, Field
+    from typing import Union
+
+    server = FastMCP(
+        'awslabs.aws-documentation-mcp-server',
+        instructions="""
+    # AWS China Documentation MCP Server
+
+    This server provides tools to access public AWS China documentation, and get service differences between AWS China and global regions.
+
+    ## Best Practices
+
+    - Always use `get_available_services` first to checkout available services and their documentation URLs
+    - If a service is available, checkout the documentation URL for that service to see the feature differences and other documentation URLs
+    - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
+    - For very long documents (>30,000 characters), stop reading if you've found the needed information
+    - Always cite the documentation URL when providing information to users
+
+    ## Tool Selection Guide
+
+    - Use `get_available_services` when: You need to know what services are available in AWS China
+    - Use `read_documentation` when: You have a specific documentation URL and need its content
+    """,
+        dependencies=[
+            'pydantic',
+            'httpx',
+            'beautifulsoup4',
+        ],
+    )
+
+    # Register tool functions with Field-annotated wrappers.
+    # Docstrings are inherited from the outer functions to avoid duplication.
+    @server.tool(name='read_documentation', description=read_documentation.__doc__)
+    async def read_documentation_tool(
+        ctx: Context,
+        url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
+        max_length: int = Field(
+            default=5000,
+            description='Maximum number of characters to return.',
+            gt=0,
+            lt=1000000,
+        ),
+        start_index: int = Field(
+            default=0,
+            description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
+            ge=0,
+        ),
+    ) -> str:
+        return await read_documentation(ctx, url=str(url), max_length=max_length, start_index=start_index)
+
+    @server.tool(name='get_available_services', description=get_available_services.__doc__)
+    async def get_available_services_tool(
+        ctx: Context,
+    ) -> str:
+        return await get_available_services(ctx)
+
+    return server
+
+
 def main():
     """Run the MCP server with CLI argument support."""
+    global mcp
     # Log startup information
     logger.info('Starting AWS China Documentation MCP Server')
 
+    mcp = _create_mcp()
     mcp.run()
 
 

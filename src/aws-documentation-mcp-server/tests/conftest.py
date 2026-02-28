@@ -15,6 +15,14 @@
 
 import pytest
 
+# Shared benchmark constants used across test files
+INIT_TIME_THRESHOLD_MS = 1500
+
+
+def check_threshold(median_ms: float, threshold_ms: float = INIT_TIME_THRESHOLD_MS) -> bool:
+    """Return True if median_ms is within the threshold, False otherwise."""
+    return median_ms <= threshold_ms
+
 
 def pytest_addoption(parser):
     """Add command-line options to pytest."""

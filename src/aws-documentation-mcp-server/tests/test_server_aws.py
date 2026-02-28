@@ -50,7 +50,7 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.util.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
@@ -78,7 +78,7 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.util.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
@@ -511,10 +511,13 @@ class TestMain:
 
     def test_main(self):
         """Test the main function."""
-        with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp.run') as mock_run:
+        mock_mcp = MagicMock()
+        with patch(
+            'awslabs.aws_documentation_mcp_server.server_aws._create_mcp', return_value=mock_mcp
+        ):
             with patch(
                 'awslabs.aws_documentation_mcp_server.server_aws.logger.info'
             ) as mock_logger:
                 main()
                 mock_logger.assert_called_once_with('Starting AWS Documentation MCP Server')
-                mock_run.assert_called_once()
+                mock_mcp.run.assert_called_once()
