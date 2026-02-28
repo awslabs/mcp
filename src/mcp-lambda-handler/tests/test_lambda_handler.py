@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import pytest
 import tempfile
 import time
@@ -580,7 +581,7 @@ def test_tool_decorator_type_hints():
 
 
 def test_tool_decorator_with_no_origin_type_hints():
-    """Test tool decorator with no origin or unsupported type hints. No origin or unsupported type hints default to String type."""
+    """Test tool decorator with no origin or unsupported type hints. No origin defaults to String; Optional is supported."""
     handler = MCPLambdaHandler('test-server')
 
     @handler.tool()
@@ -589,13 +590,113 @@ def test_tool_decorator_with_no_origin_type_hints():
 
         Args:
             a: Any (get_origin returns None)
-            b: Optional (get_origin returns Optional, but it is unsupported)
+            b: Optional str (Union[str, None])
         """
         return a
 
     schema = handler.tools['foo']
     assert schema['inputSchema']['properties']['a']['type'] == 'string'
-    assert schema['inputSchema']['properties']['b']['type'] == 'string'
+    assert schema['inputSchema']['properties']['b']['type'] == ['string', 'null']
+    assert 'b' not in schema['inputSchema']['required']
+    assert 'a' in schema['inputSchema']['required']
+
+
+def test_tool_decorator_optional_int_type_hint():
+    """Test tool decorator with Optional[int] produces integer+null schema and param not required."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(count: Optional[int], name: str) -> str:
+        """Test tool.
+
+        Args:
+            count: Optional integer
+            name: Required string
+        """
+        return name if count is None else f'{name}:{count}'
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['count']['type'] == ['integer', 'null']
+    assert schema['inputSchema']['properties']['name']['type'] == 'string'
+    assert 'count' not in schema['inputSchema']['required']
+    assert 'name' in schema['inputSchema']['required']
+
+
+def test_tool_decorator_optional_optional_int_type_hint():
+    """Test nested Optional[Optional[int]] so inner type is already ['integer', 'null'] (covers list + null-in-list paths)."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(value: Optional[Optional[int]]) -> str:
+        """Test nested optional.
+
+        Args:
+            value: Optional optional integer
+        """
+        return str(value)
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['value']['type'] == ['integer', 'null']
+    assert 'value' not in schema['inputSchema']['required']
+
+
+def test_tool_decorator_union_non_optional_type_hint():
+    """Test Union[int, str] (no None) falls through to default string schema."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(id_or_name: typing.Union[int, str]) -> str:
+        """Test union without None.
+
+        Args:
+            id_or_name: Int or string
+        """
+        return str(id_or_name)
+
+    schema = handler.tools['foo']
+    # Union with no None is not treated as optional; defaults to string for unknown complex type
+    assert schema['inputSchema']['properties']['id_or_name']['type'] == 'string'
+    assert 'id_or_name' in schema['inputSchema']['required']
+
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason='X | None syntax and types.UnionType require Python 3.10+')
+def test_tool_decorator_pipe_union_optional_int():
+    """Test int | None (Python 3.10+ UnionType) produces ['integer', 'null'] and param not required."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(count: int | None, name: str) -> str:
+        """Test pipe union optional.
+
+        Args:
+            count: Optional integer (X | None syntax)
+            name: Required string
+        """
+        return name if count is None else f'{name}:{count}'
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['count']['type'] == ['integer', 'null']
+    assert schema['inputSchema']['properties']['name']['type'] == 'string'
+    assert 'count' not in schema['inputSchema']['required']
+    assert 'name' in schema['inputSchema']['required']
+
+
+def test_tool_decorator_optional_optional_float_type_hint():
+    """Test Optional[Optional[float]]: inner schema is ['number','null'], covers list branch in get_type_schema."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(value: Optional[Optional[float]]) -> str:
+        """Test nested optional float.
+
+        Args:
+            value: Optional optional float
+        """
+        return str(value)
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['value']['type'] == ['number', 'null']
+    assert 'value' not in schema['inputSchema']['required']
 
 
 def test_tool_decorator_dictionary_type_hints():

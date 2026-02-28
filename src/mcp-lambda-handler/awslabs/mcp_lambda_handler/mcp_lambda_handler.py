@@ -16,6 +16,7 @@ import functools
 import inspect
 import json
 import logging
+import types
 from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSessionStore, SessionStore
 from awslabs.mcp_lambda_handler.types import (
     Capabilities,
@@ -199,6 +200,13 @@ class MCPLambdaHandler:
                             arg_name, arg_desc = line.split(':', 1)
                             arg_descriptions[arg_name.strip()] = arg_desc.strip()
 
+            def _is_optional_type(type_hint: Any) -> bool:
+                """Return True if type is Optional (Union with None) or X | None."""
+                origin = get_origin(type_hint)
+                if origin is not Union and origin is not types.UnionType:
+                    return False
+                return type(None) in get_args(type_hint)
+
             def get_type_schema(type_hint: Any) -> Dict[str, Any]:
                 # Handle basic types
                 if type_hint is int:
@@ -238,6 +246,22 @@ class MCPLambdaHandler:
                     item_schema = get_type_schema(args[0])
                     return {'type': 'array', 'items': item_schema}
 
+                # Handle Union / Optional (Union with None) and Python 3.10+ X | None
+                if origin is Union or origin is types.UnionType:
+                    args = get_args(type_hint)
+                    if type(None) in args:
+                        non_none = [a for a in args if a is not type(None)]
+                        if len(non_none) == 1:
+                            inner = get_type_schema(non_none[0])
+                            type_val = inner.get('type')
+                            if isinstance(type_val, list):
+                                types_list = list(type_val)
+                            else:
+                                types_list = [type_val]
+                            if 'null' not in types_list:
+                                types_list.append('null')
+                            return {**inner, 'type': types_list}
+
                 # Default for unknown complex types
                 return {'type': 'string'}
 
@@ -249,7 +273,8 @@ class MCPLambdaHandler:
                     param_schema['description'] = arg_descriptions[param_name]
 
                 properties[param_name] = param_schema
-                required.append(param_name)
+                if not _is_optional_type(param_type):
+                    required.append(param_name)
 
             # Create tool schema
             tool_schema = {
