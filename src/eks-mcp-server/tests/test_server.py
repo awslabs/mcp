@@ -55,7 +55,7 @@ async def test_command_line_args():
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         # Test with default args (read-only mode by default)
         mock_parse_args.return_value = argparse.Namespace(
-            allow_write=False, allow_sensitive_data_access=False
+            allow_write=False, allow_sensitive_data_access=False, cluster_config=None
         )
 
         # Mock AWS client creation
@@ -79,7 +79,7 @@ async def test_command_line_args():
     # Test with write access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            allow_write=True, allow_sensitive_data_access=False
+            allow_write=True, allow_sensitive_data_access=False, cluster_config=None
         )
 
         # Mock AWS client creation
@@ -120,7 +120,7 @@ async def test_command_line_args():
     # Test with sensitive data access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            allow_write=False, allow_sensitive_data_access=True
+            allow_write=False, allow_sensitive_data_access=True, cluster_config=None
         )
 
         # Mock AWS client creation
@@ -161,7 +161,7 @@ async def test_command_line_args():
     # Test with both write access and sensitive data access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            allow_write=True, allow_sensitive_data_access=True
+            allow_write=True, allow_sensitive_data_access=True, cluster_config=None
         )
 
         # Mock AWS client creation
@@ -628,3 +628,245 @@ async def test_get_cloudwatch_logs_blocked():
         'Access to CloudWatch logs requires --allow-sensitive-data-access flag'
         in result.content[0].text
     )
+
+
+@pytest.mark.asyncio
+async def test_main_with_cluster_config_file_not_found():
+    """Test that main exits with error when cluster config file is not found."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False,
+            allow_sensitive_data_access=False,
+            cluster_config='/path/to/nonexistent/config.json',
+        )
+
+        # Mock ConfigManager.load_config to raise FileNotFoundError
+        with patch(
+            'awslabs.eks_mcp_server.server.ConfigManager.load_config',
+            side_effect=FileNotFoundError('File not found'),
+        ):
+            # Verify that SystemExit is raised with code 1
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+
+
+@pytest.mark.asyncio
+async def test_main_with_cluster_config_load_error():
+    """Test that main exits with error when cluster config loading fails."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False,
+            allow_sensitive_data_access=False,
+            cluster_config='/path/to/invalid/config.json',
+        )
+
+        # Mock ConfigManager.load_config to raise a generic exception
+        with patch(
+            'awslabs.eks_mcp_server.server.ConfigManager.load_config',
+            side_effect=Exception('Invalid JSON'),
+        ):
+            # Verify that SystemExit is raised with code 1
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+            assert exc_info.value.code == 1
+
+
+@pytest.mark.asyncio
+async def test_main_with_cluster_config_and_discovery():
+    """Test main with cluster config that triggers automatic discovery."""
+    import argparse
+    from awslabs.eks_mcp_server.config import AccountConfig, ClusterConfig, ClustersConfig
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False,
+            allow_sensitive_data_access=False,
+            cluster_config='/path/to/config.json',
+        )
+
+        # Mock ConfigManager methods
+        with patch(
+            'awslabs.eks_mcp_server.server.ConfigManager.load_config'
+        ) as mock_load_config:
+            with patch(
+                'awslabs.eks_mcp_server.server.ConfigManager.has_explicit_clusters',
+                return_value=False,
+            ):
+                # Mock discovery to return some clusters
+                discovered_cluster = ClusterConfig(
+                    name='discovered-cluster',
+                    region='us-west-2',
+                    account_id='123456789012',
+                    validated=True,
+                )
+
+                with patch(
+                    'awslabs.eks_mcp_server.server.EKSDiscoveryHandler.discover_clusters_at_startup',
+                    return_value=[discovered_cluster],
+                ) as mock_discover:
+                    with patch(
+                        'awslabs.eks_mcp_server.server.ConfigManager.set_discovered_clusters'
+                    ) as mock_set_discovered:
+                        # Mock create_server
+                        mock_server = MagicMock()
+                        with patch(
+                            'awslabs.eks_mcp_server.server.create_server',
+                            return_value=mock_server,
+                        ):
+                            # Call main
+                            main()
+
+                            # Verify that discovery was called
+                            mock_discover.assert_called_once()
+
+                            # Verify that discovered clusters were set
+                            mock_set_discovered.assert_called_once_with([discovered_cluster])
+
+                            # Verify server.run was called
+                            mock_server.run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_main_with_cluster_config_and_no_clusters_discovered():
+    """Test main with cluster config when no clusters are discovered."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False,
+            allow_sensitive_data_access=False,
+            cluster_config='/path/to/config.json',
+        )
+
+        # Mock ConfigManager methods
+        with patch('awslabs.eks_mcp_server.server.ConfigManager.load_config'):
+            with patch(
+                'awslabs.eks_mcp_server.server.ConfigManager.has_explicit_clusters',
+                return_value=False,
+            ):
+                # Mock discovery to return empty list
+                with patch(
+                    'awslabs.eks_mcp_server.server.EKSDiscoveryHandler.discover_clusters_at_startup',
+                    return_value=[],
+                ):
+                    # Mock create_server
+                    mock_server = MagicMock()
+                    with patch(
+                        'awslabs.eks_mcp_server.server.create_server', return_value=mock_server
+                    ):
+                        # Call main
+                        main()
+
+                        # Verify server.run was called
+                        mock_server.run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_main_without_config_discovers_with_default_credentials():
+    """Test main without config file uses default credentials for discovery."""
+    import argparse
+    from awslabs.eks_mcp_server.config import ClusterConfig
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False, allow_sensitive_data_access=False, cluster_config=None
+        )
+
+        # Mock discovery with default credentials to return clusters
+        discovered_cluster = ClusterConfig(
+            name='default-cluster',
+            region='us-east-1',
+            account_id='123456789012',
+            validated=True,
+        )
+
+        with patch(
+            'awslabs.eks_mcp_server.server.EKSDiscoveryHandler.discover_clusters_with_default_credentials',
+            return_value=[discovered_cluster],
+        ) as mock_discover_default:
+            with patch(
+                'awslabs.eks_mcp_server.server.ConfigManager.set_discovered_clusters'
+            ) as mock_set_discovered:
+                # Mock create_server
+                mock_server = MagicMock()
+                with patch('awslabs.eks_mcp_server.server.create_server', return_value=mock_server):
+                    # Call main
+                    main()
+
+                    # Verify that default discovery was called
+                    mock_discover_default.assert_called_once()
+
+                    # Verify that discovered clusters were set
+                    mock_set_discovered.assert_called_once_with([discovered_cluster])
+
+                    # Verify server.run was called
+                    mock_server.run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_main_without_config_no_clusters_discovered():
+    """Test main without config when no clusters are discovered."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False, allow_sensitive_data_access=False, cluster_config=None
+        )
+
+        # Mock discovery to return empty list
+        with patch(
+            'awslabs.eks_mcp_server.server.EKSDiscoveryHandler.discover_clusters_with_default_credentials',
+            return_value=[],
+        ):
+            # Mock create_server
+            mock_server = MagicMock()
+            with patch('awslabs.eks_mcp_server.server.create_server', return_value=mock_server):
+                # Call main
+                main()
+
+                # Verify server.run was called
+                mock_server.run.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_main_without_config_discovery_fails():
+    """Test main without config when discovery fails."""
+    import argparse
+    from awslabs.eks_mcp_server.server import main
+
+    # Mock the ArgumentParser.parse_args method
+    with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
+        mock_parse_args.return_value = argparse.Namespace(
+            allow_write=False, allow_sensitive_data_access=False, cluster_config=None
+        )
+
+        # Mock discovery to raise an exception
+        with patch(
+            'awslabs.eks_mcp_server.server.EKSDiscoveryHandler.discover_clusters_with_default_credentials',
+            side_effect=Exception('No AWS credentials configured'),
+        ):
+            # Mock create_server
+            mock_server = MagicMock()
+            with patch('awslabs.eks_mcp_server.server.create_server', return_value=mock_server):
+                # Call main - should not raise, just log warning
+                main()
+
+                # Verify server.run was called despite discovery failure
+                mock_server.run.assert_called_once()

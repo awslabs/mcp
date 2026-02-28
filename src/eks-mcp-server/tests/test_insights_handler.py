@@ -64,15 +64,11 @@ class TestInsightsHandler:
     def test_init(self, mock_mcp):
         """Test initialization of InsightsHandler."""
         # Initialize the handler with default parameters
-        with patch('awslabs.eks_mcp_server.insights_handler.AwsHelper') as mock_aws_helper:
-            handler = InsightsHandler(mock_mcp)
+        handler = InsightsHandler(mock_mcp)
 
-            # Verify that the handler has the correct attributes
-            assert handler.mcp == mock_mcp
-            assert handler.allow_sensitive_data_access is False
-
-            # Verify that AWS clients were created
-            mock_aws_helper.create_boto3_client.assert_called_once_with('eks')
+        # Verify that the handler has the correct attributes
+        assert handler.mcp == mock_mcp
+        assert handler.allow_sensitive_data_access is False
 
         # Verify that the tools were registered
         assert mock_mcp.tool.call_count == 1
@@ -120,12 +116,13 @@ class TestInsightsHandler:
             ]
         }
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
-
-        # Call the implementation method directly
-        result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method directly
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
         # Verify API calls
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
@@ -168,36 +165,35 @@ class TestInsightsHandler:
 
         mock_eks_client.describe_insight.return_value = {'insight': insight_data}
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method directly with insight_id
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', insight_id='detail-insight'
+            )
 
-        # Call the implementation method directly with insight_id
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', insight_id='detail-insight'
-        )
+            # Verify API calls
+            mock_eks_client.describe_insight.assert_called_once_with(
+                id='detail-insight', clusterName='test-cluster'
+            )
 
-        # Verify API calls
-        mock_eks_client.describe_insight.assert_called_once_with(
-            id='detail-insight', clusterName='test-cluster'
-        )
+            # Verify the result
+            assert not result.isError
 
-        # Verify the result
-        assert not result.isError
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['cluster_name'] == 'test-cluster'
+            assert len(data['insights']) == 1
+            assert data['detail_mode'] is True
 
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert data['cluster_name'] == 'test-cluster'
-        assert len(data['insights']) == 1
-        assert data['detail_mode'] is True
-
-        # Verify detailed insight properties
-        insight = data['insights'][0]
-        assert insight['id'] == 'detail-insight'
-        assert insight['category'] == 'CONFIGURATION'
-        assert insight['recommendation'] == 'This is a test recommendation'
-        assert insight['additional_info'] == {'link': 'https://example.com'}
-        assert insight['resources'] == ['resource-1', 'resource-2']
+            # Verify detailed insight properties
+            insight = data['insights'][0]
+            assert insight['id'] == 'detail-insight'
+            assert insight['category'] == 'CONFIGURATION'
+            assert insight['recommendation'] == 'This is a test recommendation'
+            assert insight['additional_info'] == {'link': 'https://example.com'}
+            assert insight['resources'] == ['resource-1', 'resource-2']
         assert insight['category_specific_summary'] == {'detail': 'Some specific details'}
 
         # Verify success message in content
@@ -226,35 +222,34 @@ class TestInsightsHandler:
             ]
         }
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method with category filter
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', category='CONFIGURATION'
+            )
 
-        # Call the implementation method with category filter
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', category='CONFIGURATION'
-        )
+            # Verify API calls with category filter parameter
+            mock_eks_client.list_insights.assert_called_once_with(
+                clusterName='test-cluster',
+                filter={'categories': ['CONFIGURATION']},  # Verify category passed to API
+            )
 
-        # Verify API calls with category filter parameter
-        mock_eks_client.list_insights.assert_called_once_with(
-            clusterName='test-cluster',
-            filter={'categories': ['CONFIGURATION']},  # Verify category passed to API
-        )
+            # Verify the result
+            assert not result.isError
 
-        # Verify the result
-        assert not result.isError
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['cluster_name'] == 'test-cluster'
+            assert len(data['insights']) == 2
+            assert all(insight['category'] == 'CONFIGURATION' for insight in data['insights'])
 
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert data['cluster_name'] == 'test-cluster'
-        assert len(data['insights']) == 2
-        assert all(insight['category'] == 'CONFIGURATION' for insight in data['insights'])
-
-        # Verify success message mentions insights
-        assert isinstance(
-            result.content[0], TextContent
-        )  # Ensure it's TextContent before accessing .text
-        assert 'Successfully retrieved 2 insights' in result.content[0].text
+            # Verify success message mentions insights
+            assert isinstance(
+                result.content[0], TextContent
+            )  # Ensure it's TextContent before accessing .text
+            assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_with_pagination(self, mock_context, mock_mcp):
@@ -271,32 +266,33 @@ class TestInsightsHandler:
             'nextToken': 'test-next-token-value',
         }
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method with next_token
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', next_token='previous-token'
+            )
 
-        # Call the implementation method with next_token
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', next_token='previous-token'
-        )
+            # Verify API calls with next_token parameter
+            mock_eks_client.list_insights.assert_called_once_with(
+                clusterName='test-cluster', nextToken='previous-token'
+            )
 
-        # Verify API calls with next_token parameter
-        mock_eks_client.list_insights.assert_called_once_with(
-            clusterName='test-cluster', nextToken='previous-token'
-        )
+            # Verify the result
+            assert not result.isError
 
-        # Verify the result
-        assert not result.isError
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['cluster_name'] == 'test-cluster'
+            assert len(data['insights']) == 2
+            assert (
+                data['next_token'] == 'test-next-token-value'
+            )  # Verify next_token is passed through
 
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert data['cluster_name'] == 'test-cluster'
-        assert len(data['insights']) == 2
-        assert data['next_token'] == 'test-next-token-value'  # Verify next_token is passed through
-
-        # Verify success message
-        assert isinstance(result.content[0], TextContent)
-        assert 'Successfully retrieved 2 insights' in result.content[0].text
+            # Verify success message
+            assert isinstance(result.content[0], TextContent)
+            assert 'Successfully retrieved 2 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_error_handling(self, mock_context, mock_mcp):
@@ -305,21 +301,22 @@ class TestInsightsHandler:
         mock_eks_client = MagicMock()
         mock_eks_client.list_insights.side_effect = Exception('Test API error')
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
-        # Call the implementation method
-        result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            # Verify API call was attempted
+            mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
-        # Verify API call was attempted
-        mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
-
-        # Verify error response
-        assert result.isError
-        assert isinstance(result.content[0], TextContent)
-        assert 'Error listing insights' in result.content[0].text
-        assert 'Test API error' in result.content[0].text
+            # Verify error response
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Error listing insights' in result.content[0].text
+            assert 'Test API error' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_no_insights_found(self, mock_context, mock_mcp):
@@ -332,27 +329,28 @@ class TestInsightsHandler:
             'insights': []  # Empty list
         }
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
-        # Call the implementation method
-        result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            # Verify API call was made
+            mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
-        # Verify API call was made
-        mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
+            # Verify appropriate empty response (not an error)
+            assert not result.isError
 
-        # Verify appropriate empty response (not an error)
-        assert not result.isError
-
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert data['cluster_name'] == 'test-cluster'
-        assert len(data['insights']) == 0
-        assert isinstance(
-            result.content[0], TextContent
-        )  # Ensure it's TextContent before accessing .text
-        assert 'Successfully retrieved 0 insights' in result.content[0].text
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert data['cluster_name'] == 'test-cluster'
+            assert len(data['insights']) == 0
+            assert isinstance(
+                result.content[0], TextContent
+            )  # Ensure it's TextContent before accessing .text
+            assert 'Successfully retrieved 0 insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_insight_not_found(self, mock_context, mock_mcp):
@@ -371,26 +369,25 @@ class TestInsightsHandler:
             mock_eks_client.exceptions.ResourceNotFoundException(error_response, 'DescribeInsight')
         )
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method with non-existent ID
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', insight_id='nonexistent-id'
+            )
 
-        # Call the implementation method with non-existent ID
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', insight_id='nonexistent-id'
-        )
+            # Verify API call was attempted
+            mock_eks_client.describe_insight.assert_called_once_with(
+                id='nonexistent-id', clusterName='test-cluster'
+            )
 
-        # Verify API call was attempted
-        mock_eks_client.describe_insight.assert_called_once_with(
-            id='nonexistent-id', clusterName='test-cluster'
-        )
-
-        # Verify error response
-        assert result.isError
-        assert isinstance(
-            result.content[0], TextContent
-        )  # Ensure it's TextContent before accessing .text
-        assert 'No insight details found for ID nonexistent-id' in result.content[0].text
+            # Verify error response
+            assert result.isError
+            assert isinstance(
+                result.content[0], TextContent
+            )  # Ensure it's TextContent before accessing .text
+            assert 'No insight details found for ID nonexistent-id' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_impl_direct(self, mock_context, mock_mcp):
@@ -406,49 +403,50 @@ class TestInsightsHandler:
             ]
         }
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method directly in list mode
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
 
-        # Call the implementation method directly in list mode
-        result = await handler._get_eks_insights_impl(mock_context, cluster_name='test-cluster')
+            # Verify list_insights was called with correct parameters
+            mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
-        # Verify list_insights was called with correct parameters
-        mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
+            # Verify the result
+            assert not result.isError
 
-        # Verify the result
-        assert not result.isError
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert len(data['insights']) == 2
+            assert data['cluster_name'] == 'test-cluster'
+            assert not data['detail_mode']
 
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert len(data['insights']) == 2
-        assert data['cluster_name'] == 'test-cluster'
-        assert not data['detail_mode']
+            # Now test with detail mode
+            mock_eks_client.describe_insight.return_value = {
+                'insight': self._create_mock_insight_item(insight_id='impl-detail-insight')
+            }
 
-        # Now test with detail mode
-        mock_eks_client.describe_insight.return_value = {
-            'insight': self._create_mock_insight_item(insight_id='impl-detail-insight')
-        }
+            # Call the implementation method directly in detail mode
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', insight_id='impl-detail-insight'
+            )
 
-        # Call the implementation method directly in detail mode
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', insight_id='impl-detail-insight'
-        )
+            # Verify describe_insight was called with correct parameters
+            mock_eks_client.describe_insight.assert_called_once_with(
+                id='impl-detail-insight', clusterName='test-cluster'
+            )
 
-        # Verify describe_insight was called with correct parameters
-        mock_eks_client.describe_insight.assert_called_once_with(
-            id='impl-detail-insight', clusterName='test-cluster'
-        )
+            # Verify the result
+            assert not result.isError
 
-        # Verify the result
-        assert not result.isError
-
-        # Parse JSON data from content
-        data = json.loads(result.content[1].text)
-        assert len(data['insights']) == 1
-        assert data['insights'][0]['id'] == 'impl-detail-insight'
-        assert data['cluster_name'] == 'test-cluster'
-        assert data['detail_mode']
+            # Parse JSON data from content
+            data = json.loads(result.content[1].text)
+            assert len(data['insights']) == 1
+            assert data['insights'][0]['id'] == 'impl-detail-insight'
+            assert data['cluster_name'] == 'test-cluster'
+            assert data['detail_mode']
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_impl_general_exception(self, mock_context, mock_mcp):
@@ -458,22 +456,22 @@ class TestInsightsHandler:
 
         # Create a mock eks_client
         mock_eks_client = MagicMock()
-        handler.eks_client = mock_eks_client
 
         # Override the _list_insights method to raise a custom exception
-        with patch.object(
-            handler, '_list_insights', side_effect=Exception('Test general exception')
-        ):
-            # Call the implementation method
-            result = await handler._get_eks_insights_impl(
-                mock_context, cluster_name='test-cluster'
-            )
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            with patch.object(
+                handler, '_list_insights', side_effect=Exception('Test general exception')
+            ):
+                # Call the implementation method
+                result = await handler._get_eks_insights_impl(
+                    mock_context, cluster_name='test-cluster'
+                )
 
-        # Verify error response
-        assert result.isError
-        assert isinstance(result.content[0], TextContent)
-        assert 'Error processing EKS insights request' in result.content[0].text
-        assert 'Test general exception' in result.content[0].text
+            # Verify error response
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Error processing EKS insights request' in result.content[0].text
+            assert 'Test general exception' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_insight_detail_exception(self, mock_context, mock_mcp):
@@ -482,22 +480,21 @@ class TestInsightsHandler:
         mock_eks_client = MagicMock()
         mock_eks_client.describe_insight.side_effect = Exception('Test detail API error')
 
-        # Initialize the handler with our mock client
+        # Initialize the handler and mock _get_eks_client
         handler = InsightsHandler(mock_mcp)
-        handler.eks_client = mock_eks_client
+        with patch.object(handler, '_get_eks_client', return_value=mock_eks_client):
+            # Call the implementation method directly with insight_id
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster', insight_id='test-insight'
+            )
 
-        # Call the implementation method directly with insight_id
-        result = await handler._get_eks_insights_impl(
-            mock_context, cluster_name='test-cluster', insight_id='test-insight'
-        )
+            # Verify API call was attempted
+            mock_eks_client.describe_insight.assert_called_once_with(
+                id='test-insight', clusterName='test-cluster'
+            )
 
-        # Verify API call was attempted
-        mock_eks_client.describe_insight.assert_called_once_with(
-            id='test-insight', clusterName='test-cluster'
-        )
-
-        # Verify error response
-        assert result.isError
-        assert isinstance(result.content[0], TextContent)
-        assert 'Error retrieving insight details' in result.content[0].text
+            # Verify error response
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Error retrieving insight details' in result.content[0].text
         assert 'Test detail API error' in result.content[0].text
