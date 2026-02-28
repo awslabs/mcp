@@ -18,20 +18,34 @@ import json
 import pytest
 from awslabs.aws_iac_mcp_server import server
 from awslabs.aws_iac_mcp_server.knowledge_models import CDKToolResponse
+from typing import Awaitable, Callable, cast
 from unittest.mock import patch
 
 
-# Access underlying functions from FastMCP decorated tools
-validate_cloudformation_template = server.validate_cloudformation_template.fn
-check_cloudformation_template_compliance = server.check_cloudformation_template_compliance.fn
-troubleshoot_cloudformation_deployment = server.troubleshoot_cloudformation_deployment.fn
-get_cloudformation_pre_deploy_validation_instructions = (
-    server.get_cloudformation_pre_deploy_validation_instructions.fn
+# In fastmcp 3.x, @mcp.tool returns the original function at runtime,
+# but pyright infers the return type as FunctionTool from the library stubs.
+# See: https://gofastmcp.com/development/upgrade-guide#decorators-return-functions
+# We cast to Callable so pyright treats them as callable with the correct return type.
+validate_cloudformation_template = cast(
+    Callable[..., str], server.validate_cloudformation_template
 )
-search_cdk_documentation = server.search_cdk_documentation.fn
-search_cloudformation_documentation = server.search_cloudformation_documentation.fn
-search_cdk_samples_and_constructs = server.search_cdk_samples_and_constructs.fn
-cdk_best_practices = server.cdk_best_practices.fn
+check_cloudformation_template_compliance = cast(
+    Callable[..., str], server.check_cloudformation_template_compliance
+)
+troubleshoot_cloudformation_deployment = cast(
+    Callable[..., str], server.troubleshoot_cloudformation_deployment
+)
+get_cloudformation_pre_deploy_validation_instructions = cast(
+    Callable[..., str], server.get_cloudformation_pre_deploy_validation_instructions
+)
+search_cdk_documentation = cast(Callable[..., Awaitable[str]], server.search_cdk_documentation)
+search_cloudformation_documentation = cast(
+    Callable[..., Awaitable[str]], server.search_cloudformation_documentation
+)
+search_cdk_samples_and_constructs = cast(
+    Callable[..., Awaitable[str]], server.search_cdk_samples_and_constructs
+)
+cdk_best_practices = cast(Callable[..., Awaitable[str]], server.cdk_best_practices)
 
 
 class TestValidateCloudFormationTemplate:
