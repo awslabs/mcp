@@ -21,6 +21,10 @@ from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.snapshot_manage
     RefNotFoundError,
     SnapshotManager,
 )
+from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.error_handler import (
+    error_with_snapshot,
+    ref_not_found_msg,
+)
 from loguru import logger
 from mcp.server.fastmcp import Context
 from os import getenv
@@ -106,19 +110,15 @@ class InteractionTools:
             else:
                 await locator.click(button=button, timeout=INTERACTION_TIMEOUT_MS)
 
-            # Wait briefly for any navigation or DOM updates
             await _wait_for_settled(page)
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return (
-                f'Error: ref "{ref}" not found in current page. '
-                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
-            )
+            return f'{ref_not_found_msg(ref)}\n\n{snapshot}'
         except Exception as e:
-            error_msg = f'Error clicking ref={ref}: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            return await error_with_snapshot(
+                f'Error clicking ref={ref}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         action = 'Double-clicked' if double_click else 'Clicked'
@@ -172,15 +172,12 @@ class InteractionTools:
 
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return (
-                f'Error: ref "{ref}" not found in current page. '
-                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
-            )
+            return f'{ref_not_found_msg(ref)}\n\n{snapshot}'
         except Exception as e:
-            error_msg = f'Error typing into ref={ref}: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            return await error_with_snapshot(
+                f'Error typing into ref={ref}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         action = f'Typed "{text}" into element {ref}'
@@ -296,15 +293,12 @@ class InteractionTools:
 
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return (
-                f'Error: ref "{ref}" not found in current page. '
-                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
-            )
+            return f'{ref_not_found_msg(ref)}\n\n{snapshot}'
         except Exception as e:
-            error_msg = f'Error selecting option in ref={ref}: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\n{snapshot}'
+            return await error_with_snapshot(
+                f'Error selecting option in ref={ref}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         selection = label or value or f'index {index}'
@@ -337,15 +331,12 @@ class InteractionTools:
             await _wait_for_settled(page, timeout_ms=2000)
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return (
-                f'Error: ref "{ref}" not found in current page. '
-                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
-            )
+            return f'{ref_not_found_msg(ref)}\n\n{snapshot}'
         except Exception as e:
-            error_msg = f'Error hovering over ref={ref}: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\n{snapshot}'
+            return await error_with_snapshot(
+                f'Error hovering over ref={ref}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         return f'Hovered over element {ref}\n\n{snapshot}'
@@ -380,13 +371,10 @@ class InteractionTools:
             await page.keyboard.press(key)
             await _wait_for_settled(page)
         except Exception as e:
-            error_msg = f'Error pressing key "{key}": {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+            return await error_with_snapshot(
+                f'Error pressing key "{key}": {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         return f'Pressed key: {key}\n\n{snapshot}'
@@ -423,15 +411,12 @@ class InteractionTools:
             await locator.set_input_files(paths, timeout=INTERACTION_TIMEOUT_MS)
         except RefNotFoundError:
             snapshot = await self._snapshot_manager.capture(page, session_id)
-            return (
-                f'Error: ref "{ref}" not found in current page. '
-                f'Take a new snapshot or use a ref from below.\n\n{snapshot}'
-            )
+            return f'{ref_not_found_msg(ref)}\n\n{snapshot}'
         except Exception as e:
-            error_msg = f'Error uploading file(s) to ref={ref}: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            return await error_with_snapshot(
+                f'Error uploading file(s) to ref={ref}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         file_names = ', '.join(paths)

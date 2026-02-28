@@ -20,6 +20,9 @@ from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.connection_mana
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.snapshot_manager import (
     SnapshotManager,
 )
+from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.error_handler import (
+    error_with_snapshot,
+)
 from loguru import logger
 from mcp.server.fastmcp import Context
 from os import getenv
@@ -82,13 +85,10 @@ class NavigationTools:
             return f'Navigated to {final_url}\nTitle: {title}\nStatus: {status}\n\n{snapshot}'
 
         except Exception as e:
-            error_msg = f'Error navigating to {url}: {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+            return await error_with_snapshot(
+                f'Error navigating to {url}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
     async def browser_navigate_back(
         self,
@@ -102,26 +102,7 @@ class NavigationTools:
 
         Returns an accessibility tree snapshot of the previous page.
         """
-        logger.info(f'Navigating back in session {session_id}')
-
-        try:
-            page = await self._connection_manager.get_page(session_id)
-            await page.go_back(wait_until='commit', timeout=NAVIGATION_TIMEOUT_MS)
-
-            title = await page.title()
-            final_url = page.url
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-
-            return f'Navigated back to {final_url}\nTitle: {title}\n\n{snapshot}'
-
-        except Exception as e:
-            error_msg = f'Error navigating back in session {session_id}: {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+        return await self._navigate_history(session_id, direction='back')
 
     async def browser_navigate_forward(
         self,
@@ -135,23 +116,25 @@ class NavigationTools:
 
         Returns an accessibility tree snapshot of the next page.
         """
-        logger.info(f'Navigating forward in session {session_id}')
+        return await self._navigate_history(session_id, direction='forward')
+
+    async def _navigate_history(self, session_id: str, direction: str) -> str:
+        """Shared implementation for back/forward navigation."""
+        logger.info(f'Navigating {direction} in session {session_id}')
 
         try:
             page = await self._connection_manager.get_page(session_id)
-            await page.go_forward(wait_until='commit', timeout=NAVIGATION_TIMEOUT_MS)
+            nav = page.go_back if direction == 'back' else page.go_forward
+            await nav(wait_until='commit', timeout=NAVIGATION_TIMEOUT_MS)
 
             title = await page.title()
             final_url = page.url
             snapshot = await self._snapshot_manager.capture(page, session_id)
 
-            return f'Navigated forward to {final_url}\nTitle: {title}\n\n{snapshot}'
+            return f'Navigated {direction} to {final_url}\nTitle: {title}\n\n{snapshot}'
 
         except Exception as e:
-            error_msg = f'Error navigating forward in session {session_id}: {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+            return await error_with_snapshot(
+                f'Error navigating {direction} in session {session_id}: {e}',
+                page, session_id, self._snapshot_manager,
+            )

@@ -20,6 +20,9 @@ from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.connection_mana
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.snapshot_manager import (
     SnapshotManager,
 )
+from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.error_handler import (
+    error_with_snapshot,
+)
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.navigation import (
     NAVIGATION_TIMEOUT_MS,
 )
@@ -191,13 +194,10 @@ class ManagementTools:
             return f'Closed page: {title} ({url})'
 
         except Exception as e:
-            error_msg = f'Error closing page in session {session_id}: {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+            return await error_with_snapshot(
+                f'Error closing page in session {session_id}: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
     async def browser_resize(
         self,
@@ -230,10 +230,7 @@ class ManagementTools:
             return f'Viewport resized to {width}x{height}\n\n{snapshot}'
 
         except Exception as e:
-            error_msg = f'Error resizing viewport in session {session_id}: {e}'
-            logger.error(error_msg)
-            try:
-                snapshot = await self._snapshot_manager.capture(page, session_id)
-                return f'{error_msg}\n\nCurrent page:\n{snapshot}'
-            except Exception:
-                return error_msg
+            return await error_with_snapshot(
+                f'Error resizing viewport in session {session_id}: {e}',
+                page, session_id, self._snapshot_manager,
+            )

@@ -22,6 +22,9 @@ from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.connection_mana
 from awslabs.amazon_bedrock_agentcore_browser_mcp_server.browser.snapshot_manager import (
     SnapshotManager,
 )
+from awslabs.amazon_bedrock_agentcore_browser_mcp_server.tools.error_handler import (
+    error_with_snapshot,
+)
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -170,10 +173,10 @@ class ObservationTools:
                 return 'Error: Provide either text or selector to wait for.'
 
         except Exception as e:
-            error_msg = f'Wait timed out or failed: {e}'
-            logger.error(error_msg)
-            snapshot = await self._snapshot_manager.capture(page, session_id)
-            return f'{error_msg}\n\nCurrent page:\n{snapshot}'
+            return await error_with_snapshot(
+                f'Wait timed out or failed: {e}',
+                page, session_id, self._snapshot_manager,
+            )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
         target = f'text "{text}"' if text else f'selector "{selector}"'
