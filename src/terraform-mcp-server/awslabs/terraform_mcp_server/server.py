@@ -74,6 +74,10 @@ async def execute_terraform_command(
     variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass'),
     aws_region: Optional[str] = Field(None, description='AWS region to use'),
     strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output'),
+    targets: Optional[List[str]] = Field(
+        None,
+        description='List of resource addresses to target (e.g. ["aws_instance.web", "module.vpc"]). Only applicable to plan, apply, and destroy commands.',
+    ),
 ) -> TerraformExecutionResult:
     """Execute Terraform workflow commands against an AWS account.
 
@@ -86,6 +90,7 @@ async def execute_terraform_command(
         variables: Terraform variables to pass
         aws_region: AWS region to use
         strip_ansi: Whether to strip ANSI color codes from output
+        targets: List of resource addresses to target
 
     Returns:
         A TerraformExecutionResult object containing command output and status
@@ -96,6 +101,7 @@ async def execute_terraform_command(
         variables=variables,
         aws_region=aws_region,
         strip_ansi=strip_ansi,
+        targets=targets,
     )
     return await execute_terraform_command_impl(request)
 
@@ -109,6 +115,10 @@ async def execute_terragrunt_command(
     variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass'),
     aws_region: Optional[str] = Field(None, description='AWS region to use'),
     strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output'),
+    targets: Optional[List[str]] = Field(
+        None,
+        description='List of resource addresses to target (e.g. ["aws_instance.web", "module.vpc"]). Only applicable to plan, apply, destroy, and run-all commands.',
+    ),
     include_dirs: Optional[List[str]] = Field(
         None, description='Directories to include in a multi-module run'
     ),
@@ -133,6 +143,7 @@ async def execute_terragrunt_command(
         variables: Terraform variables to pass
         aws_region: AWS region to use
         strip_ansi: Whether to strip ANSI color codes from output
+        targets: List of resource addresses to target
         include_dirs: Directories to include in a multi-module run
         exclude_dirs: Directories to exclude from a multi-module run
         run_all: Run command on all modules in subdirectories
@@ -147,6 +158,7 @@ async def execute_terragrunt_command(
         variables=variables,
         aws_region=aws_region,
         strip_ansi=strip_ansi,
+        targets=targets,
         include_dirs=include_dirs,
         exclude_dirs=exclude_dirs,
         run_all=run_all,
