@@ -13,6 +13,7 @@
 # limitations under the License.
 import httpx
 import os
+import time
 from awslabs.aws_documentation_mcp_server.models import SearchResponse
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
@@ -42,6 +43,18 @@ DEFAULT_USER_AGENT = (
     f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
 )
 
+# Module-level singleton for httpx.AsyncClient to avoid creating a new SSL context
+# and connection pool per HTTP request. httpx handles reconnection internally.
+_http_client: httpx.AsyncClient | None = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """Return a shared httpx.AsyncClient instance."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=30.0)
+    return _http_client
+
 
 async def read_documentation_impl(
     ctx: Context,
@@ -60,31 +73,31 @@ async def read_documentation_impl(
         url_with_session += f'&query_id={query_id}'
         logger.debug(f'Using query_id {query_id}')
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                url_with_session,
-                follow_redirects=True,
-                headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    'X-MCP-Session-Id': session_uuid,
-                },
-                timeout=30,
-            )
-        except httpx.HTTPError as e:
-            error_msg = f'Failed to fetch {url_str}: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return error_msg
+    client = get_http_client()
+    try:
+        response = await client.get(
+            url_with_session,
+            follow_redirects=True,
+            headers={
+                'User-Agent': DEFAULT_USER_AGENT,
+                'X-MCP-Session-Id': session_uuid,
+            },
+            timeout=30,
+        )
+    except httpx.HTTPError as e:
+        error_msg = f'Failed to fetch {url_str}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
 
-        if response.status_code >= 400:
-            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return error_msg
+    if response.status_code >= 400:
+        error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
 
-        page_raw = response.text
-        content_type = response.headers.get('content-type', '')
+    page_raw = response.text
+    content_type = response.headers.get('content-type', '')
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
@@ -102,7 +115,15 @@ async def read_documentation_impl(
     return result
 
 
-SEARCH_RESULT_CACHE = deque(maxlen=3)
+_CACHE_TTL_SECONDS = 30 * 60  # 30 minutes
+SEARCH_RESULT_CACHE: deque[tuple[float, SearchResponse]] = deque(maxlen=3)
+
+
+def _evict_stale_cache_entries() -> None:
+    """Remove cache entries older than _CACHE_TTL_SECONDS."""
+    now = time.monotonic()
+    while SEARCH_RESULT_CACHE and (now - SEARCH_RESULT_CACHE[-1][0]) > _CACHE_TTL_SECONDS:
+        SEARCH_RESULT_CACHE.pop()
 
 
 def add_search_result_cache_item(search_response: SearchResponse) -> None:
@@ -118,7 +139,8 @@ def add_search_result_cache_item(search_response: SearchResponse) -> None:
         None; updates the global SEARCH_RESULT_CACHE
 
     """
-    SEARCH_RESULT_CACHE.appendleft(search_response)
+    _evict_stale_cache_entries()
+    SEARCH_RESULT_CACHE.appendleft((time.monotonic(), search_response))
 
 
 def get_query_id_from_cache(url: str) -> Optional[str]:
@@ -134,10 +156,10 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
         Query ID of URL, or None
 
     """
-    for _, search_response in enumerate(SEARCH_RESULT_CACHE):
+    _evict_stale_cache_entries()
+    for _timestamp, search_response in SEARCH_RESULT_CACHE:
         for search_result in search_response.search_results:
             if search_result.url == url:
-                # Sanitization of query_id just in case
                 query_id = quote(search_response.query_id)
                 return query_id
 

@@ -13,7 +13,20 @@
 # limitations under the License.
 """Configuration for pytest."""
 
+import awslabs.aws_documentation_mcp_server.server_utils as server_utils_module
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _reset_http_client_singleton():
+    """Reset the shared httpx.AsyncClient singleton between tests.
+
+    Without this, a mock client from one test leaks into subsequent tests
+    via the module-level singleton, causing spurious failures.
+    """
+    server_utils_module._http_client = None
+    yield
+    server_utils_module._http_client = None
 
 
 def pytest_addoption(parser):
