@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import boto3
+import os
+from loguru import logger
 from typing import TYPE_CHECKING
 
 
@@ -22,6 +24,16 @@ else:
     AgentsforBedrockClient = object
     AgentsforBedrockRuntimeClient = object
 
+_BEDROCK_BEARER_ENV = "AWS_BEARER_TOKEN_BEDROCK"
+
+def _normalize_bedrock_bearer_token() -> None:
+    """
+    Set empty Token to None for boto3 Bedrock clients.
+    """
+    token = os.getenv(_BEDROCK_BEARER_ENV)
+    if token is not None and token.strip() == "":
+        logger.warning(f"{_BEDROCK_BEARER_ENV} is set but empty; falling back to IAM auth")
+        os.environ.pop(_BEDROCK_BEARER_ENV, None)
 
 def get_bedrock_agent_runtime_client(
     region_name: str | None = 'us-west-2', profile_name: str | None = None
@@ -34,6 +46,7 @@ def get_bedrock_agent_runtime_client(
         region_name (str | None): The region name
         profile_name (str | None): The profile name
     """
+    _normalize_bedrock_bearer_token()
     if profile_name:
         client = boto3.Session(profile_name=profile_name).client(
             'bedrock-agent-runtime', region_name=region_name or 'us-west-2'
@@ -54,6 +67,7 @@ def get_bedrock_agent_client(
         region_name (str | None): The region name
         profile_name (str | None): The profile name
     """
+    _normalize_bedrock_bearer_token()
     if profile_name:
         client = boto3.Session(profile_name=profile_name).client(
             'bedrock-agent', region_name=region_name or 'us-west-2'

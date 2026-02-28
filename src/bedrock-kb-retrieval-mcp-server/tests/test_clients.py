@@ -14,6 +14,34 @@
 
 """Tests for the clients module of the bedrock-kb-retrieval-mcp-server."""
 
+import os
+import awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients as clients_mod
+
+class TestBedrockBearerTokenEnv:
+    """Tests for Bedrock API key env var normalization."""
+
+    def test_empty_bearer_token_is_unset(self):
+        with patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "   "}, clear=False):
+            with patch.object(clients_mod.logger, "warning") as warn:
+                clients_mod._normalize_bedrock_bearer_token()
+                assert "AWS_BEARER_TOKEN_BEDROCK" not in os.environ
+                warn.assert_called_once()
+
+    def test_non_empty_bearer_token_is_kept(self):
+        with patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": "abc"}, clear=False):
+            with patch.object(clients_mod.logger, "warning") as warn:
+                clients_mod._normalize_bedrock_bearer_token()
+                assert os.environ["AWS_BEARER_TOKEN_BEDROCK"] == "abc"
+                warn.assert_not_called()
+
+    def test_absent_bearer_token_noop(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(clients_mod.logger, "warning") as warn:
+                clients_mod._normalize_bedrock_bearer_token()
+                warn.assert_not_called()
+
+
+
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients import (
     get_bedrock_agent_client,
     get_bedrock_agent_runtime_client,
@@ -22,6 +50,16 @@ from unittest.mock import MagicMock, patch
 
 
 class TestTypeDefinitions:
+    """Test for function invoke"""
+    
+    def test_runtime_client_calls_normalize(self, mock_boto3):
+        """Ensure runtime client creation calls env normalization."""
+        with patch.object(
+            clients_mod, "_normalize_bedrock_bearer_token"
+        ) as norm:
+            get_bedrock_agent_runtime_client()
+            norm.assert_called_once()
+
     """Tests for type definitions in clients.py."""
 
     def test_type_definitions(self):
