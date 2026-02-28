@@ -1027,6 +1027,35 @@ For macOS/Linux:
 ```
 </details>
 
+### Getting Started with AdaL CLI
+
+<details>
+<summary>Add to AdaL CLI</summary>
+
+[AdaL CLI](https://sylph.ai/) is a unified AI agent for software engineering with built-in [MCP support](https://docs.sylph.ai/features/mcp-support-proposed). Add AWS MCP servers directly from the AdaL CLI prompt:
+
+```text
+# Run inside the AdaL CLI prompt:
+
+# Add core AWS services
+/mcp add aws-api --command uvx --args "awslabs.aws-api-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add aws-iac --command uvx --args "awslabs.aws-iac-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add aws-docs --command uvx --args "awslabs.aws-documentation-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR,AWS_DOCUMENTATION_PARTITION=aws"
+
+# Add AI/ML and Bedrock services
+/mcp add nova-canvas --command uvx --args "awslabs.nova-canvas-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR,AWS_REGION=us-east-1"
+/mcp add bedrock-kb --command uvx --args "awslabs.bedrock-kb-retrieval-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+
+# Add data and analytics services
+/mcp add aws-dataprocessing --command uvx --args "awslabs.aws-dataprocessing-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+/mcp add valkey --command uvx --args "awslabs.valkey-mcp-server@latest" --env "FASTMCP_LOG_LEVEL=ERROR"
+
+# List installed servers
+/mcp list
+```
+
+</details>
+
 ## Samples
 
 Ready-to-use examples of open source MCP servers for AWS in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
