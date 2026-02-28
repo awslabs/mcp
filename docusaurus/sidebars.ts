@@ -56,6 +56,7 @@ const sidebars: SidebarsConfig = {
             "servers/ecs-mcp-server",
             "servers/finch-mcp-server",
             "servers/lambda-tool-mcp-server",
+            "servers/mwaa-mcp-server",
             "servers/stepfunctions-tool-mcp-server",
             "servers/aws-serverless-mcp-server",
             "servers/aws-support-mcp-server",
