@@ -1,3 +1,4 @@
+import awslabs.aws_api_mcp_server.core.common.helpers as helpers_module
 import base64
 import json
 import pytest
@@ -11,6 +12,14 @@ from botocore.response import StreamingBody
 from io import BytesIO
 from requests.adapters import HTTPAdapter
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def _reset_requests_session():
+    """Reset the requests session singleton between tests."""
+    helpers_module._requests_session = None
+    yield
+    helpers_module._requests_session = None
 
 
 @pytest.mark.parametrize(
