@@ -1396,6 +1396,30 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "Control cloud-hosted Chromium browsers through Amazon Bedrock AgentCore with accessibility-driven element targeting, screenshots, and full tab management",
+      "icon": "\ud83c\udf10",
+      "id": "amazon-bedrock-agentcore-browser-mcp-server",
+      "name": "Amazon Bedrock AgentCore Browser MCP Server",
+      "source_path": "src/amazon-bedrock-agentcore-browser-mcp-server/",
+      "subcategory": "Agent Tools",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "browser",
+        "automation",
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
       "category": "Cost & Operations",
       "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
       "icon": "\ud83d\udcb0",

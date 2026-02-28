@@ -18,6 +18,7 @@ NOTICE                                                         @awslabs/mcp-admi
 
 ## Alphabetical listing of MCP servers
 
+/src/amazon-bedrock-agentcore-browser-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @kevin-orellana
 /src/amazon-bedrock-agentcore-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1 @jesseturner21 @AlexanderRichey
 /src/amazon-kendra-index-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @scottschreckengaust
 /src/amazon-keyspaces-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd

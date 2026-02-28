@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
             "servers/nova-canvas-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
+            "servers/amazon-bedrock-agentcore-browser-mcp-server",
             "servers/sagemaker-ai-mcp-server",
           ],
         },
