@@ -1432,3 +1432,75 @@ class TestK8sProxySupport:
             # Verify uppercase proxy was used
             mock_config = mock_k8s_modules['config']
             assert mock_config.proxy == 'http://uppercase-proxy.example.com:8080'
+
+    def test_no_proxy_skips_proxy_when_endpoint_matches(self, mock_k8s_modules):
+        """Test that proxy is not configured when endpoint matches NO_PROXY."""
+        test_env = {
+            'HTTPS_PROXY': 'http://proxy.example.com:8080',
+            'NO_PROXY': '.eks.amazonaws.com',
+        }
+
+        with patch.dict(os.environ, test_env, clear=False):
+            endpoint = 'https://test-cluster.eks.amazonaws.com'
+            token = 'test-token'
+            ca_data = base64.b64encode(b'test-ca-cert').decode()
+
+            k8s_apis = K8sApis(endpoint, token, ca_data)
+            assert k8s_apis is not None
+
+            # proxy should NOT have been set to the proxy URL
+            mock_config = mock_k8s_modules['config']
+            assert mock_config.proxy != 'http://proxy.example.com:8080'
+
+    def test_no_proxy_allows_proxy_when_endpoint_not_matched(self, mock_k8s_modules):
+        """Test that proxy IS configured when endpoint does not match NO_PROXY."""
+        test_env = {
+            'HTTPS_PROXY': 'http://proxy.example.com:8080',
+            'NO_PROXY': 'other.internal.com',
+        }
+
+        with patch.dict(os.environ, test_env, clear=False):
+            endpoint = 'https://test-cluster.eks.amazonaws.com'
+            token = 'test-token'
+            ca_data = base64.b64encode(b'test-ca-cert').decode()
+
+            K8sApis(endpoint, token, ca_data)
+
+            mock_config = mock_k8s_modules['config']
+            assert mock_config.proxy == 'http://proxy.example.com:8080'
+
+    def test_no_proxy_wildcard_skips_all(self, mock_k8s_modules):
+        """Test that NO_PROXY=* skips proxy for any endpoint."""
+        test_env = {
+            'HTTPS_PROXY': 'http://proxy.example.com:8080',
+            'NO_PROXY': '*',
+        }
+
+        with patch.dict(os.environ, test_env, clear=False):
+            endpoint = 'https://test-cluster.eks.amazonaws.com'
+            token = 'test-token'
+            ca_data = base64.b64encode(b'test-ca-cert').decode()
+
+            k8s_apis = K8sApis(endpoint, token, ca_data)
+            assert k8s_apis is not None
+
+            mock_config = mock_k8s_modules['config']
+            assert mock_config.proxy != 'http://proxy.example.com:8080'
+
+    def test_no_proxy_lowercase_env_var(self, mock_k8s_modules):
+        """Test that lowercase no_proxy is also respected."""
+        test_env = {
+            'HTTPS_PROXY': 'http://proxy.example.com:8080',
+            'no_proxy': '.eks.amazonaws.com',
+        }
+
+        with patch.dict(os.environ, test_env, clear=False):
+            endpoint = 'https://test-cluster.eks.amazonaws.com'
+            token = 'test-token'
+            ca_data = base64.b64encode(b'test-ca-cert').decode()
+
+            k8s_apis = K8sApis(endpoint, token, ca_data)
+            assert k8s_apis is not None
+
+            mock_config = mock_k8s_modules['config']
+            assert mock_config.proxy != 'http://proxy.example.com:8080'
