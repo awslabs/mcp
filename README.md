@@ -923,7 +923,7 @@ For macOS/Linux:
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.core-mcp-server@latest"],
@@ -939,7 +939,7 @@ For Windows:
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "awslabs.core-mcp-server": {
       "disabled": false,
       "timeout": 60,
