@@ -34,8 +34,14 @@ MUTATING_KEYWORDS = {
     'UNINSTALL PLUGIN',
 }
 
+# Build the mutating keyword pattern.
+# REPLACE needs special handling: `REPLACE INTO ...` is mutating, but
+# `REPLACE(col, 'a', 'b')` is a safe string function.  A negative
+# lookahead for `(` distinguishes the two.
+_REPLACE_PATTERN = r'REPLACE(?!\s*\()'
+_OTHER_KEYWORDS = sorted(k for k in MUTATING_KEYWORDS if k != 'REPLACE')
 MUTATING_PATTERN = re.compile(
-    r'(?i)\b(' + '|'.join(re.escape(k) for k in MUTATING_KEYWORDS) + r')\b'
+    r'(?i)\b(' + '|'.join([_REPLACE_PATTERN] + [re.escape(k) for k in _OTHER_KEYWORDS]) + r')\b'
 )
 
 # -- Regex for DDL statements --
