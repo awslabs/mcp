@@ -172,7 +172,7 @@ class TestSetup:
                 'solutions-architect',
                 ['diagram', 'pricing', 'cost_explorer', 'syntheticdata', 'aws_knowledge'],
             ),
-            ('finops', ['cost_explorer', 'pricing', 'cloudwatch', 'billing_cost_management']),
+            ('finops', ['cost_explorer', 'pricing', 'cloudwatch', 'bcm']),
             (
                 'monitoring-observability',
                 ['cloudwatch', 'cloudwatch_appsignals', 'prometheus', 'cloudtrail'],
