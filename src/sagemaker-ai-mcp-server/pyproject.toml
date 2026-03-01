@@ -2,14 +2,14 @@
 name = "awslabs.sagemaker-ai-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.9223372036854775807.9223372036854775807"
+version = "1.0.6"
 
 description = "MCP server for AWS SageMaker AI"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "boto3>=1.34.0",
     "requests>=2.31.0",
@@ -43,7 +43,7 @@ repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/sagemaker-ai-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.sagemaker-ai-mcp-server" = "awslabs.server:main"
+"awslabs.sagemaker-ai-mcp-server" = "awslabs.sagemaker_ai_mcp_server.server:main"
 
 [dependency-groups]
 dev = [

@@ -24,7 +24,7 @@ jobs:
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Find Dockerfiles
         id: find-dockerfiles
         run: |
@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@bb62109f04532df81644eb76173ad4f987ab6033
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@16fbeff0b6ac1bb09b767aec95f5d89fd3b30cd2
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -57,11 +57,13 @@ jobs:
 
       - name: Checkout code
         id: checkout-code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
           sparse-checkout: |
+            trivy.yaml
+            .vex
             ${{ matrix.dockerfile }}
 
       - name: If trivy-results.sarif exists, it must be part of the PR changes
@@ -93,12 +95,26 @@ jobs:
           docker image save -o "${{ runner.temp }}/image.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
 
       - name: Upload digest
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: image-${{ steps.checkout-depth.outputs.image-name }}
           path: ${{ runner.temp }}/image.tar
           if-no-files-found: error
           retention-days: 1
+
+      - name: Generate Container Software Bill of Materials and Vulnerabilities
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/e9e34948534ab945c7e750376235cfe0c442f532/install.sh | sh -s -- -b /usr/local/bin v1.39.0
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/43e7e3246ed01b1ec0ff54f9b054201ccbe78e3a/install.sh | sh -s -- -b /usr/local/bin v0.104.3
+          syft scan "${{ runner.temp }}/image.tar" -o json > "${{ matrix.dockerfile }}/syft-results.json"
+          cat "${{ matrix.dockerfile }}/syft-results.json" | grype | tee "${{ matrix.dockerfile }}/grype.txt"
+          syft convert "${{ matrix.dockerfile }}/syft-results.json" -o cyclonedx-json > "${{ matrix.dockerfile }}/cyclonedx.json"
+          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli convert \
+            --input-file /data/${{ matrix.dockerfile }}/cyclonedx.json \
+            --input-format json \
+            --output-file /data/${{ matrix.dockerfile }}/sbom.csv \
+            --output-format csv
+          cat ${{ matrix.dockerfile }}/sbom.csv
 
       - name: Delete the exported image
         run: |
@@ -113,14 +129,19 @@ jobs:
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
+        uses: github/codeql-action/upload-sarif@b2ff80ddacba59b60f4e0cf3b699baaea3230cd9 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload results
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
-          path: '${{ matrix.dockerfile }}/trivy-results.sarif'
+          path: |
+            ${{ matrix.dockerfile }}/trivy-results.sarif
+            ${{ matrix.dockerfile }}/syft-results.json
+            ${{ matrix.dockerfile }}/sbom.csv
+            ${{ matrix.dockerfile }}/grype.txt
+            ${{ matrix.dockerfile }}/cyclonedx.json
           if-no-files-found: error
           retention-days: 1

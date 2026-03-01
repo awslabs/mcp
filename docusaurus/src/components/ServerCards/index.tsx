@@ -12,6 +12,7 @@ type ServerCardProps = {
   subcategory?: string;
   tags?: string[];
   workflows?: string[];
+  source_path?: string;
 };
 
 type CategoryProps = {
@@ -37,6 +38,7 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
   // Map category to local SVG icon path
   const getCategoryIcon = (category: string) => {
     const iconMap: Record<string, string> = {
+      'Essential Setup': '/mcp/assets/icons/key.svg',
       'Documentation': '/mcp/assets/icons/book-open.svg',
       'Infrastructure & Deployment': '/mcp/assets/icons/server.svg',
       'AI & Machine Learning': '/mcp/assets/icons/cpu.svg',
@@ -52,8 +54,13 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
 
   const categoryIconPath = getCategoryIcon(server.category);
 
+  // Use external URL if source_path is a full URL, otherwise use local path
+  const linkHref = server.source_path && (server.source_path.startsWith('http://') || server.source_path.startsWith('https://'))
+    ? server.source_path
+    : `/mcp/servers/${server.id}`;
+
   return (
-    <a href={`/mcp/servers/${server.id}`} className={styles.serverCardLink}>
+    <a href={linkHref} className={styles.serverCardLink}>
       <div className={clsx(styles.serverCard)} data-id={server.id}>
         <div className={styles.serverCardHeader}>
           <div className={styles.serverCardIcon}>

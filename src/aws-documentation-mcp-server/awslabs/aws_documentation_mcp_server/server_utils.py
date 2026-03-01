@@ -13,7 +13,7 @@
 # limitations under the License.
 import httpx
 import os
-from awslabs.aws_documentation_mcp_server.models import SearchResult
+from awslabs.aws_documentation_mcp_server.models import SearchResponse
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
@@ -105,20 +105,20 @@ async def read_documentation_impl(
 SEARCH_RESULT_CACHE = deque(maxlen=3)
 
 
-def add_search_result_cache_item(search_results: list[SearchResult]) -> None:
+def add_search_result_cache_item(search_response: SearchResponse) -> None:
     """Adds list of SearchResult items to cache.
 
     Add search results to the front of the cache, to ensure that
     the most recent query ID is ahead for duplicate URLs.
 
     Args:
-        search_results: List returned by the search_documentation tool
+        search_response: SearchResponse object returned by the search_documentation tool
 
     Returns:
         None; updates the global SEARCH_RESULT_CACHE
 
     """
-    SEARCH_RESULT_CACHE.appendleft(search_results)
+    SEARCH_RESULT_CACHE.appendleft(search_response)
 
 
 def get_query_id_from_cache(url: str) -> Optional[str]:
@@ -134,11 +134,11 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
         Query ID of URL, or None
 
     """
-    for _, search_results in enumerate(SEARCH_RESULT_CACHE):
-        for search_result in search_results:
+    for _, search_response in enumerate(SEARCH_RESULT_CACHE):
+        for search_result in search_response.search_results:
             if search_result.url == url:
                 # Sanitization of query_id just in case
-                query_id = quote(search_result.query_id)
+                query_id = quote(search_response.query_id)
                 return query_id
 
     return None

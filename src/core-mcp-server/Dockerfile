@@ -13,7 +13,11 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:e66df2153a7cc47b4438848efb65e2d9442db4330db9befaee5107fc75464959 AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20 AS uv
+
+# Install build dependencies needed for compiling packages
+RUN dnf install -y shadow-utils python3 python3-devel wget tar gcc && \
+    dnf clean all
 
 # Install the project into `/app`
 WORKDIR /app
@@ -25,7 +29,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 # Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_PYTHON_PREFERENCE=only-managed
 
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
@@ -33,9 +37,14 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    python3 -m ensurepip && \
+    python3 -m pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
     uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
@@ -47,33 +56,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:e66df2153a7cc47b4438848efb65e2d9442db4330db9befaee5107fc75464959
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:50a58a006d3381e38160fc5bb4bbefa68b74fcd70dde798f68667aac24312f20
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
+    PYTHONUNBUFFERED=1
 
-# Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
-RUN out=$(mktemp) && \
-    apt-get update -y && \
-    apt-get install -y wget procps && \
-    wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg && \
-    cat $out | \
-      tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
-	chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
-      tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    apt-get update -y && \
-    apt-get install -y gh && \
-    apt-get clean -y && \
-    apt-get autoremove -y && \
+RUN dnf install -y shadow-utils procps python3 python3-devel wget tar gcc && \
+    dnf clean all && \
     groupadd --force --system app && \
     useradd app -g app -d /app && \
     chmod o+x /root
 
 # Get the project from the uv layer
-# COPY --from=uv --chown=app:app /root/.local /root/.local
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script

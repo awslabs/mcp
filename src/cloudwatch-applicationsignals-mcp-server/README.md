@@ -2,16 +2,17 @@
 
 An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
 
-This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
+This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
 
 ## Key Features
 
 1. **Comprehensive Service Auditing** - Monitor overall service health, diagnose root causes, and recommend actionable fixes with built-in APM expertise
 2. **Advanced SLO Compliance Monitoring** - Track Service Level Objectives with breach detection and root cause analysis
 3. **Operation-Level Performance Analysis** - Deep dive into specific API endpoints and operations
-4. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
-5. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
-6. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+4. **Group-Level Monitoring** - Assess health, dependencies, and changes across service groups for team-based workflows
+5. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
+6. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
+7. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
 
 ## Prerequisites
 
@@ -248,7 +249,48 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - Infrastructure Issues: Diagnose S3 access, VPC connectivity, and browser target problems
 - Backend Service Debugging: Identify application code issues affecting canary success
 
-#### 13. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 13. **`list_change_events`** - AWS Application Signals Change Event Query
+**Query AWS Application Signals change events to correlate infrastructure and application changes with service performance issues**
+
+This tool provides access to AWS Application Signals' change detection capabilities through two complementary APIs:
+- **ListEntityEvents**: Comprehensive change history for incident investigation and root cause analysis
+- **ListServiceStates**: Current service state information for status monitoring
+
+**Key Capabilities:**
+- **Change Correlation**: Link deployments, configuration changes, and infrastructure modifications to performance issues
+- **Timeline Analysis**: Build accurate timelines of events leading to incidents, alarms, or SLO breaches
+- **Service-Specific Filtering**: Focus on changes to specific services using Application Signals service attributes
+- **Multi-Change Type Tracking**: Monitor deployment events, configuration updates, infrastructure scaling, and other modifications
+- **Incident Investigation**: Essential for root cause analysis when services experience performance degradation
+
+**API Selection Guide:**
+- **comprehensive_history=True (default)**: Uses ListEntityEvents API
+  - **Question it answers**: "What are the changes in my service?" - Comprehensive change history
+  - **Best for**: Incident investigation, change correlation, root cause analysis, timeline reconstruction
+  - **Returns**: Complete chronological list of all change events (deployments, configurations, scaling) within time range
+  - **Use when**: You need to see all changes that happened and correlate them with performance issues
+
+- **comprehensive_history=False**: Uses ListServiceStates API
+  - **Question it answers**: "Has anything changed in my service?" - Current change status
+  - **Best for**: Service status monitoring, checking if recent changes occurred, troubleshooting current state
+  - **Returns**: Information about the last deployment and other change states of services, providing visibility into recent changes that may have affected service performance
+  - **Use when**: You want to quickly check if there were recent changes without needing the full history
+
+**Common Use Cases:**
+1. **Alarm-Triggered Investigation**: "My checkout-service alarm is firing. What changed recently?"
+2. **Canary Failure Analysis**: "My checkout-canary is failing. Show me recent changes that might be related."
+3. **Log-Based Error Investigation**: "I'm seeing errors in payment-service logs. What deployments happened before these errors?"
+4. **Service Change History**: "Show me all changes to user-authentication-service in the last 24 hours."
+5. **SLO Breach Timeline**: "I had an SLO breach at 3 PM. What changes led up to it?"
+6. **Deployment Impact Analysis**: "Did the 2 PM deployment cause the performance degradation?"
+
+**Integration with Other Tools:**
+- **Enhances audit_services()**: Provides change context for service health issues
+- **Correlates with audit_slos()**: Links changes to SLO breach analysis
+- **Supports audit_service_operations()**: Adds timeline context for operation performance investigations
+- **Complements analyze_canary_failures()**: Provides deployment correlation for canary issues
+
+#### 14. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
@@ -256,13 +298,69 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - **IMPORTANT**: `audit_services()` is the PRIMARY and PREFERRED tool for all service auditing tasks
 - Only use this tool for legacy SLI status report format specifically
 
+### 🏢 Group-Level Monitoring Tools
+
+#### 15. **`list_group_services`** - Group Service Discovery
+**Discover all services belonging to a specific group**
+
+- List services by group name with wildcard support (`*payment*`)
+- View group membership details and sources (TAG, OTEL, etc.)
+- Useful for understanding team ownership and service organization
+
+**Key Use Cases:**
+- `list_group_services(group_name="Payments")` - List all services in Payments group
+- `list_group_services(group_name="*prod*")` - Find all production groups
+
+#### 16. **`audit_group_health`** - Group Health Monitoring
+**Comprehensive health assessment for all services in a group**
+
+- Automatic health detection using SLOs and metrics
+- Configurable thresholds for fault, error, and latency
+- Categorizes services as Healthy, Warning, Critical, or Unknown
+- Provides actionable recommendations for unhealthy services
+
+**Key Use Cases:**
+- `audit_group_health(group_name="Payments")` - Audit all payment services
+- `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
+
+#### 17. **`get_group_dependencies`** - Group Dependency Mapping
+**Map dependencies within and across service groups**
+
+- Identifies intra-group dependencies (services calling each other)
+- Discovers cross-group dependencies with group information
+- Lists external AWS service dependencies (DynamoDB, S3, etc.)
+
+**Key Use Cases:**
+- `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
+- Useful for understanding service architecture and blast radius
+
+#### 18. **`get_group_changes`** - Group Change Tracking
+**Track deployments across a group**
+
+- Lists recent deployments
+- Groups changes by service for easy analysis
+- Useful for correlating deployments with incidents
+- Supports custom time ranges
+
+**Key Use Cases:**
+- `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
+- `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
+
+#### 19. **`list_grouping_attribute_definitions`** - Group Configuration
+**List all custom grouping attribute definitions**
+
+- Shows configured grouping attributes (Team, BusinessUnit, etc.)
+- Displays source keys (AWS tags, OTEL attributes)
+- Shows default values for each grouping attribute
+- Useful for understanding available groups
+
 ## Installation
 
 ### One-Click Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/en/install-mcp?name=applicationsignals&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLWFwcGxpY2F0aW9uc2lnbmFscy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUFJPRklMRSI6IltUaGUgQVdTIFByb2ZpbGUgTmFtZSB0byB1c2UgZm9yIEFXUyBhY2Nlc3NdIiwiQVdTX1JFR0lPTiI6IltUaGUgQVdTIHJlZ2lvbiB0byBydW4gaW5dIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJ0cmFuc3BvcnRUeXBlIjoic3RkaW8ifQ) | [![Install on VS Code](https://insiders.vscode.dev/redirect/mcp/install?name=applicationsignals&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22timeout%22%3A60%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-applicationsignals-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22AWS_REGION%22%3A%22%5BThe%20AWS%20region%20to%20run%20in%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=applicationsignals&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-applicationsignals-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22AWS_REGION%22%3A%22%5BThe%20AWS%20region%20to%20run%20in%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=applicationsignals&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLWFwcGxpY2F0aW9uc2lnbmFscy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUFJPRklMRSI6IltUaGUgQVdTIFByb2ZpbGUgTmFtZSB0byB1c2UgZm9yIEFXUyBhY2Nlc3NdIiwiQVdTX1JFR0lPTiI6IltUaGUgQVdTIHJlZ2lvbiB0byBydW4gaW5dIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJ0cmFuc3BvcnRUeXBlIjoic3RkaW8ifQ) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=applicationsignals&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22timeout%22%3A60%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.cloudwatch-applicationsignals-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22%5BThe%20AWS%20Profile%20Name%20to%20use%20for%20AWS%20access%5D%22%2C%22AWS_REGION%22%3A%22%5BThe%20AWS%20region%20to%20run%20in%5D%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
 ### Installing via `uv`
 
@@ -317,7 +415,11 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ### Installing for Kiro
 
-- Add the following configuration to your Kiro MCP settings file at `~/.kiro/settings/mcp.json`:
+See the [Kiro IDE documentation](https://kiro.dev/docs/mcp/configuration/) or the [Kiro CLI documentation](https://kiro.dev/docs/cli/mcp/configuration/) for details.
+
+For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific configuration, edit `.kiro/settings/mcp.json` in your project directory.
+
+Add the following configuration to your Kiro MCP settings file:
 
 ```json
 {
@@ -338,8 +440,6 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     }
 }
 ```
-
-- Restart Kiro to make sure AWS credentials are properly loaded for MCP server after updating your AWS credentials
 
 ### Windows Installation
 
@@ -658,6 +758,89 @@ analyze_canary_failures(canary_name="webapp-erorrpagecanary")
 • Enhanced monitoring: Proactive failure detection and faster resolution
 ```
 
+### Example 7: Change Events Timeline Analysis
+```
+User: "My checkout-service alarm is firing. What changed recently?"
+Assistant: I'll investigate recent changes to your checkout-service that might have triggered the alarm.
+
+[Uses list_change_events to correlate alarm timing with recent changes]
+
+list_change_events(
+  start_time="2024-01-15T12:00:00Z",  # 6 hours before alarm
+  end_time="2024-01-15T18:00:00Z",   # Current time
+  service_key_attributes='{"Name": "checkout-service", "Environment": "eks:production"}'
+)
+
+🚨 **ALARM CORRELATION ANALYSIS:**
+
+**Alarm Details:**
+• Trigger Time: 15:30 UTC
+• Metric: ErrorRate > 5%
+• Current Value: 12.3%
+
+**RECENT CHANGES DETECTED:**
+• 14:45 UTC: DEPLOYMENT - UpdateService (checkout-service v2.1.4)
+• 15:15 UTC: CONFIGURATION - UpdateTaskDefinition (memory limit increased)
+• 15:25 UTC: DEPLOYMENT - UpdateService (rollback attempted)
+
+🎯 **TIMELINE CORRELATION:**
+• Deployment at 14:45 UTC
+• Alarm triggered 45 minutes later (15:30 UTC)
+• Rollback attempt 5 minutes before alarm (15:25 UTC)
+• Suggests deployment introduced errors, rollback may be incomplete
+
+💡 **IMMEDIATE ACTIONS:**
+1. Verify rollback completion status
+2. Check if v2.1.4 introduced breaking changes
+3. Monitor error logs from 14:45 UTC onwards
+4. Consider full rollback to previous stable version
+```
+
+### Example 8: Multi-Service Change Pattern Analysis
+```
+User: "Multiple services are having issues. Show me all recent changes across my environment."
+Assistant: I'll analyze recent changes across your environment. Since you want to see all changes without filtering to specific services, I'll use the ListServiceStates API which provides current service state information.
+
+[Uses list_change_events with comprehensive_history=False for environment-wide analysis]
+
+list_change_events(
+  start_time="2024-01-15T06:00:00Z",  # Last 12 hours
+  end_time="2024-01-15T18:00:00Z",
+  comprehensive_history=False,  # Uses ListServiceStates API - no service filtering required
+  max_results=100
+)
+
+🌐 **ENVIRONMENT-WIDE CHANGE ANALYSIS:**
+
+**SERVICE STATE SUMMARY:**
+• payment-service: Recent deployment detected (v2.1.4)
+• checkout-service: Configuration change detected (memory limits updated)
+• user-service: Stable - no recent changes
+• api-gateway: Recent scaling event detected
+
+**RECENT CHANGE INDICATORS:**
+• Services with recent deployments: 3
+• Services with configuration changes: 2
+• Services with scaling events: 1
+• Stable services: 2
+
+🔍 **CHANGE CORRELATION ANALYSIS:**
+
+**Services Requiring Investigation:**
+• payment-service: Last deployment may correlate with reported issues
+• checkout-service: Configuration changes might be reactive to problems
+• api-gateway: Scaling events suggest increased load or performance issues
+
+💡 **RECOMMENDED NEXT STEPS:**
+
+For detailed change history of specific problematic services, I can investigate further:
+1. Get service details first: get_service_detail("payment-service")
+2. Then query comprehensive change history: list_change_events() with service_key_attributes
+3. Correlate specific change timing with issue onset
+
+Would you like me to investigate the change history for any specific service in detail?
+```
+
 ## Recommended Workflows
 
 ### 🎯 Primary Audit Workflow (Most Common)
@@ -675,11 +858,19 @@ analyze_canary_failures(canary_name="webapp-erorrpagecanary")
 2. **Apply wildcard patterns** - e.g., `*GET*` for all GET operations
 3. **Root cause analysis** - Use `auditors="all"` for detailed investigation
 
+### 🔄 Change Correlation Workflow
+1. **Incident Detection** - Identify when issues started (alarms, logs, canary failures)
+2. **Change Timeline** - Use `list_change_events()` to identify recent changes
+3. **Correlation Analysis** - Match change timing with issue onset
+4. **Root Cause Validation** - Use audit tools to confirm change impact
+5. **Remediation** - Rollback problematic changes or implement fixes
+
 ### 📊 Complete Observability Workflow
 1. **Service Discovery** - `audit_services()` with wildcard patterns
 2. **SLO Compliance** - `audit_slos()` for breach detection
 3. **Operation Analysis** - `audit_service_operations()` for endpoint-specific issues
-4. **Trace Investigation** - `search_transaction_spans()` for 100% trace visibility
+4. **Change Correlation** - `list_change_events()` for timeline analysis
+5. **Trace Investigation** - `search_transaction_spans()` for 100% trace visibility
 
 ## Configuration
 
@@ -701,6 +892,10 @@ The server requires the following AWS IAM permissions:
         "application-signals:GetServiceLevelObjective",
         "application-signals:BatchGetServiceLevelObjectiveBudgetReport",
         "application-signals:ListAuditFindings",
+        "application-signals:ListEntityEvents",
+        "application-signals:ListServiceStates",
+        "application-signals:ListServiceDependencies",
+        "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",

@@ -1,6 +1,12 @@
 {
   "categories": [
     {
+      "description": "Essential MCP servers for AWS resource management",
+      "icon": "\ud83d\udd11",
+      "id": "essential-setup",
+      "name": "Essential Setup"
+    },
+    {
       "description": "Real-time access to official AWS documentation",
       "icon": "\ud83d\udcda",
       "id": "documentation",
@@ -56,6 +62,30 @@
     }
   ],
   "servers": [
+    {
+      "category": "Essential Setup",
+      "description": "Secure, auditable AWS operations with API access, documentation, Agent SOPs, and CloudTrail logging.",
+      "icon": "\ud83d\udd11",
+      "id": "aws-mcp",
+      "name": "AWS MCP (in preview)",
+      "source_path": "https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html",
+      "subcategory": "Essential Setup",
+      "tags": [
+        "aws-api",
+        "documentation",
+        "security",
+        "audit-logging",
+        "cloudtrail",
+        "iam",
+        "remote-mcp",
+        "managed-service",
+        "best-practices"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
     {
       "category": "Documentation",
       "description": "Get latest AWS docs and APIs",
@@ -1106,7 +1136,7 @@
     },
     {
       "category": "Core",
-      "description": "Intelligent planning and AWS MCP server orchestration",
+      "description": "Intelligent planning and orchestration of MCP servers for AWS.",
       "icon": "\u26a1",
       "id": "core-mcp-server",
       "name": "Core MCP Server",
@@ -1164,6 +1194,26 @@
       ],
       "workflows": [
         "vibe-coding"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
+      "description": "Comprehensive medical imaging data lifecycle management with AWS HealthImaging - 21 tools for DICOM operations, datastore management, and patient data handling",
+      "icon": "\ud83c\udfe5",
+      "id": "healthimaging-mcp-server",
+      "name": "HealthImaging MCP Server",
+      "source_path": "src/healthimaging-mcp-server/",
+      "subcategory": "Medical Imaging Management",
+      "tags": [
+        "healthcare",
+        "medical-imaging",
+        "healthimaging",
+        "dicom",
+        "radiology",
+        "patient-data"
+      ],
+      "workflows": [
+        "healthcare-data"
       ]
     },
     {
@@ -1365,6 +1415,55 @@
       ],
       "workflows": [
         "conversational"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Apache Spark Troubleshooting and code recommendation tool for real time error and workload analysis and fixes for Glue and EMR deployment models",
+      "icon": "\ud83d\udcca",
+      "id": "sagemaker-unified-studio-spark-troubleshooting-mcp-server",
+      "name": "Amazon SageMaker Unified Studio MCP for Spark Troubleshooting and Code Recommendation",
+      "source_path": "src/sagemaker-unified-studio-spark-troubleshooting-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "glue",
+        "emr",
+        "data-processing",
+        "etl",
+        "pipeline",
+        "autonomous",
+        "troubleshooting",
+        "code-recommendation",
+        "remote-mcp",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Apache Spark Upgrade tools for spark application upgrades and cluster migration for Glue and EMR deployment models",
+      "icon": "\ud83d\udcca",
+      "id": "sagemaker-unified-studio-spark-upgrade-mcp-server",
+      "name": "Amazon SageMaker Unified Studio MCP for Spark Upgrade",
+      "source_path": "src/sagemaker-unified-studio-spark-upgrade-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "glue",
+        "emr",
+        "data-processing",
+        "etl",
+        "pipeline",
+        "autonomous",
+        "upgrade",
+        "remote-mcp",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
       ]
     }
   ],

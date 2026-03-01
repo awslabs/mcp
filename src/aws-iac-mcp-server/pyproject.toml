@@ -1,18 +1,18 @@
 [project]
 name = "awslabs.aws-iac-mcp-server"
-version = "1.0.1"
+version = "1.0.13"
 description = "An Infrastructure as Code MCP server that provides CloudFormation template validation, compliance checking, and deployment troubleshooting capabilities."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "cfn-lint>=0.83.0",
     "boto3>=1.40.76",
     "botocore>=1.34.0",
     "pyyaml>=6.0.0",
     "guardpycfn>=0.1.0",
-    "fastmcp>=0.1.0",
+    "fastmcp>=2.14.0",
     "loguru>=0.7.0",
 ]
 license = {text = "Apache-2.0"}

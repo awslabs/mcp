@@ -14,6 +14,21 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
+    create_codeconnection,
+    get_codeconnection,
+    list_codeconnections,
+)
+from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import (
+    check_container_availability,
+    clone_container_to_ecr,
+    create_container_registry_map,
+    create_pull_through_cache_for_healthomics,
+    grant_healthomics_repository_access,
+    list_ecr_repositories,
+    list_pull_through_cache_rules,
+    validate_healthomics_ecr_config,
+)
 from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import (
     get_supported_file_types,
     search_genomics_files,
@@ -23,6 +38,19 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     package_workflow,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
+    create_run_cache,
+    get_run_cache,
+    list_run_caches,
+    update_run_cache,
+)
+from awslabs.aws_healthomics_mcp_server.tools.run_group import (
+    create_run_group,
+    get_run_group,
+    list_run_groups,
+    update_run_group,
+)
+from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs,
@@ -75,12 +103,25 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **ListAHORunTasks**: List tasks for a specific run
 - **GetAHORunTask**: Get details about a specific task
 
+### Run Group Management
+- **CreateAHORunGroup**: Create a new run group to limit compute resources for workflow runs
+- **GetAHORunGroup**: Get details of a specific run group including resource limits and tags
+- **ListAHORunGroups**: List available run groups with optional name filtering
+- **UpdateAHORunGroup**: Update an existing run group's name or resource limits
+
+### Run Cache Management
+- **CreateAHORunCache**: Create a new run cache to store intermediate workflow outputs and accelerate subsequent runs
+- **GetAHORunCache**: Get details of a specific run cache including configuration and status
+- **ListAHORunCaches**: List available run caches with optional filtering by name, status, or cache behavior
+- **UpdateAHORunCache**: Update an existing run cache's behavior, name, or description
+
 ### Workflow Analysis
 - **GetAHORunLogs**: Retrieve high-level run logs showing workflow execution events
 - **GetAHORunManifestLogs**: Retrieve run manifest logs with workflow summary
 - **GetAHORunEngineLogs**: Retrieve engine logs containing STDOUT and STDERR
 - **GetAHOTaskLogs**: Retrieve logs for specific workflow tasks
 - **AnalyzeAHORunPerformance**: Analyze workflow run performance and resource utilization to provide optimization recommendations
+- **GenerateAHORunTimeline**: Generate a Gantt-style SVG timeline visualization showing task execution phases and parallelism
 
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
@@ -93,9 +134,24 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **SearchGenomicsFiles**: Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with intelligent pattern matching and file association detection
 - **GetSupportedFileTypes**: Get information about supported genomics file types and their descriptions
 
+### ECR Container Tools
+- **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status
+- **CheckContainerAvailability**: Check if a container image is available in ECR and accessible by HealthOmics
+- **CloneContainerToECR**: Clone a container image from an upstream registry to ECR with HealthOmics permissions
+- **GrantHealthOmicsRepositoryAccess**: Grant HealthOmics access to an ECR repository by updating its policy
+- **ListPullThroughCacheRules**: List pull-through cache rules with HealthOmics usability status
+- **CreatePullThroughCacheForHealthOmics**: Create a pull-through cache rule configured for HealthOmics
+- **CreateContainerRegistryMap**: Create a container registry map for HealthOmics workflows using discovered pull-through caches
+- **ValidateHealthOmicsECRConfig**: Validate ECR configuration for HealthOmics workflows
+
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
 - **GetAHOSupportedRegions**: Get the list of AWS regions where HealthOmics is available
+
+### CodeConnections Management
+- **ListCodeConnections**: List available CodeConnections for use with HealthOmics workflows
+- **CreateCodeConnection**: Create a new CodeConnection to a Git provider
+- **GetCodeConnection**: Get details about a specific CodeConnection
 
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
@@ -123,12 +179,25 @@ mcp.tool(name='GetAHORun')(get_run)
 mcp.tool(name='ListAHORunTasks')(list_run_tasks)
 mcp.tool(name='GetAHORunTask')(get_run_task)
 
+# Register run group tools
+mcp.tool(name='CreateAHORunGroup')(create_run_group)
+mcp.tool(name='GetAHORunGroup')(get_run_group)
+mcp.tool(name='ListAHORunGroups')(list_run_groups)
+mcp.tool(name='UpdateAHORunGroup')(update_run_group)
+
+# Register run cache tools
+mcp.tool(name='CreateAHORunCache')(create_run_cache)
+mcp.tool(name='GetAHORunCache')(get_run_cache)
+mcp.tool(name='ListAHORunCaches')(list_run_caches)
+mcp.tool(name='UpdateAHORunCache')(update_run_cache)
+
 # Register workflow analysis tools
 mcp.tool(name='GetAHORunLogs')(get_run_logs)
 mcp.tool(name='GetAHORunManifestLogs')(get_run_manifest_logs)
 mcp.tool(name='GetAHORunEngineLogs')(get_run_engine_logs)
 mcp.tool(name='GetAHOTaskLogs')(get_task_logs)
 mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
+mcp.tool(name='GenerateAHORunTimeline')(generate_run_timeline)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
@@ -144,6 +213,21 @@ mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)
 mcp.tool(name='GetAHOSupportedRegions')(get_supported_regions)
+
+# Register CodeConnections tools
+mcp.tool(name='ListCodeConnections')(list_codeconnections)
+mcp.tool(name='CreateCodeConnection')(create_codeconnection)
+mcp.tool(name='GetCodeConnection')(get_codeconnection)
+
+# Register ECR container tools
+mcp.tool(name='ListECRRepositories')(list_ecr_repositories)
+mcp.tool(name='CheckContainerAvailability')(check_container_availability)
+mcp.tool(name='CloneContainerToECR')(clone_container_to_ecr)
+mcp.tool(name='GrantHealthOmicsRepositoryAccess')(grant_healthomics_repository_access)
+mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
+mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
+mcp.tool(name='CreateContainerRegistryMap')(create_container_registry_map)
+mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
 
 
 def main():

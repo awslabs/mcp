@@ -518,6 +518,7 @@ async def test_call_aws_security_policy_deny(
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
     mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_validation = MagicMock()
@@ -530,7 +531,7 @@ async def test_call_aws_security_policy_deny(
     ctx = DummyCtx()
 
     with pytest.raises(AwsApiMcpError) as exc_info:
-        await call_aws.fn('aws s3 rm s3://bucket/file', ctx)
+        await call_aws('aws s3 rm s3://bucket/file', ctx)
 
     assert 'Execution of this operation is denied by security policy.' in str(exc_info.value)
     mock_check_security_policy.assert_called_once()
@@ -554,6 +555,7 @@ async def test_call_aws_security_policy_elicit(
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
     mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_validation = MagicMock()
@@ -578,7 +580,7 @@ async def test_call_aws_security_policy_elicit(
 
     ctx = DummyCtx()
 
-    result = await call_aws.fn('aws s3api put-object --bucket test --key test', ctx)
+    result = await call_aws('aws s3api put-object --bucket test --key test', ctx)
 
     mock_check_security_policy.assert_called_once()
     mock_request_consent.assert_called_once_with(

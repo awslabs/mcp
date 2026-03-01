@@ -2,14 +2,14 @@
 name = "awslabs.aws-msk-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.9"
+version = "0.0.14"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for aws-msk"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "boto3>=1.37.24"
 ]

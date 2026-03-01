@@ -19,12 +19,14 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     encode_to_base64,
-    get_ssm_client,
+    get_aws_session,
+    get_omics_service_name,
 )
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 async def package_workflow(
@@ -41,7 +43,7 @@ async def package_workflow(
         None,
         description='Dictionary of additional files (filename: content)',
     ),
-) -> str:
+) -> Union[str, Dict[str, Any]]:
     """Package workflow definition files into a base64-encoded ZIP.
 
     Args:
@@ -51,7 +53,7 @@ async def package_workflow(
         additional_files: Dictionary of additional files (filename: content)
 
     Returns:
-        Base64-encoded ZIP file containing the workflow definition
+        Base64-encoded ZIP file containing the workflow definition, or error dict
     """
     try:
         # Create a dictionary of files
@@ -68,10 +70,7 @@ async def package_workflow(
 
         return base64_data
     except Exception as e:
-        error_message = f'Error packaging workflow: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error packaging workflow')
 
 
 async def get_supported_regions(
@@ -87,23 +86,21 @@ async def get_supported_regions(
         of regions where HealthOmics is available
     """
     try:
-        # Get centralized SSM client
-        ssm_client = get_ssm_client()
+        # Get centralized AWS session
+        session = get_aws_session()
 
-        # Get the parameters from the SSM parameter store
-        response = ssm_client.get_parameters_by_path(
-            Path='/aws/service/global-infrastructure/services/omics/regions'
-        )
+        # Get the service name (defaults to 'omics')
+        service_name = get_omics_service_name()
 
-        # Extract the region values
-        regions = [param['Value'] for param in response['Parameters']]
+        # Get available regions for the HealthOmics service
+        regions = session.get_available_regions(service_name)
 
         # If no regions found, use the hardcoded list as fallback
         if not regions:
             from awslabs.aws_healthomics_mcp_server.consts import HEALTHOMICS_SUPPORTED_REGIONS
 
             regions = HEALTHOMICS_SUPPORTED_REGIONS
-            logger.warning('No regions found in SSM parameter store. Using hardcoded region list.')
+            logger.warning('No regions found via boto3 session. Using hardcoded region list.')
 
         return {'regions': sorted(regions), 'count': len(regions)}
     except botocore.exceptions.BotoCoreError as e:

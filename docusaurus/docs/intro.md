@@ -1,31 +1,31 @@
 ---
 slug: /
-title: Welcome to AWS MCP Servers
+title: Welcome to Open Source MCP Servers for AWS
 ---
 
 import styles from '@site/src/components/ServerCards/styles.module.css';
 
-# Welcome to AWS MCP Servers
+# Welcome to Open Source MCP Servers for AWS
 
-Get started with AWS MCP Servers and learn core features.
+Get started with open source MCP Servers for AWS and learn core features.
 
-The AWS MCP Servers are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
+Open source MCP servers for AWS are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
-## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
+## What is the Model Context Protocol (MCP) and how does it work with MCP servers for AWS?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
 >
 > &mdash; [Model Context Protocol README](https://github.com/modelcontextprotocol#:~:text=The%20Model%20Context,context%20they%20need.)
 
-An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients include agentic AI coding assistants (like Q Developer, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
+An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients include agentic AI coding assistants (like Kiro, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
 
-AWS MCP Servers use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
+MCP Servers for AWS use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
 
-AWS MCP servers enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
+MCP Servers for AWS enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
 
 The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community. For more information on MCP, you can find further documentation [here](https://modelcontextprotocol.io/introduction)
 
-## Why AWS MCP Servers?
+## Why MCP Servers for AWS?
 
 MCP servers enhance the capabilities of foundation models (FMs) in several key ways:
 
@@ -52,7 +52,7 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 }}>
 
   <div>
-    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS New York Summit 2025!</div>
+    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS re:Invent 2025!</div>
     <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>Essential MCP servers for AWS resource management</div>
   </div>
 </div>
@@ -60,53 +60,51 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 Before diving into specific AWS services, set up these fundamental MCP servers for working with AWS resources:
 
 <div className={styles.cardGrid}>
-  <a href="/mcp/servers/aws-api-mcp-server" className={styles.serverCardLink}>
-    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
-    <div className={styles.serverCardHeader}>
-      <div className={styles.serverCardIcon}>
-        <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
+  <a href="https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ height: 'auto', maxWidth: '100%' }}>
+      <div className={styles.serverCardHeader}>
+        <div className={styles.serverCardIcon}>
+          <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
+        </div>
+        <div className={styles.serverCardTitleSection}>
+          <h3 className={styles.serverCardTitle}>AWS MCP (in preview)</h3>
+          <div className={styles.serverCardTags}>
+            <span className={styles.serverCardCategory}>Essential Setup</span>
+          </div>
+        </div>
       </div>
-      <div className={styles.serverCardTitleSection}>
-        <h3 className={styles.serverCardTitle}>AWS API MCP</h3>
-        <div className={styles.serverCardTags}>
-          <span className={styles.serverCardCategory}>Essential Setup</span>
+      <div className={styles.serverCardContent} style={{ overflow: 'visible' }}>
+        <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', display: 'block', WebkitBoxOrient: 'initial', WebkitLineClamp: 'unset', marginBottom: '0', marginLeft: '0', marginTop: '0' }}>
+          Start here for secure, auditable AWS interactions! This remote, managed MCP server is hosted by AWS and combines comprehensive AWS API support with access to the latest AWS documentation, API references, What's New posts, and Getting Started information. Features pre-built Agent SOPs that follow AWS best practices, helping agents complete complex multi-step AWS tasks reliably. Built with safety and control in mind: syntactically validated API calls, IAM-based permissions with zero credential exposure, and complete CloudTrail audit logging. Access all AWS services for managing infrastructure, exploring resources, and executing AWS operations with full transparency and traceability.
+        </p>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+          marginTop: '0.5rem'
+        }}>
+          <a href="https://kiro.dev/launch/mcp/add?name=aws-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A//aws-mcp.us-east-1.api.aws/mcp%22%5D%7D" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            <img src="https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro" alt="Install on Kiro" />
+          </a>
+          <a href="https://cursor.com/en-US/install-mcp?name=aws-mcp&config=eyJjb21tYW5kIjoidXZ4IG1jcC1wcm94eS1mb3ItYXdzQGxhdGVzdCBodHRwczovL2F3cy1tY3AudXMtZWFzdC0xLmFwaS5hd3MvbWNwIn0%3D" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            <img src="https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor" alt="Install on Cursor" />
+          </a>
+          <a href="https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-proxy-for-aws%40latest%22%2C%22https%3A%2F%2Faws-mcp.us-east-1.api.aws%2Fmcp%22%5D%7D" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+            <img src="https://img.shields.io/badge/Install-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install on VS Code" />
+          </a>
         </div>
       </div>
     </div>
-    <div className={styles.serverCardContent}>
-      <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
-        Set up secure programmatic access to AWS services with credential management and authentication handling. Manage infrastructure, explore resources, and execute AWS operations through natural language.
-      </p>
-    </div>
-  </div>
-  </a>
-
-  <a href="/mcp/servers/aws-knowledge-mcp-server" className={styles.serverCardLink}>
-    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
-    <div className={styles.serverCardHeader}>
-      <div className={styles.serverCardIcon}>
-        <img src="/mcp/assets/icons/book-open.svg" alt="Documentation icon" style={{ width: '22px', height: '22px' }} />
-      </div>
-      <div className={styles.serverCardTitleSection}>
-        <h3 className={styles.serverCardTitle}>AWS Knowledge MCP</h3>
-        <div className={styles.serverCardTags}>
-          <span className={styles.serverCardCategory}>Essential Setup</span>
-        </div>
-      </div>
-    </div>
-    <div className={styles.serverCardContent}>
-      <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
-        An AWS-managed remote MCP server that provides instant access to up-to-date AWS docs, API references, What's New posts, Getting Started information, Builder Library, blog posts, architectural references, and contextual guidance.
-      </p>
-    </div>
-  </div>
   </a>
 </div>
 
-## Available AWS MCP Servers
+## Available MCP Servers for AWS
 
 The servers are organized into these main categories:
 
+- **🚀 Essential**: Official AWS MCP servers, fully managed by AWS
+- **⚡  Core**: Flexible open-source servers for broad AWS access and task orchestration
 - **📚 Documentation**: Real-time access to official AWS documentation
 - **🏗️ Infrastructure & Deployment**: Build, deploy, and manage cloud infrastructure
 - **🤖 AI & Machine Learning**: Enhance AI applications with knowledge retrieval and ML capabilities
@@ -122,7 +120,7 @@ import ServerCards from '@site/src/components/ServerCards';
 
 ## When to use local vs remote MCP servers?
 
-AWS MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
+MCP servers for AWS can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
 
 ### Local MCP Servers
 - **Development & Testing**: Perfect for local development, testing, and debugging
@@ -137,8 +135,10 @@ AWS MCP servers can be run either locally on your development machine or remotel
 - **Always Available**: Access your MCP servers from anywhere, any device
 - **Automatic Updates**: Get the latest features and security patches automatically
 - **Scalability**: Easily handle varying workloads without local resource constraints
+- **Security**: Centralized security controls with IAM-based permissions and zero credential exposure
+- **Governance**: Comprehensive audit logging and compliance monitoring for enterprise-grade governance
 
-> **Note**: Some MCP servers, like AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
+> **Note**: Some MCP servers, like the [official AWS MCP server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html) (in preview) and AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Workflows
 

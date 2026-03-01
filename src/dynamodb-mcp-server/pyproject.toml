@@ -1,20 +1,22 @@
 [project]
 name = "awslabs.dynamodb-mcp-server"
-version = "2.0.4"
+version = "2.0.17"
 description = "The official MCP Server for interacting with AWS DynamoDB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.40.5",
+    "jinja2>=3.1.0",
     "loguru==0.7.3",
-    "mcp[cli]==1.12.4",
+    "mcp[cli]==1.23.0",
     "psutil==7.1.1",
     "pydantic==2.11.7",
     "typing-extensions==4.14.1",
     "strands-agents>=1.5.0",
     "dspy-ai>=2.6.27",
-    "awslabs.mysql-mcp-server==1.0.5",
+    "awslabs.mysql-mcp-server==1.0.9",
     "awslabs-aws-api-mcp-server==1.0.2",
+    "jinja2>=3.1.6",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -56,6 +58,7 @@ dev = [
     "pytest-mock>=3.12.0",
     "moto>=5.1.4",
     "boto3>=1.38.14",
+    "hypothesis>=6.100.0",
 ]
 
 [build-system]
@@ -106,7 +109,15 @@ docstring-code-format = true
 
 [tool.pyright]
 include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "tests/**/expected_outputs/**",
+    "awslabs/dynamodb_mcp_server/repo_generation_tool/languages/**/base_repository.py",
+]
 # allow using None as default without declaring field as Optional
 # declaring field as Optiona consumes tokens unnecessarily in the JSON schema
 # LLM doesn't need to be told that this field is Optional
@@ -136,9 +147,17 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+addopts = "-m 'not integration and not live'"
 markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "asyncio: marks tests that use asyncio",
+    "unit: marks tests as unit tests (fast, isolated)",
+    "integration: marks tests as integration tests (slower, end-to-end)",
+    "file_generation: marks tests that generate files",
+    "slow: marks tests as slow/comprehensive tests",
+    "python: marks tests as Python language-specific tests",
+    "snapshot: marks tests as snapshot tests for generated code consistency"
 ]
 
 [tool.coverage.report]
@@ -149,3 +168,6 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+omit = [
+    "awslabs/dynamodb_mcp_server/repo_generation_tool/languages/python/base_repository.py",
+]

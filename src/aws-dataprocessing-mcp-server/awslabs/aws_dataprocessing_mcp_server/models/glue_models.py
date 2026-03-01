@@ -13,37 +13,36 @@
 # limitations under the License.
 
 
-from mcp.types import CallToolResult
-from pydantic import Field
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
 
-# Response models for Jobs
-class CreateJobResponse(CallToolResult):
-    """Response model for create job operation."""
+# Data models for Jobs
+class CreateJobData(BaseModel):
+    """Data model for create job operation."""
 
     job_name: str = Field(..., description='Name of the created job')
     job_id: Optional[str] = Field(None, description='ID of the created job')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteJobResponse(CallToolResult):
-    """Response model for delete job operation."""
+class DeleteJobData(BaseModel):
+    """Data model for delete job operation."""
 
     job_name: str = Field(..., description='Name of the deleted job')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetJobResponse(CallToolResult):
-    """Response model for get job operation."""
+class GetJobData(BaseModel):
+    """Data model for get job operation."""
 
     job_name: str = Field(..., description='Name of the job')
     job_details: Dict[str, Any] = Field(..., description='Complete job definition')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class GetJobsResponse(CallToolResult):
-    """Response model for get jobs operation."""
+class GetJobsData(BaseModel):
+    """Data model for get jobs operation."""
 
     jobs: List[Dict[str, Any]] = Field(..., description='List of jobs')
     count: int = Field(..., description='Number of jobs found')
@@ -51,46 +50,46 @@ class GetJobsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class StartJobRunResponse(CallToolResult):
-    """Response model for start job run operation."""
+class StartJobRunData(BaseModel):
+    """Data model for start job run operation."""
 
     job_name: str = Field(..., description='Name of the job')
     job_run_id: str = Field(..., description='ID of the job run')
     operation: str = Field(default='start_run', description='Operation performed')
 
 
-class StopJobRunResponse(CallToolResult):
-    """Response model for stop job run operation."""
+class StopJobRunData(BaseModel):
+    """Data model for stop job run operation."""
 
     job_name: str = Field(..., description='Name of the job')
     job_run_id: str = Field(..., description='ID of the job run')
     operation: str = Field(default='stop_run', description='Operation performed')
 
 
-class UpdateJobResponse(CallToolResult):
-    """Response model for update job operation."""
+class UpdateJobData(BaseModel):
+    """Data model for update job operation."""
 
     job_name: str = Field(..., description='Name of the updated job')
     operation: str = Field(default='update', description='Operation performed')
 
 
-# Response models for Workflows
-class CreateWorkflowResponse(CallToolResult):
-    """Response model for create workflow operation."""
+# Data models for Workflows
+class CreateWorkflowData(BaseModel):
+    """Data model for create workflow operation."""
 
     workflow_name: str = Field(..., description='Name of the created workflow')
     operation: str = Field(default='create-workflow', description='Creates a new workflow.')
 
 
-class DeleteWorkflowResponse(CallToolResult):
-    """Response model for delete workflow operation."""
+class DeleteWorkflowData(BaseModel):
+    """Data model for delete workflow operation."""
 
     workflow_name: str = Field(..., description='Name of the deleted workflow')
     operation: str = Field(default='delete-workflow', description='Deletes a workflow.')
 
 
-class GetWorkflowResponse(CallToolResult):
-    """Response model for get workflow operation."""
+class GetWorkflowData(BaseModel):
+    """Data model for get workflow operation."""
 
     workflow_name: str = Field(..., description='Name of the workflow')
     workflow_details: Dict[str, Any] = Field(..., description='Complete workflow definition')
@@ -99,8 +98,8 @@ class GetWorkflowResponse(CallToolResult):
     )
 
 
-class ListWorkflowsResponse(CallToolResult):
-    """Response model for get workflows operation."""
+class ListWorkflowsData(BaseModel):
+    """Data model for get workflows operation."""
 
     workflows: List[Dict[str, Any]] = Field(..., description='List of workflows')
     next_token: Optional[str] = Field(None, description='Token for pagination')
@@ -109,8 +108,8 @@ class ListWorkflowsResponse(CallToolResult):
     )
 
 
-class StartWorkflowRunResponse(CallToolResult):
-    """Response model for start workflow run operation."""
+class StartWorkflowRunData(BaseModel):
+    """Data model for start workflow run operation."""
 
     workflow_name: str = Field(..., description='Name of the workflow')
     run_id: str = Field(..., description='ID of the workflow run')
@@ -119,16 +118,16 @@ class StartWorkflowRunResponse(CallToolResult):
     )
 
 
-# Response models for Triggers
-class CreateTriggerResponse(CallToolResult):
-    """Response model for create trigger operation."""
+# Data models for Triggers
+class CreateTriggerData(BaseModel):
+    """Data model for create trigger operation."""
 
     trigger_name: str = Field(..., description='Name of the created trigger')
     operation: str = Field(default='create-trigger', description='Creates a new trigger.')
 
 
-class DeleteTriggerResponse(CallToolResult):
-    """Response model for delete trigger operation."""
+class DeleteTriggerData(BaseModel):
+    """Data model for delete trigger operation."""
 
     trigger_name: str = Field(..., description='Name of the deleted trigger')
     operation: str = Field(
@@ -137,8 +136,8 @@ class DeleteTriggerResponse(CallToolResult):
     )
 
 
-class GetTriggerResponse(CallToolResult):
-    """Response model for get trigger operation."""
+class GetTriggerData(BaseModel):
+    """Data model for get trigger operation."""
 
     trigger_name: str = Field(..., description='Name of the trigger')
     trigger_details: Dict[str, Any] = Field(..., description='Complete trigger definition')
@@ -147,8 +146,8 @@ class GetTriggerResponse(CallToolResult):
     )
 
 
-class GetTriggersResponse(CallToolResult):
-    """Response model for get triggers operation."""
+class GetTriggersData(BaseModel):
+    """Data model for get triggers operation."""
 
     triggers: List[Dict[str, Any]] = Field(..., description='List of triggers')
     next_token: Optional[str] = Field(None, description='Token for pagination')
@@ -157,23 +156,23 @@ class GetTriggersResponse(CallToolResult):
     )
 
 
-class StartTriggerResponse(CallToolResult):
-    """Response model for start trigger operation."""
+class StartTriggerData(BaseModel):
+    """Data model for start trigger operation."""
 
     trigger_name: str = Field(..., description='Name of the trigger')
     operation: str = Field(default='start-trigger', description='Starts an existing trigger.')
 
 
-class StopTriggerResponse(CallToolResult):
-    """Response model for stop trigger operation."""
+class StopTriggerData(BaseModel):
+    """Data model for stop trigger operation."""
 
     trigger_name: str = Field(..., description='Name of the trigger')
     operation: str = Field(default='stop-trigger', description='Stops a specified trigger.')
 
 
-# Response models for Job Runs
-class GetJobRunResponse(CallToolResult):
-    """Response model for get job run operation."""
+# Data models for Job Runs
+class GetJobRunData(BaseModel):
+    """Data model for get job run operation."""
 
     job_name: str = Field(..., description='Name of the job')
     job_run_id: str = Field(..., description='ID of the job run')
@@ -181,8 +180,8 @@ class GetJobRunResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class GetJobRunsResponse(CallToolResult):
-    """Response model for get job runs operation."""
+class GetJobRunsData(BaseModel):
+    """Data model for get job runs operation."""
 
     job_name: str = Field(..., description='Name of the job')
     job_runs: List[Dict[str, Any]] = Field(..., description='List of job runs')
@@ -191,8 +190,8 @@ class GetJobRunsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class BatchStopJobRunResponse(CallToolResult):
-    """Response model for batch stop job run operation."""
+class BatchStopJobRunData(BaseModel):
+    """Data model for batch stop job run operation."""
 
     job_name: str = Field(..., description='Name of the job')
     successful_submissions: List[Dict[str, Any]] = Field(
@@ -204,49 +203,49 @@ class BatchStopJobRunResponse(CallToolResult):
     operation: str = Field(default='batch_stop', description='Operation performed')
 
 
-# Response models for Bookmarks
-class GetJobBookmarkResponse(CallToolResult):
-    """Response model for get job bookmark operation."""
+# Data models for Bookmarks
+class GetJobBookmarkData(BaseModel):
+    """Data model for get job bookmark operation."""
 
     job_name: str = Field(..., description='Name of the job')
     bookmark_details: Dict[str, Any] = Field(..., description='Complete bookmark definition')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ResetJobBookmarkResponse(CallToolResult):
-    """Response model for reset job bookmark operation."""
+class ResetJobBookmarkData(BaseModel):
+    """Data model for reset job bookmark operation."""
 
     job_name: str = Field(..., description='Name of the job')
     run_id: Optional[str] = Field(None, description='ID of the job run')
     operation: str = Field(default='reset', description='Operation performed')
 
 
-# Response models for Sessions
-class CreateSessionResponse(CallToolResult):
-    """Response model for create session operation."""
+# Data models for Sessions
+class CreateSessionData(BaseModel):
+    """Data model for create session operation."""
 
     session_id: str = Field(..., description='ID of the created session')
     session: Optional[Dict[str, Any]] = Field(None, description='Complete session object')
     operation: str = Field(default='create-session', description='Created a new session.')
 
 
-class DeleteSessionResponse(CallToolResult):
-    """Response model for delete session operation."""
+class DeleteSessionData(BaseModel):
+    """Data model for delete session operation."""
 
     session_id: str = Field(..., description='ID of the deleted session')
     operation: str = Field(default='delete-session', description='Deleted the session.')
 
 
-class GetSessionResponse(CallToolResult):
-    """Response model for get session operation."""
+class GetSessionData(BaseModel):
+    """Data model for get session operation."""
 
     session_id: str = Field(..., description='ID of the session')
     session: Optional[Dict[str, Any]] = Field(None, description='Complete session object')
     operation: str = Field(default='get-session', description='Retrieves the session.')
 
 
-class ListSessionsResponse(CallToolResult):
-    """Response model for list sessions operation."""
+class ListSessionsData(BaseModel):
+    """Data model for list sessions operation."""
 
     sessions: List[Dict[str, Any]] = Field(..., description='List of sessions')
     ids: Optional[List[str]] = Field(None, description='List of session IDs')
@@ -255,32 +254,32 @@ class ListSessionsResponse(CallToolResult):
     operation: str = Field(default='list-sessions', description='Retrieve a list of sessions.')
 
 
-class StopSessionResponse(CallToolResult):
-    """Response model for stop session operation."""
+class StopSessionData(BaseModel):
+    """Data model for stop session operation."""
 
     session_id: str = Field(..., description='ID of the stopped session')
     operation: str = Field(default='stop-session', description='Stops the session.')
 
 
-# Response models for Statements
-class RunStatementResponse(CallToolResult):
-    """Response model for run statement operation."""
+# Data models for Statements
+class RunStatementData(BaseModel):
+    """Data model for run statement operation."""
 
     session_id: str = Field(..., description='ID of the session')
     statement_id: int = Field(..., description='ID of the statement')
     operation: str = Field(default='run-statement', description='Executes the statement.')
 
 
-class CancelStatementResponse(CallToolResult):
-    """Response model for cancel statement operation."""
+class CancelStatementData(BaseModel):
+    """Data model for cancel statement operation."""
 
     session_id: str = Field(..., description='ID of the session')
     statement_id: int = Field(..., description='ID of the canceled statement')
     operation: str = Field(default='cancel-statement', description='Cancels the statement.')
 
 
-class GetStatementResponse(CallToolResult):
-    """Response model for get statement operation."""
+class GetStatementData(BaseModel):
+    """Data model for get statement operation."""
 
     session_id: str = Field(..., description='ID of the session')
     statement_id: int = Field(..., description='ID of the statement')
@@ -288,8 +287,8 @@ class GetStatementResponse(CallToolResult):
     operation: str = Field(default='get-statement', description='Retrieves the statement.')
 
 
-class ListStatementsResponse(CallToolResult):
-    """Response model for list statements operation."""
+class ListStatementsData(BaseModel):
+    """Data model for list statements operation."""
 
     session_id: str = Field(..., description='ID of the session')
     statements: List[Dict[str, Any]] = Field(..., description='List of statements')
@@ -300,39 +299,39 @@ class ListStatementsResponse(CallToolResult):
     )
 
 
-# Response models for Usage Profiles
-class CreateUsageProfileResponse(CallToolResult):
-    """Response model for create usage profile operation."""
+# Data models for Usage Profiles
+class CreateUsageProfileData(BaseModel):
+    """Data model for create usage profile operation."""
 
     profile_name: str = Field(..., description='Name of the created usage profile')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteUsageProfileResponse(CallToolResult):
-    """Response model for delete usage profile operation."""
+class DeleteUsageProfileData(BaseModel):
+    """Data model for delete usage profile operation."""
 
     profile_name: str = Field(..., description='Name of the deleted usage profile')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetUsageProfileResponse(CallToolResult):
-    """Response model for get usage profile operation."""
+class GetUsageProfileData(BaseModel):
+    """Data model for get usage profile operation."""
 
     profile_name: str = Field(..., description='Name of the usage profile')
     profile_details: Dict[str, Any] = Field(..., description='Complete usage profile definition')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class UpdateUsageProfileResponse(CallToolResult):
-    """Response model for update usage profile operation."""
+class UpdateUsageProfileData(BaseModel):
+    """Data model for update usage profile operation."""
 
     profile_name: str = Field(..., description='Name of the updated usage profile')
     operation: str = Field(default='update', description='Operation performed')
 
 
-# Response models for Security
-class CreateSecurityConfigurationResponse(CallToolResult):
-    """Response model for create security configuration operation."""
+# Data models for Security
+class CreateSecurityConfigurationData(BaseModel):
+    """Data model for create security configuration operation."""
 
     config_name: str = Field(..., description='Name of the created security configuration')
     creation_time: str = Field(..., description='Creation timestamp in ISO format')
@@ -342,15 +341,15 @@ class CreateSecurityConfigurationResponse(CallToolResult):
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteSecurityConfigurationResponse(CallToolResult):
-    """Response model for delete security configuration operation."""
+class DeleteSecurityConfigurationData(BaseModel):
+    """Data model for delete security configuration operation."""
 
     config_name: str = Field(..., description='Name of the deleted security configuration')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetSecurityConfigurationResponse(CallToolResult):
-    """Response model for get security configuration operation."""
+class GetSecurityConfigurationData(BaseModel):
+    """Data model for get security configuration operation."""
 
     config_name: str = Field(..., description='Name of the security configuration')
     config_details: Dict[str, Any] = Field(
@@ -363,9 +362,9 @@ class GetSecurityConfigurationResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-# Response models for Encryption
-class GetDataCatalogEncryptionSettingsResponse(CallToolResult):
-    """Response model for get data catalog encryption settings operation."""
+# Data models for Encryption
+class GetDataCatalogEncryptionSettingsData(BaseModel):
+    """Data model for get data catalog encryption settings operation."""
 
     encryption_settings: Dict[str, Any] = Field(
         ..., description='Data catalog encryption settings'
@@ -373,15 +372,15 @@ class GetDataCatalogEncryptionSettingsResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class PutDataCatalogEncryptionSettingsResponse(CallToolResult):
-    """Response model for put data catalog encryption settings operation."""
+class PutDataCatalogEncryptionSettingsData(BaseModel):
+    """Data model for put data catalog encryption settings operation."""
 
     operation: str = Field(default='put', description='Operation performed')
 
 
-# Response models for Resource Policies
-class GetResourcePolicyResponse(CallToolResult):
-    """Response model for get resource policy operation."""
+# Data models for Resource Policies
+class GetResourcePolicyData(BaseModel):
+    """Data model for get resource policy operation."""
 
     policy_hash: Optional[str] = Field(None, description='Hash of the resource policy')
     policy_in_json: Optional[str] = Field(None, description='Resource policy in JSON format')
@@ -390,44 +389,44 @@ class GetResourcePolicyResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class PutResourcePolicyResponse(CallToolResult):
-    """Response model for put resource policy operation."""
+class PutResourcePolicyData(BaseModel):
+    """Data model for put resource policy operation."""
 
     policy_hash: Optional[str] = Field(None, description='Hash of the resource policy')
     operation: str = Field(default='put', description='Operation performed')
 
 
-class DeleteResourcePolicyResponse(CallToolResult):
-    """Response model for delete resource policy operation."""
+class DeleteResourcePolicyData(BaseModel):
+    """Data model for delete resource policy operation."""
 
     operation: str = Field(default='delete', description='Operation performed')
 
 
-# Response models for Crawlers
-class CreateCrawlerResponse(CallToolResult):
-    """Response model for create crawler operation."""
+# Data models for Crawlers
+class CreateCrawlerData(BaseModel):
+    """Data model for create crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the created crawler')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteCrawlerResponse(CallToolResult):
-    """Response model for delete crawler operation."""
+class DeleteCrawlerData(BaseModel):
+    """Data model for delete crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the deleted crawler')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetCrawlerResponse(CallToolResult):
-    """Response model for get crawler operation."""
+class GetCrawlerData(BaseModel):
+    """Data model for get crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     crawler_details: Dict[str, Any] = Field(..., description='Complete crawler definition')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class GetCrawlersResponse(CallToolResult):
-    """Response model for get crawlers operation."""
+class GetCrawlersData(BaseModel):
+    """Data model for get crawlers operation."""
 
     crawlers: List[Dict[str, Any]] = Field(..., description='List of crawlers')
     count: int = Field(..., description='Number of crawlers found')
@@ -435,22 +434,22 @@ class GetCrawlersResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class StartCrawlerResponse(CallToolResult):
-    """Response model for start crawler operation."""
+class StartCrawlerData(BaseModel):
+    """Data model for start crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     operation: str = Field(default='start', description='Operation performed')
 
 
-class StopCrawlerResponse(CallToolResult):
-    """Response model for stop crawler operation."""
+class StopCrawlerData(BaseModel):
+    """Data model for stop crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     operation: str = Field(default='stop', description='Operation performed')
 
 
-class GetCrawlerMetricsResponse(CallToolResult):
-    """Response model for get crawler metrics operation."""
+class GetCrawlerMetricsData(BaseModel):
+    """Data model for get crawler metrics operation."""
 
     crawler_metrics: List[Dict[str, Any]] = Field(..., description='List of crawler metrics')
     count: int = Field(..., description='Number of crawler metrics found')
@@ -458,30 +457,30 @@ class GetCrawlerMetricsResponse(CallToolResult):
     operation: str = Field(default='get_metrics', description='Operation performed')
 
 
-class StartCrawlerScheduleResponse(CallToolResult):
-    """Response model for start crawler schedule operation."""
+class StartCrawlerScheduleData(BaseModel):
+    """Data model for start crawler schedule operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     operation: str = Field(default='start_schedule', description='Operation performed')
 
 
-class StopCrawlerScheduleResponse(CallToolResult):
-    """Response model for stop crawler schedule operation."""
+class StopCrawlerScheduleData(BaseModel):
+    """Data model for stop crawler schedule operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     operation: str = Field(default='stop_schedule', description='Operation performed')
 
 
-class BatchGetCrawlersResponse(CallToolResult):
-    """Response model for batch get crawlers operation."""
+class BatchGetCrawlersData(BaseModel):
+    """Data model for batch get crawlers operation."""
 
     crawlers: List[Any] = Field(..., description='List of crawlers')
     crawlers_not_found: List[str] = Field(..., description='List of crawler names not found')
     operation: str = Field(default='batch_get', description='Operation performed')
 
 
-class ListCrawlersResponse(CallToolResult):
-    """Response model for list crawlers operation."""
+class ListCrawlersData(BaseModel):
+    """Data model for list crawlers operation."""
 
     crawlers: List[Any] = Field(..., description='List of crawlers')
     count: int = Field(..., description='Number of crawlers found')
@@ -489,45 +488,45 @@ class ListCrawlersResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateCrawlerResponse(CallToolResult):
-    """Response model for update crawler operation."""
+class UpdateCrawlerData(BaseModel):
+    """Data model for update crawler operation."""
 
     crawler_name: str = Field(..., description='Name of the updated crawler')
     operation: str = Field(default='update', description='Operation performed')
 
 
-class UpdateCrawlerScheduleResponse(CallToolResult):
-    """Response model for update crawler schedule operation."""
+class UpdateCrawlerScheduleData(BaseModel):
+    """Data model for update crawler schedule operation."""
 
     crawler_name: str = Field(..., description='Name of the crawler')
     operation: str = Field(default='update_schedule', description='Operation performed')
 
 
-# Response models for Classifiers
-class CreateClassifierResponse(CallToolResult):
-    """Response model for create classifier operation."""
+# Data models for Classifiers
+class CreateClassifierData(BaseModel):
+    """Data model for create classifier operation."""
 
     classifier_name: str = Field(..., description='Name of the created classifier')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteClassifierResponse(CallToolResult):
-    """Response model for delete classifier operation."""
+class DeleteClassifierData(BaseModel):
+    """Data model for delete classifier operation."""
 
     classifier_name: str = Field(..., description='Name of the deleted classifier')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetClassifierResponse(CallToolResult):
-    """Response model for get classifier operation."""
+class GetClassifierData(BaseModel):
+    """Data model for get classifier operation."""
 
     classifier_name: str = Field(..., description='Name of the classifier')
     classifier_details: Dict[str, Any] = Field(..., description='Complete classifier definition')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class GetClassifiersResponse(CallToolResult):
-    """Response model for get classifiers operation."""
+class GetClassifiersData(BaseModel):
+    """Data model for get classifiers operation."""
 
     classifiers: List[Dict[str, Any]] = Field(..., description='List of classifiers')
     count: int = Field(..., description='Number of classifiers found')
@@ -535,8 +534,8 @@ class GetClassifiersResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateClassifierResponse(CallToolResult):
-    """Response model for update classifier operation."""
+class UpdateClassifierData(BaseModel):
+    """Data model for update classifier operation."""
 
     classifier_name: str = Field(..., description='Name of the updated classifier')
     operation: str = Field(default='update', description='Operation performed')

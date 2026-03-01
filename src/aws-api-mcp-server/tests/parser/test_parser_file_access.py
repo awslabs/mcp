@@ -108,52 +108,33 @@ class TestDefaultFileAccessBehavior:
         'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
         Path.home(),
     )
-    def test_invalid_expand_user_home_directory(self):
-        """Test that tilde is not expanded."""
-        expected_message = (
-            "Invalid file parameter '~user_that_does_not_exist/temp/test.txt' for service 's3' and operation 'cp': "
-            'should be an absolute path.'
-        )
-        with pytest.raises(FileParameterError) as exc_info:
+    def test_unexpanded_tilde_path_raises_error(self):
+        """Test that unexpanded tilde paths are rejected."""
+        with pytest.raises(FileParameterError, match='contains unexpanded tilde'):
             parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
 
-        assert str(exc_info.value) == expected_message
-
     @pytest.mark.parametrize(
-        'command,expected_service,expected_operation,expected_file_path',
+        'command',
         [
-            (
-                'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
-                's3',
-                'GetObject',
-                'relative/path/file.txt',
-            ),
-            (
-                'aws lambda invoke --function-name my-function response.json',
-                'lambda',
-                'Invoke',
-                'response.json',
-            ),
+            ('aws s3api get-object --bucket test-bucket --key test-key ../outside/file.txt'),
+            ('aws lambda invoke --function-name my-function ../response.json'),
         ],
     )
-    def test_validate_output_file_raises_error_for_relative_paths(
-        self, command, expected_service, expected_operation, expected_file_path
-    ):
-        """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
-        expected_message = f"Invalid file parameter '{expected_file_path}' for service '{expected_service}' and operation '{expected_operation}': should be an absolute path"
-        with pytest.raises(FileParameterError, match=expected_message):
+    def test_validate_output_file_raises_error_for_relative_paths_outside_workdir(self, command):
+        """Test that _validate_output_file raises FileParameterError for relative paths resolved outside working directory."""
+        with pytest.raises(FileParameterError, match='is outside the allowed working directory'):
             parse(command)
 
     @pytest.mark.parametrize(
         'command',
         [
-            'aws lambda invoke --function-name MyFunction --payload file://relative/path/payload.json -',
-            'aws rekognition detect-text --image-bytes fileb://relative/path/test.jpg',
-            'aws s3api put-object --bucket bucket --key file.txt --body pyproject.toml',
+            'aws lambda invoke --function-name MyFunction --payload file://../outside/payload.json -',
+            'aws rekognition detect-text --image-bytes fileb://../outside/test.jpg',
+            'aws s3api put-object --bucket bucket --key file.txt --body ../outside.toml',
         ],
     )
-    def test_parse_raises_error_for_relative_paths_in_blob_args(self, command):
-        """Test that _validate_output_file raises CommandValidationError for blob args with relative paths."""
+    def test_parse_raises_error_for_relative_paths_in_blob_args_outside_workdir(self, command):
+        """Test that blob args with relative paths outside working directory are rejected."""
         with pytest.raises(
             FilePathValidationError,
             match='is outside the allowed working directory',
@@ -441,6 +422,31 @@ class TestDisabledLocalFileAccess:
         error_message = str(exc_info.value)
         assert expected_service in error_message.lower()
         assert expected_operation in error_message.lower()
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=yayme,Value@=fileb:///etc/passwd',
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=test,Value@=file:///etc/passwd',
+    ],
+)
+def test_shorthand_paramfile_rejected_when_file_access_disabled(command):
+    """Test that shorthand @= syntax with file:// or fileb:// is rejected when file access is disabled.
+
+    The @= syntax in shorthand triggers the _resolve_paramfiles method in awscli.shorthand,
+    which uses LOCAL_PREFIX_MAP to resolve file:// and fileb:// prefixes.
+    """
+    with pytest.raises(LocalFileAccessDisabledError):
+        parse(command)
 
 
 @patch(

@@ -19,6 +19,7 @@ from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     check_security_policy,
     execute_awscli_customization,
+    get_help_document,
     interpret_command,
     request_consent,
     validate,
@@ -28,6 +29,7 @@ from .core.common.config import (
     ENABLE_AGENT_SCRIPTS,
     ENDPOINT_SUGGEST_AWS_COMMANDS,
     FASTMCP_LOG_LEVEL,
+    FILE_ACCESS_MODE,
     HOST,
     PORT,
     READ_ONLY_KEY,
@@ -36,6 +38,8 @@ from .core.common.config import (
     STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
+    FileAccessMode,
+    get_server_auth,
 )
 from .core.common.errors import AwsApiMcpError, CommandValidationError
 from .core.common.helpers import get_requests_session, validate_aws_region
@@ -64,11 +68,19 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
+
 server = FastMCP(
     name='AWS-API-MCP',
+    auth=get_server_auth(),
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
+
+_FILE_ACCESS_MSGS = {
+    FileAccessMode.UNRESTRICTED: f"File access is unrestricted so commands can reference files anywhere; use forward slashes (/) regardless of the system (e.g. 'c:/users/name/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory ({WORKING_DIRECTORY}).",
+    FileAccessMode.NO_ACCESS: 'File access is disabled and commands with any local file reference will be rejected. S3 URIs (s3://...) and stdout redirect (-) remain allowed.',
+    FileAccessMode.WORKDIR: f"Commands can only reference files within the working directory ({WORKING_DIRECTORY}); use forward slashes (/) regardless of the system (e.g. if working directory is 'c:/tmp/workdir', use 'c:/tmp/workdir/subdir/file.txt' or 'subdir/file.txt'); relative paths resolve from the working directory.",
+}
 
 
 @server.tool(
@@ -174,8 +186,7 @@ async def suggest_aws_commands(
     - For cross-region or account-wide operations, explicitly include --region parameter
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
-    - The current working directory is {WORKING_DIRECTORY}
-    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
+    - {_FILE_ACCESS_MSGS[FILE_ACCESS_MODE]}
 
     Best practices for command generation:
     - Always use the most specific service and operation names
@@ -189,7 +200,6 @@ async def suggest_aws_commands(
     - DO NOT use shell redirection operators (>, >>, <)
     - DO NOT use command substitution ($())
     - DO NOT use shell variables or environment variables
-    - DO NOT use relative paths for reading or writing files, use absolute paths instead
 
     Common pitfalls to avoid:
     1. Missing required parameters - always include all required parameters
@@ -284,6 +294,9 @@ async def call_aws_helper(
             elif REQUIRE_MUTATION_CONSENT:
                 await request_consent(cli_command, ctx)
 
+        if ir.command and ir.command.is_help_operation:
+            return await get_help_document(cli_command, ctx)
+
         if ir.command and ir.command.is_awscli_customization:
             return execute_awscli_customization(
                 cli_command,
@@ -367,12 +380,6 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
