@@ -502,7 +502,6 @@ async def test_call_aws_execution_error_awsmcp_error(
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
     mock_ir.command.is_help_operation = False
-    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
