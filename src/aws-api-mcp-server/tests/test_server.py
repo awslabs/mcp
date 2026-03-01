@@ -325,7 +325,6 @@ async def test_call_aws_with_consent_and_reject(
     mock_interpret,
 ):
     """Test call_aws with mutating action and consent enabled."""
-    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
     mock_is_operation_read_only.return_value = False
 
     # Mock IR with command metadata
