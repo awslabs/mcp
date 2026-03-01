@@ -23,10 +23,10 @@ from unittest.mock import patch
 
 # Access underlying functions from FastMCP decorated tools
 validate_cloudformation_template = server.validate_cloudformation_template.fn
-check_cloudformation_template_compliance = server.check_cloudformation_template_compliance.fn
+check_cfn_template_compliance = server.check_cfn_template_compliance.fn
 troubleshoot_cloudformation_deployment = server.troubleshoot_cloudformation_deployment.fn
-get_cloudformation_pre_deploy_validation_instructions = (
-    server.get_cloudformation_pre_deploy_validation_instructions.fn
+get_cfn_predeploy_validation_guide = (
+    server.get_cfn_predeploy_validation_guide.fn
 )
 search_cdk_documentation = server.search_cdk_documentation.fn
 search_cloudformation_documentation = server.search_cloudformation_documentation.fn
@@ -81,7 +81,7 @@ class TestValidateCloudFormationTemplate:
 
 
 class TestCheckTemplateCompliance:
-    """Test check_cloudformation_template_compliance tool."""
+    """Test check_cfn_template_compliance tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
@@ -91,7 +91,7 @@ class TestCheckTemplateCompliance:
         mock_sanitize.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
-        result = check_cloudformation_template_compliance(template)
+        result = check_cfn_template_compliance(template)
 
         assert result == 'sanitized response'
         mock_check.assert_called_once()
@@ -104,7 +104,7 @@ class TestCheckTemplateCompliance:
         mock_sanitize.return_value = 'sanitized response'
 
         template = json.dumps({'Resources': {}})
-        check_cloudformation_template_compliance(template, rules_file_path='/custom/rules.guard')
+        check_cfn_template_compliance(template, rules_file_path='/custom/rules.guard')
 
         mock_check.assert_called_once_with(
             template_content=template, rules_file_path='/custom/rules.guard'
@@ -278,7 +278,7 @@ class TestSearchCdkSamplesAndConstructs:
 
 
 class TestPreDeployValidation:
-    """Test get_cloudformation_pre_deploy_validation_instructions tool."""
+    """Test get_cfn_predeploy_validation_guide tool."""
 
     @patch('awslabs.aws_iac_mcp_server.server.cloudformation_pre_deploy_validation')
     @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
@@ -287,7 +287,7 @@ class TestPreDeployValidation:
         mock_validation.return_value = '{"instructions": "test"}'
         mock_sanitize.return_value = 'sanitized response'
 
-        result = get_cloudformation_pre_deploy_validation_instructions()
+        result = get_cfn_predeploy_validation_guide()
 
         assert result == 'sanitized response'
         mock_validation.assert_called_once()
