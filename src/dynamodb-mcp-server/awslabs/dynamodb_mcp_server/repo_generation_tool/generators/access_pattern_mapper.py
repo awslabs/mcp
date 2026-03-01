@@ -155,6 +155,10 @@ class AccessPatternMapper:
             if operation in read_operations:
                 mapping_entry['consistent_read'] = pattern.get('consistent_read', False)
 
+            # Include filter_expression when present
+            if pattern.get('filter_expression'):
+                mapping_entry['filter_expression'] = pattern['filter_expression']
+
             entity_mapping[pattern_id] = mapping_entry
 
             # Add GSI projection info if this pattern uses a GSI
