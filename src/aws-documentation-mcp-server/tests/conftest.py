@@ -13,7 +13,17 @@
 # limitations under the License.
 """Configuration for pytest."""
 
+import os
+
 import pytest
+
+# Shared benchmark constants used across test files
+INIT_TIME_THRESHOLD_MS = float(os.environ.get('INIT_TIME_THRESHOLD_MS', '1500'))
+
+
+def check_threshold(median_ms: float, threshold_ms: float = INIT_TIME_THRESHOLD_MS) -> bool:
+    """Return True if median_ms is within the threshold, False otherwise."""
+    return median_ms <= threshold_ms
 
 
 def pytest_addoption(parser):
@@ -29,6 +39,7 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     """Configure pytest."""
     config.addinivalue_line('markers', 'live: mark test as making live API calls')
+    config.addinivalue_line('markers', 'slow: mark test as slow (spawns subprocesses, timing-sensitive)')
 
 
 def pytest_collection_modifyitems(config, items):
