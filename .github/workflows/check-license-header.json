@@ -33,7 +33,10 @@
   },
   {
     "exclude": [
-      "docusaurus/**"
+      "docusaurus/**",
+      "**/test_venv/**",
+      "**/*venv/**",
+      "**/site-packages/**"
     ],
     "include": [
       "**/*.java",
