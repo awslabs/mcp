@@ -716,6 +716,61 @@ class PCAPAnalyzerServer:
         except Exception as e:
             return [TextContent(type='text', text=f'Error listing interfaces: {str(e)}')]
 
+    def _validate_interface(self, interface: str) -> str:
+        """Validate network interface against available system interfaces."""
+        import string
+
+        # Allow only safe characters in interface names
+        allowed_chars = string.ascii_letters + string.digits + '-_.'
+        if not all(c in allowed_chars for c in interface):
+            raise ValueError(f'Invalid characters in interface name: {interface!r}')
+
+        # Allowlist check: interface must be one of the available system interfaces
+        available = set(psutil.net_if_addrs().keys())
+        if interface not in available:
+            raise ValueError(
+                f'Interface {interface!r} not found. '
+                f'Available interfaces: {sorted(available)}'
+            )
+        return interface
+
+    def _validate_capture_filter(self, capture_filter: str) -> str:
+        """Validate BPF capture filter expression for safety."""
+        # Reject shell metacharacters that could be injected
+        dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '<', '>', '\n', '\r', '\x00']
+        for char in dangerous_chars:
+            if char in capture_filter:
+                raise ValueError(
+                    f'Invalid character {char!r} in capture filter. '
+                    'Only BPF filter expressions are allowed.'
+                )
+
+        # Enforce a reasonable length limit
+        if len(capture_filter) > 512:
+            raise ValueError('Capture filter expression is too long (max 512 characters)')
+
+        return capture_filter
+
+    def _sanitize_output_filename(self, output_file: str) -> str:
+        """Sanitize output filename using the same rules as _resolve_pcap_path."""
+        import string
+
+        # Must end with .pcap
+        if not output_file.endswith('.pcap'):
+            raise ValueError('Output filename must have a .pcap extension')
+
+        # Prevent path traversal
+        if '../' in output_file or '/..' in output_file or output_file.startswith('/'):
+            raise ValueError('Path traversal or absolute paths are not allowed in output filename')
+
+        # Only allow safe characters (no directory separators beyond a flat filename)
+        allowed_chars = string.ascii_letters + string.digits + '.-_'
+        basename = os.path.basename(output_file)
+        if not all(c in allowed_chars for c in basename):
+            raise ValueError(f'Invalid characters in output filename: {basename!r}')
+
+        return basename
+
     async def _start_packet_capture(
         self,
         interface: str,
@@ -725,12 +780,21 @@ class PCAPAnalyzerServer:
     ) -> List[TextContent]:
         """Start packet capture on specified interface."""
         try:
-            # Generate capture ID and filename
+            # Security: Validate interface against available system interfaces
+            interface = self._validate_interface(interface)
+
+            # Security: Validate BPF capture filter syntax
+            if capture_filter is not None:
+                capture_filter = self._validate_capture_filter(capture_filter)
+
+            # Generate capture ID and sanitize output filename
             capture_id = f'capture_{int(time.time())}'
             if not output_file:
                 output_file = f'{capture_id}.pcap'
 
-            output_path = os.path.join(PCAP_STORAGE_DIR, output_file)
+            # Security: Sanitize output filename (prevent path traversal)
+            safe_filename = self._sanitize_output_filename(output_file)
+            output_path = os.path.join(PCAP_STORAGE_DIR, safe_filename)
 
             # Build tshark command
             cmd = [WIRESHARK_PATH, '-i', interface, '-w', output_path]
@@ -809,9 +873,9 @@ class PCAPAnalyzerServer:
 
             # Build analysis command based on type
             if analysis_type == 'summary':
-                args = ['-r', pcap_path, '-q', '-z', 'conv,tcp', '-z', 'prot,colinfo']
+                args = ['-r', pcap_path, '-q', '-z', 'conv,tcp', '-z', 'proto,colinfo']
             elif analysis_type == 'protocols':
-                args = ['-r', pcap_path, '-q', '-z', 'prot,colinfo']
+                args = ['-r', pcap_path, '-q', '-z', 'proto,colinfo']
             elif analysis_type == 'conversations':
                 args = ['-r', pcap_path, '-q', '-z', 'conv,tcp', '-z', 'conv,udp']
             else:
