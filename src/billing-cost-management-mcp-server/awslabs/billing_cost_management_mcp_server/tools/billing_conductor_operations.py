@@ -56,7 +56,8 @@ async def list_billing_groups(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_pages: Maximum number of API pages to fetch. Each page returns
+            up to 100 results, so the default of 10 could return up to ~1000 items.
         next_token: Optional pagination token to continue from.
 
     Returns:
@@ -411,6 +412,26 @@ async def get_billing_group_cost_report(
         return await handle_aws_error(ctx, e, 'getBillingGroupCostReport', 'Billing Conductor')
 
 
+def _format_cost_report_base(report: Dict[str, Any]) -> Dict[str, Any]:
+    """Format the common fields of a billing group cost report object.
+
+    Args:
+        report: A cost report object from the Billing Conductor API.
+
+    Returns:
+        Dict with formatted common Billing Conductor cost report fields.
+    """
+    formatted: Dict[str, Any] = {
+        'arn': report.get('Arn'),
+        'aws_cost': report.get('AWSCost'),
+        'proforma_cost': report.get('ProformaCost'),
+        'margin': report.get('Margin'),
+        'margin_percentage': report.get('MarginPercentage'),
+        'currency': report.get('Currency'),
+    }
+    return formatted
+
+
 def _format_billing_group_cost_reports(
     cost_reports: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
@@ -422,27 +443,15 @@ def _format_billing_group_cost_reports(
     Returns:
         List of formatted billing group cost report objects.
     """
-    formatted_reports = []
-
-    for report in cost_reports:
-        formatted_report: Dict[str, Any] = {
-            'arn': report.get('Arn'),
-            'aws_cost': report.get('AWSCost'),
-            'proforma_cost': report.get('ProformaCost'),
-            'margin': report.get('Margin'),
-            'margin_percentage': report.get('MarginPercentage'),
-            'currency': report.get('Currency'),
-        }
-
-        formatted_reports.append(formatted_report)
-
-    return formatted_reports
+    return [_format_cost_report_base(report) for report in cost_reports]
 
 
 def _format_billing_group_cost_report_results(
     results: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     """Format billing group cost report result objects from the AWS API response.
+
+    Extends the base cost report format with Attributes when present.
 
     Args:
         results: List of billing group cost report result objects from the AWS API.
@@ -453,14 +462,7 @@ def _format_billing_group_cost_report_results(
     formatted_results = []
 
     for result in results:
-        formatted_result: Dict[str, Any] = {
-            'arn': result.get('Arn'),
-            'aws_cost': result.get('AWSCost'),
-            'proforma_cost': result.get('ProformaCost'),
-            'margin': result.get('Margin'),
-            'margin_percentage': result.get('MarginPercentage'),
-            'currency': result.get('Currency'),
-        }
+        formatted_result = _format_cost_report_base(result)
 
         if 'Attributes' in result:
             formatted_result['attributes'] = [
@@ -691,44 +693,49 @@ async def list_resources_associated_to_custom_line_item(
         )
 
 
+def _format_custom_line_item_base(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Format the common fields of a custom line item or version object.
+
+    Args:
+        item: A custom line item or version object from the AWS API.
+
+    Returns:
+        Dict with formatted common custom line item fields.
+    """
+    formatted: Dict[str, Any] = {
+        'arn': item.get('Arn'),
+        'name': item.get('Name'),
+        'description': item.get('Description'),
+        'account_id': item.get('AccountId'),
+        'billing_group_arn': item.get('BillingGroupArn'),
+        'computation_rule': item.get('ComputationRule'),
+        'currency_code': item.get('CurrencyCode'),
+        'association_size': item.get('AssociationSize'),
+        'product_code': item.get('ProductCode'),
+    }
+
+    if 'ChargeDetails' in item:
+        formatted['charge_details'] = _format_charge_details(item['ChargeDetails'])
+
+    if 'PresentationDetails' in item:
+        formatted['presentation_details'] = {
+            'service': item['PresentationDetails'].get('Service'),
+        }
+
+    if 'CreationTime' in item:
+        formatted['creation_time'] = epoch_seconds_to_utc_iso_string(item['CreationTime'])
+
+    if 'LastModifiedTime' in item:
+        formatted['last_modified_time'] = epoch_seconds_to_utc_iso_string(item['LastModifiedTime'])
+
+    return formatted
+
+
 def _format_custom_line_items(
     custom_line_items: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     """Format custom line item objects from the AWS API response."""
-    formatted_items = []
-
-    for item in custom_line_items:
-        formatted_item: Dict[str, Any] = {
-            'arn': item.get('Arn'),
-            'name': item.get('Name'),
-            'description': item.get('Description'),
-            'account_id': item.get('AccountId'),
-            'billing_group_arn': item.get('BillingGroupArn'),
-            'computation_rule': item.get('ComputationRule'),
-            'currency_code': item.get('CurrencyCode'),
-            'association_size': item.get('AssociationSize'),
-            'product_code': item.get('ProductCode'),
-        }
-
-        if 'ChargeDetails' in item:
-            formatted_item['charge_details'] = _format_charge_details(item['ChargeDetails'])
-
-        if 'PresentationDetails' in item:
-            formatted_item['presentation_details'] = {
-                'service': item['PresentationDetails'].get('Service'),
-            }
-
-        if 'CreationTime' in item:
-            formatted_item['creation_time'] = epoch_seconds_to_utc_iso_string(item['CreationTime'])
-
-        if 'LastModifiedTime' in item:
-            formatted_item['last_modified_time'] = epoch_seconds_to_utc_iso_string(
-                item['LastModifiedTime']
-            )
-
-        formatted_items.append(formatted_item)
-
-    return formatted_items
+    return [_format_custom_line_item_base(item) for item in custom_line_items]
 
 
 def _format_charge_details(charge_details: Dict[str, Any]) -> Dict[str, Any]:
@@ -781,44 +788,21 @@ def _format_line_item_filters(
 def _format_custom_line_item_versions(
     versions: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """Format custom line item version objects from the AWS API response."""
+    """Format custom line item version objects from the AWS API response.
+
+    Extends the base custom line item format with version-specific fields.
+    """
     formatted_versions = []
 
     for version in versions:
-        formatted_version: Dict[str, Any] = {
-            'arn': version.get('Arn'),
-            'name': version.get('Name'),
-            'description': version.get('Description'),
-            'account_id': version.get('AccountId'),
-            'billing_group_arn': version.get('BillingGroupArn'),
-            'computation_rule': version.get('ComputationRule'),
-            'currency_code': version.get('CurrencyCode'),
-            'association_size': version.get('AssociationSize'),
-            'product_code': version.get('ProductCode'),
-            'start_billing_period': version.get('StartBillingPeriod'),
-            'end_billing_period': version.get('EndBillingPeriod'),
-        }
+        formatted_version = _format_custom_line_item_base(version)
 
-        if 'ChargeDetails' in version:
-            formatted_version['charge_details'] = _format_charge_details(version['ChargeDetails'])
-
-        if 'PresentationDetails' in version:
-            formatted_version['presentation_details'] = {
-                'service': version['PresentationDetails'].get('Service'),
-            }
+        # CLI Version-specific fields
+        formatted_version['start_billing_period'] = version.get('StartBillingPeriod')
+        formatted_version['end_billing_period'] = version.get('EndBillingPeriod')
 
         if 'StartTime' in version:
             formatted_version['start_time'] = epoch_seconds_to_utc_iso_string(version['StartTime'])
-
-        if 'CreationTime' in version:
-            formatted_version['creation_time'] = epoch_seconds_to_utc_iso_string(
-                version['CreationTime']
-            )
-
-        if 'LastModifiedTime' in version:
-            formatted_version['last_modified_time'] = epoch_seconds_to_utc_iso_string(
-                version['LastModifiedTime']
-            )
 
         formatted_versions.append(formatted_version)
 
