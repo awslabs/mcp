@@ -159,7 +159,7 @@ For macOS/Linux:
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-core-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.core-mcp-server@latest"],
       "env": {
@@ -175,7 +175,7 @@ For Windows:
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-core-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -290,7 +290,7 @@ For Windows:
  ```json
  {
    "mcpServers": {
-     "awslabs.core-mcp-server": {
+     "awslabs-core-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.core-mcp-server@latest"],
        "env": {
@@ -312,7 +312,7 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
 ```json
 {
   "mcpServers": {
-    "awslabs.core-mcp-server": {
+    "awslabs-core-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.core-mcp-server@latest"],
       "env": {

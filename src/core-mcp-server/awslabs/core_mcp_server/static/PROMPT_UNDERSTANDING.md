@@ -24,7 +24,7 @@ When a user presents a query, follow these steps to break it down:
 #### Getting Started with AWS
 
 - **Core MCP Server**
-  - Use `awslabs.core-mcp-server` tools for:
+  - Use `awslabs-core-mcp-server` tools for:
     - prompt_understanding: Initial query analysis and guidance on using MCP servers
 
 - **AWS API MCP Server**
@@ -109,7 +109,7 @@ When a user presents a query, follow these steps to break it down:
 ##### SQL & NoSQL Databases
 
 - **Amazon DynamoDB MCP Server**
-  - Use `awslabs.dynamodb-mcp-server` for complete DynamoDB operations and table management
+  - Use `awslabs-dynamodb-mcp-server` for complete DynamoDB operations and table management
 
 - **Amazon Aurora PostgreSQL MCP Server**
   - Use `awslabs.postgres-mcp-server` for PostgreSQL database operations via RDS Data API
@@ -244,7 +244,7 @@ Map user requirements to these AWS categories and their corresponding MCP server
 - EKS (Kubernetes) → `awslabs.eks-mcp-server`
 
 #### Storage
-- DynamoDB (NoSQL data) → `awslabs.dynamodb-mcp-server`
+- DynamoDB (NoSQL data) → `awslabs-dynamodb-mcp-server`
 - Aurora Serverless v2 (relational data) → `awslabs.postgres-mcp-server`, `awslabs.mysql-mcp-server`, `awslabs.aurora-dsql-mcp-server`
 - S3 (object storage) → `awslabs.aws-api-mcp-server`, `awslabs.s3-tables-mcp-server`
 - OpenSearch Serverless (search and analytics) → `opensearch-project.opensearch-mcp-server-py`
@@ -405,7 +405,7 @@ The Core MCP Server can dynamically import other MCP servers based on role-based
 ```md
 # Understanding the user's requirements
 <use_mcp_tool>
-<server_name>awslabs.core-mcp-server</server_name>
+<server_name>awslabs-core-mcp-server</server_name>
 <tool_name>prompt_understanding</tool_name>
 <arguments>
 {}
