@@ -1,0 +1,551 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get delivery details by customer and delivery ID",
+      "entity": "Delivery",
+      "index_name": null,
+      "method_name": "get_delivery",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "order_date",
+          "type": "string"
+        },
+        {
+          "name": "delivery_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "Delivery | None"
+    },
+    "10": {
+      "consistent_read": false,
+      "description": "Get all events for a delivery",
+      "entity": "DeliveryEvent",
+      "index_name": null,
+      "method_name": "get_delivery_events",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "delivery_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "DeliveryEventRepository",
+      "return_type": "tuple[list[DeliveryEvent], dict | None]"
+    },
+    "11": {
+      "consistent_read": false,
+      "description": "Get delivery events matching a specific event type prefix",
+      "entity": "DeliveryEvent",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "event_type",
+            "function": "begins_with",
+            "param": "type_prefix"
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "get_delivery_events_by_type",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "delivery_id",
+          "type": "string"
+        },
+        {
+          "name": "type_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "DeliveryEventRepository",
+      "return_type": "tuple[list[DeliveryEvent], dict | None]"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "Get restaurant profile",
+      "entity": "Restaurant",
+      "index_name": null,
+      "method_name": "get_restaurant",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "restaurant_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "RestaurantRepository",
+      "return_type": "Restaurant | None"
+    },
+    "13": {
+      "consistent_read": false,
+      "description": "Scan restaurants filtering by cuisine type containing a keyword",
+      "entity": "Restaurant",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "cuisine_type",
+            "function": "contains",
+            "param": "cuisine_keyword"
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "scan_restaurants_by_cuisine",
+      "operation": "Scan",
+      "parameters": [
+        {
+          "name": "cuisine_keyword",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "RestaurantRepository",
+      "return_type": "tuple[list[Restaurant], dict | None]"
+    },
+    "14": {
+      "consistent_read": false,
+      "description": "Scan for active restaurants with rating above threshold",
+      "entity": "Restaurant",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "rating",
+            "operator": ">=",
+            "param": "min_rating"
+          },
+          {
+            "field": "is_active",
+            "operator": "=",
+            "param": "active_status"
+          }
+        ],
+        "logical_operator": "AND"
+      },
+      "index_name": null,
+      "method_name": "scan_high_rated_active_restaurants",
+      "operation": "Scan",
+      "parameters": [
+        {
+          "name": "min_rating",
+          "type": "decimal"
+        },
+        {
+          "default": true,
+          "name": "active_status",
+          "type": "boolean"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "RestaurantRepository",
+      "return_type": "tuple[list[Restaurant], dict | None]"
+    },
+    "15": {
+      "consistent_read": false,
+      "description": "Get driver by ID",
+      "entity": "Driver",
+      "index_name": null,
+      "method_name": "get_driver",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "driver_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "DriverRepository",
+      "return_type": "Driver | None"
+    },
+    "16": {
+      "consistent_read": false,
+      "description": "Scan drivers filtering by a skill tag and name prefix",
+      "entity": "Driver",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "tags",
+            "function": "contains",
+            "param": "skill_tag"
+          },
+          {
+            "field": "name",
+            "function": "begins_with",
+            "param": "name_prefix"
+          }
+        ],
+        "logical_operator": "AND"
+      },
+      "index_name": null,
+      "method_name": "scan_drivers_by_skill",
+      "operation": "Scan",
+      "parameters": [
+        {
+          "name": "skill_tag",
+          "type": "string"
+        },
+        {
+          "name": "name_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "DriverRepository",
+      "return_type": "tuple[list[Driver], dict | None]"
+    },
+    "17": {
+      "consistent_read": false,
+      "description": "Scan for available drivers with minimum deliveries and rating",
+      "entity": "Driver",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "is_available",
+            "operator": "=",
+            "param": "available_flag"
+          },
+          {
+            "field": "total_deliveries",
+            "operator": ">=",
+            "param": "min_deliveries"
+          },
+          {
+            "field": "rating",
+            "operator": ">=",
+            "param": "min_rating"
+          }
+        ],
+        "logical_operator": "AND"
+      },
+      "index_name": null,
+      "method_name": "scan_available_experienced_drivers",
+      "operation": "Scan",
+      "parameters": [
+        {
+          "default": true,
+          "name": "available_flag",
+          "type": "boolean"
+        },
+        {
+          "name": "min_deliveries",
+          "type": "integer"
+        },
+        {
+          "name": "min_rating",
+          "type": "decimal"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "DriverRepository",
+      "return_type": "tuple[list[Driver], dict | None]"
+    },
+    "2": {
+      "consistent_read": false,
+      "description": "Get non-cancelled deliveries for a customer with minimum total",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "status",
+            "operator": "<>",
+            "param": "excluded_status"
+          },
+          {
+            "field": "total",
+            "operator": ">=",
+            "param": "min_total"
+          }
+        ],
+        "logical_operator": "AND"
+      },
+      "index_name": null,
+      "method_name": "get_active_customer_deliveries",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "default": "CANCELLED",
+          "name": "excluded_status",
+          "type": "string"
+        },
+        {
+          "name": "min_total",
+          "type": "decimal"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "Get deliveries for a customer within a delivery fee range",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "delivery_fee",
+            "operator": "between",
+            "param": "min_fee",
+            "param2": "max_fee"
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "get_customer_deliveries_by_fee_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "min_fee",
+          "type": "decimal"
+        },
+        {
+          "name": "max_fee",
+          "type": "decimal"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get deliveries for a customer matching specific statuses",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "status",
+            "operator": "in",
+            "params": [
+              "status1",
+              "status2",
+              "status3"
+            ]
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "get_customer_deliveries_by_status",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "status1",
+          "type": "string"
+        },
+        {
+          "name": "status2",
+          "type": "string"
+        },
+        {
+          "name": "status3",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "5": {
+      "consistent_read": false,
+      "description": "Get deliveries that have special instructions and are not cancelled",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "special_instructions",
+            "function": "attribute_exists"
+          },
+          {
+            "field": "cancelled_at",
+            "function": "attribute_not_exists"
+          }
+        ],
+        "logical_operator": "AND"
+      },
+      "index_name": null,
+      "method_name": "get_deliveries_with_special_instructions",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get deliveries with more than a minimum number of items",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "items",
+            "function": "size",
+            "operator": ">",
+            "param": "min_items"
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "get_deliveries_with_min_items",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "min_items",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "7": {
+      "consistent_read": false,
+      "description": "Get deliveries with item count within a range",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "items",
+            "function": "size",
+            "operator": "between",
+            "param": "min_count",
+            "param2": "max_count"
+          }
+        ]
+      },
+      "index_name": null,
+      "method_name": "get_deliveries_with_items_in_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "min_count",
+          "type": "integer"
+        },
+        {
+          "name": "max_count",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "8": {
+      "consistent_read": false,
+      "description": "Get active deliveries with high total or generous tip",
+      "entity": "Delivery",
+      "filter_expression": {
+        "conditions": [
+          {
+            "field": "total",
+            "operator": ">=",
+            "param": "min_total"
+          },
+          {
+            "field": "tip",
+            "operator": ">=",
+            "param": "min_tip"
+          }
+        ],
+        "logical_operator": "OR"
+      },
+      "index_name": null,
+      "method_name": "get_high_value_active_deliveries",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "customer_id",
+          "type": "string"
+        },
+        {
+          "name": "min_total",
+          "type": "decimal"
+        },
+        {
+          "name": "min_tip",
+          "type": "decimal"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "tuple[list[Delivery], dict | None]"
+    },
+    "9": {
+      "description": "Create a new delivery",
+      "entity": "Delivery",
+      "index_name": null,
+      "method_name": "put_delivery",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Delivery",
+          "name": "delivery",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "DeliveryRepository",
+      "return_type": "Delivery | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 17
+  }
+}
