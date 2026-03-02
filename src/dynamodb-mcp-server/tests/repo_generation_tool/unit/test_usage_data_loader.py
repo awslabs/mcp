@@ -3,6 +3,7 @@
 import json
 import pytest
 import tempfile
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core import file_utils
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.usage_data_loader import (
     UsageDataLoader,
 )
@@ -314,3 +315,67 @@ class TestUsageDataLoader:
         assert loader.get_all_usage_data() == {}
         assert loader.get_entity_sample_data('User') == {}
         assert loader.get_entity_update_data('User') == {}
+
+    def test_get_filter_value_entity_not_in_data(self, temp_usage_file):
+        """Test get_filter_value_for_param when entity_name not in usage data."""
+        loader = UsageDataLoader(temp_usage_file)
+        result = loader.get_filter_value_for_param('some_param', 'string', 'NonExistentEntity')
+        assert result is None
+
+    def test_get_filter_value_param_not_in_filter_values(self, temp_usage_file):
+        """Test get_filter_value_for_param when param not in filter_values."""
+        loader = UsageDataLoader(temp_usage_file)
+        # 'User' entity exists but has no filter_values section
+        result = loader.get_filter_value_for_param('nonexistent_param', 'string', 'User')
+        assert result is None
+
+    def test_get_filter_value_no_entity_name(self, temp_usage_file):
+        """Test get_filter_value_for_param without entity_name returns None."""
+        loader = UsageDataLoader(temp_usage_file)
+        result = loader.get_filter_value_for_param('some_param', 'string', entity_name=None)
+        assert result is None
+
+    def test_get_filter_value_with_filter_values_section(self, tmp_path):
+        """Test get_filter_value_for_param returns formatted value from filter_values."""
+        usage_data = {
+            'entities': {
+                'Order': {
+                    'sample_data': {'order_id': 'ord-001'},
+                    'access_pattern_data': {'order_id': 'ord-002'},
+                    'update_data': {'status': 'SHIPPED'},
+                    'filter_values': {
+                        'excluded_status': 'CANCELLED',
+                        'min_total': 25.0,
+                    },
+                }
+            }
+        }
+        usage_file = tmp_path / 'usage.json'
+        usage_file.write_text(json.dumps(usage_data))
+        formatter = PythonUsageDataFormatter()
+        loader = UsageDataLoader(str(usage_file), formatter=formatter)
+
+        result = loader.get_filter_value_for_param('excluded_status', 'string', 'Order')
+        assert result == '"CANCELLED"'
+
+        result = loader.get_filter_value_for_param('min_total', 'decimal', 'Order')
+        assert result is not None  # formatted decimal value
+
+    def test_get_filter_value_without_formatter(self):
+        """Test get_filter_value_for_param returns None when no formatter."""
+        loader = UsageDataLoader()  # No path, no formatter
+        result = loader.get_filter_value_for_param('param', 'string', 'Entity')
+        assert result is None
+
+    def test_load_usage_data_unexpected_error(self, tmp_path):
+        """Test _load_usage_data handles unexpected exceptions (except Exception branch)."""
+        usage_file = tmp_path / 'usage.json'
+        usage_file.write_text('{}')
+
+        with patch.object(
+            file_utils.FileUtils, 'load_json_file', side_effect=RuntimeError('unexpected')
+        ):
+            loader = UsageDataLoader(str(usage_file))
+
+        assert loader.usage_data == {}
+        assert not loader.has_data()

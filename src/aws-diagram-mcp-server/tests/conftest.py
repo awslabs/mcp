@@ -144,8 +144,7 @@ def example_diagrams() -> Dict[str, str]:
 """,
         DiagramType.CUSTOM: """# Define a custom icon
 rabbitmq_url = "https://jpadilla.github.io/rabbitmqapp/assets/img/icon.png"
-rabbitmq_icon = "rabbitmq.png"
-urlretrieve(rabbitmq_url, rabbitmq_icon)
+rabbitmq_icon, _ = urlretrieve(rabbitmq_url, "rabbitmq.png")
 
 with Diagram("Custom Example", show=False):
     queue = Custom("Message queue", rabbitmq_icon)

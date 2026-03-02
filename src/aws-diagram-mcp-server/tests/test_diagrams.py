@@ -407,6 +407,237 @@ class TestGenerateDiagram:
         )
 
 
+class TestNamespaceRCEPrevention:
+    """Tests verifying the execution namespace does not contain dangerous modules.
+
+    These tests validate the fix for the variable aliasing RCE vulnerability
+    (CVSS 10.0) where attackers could bypass the static scanner by aliasing
+    pre-imported modules (e.g., x = os; x.system('calc.exe')).
+    """
+
+    @pytest.mark.asyncio
+    async def test_os_alias_rce_blocked(self, temp_workspace_dir):
+        """PoC from security report: os module aliasing must fail at runtime."""
+        code = """x = os\nx.system('echo test')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_os_alias_rce',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        # Should fail because os is not in the namespace (NameError)
+        # or be caught by the scanner
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_os_popen_alias_rce_blocked(self, temp_workspace_dir):
+        """os.popen via aliasing must fail at runtime."""
+        code = """x = os\nx.popen('echo test')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_os_popen_alias_rce',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_diagrams_module_os_leak_blocked(self, temp_workspace_dir):
+        """Bare 'diagrams' module must not leak os via diagrams.os attribute."""
+        code = """x = diagrams.os\nx.system('echo test')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_diagrams_os_leak',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_function_extraction_rce_blocked(self, temp_workspace_dir):
+        """Extracting os.system to a variable must fail at runtime."""
+        code = """f = os.system\nf('echo test')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_func_extract_rce',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_legitimate_diagram_still_works(self, aws_diagram_code, temp_workspace_dir):
+        """Ensure the fix doesn't break legitimate diagram generation."""
+        result = await generate_diagram(
+            code=aws_diagram_code,
+            filename='test_legit_after_fix',
+            workspace_dir=temp_workspace_dir,
+        )
+        # Skip if Graphviz not installed
+        if result.status == 'error' and (
+            'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+        ):
+            pytest.skip('Graphviz not installed, skipping test')
+        assert result.status == 'success'
+        assert result.path is not None
+        assert os.path.exists(result.path)
+
+    @pytest.mark.asyncio
+    async def test_builtins_import_blocked(self, temp_workspace_dir):
+        """__builtins__['__import__'] must not be accessible in user code."""
+        code = """m = __builtins__['__import__']('os')\nm.system('echo test')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_builtins_import',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_builtins_restricted_still_works(self, aws_diagram_code, temp_workspace_dir):
+        """Verify restricted __builtins__ still allows legitimate diagram generation."""
+        result = await generate_diagram(
+            code=aws_diagram_code,
+            filename='test_builtins_safe',
+            workspace_dir=temp_workspace_dir,
+        )
+        if result.status == 'error' and (
+            'executablenotfound' in result.message.lower() or 'dot' in result.message.lower()
+        ):
+            pytest.skip('Graphviz not installed, skipping test')
+        assert result.status == 'success'
+        assert result.path is not None
+        assert os.path.exists(result.path)
+
+    @pytest.mark.asyncio
+    async def test_urlretrieve_path_traversal_blocked(self, temp_workspace_dir):
+        """Verify urlretrieve does not allow path traversal in filename."""
+        code = """urlretrieve('https://example.com/icon.png', '/etc/cron.d/backdoor.png')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_urlretrieve_traversal',
+            workspace_dir=temp_workspace_dir,
+        )
+        # Should either error (no Diagram block) or download to temp dir only.
+        # The path traversal (/etc/cron.d/) is stripped to just 'backdoor.png'.
+        assert result.status == 'error'
+
+    @pytest.mark.asyncio
+    async def test_urlretrieve_non_image_blocked(self, temp_workspace_dir):
+        """Verify urlretrieve rejects non-image file extensions."""
+        code = """urlretrieve('https://example.com/payload.py', 'payload.py')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_urlretrieve_extension',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_urlretrieve_ftp_scheme_blocked(self, temp_workspace_dir):
+        """Verify urlretrieve rejects non-HTTP schemes."""
+        code = """urlretrieve('ftp://evil.com/backdoor.png', 'backdoor.png')"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_urlretrieve_scheme',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+
+class TestSafeUrlretrieve:
+    """Unit tests for the _safe_urlretrieve function."""
+
+    def test_rejects_ftp_scheme(self):
+        """Reject non-HTTP URL schemes."""
+        from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+        with pytest.raises(ValueError, match='Only http/https URLs are allowed'):
+            _safe_urlretrieve('ftp://evil.com/icon.png', 'icon.png')
+
+    def test_rejects_file_scheme(self):
+        """Reject file:// URL scheme."""
+        from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+        with pytest.raises(ValueError, match='Only http/https URLs are allowed'):
+            _safe_urlretrieve('file:///etc/passwd', 'passwd.png')
+
+    def test_rejects_non_image_extension(self):
+        """Reject non-image file extensions."""
+        from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+        with pytest.raises(ValueError, match='Only image files are allowed'):
+            _safe_urlretrieve('https://example.com/payload.py', 'payload.py')
+
+    def test_rejects_no_extension(self):
+        """Reject files without an extension."""
+        from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+        with pytest.raises(ValueError, match='Only image files are allowed'):
+            _safe_urlretrieve('https://example.com/payload', 'payload')
+
+    def test_strips_path_traversal(self):
+        """Path traversal components are stripped to basename only."""
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            return_value=('/tmp/fake', {}),
+        ) as mock_retrieve:
+            from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+            path, _ = _safe_urlretrieve('https://example.com/icon.png', '../../etc/icon.png')
+            # The download path must use only the basename, not the traversal path
+            assert os.path.basename(path) == 'icon.png'
+            assert '/etc/' not in path
+            assert '../../' not in path
+            mock_retrieve.assert_called_once()
+
+    def test_rejects_empty_filename(self):
+        """Reject empty filename."""
+        from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+        with pytest.raises(ValueError, match='Filename cannot be empty'):
+            _safe_urlretrieve('https://example.com/icon.png', '/')
+
+    def test_accepts_valid_image_extensions(self):
+        """Valid image extensions pass validation and reach the download call."""
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            return_value=('/tmp/fake', {}),
+        ) as mock_retrieve:
+            from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+            for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.bmp', '.webp']:
+                _safe_urlretrieve(f'https://example.com/icon{ext}', f'icon{ext}')
+            assert mock_retrieve.call_count == 8
+
+    def test_downloads_to_unique_temp_dir(self):
+        """Each call downloads to a unique temp directory."""
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            return_value=('/tmp/fake', {}),
+        ):
+            from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+            path1, _ = _safe_urlretrieve('https://example.com/a.png', 'a.png')
+            path2, _ = _safe_urlretrieve('https://example.com/b.png', 'b.png')
+            # Each invocation should use a different temp directory
+            assert os.path.dirname(path1) != os.path.dirname(path2)
+
+    def test_uses_url_basename_when_filename_omitted(self):
+        """Filename defaults to URL path basename when not provided."""
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            return_value=('/tmp/fake', {}),
+        ):
+            from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
+
+            path, _ = _safe_urlretrieve('https://example.com/my-icon.png')
+            assert os.path.basename(path) == 'my-icon.png'
+
+
 class TestCrossPlatformTimeout:
     """Tests for cross-platform timeout handling in generate_diagram."""
 
