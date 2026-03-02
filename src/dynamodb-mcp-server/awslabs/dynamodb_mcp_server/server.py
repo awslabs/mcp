@@ -17,6 +17,15 @@ import os
 from awslabs.aws_api_mcp_server.server import call_aws
 from awslabs.dynamodb_mcp_server.cdk_generator.generator import CdkGenerator
 from awslabs.dynamodb_mcp_server.common import handle_exceptions
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.calculator_runner import (
+    run_cost_calculator,
+)
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.data_model import (
+    AccessPattern,
+    DataModel,
+    Table,
+    format_validation_errors,
+)
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.db_analyzer.plugin_registry import PluginRegistry
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
@@ -28,8 +37,9 @@ from awslabs.dynamodb_mcp_server.model_validation_utils import (
 from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from pathlib import Path
-from pydantic import Field
+from pydantic import Field, ValidationError
 from typing import Any, Dict, List, Optional
 
 
@@ -102,6 +112,14 @@ Use the `generate_data_access_layer` tool to generate code from schema.json:
 - Implements all access patterns from schema
 - Creates usage examples and test cases
 - Returns implementation guidance for Python (TypeScript, Java support planned)
+
+Use the `compute_performances_and_costs` tool to calculate DynamoDB capacity and costs:
+- Analyzes access patterns to compute Read/Write Capacity Units (RCU/WCU)
+- Calculates monthly costs for on-demand pricing
+- Supports all DynamoDB operations (GetItem, Query, Scan, Batch, Transactions, etc.)
+- Tracks GSI additional writes for accurate cost projections
+- Optional storage cost calculation when table definitions provided
+- Returns comprehensive markdown report with capacity requirements and cost breakdown
 """
 
 
@@ -114,6 +132,20 @@ def create_server():
 
 
 app = create_server()
+
+_original_call_tool = app.call_tool
+
+
+async def _call_tool_with_formatted_errors(name, arguments):
+    try:
+        return await _original_call_tool(name, arguments)
+    except ToolError as e:
+        if name == 'compute_performances_and_costs' and isinstance(e.__cause__, ValidationError):
+            raise ToolError(format_validation_errors(e.__cause__)) from e.__cause__
+        raise
+
+
+app.call_tool = _call_tool_with_formatted_errors
 
 
 @app.tool()
@@ -556,9 +588,11 @@ async def dynamodb_data_model_validation(
             guide_path = Path(__file__).parent / 'prompts' / 'json_generation_guide.md'
             try:
                 json_guide = guide_path.read_text(encoding='utf-8')
-                return f"""Error: {data_model_path} not found in your working directory.
-
-{json_guide}"""
+                # Use string concatenation to avoid f-string interpreting {} in markdown
+                return (
+                    f'Error: {data_model_path} not found in your working directory.\n\n'
+                    + json_guide
+                )
             except FileNotFoundError:
                 return f'Error: {data_model_path} not found. Please generate your data model with dynamodb_data_modeling tool first.'
 
@@ -604,6 +638,110 @@ async def dynamodb_data_model_validation(
     except Exception as e:
         logger.error(f'Data model validation failed: {e}')
         return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
+
+
+@app.tool()
+@handle_exceptions
+async def compute_performances_and_costs(
+    access_pattern_list: List[AccessPattern] = Field(
+        description='List of access patterns with operation details (required)'
+    ),
+    table_list: List[Table] = Field(
+        description='List of table definitions for storage cost calculation (required)',
+    ),
+    workspace_dir: str = Field(
+        description='Absolute path of the workspace directory (required). Cost analysis will be appended to dynamodb_data_model.md',
+    ),
+) -> Dict[str, str]:
+    """Calculate DynamoDB capacity units and monthly costs from access patterns.
+
+    Call after completing data model design. Extracts patterns from Access Pattern Mapping
+    table and tables from Table Designs section in dynamodb_data_model.md.
+
+    Args:
+        access_pattern_list: Access patterns with fields:
+            - operation: GetItem|Query|Scan|PutItem|UpdateItem|DeleteItem|BatchGetItem|BatchWriteItem|TransactGetItems|TransactWriteItems
+            - pattern, description, table, rps (>0), item_size_bytes (1-409600)
+            - item_count: required for Query/Scan/Batch/Transact operations (>0)
+            - strongly_consistent: optional for GetItem/Query/Scan/BatchGetItem (default: false)
+            - gsi: optional for Query/Scan (target index name)
+            - gsi_list: optional for write operations (affected index names)
+        table_list: Tables with name, item_count (>0), item_size_bytes (1-409600), gsi_list (each GSI needs name, item_count, item_size_bytes)
+        workspace_dir: Absolute path to the folder containing dynamodb_data_model.md - report will be appended
+
+    Returns:
+        {'status': 'success', 'message': <success_message>} or {'status': 'error', 'message': <error_reason>}
+
+    Example:
+        {
+          "access_pattern_list": [
+            {
+              "operation": "GetItem",
+              "pattern": "get-user",
+              "description": "Get user by ID",
+              "table": "users",
+              "rps": 100,
+              "item_size_bytes": 2000
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-by-email",
+              "description": "Query user by email",
+              "table": "users",
+              "rps": 50,
+              "item_size_bytes": 1500,
+              "item_count": 1,
+              "gsi": "email-index"
+            },
+            {
+              "operation": "PutItem",
+              "pattern": "put-user",
+              "description": "Create user",
+              "table": "users",
+              "rps": 20,
+              "item_size_bytes": 2000,
+              "gsi_list": ["email-index", "status-index"]
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-orders",
+              "description": "Query user orders",
+              "table": "orders",
+              "rps": 50,
+              "item_size_bytes": 800,
+              "item_count": 10
+            }
+          ],
+          "table_list": [
+            {
+              "name": "users",
+              "item_size_bytes": 2500,
+              "item_count": 10000,
+              "gsi_list": [
+                {"name": "email-index", "item_size_bytes": 1500, "item_count": 10000},
+                {"name": "status-index", "item_size_bytes": 500, "item_count": 10000}
+              ]
+            },
+            {
+              "name": "orders",
+              "item_size_bytes": 1024,
+              "item_count": 50000
+            }
+          ],
+          "workspace_dir": "/absolute/path/to/workspace"
+        }
+    """
+    try:
+        data_model = DataModel(
+            access_pattern_list=access_pattern_list,
+            table_list=table_list,
+        )
+    except ValidationError as e:
+        return {'status': 'error', 'message': format_validation_errors(e)}
+
+    summary = run_cost_calculator(data_model, workspace_dir)
+
+    return {'status': 'success', 'message': summary}
 
 
 @app.tool()

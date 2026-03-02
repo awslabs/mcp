@@ -38,6 +38,18 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     package_workflow,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
+from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
+    create_run_cache,
+    get_run_cache,
+    list_run_caches,
+    update_run_cache,
+)
+from awslabs.aws_healthomics_mcp_server.tools.run_group import (
+    create_run_group,
+    get_run_group,
+    list_run_groups,
+    update_run_group,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import diagnose_run_failure
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
@@ -90,6 +102,18 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHORun**: Get details about a specific run
 - **ListAHORunTasks**: List tasks for a specific run
 - **GetAHORunTask**: Get details about a specific task
+
+### Run Group Management
+- **CreateAHORunGroup**: Create a new run group to limit compute resources for workflow runs
+- **GetAHORunGroup**: Get details of a specific run group including resource limits and tags
+- **ListAHORunGroups**: List available run groups with optional name filtering
+- **UpdateAHORunGroup**: Update an existing run group's name or resource limits
+
+### Run Cache Management
+- **CreateAHORunCache**: Create a new run cache to store intermediate workflow outputs and accelerate subsequent runs
+- **GetAHORunCache**: Get details of a specific run cache including configuration and status
+- **ListAHORunCaches**: List available run caches with optional filtering by name, status, or cache behavior
+- **UpdateAHORunCache**: Update an existing run cache's behavior, name, or description
 
 ### Workflow Analysis
 - **GetAHORunLogs**: Retrieve high-level run logs showing workflow execution events
@@ -154,6 +178,18 @@ mcp.tool(name='ListAHORuns')(list_runs)
 mcp.tool(name='GetAHORun')(get_run)
 mcp.tool(name='ListAHORunTasks')(list_run_tasks)
 mcp.tool(name='GetAHORunTask')(get_run_task)
+
+# Register run group tools
+mcp.tool(name='CreateAHORunGroup')(create_run_group)
+mcp.tool(name='GetAHORunGroup')(get_run_group)
+mcp.tool(name='ListAHORunGroups')(list_run_groups)
+mcp.tool(name='UpdateAHORunGroup')(update_run_group)
+
+# Register run cache tools
+mcp.tool(name='CreateAHORunCache')(create_run_cache)
+mcp.tool(name='GetAHORunCache')(get_run_cache)
+mcp.tool(name='ListAHORunCaches')(list_run_caches)
+mcp.tool(name='UpdateAHORunCache')(update_run_cache)
 
 # Register workflow analysis tools
 mcp.tool(name='GetAHORunLogs')(get_run_logs)
