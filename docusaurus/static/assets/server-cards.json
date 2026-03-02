@@ -1061,6 +1061,9 @@
         "cost-analysis",
         "cost-optimization",
         "budgets",
+        "proforma-cost",
+        "chargeback",
+        "showback",
         "conversational",
         "business-services",
         "free-tier"
