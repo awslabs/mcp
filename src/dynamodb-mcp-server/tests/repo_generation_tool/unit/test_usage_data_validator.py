@@ -2,12 +2,14 @@
 
 import json
 import pytest
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core import file_utils
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.usage_data_validator import (
     UsageDataValidator,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
     ValidationResult,
 )
+from unittest.mock import patch
 
 
 @pytest.mark.unit
@@ -395,3 +397,87 @@ class TestUsageDataValidator:
 
         assert not result.is_valid
         assert any("Unknown section 'unknown_section'" in error.message for error in result.errors)
+
+    def test_validate_non_json_value_error(
+        self, validator, schema_entities, entity_fields, tmp_path
+    ):
+        """Test validation with a file that raises ValueError (non-JSON error path, line 70)."""
+        usage_file = tmp_path / 'bad.json'
+        usage_file.write_text('{"entities": {}}')
+
+        with patch.object(
+            file_utils.FileUtils, 'load_json_file', side_effect=ValueError('bad value')
+        ):
+            result = validator.validate_usage_data_file(
+                str(usage_file), schema_entities, entity_fields
+            )
+        assert not result.is_valid
+
+    def test_validate_empty_entities_dict(
+        self, validator, schema_entities, entity_fields, tmp_path
+    ):
+        """Test validation when entities dict is present but empty (lines 123-126)."""
+        usage_data = {'entities': {}}
+        usage_file = tmp_path / 'empty_entities.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        result = validator.validate_usage_data_file(
+            str(usage_file), schema_entities, entity_fields
+        )
+        assert not result.is_valid
+        assert any('cannot be empty' in error.message for error in result.errors)
+
+    def test_filter_values_section_not_dict(
+        self, validator, schema_entities, entity_fields, tmp_path
+    ):
+        """Test validation when filter_values section is not a dict (lines 196-197)."""
+        usage_data = {
+            'entities': {
+                'User': {
+                    'sample_data': {'user_id': 'user-123', 'username': 'testuser'},
+                    'access_pattern_data': {'user_id': 'sample_user_id'},
+                    'update_data': {'username': 'updated_user'},
+                    'filter_values': 'not_a_dict',  # Should be a dict
+                },
+                'Deal': {
+                    'sample_data': {'deal_id': 'deal-456', 'title': 'Test Deal'},
+                    'access_pattern_data': {'deal_id': 'sample_deal_id'},
+                    'update_data': {'title': 'Updated Deal Title'},
+                },
+            }
+        }
+        usage_file = tmp_path / 'bad_filter_values.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        result = validator.validate_usage_data_file(
+            str(usage_file), schema_entities, entity_fields
+        )
+        assert not result.is_valid
+        assert any('must be an object' in error.message for error in result.errors)
+
+    def test_filter_values_section_valid_dict_passes(
+        self, validator, schema_entities, entity_fields, tmp_path
+    ):
+        """Test that a valid filter_values dict section passes validation (branch 196->189)."""
+        usage_data = {
+            'entities': {
+                'User': {
+                    'sample_data': {'user_id': 'user-123', 'username': 'testuser'},
+                    'access_pattern_data': {'user_id': 'sample_user_id'},
+                    'update_data': {'username': 'updated_user'},
+                    'filter_values': {'excluded_status': 'CANCELLED', 'min_total': 25.0},
+                },
+                'Deal': {
+                    'sample_data': {'deal_id': 'deal-456', 'title': 'Test Deal'},
+                    'access_pattern_data': {'deal_id': 'sample_deal_id'},
+                    'update_data': {'title': 'Updated Deal Title'},
+                },
+            }
+        }
+        usage_file = tmp_path / 'valid_filter_values.json'
+        usage_file.write_text(json.dumps(usage_data))
+
+        result = validator.validate_usage_data_file(
+            str(usage_file), schema_entities, entity_fields
+        )
+        assert result.is_valid

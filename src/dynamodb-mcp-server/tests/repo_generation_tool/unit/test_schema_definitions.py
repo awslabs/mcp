@@ -2,9 +2,13 @@
 
 import pytest
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
+    VALID_FILTER_FUNCTIONS,
+    VALID_FILTER_LOGICAL_OPERATORS,
+    VALID_FILTER_OPERATORS,
     DynamoDBOperation,
     DynamoDBType,
     FieldType,
+    FilterCondition,
     GSIProjectionType,
     ParameterType,
     RangeCondition,
@@ -132,3 +136,104 @@ class TestFieldValidationHelpers:
         errors = validate_data_type(123, str, 'test.field', 'name')
         assert len(errors) == 1
         assert 'must be str, got int' in errors[0].message
+
+
+@pytest.mark.unit
+class TestFilterConditionDataclass:
+    """Unit tests for FilterCondition dataclass and filter expression constants."""
+
+    def test_filter_condition_comparison(self):
+        """Test FilterCondition with comparison operator."""
+        fc = FilterCondition(field='status', operator='<>', param='excluded_status')
+        assert fc.field == 'status'
+        assert fc.operator == '<>'
+        assert fc.param == 'excluded_status'
+        assert fc.function is None
+        assert fc.param2 is None
+        assert fc.params is None
+
+    def test_filter_condition_between(self):
+        """Test FilterCondition with between operator."""
+        fc = FilterCondition(
+            field='price', operator='between', param='min_price', param2='max_price'
+        )
+        assert fc.operator == 'between'
+        assert fc.param == 'min_price'
+        assert fc.param2 == 'max_price'
+
+    def test_filter_condition_in(self):
+        """Test FilterCondition with in operator."""
+        fc = FilterCondition(field='status', operator='in', params=['s1', 's2', 's3'])
+        assert fc.operator == 'in'
+        assert fc.params == ['s1', 's2', 's3']
+
+    def test_filter_condition_contains(self):
+        """Test FilterCondition with contains function."""
+        fc = FilterCondition(field='tags', function='contains', param='tag_val')
+        assert fc.function == 'contains'
+        assert fc.param == 'tag_val'
+        assert fc.operator is None
+
+    def test_filter_condition_begins_with(self):
+        """Test FilterCondition with begins_with function."""
+        fc = FilterCondition(field='name', function='begins_with', param='prefix')
+        assert fc.function == 'begins_with'
+        assert fc.param == 'prefix'
+
+    def test_filter_condition_attribute_exists(self):
+        """Test FilterCondition with attribute_exists function (no param)."""
+        fc = FilterCondition(field='email_verified', function='attribute_exists')
+        assert fc.function == 'attribute_exists'
+        assert fc.param is None
+        assert fc.param2 is None
+        assert fc.params is None
+
+    def test_filter_condition_attribute_not_exists(self):
+        """Test FilterCondition with attribute_not_exists function (no param)."""
+        fc = FilterCondition(field='deleted_at', function='attribute_not_exists')
+        assert fc.function == 'attribute_not_exists'
+        assert fc.param is None
+
+    def test_filter_condition_size_comparison(self):
+        """Test FilterCondition with size function and comparison operator."""
+        fc = FilterCondition(field='items', function='size', operator='>', param='min_items')
+        assert fc.function == 'size'
+        assert fc.operator == '>'
+        assert fc.param == 'min_items'
+
+    def test_filter_condition_size_between(self):
+        """Test FilterCondition with size function and between operator."""
+        fc = FilterCondition(
+            field='items', function='size', operator='between', param='min_c', param2='max_c'
+        )
+        assert fc.function == 'size'
+        assert fc.operator == 'between'
+        assert fc.param == 'min_c'
+        assert fc.param2 == 'max_c'
+
+    def test_filter_condition_minimal(self):
+        """Test FilterCondition with only required field."""
+        fc = FilterCondition(field='test_field')
+        assert fc.field == 'test_field'
+        assert fc.operator is None
+        assert fc.function is None
+        assert fc.param is None
+        assert fc.param2 is None
+        assert fc.params is None
+
+    def test_valid_filter_operators_constant(self):
+        """Test VALID_FILTER_OPERATORS contains all expected operators."""
+        expected = {'=', '<>', '<', '<=', '>', '>=', 'between', 'in'}
+        assert VALID_FILTER_OPERATORS == expected
+        assert isinstance(VALID_FILTER_OPERATORS, frozenset)
+
+    def test_valid_filter_functions_constant(self):
+        """Test VALID_FILTER_FUNCTIONS contains all expected functions."""
+        expected = {'contains', 'begins_with', 'attribute_exists', 'attribute_not_exists', 'size'}
+        assert VALID_FILTER_FUNCTIONS == expected
+        assert isinstance(VALID_FILTER_FUNCTIONS, frozenset)
+
+    def test_valid_filter_logical_operators_constant(self):
+        """Test VALID_FILTER_LOGICAL_OPERATORS contains AND and OR."""
+        assert VALID_FILTER_LOGICAL_OPERATORS == {'AND', 'OR'}
+        assert isinstance(VALID_FILTER_LOGICAL_OPERATORS, frozenset)

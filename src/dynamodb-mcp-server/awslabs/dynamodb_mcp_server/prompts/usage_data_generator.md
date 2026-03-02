@@ -42,6 +42,7 @@ You MUST generate a valid JSON file that conforms to the usage data format. The 
 - `sample_data`: Values for CRUD operations (create, update, get, delete)
 - `access_pattern_data`: Values for PutItem access pattern operations with DIFFERENT partition keys to avoid conflicts
 - `update_data`: Modified values for update operations (all non-key fields)
+- `filter_values` (optional): Sample values for filter expression parameters when access patterns use `filter_expression`
 
 ## Value Formatting Rules
 
@@ -142,6 +143,37 @@ Do NOT add language-specific syntax. The code generator handles type conversion.
         "status": "REFUNDED"
       }
     }
+  }
+}
+```
+
+## Filter Values Generation
+
+If the schema contains access patterns with `filter_expression`, generate a `filter_values` section for each entity that has filtered access patterns:
+
+1. Extract all `param`, `param2`, and `params` names from filter conditions
+2. Generate realistic values based on:
+   - Field type (string, decimal, integer, boolean)
+   - Operator context (thresholds for `>=`, exclusion values for `<>`)
+   - Domain knowledge from entity context
+3. Use `default` from the parameter definition if provided
+
+**Examples**:
+- For `"operator": ">="` on a price field → generate threshold like `50.00`
+- For `"operator": "<>"` on status field → generate exclusion value like `"CANCELLED"`
+- For `"function": "contains"` on tags → generate search term like `"featured"`
+- For `"operator": "between"` on fee field → generate min/max like `3.00` and `10.00`
+- For `"operator": "in"` on status field → generate matching values like `"PENDING"`, `"ACTIVE"`
+
+**Example filter_values section**:
+```json
+{
+  "filter_values": {
+    "excluded_status": "CANCELLED",
+    "min_total": 25.00,
+    "min_fee": 3.00,
+    "max_fee": 10.00,
+    "skill_tag": "express"
   }
 }
 ```
