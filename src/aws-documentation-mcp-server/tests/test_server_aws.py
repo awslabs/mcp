@@ -438,6 +438,25 @@ Content here.
                 mock_get.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_read_sections_non_404_error(self):
+        """Test read_sections with non-404 HTTP error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Failed to fetch' in result
+            assert 'status code 500' in result
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_read_sections_end_to_end_workflow(self):
         """Test complete end-to-end workflow from URL to filtered markdown."""
         url = 'https://docs.aws.amazon.com/s3/latest/userguide/test.html'

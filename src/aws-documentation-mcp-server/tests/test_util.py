@@ -678,8 +678,25 @@ More content here.
         assert '# Another Section' not in result
         assert 'Other content.' not in result
 
-    def test_no_sections_found(self):
-        """Test when no requested sections exist."""
+    def test_no_sections_found_with_level2_headings(self):
+        """Test when no sections match but document has level 2 headings."""
+        markdown = """# Introduction
+Intro content.
+
+## Subsection A
+Content A.
+
+## Subsection B
+Content B.
+"""
+        result = extract_sections_from_markdown(markdown, ['Nonexistent Section'])
+        assert '**Alert**: No matching sections were found' in result
+        assert 'Available sections:' in result
+        assert '"Subsection A"' in result
+        assert '"Subsection B"' in result
+
+    def test_no_sections_found_without_level2_headings(self):
+        """Test when no sections match and no level 2 headings exist."""
         markdown = """# Introduction
 This is the intro.
 

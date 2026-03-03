@@ -468,14 +468,6 @@ async def search_documentation(
                                 if isinstance(section_data, str) and section_data != '':
                                     sections.append(section_data)
                                     logger.debug(f'Added section: {section_data}')
-                                else:
-                                    logger.debug(
-                                        f'Skipping invalid section (expected non-empty string): {section_data}'
-                                    )
-                        else:
-                            logger.warning(
-                                f'Sections data is not a list for {title}: {url}, type: {type(sections_data)}, value: {sections_data}'
-                            )
                     except (TypeError, KeyError) as e:
                         logger.error(f'Error processing sections for {title}: {url}, {e}')
                 else:
