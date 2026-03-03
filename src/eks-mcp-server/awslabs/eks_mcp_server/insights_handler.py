@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Insights handler for the EKS MCP Server."""
+"""Insights handler for the EKS MCP Server.
+
+This module provides tools for retrieving and analyzing EKS cluster insights,
+with support for multi-region and multi-account operations.
+"""
 
 import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     EksInsightItem,
@@ -53,8 +58,19 @@ class InsightsHandler:
         # Register tools
         self.mcp.tool(name='get_eks_insights')(self.get_eks_insights)
 
-        # Initialize AWS clients
-        self.eks_client = AwsHelper.create_boto3_client('eks')
+    def _get_eks_client(self, cluster_name: str):
+        """Get an EKS client with appropriate credentials.
+
+        Args:
+            cluster_name: Cluster name to look up configuration
+
+        Returns:
+            EKS boto3 client
+        """
+        cluster_config = ConfigManager.get_cluster(cluster_name)
+        if cluster_config:
+            return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'eks')
+        return AwsHelper.create_boto3_client('eks')
 
     # EKS Insights tool
     async def get_eks_insights(
@@ -132,8 +148,8 @@ class InsightsHandler:
     ) -> CallToolResult:
         """Internal implementation of get_eks_insights."""
         try:
-            # Always use the default EKS client
-            eks_client = self.eks_client
+            # Get EKS client with appropriate credentials
+            eks_client = self._get_eks_client(cluster_name)
 
             # Determine operation mode based on whether insight_id is provided
             detail_mode = insight_id is not None
@@ -267,7 +283,9 @@ class InsightsHandler:
             # Add next_token if provided
             if next_token:
                 log_with_request_id(
-                    ctx, LogLevel.INFO, 'Using pagination token for next page of results'
+                    ctx,
+                    LogLevel.INFO,
+                    'Using pagination token for next page of results',
                 )
                 list_params['nextToken'] = next_token
 

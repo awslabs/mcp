@@ -6,18 +6,19 @@ Integrating the EKS MCP server into AI code assistants enhances development work
 
 ## Key features
 
-* Enables users of AI code assistants to create new EKS clusters, complete with prerequisites such as dedicated VPCs, networking, and EKS Auto Mode node pools, by translating requests into the appropriate AWS CloudFormation actions.
-* Provides the ability to deploy containerized applications by applying existing Kubernetes YAML files or by generating new deployment and service manifests based on user-provided parameters.
-* Supports full lifecycle management of individual Kubernetes resources (such as Pods, Services, and Deployments) within EKS clusters, enabling create, read, update, patch, and delete operations.
-* Provides the ability to list Kubernetes resources with filtering by namespace, labels, and fields, simplifying the process for both users and LLMs to gather information about the state of Kubernetes applications and EKS infrastructure.
-* Facilitates operational tasks such as retrieving logs from specific pods and containers or fetching Kubernetes events related to particular resources, supporting troubleshooting and monitoring for both direct users and AI-driven workflows.
-* Enables users to troubleshoot issues with an EKS cluster.
+- **Multi-account and multi-region support**: Manage EKS clusters across multiple AWS accounts and regions through a single configuration file, with support for IAM role assumption, named AWS profiles, and default credentials.
+- Enables users of AI code assistants to create new EKS clusters, complete with prerequisites such as dedicated VPCs, networking, and EKS Auto Mode node pools, by translating requests into the appropriate AWS CloudFormation actions.
+- Provides the ability to deploy containerized applications by applying existing Kubernetes YAML files or by generating new deployment and service manifests based on user-provided parameters.
+- Supports full lifecycle management of individual Kubernetes resources (such as Pods, Services, and Deployments) within EKS clusters, enabling create, read, update, patch, and delete operations.
+- Provides the ability to list Kubernetes resources with filtering by namespace, labels, and fields, simplifying the process for both users and LLMs to gather information about the state of Kubernetes applications and EKS infrastructure.
+- Facilitates operational tasks such as retrieving logs from specific pods and containers or fetching Kubernetes events related to particular resources, supporting troubleshooting and monitoring for both direct users and AI-driven workflows.
+- Enables users to troubleshoot issues with an EKS cluster.
 
 ## Prerequisites
 
-* [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
-* [Install the `uv` package manager](https://docs.astral.sh/uv/getting-started/installation/)
-* [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+- [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
+- [Install the `uv` package manager](https://docs.astral.sh/uv/getting-started/installation/)
+- [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
 
 ## Setup
 
@@ -25,7 +26,7 @@ Add these IAM policies to the IAM role or user that you use to manage your EKS c
 
 ### Read-Only Operations Policy
 
-For read operations, the following permissions are required:
+For read operations, the following permissions are required. Note that `eks:ListClusters` is required for automatic cluster discovery when no configuration file is provided:
 
 ```
 {
@@ -34,6 +35,7 @@ For read operations, the following permissions are required:
     {
       "Effect": "Allow",
       "Action": [
+        "eks:ListClusters",
         "eks:DescribeCluster",
         "eks:DescribeInsight",
         "eks:ListInsights",
@@ -62,23 +64,22 @@ For read operations, the following permissions are required:
 
 For write operations, we recommend the following IAM policies to ensure successful deployment of EKS clusters using the CloudFormation template in `/awslabs/eks_mcp_server/templates/eks-templates/eks-with-vpc.yaml`:
 
-* [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
-* [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
-* [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
-* **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
-   ```
+- [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
+- [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
+- [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
+- **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
+  ```
   {
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Effect": "Allow",
-        "Action": "eks:*",
-        "Resource": "*"
-      }
-    ]
+   "Version": "2012-10-17",
+   "Statement": [
+     {
+       "Effect": "Allow",
+       "Action": "eks:*",
+       "Resource": "*"
+     }
+   ]
   }
-   ```
-
+  ```
 
 **Important Security Note**: Users should exercise caution when `--allow-write` and `--allow-sensitive-data-access` modes are enabled with these broad permissions, as this combination grants significant privileges to the MCP server. Only enable these flags when necessary and in trusted environments. For production use, consider creating more restrictive custom policies.
 
@@ -97,8 +98,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 
 **Set up your IDE**
 
-| Kiro | Cursor | VS Code |
-|:----:|:------:|:-------:|
+|                                                                                                                                                                      Kiro                                                                                                                                                                      |                                                                                                                                                                                                   Cursor                                                                                                                                                                                                    |                                                                                                                                                                                                                                                               VS Code                                                                                                                                                                                                                                                               |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
 | [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.eks-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=EKS%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
 **Set up Kiro**
@@ -111,51 +112,51 @@ Verify your setup by running the `/tools` command in the Kiro CLI to see the ava
 
 The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events (see the Arguments section for more details):
 
-   **For Mac/Linux:**
+**For Mac/Linux:**
 
-	```
-	{
-	  "mcpServers": {
-	    "awslabs.eks-mcp-server": {
-	      "command": "uvx",
-	      "args": [
-	        "awslabs.eks-mcp-server@latest",
-	        "--allow-write",
-	        "--allow-sensitive-data-access"
-	      ],
-	      "env": {
-	        "FASTMCP_LOG_LEVEL": "ERROR"
-	      },
-	      "autoApprove": [],
-	      "disabled": false
-	    }
-	  }
-	}
-	```
+    ```
+    {
+      "mcpServers": {
+        "awslabs.eks-mcp-server": {
+          "command": "uvx",
+          "args": [
+            "awslabs.eks-mcp-server@latest",
+            "--allow-write",
+            "--allow-sensitive-data-access"
+          ],
+          "env": {
+            "FASTMCP_LOG_LEVEL": "ERROR"
+          },
+          "autoApprove": [],
+          "disabled": false
+        }
+      }
+    }
+    ```
 
-   **For Windows:**
+**For Windows:**
 
-	```
-	{
-	  "mcpServers": {
-	    "awslabs.eks-mcp-server": {
-	      "command": "uvx",
-	      "args": [
-	        "--from",
-	        "awslabs.eks-mcp-server@latest",
-	        "awslabs.eks-mcp-server.exe",
-	        "--allow-write",
-	        "--allow-sensitive-data-access"
-	      ],
-	      "env": {
-	        "FASTMCP_LOG_LEVEL": "ERROR"
-	      },
-	      "autoApprove": [],
-	      "disabled": false
-	    }
-	  }
-	}
-	```
+    ```
+    {
+      "mcpServers": {
+        "awslabs.eks-mcp-server": {
+          "command": "uvx",
+          "args": [
+            "--from",
+            "awslabs.eks-mcp-server@latest",
+            "awslabs.eks-mcp-server.exe",
+            "--allow-write",
+            "--allow-sensitive-data-access"
+          ],
+          "env": {
+            "FASTMCP_LOG_LEVEL": "ERROR"
+          },
+          "autoApprove": [],
+          "disabled": false
+        }
+      }
+    }
+    ```
 
 Note that this is a basic quickstart. You can enable additional capabilities, such as [running MCP servers in containers](https://github.com/awslabs/mcp?tab=readme-ov-file#running-mcp-servers-in-containers) or combining more MCP servers like the [AWS Documentation MCP Server](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/) into a single MCP server definition. To view an example, see the [Installation and Setup](https://github.com/awslabs/mcp?tab=readme-ov-file#installation-and-setup) guide in the open source MCP servers for AWS repository on GitHub. To view a real-world implementation with application code in context with an MCP server, see the [Server Developer](https://modelcontextprotocol.io/quickstart/server) guide in Anthropic documentation.
 
@@ -166,6 +167,7 @@ Note that this is a basic quickstart. You can enable additional capabilities, su
 The `args` field in the MCP server definition specifies the command-line arguments passed to the server when it starts. These arguments control how the server is executed and configured. For example:
 
 **For Mac/Linux:**
+
 ```
 {
   "mcpServers": {
@@ -186,6 +188,7 @@ The `args` field in the MCP server definition specifies the command-line argumen
 ```
 
 **For Windows:**
+
 ```
 {
   "mcpServers": {
@@ -212,10 +215,12 @@ The `args` field in the MCP server definition specifies the command-line argumen
 The command format differs between operating systems:
 
 **For Mac/Linux:**
-* `awslabs.eks-mcp-server@latest` - Specifies the latest package/version specifier for the MCP client config.
+
+- `awslabs.eks-mcp-server@latest` - Specifies the latest package/version specifier for the MCP client config.
 
 **For Windows:**
-* `--from awslabs.eks-mcp-server@latest awslabs.eks-mcp-server.exe` - Windows requires the `--from` flag to specify the package and the `.exe` extension.
+
+- `--from awslabs.eks-mcp-server@latest awslabs.eks-mcp-server.exe` - Windows requires the `--from` flag to specify the package and the `.exe` extension.
 
 Both formats enable MCP server startup and tool registration.
 
@@ -223,19 +228,235 @@ Both formats enable MCP server startup and tool registration.
 
 Enables write access mode, which allows mutating operations (e.g., create, update, delete resources) for apply_yaml, generate_app_manifest, manage_k8s_resource, manage_eks_stacks, add_inline_policy tool operations.
 
-* Default: false (The server runs in read-only mode by default)
-* Example: Add `--allow-write` to the `args` list in your MCP server definition.
+- Default: false (The server runs in read-only mode by default)
+- Example: Add `--allow-write` to the `args` list in your MCP server definition.
 
 #### `--allow-sensitive-data-access` (optional)
 
 Enables access to sensitive data such as logs, events, and Kubernetes Secrets. This flag is required for tools that access potentially sensitive information, such as get_pod_logs, get_k8s_events, get_cloudwatch_logs, and manage_k8s_resource (when used to read Kubernetes secrets).
 
-* Default: false (Access to sensitive data is restricted by default)
-* Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
+- Default: false (Access to sensitive data is restricted by default)
+- Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
+
+#### `--cluster-config` (optional)
+
+Specifies the path to a JSON or YAML file containing cluster configuration for multi-region and multi-account support. This enables managing EKS clusters across different AWS accounts and regions.
+
+- Default: None (If not set, can also be configured via `EKS_CLUSTER_CONFIG` environment variable)
+- **If no config file is provided**: The server will automatically discover EKS clusters using default AWS credentials (from environment variables like `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, or instance profiles) in the region specified by `AWS_REGION` (defaults to `us-east-1` if not set)
+- Example: Add `--cluster-config /path/to/cluster-config.json` to the `args` list in your MCP server definition.
+
+### Multi-account and multi-region configuration
+
+The EKS MCP server supports managing clusters across multiple AWS accounts and regions through a configuration file. This is useful for organizations with clusters distributed across different environments (dev, staging, production) or geographical locations.
+
+**Default behavior (no configuration file):** If you don't provide a configuration file, the server will automatically discover EKS clusters using your default AWS credentials in the region specified by the `AWS_REGION` environment variable (or `us-east-1` if not set). This is the simplest way to get started if you have a single AWS account.
+
+#### Configuration file format
+
+The configuration file can be in JSON or YAML format. The new structure separates account and region definitions from cluster specifications:
+
+**JSON format:**
+
+```json
+{
+  "accounts": [
+    {
+      "account_id": "123456789012",
+      "regions": ["us-west-2", "us-east-1"]
+    },
+    {
+      "account_id": "987654321098",
+      "role_arn": "arn:aws:iam::987654321098:role/CustomEKSRole",
+      "external_id": "my-external-id",
+      "regions": ["us-east-1"]
+    },
+    {
+      "account_id": "555555555555",
+      "profile": "staging-profile",
+      "regions": ["eu-west-1"]
+    }
+  ],
+  "clusters": [
+    {
+      "name": "dev-cluster",
+      "region": "us-west-2",
+      "account_id": "123456789012",
+      "description": "Development cluster"
+    },
+    {
+      "name": "prod-cluster",
+      "region": "us-east-1",
+      "account_id": "987654321098",
+      "description": "Production cluster"
+    }
+  ]
+}
+```
+
+**YAML format:**
+
+```yaml
+accounts:
+  - account_id: "123456789012"
+    regions:
+      - us-west-2
+      - us-east-1
+
+  - account_id: "987654321098"
+    role_arn: arn:aws:iam::987654321098:role/CustomEKSRole
+    external_id: my-external-id
+    regions:
+      - us-east-1
+
+  - account_id: "555555555555"
+    profile: staging-profile
+    regions:
+      - eu-west-1
+
+clusters:
+  - name: dev-cluster
+    region: us-west-2
+    account_id: "123456789012"
+    description: Development cluster
+
+  - name: prod-cluster
+    region: us-east-1
+    account_id: "987654321098"
+    description: Production cluster
+```
+
+#### Configuration structure
+
+The configuration has two main sections:
+
+**Accounts section (required):**
+
+Each account configuration supports the following fields:
+
+- **account_id** (required): AWS account ID (12-digit number)
+- **regions** (required): List of AWS region names to manage in this account (e.g., ["us-east-1", "us-west-2"])
+- **role_arn** (optional): IAM role ARN to assume for accessing resources in this account. If not specified, defaults to `arn:aws:iam::{account_id}:role/McpEksOpsRole`
+- **external_id** (optional): External ID to use when assuming the role (to harden the IAM role trust policies)
+- **profile** (optional): Named AWS profile to use for credentials (alternative to role assumption)
+
+**Clusters section (optional):**
+
+If the clusters section is provided, only the specified clusters will be managed. If omitted, the tool will automatically discover all EKS clusters in the configured account/region combinations.
+
+Each cluster configuration supports the following fields:
+
+- **name** (required): The name of the EKS cluster
+- **region** (required): AWS region where the cluster is located (must match a configured region in the account)
+- **account_id** (required): AWS account ID (must match a configured account)
+- **description** (optional): Human-readable description of the cluster
+
+#### Authentication methods
+
+The server supports three authentication methods for accessing accounts (configured at the account level):
+
+1. **IAM Role Assumption** (default and recommended for cross-account access):
+   - If `role_arn` is specified at the account level, that role will be assumed
+   - If `role_arn` is not specified, the system defaults to `arn:aws:iam::{account_id}:role/McpEksOpsRole`
+   - Optionally include `external_id` for additional security
+2. **Named AWS Profile**: Specify `profile` at the account level to use credentials from a named profile in your AWS credentials file.
+3. **Default Credentials**: If neither `role_arn` nor `profile` is specified, and no default role exists, the server uses default AWS credentials (from environment variables, instance profile, etc.).
+
+#### Cluster discovery mode
+
+The EKS MCP server supports two modes of operation:
+
+1. **Explicit cluster configuration**: When the `clusters` section is provided in the configuration file, only those clusters will be managed. This is useful when you want to restrict access to specific clusters or provide custom descriptions.
+
+2. **Discovery mode**: When the `clusters` section is omitted or empty, the server automatically discovers all EKS clusters in all configured account/region combinations using the AWS EKS `list_clusters` API. This is useful for environments where clusters are created and destroyed dynamically, or when you want to manage all clusters without maintaining an explicit list.
+
+Example minimal configuration for discovery mode:
+
+```yaml
+accounts:
+  - account_id: "123456789012"
+    regions:
+      - us-east-1
+      - us-west-2
+```
+
+With this configuration, the server will discover and manage all EKS clusters in account `123456789012` across both `us-east-1` and `us-west-2` regions.
+
+#### Setting up cross-account access
+
+To access clusters in different AWS accounts:
+
+1. Create an IAM role in the target account with EKS permissions (or use the default `McpEksOpsRole`)
+2. Configure the trust relationship to allow assumption from your primary account
+3. Add the account and regions to your configuration file
+4. Ensure your primary credentials have permission to assume the role
+
+Example IAM trust policy for the target account role (e.g., `McpEksOpsRole` or your custom role):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::PRIMARY-ACCOUNT-ID:root"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "my-external-id"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Note**: If you don't specify a `role_arn` in your account configuration, the system will attempt to assume a role named `McpEksOpsRole` in the target account. Make sure this role exists with appropriate permissions and trust relationships.
+
+#### Configuration file location
+
+Specify the configuration file location using either:
+
+- The `--cluster-config` command-line argument
+- The `EKS_CLUSTER_CONFIG` environment variable
+
+Example MCP server configuration with cluster config:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.eks-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access",
+        "--cluster-config",
+        "/path/to/cluster-config.json"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+#### Use cases for multi-account configuration
+
+Multi-account and multi-region support is beneficial for:
+
+- **Environment separation**: Manage dev, staging, and production clusters in different AWS accounts from a single interface
+- **Geographical distribution**: Work with clusters across multiple regions for global applications
+- **Organizational boundaries**: Access clusters across different AWS Organizations or business units
+- **Consolidated operations**: Perform troubleshooting, monitoring, and management tasks across all your clusters without switching contexts
+- **Cross-account IAM management**: Add IAM policies to roles in different accounts when configuring cluster permissions
 
 ### Environment variables
 
-The `env` field in the MCP server definition allows you to configure environment variables that control the behavior of the EKS MCP server.  For example:
+The `env` field in the MCP server definition allows you to configure environment variables that control the behavior of the EKS MCP server. For example:
 
 ```
 {
@@ -245,6 +466,7 @@ The `env` field in the MCP server definition allows you to configure environment
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
         "AWS_REGION": "us-west-2",
+        "EKS_CLUSTER_CONFIG": "/path/to/cluster-config.json",
         "HTTP_PROXY": "http://proxy.example.com:8080",
         "HTTPS_PROXY": "https://proxy.example.com:8080"
       }
@@ -257,31 +479,41 @@ The `env` field in the MCP server definition allows you to configure environment
 
 Sets the logging level verbosity for the server.
 
-* Valid values: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-* Default: "WARNING"
-* Example: `"FASTMCP_LOG_LEVEL": "ERROR"`
+- Valid values: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+- Default: "WARNING"
+- Example: `"FASTMCP_LOG_LEVEL": "ERROR"`
+
+#### `EKS_CLUSTER_CONFIG` (optional)
+
+Specifies the path to a JSON or YAML file containing cluster configuration for multi-region and multi-account support. Alternative to using the `--cluster-config` command-line argument.
+
+- Default: None (Single cluster mode using AWS_PROFILE and AWS_REGION)
+- Example: `"EKS_CLUSTER_CONFIG": "/path/to/cluster-config.json"`
+- Note: When this is set, AWS_PROFILE and AWS_REGION are used as fallback defaults for clusters without specific configuration.
 
 #### `AWS_PROFILE` (optional)
 
 Specifies the AWS profile to use for authentication.
 
-* Default: None (If not set, uses default AWS credentials).
-* Example: `"AWS_PROFILE": "my-profile"`
+- Default: None (If not set, uses default AWS credentials).
+- Example: `"AWS_PROFILE": "my-profile"`
+- Note: When using multi-cluster configuration, this serves as the default profile for clusters that don't specify their own profile or role.
 
 #### `AWS_REGION` (optional)
 
-Specifies the AWS region where EKS clusters are managed, which will be used for all AWS service operations.
+Specifies the AWS region where EKS clusters are managed.
 
-* Default: None (If not set, uses default AWS region).
-* Example: `"AWS_REGION": "us-west-2"`
+- Default: None (If not set, uses default AWS region).
+- Example: `"AWS_REGION": "us-west-2"`
+- Note: When using multi-cluster configuration, each cluster specifies its own region in the configuration file.
 
 #### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
 
 Configures proxy settings for HTTP and HTTPS connections. These environment variables are used when the EKS MCP server needs to make outbound connections to the K8s API server through a proxy or firewall.
 
-* Default: None (Direct connections are used if not set).
-* Example: `"HTTP_PROXY": "http://proxy.example.com:8080"`, `"HTTPS_PROXY": "https://proxy.example.com:8080"`
-* Note: Both variables can be set to the same proxy server if it handles both HTTP and HTTPS traffic.
+- Default: None (Direct connections are used if not set).
+- Example: `"HTTP_PROXY": "http://proxy.example.com:8080"`, `"HTTPS_PROXY": "https://proxy.example.com:8080"`
+- Note: Both variables can be set to the same proxy server if it handles both HTTP and HTTPS traffic.
 
 ## Tools
 
@@ -289,21 +521,36 @@ The following tools are provided by the EKS MCP server for managing Amazon EKS c
 
 ### EKS Cluster Management
 
+#### `list_eks_clusters`
+
+Lists all configured EKS clusters from the cluster configuration file.
+
+Features:
+
+- Returns a list of all clusters defined in the configuration file with their metadata
+- Optionally validates cluster accessibility and retrieves current status and Kubernetes version
+- Shows the authentication method used for each cluster (role_assumption, profile, or default)
+- Supports quick listing without validation for faster response times
+
+Parameters:
+
+- validate (optional) - Whether to validate cluster accessibility by calling AWS APIs (default: false)
+
 #### `manage_eks_stacks`
 
 Manages EKS CloudFormation stacks with operations for generating templates, deploying, describing, and deleting EKS clusters and their underlying infrastructure. **Note**: Cluster creation typically takes 15-20 minutes to complete.
 
 Features:
 
-* Generates CloudFormation templates for EKS clusters, embedding specified cluster names.
-* Deploys EKS clusters using CloudFormation, creating or updating stacks with VPC, subnets, NAT gateways, IAM roles, and node pools.
-* Describes existing EKS CloudFormation stacks, providing details like status, outputs, and creation time.
-* Deletes EKS CloudFormation stacks and their associated resources, ensuring proper cleanup.
-* Ensures safety by only modifying/deleting stacks that were originally created by this tool.
+- Generates CloudFormation templates for EKS clusters, embedding specified cluster names.
+- Deploys EKS clusters using CloudFormation, creating or updating stacks with VPC, subnets, NAT gateways, IAM roles, and node pools.
+- Describes existing EKS CloudFormation stacks, providing details like status, outputs, and creation time.
+- Deletes EKS CloudFormation stacks and their associated resources, ensuring proper cleanup.
+- Ensures safety by only modifying/deleting stacks that were originally created by this tool.
 
 Parameters:
 
-* operation (generate, deploy, describe, delete), template_file (for generate/deploy), cluster_name
+- operation (generate, deploy, describe, delete), template_file (for generate/deploy), cluster_name
 
 ### Kubernetes Resource Management
 
@@ -313,12 +560,12 @@ Manages individual Kubernetes resources with various operations.
 
 Features:
 
-* Supports create, replace, patch, delete, and read Kubernetes operations.
-* Handles both namespaced and non-namespaced Kubernetes resources.
+- Supports create, replace, patch, delete, and read Kubernetes operations.
+- Handles both namespaced and non-namespaced Kubernetes resources.
 
 Parameters:
 
-* operation (create, replace, patch, delete, read), cluster_name, kind, api_version, name, namespace (optional), body (for create/replace/patch)
+- operation (create, replace, patch, delete, read), cluster_name, kind, api_version, name, namespace (optional), body (for create/replace/patch)
 
 #### `apply_yaml`
 
@@ -326,13 +573,13 @@ Applies Kubernetes YAML manifests to an EKS cluster.
 
 Features:
 
-* Supports multi-document YAML files.
-* Applies all resources in the manifest to the specified namespace.
-* Can update existing resources if force is true.
+- Supports multi-document YAML files.
+- Applies all resources in the manifest to the specified namespace.
+- Can update existing resources if force is true.
 
 Parameters:
 
-* yaml_path, cluster_name, namespace, force
+- yaml_path, cluster_name, namespace, force
 
 #### `list_k8s_resources`
 
@@ -340,12 +587,12 @@ Lists Kubernetes resources of a specific kind in an EKS cluster.
 
 Features:
 
-* Returns summaries of EKS resources with metadata.
-* Supports filtering by EKS cluster namespace, labels, and fields.
+- Returns summaries of EKS resources with metadata.
+- Supports filtering by EKS cluster namespace, labels, and fields.
 
 Parameters:
 
-* cluster_name, kind, api_version, namespace (optional), label_selector (optional), field_selector (optional)
+- cluster_name, kind, api_version, namespace (optional), label_selector (optional), field_selector (optional)
 
 #### `list_api_versions`
 
@@ -353,13 +600,13 @@ Lists all available API versions in the specified Kubernetes cluster.
 
 Features:
 
-* Discovers all available API versions on the Kubernetes cluster.
-* Helps determine the correct `apiVersion` to use for managing Kubernetes resources.
-* Includes both core APIs (e.g., "v1") and API groups (e.g., "apps/v1", "networking.k8s.io/v1").
+- Discovers all available API versions on the Kubernetes cluster.
+- Helps determine the correct `apiVersion` to use for managing Kubernetes resources.
+- Includes both core APIs (e.g., "v1") and API groups (e.g., "apps/v1", "networking.k8s.io/v1").
 
 Parameters:
 
-* cluster_name
+- cluster_name
 
 ### Application Support
 
@@ -369,13 +616,13 @@ Generates Kubernetes manifests for application deployment.
 
 Features:
 
-* Generates Kubernetes deployment and service YAMLs with configurable parameters.
-* Supports load balancer configuration and resource requests.
-* Outputs Kubernetes manifest to a specified directory.
+- Generates Kubernetes deployment and service YAMLs with configurable parameters.
+- Supports load balancer configuration and resource requests.
+- Outputs Kubernetes manifest to a specified directory.
 
 Parameters:
 
-* app_name, image_uri, output_dir, port (optional), replicas (optional), cpu (optional), memory (optional), namespace (optional), load_balancer_scheme (optional)
+- app_name, image_uri, output_dir, port (optional), replicas (optional), cpu (optional), memory (optional), namespace (optional), load_balancer_scheme (optional)
 
 #### `get_pod_logs`
 
@@ -383,13 +630,13 @@ Retrieves logs from pods in a Kubernetes cluster.
 
 Features:
 
-* Supports filtering logs by time, line count, and byte size.
-* Can retrieve logs from specific containers in a pod.
-* Requires `--allow-sensitive-data-access` server flag to be enabled.
+- Supports filtering logs by time, line count, and byte size.
+- Can retrieve logs from specific containers in a pod.
+- Requires `--allow-sensitive-data-access` server flag to be enabled.
 
 Parameters:
 
-* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional), previous (optional)
+- cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional), previous (optional)
 
 #### `get_k8s_events`
 
@@ -397,13 +644,13 @@ Retrieves events related to specific Kubernetes resources.
 
 Features:
 
-* Returns Kubernetes event details including timestamps, count, message, reason, reporting component, and type.
-* Supports both namespaced and non-namespaced Kubernetes resources.
-* Requires `--allow-sensitive-data-access` server flag to be enabled.
+- Returns Kubernetes event details including timestamps, count, message, reason, reporting component, and type.
+- Supports both namespaced and non-namespaced Kubernetes resources.
+- Requires `--allow-sensitive-data-access` server flag to be enabled.
 
 Parameters:
 
-* cluster_name, kind, name, namespace (optional)
+- cluster_name, kind, name, namespace (optional)
 
 #### `get_eks_vpc_config`
 
@@ -411,15 +658,15 @@ Retrieves comprehensive VPC configuration details for EKS clusters, with support
 
 Features:
 
-* Returns detailed VPC configuration including CIDR blocks, route tables, and subnet information
-* Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
-* Validates subnet capacity for EKS networking requirements
-* Flags subnets in disallowed availability zones that can't be used with EKS
-* Requires `--allow-sensitive-data-access` server flag to be enabled
+- Returns detailed VPC configuration including CIDR blocks, route tables, and subnet information
+- Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
+- Validates subnet capacity for EKS networking requirements
+- Flags subnets in disallowed availability zones that can't be used with EKS
+- Requires `--allow-sensitive-data-access` server flag to be enabled
 
 Parameters:
 
-* cluster_name, vpc_id (optional)
+- cluster_name, vpc_id (optional)
 
 ### CloudWatch Integration
 
@@ -429,15 +676,15 @@ Retrieves logs from CloudWatch for a specific resource within an EKS cluster.
 
 Features:
 
-* Fetches logs based on resource type (pod, node, container), resource name, and log type.
-* Allows filtering by time range (minutes, start/end time), log content (filter_pattern), and number of entries.
-* Supports specifying custom fields to be included in the query results.
-* Requires `--allow-sensitive-data-access` server flag to be enabled.
+- Fetches logs based on resource type (pod, node, container), resource name, and log type.
+- Allows filtering by time range (minutes, start/end time), log content (filter_pattern), and number of entries.
+- Supports specifying custom fields to be included in the query results.
+- Requires `--allow-sensitive-data-access` server flag to be enabled.
 
 Parameters:
 
-* cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster),
-resource_name (optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
+- cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster),
+  resource_name (optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
 
 #### `get_cloudwatch_metrics`
 
@@ -445,14 +692,14 @@ Retrieves metrics from CloudWatch for Kubernetes resources.
 
 Features:
 
-* Fetches metrics based on metric name and dimensions.
-* Allows specification of CloudWatch namespace and time range.
-* Configurable period, statistic (Average, Sum, etc.), and limit for data points.
-* Supports providing custom dimensions for fine-grained metric querying.
+- Fetches metrics based on metric name and dimensions.
+- Allows specification of CloudWatch namespace and time range.
+- Configurable period, statistic (Average, Sum, etc.), and limit for data points.
+- Supports providing custom dimensions for fine-grained metric querying.
 
 Parameters:
 
-* cluster_name, metric_name, namespace, dimensions, minutes (optional), start_time (optional), end_time (optional), limit (optional), stat (optional), period (optional)
+- cluster_name, metric_name, namespace, dimensions, minutes (optional), start_time (optional), end_time (optional), limit (optional), stat (optional), period (optional)
 
 #### `get_eks_metrics_guidance`
 
@@ -460,18 +707,18 @@ Provides guidance on available CloudWatch metrics for different resource types i
 
 Features:
 
-* Returns a list of available Container Insights metrics for the specified resource type, including metric names, dimensions, and descriptions.
-* Helps determine the correct dimensions to use with the `get_cloudwatch_metrics` tool.
-* Supports the following resource types:
-  * `cluster`: Metrics for EKS clusters (e.g., cluster_node_count, cluster_failed_node_count)
-  * `node`: Metrics for EKS nodes (e.g., node_cpu_utilization, node_memory_utilization, node_network_total_bytes)
-  * `pod`: Metrics for Kubernetes pods (e.g., pod_cpu_utilization, pod_memory_utilization, pod_network_rx_bytes)
-  * `namespace`: Metrics for Kubernetes namespaces (e.g., namespace_number_of_running_pods)
-  * `service`: Metrics for Kubernetes services (e.g., service_number_of_running_pods)
+- Returns a list of available Container Insights metrics for the specified resource type, including metric names, dimensions, and descriptions.
+- Helps determine the correct dimensions to use with the `get_cloudwatch_metrics` tool.
+- Supports the following resource types:
+  - `cluster`: Metrics for EKS clusters (e.g., cluster_node_count, cluster_failed_node_count)
+  - `node`: Metrics for EKS nodes (e.g., node_cpu_utilization, node_memory_utilization, node_network_total_bytes)
+  - `pod`: Metrics for Kubernetes pods (e.g., pod_cpu_utilization, pod_memory_utilization, pod_network_rx_bytes)
+  - `namespace`: Metrics for Kubernetes namespaces (e.g., namespace_number_of_running_pods)
+  - `service`: Metrics for Kubernetes services (e.g., service_number_of_running_pods)
 
 Parameters:
 
-* resource_type
+- resource_type
 
 Implementation:
 
@@ -485,13 +732,15 @@ Retrieves all policies attached to a specified IAM role, including assume role p
 
 Features:
 
-* Fetches the assume role policy document for the specified IAM role.
-* Lists all attached managed policies and includes their policy documents.
-* Lists all embedded inline policies and includes their policy documents.
+- Fetches the assume role policy document for the specified IAM role.
+- Lists all attached managed policies and includes their policy documents.
+- Lists all embedded inline policies and includes their policy documents.
+- Supports cross-account access when a cluster configuration is provided.
 
 Parameters:
 
-* role_name
+- role_name
+- cluster_name (optional) - Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.
 
 #### `add_inline_policy`
 
@@ -499,14 +748,16 @@ Adds a new inline policy with specified permissions to an IAM role; it will not 
 
 Features:
 
-* Creates and attaches a new inline policy to a specified IAM role.
-* Rejects requests if the policy name already exists on the role to prevent accidental modification.
-* Requires `--allow-write` server flag to be enabled.
-* Accepts permissions as a single JSON object (statement) or a list of JSON objects (statements).
+- Creates and attaches a new inline policy to a specified IAM role.
+- Rejects requests if the policy name already exists on the role to prevent accidental modification.
+- Requires `--allow-write` server flag to be enabled.
+- Accepts permissions as a single JSON object (statement) or a list of JSON objects (statements).
+- Supports cross-account access when a cluster configuration is provided.
 
 Parameters:
 
-* policy_name, role_name, permissions (JSON object or array of objects)
+- policy_name, role_name, permissions (JSON object or array of objects)
+- cluster_name (optional) - Name of an EKS cluster to use for cross-account access. When provided, uses the cluster's configured credentials.
 
 ### Troubleshooting
 
@@ -516,13 +767,13 @@ Searches the EKS Troubleshoot Guide for troubleshooting information based on a q
 
 Features:
 
-* Provides detailed troubleshooting guidance for Amazon EKS issues.
-* Covers EKS Auto mode node provisioning, bootstrap issues, and controller failure modes.
-* Returns symptoms, step-by-step short-term, and long-term fixes for identified issues.
+- Provides detailed troubleshooting guidance for Amazon EKS issues.
+- Covers EKS Auto mode node provisioning, bootstrap issues, and controller failure modes.
+- Returns symptoms, step-by-step short-term, and long-term fixes for identified issues.
 
 Parameters:
 
-* query
+- query
 
 #### `get_eks_insights`
 
@@ -530,17 +781,16 @@ Retrieves Amazon EKS Insights that identify potential issues with your EKS clust
 
 Features:
 
-* Returns insights in two categories: MISCONFIGURATION and UPGRADE_READINESS (for upgrade blockers)
-* Supports both list mode (all insights) and detail mode (specific insight with recommendations)
-* Includes status, descriptions, and timestamps for each insight
-* Provides detailed recommendations for addressing identified issues when using detail mode
-* Supports optional filtering by insight category
-* Requires `--allow-sensitive-data-access` server flag to be enabled
+- Returns insights in two categories: MISCONFIGURATION and UPGRADE_READINESS (for upgrade blockers)
+- Supports both list mode (all insights) and detail mode (specific insight with recommendations)
+- Includes status, descriptions, and timestamps for each insight
+- Provides detailed recommendations for addressing identified issues when using detail mode
+- Supports optional filtering by insight category
+- Requires `--allow-sensitive-data-access` server flag to be enabled
 
 Parameters:
 
-* cluster_name, insight_id (optional), category (optional), next_token (optional)
-
+- cluster_name, insight_id (optional), category (optional), next_token (optional)
 
 ## Security & permissions
 
@@ -560,26 +810,27 @@ The EKS MCP Server implements the following security features:
 
 When using the EKS MCP Server, consider the following:
 
-* **AWS Credentials**: The server needs permission to create and manage EKS resources.
-* **Kubernetes Access**: The server generates temporary credentials for Kubernetes API access.
-* **Network Security**: Configure VPC and security groups properly for EKS clusters.
-* **Authentication**: Use appropriate authentication mechanisms for Kubernetes resources.
-* **Authorization**: Configure RBAC properly for Kubernetes resources.
-* **Data Protection**: Encrypt sensitive data in Kubernetes secrets.
-* **Logging and Monitoring**: Enable logging and monitoring for EKS clusters.
+- **AWS Credentials**: The server needs permission to create and manage EKS resources.
+- **Kubernetes Access**: The server generates temporary credentials for Kubernetes API access.
+- **Network Security**: Configure VPC and security groups properly for EKS clusters.
+- **Authentication**: Use appropriate authentication mechanisms for Kubernetes resources.
+- **Authorization**: Configure RBAC properly for Kubernetes resources.
+- **Data Protection**: Encrypt sensitive data in Kubernetes secrets.
+- **Logging and Monitoring**: Enable logging and monitoring for EKS clusters.
 
 ### Permissions
 
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
-* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
-* **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
+- **Read-only mode (default)**: `list_eks_clusters`, `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
+- **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)
 
 An array within the MCP server definition that lists tool names to be automatically approved by the EKS MCP Server client, bypassing user confirmation for those specific tools. For example:
 
 **For Mac/Linux:**
+
 ```
 {
   "mcpServers": {
@@ -594,6 +845,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_eks_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",
@@ -611,6 +863,7 @@ An array within the MCP server definition that lists tool names to be automatica
 ```
 
 **For Windows:**
+
 ```
 {
   "mcpServers": {
@@ -627,6 +880,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_eks_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",
@@ -647,9 +901,9 @@ An array within the MCP server definition that lists tool names to be automatica
 
 When the `--allow-write` flag is enabled, the EKS MCP Server can create missing IAM permissions for EKS resources through the `add_inline_policy` tool. This tool enables the following:
 
-* Only creates new inline policies; it never modifies existing policies.
-* Is useful for automatically fixing common permissions issues with EKS clusters.
-* Should be used with caution and with properly scoped IAM roles.
+- Only creates new inline policies; it never modifies existing policies.
+- Is useful for automatically fixing common permissions issues with EKS clusters.
+- Should be used with caution and with properly scoped IAM roles.
 
 ### Role Scoping Recommendations
 
@@ -666,40 +920,40 @@ In accordance with security best practices, we recommend the following:
 
 **IMPORTANT**: Do not pass secrets or sensitive information via allowed input mechanisms:
 
-* Do not include secrets or credentials in YAML files applied with `apply_yaml`.
-* Do not pass sensitive information directly in the prompt to the model.
-* Do not include secrets in CloudFormation templates or application manifests.
-* Avoid using MCP tools for creating Kubernetes Secrets, as this would require providing the secret data to the model.
+- Do not include secrets or credentials in YAML files applied with `apply_yaml`.
+- Do not pass sensitive information directly in the prompt to the model.
+- Do not include secrets in CloudFormation templates or application manifests.
+- Avoid using MCP tools for creating Kubernetes Secrets, as this would require providing the secret data to the model.
 
 **YAML Content Security**:
 
-* Only use YAML files from trustworthy sources.
-* The server relies on Kubernetes API validation for YAML content and does not perform its own validation.
-* Audit YAML files before applying them to your cluster.
+- Only use YAML files from trustworthy sources.
+- The server relies on Kubernetes API validation for YAML content and does not perform its own validation.
+- Audit YAML files before applying them to your cluster.
 
 **Instead of passing secrets through MCP**:
 
-* Use AWS Secrets Manager or Parameter Store to store sensitive information.
-* Configure proper Kubernetes RBAC for service accounts.
-* Use IAM roles for service accounts (IRSA) for AWS service access from pods.
+- Use AWS Secrets Manager or Parameter Store to store sensitive information.
+- Configure proper Kubernetes RBAC for service accounts.
+- Use IAM roles for service accounts (IRSA) for AWS service access from pods.
 
 ## General Best Practices
 
-* **Resource Naming**: Use descriptive names for EKS clusters and Kubernetes resources.
-* **Namespace Usage**: Organize resources into namespaces for better management.
-* **Error Handling**: Check for errors in tool responses and handle them appropriately.
-* **Resource Cleanup**: Delete unused resources to avoid unnecessary costs.
-* **Monitoring**: Monitor cluster and resource status regularly.
-* **Security**: Follow AWS security best practices for EKS clusters.
-* **Backup**: Regularly backup important Kubernetes resources.
+- **Resource Naming**: Use descriptive names for EKS clusters and Kubernetes resources.
+- **Namespace Usage**: Organize resources into namespaces for better management.
+- **Error Handling**: Check for errors in tool responses and handle them appropriately.
+- **Resource Cleanup**: Delete unused resources to avoid unnecessary costs.
+- **Monitoring**: Monitor cluster and resource status regularly.
+- **Security**: Follow AWS security best practices for EKS clusters.
+- **Backup**: Regularly backup important Kubernetes resources.
 
 ## General Troubleshooting
 
-* **Permission Errors**: Verify that your AWS credentials have the necessary permissions.
-* **CloudFormation Errors**: Check the CloudFormation console for stack creation errors.
-* **Kubernetes API Errors**: Verify that the EKS cluster is running and accessible.
-* **Network Issues**: Check VPC and security group configurations.
-* **Client Errors**: Verify that the MCP client is configured correctly.
-* **Log Level**: Increase the log level to DEBUG for more detailed logs.
+- **Permission Errors**: Verify that your AWS credentials have the necessary permissions.
+- **CloudFormation Errors**: Check the CloudFormation console for stack creation errors.
+- **Kubernetes API Errors**: Verify that the EKS cluster is running and accessible.
+- **Network Issues**: Check VPC and security group configurations.
+- **Client Errors**: Verify that the MCP client is configured correctly.
+- **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For general EKS issues, consult the [Amazon EKS documentation](https://docs.aws.amazon.com/eks/).

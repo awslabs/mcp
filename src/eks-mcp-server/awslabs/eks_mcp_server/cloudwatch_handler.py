@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CloudWatch handler for the EKS MCP Server."""
+"""CloudWatch handler for the EKS MCP Server.
+
+This module provides tools for retrieving and analyzing CloudWatch logs and metrics
+from EKS clusters, with support for multi-region and multi-account operations.
+"""
 
 import datetime
 import json
 import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import CloudWatchLogsData, CloudWatchMetricsData
 from mcp.server.fastmcp import Context
@@ -46,6 +51,40 @@ class CloudWatchHandler:
         # Register tools
         self.mcp.tool(name='get_cloudwatch_logs')(self.get_cloudwatch_logs)
         self.mcp.tool(name='get_cloudwatch_metrics')(self.get_cloudwatch_metrics)
+
+    def _get_logs_client(self, cluster_name: str):
+        """Get a CloudWatch Logs client with appropriate credentials.
+
+        If a cluster configuration is available for the given cluster name,
+        uses the configured credentials. Otherwise falls back to default.
+
+        Args:
+            cluster_name: Cluster name to look up configuration
+
+        Returns:
+            CloudWatch Logs boto3 client
+        """
+        cluster_config = ConfigManager.get_cluster(cluster_name)
+        if cluster_config:
+            return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'logs')
+        return AwsHelper.create_boto3_client('logs')
+
+    def _get_cloudwatch_client(self, cluster_name: str):
+        """Get a CloudWatch client with appropriate credentials.
+
+        If a cluster configuration is available for the given cluster name,
+        uses the configured credentials. Otherwise falls back to default.
+
+        Args:
+            cluster_name: Cluster name to look up configuration
+
+        Returns:
+            CloudWatch boto3 client
+        """
+        cluster_config = ConfigManager.get_cluster(cluster_name)
+        if cluster_config:
+            return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'cloudwatch')
+        return AwsHelper.create_boto3_client('cloudwatch')
 
     def resolve_time_range(
         self,
@@ -188,8 +227,8 @@ class CloudWatchHandler:
 
             start_dt, end_dt = self.resolve_time_range(start_time, end_time, minutes)
 
-            # Create CloudWatch Logs client
-            logs = AwsHelper.create_boto3_client('logs')
+            # Create CloudWatch Logs client with appropriate credentials
+            logs = self._get_logs_client(cluster_name)
 
             # Determine the log group based on log_type
             known_types = {'application', 'host', 'performance', 'dataplane'}
@@ -404,8 +443,8 @@ class CloudWatchHandler:
         try:
             start_dt, end_dt = self.resolve_time_range(start_time, end_time, minutes)
 
-            # Create CloudWatch client
-            cloudwatch = AwsHelper.create_boto3_client('cloudwatch')
+            # Create CloudWatch client with appropriate credentials
+            cloudwatch = self._get_cloudwatch_client(cluster_name)
 
             # Validate that cluster_name matches ClusterName in dimensions if present
             if 'ClusterName' in dimensions and dimensions['ClusterName'] != cluster_name:
@@ -449,7 +488,11 @@ class CloudWatchHandler:
             stat_value = stat if isinstance(stat, str) else stat.default
 
             # Create the metric stat
-            metric_stat = {'Metric': metric_def, 'Period': period_value, 'Stat': stat_value}
+            metric_stat = {
+                'Metric': metric_def,
+                'Period': period_value,
+                'Stat': stat_value,
+            }
 
             # Add the metric stat to the query
             metric_data_query['MetricStat'] = metric_stat
