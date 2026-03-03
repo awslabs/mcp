@@ -1,0 +1,426 @@
+{
+  "_comment": "Invalid filter expression test schema - Multiple validation errors to test filter expression validation",
+  "tables": [
+    {
+      "entities": {
+        "TestEntity": {
+          "access_patterns": [
+            {
+              "description": "INVALID: Filter references unknown field 'nonexistent_field'",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "nonexistent_field",
+                    "operator": "=",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_unknown_field",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Filter on partition key attribute (resolved from pk_template)",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "test_id",
+                    "operator": "=",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_on_partition_key",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Filter on sort key attribute (resolved from sk_template)",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "created_at",
+                    "operator": "=",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_on_sort_key",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Unsupported operator 'equals'",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "equals",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_unsupported_operator",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Unsupported function 'matches'",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "function": "matches",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_unsupported_function",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Logical operator 'XOR' is not supported",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "=",
+                    "param": "val1"
+                  },
+                  {
+                    "field": "total",
+                    "operator": ">=",
+                    "param": "val2"
+                  }
+                ],
+                "logical_operator": "XOR"
+              },
+              "name": "filter_invalid_logical_operator",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val1",
+                  "type": "string"
+                },
+                {
+                  "name": "val2",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Both operator and function set (non-size)",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "function": "contains",
+                    "operator": "=",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_both_operator_and_function",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "val",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: 'between' operator missing param2",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "total",
+                    "operator": "between",
+                    "param": "min_val"
+                  }
+                ]
+              },
+              "name": "filter_between_missing_param2",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "min_val",
+                  "type": "decimal"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: 'in' operator missing params array",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "in"
+                  }
+                ]
+              },
+              "name": "filter_in_missing_params",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: 'in' operator with empty params array",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "in",
+                    "params": []
+                  }
+                ]
+              },
+              "name": "filter_in_empty_params",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: 'contains' function missing param",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "tags",
+                    "function": "contains"
+                  }
+                ]
+              },
+              "name": "filter_contains_missing_param",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: 'begins_with' function missing param",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "description",
+                    "function": "begins_with"
+                  }
+                ]
+              },
+              "name": "filter_begins_with_missing_param",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Filter expression on GetItem operation",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "=",
+                    "param": "val"
+                  }
+                ]
+              },
+              "name": "filter_on_getitem",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                },
+                {
+                  "name": "created_at",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 13,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "INVALID: Empty conditions list",
+              "filter_expression": {
+                "conditions": []
+              },
+              "name": "filter_empty_conditions",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 14,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "INVALID: Comparison operator missing param",
+              "filter_expression": {
+                "conditions": [
+                  {
+                    "field": "status",
+                    "operator": "="
+                  }
+                ]
+              },
+              "name": "filter_comparison_missing_param",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 15,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "TEST",
+          "fields": [
+            {
+              "name": "test_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total",
+              "required": true,
+              "type": "decimal"
+            },
+            {
+              "name": "count",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "item_type": "string",
+              "name": "tags",
+              "required": false,
+              "type": "array"
+            },
+            {
+              "name": "description",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "pk_template": "TEST#{test_id}",
+          "sk_template": "DATA#{created_at}"
+        }
+      },
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "TestTable"
+      }
+    }
+  ]
+}
