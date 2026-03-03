@@ -17,7 +17,7 @@ Integrating the EKS MCP server into AI code assistants enhances development work
 
 * [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
 * [Install the `uv` package manager](https://docs.astral.sh/uv/getting-started/installation/)
-* [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+* [Install and configure the AWS CLI with credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) (required for IAM authentication mode; not needed for kubeconfig mode)
 
 ## Setup
 
@@ -84,12 +84,14 @@ For write operations, we recommend the following IAM policies to ensure successf
 
 ### Kubernetes API Access Requirements
 
-All Kubernetes API operations will only work when one of the following conditions is met:
+**IAM mode (default):** All Kubernetes API operations will only work when one of the following conditions is met:
 
 1. The user's principal (IAM role/user) actually created the EKS cluster being accessed
 2. An EKS Access Entry has been configured for the user's principal
 
 If you encounter authorization errors when using Kubernetes API operations, verify that an access entry has been properly configured for your principal.
+
+**Kubeconfig mode (`EKS_AUTH_MODE=kubeconfig`):** Kubernetes API access is determined by the credentials in your kubeconfig file (OIDC tokens, certificates, etc.) and the RBAC policies configured in the cluster. The `cluster_name` parameter in Kubernetes tools is interpreted as a kubeconfig context name.
 
 ## Quickstart
 
@@ -233,6 +235,47 @@ Enables access to sensitive data such as logs, events, and Kubernetes Secrets. T
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
 
+#### `--auth-mode` (optional)
+
+Specifies the authentication mode for Kubernetes API access. Can also be set via the `EKS_AUTH_MODE` environment variable. The CLI argument takes precedence over the environment variable.
+
+* Valid values: `iam` (default), `kubeconfig`
+* Default: `iam`
+* Example: Add `--auth-mode kubeconfig` to the `args` list in your MCP server definition.
+
+### Kubeconfig/OIDC Authentication
+
+For environments where users access Kubernetes through OIDC authentication or other kubeconfig-based methods (without AWS IAM credentials), the EKS MCP server supports a kubeconfig authentication mode.
+
+**Example configuration for OIDC/kubeconfig users:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.eks-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "EKS_AUTH_MODE": "kubeconfig",
+        "KUBECONFIG": "/home/user/.kube/config",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+In this mode:
+
+* The `cluster_name` parameter in all Kubernetes tools is interpreted as a **kubeconfig context name** (e.g., `"my-oidc-cluster"`).
+* The kubernetes Python client handles all authentication via the exec plugin, certificate, or token method configured in your kubeconfig.
+* Token refresh (e.g., for OIDC) is handled automatically by the kubernetes client.
+* AWS-specific tools (CloudWatch logs/metrics, IAM, CloudFormation stacks) will not be available unless AWS credentials are also configured.
+
 ### Environment variables
 
 The `env` field in the MCP server definition allows you to configure environment variables that control the behavior of the EKS MCP server.  For example:
@@ -274,6 +317,29 @@ Specifies the AWS region where EKS clusters are managed, which will be used for 
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+
+#### `EKS_AUTH_MODE` (optional)
+
+Specifies the authentication mode for Kubernetes API access.
+
+* Valid values: `iam` (default), `kubeconfig`
+* `iam`: Uses AWS IAM credentials with STS presigned URLs (existing behavior). Requires AWS credentials.
+* `kubeconfig`: Uses the local kubeconfig file for authentication. Supports OIDC, certificates, exec plugins, and service account tokens. Does not require AWS credentials for Kubernetes operations.
+* Default: `iam`
+* Example: `"EKS_AUTH_MODE": "kubeconfig"`
+
+When using kubeconfig mode:
+* The `cluster_name` parameter in Kubernetes tools is interpreted as a kubeconfig context name.
+* The `KUBECONFIG` environment variable or `~/.kube/config` is used to locate the kubeconfig file.
+* All authentication methods supported by kubeconfig are available (OIDC exec plugins, client certificates, bearer tokens, etc.).
+* AWS-only tools (CloudWatch, IAM, CloudFormation) still require AWS credentials and will return an error if they are not present.
+
+#### `KUBECONFIG` (optional)
+
+Specifies the path to the kubeconfig file. Used when `EKS_AUTH_MODE=kubeconfig`.
+
+* Default: `~/.kube/config`
+* Example: `"KUBECONFIG": "/path/to/my/kubeconfig"`
 
 #### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
 
