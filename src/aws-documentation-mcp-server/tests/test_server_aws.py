@@ -388,6 +388,56 @@ Content here.
                     mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
 
     @pytest.mark.asyncio
+    async def test_read_sections_html_parsing_failure(self):
+        """Test read_sections when HTML parsing fails."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><div>Malformed content</div></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = '<e>Page failed to be simplified from HTML</e>'
+
+                result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                assert 'Could not parse HTML page content' in result
+                assert 'read_documentation tool instead' in result
+                mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_sections_non_html_content(self):
+        """Test read_sections with non-HTML content."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'Plain text content without HTML'
+        mock_response.headers = {'content-type': 'text/plain'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.is_html_content'
+            ) as mock_is_html:
+                mock_is_html.return_value = False
+
+                result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                assert 'Cannot extract sections from non-HTML content' in result
+                assert 'read_documentation tool instead' in result
+                mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_read_sections_end_to_end_workflow(self):
         """Test complete end-to-end workflow from URL to filtered markdown."""
         url = 'https://docs.aws.amazon.com/s3/latest/userguide/test.html'
