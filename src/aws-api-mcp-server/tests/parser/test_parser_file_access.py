@@ -425,6 +425,31 @@ class TestDisabledLocalFileAccess:
 
 
 @patch(
+    'awslabs.aws_api_mcp_server.core.parser.parser.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
+    FileAccessMode.NO_ACCESS,
+)
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=yayme,Value@=fileb:///etc/passwd',
+        'aws ec2 create-tags --resources i-1234567890abcdef0 --tags Key=test,Value@=file:///etc/passwd',
+    ],
+)
+def test_shorthand_paramfile_rejected_when_file_access_disabled(command):
+    """Test that shorthand @= syntax with file:// or fileb:// is rejected when file access is disabled.
+
+    The @= syntax in shorthand triggers the _resolve_paramfiles method in awscli.shorthand,
+    which uses LOCAL_PREFIX_MAP to resolve file:// and fileb:// prefixes.
+    """
+    with pytest.raises(LocalFileAccessDisabledError):
+        parse(command)
+
+
+@patch(
     'awslabs.aws_api_mcp_server.core.common.file_system_controls.FILE_ACCESS_MODE',
     FileAccessMode.UNRESTRICTED,
 )

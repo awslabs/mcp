@@ -23,9 +23,9 @@ effortless scaling, multi-region viability, among other advantages.
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](#horizontal-scaling-best-practice)
 - **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](#connection-pooling-recommended)
 - **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](troubleshooting.md)
+- **ALWAYS use scoped roles for applications** - Create database roles with `dsql:DbConnect`; refer to [Access Control](access-control.md)
 
 ---
-
 
 ## Basic Development Guidelines
 
@@ -149,26 +149,15 @@ For production applications:
 
 ### Access Control
 
-**Database-level security:**
-- Create schema-specific users for applications
-- Grant minimal required privileges (SELECT, INSERT, UPDATE, DELETE)
-- Admin users should only perform administrative tasks
-- Regularly audit user permissions and access patterns
+**ALWAYS prefer scoped database roles over the `admin` role.**
+- **ALWAYS** use scoped database roles for application connections — reserve `admin` for initial setup and role management
+- **MUST** create purpose-specific database roles and connect with `dsql:DbConnect`
+- **MUST** place sensitive data (PII, credentials) in dedicated schemas — not `public`
+- **MUST** grant only the minimum privileges each role requires
+- **SHOULD** audit role mappings: `SELECT * FROM sys.iam_pg_role_mappings;`
 
-**Example IAM policy for non-admin users:**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "dsql:DbConnect",
-      "Resource": "arn:aws:dsql:*:*:cluster/*"
-    }
-  ]
-}
-```
+For complete role setup instructions, schema separation patterns, and IAM configuration,
+see [access-control.md](access-control.md).
 
 ---
 
@@ -261,7 +250,7 @@ Low-level libraries that directly connect to the database:
 | **JavaScript** | DSQL Connector for Postgres.js | [Postgres.js samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/javascript/postgres-js) |
 | **Python** | Psycopg | [Python Psycopg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg) |
 | **Python** | DSQL Connector for Psycopg2 | [Python Psycopg2 samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/python/psycopg2 ) |
-| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/awslabs/aurora-dsql-python-connector/tree/main/examples/asyncpg)|
+| **Python** | DSQL Connector for Asyncpg | [Python Asyncpg samples](https://github.com/awslabs/aurora-dsql-connectors/tree/main/python/connector/examples/asyncpg)|
 | **Ruby** | pg | [Ruby pg samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/ruby/ruby-pg) |
 | **Rust** | SQLx | [Rust SQLx samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/rust/sqlx) |
 
@@ -271,8 +260,8 @@ Standalone libraries that provide object-relational mapping functionality:
 
 | Programming Language | ORM Library | Sample Repository |
 |---------------------|-------------|-------------------|
-| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-hibernate/tree/main/examples/pet-clinic-app) |
-| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-sqlalchemy/tree/main/examples/pet-clinic-app) |
+| **Java** | Hibernate | [Hibernate Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate/examples/pet-clinic-app) |
+| **Python** | SQLAlchemy | [SQLAlchemy Pet Clinic App](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy/examples/pet-clinic-app) |
 | **TypeScript** | Sequelize | [TypeScript Sequelize samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/sequelize) |
 | **TypeScript** | TypeORM | [TypeScript TypeORM samples](https://github.com/aws-samples/aurora-dsql-samples/tree/main/typescript/type-orm) |
 
@@ -282,9 +271,9 @@ Specific extensions that make existing ORMs work with Aurora DSQL:
 
 | Programming Language | ORM/Framework | Repository |
 |---------------------|---------------|------------|
-| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-hibernate/) |
-| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-django/) |
-| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-sqlalchemy/) |
+| **Java** | Hibernate | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/java/hibernate) |
+| **Python** | Django | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/django) |
+| **Python** | SQLAlchemy | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/python/sqlalchemy) |
 
 
 ---
@@ -313,15 +302,29 @@ Hot keys (frequently accessed rows) create bottlenecks. For detailed analysis, s
 
 **Key strategies:**
 
-- **PREFER UUIDs for primary keys** - Use `gen_random_uuid()` for distributed writes; avoid sequential IDs
-  - **MUST NOT use globally incrementing sequences** - DSQL doesn't support SERIAL; random identifiers distribute better
+- **PREFER UUIDs for primary keys** - UUIDs are the recommended default identifier because they avoid coordination; use `gen_random_uuid()` for distributed writes
+  - **Sequences and IDENTITY columns are available** when compact, human-readable integer identifiers are needed (e.g., account numbers, reference IDs). CACHE must be specified explicitly as either 1 or >= 65536. See [Choosing Identifier Types](#choosing-identifier-types)
+  - **ALWAYS use `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY`** for auto-incrementing columns (SERIAL is not supported)
 - **SHOULD avoid aggregate update patterns** - Year-to-date totals and running counters create hot keys via read-modify-write
   - **RECOMMENDED: Compute aggregates via queries** - Calculate totals with SELECT when needed; eventual consistency often acceptable
 - **Accept contention only for genuine constraints** - Inventory management and account balances justify contention; sequential numbering and visit tracking don't
 
----
+### Choosing Identifier Types
 
-## Data Loading Tools
+Aurora DSQL supports both UUID-based identifiers and integer values generated using sequences or IDENTITY columns.
+
+- **UUIDs** can be generated without coordination and are recommended as the default identifier type, especially for primary keys where scalability is important and strict ordering is not required
+- **Sequences and IDENTITY columns** generate compact integer values convenient for human-readable identifiers, reporting, and external interfaces. When numeric identifiers are preferred, we recommend using a sequence or IDENTITY column in combination with UUID-based primary keys
+- **ALWAYS use `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY`** for auto-incrementing columns (SERIAL is not supported)
+
+#### Choosing a CACHE Size
+
+**REQUIRED:** Specify CACHE explicitly when creating sequences or identity columns. Supported values are 1 or >= 65536.
+
+- **CACHE >= 65536** — suited for high-frequency identifier generation, many concurrent sessions, and workloads that tolerate gaps and ordering effects (e.g., IoT/telemetry ingestion, job run IDs, internal order numbers)
+- **CACHE = 1** — suited for low allocation rates where identifiers should follow allocation order more closely and minimizing gaps matters more than throughput (e.g., account numbers, reference numbers)
+
+---
 
 ## Data Loading Tools
 

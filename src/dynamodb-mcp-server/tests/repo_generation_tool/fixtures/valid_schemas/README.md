@@ -152,6 +152,58 @@ All examples use the `tables` array format with flexible partition and sort key 
 
 **Use Cases**: Deal browsing, user management, brand catalogs, notification fan-out, partition-key-only optimization
 
+### 8. User Registration (`user_registration/`)
+
+**Domain**: User registration with email uniqueness enforcement using cross-table transactions
+**Tables**: Users, EmailLookup (Multi-Table with Atomic Transactions)
+**Key Features**:
+
+- **Cross-table atomic transactions**: TransactWriteItems and TransactGetItems for consistency
+- **Email uniqueness enforcement**: Separate lookup table with atomic constraint checking
+- **Partition-key-only tables**: Simple key-value lookups for both tables
+- **Race-condition-free**: Atomic operations prevent duplicate emails
+- **Referential integrity**: User and EmailLookup always in sync
+
+**Transaction Patterns**:
+
+- `register_user`: Atomic Put to both tables with existence checks
+- `delete_user_with_email`: Atomic Delete from both tables
+- `get_user_and_email`: TransactGet from both tables for consistency verification
+
+**Key Design Patterns**:
+
+- Partition-only: `USER#{user_id}`, `EMAIL#{email}` for direct lookups
+- Condition expressions: `attribute_not_exists(pk)` for uniqueness enforcement
+- TransactWrite: Atomic creates and deletes across tables
+- TransactGet: Atomic reads for consistency verification
+
+**Use Cases**: User registration, email uniqueness, account deletion, consistency verification, atomic multi-table operations
+
+### 9. Food Delivery Service (`food_delivery_app/`)
+
+**Domain**: Food delivery / last-mile delivery service with filter expression support
+**Tables**: DeliveryTable, RestaurantTable, DriverTable (Multi-Table with Mixed Key Designs)
+**Key Features**:
+
+- **Filter expression support**: Primary test fixture for all DynamoDB filter expression variants
+- **Comparison operators**: `=`, `<>`, `>=` for status exclusion, minimum totals, boolean matching
+- **Range filters**: `between` for delivery fee ranges, `in` for multi-status matching
+- **Function filters**: `contains`, `begins_with`, `attribute_exists`, `attribute_not_exists`, `size`
+- **Logical operators**: `AND` and `OR` combinations of multiple filter conditions
+- **Mixed key designs**: Composite keys (DeliveryTable, RestaurantTable) and partition-key-only (DriverTable)
+- **Query and Scan filters**: Filter expressions on both Query and Scan operations
+
+**Filter Expression Patterns**:
+
+- Status exclusion: `status <> "CANCELLED" AND total >= 50.00`
+- Fee range: `delivery_fee BETWEEN 3.00 AND 10.00`
+- Multi-status: `status IN ("PENDING", "PREPARING", "EN_ROUTE")`
+- Existence checks: `attribute_exists(special_instructions) AND attribute_not_exists(cancelled_at)`
+- Array size: `size(items) > 3`, `size(items) BETWEEN 2 AND 5`
+- Text matching: `contains(tags, "express")`, `begins_with(name, "A")`
+
+**Use Cases**: Active order tracking, fee analysis, status filtering, driver search, restaurant discovery, large order detection
+
 ## Design Pattern Comparison
 
 ### Single Table Design Benefits

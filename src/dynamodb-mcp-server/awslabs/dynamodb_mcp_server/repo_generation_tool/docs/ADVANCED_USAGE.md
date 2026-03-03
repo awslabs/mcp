@@ -289,6 +289,150 @@ user = User(
 
 For complete documentation, see [USAGE_DATA.md](USAGE_DATA.md).
 
+## Cross-Table Transactions
+
+The code generator supports defining atomic transactions that span multiple DynamoDB tables using the `cross_table_access_patterns` section in your schema. This enables you to ensure all operations succeed or all fail together, maintaining data consistency across tables.
+
+### When to Use Transactions
+
+Use cross-table transactions when you need:
+
+**Atomic Uniqueness Constraints**
+- Enforce email uniqueness across Users and EmailLookup tables
+- Prevent duplicate registrations with atomic checks
+- Ensure username uniqueness with lookup tables
+
+**Referential Integrity**
+- Create order and update inventory atomically
+- Delete user and cascade to related tables
+- Maintain parent-child relationships across tables
+
+**Coordinated Updates**
+- Synchronize status across multiple tables
+- Update aggregates and detail records together
+- Maintain consistency in denormalized data
+
+**Transfer Operations**
+- Debit one account and credit another atomically
+- Move items between tables with guarantees
+- Swap or exchange data across tables
+
+### Don't Use Transactions When
+
+- Single table operations are sufficient
+- Eventual consistency is acceptable
+- Operations don't require atomicity
+- You need to operate on more than 100 items (DynamoDB limit)
+- Cross-region operations are required
+
+### Transaction Example
+
+Define cross-table patterns in your schema for atomic operations across multiple tables. This example demonstrates username uniqueness enforcement:
+
+```json
+{
+  "tables": [
+    {
+      "table_config": {
+        "table_name": "Users",
+        "partition_key": "pk"
+      },
+      "entities": {
+        "User": {
+          "entity_type": "USER",
+          "pk_template": "USER#{user_id}",
+          "fields": [
+            { "name": "user_id", "type": "string", "required": true },
+            { "name": "username", "type": "string", "required": true },
+            { "name": "full_name", "type": "string", "required": true }
+          ],
+          "access_patterns": []
+        }
+      }
+    },
+    {
+      "table_config": {
+        "table_name": "UsernameLookup",
+        "partition_key": "pk"
+      },
+      "entities": {
+        "UsernameLookup": {
+          "entity_type": "USERNAME_LOOKUP",
+          "pk_template": "USERNAME#{username}",
+          "fields": [
+            { "name": "username", "type": "string", "required": true },
+            { "name": "user_id", "type": "string", "required": true }
+          ],
+          "access_patterns": []
+        }
+      }
+    }
+  ],
+  "cross_table_access_patterns": [
+    {
+      "pattern_id": 100,
+      "name": "register_user",
+      "description": "Create user and username lookup atomically",
+      "operation": "TransactWrite",
+      "entities_involved": [
+        {
+          "table": "Users",
+          "entity": "User",
+          "action": "Put",
+          "condition": "attribute_not_exists(pk)"
+        },
+        {
+          "table": "UsernameLookup",
+          "entity": "UsernameLookup",
+          "action": "Put",
+          "condition": "attribute_not_exists(pk)"
+        }
+      ],
+      "parameters": [
+        { "name": "user", "type": "entity", "entity_type": "User" },
+        { "name": "username_lookup", "type": "entity", "entity_type": "UsernameLookup" }
+      ],
+      "return_type": "boolean"
+    }
+  ]
+}
+```
+
+The generator creates a `TransactionService` class:
+
+```python
+from transaction_service import TransactionService
+from entities import User, UsernameLookup
+import boto3
+
+# Initialize service with DynamoDB resource
+dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
+tx_service = TransactionService(dynamodb)
+
+# Atomic user registration
+user = User(
+    user_id="user_123",
+    username="johndoe",
+    full_name="John Doe"
+)
+
+username_lookup = UsernameLookup(
+    username="johndoe",
+    user_id="user_123"
+)
+
+try:
+    success = tx_service.register_user(user, username_lookup)
+    print(f"✅ User registered: {success}")
+except ClientError as e:
+    if e.response['Error']['Code'] == 'TransactionCanceledException':
+        print("❌ User or username already exists")
+    else:
+        print(f"❌ Transaction failed: {e}")
+```
+
+For complete documentation including all operation types, error handling patterns, implementation guides, and troubleshooting, see [TRANSACTIONS.md](TRANSACTIONS.md).
+
 ## Item Collections (mixed_data)
 
 Item collections are DynamoDB patterns where multiple entity types share the same partition key, distinguished by different sort key prefixes. Use `"return_type": "mixed_data"` for queries that return heterogeneous results.
