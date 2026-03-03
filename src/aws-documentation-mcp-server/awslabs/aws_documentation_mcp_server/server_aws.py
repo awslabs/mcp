@@ -173,17 +173,14 @@ async def read_sections(
         description='List of section titles to extract from the documentation'
     ),
 ) -> str:
-    """Extract specific sections from an AWS documentation page based on section titles.
+    """Extract specific sections from AWS documentation pages by title.
 
-    ## Usage
-
-    This tool retrieves an AWS documentation page, converts it to markdown, and returns only
-    the sections matching the provided section titles. This is useful when you need specific
-    parts of a document rather than the entire content.
+    Retrieves a page, converts to markdown, and returns only matching sections.
+    Section matching is case-insensitive and handles whitespace differences.
 
     ## URL Requirements
 
-    - Must be from the docs.aws.amazon.com domain
+    - Must be from docs.aws.amazon.com
     - Must end with .html
 
     ## Read Sections Tips
@@ -191,25 +188,6 @@ async def read_sections(
     - Use exact section titles from search results 'sections' field when available
     - Section matching is case-insensitive and handles whitespace differences
     - Include multiple related sections in one call for comprehensive coverage
-    - Query-to-section mapping examples:
-        - "How to configure S3 encryption?" → sections: ["Server-side encryption", "Encryption configuration"]
-        - "Lambda timeout limits" → sections: ["Function configuration", "Timeout", "Limits"]
-        - "DynamoDB pricing information" → sections: ["Pricing", "Cost optimization", "Billing"]
-        - "API Gateway authentication methods" → sections: ["Authentication", "Authorization", "Security"]
-        - "RDS backup procedures" → sections: ["Backup", "Point-in-time recovery", "Automated backups"]
-        - "EC2 instance troubleshooting" → sections: ["Troubleshooting", "Common issues", "Instance status"]
-        - "CloudFormation best practices" → sections: ["Best practices", "Recommendations", "Security"]
-
-    ## Effective Section Selection
-
-    - When a section is found, all content until the next same-level or higher-level heading is included
-    - Subsections within matching sections are automatically included
-
-    ## Error Handling
-
-    - If no sections are found, an error message is returned
-    - If some sections are found but others are missing, the found sections are returned with a note about missing ones
-    - This allows for graceful partial success when requesting multiple sections
 
     ## Example Usage
 
