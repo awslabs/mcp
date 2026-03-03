@@ -15,7 +15,7 @@
 
 import boto3
 import os
-from .. import __version__
+from . import __version__
 from botocore.config import Config
 from mypy_boto3_kendra.client import KendraClient
 
