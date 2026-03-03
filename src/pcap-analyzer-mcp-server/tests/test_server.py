@@ -141,8 +141,10 @@ class TestPacketCaptureManagement:
 
     @pytest.mark.asyncio
     @patch('awslabs.pcap_analyzer_mcp_server.server.asyncio.create_subprocess_exec')
-    async def test_start_packet_capture(self, mock_subprocess):
+    @patch('awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs')
+    async def test_start_packet_capture(self, mock_net_if_addrs, mock_subprocess):
         """Test starting packet capture."""
+        mock_net_if_addrs.return_value = {'eth0': []}
         mock_process = AsyncMock()
         mock_subprocess.return_value = mock_process
 
@@ -708,14 +710,21 @@ class TestSecurityAndExceptionPaths:
             mock_process = AsyncMock()
             mock_exec.return_value = mock_process
 
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                with patch('awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir):
-                    result = await self.server._start_packet_capture(
-                        interface='eth0', capture_filter='tcp port 80'
-                    )
-                    assert len(result) == 1
-                    data = json.loads(result[0].text)
-                    assert data['status'] == 'started'
+            with patch(
+                'awslabs.pcap_analyzer_mcp_server.server.psutil.net_if_addrs'
+            ) as mock_net_if_addrs:
+                mock_net_if_addrs.return_value = {'eth0': []}
+
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    with patch(
+                        'awslabs.pcap_analyzer_mcp_server.server.PCAP_STORAGE_DIR', tmp_dir
+                    ):
+                        result = await self.server._start_packet_capture(
+                            interface='eth0', capture_filter='tcp port 80'
+                        )
+                        assert len(result) == 1
+                        data = json.loads(result[0].text)
+                        assert data['status'] == 'started'
 
     @pytest.mark.asyncio
     async def test_stop_active_capture_success(self):
