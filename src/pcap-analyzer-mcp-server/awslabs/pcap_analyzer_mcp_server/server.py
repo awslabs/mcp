@@ -729,8 +729,7 @@ class PCAPAnalyzerServer:
         available = set(psutil.net_if_addrs().keys())
         if interface not in available:
             raise ValueError(
-                f'Interface {interface!r} not found. '
-                f'Available interfaces: {sorted(available)}'
+                f'Interface {interface!r} not found. Available interfaces: {sorted(available)}'
             )
         return interface
 
