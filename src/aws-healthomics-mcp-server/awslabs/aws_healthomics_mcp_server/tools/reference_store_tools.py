@@ -16,6 +16,7 @@
 
 import json
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_MAX_RESULTS
+from awslabs.aws_healthomics_mcp_server.models.store import ReferenceImportSource
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from loguru import logger
@@ -24,63 +25,33 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, Optional
 
 
-async def create_reference_store(
-    ctx: Context,
-    name: Annotated[str, Field(description='Name for the new reference store')],
-    description: Optional[str] = Field(
-        None,
-        description='Optional description for the reference store',
-    ),
-    sse_kms_key_arn: Optional[str] = Field(
-        None,
-        description='KMS key ARN for server-side encryption of the reference store',
-    ),
-    tags: Optional[str] = Field(
-        None,
-        description='JSON string of tags to apply to the reference store, e.g. {"key": "value"}',
-    ),
-) -> Dict[str, Any]:
-    """Create a new HealthOmics reference store.
+def _resolve_reference_store_id(client: Any, reference_store_id: Optional[str] = None) -> str:
+    """Resolve the reference store ID.
+
+    AWS HealthOmics allows only one reference store per account per region.
+    If no reference_store_id is provided, automatically discovers it by
+    listing reference stores.
 
     Args:
-        ctx: MCP context for error reporting
-        name: Name for the new reference store
-        description: Optional description for the reference store
-        sse_kms_key_arn: KMS key ARN for server-side encryption
-        tags: JSON string of tags to apply
+        client: The HealthOmics client
+        reference_store_id: Optional explicit reference store ID
 
     Returns:
-        Dictionary containing the created reference store information
+        The resolved reference store ID
+
+    Raises:
+        ValueError: If no reference store exists or ID cannot be resolved
     """
-    client = get_omics_client()
+    if reference_store_id:
+        return reference_store_id
 
-    params: Dict[str, Any] = {'name': name}
-
-    if description:
-        params['description'] = description
-
-    if sse_kms_key_arn:
-        params['sseConfig'] = {'type': 'KMS', 'keyArn': sse_kms_key_arn}
-
-    if tags:
-        try:
-            params['tags'] = json.loads(tags)
-        except json.JSONDecodeError as e:
-            return await handle_tool_error(ctx, e, 'Error parsing tags JSON')
-
-    try:
-        logger.info(f'Creating reference store: {name}')
-        response = client.create_reference_store(**params)
-
-        creation_time = response.get('creationTime')
-        return {
-            'id': response.get('id'),
-            'arn': response.get('arn'),
-            'name': response.get('name'),
-            'creationTime': creation_time.isoformat() if creation_time is not None else None,
-        }
-    except Exception as e:
-        return await handle_tool_error(ctx, e, 'Error creating reference store')
+    response = client.list_reference_stores(maxResults=1)
+    stores = response.get('referenceStores', [])
+    if not stores:
+        raise ValueError('No reference store found in this account/region.')
+    resolved_id = stores[0]['id']
+    logger.info(f'Auto-resolved reference store ID: {resolved_id}')
+    return resolved_id
 
 
 async def list_reference_stores(
@@ -150,13 +121,19 @@ async def list_reference_stores(
 
 async def get_reference_store(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific HealthOmics reference store.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
 
     Returns:
         Dictionary containing reference store details
@@ -164,6 +141,7 @@ async def get_reference_store(
     client = get_omics_client()
 
     try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
         response = client.get_reference_store(id=reference_store_id)
 
         creation_time = response.get('creationTime')
@@ -180,72 +158,12 @@ async def get_reference_store(
         return await handle_tool_error(ctx, e, 'Error getting reference store')
 
 
-async def update_reference_store(
-    ctx: Context,
-    reference_store_id: Annotated[
-        str, Field(description='The ID of the reference store to update')
-    ],
-    name: Optional[str] = Field(
-        None,
-        description='New name for the reference store',
-    ),
-    description: Optional[str] = Field(
-        None,
-        description='New description for the reference store',
-    ),
-) -> Dict[str, Any]:
-    """Update a HealthOmics reference store.
-
-    Internally fetches the current ETag before performing the update to handle
-    optimistic concurrency control.
-
-    Args:
-        ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store to update
-        name: New name for the reference store
-        description: New description for the reference store
-
-    Returns:
-        Dictionary containing the updated reference store details
-    """
-    client = get_omics_client()
-
-    try:
-        # Step 1: Fetch current store to get ETag
-        current = client.get_reference_store(id=reference_store_id)
-        etag = current.get('eTag')
-
-        # Step 2: Build update params with ETag
-        params: Dict[str, Any] = {'id': reference_store_id}
-        if etag:
-            params['eTag'] = etag
-
-        if name:
-            params['name'] = name
-        if description:
-            params['description'] = description
-
-        # Step 3: Call update API
-        logger.info(f'Updating reference store: {reference_store_id}')
-        response = client.update_reference_store(**params)
-
-        creation_time = response.get('creationTime')
-        return {
-            'id': response.get('id'),
-            'arn': response.get('arn'),
-            'name': response.get('name'),
-            'description': response.get('description'),
-            'sseConfig': response.get('sseConfig'),
-            'creationTime': creation_time.isoformat() if creation_time is not None else None,
-            'eTag': response.get('eTag'),
-        }
-    except Exception as e:
-        return await handle_tool_error(ctx, e, 'Error updating reference store')
-
-
 async def list_references(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
     name_filter: Optional[str] = Field(
         None,
         description='Filter references by name',
@@ -267,9 +185,12 @@ async def list_references(
 ) -> Dict[str, Any]:
     """List references in a HealthOmics reference store with optional filtering.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
         name_filter: Filter references by name
         status_filter: Filter references by status
         max_results: Maximum number of results to return
@@ -279,6 +200,11 @@ async def list_references(
         Dictionary containing reference list and optional next token
     """
     client = get_omics_client()
+
+    try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
+    except (ValueError, Exception) as e:
+        return await handle_tool_error(ctx, e, 'Error resolving reference store ID')
 
     params: Dict[str, Any] = {
         'referenceStoreId': reference_store_id,
@@ -329,15 +255,21 @@ async def list_references(
 
 async def get_reference_metadata(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
     reference_id: Annotated[str, Field(description='The ID of the reference')],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
 ) -> Dict[str, Any]:
     """Get metadata for a specific reference in a HealthOmics reference store.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
         reference_id: The ID of the reference
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
 
     Returns:
         Dictionary containing reference metadata
@@ -345,6 +277,7 @@ async def get_reference_metadata(
     client = get_omics_client()
 
     try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
         response = client.get_reference_metadata(
             referenceStoreId=reference_store_id, id=reference_id
         )
@@ -367,23 +300,46 @@ async def get_reference_metadata(
 
 async def start_reference_import_job(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
     role_arn: Annotated[str, Field(description='IAM role ARN for the import job')],
     sources: Annotated[
         str,
         Field(
-            description='JSON list of import sources, each with sourceFile, name, '
-            'and optional description, tags'
+            description='JSON list of import sources. Each source requires: '
+            'sourceFile (S3 URI to a FASTA reference file), name. '
+            'Optional fields: description, tags. '
+            'Example: [{"sourceFile": "s3://bucket/GRCh38.fasta", '
+            '"name": "GRCh38", '
+            '"description": "Human reference genome build 38", '
+            '"tags": {"build": "38", "species": "human"}}]'
         ),
     ],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
 ) -> Dict[str, Any]:
     """Start a reference import job to import reference files from S3 into a reference store.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
+    Each source in the sources list is validated against the ReferenceImportSource model
+    and must include:
+      - sourceFile: S3 URI pointing to a FASTA reference file (e.g. "s3://bucket/GRCh38.fasta")
+      - name: A name for the reference (e.g. "GRCh38")
+      - description (optional): A description of the reference
+      - tags (optional): Key-value tags as {"key": "value"}
+
+    Example sources JSON:
+        [{"sourceFile": "s3://bucket/GRCh38.fasta", "name": "GRCh38",
+          "description": "Human reference genome build 38",
+          "tags": {"build": "38", "species": "human"}}]
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
         role_arn: IAM role ARN for the import job
-        sources: JSON list of import sources
+        sources: JSON list of import sources (validated against ReferenceImportSource)
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
 
     Returns:
         Dictionary containing the import job information
@@ -395,7 +351,15 @@ async def start_reference_import_job(
     except json.JSONDecodeError as e:
         return await handle_tool_error(ctx, e, 'Error parsing sources JSON')
 
+    # Validate each source against the ReferenceImportSource model
     try:
+        validated = [ReferenceImportSource(**s) for s in parsed_sources]
+        parsed_sources = [s.model_dump(exclude_none=True) for s in validated]
+    except Exception as e:
+        return await handle_tool_error(ctx, e, 'Error validating import sources')
+
+    try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
         logger.info(f'Starting reference import job for store: {reference_store_id}')
         response = client.start_reference_import_job(
             referenceStoreId=reference_store_id,
@@ -416,15 +380,21 @@ async def start_reference_import_job(
 
 async def get_reference_import_job(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
     import_job_id: Annotated[str, Field(description='The ID of the import job')],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a reference import job.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
         import_job_id: The ID of the import job
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
 
     Returns:
         Dictionary containing the import job details
@@ -432,6 +402,7 @@ async def get_reference_import_job(
     client = get_omics_client()
 
     try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
         response = client.get_reference_import_job(
             referenceStoreId=reference_store_id, id=import_job_id
         )
@@ -455,7 +426,10 @@ async def get_reference_import_job(
 
 async def list_reference_import_jobs(
     ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
+    reference_store_id: Optional[str] = Field(
+        None,
+        description='The ID of the reference store. If not provided, auto-resolves the single store in the account/region.',
+    ),
     max_results: int = Field(
         DEFAULT_MAX_RESULTS,
         description='Maximum number of results to return',
@@ -469,9 +443,12 @@ async def list_reference_import_jobs(
 ) -> Dict[str, Any]:
     """List reference import jobs for a reference store.
 
+    AWS HealthOmics allows only one reference store per account per region.
+    If reference_store_id is not provided, it will be automatically resolved.
+
     Args:
         ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
+        reference_store_id: The ID of the reference store (auto-resolved if omitted)
         max_results: Maximum number of results to return
         next_token: Token for pagination
 
@@ -479,6 +456,11 @@ async def list_reference_import_jobs(
         Dictionary containing import job list and optional next token
     """
     client = get_omics_client()
+
+    try:
+        reference_store_id = _resolve_reference_store_id(client, reference_store_id)
+    except (ValueError, Exception) as e:
+        return await handle_tool_error(ctx, e, 'Error resolving reference store ID')
 
     params: Dict[str, Any] = {
         'referenceStoreId': reference_store_id,
@@ -517,29 +499,3 @@ async def list_reference_import_jobs(
         return result
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error listing reference import jobs')
-
-
-async def cancel_reference_import_job(
-    ctx: Context,
-    reference_store_id: Annotated[str, Field(description='The ID of the reference store')],
-    import_job_id: Annotated[str, Field(description='The ID of the import job to cancel')],
-) -> Dict[str, Any]:
-    """Cancel a running reference import job.
-
-    Args:
-        ctx: MCP context for error reporting
-        reference_store_id: The ID of the reference store
-        import_job_id: The ID of the import job to cancel
-
-    Returns:
-        Dictionary containing cancellation confirmation
-    """
-    client = get_omics_client()
-
-    try:
-        logger.info(f'Cancelling reference import job: {import_job_id}')
-        client.cancel_reference_import_job(referenceStoreId=reference_store_id, id=import_job_id)
-
-        return {'message': f'Import job {import_job_id} cancelled successfully'}
-    except Exception as e:
-        return await handle_tool_error(ctx, e, 'Error cancelling reference import job')

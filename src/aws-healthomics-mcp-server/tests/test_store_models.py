@@ -28,6 +28,7 @@ from awslabs.aws_healthomics_mcp_server.models.store import (
     ReferenceSummary,
     SequenceStoreDetail,
     SequenceStoreSummary,
+    SourceFiles,
 )
 from datetime import datetime, timezone
 from pydantic import ValidationError
@@ -294,67 +295,126 @@ class TestReadSetSummary:
         assert 'referenceArn' not in data
 
 
+class TestSourceFiles:
+    """Tests for SourceFiles model."""
+
+    def test_paired_end(self):
+        files = SourceFiles(
+            source1='s3://bucket/read1.fastq',
+            source2='s3://bucket/read2.fastq',
+        )
+        assert files.source1 == 's3://bucket/read1.fastq'
+        assert files.source2 == 's3://bucket/read2.fastq'
+
+    def test_single_end(self):
+        files = SourceFiles(source1='s3://bucket/file.bam')
+        assert files.source1 == 's3://bucket/file.bam'
+        assert files.source2 is None
+
+    def test_missing_source1(self):
+        with pytest.raises(ValidationError):
+            SourceFiles()  # type: ignore
+
+    def test_serialization_exclude_none(self):
+        files = SourceFiles(source1='s3://bucket/file.bam')
+        data = files.model_dump(exclude_none=True)
+        assert data == {'source1': 's3://bucket/file.bam'}
+        assert 'source2' not in data
+
+
 class TestReadSetImportSource:
     """Tests for ReadSetImportSource model."""
 
     def test_all_fields(self):
         source = ReadSetImportSource(
             sourceFileType='FASTQ',
-            sourceFiles={
-                'source1': 's3://bucket/file1.fastq',
-                'source2': 's3://bucket/file2.fastq',
-            },
+            sourceFiles=SourceFiles(
+                source1='s3://bucket/file1.fastq',
+                source2='s3://bucket/file2.fastq',
+            ),
             referenceArn='arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store/reference/ref-123',
             sampleId='sample-001',
             subjectId='subject-001',
             name='my-import',
+            description='Import of paired-end FASTQ files',
+            generatedFrom='sequencer-run-001',
             tags={'project': 'genomics', 'env': 'dev'},
         )
         assert source.sourceFileType == 'FASTQ'
-        assert len(source.sourceFiles) == 2
+        assert source.sourceFiles.source1 == 's3://bucket/file1.fastq'
+        assert source.sourceFiles.source2 == 's3://bucket/file2.fastq'
         assert source.referenceArn is not None
         assert source.sampleId == 'sample-001'
         assert source.subjectId == 'subject-001'
         assert source.name == 'my-import'
+        assert source.description == 'Import of paired-end FASTQ files'
+        assert source.generatedFrom == 'sequencer-run-001'
         assert source.tags == {'project': 'genomics', 'env': 'dev'}
 
     def test_minimal_fields(self):
         source = ReadSetImportSource(
             sourceFileType='BAM',
-            sourceFiles={'source1': 's3://bucket/file.bam'},
+            sourceFiles=SourceFiles(source1='s3://bucket/file.bam'),
+            subjectId='subject-001',
+            sampleId='sample-001',
         )
+        assert source.sourceFiles.source2 is None
         assert source.referenceArn is None
-        assert source.sampleId is None
-        assert source.subjectId is None
         assert source.name is None
+        assert source.description is None
+        assert source.generatedFrom is None
         assert source.tags is None
 
     def test_missing_required_fields(self):
         with pytest.raises(ValidationError):
             ReadSetImportSource()  # type: ignore
 
+    def test_missing_subject_id(self):
+        with pytest.raises(ValidationError):
+            ReadSetImportSource(
+                sourceFileType='BAM',
+                sourceFiles=SourceFiles(source1='s3://bucket/file.bam'),
+                sampleId='sample-001',
+            )  # type: ignore
+
+    def test_missing_sample_id(self):
+        with pytest.raises(ValidationError):
+            ReadSetImportSource(
+                sourceFileType='BAM',
+                sourceFiles=SourceFiles(source1='s3://bucket/file.bam'),
+                subjectId='subject-001',
+            )  # type: ignore
+
     def test_serialization(self):
         source = ReadSetImportSource(
             sourceFileType='CRAM',
-            sourceFiles={'source1': 's3://bucket/file.cram'},
+            sourceFiles=SourceFiles(source1='s3://bucket/file.cram'),
+            subjectId='subject-001',
+            sampleId='sample-001',
             name='test-import',
         )
         data = source.model_dump()
         assert data['sourceFileType'] == 'CRAM'
-        assert data['sourceFiles'] == {'source1': 's3://bucket/file.cram'}
+        assert data['sourceFiles'] == {'source1': 's3://bucket/file.cram', 'source2': None}
         assert data['name'] == 'test-import'
+        assert data['subjectId'] == 'subject-001'
+        assert data['sampleId'] == 'sample-001'
 
     def test_serialization_exclude_none(self):
         source = ReadSetImportSource(
             sourceFileType='BAM',
-            sourceFiles={'source1': 's3://bucket/file.bam'},
+            sourceFiles=SourceFiles(source1='s3://bucket/file.bam'),
+            subjectId='subject-001',
+            sampleId='sample-001',
         )
         data = source.model_dump(exclude_none=True)
         assert 'referenceArn' not in data
-        assert 'sampleId' not in data
-        assert 'subjectId' not in data
         assert 'name' not in data
+        assert 'description' not in data
+        assert 'generatedFrom' not in data
         assert 'tags' not in data
+        # source2 excluded from nested SourceFiles too
+        assert 'source2' not in data['sourceFiles']
 
 
 # --- Reference Store Model Tests ---

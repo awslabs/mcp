@@ -79,6 +79,7 @@ from .store import (
     ReferenceSummary,
     SequenceStoreDetail,
     SequenceStoreSummary,
+    SourceFiles,
 )
 
 # Search models and utilities
@@ -155,6 +156,7 @@ __all__ = [
     'ReferenceSummary',
     'SequenceStoreDetail',
     'SequenceStoreSummary',
+    'SourceFiles',
     # Search models
     'CursorBasedPaginationToken',
     'FileGroup',

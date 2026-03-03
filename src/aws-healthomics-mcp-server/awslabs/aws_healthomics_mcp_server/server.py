@@ -38,8 +38,6 @@ from awslabs.aws_healthomics_mcp_server.tools.helper_tools import (
     package_workflow,
 )
 from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
-    cancel_reference_import_job,
-    create_reference_store,
     get_reference_import_job,
     get_reference_metadata,
     get_reference_store,
@@ -47,7 +45,6 @@ from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
     list_reference_stores,
     list_references,
     start_reference_import_job,
-    update_reference_store,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_analysis import analyze_run_performance
 from awslabs.aws_healthomics_mcp_server.tools.run_cache import (
@@ -65,8 +62,6 @@ from awslabs.aws_healthomics_mcp_server.tools.run_group import (
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
     activate_read_sets,
-    archive_read_sets,
-    cancel_read_set_import_job,
     create_sequence_store,
     get_read_set_export_job,
     get_read_set_import_job,
@@ -192,24 +187,19 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **StartAHOReadSetImportJob**: Import genomic files from S3 into a sequence store
 - **GetAHOReadSetImportJob**: Get status of a read set import job
 - **ListAHOReadSetImportJobs**: List import jobs for a sequence store
-- **CancelAHOReadSetImportJob**: Cancel a running import job
 - **StartAHOReadSetExportJob**: Export read sets from a sequence store to S3
 - **GetAHOReadSetExportJob**: Get status of a read set export job
 - **ListAHOReadSetExportJobs**: List export jobs for a sequence store
 - **ActivateAHOReadSets**: Activate archived read sets
-- **ArchiveAHOReadSets**: Archive read sets to lower-cost storage
 
 ### Reference Store Management
-- **CreateAHOReferenceStore**: Create a new HealthOmics reference store
 - **ListAHOReferenceStores**: List available reference stores
 - **GetAHOReferenceStore**: Get details about a specific reference store
-- **UpdateAHOReferenceStore**: Update a reference store's configuration
 - **ListAHOReferences**: List references in a reference store with filtering
 - **GetAHOReferenceMetadata**: Get metadata for a specific reference
 - **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
 - **GetAHOReferenceImportJob**: Get status of a reference import job
 - **ListAHOReferenceImportJobs**: List import jobs for a reference store
-- **CancelAHOReferenceImportJob**: Cancel a running reference import job
 
 ## Service Availability
 AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegions tool to get the current list of supported regions.
@@ -297,24 +287,19 @@ mcp.tool(name='GetAHOReadSetMetadata')(get_read_set_metadata)
 mcp.tool(name='StartAHOReadSetImportJob')(start_read_set_import_job)
 mcp.tool(name='GetAHOReadSetImportJob')(get_read_set_import_job)
 mcp.tool(name='ListAHOReadSetImportJobs')(list_read_set_import_jobs)
-mcp.tool(name='CancelAHOReadSetImportJob')(cancel_read_set_import_job)
 mcp.tool(name='StartAHOReadSetExportJob')(start_read_set_export_job)
 mcp.tool(name='GetAHOReadSetExportJob')(get_read_set_export_job)
 mcp.tool(name='ListAHOReadSetExportJobs')(list_read_set_export_jobs)
 mcp.tool(name='ActivateAHOReadSets')(activate_read_sets)
-mcp.tool(name='ArchiveAHOReadSets')(archive_read_sets)
 
 # Register reference store tools
-mcp.tool(name='CreateAHOReferenceStore')(create_reference_store)
 mcp.tool(name='ListAHOReferenceStores')(list_reference_stores)
 mcp.tool(name='GetAHOReferenceStore')(get_reference_store)
-mcp.tool(name='UpdateAHOReferenceStore')(update_reference_store)
 mcp.tool(name='ListAHOReferences')(list_references)
 mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
 mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
 mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
 mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
-mcp.tool(name='CancelAHOReferenceImportJob')(cancel_reference_import_job)
 
 
 def main():

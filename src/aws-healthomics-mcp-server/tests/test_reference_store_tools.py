@@ -17,8 +17,7 @@
 import json
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
-    cancel_reference_import_job,
-    create_reference_store,
+    _resolve_reference_store_id,
     get_reference_import_job,
     get_reference_metadata,
     get_reference_store,
@@ -26,7 +25,6 @@ from awslabs.aws_healthomics_mcp_server.tools.reference_store_tools import (
     list_reference_stores,
     list_references,
     start_reference_import_job,
-    update_reference_store,
 )
 from datetime import datetime, timezone
 from tests.test_helpers import MCPToolTestWrapper
@@ -39,84 +37,109 @@ NOW = datetime.now(timezone.utc)
 
 
 # =============================================================================
-# TestCreateReferenceStore
+# TestResolveReferenceStoreId
 # =============================================================================
 
 
-class TestCreateReferenceStore:
-    """Tests for create_reference_store tool."""
+class TestResolveReferenceStoreId:
+    """Tests for _resolve_reference_store_id helper."""
 
-    wrapper = MCPToolTestWrapper(create_reference_store)
+    def test_returns_explicit_id(self):
+        mock_client = MagicMock()
+        result = _resolve_reference_store_id(mock_client, 'ref-store-123')
+        assert result == 'ref-store-123'
+        mock_client.list_reference_stores.assert_not_called()
+
+    def test_auto_resolves_when_none(self):
+        mock_client = MagicMock()
+        mock_client.list_reference_stores.return_value = {
+            'referenceStores': [{'id': 'auto-resolved-id'}]
+        }
+        result = _resolve_reference_store_id(mock_client, None)
+        assert result == 'auto-resolved-id'
+        mock_client.list_reference_stores.assert_called_once_with(maxResults=1)
+
+    def test_auto_resolves_when_empty_string(self):
+        mock_client = MagicMock()
+        mock_client.list_reference_stores.return_value = {
+            'referenceStores': [{'id': 'auto-resolved-id'}]
+        }
+        result = _resolve_reference_store_id(mock_client, '')
+        assert result == 'auto-resolved-id'
+
+    def test_raises_when_no_stores(self):
+        mock_client = MagicMock()
+        mock_client.list_reference_stores.return_value = {'referenceStores': []}
+        with pytest.raises(ValueError, match='No reference store found'):
+            _resolve_reference_store_id(mock_client, None)
+
+
+# =============================================================================
+# TestAutoResolveIntegration
+# =============================================================================
+
+
+class TestAutoResolveIntegration:
+    """Tests for auto-resolve behavior in tools that accept optional reference_store_id."""
 
     @pytest.mark.asyncio
-    async def test_happy_path_all_params(self):
+    async def test_list_references_auto_resolves(self):
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.create_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store-123',
-            'name': 'my-ref-store',
+        mock_client.list_reference_stores.return_value = {
+            'referenceStores': [{'id': 'auto-store'}]
+        }
+        mock_client.list_references.return_value = {'references': []}
+        wrapper = MCPToolTestWrapper(list_references)
+        with patch(MOCK_PATH, return_value=mock_client):
+            result = await wrapper.call(ctx=mock_ctx)
+        assert result['references'] == []
+        mock_client.list_reference_stores.assert_called_once_with(maxResults=1)
+        call_args = mock_client.list_references.call_args[1]
+        assert call_args['referenceStoreId'] == 'auto-store'
+
+    @pytest.mark.asyncio
+    async def test_list_import_jobs_auto_resolves(self):
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.list_reference_stores.return_value = {
+            'referenceStores': [{'id': 'auto-store'}]
+        }
+        mock_client.list_reference_import_jobs.return_value = {'importJobs': []}
+        wrapper = MCPToolTestWrapper(list_reference_import_jobs)
+        with patch(MOCK_PATH, return_value=mock_client):
+            result = await wrapper.call(ctx=mock_ctx)
+        assert result['importJobs'] == []
+        mock_client.list_reference_stores.assert_called_once_with(maxResults=1)
+
+    @pytest.mark.asyncio
+    async def test_get_reference_store_auto_resolves(self):
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.list_reference_stores.return_value = {
+            'referenceStores': [{'id': 'auto-store'}]
+        }
+        mock_client.get_reference_store.return_value = {
+            'id': 'auto-store',
+            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/auto-store',
+            'name': 'my-store',
             'creationTime': NOW,
         }
+        wrapper = MCPToolTestWrapper(get_reference_store)
         with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                name='my-ref-store',
-                description='A test reference store',
-                sse_kms_key_arn='arn:aws:kms:us-east-1:123456789012:key/abc-123',
-                tags='{"env": "test"}',
-            )
-        assert result['id'] == 'ref-store-123'
-        assert result['arn'] is not None
-        assert result['name'] == 'my-ref-store'
-        assert result['creationTime'] is not None
-        call_args = mock_client.create_reference_store.call_args[1]
-        assert call_args['name'] == 'my-ref-store'
-        assert call_args['description'] == 'A test reference store'
-        assert call_args['sseConfig'] == {
-            'type': 'KMS',
-            'keyArn': 'arn:aws:kms:us-east-1:123456789012:key/abc-123',
-        }
-        assert call_args['tags'] == {'env': 'test'}
+            result = await wrapper.call(ctx=mock_ctx)
+        assert result['id'] == 'auto-store'
+        mock_client.list_reference_stores.assert_called_once_with(maxResults=1)
 
     @pytest.mark.asyncio
-    async def test_happy_path_minimal_params(self):
+    async def test_auto_resolve_no_store_returns_error(self):
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.create_reference_store.return_value = {
-            'id': 'ref-store-456',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store-456',
-            'name': 'minimal-store',
-            'creationTime': NOW,
-        }
+        mock_client.list_reference_stores.return_value = {'referenceStores': []}
+        wrapper = MCPToolTestWrapper(list_reference_import_jobs)
         with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(ctx=mock_ctx, name='minimal-store')
-        assert result['id'] == 'ref-store-456'
-        assert result['name'] == 'minimal-store'
-        call_args = mock_client.create_reference_store.call_args[1]
-        assert 'description' not in call_args
-        assert 'sseConfig' not in call_args
-        assert 'tags' not in call_args
-
-    @pytest.mark.asyncio
-    async def test_api_error(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.create_reference_store.side_effect = Exception('AccessDeniedException')
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(ctx=mock_ctx, name='fail-store')
+            result = await wrapper.call(ctx=mock_ctx)
         assert 'error' in result
-        assert len(result['error']) > 0
-
-    @pytest.mark.asyncio
-    async def test_invalid_tags_json(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(ctx=mock_ctx, name='store', tags='not-valid-json')
-        assert 'error' in result
-        assert len(result['error']) > 0
-        mock_client.create_reference_store.assert_not_called()
 
 
 # =============================================================================
@@ -262,130 +285,6 @@ class TestGetReferenceStore:
             result = await self.wrapper.call(ctx=mock_ctx, reference_store_id='nonexistent')
         assert 'error' in result
         assert len(result['error']) > 0
-
-
-# =============================================================================
-# TestUpdateReferenceStore
-# =============================================================================
-
-
-class TestUpdateReferenceStore:
-    """Tests for update_reference_store tool."""
-
-    wrapper = MCPToolTestWrapper(update_reference_store)
-
-    @pytest.mark.asyncio
-    async def test_happy_path_name_and_description(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.get_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'eTag': 'etag-v1',
-        }
-        mock_client.update_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store-123',
-            'name': 'updated-name',
-            'description': 'updated-desc',
-            'sseConfig': None,
-            'creationTime': NOW,
-            'eTag': 'etag-v2',
-        }
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                reference_store_id='ref-store-123',
-                name='updated-name',
-                description='updated-desc',
-            )
-        assert result['id'] == 'ref-store-123'
-        assert result['name'] == 'updated-name'
-        assert result['description'] == 'updated-desc'
-        assert result['eTag'] == 'etag-v2'
-
-    @pytest.mark.asyncio
-    async def test_etag_management(self):
-        """Verify get is called before update to fetch ETag."""
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.get_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'eTag': 'etag-current',
-        }
-        mock_client.update_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store-123',
-            'name': 'new-name',
-            'creationTime': NOW,
-            'eTag': 'etag-new',
-        }
-        with patch(MOCK_PATH, return_value=mock_client):
-            await self.wrapper.call(
-                ctx=mock_ctx, reference_store_id='ref-store-123', name='new-name'
-            )
-        # Verify get was called first to fetch ETag
-        mock_client.get_reference_store.assert_called_once_with(id='ref-store-123')
-        # Verify update was called with the fetched ETag
-        update_args = mock_client.update_reference_store.call_args[1]
-        assert update_args['eTag'] == 'etag-current'
-        assert update_args['name'] == 'new-name'
-
-    @pytest.mark.asyncio
-    async def test_api_error_on_get(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.get_reference_store.side_effect = Exception(
-            'ResourceNotFoundException: Store not found'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx, reference_store_id='nonexistent', name='new-name'
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-        mock_client.update_reference_store.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_api_error_on_update(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.get_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'eTag': 'etag-v1',
-        }
-        mock_client.update_reference_store.side_effect = Exception(
-            'ConflictException: ETag mismatch'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx, reference_store_id='ref-store-123', name='new-name'
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-    @pytest.mark.asyncio
-    async def test_update_without_etag(self):
-        """Verify update works when get response has no eTag."""
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.get_reference_store.return_value = {
-            'id': 'ref-store-123',
-        }
-        mock_client.update_reference_store.return_value = {
-            'id': 'ref-store-123',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:referenceStore/ref-store-123',
-            'name': 'new-name',
-            'creationTime': NOW,
-            'eTag': 'etag-v1',
-        }
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx, reference_store_id='ref-store-123', name='new-name'
-            )
-        assert result['id'] == 'ref-store-123'
-        update_args = mock_client.update_reference_store.call_args[1]
-        assert 'eTag' not in update_args
-        assert update_args['name'] == 'new-name'
 
 
 # =============================================================================
@@ -758,65 +657,5 @@ class TestListReferenceImportJobs:
         )
         with patch(MOCK_PATH, return_value=mock_client):
             result = await self.wrapper.call(ctx=mock_ctx, reference_store_id='nonexistent')
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-
-# =============================================================================
-# TestCancelReferenceImportJob
-# =============================================================================
-
-
-class TestCancelReferenceImportJob:
-    """Tests for cancel_reference_import_job tool."""
-
-    wrapper = MCPToolTestWrapper(cancel_reference_import_job)
-
-    @pytest.mark.asyncio
-    async def test_happy_path(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_reference_import_job.return_value = {}
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                reference_store_id='ref-store-123',
-                import_job_id='import-job-001',
-            )
-        assert 'message' in result
-        assert 'import-job-001' in result['message']
-        mock_client.cancel_reference_import_job.assert_called_once_with(
-            referenceStoreId='ref-store-123', id='import-job-001'
-        )
-
-    @pytest.mark.asyncio
-    async def test_non_cancellable_job_error(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_reference_import_job.side_effect = Exception(
-            'ConflictException: Job is not in a cancellable state'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                reference_store_id='ref-store-123',
-                import_job_id='completed-job',
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-    @pytest.mark.asyncio
-    async def test_not_found_error(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_reference_import_job.side_effect = Exception(
-            'ResourceNotFoundException: Import job not found'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                reference_store_id='ref-store-123',
-                import_job_id='nonexistent',
-            )
         assert 'error' in result
         assert len(result['error']) > 0

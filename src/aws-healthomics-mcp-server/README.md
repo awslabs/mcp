@@ -94,25 +94,20 @@ This MCP server provides tools for:
 7. **StartAHOReadSetImportJob** - Import genomic files from S3 into a sequence store with batch support
 8. **GetAHOReadSetImportJob** - Get status and details of a read set import job including per-source statuses
 9. **ListAHOReadSetImportJobs** - List import jobs for a sequence store with pagination
-10. **CancelAHOReadSetImportJob** - Cancel a running read set import job
 11. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
 12. **GetAHOReadSetExportJob** - Get status and details of a read set export job
 13. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
 14. **ActivateAHOReadSets** - Activate archived read sets for analysis access
-15. **ArchiveAHOReadSets** - Archive read sets to lower-cost storage
 
 ### Reference Store Management Tools
 
-1. **CreateAHOReferenceStore** - Create a new reference store with optional encryption, description, and tags
-2. **ListAHOReferenceStores** - List reference stores with optional name filtering and pagination
-3. **GetAHOReferenceStore** - Get detailed information about a specific reference store
-4. **UpdateAHOReferenceStore** - Update a reference store's name or description (manages ETags internally)
-5. **ListAHOReferences** - List references in a reference store with optional name and status filtering
-6. **GetAHOReferenceMetadata** - Get detailed metadata for a specific reference including file information
-7. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
-8. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
-9. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
-10. **CancelAHOReferenceImportJob** - Cancel a running reference import job
+1. **ListAHOReferenceStores** - List reference stores with optional name filtering and pagination
+2. **GetAHOReferenceStore** - Get detailed information about a specific reference store
+3. **ListAHOReferences** - List references in a reference store with optional name and status filtering
+4. **GetAHOReferenceMetadata** - Get detailed metadata for a specific reference including file information
+5. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
+6. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
+7. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
 
 ### Region Management Tools
 
@@ -523,7 +518,6 @@ The following IAM permissions are required:
                 "omics:StartReadSetImportJob",
                 "omics:GetReadSetImportJob",
                 "omics:ListReadSetImportJobs",
-                "omics:CancelReadSetImportJob",
                 "omics:StartReadSetExportJob",
                 "omics:GetReadSetExportJob",
                 "omics:ListReadSetExportJobs",
@@ -535,7 +529,6 @@ The following IAM permissions are required:
                 "omics:StartReferenceImportJob",
                 "omics:GetReferenceImportJob",
                 "omics:ListReferenceImportJobs",
-                "omics:CancelReferenceImportJob",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
                 "logs:GetLogEvents"

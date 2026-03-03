@@ -18,8 +18,6 @@ import json
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
     activate_read_sets,
-    archive_read_sets,
-    cancel_read_set_import_job,
     create_sequence_store,
     get_read_set_export_job,
     get_read_set_import_job,
@@ -480,13 +478,29 @@ class TestListReadSets:
     async def test_with_file_type_filter(self):
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
-        mock_client.list_read_sets.return_value = {'readSets': []}
+        mock_client.list_read_sets.return_value = {
+            'readSets': [
+                {
+                    'id': 'rs-001',
+                    'fileType': 'BAM',
+                    'status': 'ACTIVE',
+                },
+                {
+                    'id': 'rs-002',
+                    'fileType': 'FASTQ',
+                    'status': 'ACTIVE',
+                },
+            ]
+        }
         with patch(MOCK_PATH, return_value=mock_client):
-            await self.wrapper.call(
+            result = await self.wrapper.call(
                 ctx=mock_ctx, sequence_store_id='seq-store-123', file_type='BAM'
             )
+        # file_type is not a valid API filter — it should be applied client-side
         call_args = mock_client.list_read_sets.call_args[1]
-        assert call_args['filter'] == {'fileType': 'BAM'}
+        assert 'filter' not in call_args
+        assert len(result['readSets']) == 1
+        assert result['readSets'][0]['id'] == 'rs-001'
 
     @pytest.mark.asyncio
     async def test_with_reference_arn_filter(self):
@@ -693,6 +707,8 @@ class TestStartReadSetImportJob:
                 {
                     'sourceFileType': 'BAM',
                     'sourceFiles': {'source1': 's3://bucket/sample.bam'},
+                    'subjectId': 'subject-1',
+                    'sampleId': 'sample-1',
                 }
             ]
         )
@@ -728,7 +744,14 @@ class TestStartReadSetImportJob:
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
         sources = json.dumps(
-            [{'sourceFileType': 'FASTQ', 'sourceFiles': {'source1': 's3://bucket/r1.fastq.gz'}}]
+            [
+                {
+                    'sourceFileType': 'FASTQ',
+                    'sourceFiles': {'source1': 's3://bucket/r1.fastq.gz'},
+                    'subjectId': 'subject-1',
+                    'sampleId': 'sample-1',
+                }
+            ]
         )
         with patch(MOCK_PATH, return_value=mock_client):
             result = await self.wrapper.call(
@@ -748,7 +771,14 @@ class TestStartReadSetImportJob:
         mock_client = MagicMock()
         mock_client.start_read_set_import_job.side_effect = Exception('ValidationException')
         sources = json.dumps(
-            [{'sourceFileType': 'FASTQ', 'sourceFiles': {'source1': 's3://bucket/r1.fastq.gz'}}]
+            [
+                {
+                    'sourceFileType': 'FASTQ',
+                    'sourceFiles': {'source1': 's3://bucket/r1.fastq.gz'},
+                    'subjectId': 'subject-1',
+                    'sampleId': 'sample-1',
+                }
+            ]
         )
         with patch(MOCK_PATH, return_value=mock_client):
             result = await self.wrapper.call(
@@ -910,66 +940,6 @@ class TestListReadSetImportJobs:
 
 
 # =============================================================================
-# TestCancelReadSetImportJob
-# =============================================================================
-
-
-class TestCancelReadSetImportJob:
-    """Tests for cancel_read_set_import_job tool."""
-
-    wrapper = MCPToolTestWrapper(cancel_read_set_import_job)
-
-    @pytest.mark.asyncio
-    async def test_happy_path(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_read_set_import_job.return_value = {}
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                import_job_id='import-job-001',
-            )
-        assert 'message' in result
-        assert 'import-job-001' in result['message']
-        mock_client.cancel_read_set_import_job.assert_called_once_with(
-            sequenceStoreId='seq-store-123', id='import-job-001'
-        )
-
-    @pytest.mark.asyncio
-    async def test_non_cancellable_job_error(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_read_set_import_job.side_effect = Exception(
-            'ConflictException: Job is not in a cancellable state'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                import_job_id='completed-job',
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-    @pytest.mark.asyncio
-    async def test_not_found_error(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_read_set_import_job.side_effect = Exception(
-            'ResourceNotFoundException: Import job not found'
-        )
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                import_job_id='nonexistent',
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-
-# =============================================================================
 # TestStartReadSetExportJob
 # =============================================================================
 
@@ -1011,20 +981,25 @@ class TestStartReadSetExportJob:
         assert call_args['sources'][1] == {'readSetId': 'rs-002'}
 
     @pytest.mark.asyncio
-    async def test_invalid_read_set_ids_json(self):
+    async def test_plain_string_treated_as_single_id(self):
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
+        mock_client.start_read_set_export_job.return_value = {
+            'id': 'export-001',
+            'sequenceStoreId': 'seq-store-123',
+            'status': 'SUBMITTED',
+            'destination': 's3://export-bucket/output/',
+        }
         with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
+            await self.wrapper.call(
                 ctx=mock_ctx,
                 sequence_store_id='seq-store-123',
                 destination_s3_uri='s3://export-bucket/output/',
                 role_arn='arn:aws:iam::123456789012:role/OmicsRole',
-                read_set_ids='not-valid-json[',
+                read_set_ids='rs-single-001',
             )
-        assert 'error' in result
-        assert len(result['error']) > 0
-        mock_client.start_read_set_export_job.assert_not_called()
+        call_args = mock_client.start_read_set_export_job.call_args[1]
+        assert call_args['sources'] == [{'readSetId': 'rs-single-001'}]
 
     @pytest.mark.asyncio
     async def test_api_error(self):
@@ -1217,18 +1192,21 @@ class TestActivateReadSets:
         assert call_args['sources'][1] == {'readSetId': 'rs-002'}
 
     @pytest.mark.asyncio
-    async def test_invalid_json(self):
+    async def test_plain_string_treated_as_single_id(self):
         mock_ctx = AsyncMock()
         mock_client = MagicMock()
+        mock_client.start_read_set_activation_job.return_value = {
+            'sequenceStoreId': 'seq-store-123',
+            'status': 'SUBMITTED',
+        }
         with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
+            await self.wrapper.call(
                 ctx=mock_ctx,
                 sequence_store_id='seq-store-123',
-                read_set_ids='not-valid-json',
+                read_set_ids='rs-single-001',
             )
-        assert 'error' in result
-        assert len(result['error']) > 0
-        mock_client.start_read_set_activation_job.assert_not_called()
+        call_args = mock_client.start_read_set_activation_job.call_args[1]
+        assert call_args['sources'] == [{'readSetId': 'rs-single-001'}]
 
     @pytest.mark.asyncio
     async def test_api_error_invalid_state(self):
@@ -1236,72 +1214,6 @@ class TestActivateReadSets:
         mock_client = MagicMock()
         mock_client.start_read_set_activation_job.side_effect = Exception(
             'ValidationException: Read set is not in ARCHIVED state'
-        )
-        read_set_ids = json.dumps(['rs-001'])
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                read_set_ids=read_set_ids,
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-
-
-# =============================================================================
-# TestArchiveReadSets
-# =============================================================================
-
-
-class TestArchiveReadSets:
-    """Tests for archive_read_sets tool."""
-
-    wrapper = MCPToolTestWrapper(archive_read_sets)
-
-    @pytest.mark.asyncio
-    async def test_happy_path(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.start_read_set_archive_job.return_value = {
-            'sequenceStoreId': 'seq-store-123',
-            'status': 'SUBMITTED',
-        }
-        read_set_ids = json.dumps(['rs-001', 'rs-002'])
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                read_set_ids=read_set_ids,
-            )
-        assert result['sequenceStoreId'] == 'seq-store-123'
-        assert result['status'] == 'SUBMITTED'
-        assert result['readSetIds'] == ['rs-001', 'rs-002']
-        call_args = mock_client.start_read_set_archive_job.call_args[1]
-        assert call_args['sequenceStoreId'] == 'seq-store-123'
-        assert len(call_args['sources']) == 2
-        assert call_args['sources'][0] == {'readSetId': 'rs-001'}
-        assert call_args['sources'][1] == {'readSetId': 'rs-002'}
-
-    @pytest.mark.asyncio
-    async def test_invalid_json(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await self.wrapper.call(
-                ctx=mock_ctx,
-                sequence_store_id='seq-store-123',
-                read_set_ids='not-valid-json',
-            )
-        assert 'error' in result
-        assert len(result['error']) > 0
-        mock_client.start_read_set_archive_job.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_api_error_invalid_state(self):
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.start_read_set_archive_job.side_effect = Exception(
-            'ValidationException: Read set is not in ACTIVE state'
         )
         read_set_ids = json.dumps(['rs-001'])
         with patch(MOCK_PATH, return_value=mock_client):

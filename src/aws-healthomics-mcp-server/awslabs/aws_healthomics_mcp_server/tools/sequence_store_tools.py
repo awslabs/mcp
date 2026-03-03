@@ -16,12 +16,14 @@
 
 import json
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_MAX_RESULTS
+from awslabs.aws_healthomics_mcp_server.models.store import ReadSetImportSource
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list, parse_tags
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional, Union
 
 
 async def create_sequence_store(
@@ -39,9 +41,9 @@ async def create_sequence_store(
         None,
         description='S3 URI for the fallback location of the sequence store',
     ),
-    tags: Optional[str] = Field(
+    tags: Optional[Union[str, Dict[str, str]]] = Field(
         None,
-        description='JSON string of tags to apply to the sequence store, e.g. {"key": "value"}',
+        description='Tags to apply to the sequence store as a JSON string or object, e.g. {"key": "value"}',
     ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics sequence store.
@@ -52,7 +54,7 @@ async def create_sequence_store(
         description: Optional description for the sequence store
         sse_kms_key_arn: KMS key ARN for server-side encryption
         fallback_location: S3 URI for the fallback location
-        tags: JSON string of tags to apply
+        tags: Tags as a JSON string or dict
 
     Returns:
         Dictionary containing the created sequence store information
@@ -72,9 +74,9 @@ async def create_sequence_store(
 
     if tags:
         try:
-            params['tags'] = json.loads(tags)
-        except json.JSONDecodeError as e:
-            return await handle_tool_error(ctx, e, 'Error parsing tags JSON')
+            params['tags'] = parse_tags(tags)
+        except ValueError as e:
+            return await handle_tool_error(ctx, e, 'Error parsing tags')
 
     try:
         logger.info(f'Creating sequence store: {name}')
@@ -335,8 +337,6 @@ async def list_read_sets(
         filter_dict['referenceArn'] = reference_arn
     if status:
         filter_dict['status'] = status
-    if file_type:
-        filter_dict['fileType'] = file_type
     if created_after:
         filter_dict['createdAfter'] = created_after
     if created_before:
@@ -353,6 +353,8 @@ async def list_read_sets(
 
         read_sets = []
         for rs in response.get('readSets', []):
+            if file_type and rs.get('fileType') != file_type:
+                continue
             creation_time = rs.get('creationTime')
             read_sets.append(
                 {
@@ -426,13 +428,22 @@ async def start_read_set_import_job(
     sources: Annotated[
         str,
         Field(
-            description='JSON list of import sources, each with sourceFileType, sourceFiles, '
-            'and optional referenceArn, sampleId, subjectId, name, tags'
+            description='JSON list of import sources. Each source requires: '
+            'sourceFileType (FASTQ|BAM|CRAM|UBAM), '
+            'sourceFiles (object with source1 required, source2 optional for paired-end FASTQ), '
+            'subjectId, sampleId. '
+            'Optional fields: referenceArn, name, description, generatedFrom, tags. '
+            'Example: [{"sourceFileType": "FASTQ", '
+            '"sourceFiles": {"source1": "s3://bucket/sample_R1.fastq.gz", '
+            '"source2": "s3://bucket/sample_R2.fastq.gz"}, '
+            '"subjectId": "subject-1", "sampleId": "sample-1", '
+            '"referenceArn": "arn:aws:omics:us-east-1:123456789012:referenceStore/123/reference/456", '
+            '"name": "my-reads"}]'
         ),
     ],
-    tags: Optional[str] = Field(
+    tags: Optional[Union[str, Dict[str, str]]] = Field(
         None,
-        description='JSON string of tags to apply to the import job, e.g. {"key": "value"}',
+        description='Tags to apply to the import job as a JSON string or object, e.g. {"key": "value"}',
     ),
 ) -> Dict[str, Any]:
     """Start a read set import job to import genomic files from S3 into a sequence store.
@@ -442,7 +453,7 @@ async def start_read_set_import_job(
         sequence_store_id: The ID of the sequence store
         role_arn: IAM role ARN for the import job
         sources: JSON list of import sources
-        tags: JSON string of tags to apply
+        tags: Tags as a JSON string or dict
 
     Returns:
         Dictionary containing the import job information
@@ -454,6 +465,13 @@ async def start_read_set_import_job(
     except json.JSONDecodeError as e:
         return await handle_tool_error(ctx, e, 'Error parsing sources JSON')
 
+    # Validate each source against the ReadSetImportSource model
+    try:
+        validated = [ReadSetImportSource(**s) for s in parsed_sources]
+        parsed_sources = [s.model_dump(exclude_none=True) for s in validated]
+    except Exception as e:
+        return await handle_tool_error(ctx, e, 'Error validating import sources')
+
     params: Dict[str, Any] = {
         'sequenceStoreId': sequence_store_id,
         'roleArn': role_arn,
@@ -462,9 +480,9 @@ async def start_read_set_import_job(
 
     if tags:
         try:
-            params['tags'] = json.loads(tags)
-        except json.JSONDecodeError as e:
-            return await handle_tool_error(ctx, e, 'Error parsing tags JSON')
+            params['tags'] = parse_tags(tags)
+        except ValueError as e:
+            return await handle_tool_error(ctx, e, 'Error parsing tags')
 
     try:
         logger.info(f'Starting read set import job for store: {sequence_store_id}')
@@ -586,40 +604,16 @@ async def list_read_set_import_jobs(
         return await handle_tool_error(ctx, e, 'Error listing read set import jobs')
 
 
-async def cancel_read_set_import_job(
-    ctx: Context,
-    sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
-    import_job_id: Annotated[str, Field(description='The ID of the import job to cancel')],
-) -> Dict[str, Any]:
-    """Cancel a running read set import job.
-
-    Args:
-        ctx: MCP context for error reporting
-        sequence_store_id: The ID of the sequence store
-        import_job_id: The ID of the import job to cancel
-
-    Returns:
-        Dictionary containing cancellation confirmation
-    """
-    client = get_omics_client()
-
-    try:
-        logger.info(f'Cancelling read set import job: {import_job_id}')
-        client.cancel_read_set_import_job(sequenceStoreId=sequence_store_id, id=import_job_id)
-
-        return {'message': f'Import job {import_job_id} cancelled successfully'}
-    except Exception as e:
-        return await handle_tool_error(ctx, e, 'Error cancelling read set import job')
-
-
 async def start_read_set_export_job(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
     destination_s3_uri: Annotated[str, Field(description='S3 URI for the export destination')],
     role_arn: Annotated[str, Field(description='IAM role ARN for the export job')],
     read_set_ids: Annotated[
-        str,
-        Field(description='JSON list of read set IDs to export, e.g. ["id1", "id2"]'),
+        Union[str, list],
+        Field(
+            description='List of read set IDs to export as a JSON list or array, e.g. ["id1", "id2"]'
+        ),
     ],
 ) -> Dict[str, Any]:
     """Start a read set export job to export read sets from a sequence store to S3.
@@ -629,7 +623,7 @@ async def start_read_set_export_job(
         sequence_store_id: The ID of the sequence store
         destination_s3_uri: S3 URI for the export destination
         role_arn: IAM role ARN for the export job
-        read_set_ids: JSON list of read set IDs to export
+        read_set_ids: List of read set IDs to export
 
     Returns:
         Dictionary containing the export job information
@@ -637,9 +631,9 @@ async def start_read_set_export_job(
     client = get_omics_client()
 
     try:
-        parsed_ids = json.loads(read_set_ids)
-    except json.JSONDecodeError as e:
-        return await handle_tool_error(ctx, e, 'Error parsing read_set_ids JSON')
+        parsed_ids = parse_id_list(read_set_ids)
+    except ValueError as e:
+        return await handle_tool_error(ctx, e, 'Error parsing read_set_ids')
 
     sources = [{'readSetId': id} for id in parsed_ids]
 
@@ -770,8 +764,10 @@ async def activate_read_sets(
     ctx: Context,
     sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
     read_set_ids: Annotated[
-        str,
-        Field(description='JSON list of read set IDs to activate, e.g. ["id1", "id2"]'),
+        Union[str, list],
+        Field(
+            description='List of read set IDs to activate as a JSON list or array, e.g. ["id1", "id2"]'
+        ),
     ],
 ) -> Dict[str, Any]:
     """Activate archived read sets in a HealthOmics sequence store.
@@ -781,7 +777,7 @@ async def activate_read_sets(
     Args:
         ctx: MCP context for error reporting
         sequence_store_id: The ID of the sequence store
-        read_set_ids: JSON list of read set IDs to activate
+        read_set_ids: List of read set IDs to activate
 
     Returns:
         Dictionary containing the activation job information
@@ -789,9 +785,9 @@ async def activate_read_sets(
     client = get_omics_client()
 
     try:
-        parsed_ids = json.loads(read_set_ids)
-    except json.JSONDecodeError as e:
-        return await handle_tool_error(ctx, e, 'Error parsing read_set_ids JSON')
+        parsed_ids = parse_id_list(read_set_ids)
+    except ValueError as e:
+        return await handle_tool_error(ctx, e, 'Error parsing read_set_ids')
 
     sources = [{'readSetId': id} for id in parsed_ids]
 
@@ -808,47 +804,3 @@ async def activate_read_sets(
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error activating read sets')
-
-
-async def archive_read_sets(
-    ctx: Context,
-    sequence_store_id: Annotated[str, Field(description='The ID of the sequence store')],
-    read_set_ids: Annotated[
-        str,
-        Field(description='JSON list of read set IDs to archive, e.g. ["id1", "id2"]'),
-    ],
-) -> Dict[str, Any]:
-    """Archive read sets in a HealthOmics sequence store.
-
-    Starts an archive job to move read sets to lower-cost archive storage.
-
-    Args:
-        ctx: MCP context for error reporting
-        sequence_store_id: The ID of the sequence store
-        read_set_ids: JSON list of read set IDs to archive
-
-    Returns:
-        Dictionary containing the archive job information
-    """
-    client = get_omics_client()
-
-    try:
-        parsed_ids = json.loads(read_set_ids)
-    except json.JSONDecodeError as e:
-        return await handle_tool_error(ctx, e, 'Error parsing read_set_ids JSON')
-
-    sources = [{'readSetId': id} for id in parsed_ids]
-
-    try:
-        logger.info(f'Archiving read sets in store: {sequence_store_id}')
-        response = client.start_read_set_archive_job(
-            sequenceStoreId=sequence_store_id, sources=sources
-        )
-
-        return {
-            'sequenceStoreId': response.get('sequenceStoreId'),
-            'status': response.get('status'),
-            'readSetIds': parsed_ids,
-        }
-    except Exception as e:
-        return await handle_tool_error(ctx, e, 'Error archiving read sets')

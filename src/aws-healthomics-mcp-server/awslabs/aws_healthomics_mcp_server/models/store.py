@@ -100,15 +100,32 @@ class ReadSetSummary(BaseModel):
     creationTime: datetime
 
 
+class SourceFiles(BaseModel):
+    """S3 source file locations for a read set import.
+
+    For paired-end FASTQ imports, both source1 and source2 are required.
+    For BAM, CRAM, and UBAM imports, only source1 is required.
+    """
+
+    source1: str
+    source2: Optional[str] = None
+
+
 class ReadSetImportSource(BaseModel):
-    """Source configuration for a read set import."""
+    """Source configuration for a read set import job.
+
+    Maps to the StartReadSetImportJobSourceItem API structure.
+    See: https://docs.aws.amazon.com/omics/latest/api/API_StartReadSetImportJobSourceItem.html
+    """
 
     sourceFileType: str
-    sourceFiles: Dict[str, str]
+    sourceFiles: SourceFiles
+    subjectId: str
+    sampleId: str
     referenceArn: Optional[str] = None
-    sampleId: Optional[str] = None
-    subjectId: Optional[str] = None
     name: Optional[str] = None
+    description: Optional[str] = None
+    generatedFrom: Optional[str] = None
     tags: Optional[Dict[str, str]] = None
 
 

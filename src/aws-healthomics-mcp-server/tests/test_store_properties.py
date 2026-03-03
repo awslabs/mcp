@@ -18,8 +18,6 @@ import json
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
     activate_read_sets,
-    archive_read_sets,
-    cancel_read_set_import_job,
     create_sequence_store,
     get_read_set_export_job,
     get_read_set_import_job,
@@ -63,11 +61,9 @@ list_read_sets_wrapper = MCPToolTestWrapper(list_read_sets)
 get_read_set_metadata_wrapper = MCPToolTestWrapper(get_read_set_metadata)
 start_import_wrapper = MCPToolTestWrapper(start_read_set_import_job)
 get_import_wrapper = MCPToolTestWrapper(get_read_set_import_job)
-cancel_import_wrapper = MCPToolTestWrapper(cancel_read_set_import_job)
 start_export_wrapper = MCPToolTestWrapper(start_read_set_export_job)
 get_export_wrapper = MCPToolTestWrapper(get_read_set_export_job)
 activate_wrapper = MCPToolTestWrapper(activate_read_sets)
-archive_wrapper = MCPToolTestWrapper(archive_read_sets)
 
 MOCK_PATH = 'awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client'
 MOCK_NOW = datetime.now(timezone.utc)
@@ -542,6 +538,8 @@ class TestStartImportJobForwardsSourcesAndParams:
                             'source1': st.text(min_size=1, max_size=64),
                         }
                     ),
+                    'subjectId': st.text(min_size=1, max_size=36),
+                    'sampleId': st.text(min_size=1, max_size=36),
                 }
             ),
             min_size=1,
@@ -622,36 +620,6 @@ class TestGetImportJobReturnsDetailsWithSourceStatuses:
         expected_keys = ['id', 'status', 'sources', 'creationTime', 'roleArn', 'sequenceStoreId']
         for key in expected_keys:
             assert key in result, f'Missing key: {key}'
-
-
-# Feature: store-management, Property: Cancel import job calls the API for running jobs
-class TestCancelImportJobCallsApi:
-    """Cancel import job calls the API for running jobs.
-
-    For any valid import job ID, calling cancel_read_set_import_job should invoke
-    the cancel API.
-
-    **Validates that cancel import job invokes the cancel API**
-    """
-
-    @given(store_id=store_id_strategy, job_id=store_id_strategy)
-    @settings(max_examples=100)
-    @pytest.mark.asyncio
-    async def test_cancel_import_calls_api(self, store_id, job_id):
-        """For any valid IDs, cancel_read_set_import_job calls the cancel API."""
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.cancel_read_set_import_job.return_value = {}
-
-        with patch(MOCK_PATH, return_value=mock_client):
-            result = await cancel_import_wrapper.call(
-                ctx=mock_ctx, sequence_store_id=store_id, import_job_id=job_id
-            )
-
-        mock_client.cancel_read_set_import_job.assert_called_once_with(
-            sequenceStoreId=store_id, id=job_id
-        )
-        assert 'message' in result
 
 
 # Feature: store-management, Property: Start export job forwards destination and all read set IDs
@@ -751,13 +719,13 @@ class TestGetExportJobReturnsDetailsWithDestination:
 
 
 # Feature: store-management, Property: Activate and archive forward all read set IDs
-class TestActivateAndArchiveForwardAllReadSetIds:
-    """Activate and archive forward all read set IDs.
+class TestActivateForwardsAllReadSetIds:
+    """Activate forwards all read set IDs.
 
-    For any activate or archive call with read set IDs, all IDs should appear
+    For any activate call with read set IDs, all IDs should appear
     in the API call.
 
-    **Validates that activate and archive forward all read set IDs to the API**
+    **Validates that activate forwards all read set IDs to the API**
     """
 
     @given(
@@ -784,34 +752,6 @@ class TestActivateAndArchiveForwardAllReadSetIds:
 
         mock_client.start_read_set_activation_job.assert_called_once()
         api_args = mock_client.start_read_set_activation_job.call_args[1]
-
-        expected_sources = [{'readSetId': id} for id in read_set_ids]
-        assert api_args['sources'] == expected_sources
-
-    @given(
-        store_id=store_id_strategy,
-        read_set_ids=st.lists(st.text(min_size=1, max_size=36), min_size=1, max_size=5),
-    )
-    @settings(max_examples=100)
-    @pytest.mark.asyncio
-    async def test_archive_forwards_all_ids(self, store_id, read_set_ids):
-        """archive_read_sets forwards all read set IDs to the API."""
-        mock_ctx = AsyncMock()
-        mock_client = MagicMock()
-        mock_client.start_read_set_archive_job.return_value = {
-            'sequenceStoreId': store_id,
-            'status': 'SUBMITTED',
-        }
-
-        ids_json = json.dumps(read_set_ids)
-
-        with patch(MOCK_PATH, return_value=mock_client):
-            await archive_wrapper.call(
-                ctx=mock_ctx, sequence_store_id=store_id, read_set_ids=ids_json
-            )
-
-        mock_client.start_read_set_archive_job.assert_called_once()
-        api_args = mock_client.start_read_set_archive_job.call_args[1]
 
         expected_sources = [{'readSetId': id} for id in read_set_ids]
         assert api_args['sources'] == expected_sources
