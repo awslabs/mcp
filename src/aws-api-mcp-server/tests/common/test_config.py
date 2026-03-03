@@ -149,7 +149,7 @@ def test_user_agent_with_context(mock_get_context):
     # Create mock context with fastmcp name and client params
     mock_context = MagicMock()
     mock_context.fastmcp.name = 'test-fastmcp'
-    mock_context.session.client_params.clientInfo.name = 'test-client'
+    mock_context.session.client_params.clientInfo.name = 'test client'
     mock_context.session.client_params.clientInfo.version = '1.0.0'
 
     mock_get_context.return_value = mock_context

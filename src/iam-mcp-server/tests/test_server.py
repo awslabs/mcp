@@ -42,7 +42,7 @@ def test_get_iam_client():
         args, kwargs = mock_client.call_args
         assert args[0] == 'iam'
         assert 'config' in kwargs
-        assert kwargs['config'].user_agent_extra == 'awslabs-iam-mcp-server/1.0.0'
+        assert 'md/awslabs#mcp#iam-mcp-server#' in kwargs['config'].user_agent_extra
 
 
 def test_get_iam_client_with_region():
@@ -57,7 +57,7 @@ def test_get_iam_client_with_region():
         assert args[0] == 'iam'
         assert kwargs['region_name'] == 'us-west-2'
         assert 'config' in kwargs
-        assert kwargs['config'].user_agent_extra == 'awslabs-iam-mcp-server/1.0.0'
+        assert 'md/awslabs#mcp#iam-mcp-server#' in kwargs['config'].user_agent_extra
 
 
 def test_handle_iam_error_access_denied():
@@ -214,7 +214,7 @@ def test_get_aws_client():
         args, kwargs = mock_client.call_args
         assert args[0] == 's3'
         assert 'config' in kwargs
-        assert kwargs['config'].user_agent_extra == 'awslabs-iam-mcp-server/1.0.0'
+        assert 'md/awslabs#mcp#iam-mcp-server#' in kwargs['config'].user_agent_extra
 
 
 def test_get_aws_client_with_region():
