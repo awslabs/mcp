@@ -192,6 +192,81 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
+def extract_sections_from_markdown(markdown_content: str, section_titles: List[str]) -> str:
+    """Extract specific sections from markdown content based on section titles.
+
+    Args:
+        markdown_content: Full markdown content to extract sections from
+        section_titles: List of section titles to extract
+
+    Returns:
+        Filtered markdown content containing only the requested sections
+    """
+    if not markdown_content or not section_titles:
+        return '<e>No content or section titles provided</e>'
+
+    try:
+        lines = markdown_content.split('\n')
+        result_lines = []
+        found_sections = set()
+        available_level2_sections = []
+        current_section_level = 0
+        capturing = False
+
+        normalized_titles = {}
+        for title in section_titles:
+            normalized_key = ' '.join(title.strip().lower().split())
+            normalized_titles[normalized_key] = title.strip()
+
+        for line in lines:
+            if line.strip().startswith('#'):
+                heading_match = line.strip()
+                heading_level = len(heading_match) - len(heading_match.lstrip('#'))
+                heading_text = heading_match.lstrip('#').strip()
+
+                if heading_level == 2 and heading_text not in available_level2_sections:
+                    available_level2_sections.append(heading_text)
+
+                normalized_heading = ' '.join(heading_text.lower().split())
+
+                if normalized_heading in normalized_titles:
+                    current_section_level = heading_level
+                    capturing = True
+                    result_lines.append(line)
+                    found_sections.add(normalized_titles[normalized_heading])
+                elif capturing and heading_level <= current_section_level:
+                    # End of current section
+                    capturing = False
+                elif capturing:
+                    # Continue capturing content within section
+                    result_lines.append(line)
+            elif capturing:
+                result_lines.append(line)
+        if not found_sections:
+            section_list = ', '.join(f'"{title}"' for title in section_titles)
+            if available_level2_sections:
+                available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+                return f'**Alert**: No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
+            else:
+                return '**Alert**: This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
+
+        result_content = '\n'.join(result_lines)
+
+        missing_sections = [
+            title.strip() for title in section_titles if title.strip() not in found_sections
+        ]
+        if missing_sections:
+            missing_list = ', '.join(f'"{title}"' for title in missing_sections)
+            result_content += (
+                f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+            )
+
+        return result_content
+
+    except Exception as e:
+        return f'<e>Error extracting sections: {str(e)}</e>'
+
+
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
     """Parse recommendation API response into RecommendationResult objects.
 

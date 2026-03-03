@@ -19,6 +19,7 @@ import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import (
     main,
     read_documentation,
+    read_sections,
     recommend,
     search_documentation,
 )
@@ -126,6 +127,358 @@ class TestReadDocumentation:
 
         with pytest.raises(ValueError, match='URL must end with .html'):
             await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+
+class TestReadSections:
+    """Tests for the read_sections function."""
+
+    @pytest.mark.asyncio
+    async def test_read_sections_success(self):
+        """Test successful section extraction from AWS documentation."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction', 'Main Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h1>Introduction</h1>
+            <p>This is the introduction.</p>
+            <h1>Main Section</h1>
+            <p>This is the main content.</p>
+            <h1>Other Section</h1>
+            <p>This should not be included.</p>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        full_markdown = """# Introduction
+This is the introduction.
+
+# Main Section
+This is the main content.
+
+# Other Section
+This should not be included."""
+
+        filtered_markdown = """# Introduction
+This is the introduction.
+
+# Main Section
+This is the main content.
+
+"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = filtered_markdown
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    expected_result = (
+                        f'AWS Documentation content from {url}:\n\n{filtered_markdown}'
+                    )
+                    assert result == expected_result
+                    mock_get.assert_called_once()
+                    mock_extract.assert_called_once()
+                    mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
+
+                    called_url = mock_get.call_args[0][0]
+                    assert '?session=' in called_url
+                    assert called_url.startswith('https://docs.aws.amazon.com/test.html?session=')
+
+    @pytest.mark.asyncio
+    async def test_read_sections_with_domain_modification(self):
+        """Test section extraction with domain modification."""
+        url = 'https://awsdocs-neuron.readthedocs-hosted.com/test.html'
+        section_titles = ['Getting Started']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><h1>Getting Started</h1><p>Neuron content.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        full_markdown = '# Getting Started\nNeuron content.'
+        filtered_markdown = '# Getting Started\nNeuron content.\n\n'
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = filtered_markdown
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    expected_result = (
+                        f'AWS Documentation content from {url}:\n\n{filtered_markdown}'
+                    )
+                    assert result == expected_result
+                    called_url = mock_get.call_args[0][0]
+                    assert '?session=' in called_url
+                    assert called_url.startswith(
+                        'https://awsdocs-neuron.readthedocs-hosted.com/test.html?session='
+                    )
+
+    @pytest.mark.asyncio
+    async def test_read_sections_http_error(self):
+        """Test read_sections with HTTP error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = httpx.HTTPError('Connection error')
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Failed to fetch' in result
+            assert 'Connection error' in result
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_sections_no_sections_found(self):
+        """Test read_sections when no requested sections exist."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Nonexistent Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><h1>Other Section</h1><p>Different content.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        full_markdown = '# Other Section\nDifferent content.'
+        error_result = '**Alert**: No matching sections were found: "Nonexistent Section". Please use the read_documentation tool instead to get the full document content.'
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = error_result
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    assert result == error_result
+                    mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_partial_success(self):
+        """Test read_sections with partial success (some sections found, others missing)."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Found Section', 'Missing Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h1>Found Section</h1><p>Content here.</p></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        full_markdown = '# Found Section\nContent here.'
+        partial_result = '''# Found Section
+Content here.
+
+> **Note**: The following requested sections were not found: "Missing Section"'''
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = partial_result
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    assert 'Found Section' in result
+                    assert 'Content here.' in result
+                    assert (
+                        'The following requested sections were not found: "Missing Section"'
+                        in result
+                    )
+                    mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_invalid_domain(self):
+        """Test read_sections with invalid domain."""
+        url = 'https://invalid-domain.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_invalid_extension(self):
+        """Test read_sections with invalid file extension."""
+        url = 'https://docs.aws.amazon.com/test.pdf'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_empty_section_titles(self):
+        """Test read_sections with empty section_titles parameter."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = []
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='section_titles parameter cannot be empty'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_whitespace_normalization(self):
+        """Test whitespace normalization fix for BUG-001."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = [' Best  practices \n']  # Extra spaces and newline
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><h1>Best practices</h1><p>Content here.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        full_markdown = '# Best practices\nContent here.'
+        filtered_markdown = '# Best practices\nContent here.\n\n'
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = filtered_markdown
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    expected_result = (
+                        f'AWS Documentation content from {url}:\n\n{filtered_markdown}'
+                    )
+                    assert result == expected_result
+                    mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_end_to_end_workflow(self):
+        """Test complete end-to-end workflow from URL to filtered markdown."""
+        url = 'https://docs.aws.amazon.com/s3/latest/userguide/test.html'
+        section_titles = ['Bucket Naming Rules', 'Examples']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <div class="main-content">
+                <h1>S3 Bucket Guide</h1>
+                <p>Introduction to S3 buckets.</p>
+                <h2>Bucket Naming Rules</h2>
+                <ul>
+                    <li>Names must be unique</li>
+                    <li>Use lowercase letters</li>
+                </ul>
+                <h2>Examples</h2>
+                <p>Here are some examples:</p>
+                <code>my-bucket-name</code>
+                <h2>Other Information</h2>
+                <p>This section should not be included.</p>
+            </div>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        # Mock realistic markdown conversion
+        full_markdown = """# S3 Bucket Guide
+
+Introduction to S3 buckets.
+
+## Bucket Naming Rules
+
+- Names must be unique
+- Use lowercase letters
+
+## Examples
+
+Here are some examples:
+
+```
+my-bucket-name
+```
+
+## Other Information
+
+This section should not be included."""
+
+        filtered_markdown = """## Bucket Naming Rules
+
+- Names must be unique
+- Use lowercase letters
+
+## Examples
+
+Here are some examples:
+
+```
+my-bucket-name
+```
+
+"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                mock_extract.return_value = full_markdown
+                with patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_markdown'
+                ) as mock_extract_sections:
+                    mock_extract_sections.return_value = filtered_markdown
+
+                    result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                    assert 'Bucket Naming Rules' in result
+                    assert 'Names must be unique' in result
+                    assert 'Examples' in result
+                    assert 'my-bucket-name' in result
+                    assert 'Other Information' not in result
+                    assert 'This section should not be included' not in result
+
+                    mock_get.assert_called_once()
+                    mock_extract.assert_called_once_with(mock_response.text)
+                    mock_extract_sections.assert_called_once_with(full_markdown, section_titles)
+
+                    called_url = mock_get.call_args[0][0]
+                    assert called_url.startswith(
+                        'https://docs.aws.amazon.com/s3/latest/userguide/test.html?session='
+                    )
 
 
 class TestSearchDocumentation:
@@ -395,6 +748,84 @@ class TestSearchDocumentation:
             args, kwargs = mock_post.call_args
             context_attrs = kwargs['json']['contextAttributes']
             assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_sections(self):
+        """Test searching AWS documentation with section summaries included in results."""
+        search_phrase = 'S3 bucket configuration'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-sections',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html',
+                        'title': 'S3 Bucket Configuration Guide',
+                        'metadata': {
+                            'seo_abstract': 'Complete guide to configuring S3 buckets',
+                            'sections': [
+                                'Bucket Naming Rules',
+                                'Access Control Settings',
+                                'Versioning Configuration',
+                            ],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/basic-setup.html',
+                        'title': 'S3 Basic Setup',
+                        'summary': 'Basic S3 setup instructions',
+                        'metadata': {
+                            # No sections for this result
+                        },
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+
+            assert len(results.search_results) == 2
+            assert results.query_id == 'test-query-sections'
+
+            first_result = results.search_results[0]
+            assert first_result.rank_order == 1
+            assert (
+                first_result.url
+                == 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html'
+            )
+            assert first_result.title == 'S3 Bucket Configuration Guide'
+            assert first_result.context == 'Complete guide to configuring S3 buckets'
+
+            assert first_result.sections is not None
+            assert len(first_result.sections) == 3
+            assert first_result.sections == [
+                'Bucket Naming Rules',
+                'Access Control Settings',
+                'Versioning Configuration',
+            ]
+
+            second_result = results.search_results[1]
+            assert second_result.rank_order == 2
+            assert (
+                second_result.url
+                == 'https://docs.aws.amazon.com/s3/latest/userguide/basic-setup.html'
+            )
+            assert second_result.title == 'S3 Basic Setup'
+            assert second_result.context == 'Basic S3 setup instructions'
+
+            assert second_result.sections is None
+
+            mock_post.assert_called_once()
 
 
 class TestRecommend:

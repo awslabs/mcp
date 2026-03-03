@@ -17,6 +17,7 @@ import os
 from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
     extract_content_from_html,
+    extract_sections_from_markdown,
     format_documentation_result,
     is_html_content,
     parse_recommendation_results,
@@ -555,3 +556,254 @@ class TestAddSearchIntentToSearchRequest:
         result = add_search_intent_to_search_request(search_url, search_intent)
         # The function simply appends &search_intent=... to the URL
         assert result == 'https://docs.aws.amazon.com/search?foo=bar&search_intent=test'
+
+
+class TestExtractSectionsFromMarkdown:
+    """Tests for extract_sections_from_markdown function."""
+
+    def test_empty_input(self):
+        """Test with empty markdown content."""
+        result = extract_sections_from_markdown('', ['section1'])
+        assert result == '<e>No content or section titles provided</e>'
+
+    def test_empty_section_list(self):
+        """Test with empty section_titles list."""
+        result = extract_sections_from_markdown('# Test\nContent', [])
+        assert result == '<e>No content or section titles provided</e>'
+
+    def test_single_section_extraction(self):
+        """Test extracting a single section with content."""
+        markdown = """# Introduction
+This is the intro.
+
+# Main Section
+This is the main content.
+Some more content here.
+
+# Conclusion
+This is the end.
+"""
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        expected_lines = [
+            '# Main Section',
+            'This is the main content.',
+            'Some more content here.',
+            '',
+        ]
+        assert result == '\n'.join(expected_lines)
+
+    def test_multiple_sections_extraction(self):
+        """Test extracting multiple sections."""
+        markdown = """# Introduction
+                    This is the intro.
+
+                    # First Section
+                    First content.
+
+                    # Second Section
+                    Second content.
+
+                    # Third Section
+                    Third content.
+                    """
+        result = extract_sections_from_markdown(markdown, ['First Section', 'Third Section'])
+        assert '# First Section' in result
+        assert 'First content.' in result
+        assert '# Third Section' in result
+        assert 'Third content.' in result
+        assert '# Second Section' not in result
+        assert 'Second content.' not in result
+
+    def test_case_insensitive_matching(self):
+        """Test case-insensitive section matching."""
+        markdown = """# Main Section
+                    Content here.
+                    """
+        result = extract_sections_from_markdown(markdown, ['MAIN SECTION'])
+        assert '# Main Section' in result
+        assert 'Content here.' in result
+
+    def test_whitespace_handling(self):
+        """Test section titles with leading/trailing whitespace."""
+        markdown = """# Best practices
+This is content for best practices.
+
+# Another Section
+More content here.
+"""
+        test_cases = [
+            ' Best practices\n',
+            '  Best practices  ',
+            'Best  practices',
+            '\tBest practices\t',
+            'Best\npractices',
+        ]
+
+        for test_input in test_cases:
+            result = extract_sections_from_markdown(markdown, [test_input])
+            assert '# Best practices' in result, f"Failed to match '{repr(test_input)}'"
+            assert 'This is content for best practices.' in result, (
+                f"Content missing for '{repr(test_input)}'"
+            )
+            assert '# Another Section' not in result, (
+                f"Should not include other sections for '{repr(test_input)}'"
+            )
+
+    def test_nested_sections_included(self):
+        """Test that subsections within matching sections are included."""
+        markdown = """# Main Section
+                    Main content.
+
+                    ## Subsection 1
+                    Sub content 1.
+
+                    ### Sub-subsection
+                    Sub-sub content.
+
+                    ## Subsection 2
+                    Sub content 2.
+
+                    # Another Section
+                    Other content.
+                    """
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        assert '# Main Section' in result
+        assert 'Main content.' in result
+        assert '## Subsection 1' in result
+        assert 'Sub content 1.' in result
+        assert '### Sub-subsection' in result
+        assert 'Sub-sub content.' in result
+        assert '## Subsection 2' in result
+        assert 'Sub content 2.' in result
+        assert '# Another Section' not in result
+        assert 'Other content.' not in result
+
+    def test_no_sections_found(self):
+        """Test when no requested sections exist."""
+        markdown = """# Introduction
+This is the intro.
+
+# Main Section
+Content here.
+"""
+        result = extract_sections_from_markdown(
+            markdown, ['Nonexistent Section', 'Another Missing']
+        )
+        assert result.startswith('**Alert**: This document does not contain subsections.')
+
+    def test_partial_success(self):
+        """Test when some sections found, others missing (graceful failure)."""
+        markdown = """# Introduction
+Intro content.
+
+# Found Section
+Found content.
+
+# Another Found
+More content.
+"""
+        result = extract_sections_from_markdown(
+            markdown, ['Found Section', 'Missing Section', 'Another Found']
+        )
+
+        assert '# Found Section' in result
+        assert 'Found content.' in result
+        assert '# Another Found' in result
+        assert 'More content.' in result
+
+        assert (
+            '> **Note**: The following requested sections were not found: "Missing Section"'
+            in result
+        )
+
+    def test_section_at_end_of_document(self):
+        """Test extracting the final section."""
+        markdown = """# First Section
+First content.
+
+# Last Section
+Last content.
+Final line."""
+        result = extract_sections_from_markdown(markdown, ['Last Section'])
+        assert '# Last Section' in result
+        assert 'Last content.' in result
+        assert 'Final line.' in result
+        assert '# First Section' not in result
+
+    def test_section_with_no_content(self):
+        """Test empty sections."""
+        markdown = """# Section With Content
+Some content here.
+
+# Empty Section
+
+# Another Section
+More content."""
+        result = extract_sections_from_markdown(markdown, ['Empty Section'])
+        expected_lines = ['# Empty Section', '']
+        assert result == '\n'.join(expected_lines)
+
+    def test_mixed_heading_levels(self):
+        """Test mixed heading hierarchy."""
+        markdown = """# Level 1
+Content 1.
+
+## Level 2
+Content 2.
+
+### Level 3
+Content 3.
+
+## Another Level 2
+Content 2B.
+
+# Another Level 1
+Content 1B."""
+        result = extract_sections_from_markdown(markdown, ['Level 2'])
+        assert '## Level 2' in result
+        assert 'Content 2.' in result
+        assert '### Level 3' in result  # Should include subsection
+        assert 'Content 3.' in result
+        assert '## Another Level 2' not in result  # Should stop at same level
+        assert '# Another Level 1' not in result
+
+    def test_duplicate_section_names(self):
+        """Test handling of duplicate section titles (should get all matches)."""
+        markdown = """# Introduction
+First intro.
+
+# Main Section
+First main content.
+
+# Main Section
+Second main content.
+"""
+        result = extract_sections_from_markdown(markdown, ['Main Section'])
+        assert '# Main Section' in result
+        assert 'First main content.' in result
+        assert 'Second main content.' in result  # Should include both matching sections
+
+    def test_various_heading_formats(self):
+        """Test various markdown heading formats."""
+        markdown = """#No Space Heading
+Content 1.
+
+# Normal Heading
+Content 2.
+
+##Two Hashes
+Content 3.
+
+### Three Hashes
+Content 4.
+
+# Final Section
+Final content."""
+
+        result = extract_sections_from_markdown(markdown, ['No Space Heading'])
+        assert '#No Space Heading' in result
+        assert 'Content 1.' in result
+
+        result = extract_sections_from_markdown(markdown, ['Normal Heading'])
+        assert '# Normal Heading' in result
+        assert 'Content 2.' in result

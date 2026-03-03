@@ -16,6 +16,7 @@ import os
 from awslabs.aws_documentation_mcp_server.models import SearchResponse
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
+    extract_sections_from_markdown,
     format_documentation_result,
     is_html_content,
 )
@@ -142,3 +143,67 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
                 return query_id
 
     return None
+
+
+async def read_sections_impl(
+    ctx: Context,
+    url_str: str,
+    section_titles: list[str],
+    session_uuid: str,
+) -> str:
+    """The implementation of the read_sections tool."""
+    logger.debug(f'Fetching sections {section_titles} from {url_str}')
+
+    url_with_session = f'{url_str}?session={session_uuid}'
+
+    query_id = get_query_id_from_cache(url_str)
+    if query_id:
+        url_with_session += f'&query_id={query_id}'
+        logger.debug(f'Using query_id {query_id}')
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                url_with_session,
+                follow_redirects=True,
+                headers={
+                    'User-Agent': DEFAULT_USER_AGENT,
+                    'X-MCP-Session-Id': session_uuid,
+                },
+                timeout=30,
+            )
+        except httpx.HTTPError as e:
+            error_msg = f'Failed to fetch {url_str}: {str(e)}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
+        if response.status_code >= 400:
+            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
+        page_raw = response.text
+        content_type = response.headers.get('content-type', '')
+
+    if is_html_content(page_raw, content_type):
+        full_markdown = extract_content_from_html(page_raw)
+
+        if full_markdown == '<e>Page failed to be simplified from HTML</e>':
+            error_msg = 'Could not parse HTML page content. Please use the read_documentation tool instead to get the full document content.'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+    else:
+        return 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
+
+    filtered_content = extract_sections_from_markdown(full_markdown, section_titles)
+
+    if filtered_content.startswith(
+        '**Alert**: No matching sections were found:'
+    ) or filtered_content.startswith('**Alert**: This document does not contain subsections.'):
+        return filtered_content
+
+    result = f'AWS Documentation content from {url_str}:\n\n{filtered_content}'
+    return result
