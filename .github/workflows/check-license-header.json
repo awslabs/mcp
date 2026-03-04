@@ -21,13 +21,15 @@
       "**/*.ts",
       "**/*.cs",
       "**/*.properties",
-      "**/*.xml"
+      "**/*.xml",
+      "**/dist/**"
     ],
     "include": [
       "**/*.py",
       "**/*Dockerfile",
       "**/*.sh",
-      "**/*.guard"
+      "**/*.guard",
+      "**/ruff.toml"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
   },
@@ -75,7 +77,11 @@
       "**/*.npz",
       "**/*.template",
       "**/*.properties",
-      "**/*.xml"
+      "**/*.xml",
+      "**/dist/**",
+      "**/skills/*/scripts",
+      "**/skills/*/references",
+      "**/skills/*/mcp"
     ]
   }
 ]

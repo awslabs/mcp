@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "awslabs.postgres-mcp-server": {
+      "args": [
+        "awslabs.postgres-mcp-server@latest"
+      ],
+      "command": "uvx"
+    }
+  }
+}

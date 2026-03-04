@@ -1,0 +1,302 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "User": {
+          "access_patterns": [
+            {
+              "description": "Get user profile by ID",
+              "name": "get_user_profile",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "user_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Get users by status",
+              "index_name": "StatusIndex",
+              "name": "get_active_users",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get recently active users by status",
+              "index_name": "StatusIndex",
+              "name": "get_recent_active_users",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "status",
+                  "type": "string"
+                },
+                {
+                  "name": "since_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "range_condition": ">=",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users by country and city",
+              "index_name": "LocationIndex",
+              "name": "get_users_by_location",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "country",
+                  "type": "string"
+                },
+                {
+                  "name": "city",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users by country with city prefix",
+              "index_name": "LocationIndex",
+              "name": "get_users_by_country_prefix",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "country",
+                  "type": "string"
+                },
+                {
+                  "name": "city_prefix",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 5,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users by engagement level",
+              "index_name": "EngagementIndex",
+              "name": "get_users_by_engagement_level",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "engagement_level",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get highly engaged users within session count range",
+              "index_name": "EngagementIndex",
+              "name": "get_highly_engaged_users_by_session_range",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "engagement_level",
+                  "type": "string"
+                },
+                {
+                  "name": "min_sessions",
+                  "type": "integer"
+                },
+                {
+                  "name": "max_sessions",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 7,
+              "range_condition": "between",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users by age group",
+              "index_name": "AgeGroupIndex",
+              "name": "get_users_by_age_group",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "age_group",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users who signed up after a specific date in age group",
+              "index_name": "AgeGroupIndex",
+              "name": "get_recent_signups_by_age_group",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "age_group",
+                  "type": "string"
+                },
+                {
+                  "name": "since_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "range_condition": ">=",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get users who signed up within date range for age group",
+              "index_name": "AgeGroupIndex",
+              "name": "get_users_signup_date_range",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "age_group",
+                  "type": "string"
+                },
+                {
+                  "name": "start_date",
+                  "type": "string"
+                },
+                {
+                  "name": "end_date",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 10,
+              "range_condition": "between",
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "USER",
+          "fields": [
+            {
+              "name": "user_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "last_active",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "country",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "city",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "signup_date",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "engagement_level",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "session_count",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "age_group",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total_sessions",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "last_purchase_date",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "StatusIndex",
+              "pk_template": "STATUS#{status}",
+              "sk_template": "{last_active}"
+            },
+            {
+              "name": "LocationIndex",
+              "pk_template": "COUNTRY#{country}",
+              "sk_template": "CITY#{city}"
+            },
+            {
+              "name": "EngagementIndex",
+              "pk_template": "ENGAGEMENT#{engagement_level}",
+              "sk_template": "{session_count}"
+            },
+            {
+              "name": "AgeGroupIndex",
+              "pk_template": "AGE_GROUP#{age_group}",
+              "sk_template": "{signup_date}"
+            }
+          ],
+          "pk_template": "USER#{user_id}",
+          "sk_template": "PROFILE"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "StatusIndex",
+          "partition_key": "status_pk",
+          "sort_key": "last_active_sk"
+        },
+        {
+          "name": "LocationIndex",
+          "partition_key": "country_pk",
+          "sort_key": "city_sk"
+        },
+        {
+          "name": "EngagementIndex",
+          "partition_key": "engagement_level_pk",
+          "sort_key": "session_count_sk"
+        },
+        {
+          "name": "AgeGroupIndex",
+          "partition_key": "age_group_pk",
+          "sort_key": "signup_date_sk"
+        }
+      ],
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "UserAnalytics"
+      }
+    }
+  ]
+}

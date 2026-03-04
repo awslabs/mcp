@@ -16,7 +16,9 @@
 
 import asyncio
 import boto3
+from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from botocore.config import Config
 from loguru import logger
 from typing import Any, Dict, List, Optional
 
@@ -48,7 +50,9 @@ class RDSDataAPIConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.database = database
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
+            self.data_client = boto3.client(
+                'rds-data', region_name=region, config=Config(user_agent_extra=__user_agent__)
+            )
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None

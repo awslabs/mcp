@@ -68,9 +68,6 @@ logger.add(sys.stderr, level='DEBUG')
 
 mcp = FastMCP(
     'mcp-core MCP server.  This is the starting point for all solutions created',
-    dependencies=[
-        'loguru',
-    ],
 )
 
 
@@ -256,7 +253,9 @@ async def setup():
 
     # Container Orchestration
     if container_orchestration:
-        from awslabs.ecs_mcp_server.main import mcp as ecs_server
+        from awslabs.ecs_mcp_server.main import (
+            mcp as ecs_server,
+        )
         from awslabs.eks_mcp_server.server import mcp as eks_server
         from awslabs.finch_mcp_server.server import mcp as finch_server
 

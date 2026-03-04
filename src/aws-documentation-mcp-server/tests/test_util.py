@@ -15,6 +15,7 @@
 
 import os
 from awslabs.aws_documentation_mcp_server.util import (
+    add_search_intent_to_search_request,
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
@@ -377,3 +378,180 @@ class TestParseRecommendationResults:
         assert 'https://docs.aws.amazon.com/journey' in urls
         assert 'https://docs.aws.amazon.com/new' in urls
         assert 'https://docs.aws.amazon.com/similar' in urls
+
+
+class TestAddSearchIntentToSearchRequest:
+    """Tests for add_search_intent_to_search_request function."""
+
+    def test_valid_search_intent_simple(self):
+        """Test adding a simple valid search intent."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'how to deploy'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=how+to+deploy'
+
+    def test_valid_search_intent_with_special_chars(self):
+        """Test adding search intent with special characters that need URL encoding."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'how to configure S3 bucket & policies?'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # quote_plus should encode spaces as '+' and special chars as '%XX'
+        assert (
+            result
+            == 'https://docs.aws.amazon.com/search&search_intent=how+to+configure+S3+bucket+%26+policies%3F'
+        )
+
+    def test_valid_search_intent_with_unicode(self):
+        """Test adding search intent with unicode characters."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'déployer une instance'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Verify the URL is properly encoded (unicode characters should be percent-encoded)
+        assert (
+            result == 'https://docs.aws.amazon.com/search&search_intent=d%C3%A9ployer+une+instance'
+        )
+
+    def test_valid_search_intent_with_multiple_words(self):
+        """Test adding search intent with multiple words."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'create table with provisioned throughput'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        assert (
+            result
+            == 'https://docs.aws.amazon.com/search&search_intent=create+table+with+provisioned+throughput'
+        )
+
+    def test_valid_search_intent_with_slashes(self):
+        """Test adding search intent with forward slashes."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'REST/HTTP API configuration'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Forward slashes should be encoded as %2F
+        assert (
+            result
+            == 'https://docs.aws.amazon.com/search&search_intent=REST%2FHTTP+API+configuration'
+        )
+
+    def test_empty_search_intent(self):
+        """Test with empty string search intent (should not add parameter)."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = ''
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        assert result == 'https://docs.aws.amazon.com/search'
+        assert 'search_intent' not in result
+
+    def test_whitespace_only_search_intent(self):
+        """Test with whitespace-only search intent (should add parameter with encoded spaces)."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = '   '
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Whitespace is truthy, so it should be added
+        assert result == 'https://docs.aws.amazon.com/search'
+
+    def test_search_intent_with_numbers(self):
+        """Test adding search intent with numbers."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'configure RDS with 1000 IOPS'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        assert (
+            result
+            == 'https://docs.aws.amazon.com/search&search_intent=configure+RDS+with+1000+IOPS'
+        )
+
+    def test_search_intent_with_punctuation(self):
+        """Test adding search intent with various punctuation marks."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'metrics, alarms & dashboards - how-to guide!'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        assert (
+            result
+            == 'https://docs.aws.amazon.com/search&search_intent=metrics%2C+alarms+%26+dashboards+-+how-to+guide%21'
+        )
+
+    def test_very_long_search_intent(self):
+        """Test adding a very long search intent."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'how to create and configure an AWS Lambda function with VPC access and custom IAM roles for processing S3 events'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        expected = 'https://docs.aws.amazon.com/search&search_intent=how+to+create+and+configure+an+AWS+Lambda+function+with+VPC+access+and+custom+IAM+roles+for+processing+S3+events'
+        assert result == expected
+
+    def test_search_intent_with_equals_sign(self):
+        """Test adding search intent with equals sign."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'set parameter=value'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Equals sign should be encoded as %3D
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=set+parameter%3Dvalue'
+
+    def test_search_intent_with_tab_character(self):
+        """Test adding search intent with tab character."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'tab\tcharacter'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Tab should be encoded as %09
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=tab+character'
+
+    def test_search_intent_with_newline(self):
+        """Test adding search intent with newline character."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'line\nbreak'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Newline should be encoded as %0A
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=line+break'
+
+    def test_search_intent_with_carriage_return(self):
+        """Test adding search intent with carriage return."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'carriage\rreturn'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Carriage return should be encoded as %0D
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=carriage+return'
+
+    def test_search_intent_with_hash(self):
+        """Test adding search intent with hash/pound sign."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'C# programming'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Hash should be encoded as %23
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=C%23+programming'
+
+    def test_search_intent_with_percent_sign(self):
+        """Test adding search intent with percent sign."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = '100% CPU usage'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Percent sign should be encoded as %25
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=100%25+CPU+usage'
+
+    def test_search_intent_with_plus_sign(self):
+        """Test adding search intent with plus sign."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'C++'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Plus sign should be encoded as %2B
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=C%2B%2B'
+
+    def test_search_intent_with_ampersand(self):
+        """Test adding search intent with ampersand."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'S3 & EC2'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Ampersand should be encoded as %26
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=S3+%26+EC2'
+
+    def test_search_intent_with_question_mark(self):
+        """Test adding search intent with question mark."""
+        search_url = 'https://docs.aws.amazon.com/search'
+        search_intent = 'what is lambda?'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # Question mark should be encoded as %3F
+        assert result == 'https://docs.aws.amazon.com/search&search_intent=what+is+lambda%3F'
+
+    def test_url_with_existing_parameters(self):
+        """Test that the function appends to existing URL structure."""
+        search_url = 'https://docs.aws.amazon.com/search?foo=bar'
+        search_intent = 'test'
+        result = add_search_intent_to_search_request(search_url, search_intent)
+        # The function simply appends &search_intent=... to the URL
+        assert result == 'https://docs.aws.amazon.com/search?foo=bar&search_intent=test'

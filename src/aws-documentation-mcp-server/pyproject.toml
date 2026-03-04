@@ -1,12 +1,12 @@
 [project]
 name = "awslabs.aws-documentation-mcp-server"
-version = "1.1.11"
+version = "1.1.18"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documentation"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "markdownify>=1.1.0",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "httpx>=0.27.0",
     "loguru>=0.7.0",
@@ -29,6 +29,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+
+#[tool.uv]
+#override-dependencies = [
+#  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
+#]
 
 [project.scripts]
 "awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"

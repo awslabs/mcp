@@ -17,7 +17,7 @@
 import sys
 import os
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Add the parent directory to the path so we can import the modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -27,11 +27,12 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
-from awslabs.aurora_dsql_mcp_server.server import readonly_query
+from awslabs.aurora_dsql_mcp_server.server import readonly_query, transact
 from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_WRITE_QUERY_PROHIBITED,
     ERROR_QUERY_INJECTION_RISK,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
+    READ_ONLY_QUERY_WRITE_ERROR,
 )
 
 
@@ -495,3 +496,177 @@ class TestReadonlyEnforcement:
                 ERROR_WRITE_QUERY_PROHIBITED,
                 ERROR_QUERY_INJECTION_RISK
             ])
+
+    # Transact tool security tests
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_allows_read_queries_in_read_only_mode(self):
+        """Test that transact allows SELECT queries in read-only mode."""
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_get_connection, \
+             patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute_query:
+
+            mock_conn = AsyncMock()
+            mock_get_connection.return_value = mock_conn
+            mock_execute_query.return_value = [{'count': 10}]
+
+            safe_queries = [
+                ['SELECT * FROM orders'],
+                ['SELECT COUNT(*) FROM orders'],
+                ['SELECT * FROM orders', 'SELECT COUNT(*) FROM orders'],
+                ['SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id'],
+            ]
+
+            for sql_list in safe_queries:
+                result = await transact(sql_list, ctx)
+                assert result == [{'count': 10}]
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_write_queries_in_read_only_mode(self):
+        """Test that transact rejects write operations in read-only mode."""
+        write_queries = [
+            ['INSERT INTO orders VALUES (1)'],
+            ['UPDATE orders SET status = "shipped"'],
+            ['DELETE FROM orders WHERE id = 1'],
+            ['CREATE TABLE test (id int)'],
+            ['DROP TABLE orders'],
+            ['ALTER TABLE orders ADD COLUMN notes TEXT'],
+            ['TRUNCATE TABLE orders'],
+        ]
+
+        for sql_list in write_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_mixed_queries_in_read_only_mode(self):
+        """Test that transact rejects transactions with mixed read/write in read-only mode."""
+        mixed_queries = [
+            ['SELECT * FROM orders', 'DELETE FROM orders WHERE id = 1'],
+            ['SELECT COUNT(*) FROM orders', 'INSERT INTO orders VALUES (1)'],
+            ['SELECT * FROM orders', 'UPDATE orders SET status = "shipped"'],
+        ]
+
+        for sql_list in mixed_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_injection_in_read_only_mode(self):
+        """Test that transact rejects SQL injection patterns in read-only mode."""
+        injection_queries = [
+            ['SELECT * FROM users WHERE id = 1 OR 1=1'],
+            ["SELECT * FROM users WHERE name = 'test' OR 'a'='a'"],
+            ['SELECT pg_sleep(5)'],
+        ]
+
+        for sql_list in injection_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_QUERY_INJECTION_RISK in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_transaction_bypass_in_read_only_mode(self):
+        """Test that transact rejects transaction bypass attempts in read-only mode."""
+        bypass_queries = [
+            ['SELECT 1; COMMIT; CREATE TABLE hack (id int)'],
+            ['SELECT * FROM users; COMMIT; DROP TABLE users'],
+        ]
+
+        for sql_list in bypass_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            # Should be caught by either mutating keywords or transaction bypass detection
+            assert any(error in str(excinfo.value) for error in [
+                ERROR_WRITE_QUERY_PROHIBITED,
+                ERROR_TRANSACTION_BYPASS_ATTEMPT
+            ])
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_rejects_stacked_queries_in_read_only_mode(self):
+        """Test that transact specifically rejects stacked queries (transaction bypass)."""
+        # Test the transaction bypass detection path by mocking injection check to pass
+        with patch('awslabs.aurora_dsql_mcp_server.server.check_sql_injection_risk', return_value=[]):
+            with patch('awslabs.aurora_dsql_mcp_server.server.detect_mutating_keywords', return_value=[]):
+                stacked_query = ['SELECT 1; SELECT 2']
+
+                with pytest.raises(Exception) as excinfo:
+                    await transact(stacked_query, ctx)
+
+                assert ERROR_TRANSACTION_BYPASS_ATTEMPT in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_validates_all_statements_before_execution(self):
+        """Test that transact validates all statements before executing any."""
+        # If the second statement is invalid, the first should never execute
+        with patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute_query:
+            sql_list = ['SELECT * FROM orders', 'DELETE FROM orders WHERE id = 1']
+
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+            # execute_query should never be called because validation fails
+            mock_execute_query.assert_not_called()
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_handles_readonly_sql_transaction_error(self):
+        """Test that transact properly handles ReadOnlySqlTransaction errors."""
+        import psycopg.errors
+
+        with patch('awslabs.aurora_dsql_mcp_server.server.get_connection') as mock_get_conn:
+            with patch('awslabs.aurora_dsql_mcp_server.server.execute_query') as mock_execute:
+                mock_conn = MagicMock()
+                mock_get_conn.return_value = mock_conn
+
+                # First call succeeds (BEGIN), second call raises ReadOnlySqlTransaction
+                mock_execute.side_effect = [
+                    None,  # BEGIN READ ONLY TRANSACTION succeeds
+                    psycopg.errors.ReadOnlySqlTransaction('cannot execute INSERT in a read-only transaction')
+                ]
+
+                with pytest.raises(Exception) as excinfo:
+                    await transact(['SELECT * FROM users'], ctx)
+
+                assert READ_ONLY_QUERY_WRITE_ERROR in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_case_insensitive_validation(self):
+        """Test that transact validation works regardless of case."""
+        case_variations = [
+            ['insert into orders values (1)'],
+            ['INSERT INTO orders VALUES (1)'],
+            ['Insert Into orders Values (1)'],
+        ]
+
+        for sql_list in case_variations:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_permission_statements_in_read_only_mode(self):
+        """Test that transact rejects permission statements in read-only mode."""
+        permission_queries = [
+            ['GRANT SELECT ON orders TO user'],
+            ['REVOKE SELECT ON orders FROM user'],
+            ['CREATE USER newuser'],
+        ]
+
+        for sql_list in permission_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
+
+    @patch('awslabs.aurora_dsql_mcp_server.server.read_only', True)
+    async def test_transact_system_statements_in_read_only_mode(self):
+        """Test that transact rejects system statements in read-only mode."""
+        system_queries = [
+            ['FLUSH PRIVILEGES'],
+            ['LOAD DATA INFILE "/tmp/data.csv" INTO TABLE orders'],
+        ]
+
+        for sql_list in system_queries:
+            with pytest.raises(Exception) as excinfo:
+                await transact(sql_list, ctx)
+            assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)

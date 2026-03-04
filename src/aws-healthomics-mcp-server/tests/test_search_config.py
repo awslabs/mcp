@@ -29,7 +29,52 @@ from awslabs.aws_healthomics_mcp_server.utils.search_config import (
     get_tag_cache_ttl,
     validate_bucket_access_permissions,
 )
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from unittest.mock import patch
+
+
+@st.composite
+def valid_s3_bucket_name(draw):
+    """Generate a valid S3 bucket name.
+
+    Rules: 3-63 chars, starts/ends with alphanumeric (lowercase),
+    contains only lowercase letters, numbers, hyphens, periods.
+    No consecutive periods, no IP-address-like names.
+    """
+    alnum = st.sampled_from('abcdefghijklmnopqrstuvwxyz0123456789')
+    middle_char = st.sampled_from('abcdefghijklmnopqrstuvwxyz0123456789-.')
+
+    first = draw(alnum)
+    last = draw(alnum)
+    # Middle length: 0-61 chars (total 2 + middle = 3-63)
+    middle_len = draw(st.integers(min_value=1, max_value=30))
+    middle = draw(st.text(alphabet=middle_char, min_size=middle_len, max_size=middle_len))
+
+    return first + middle + last
+
+
+@st.composite
+def valid_s3_path(draw):
+    """Generate a valid S3 path with s3:// prefix and optional key prefix."""
+    bucket = draw(valid_s3_bucket_name())
+    # Optionally add a prefix path
+    has_prefix = draw(st.booleans())
+    if has_prefix:
+        prefix_segment = st.text(
+            alphabet=st.sampled_from('abcdefghijklmnopqrstuvwxyz0123456789-_'),
+            min_size=1,
+            max_size=10,
+        )
+        num_segments = draw(st.integers(min_value=1, max_value=3))
+        segments = [draw(prefix_segment) for _ in range(num_segments)]
+        prefix = '/'.join(segments)
+        # Optionally include trailing slash
+        trailing = draw(st.sampled_from(['', '/']))
+        return f's3://{bucket}/{prefix}{trailing}'
+    else:
+        trailing = draw(st.sampled_from(['', '/']))
+        return f's3://{bucket}{trailing}'
 
 
 class TestSearchConfig:
@@ -82,21 +127,21 @@ class TestSearchConfig:
         """Test getting S3 bucket paths with empty environment variable."""
         os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = ''
 
-        with pytest.raises(ValueError, match='No S3 bucket paths configured'):
-            get_s3_bucket_paths()
+        paths = get_s3_bucket_paths()
+        assert paths == []
 
     def test_get_s3_bucket_paths_missing_env_var(self):
         """Test getting S3 bucket paths with missing environment variable."""
         # Environment variable not set
-        with pytest.raises(ValueError, match='No S3 bucket paths configured'):
-            get_s3_bucket_paths()
+        paths = get_s3_bucket_paths()
+        assert paths == []
 
     def test_get_s3_bucket_paths_whitespace_only(self):
         """Test getting S3 bucket paths with whitespace-only environment variable."""
         os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = '   ,  ,   '
 
-        with pytest.raises(ValueError, match='No S3 bucket paths configured'):
-            get_s3_bucket_paths()
+        paths = get_s3_bucket_paths()
+        assert paths == []
 
     def test_get_s3_bucket_paths_invalid_path(self):
         """Test getting S3 bucket paths with invalid path."""
@@ -431,9 +476,14 @@ class TestSearchConfig:
 
     def test_get_genomics_search_config_missing_buckets(self):
         """Test getting genomics search configuration with missing S3 buckets."""
-        # No S3 buckets configured
-        with pytest.raises(ValueError, match='No S3 bucket paths configured'):
-            get_genomics_search_config()
+        # No S3 buckets configured - should succeed with empty bucket list
+        config = get_genomics_search_config()
+
+        assert isinstance(config, SearchConfig)
+        assert config.s3_bucket_paths == []
+        assert config.max_concurrent_searches == 10
+        assert config.search_timeout_seconds == 300
+        assert config.enable_healthomics_search is True
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.get_genomics_search_config')
     @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.validate_bucket_access')
@@ -539,3 +589,57 @@ class TestSearchConfig:
 
                 # Verify bucket access validation
                 assert accessible_buckets == ['s3://genomics-data/', 's3://results-bucket/output/']
+
+
+class TestPropertyS3PathConfigRoundTrip:
+    """Property-based tests for S3 path config round-trip.
+
+    Feature: s3-adhoc-bucket-search-fix
+    Property 1: Valid S3 paths survive config round-trip
+    Validates: Requirements 1.3
+    """
+
+    def setup_method(self):
+        """Clear env vars before each test."""
+        if 'GENOMICS_SEARCH_S3_BUCKETS' in os.environ:
+            del os.environ['GENOMICS_SEARCH_S3_BUCKETS']
+
+    @given(data=st.data())
+    @settings(max_examples=100)
+    def test_valid_s3_paths_survive_config_round_trip(self, data):
+        """Valid S3 paths survive config round-trip.
+
+        For any set of valid S3 bucket paths set in the GENOMICS_SEARCH_S3_BUCKETS
+        environment variable, calling get_s3_bucket_paths() returns a list containing
+        exactly those paths, validated and normalized (trailing slash ensured, s3://
+        prefix preserved).
+
+        **Validates: Requirements 1.3**
+        """
+        # Generate 1-5 valid S3 bucket paths
+        num_paths = data.draw(st.integers(min_value=1, max_value=5))
+        paths = [data.draw(valid_s3_path()) for _ in range(num_paths)]
+
+        # Set the env var with comma-separated paths
+        os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = ','.join(paths)
+
+        try:
+            result = get_s3_bucket_paths()
+
+            # Every returned path should end with '/'
+            for p in result:
+                assert p.endswith('/'), f'Path {p} should end with /'
+                assert p.startswith('s3://'), f'Path {p} should start with s3://'
+
+            # The number of returned paths should match the input
+            assert len(result) == len(paths)
+
+            # Each input path should have a corresponding normalized output
+            for original in paths:
+                normalized = original if original.endswith('/') else original + '/'
+                assert normalized in result, (
+                    f'Normalized path {normalized} not found in result {result}'
+                )
+        finally:
+            if 'GENOMICS_SEARCH_S3_BUCKETS' in os.environ:
+                del os.environ['GENOMICS_SEARCH_S3_BUCKETS']

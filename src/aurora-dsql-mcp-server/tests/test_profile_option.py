@@ -40,9 +40,6 @@ class TestProfileOption:
         mock_session = mock_boto3_session.return_value
         mock_dsql_client = mock_session.client.return_value
 
-        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
-        mock_execute_query.return_value = {'column': 1}
-
         mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
 
         main()
@@ -60,7 +57,6 @@ class TestProfileOption:
         assert awslabs.aurora_dsql_mcp_server.server.dsql_client == mock_dsql_client
 
         # Check that the server was started
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     @patch(
@@ -80,9 +76,6 @@ class TestProfileOption:
         mock_session = mock_boto3_session.return_value
         mock_dsql_client = mock_session.client.return_value
 
-        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
-        mock_execute_query.return_value = {'column': 1}
-
         mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
 
         main()
@@ -100,5 +93,4 @@ class TestProfileOption:
         assert awslabs.aurora_dsql_mcp_server.server.dsql_client == mock_dsql_client
 
         # Check that the server was started
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()

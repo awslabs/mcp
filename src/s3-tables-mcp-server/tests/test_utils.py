@@ -1,30 +1,29 @@
 import awslabs.s3_tables_mcp_server.utils as utils
+import pytest
 from unittest.mock import MagicMock, patch
 
 
-def test_handle_exceptions_success():
+@pytest.mark.asyncio
+async def test_handle_exceptions_success():
     """Test that handle_exceptions decorator returns the correct result when no exception is raised."""
 
     @utils.handle_exceptions
     async def good_func(x):
         return x * 2
 
-    import asyncio
-
-    result = asyncio.get_event_loop().run_until_complete(good_func(3))
+    result = await good_func(3)
     assert result == 6
 
 
-def test_handle_exceptions_exception():
+@pytest.mark.asyncio
+async def test_handle_exceptions_exception():
     """Test that handle_exceptions decorator catches exceptions and returns an error dict."""
 
     @utils.handle_exceptions
     async def bad_func(x):
         raise ValueError('fail')
 
-    import asyncio
-
-    result = asyncio.get_event_loop().run_until_complete(bad_func(1))
+    result = await bad_func(1)
     assert result['error'] == 'fail'
     assert result['tool'] == 'bad_func'
 

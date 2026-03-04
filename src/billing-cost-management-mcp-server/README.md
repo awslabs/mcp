@@ -43,6 +43,15 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Workload estimate insights**: Query workload estimates to see what usage you have estimated
 
+### AWS Billing Conductor & Proforma Cost Analysis
+
+- **Billing group management**: List and filter billing groups with details on type, status, pricing plans, and member accounts
+- **Account associations**: View linked account associations with billing groups, filter by monitored/unmonitored status
+- **Billing group cost reports**: Retrieve cost report summaries comparing actual AWS charges vs proforma costs with margin analysis
+- **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
+- **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
+- **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -59,13 +68,13 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 ## Installation
 
-| Cursor | VS Code |
-|:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.billing-cost-management-mcp-server&config=ewogICAgImNvbW1hbmQiOiAidXZ4IGF3c2xhYnMuYmlsbGluZy1jb3N0LW1hbmFnZW1lbnQtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIiwKICAgICAgIkFXU19QUk9GSUxFIjogInlvdXItYXdzLXByb2ZpbGUiLAogICAgICAiQVdTX1JFR0lPTiI6ICJ1cy1lYXN0LTEiCiAgICB9LAogICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAiYXV0b0FwcHJvdmUiOiBbXQogIH0K) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Billing%20and%20Cost%20Management%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.billing-cost-management-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.billing-cost-management-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.billing-cost-management-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.billing-cost-management-mcp-server&config=ewogICAgImNvbW1hbmQiOiAidXZ4IGF3c2xhYnMuYmlsbGluZy1jb3N0LW1hbmFnZW1lbnQtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIiwKICAgICAgIkFXU19QUk9GSUxFIjogInlvdXItYXdzLXByb2ZpbGUiLAogICAgICAiQVdTX1JFR0lPTiI6ICJ1cy1lYXN0LTEiCiAgICB9LAogICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAiYXV0b0FwcHJvdmUiOiBbXQogIH0K) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Billing%20and%20Cost%20Management%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.billing-cost-management-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 ### ⚡ Using uv
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit `~/.kiro/settings/mcp.json`):
 
 
 **For Linux/MacOS users:**
@@ -252,6 +261,19 @@ Storage Lens (Athena and S3):
 - s3:GetStorageLensConfigurationTagging
 - s3:PutStorageLensConfigurationTagging
 
+AWS Billing Conductor:
+- billingconductor:ListBillingGroups
+- billingconductor:ListBillingGroupCostReports
+- billingconductor:GetBillingGroupCostReport
+- billingconductor:ListAccountAssociations
+- billingconductor:ListPricingPlans
+- billingconductor:ListPricingRules
+- billingconductor:ListPricingRulesAssociatedToPricingPlan
+- billingconductor:ListPricingPlansAssociatedWithPricingRule
+- billingconductor:ListCustomLineItems
+- billingconductor:ListCustomLineItemVersions
+- billingconductor:ListResourcesAssociatedToCustomLineItem
+
 #### Configuration
 
 The server uses these key environment variables:
@@ -324,3 +346,16 @@ The server currently supports the following AWS services
 
 8. **S3 Storage Lens**
    - storage_lens_run_query (custom implementation using Athena)
+
+9. **AWS Billing Conductor**
+   - list_billing_groups
+   - list_billing_group_cost_reports
+   - get_billing_group_cost_report
+   - list_account_associations
+   - list_pricing_plans
+   - list_pricing_rules
+   - list_pricing_rules_associated_to_pricing_plan
+   - list_pricing_plans_associated_with_pricing_rule
+   - list_custom_line_items
+   - list_custom_line_item_versions
+   - list_resources_associated_to_custom_line_item

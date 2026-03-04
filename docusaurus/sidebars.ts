@@ -22,13 +22,18 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Available AWS MCP Servers",
+      label: "Available MCP Servers for AWS",
       collapsed: false,
       items: [
         {
           type: "category",
           label: "Getting Started",
           items: [
+            {
+              type: 'link',
+              label: 'AWS MCP',
+              href: 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html',
+            },
             "servers/aws-api-mcp-server",
             "servers/aws-knowledge-mcp-server",
           ],
@@ -91,6 +96,8 @@ const sidebars: SidebarsConfig = {
             "servers/s3-tables-mcp-server",
             "servers/aws-appsync-mcp-server",
             "servers/aws-iot-sitewise-mcp-server",
+            "servers/sagemaker-unified-studio-spark-troubleshooting-mcp-server",
+            "servers/sagemaker-unified-studio-spark-upgrade-mcp-server"
           ],
         },
         {
@@ -138,6 +145,7 @@ const sidebars: SidebarsConfig = {
           label: "Healthcare & Lifesciences",
           items: [
             "servers/aws-healthomics-mcp-server",
+            "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
           ],
         },

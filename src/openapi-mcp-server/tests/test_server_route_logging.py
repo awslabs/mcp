@@ -51,12 +51,12 @@ class TestServerRouteLogging:
         mock_route1 = MagicMock()
         mock_route1.path = '/api/v1/pets'
         mock_route1.method = 'GET'
-        mock_route1.route_type = 'resource'
+        mock_route1.mcp_type = 'resource'
 
         mock_route2 = MagicMock()
         mock_route2.path = '/api/v1/pets/{id}'
         mock_route2.method = 'POST'
-        mock_route2.route_type = 'tool'
+        mock_route2.mcp_type = 'tool'
 
         # Set up the _openapi_router attribute with routes
         mock_openapi_router = MagicMock()
@@ -126,7 +126,7 @@ class TestServerRouteLogging:
         mock_route1 = MagicMock()
         mock_route1.path = '/api/v1/pets'
         mock_route1.method = 'GET'
-        mock_route1.route_type = 'resource'
+        mock_route1.mcp_type = 'resource'
 
         # Set up the _openapi_router attribute with routes
         mock_openapi_router = MagicMock()

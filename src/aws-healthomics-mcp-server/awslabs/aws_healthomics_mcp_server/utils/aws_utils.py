@@ -21,7 +21,11 @@ import io
 import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
+from awslabs.aws_healthomics_mcp_server.consts import (
+    AGENT_ENV,
+    DEFAULT_OMICS_SERVICE_NAME,
+    DEFAULT_REGION,
+)
 from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict
@@ -88,6 +92,36 @@ def get_omics_endpoint_url() -> str | None:
     return endpoint_url
 
 
+def get_agent_value() -> str | None:
+    """Get the agent identifier from the AGENT environment variable.
+
+    Reads the value, strips whitespace, sanitizes by removing characters
+    not permitted in HTTP header values (outside visible ASCII 0x20-0x7E),
+    and returns None if the result is empty.
+
+    Returns:
+        str | None: The sanitized agent value if valid, None otherwise.
+    """
+    raw = os.environ.get(AGENT_ENV)
+    if raw is None:
+        return None
+
+    stripped = raw.strip()
+    if not stripped:
+        return None
+
+    sanitized = ''.join(c for c in stripped if 0x20 <= ord(c) <= 0x7E)
+
+    if not sanitized:
+        logger.warning(
+            f'{AGENT_ENV} environment variable value became empty after sanitization. '
+            'Treating as unset.'
+        )
+        return None
+
+    return sanitized
+
+
 def get_aws_session() -> boto3.Session:
     """Get an AWS session with the centralized region configuration.
 
@@ -99,6 +133,11 @@ def get_aws_session() -> boto3.Session:
     """
     botocore_session = botocore.session.Session()
     user_agent_extra = f'awslabs/mcp/aws-healthomics-mcp-server/{__version__}'
+
+    agent_value = get_agent_value()
+    if agent_value:
+        user_agent_extra += f' agent/{agent_value.lower()}'
+
     botocore_session.user_agent_extra = user_agent_extra
     return boto3.Session(region_name=get_region(), botocore_session=botocore_session)
 
@@ -149,7 +188,7 @@ def create_aws_client(service_name: str) -> Any:
     """Generic AWS client factory for any service.
 
     Args:
-        service_name: Name of the AWS service (e.g., 'omics', 'logs', 'ssm')
+        service_name: Name of the AWS service (e.g., 'omics', 'logs', 's3')
 
     Returns:
         boto3.client: Configured AWS service client
@@ -200,16 +239,52 @@ def get_logs_client() -> Any:
     return create_aws_client('logs')
 
 
-def get_ssm_client() -> Any:
-    """Get an AWS SSM client.
+def get_codeconnections_client() -> Any:
+    """Get an AWS CodeConnections client.
 
     Returns:
-        boto3.client: Configured SSM client
+        boto3.client: Configured CodeConnections client
 
     Raises:
         Exception: If client creation fails
     """
-    return create_aws_client('ssm')
+    return create_aws_client('codeconnections')
+
+
+def get_ecr_client() -> Any:
+    """Get an AWS ECR client.
+
+    Returns:
+        boto3.client: Configured ECR client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('ecr')
+
+
+def get_codebuild_client() -> Any:
+    """Get an AWS CodeBuild client.
+
+    Returns:
+        boto3.client: Configured CodeBuild client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('codebuild')
+
+
+def get_iam_client() -> Any:
+    """Get an AWS IAM client.
+
+    Returns:
+        boto3.client: Configured IAM client
+
+    Raises:
+        Exception: If client creation fails
+    """
+    return create_aws_client('iam')
 
 
 def get_account_id() -> str:

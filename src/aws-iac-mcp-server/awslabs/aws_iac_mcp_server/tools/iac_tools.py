@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..client.aws_knowledge_client import read_documentation, search_documentation
+from ..client.aws_knowledge_client import search_documentation
 from ..knowledge_models import CDKToolResponse
 from .cdk_best_practices import CDK_BEST_PRACTICES_KNOWLEDGE
 from typing import Literal
 
 
 SEARCH_TOOL_NEXT_STEPS_GUIDANCE = 'To read the full documentation pages for these search results, use the `read_iac_documentation_page` tool. If you need to find real code examples for constructs referenced in the search results, use the `search_cdk_samples_and_constructs` tool.'
-
-READ_TOOL_NEXT_STEPS_GUIDANCE = (
-    'If you need code examples, use `search_cdk_samples_and_constructs` tool.'
-)
 
 SEARCH_CDK_DOCUMENTATION_TOPIC = 'cdk_docs'
 SEARCH_CLOUDFORMATION_DOCUMENTATION_TOPIC = 'cloudformation'
@@ -46,22 +42,6 @@ async def search_cdk_documentation_tool(query: str) -> CDKToolResponse:
     )
     return CDKToolResponse(
         knowledge_response=knowledge_response, next_step_guidance=SEARCH_TOOL_NEXT_STEPS_GUIDANCE
-    )
-
-
-async def read_iac_documentation_page_tool(url: str, starting_index: int = 0) -> CDKToolResponse:
-    """Read IaC documentation page.
-
-    Args:
-        url: URL from search results to read the full page content.
-        starting_index: Starting character index for pagination.
-
-    Returns:
-        CDKToolResponse containing documentation content and guidance.
-    """
-    knowledge_response = await read_documentation(url=url, start_index=starting_index)
-    return CDKToolResponse(
-        knowledge_response=knowledge_response, next_step_guidance=READ_TOOL_NEXT_STEPS_GUIDANCE
     )
 
 

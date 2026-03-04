@@ -1,13 +1,13 @@
 [project]
 name = "awslabs.nova-canvas-mcp-server"
-version = "1.0.8"
+version = "1.0.13"
 description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Nova Canvas"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.37.24",
     "loguru>=0.7.3",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.23.0",
     "pydantic>=2.11.1",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.26.0",
@@ -30,6 +30,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+]
+
+[tool.uv]
+override-dependencies = [
+  "virtualenv>=20.36.1", # Temporary forced a higher version because 20.33.1 from CVE-2026-22702
 ]
 
 [project.scripts]
