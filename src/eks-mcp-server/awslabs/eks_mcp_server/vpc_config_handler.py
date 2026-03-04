@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""VPC Configuration handler for the EKS MCP Server."""
+"""VPC Configuration handler for the EKS MCP Server.
+
+This module provides tools for retrieving and analyzing VPC configurations
+for EKS clusters, with support for multi-region and multi-account operations.
+"""
 
 import json
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import EksVpcConfigData
 from mcp.server.fastmcp import Context
@@ -48,11 +53,34 @@ class VpcConfigHandler:
         # Register tools
         self.mcp.tool(name='get_eks_vpc_config', structured_output=False)(self.get_eks_vpc_config)
 
-        # Initialize AWS clients
-        self.ec2_client = AwsHelper.create_boto3_client('ec2')
-        self.eks_client = AwsHelper.create_boto3_client('eks')
+    def _get_ec2_client(self, cluster_name: str):
+        """Get an EC2 client with appropriate credentials.
 
-    # VPC tool
+        Args:
+            cluster_name: Cluster name to look up configuration
+
+        Returns:
+            EC2 boto3 client
+        """
+        cluster_config = ConfigManager.get_cluster(cluster_name)
+        if cluster_config:
+            return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'ec2')
+        return AwsHelper.create_boto3_client('ec2')
+
+    def _get_eks_client(self, cluster_name: str):
+        """Get an EKS client with appropriate credentials.
+
+        Args:
+            cluster_name: Cluster name to look up configuration
+
+        Returns:
+            EKS boto3 client
+        """
+        cluster_config = ConfigManager.get_cluster(cluster_name)
+        if cluster_config:
+            return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'eks')
+        return AwsHelper.create_boto3_client('eks')
+
     async def get_eks_vpc_config(
         self,
         ctx: Context,
@@ -93,27 +121,14 @@ class VpcConfigHandler:
         Returns:
             EksVpcConfigResponse with VPC configuration details
         """
-        # Extract values from Field objects before passing them to the implementation method
         vpc_id_value = None if vpc_id is None else str(vpc_id)
-
-        # Delegate to the implementation method with extracted values
         return await self._get_eks_vpc_config_impl(ctx, cluster_name, vpc_id_value)
 
-    async def _get_vpc_id_for_cluster(self, ctx: Context, cluster_name: str) -> tuple[str, dict]:
-        """Get the VPC ID for a cluster.
-
-        Args:
-            ctx: MCP context
-            cluster_name: Name of the EKS cluster
-
-        Returns:
-            Tuple of (vpc_id, cluster_response)
-
-        Raises:
-            Exception: If the VPC ID cannot be determined
-        """
-        # Get cluster information to determine VPC ID
-        cluster_response = self.eks_client.describe_cluster(name=cluster_name)
+    async def _get_vpc_id_for_cluster(
+        self, ctx: Context, cluster_name: str, eks_client
+    ) -> tuple[str, dict]:
+        """Get the VPC ID for a cluster."""
+        cluster_response = eks_client.describe_cluster(name=cluster_name)
         vpc_id = cluster_response['cluster'].get('resourcesVpcConfig', {}).get('vpcId')
 
         if not vpc_id:
@@ -123,28 +138,17 @@ class VpcConfigHandler:
 
         return vpc_id, cluster_response
 
-    async def _get_vpc_details(self, ctx: Context, vpc_id: str) -> tuple[str, list[str]]:
-        """Get VPC details using the VPC ID.
-
-        Args:
-            ctx: MCP context
-            vpc_id: ID of the VPC to query
-
-        Returns:
-            Tuple of (cidr_block, additional_cidr_blocks)
-
-        Raises:
-            Exception: If the VPC is not found
-        """
-        # Get VPC details
-        vpc_response = self.ec2_client.describe_vpcs(VpcIds=[vpc_id])
+    async def _get_vpc_details(
+        self, ctx: Context, vpc_id: str, ec2_client
+    ) -> tuple[str, list[str]]:
+        """Get VPC details using the VPC ID."""
+        vpc_response = ec2_client.describe_vpcs(VpcIds=[vpc_id])
 
         if not vpc_response['Vpcs']:
             error_message = f'VPC {vpc_id} not found'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             raise Exception(error_message)
 
-        # Extract VPC information
         vpc = vpc_response['Vpcs'][0]
         cidr_block = vpc.get('CidrBlock', '')
         additional_cidr_blocks = [
@@ -155,24 +159,14 @@ class VpcConfigHandler:
 
         return cidr_block, additional_cidr_blocks
 
-    async def _get_subnet_information(self, ctx: Context, vpc_id: str) -> list[dict]:
-        """Get subnet information for a VPC.
-
-        Args:
-            ctx: MCP context
-            vpc_id: ID of the VPC to query
-
-        Returns:
-            List of subnet information dictionaries
-        """
-        # Get subnets for the VPC
-        subnets_response = self.ec2_client.describe_subnets(
+    async def _get_subnet_information(self, ctx: Context, vpc_id: str, ec2_client) -> list[dict]:
+        """Get subnet information for a VPC."""
+        subnets_response = ec2_client.describe_subnets(
             Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
 
         subnets = []
         for subnet in subnets_response.get('Subnets', []):
-            # Extract all subnet information to variables first
             subnet_id = subnet.get('SubnetId', '')
             subnet_cidr_block = subnet.get('CidrBlock', '')
             az_id = subnet.get('AvailabilityZoneId', '')
@@ -181,12 +175,10 @@ class VpcConfigHandler:
             is_public = subnet.get('MapPublicIpOnLaunch', False)
             assign_ipv6 = subnet.get('AssignIpv6AddressOnCreation', False)
 
-            # Check for disallowed AZs
             disallowed_azs = ['use1-az3', 'usw1-az2', 'cac1-az3']
             in_disallowed_az = az_id in disallowed_azs
-            has_sufficient_ips = available_ips >= 16  # AWS recommends 16
+            has_sufficient_ips = available_ips >= 16
 
-            # Store subnet information
             subnet_info = {
                 'subnet_id': subnet_id,
                 'cidr_block': subnet_cidr_block,
@@ -202,25 +194,16 @@ class VpcConfigHandler:
 
         return subnets
 
-    async def _get_route_table_information(self, ctx: Context, vpc_id: str) -> list[dict]:
-        """Get route table information for a VPC.
-
-        Args:
-            ctx: MCP context
-            vpc_id: ID of the VPC to query
-
-        Returns:
-            List of route information dictionaries
-        """
-        # Get route tables for the VPC
-        route_tables_response = self.ec2_client.describe_route_tables(
+    async def _get_route_table_information(
+        self, ctx: Context, vpc_id: str, ec2_client
+    ) -> list[dict]:
+        """Get route table information for a VPC."""
+        route_tables_response = ec2_client.describe_route_tables(
             Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
         )
 
-        # Extract route information from the main route table
         routes = []
         for rt in route_tables_response.get('RouteTables', []):
-            # Check if this is the main route table
             is_main = False
             for association in rt.get('Associations', []):
                 if association.get('Main', False):
@@ -229,11 +212,9 @@ class VpcConfigHandler:
 
             if is_main:
                 for route in rt.get('Routes', []):
-                    # Skip the local route
                     if route.get('GatewayId') == 'local':
                         continue
 
-                    # Determine the target type and ID
                     target_type = None
                     target_id = None
 
@@ -262,25 +243,14 @@ class VpcConfigHandler:
     async def _get_remote_cidr_blocks(
         self, ctx: Context, cluster_name: str, cluster_response: Optional[dict] = None
     ) -> tuple[list[str], list[str]]:
-        """Get remote node and pod CIDR blocks.
-
-        Args:
-            ctx: MCP context
-            cluster_name: Name of the EKS cluster
-            cluster_response: Cluster response from a previous API call
-
-        Returns:
-            Tuple of (remote_node_cidr_blocks, remote_pod_cidr_blocks)
-        """
+        """Get remote node and pod CIDR blocks."""
         remote_node_cidr_blocks = []
         remote_pod_cidr_blocks = []
 
-        # Extract remote network config from the cluster response
         if cluster_response and 'cluster' in cluster_response:
             if 'remoteNetworkConfig' in cluster_response['cluster']:
                 remote_config = cluster_response['cluster']['remoteNetworkConfig']
 
-                # Extract remote node CIDRs
                 if 'remoteNodeNetworks' in remote_config:
                     for network in remote_config['remoteNodeNetworks']:
                         if 'cidrs' in network:
@@ -290,10 +260,9 @@ class VpcConfigHandler:
                                     log_with_request_id(
                                         ctx,
                                         LogLevel.INFO,
-                                        f'Found remote node CIDR in remoteNetworkConfig: {cidr}',
+                                        f'Found remote node CIDR: {cidr}',
                                     )
 
-                # Extract remote pod CIDRs
                 if 'remotePodNetworks' in remote_config:
                     for network in remote_config['remotePodNetworks']:
                         if 'cidrs' in network:
@@ -303,10 +272,9 @@ class VpcConfigHandler:
                                     log_with_request_id(
                                         ctx,
                                         LogLevel.INFO,
-                                        f'Found remote pod CIDR in remoteNetworkConfig: {cidr}',
+                                        f'Found remote pod CIDR: {cidr}',
                                     )
 
-        # Log summary of detected CIDRs
         if remote_node_cidr_blocks:
             log_with_request_id(
                 ctx,
@@ -332,17 +300,20 @@ class VpcConfigHandler:
     ) -> CallToolResult:
         """Internal implementation of get_eks_vpc_config."""
         try:
-            # Always get the cluster response for remote CIDR information
+            # Get clients with appropriate credentials
+            eks_client = self._get_eks_client(cluster_name)
+            ec2_client = self._get_ec2_client(cluster_name)
+
             cluster_response = None
             try:
                 if not vpc_id:
-                    # Get both VPC ID and cluster response
                     vpc_id, cluster_response = await self._get_vpc_id_for_cluster(
-                        ctx, cluster_name
+                        ctx, cluster_name, eks_client
                     )
                 else:
-                    # Just get the cluster response when VPC ID is provided
-                    _, cluster_response = await self._get_vpc_id_for_cluster(ctx, cluster_name)
+                    _, cluster_response = await self._get_vpc_id_for_cluster(
+                        ctx, cluster_name, eks_client
+                    )
             except Exception as eks_error:
                 error_message = f'Error getting cluster information: {str(eks_error)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
@@ -352,22 +323,16 @@ class VpcConfigHandler:
                 )
 
             try:
-                # Get VPC details
-                cidr_block, additional_cidr_blocks = await self._get_vpc_details(ctx, vpc_id)
-
-                # Get subnet information
-                subnets = await self._get_subnet_information(ctx, vpc_id)
-
-                # Get route table information
-                routes = await self._get_route_table_information(ctx, vpc_id)
-
-                # Get remote CIDR blocks
+                cidr_block, additional_cidr_blocks = await self._get_vpc_details(
+                    ctx, vpc_id, ec2_client
+                )
+                subnets = await self._get_subnet_information(ctx, vpc_id, ec2_client)
+                routes = await self._get_route_table_information(ctx, vpc_id, ec2_client)
                 (
                     remote_node_cidr_blocks,
                     remote_pod_cidr_blocks,
                 ) = await self._get_remote_cidr_blocks(ctx, cluster_name, cluster_response)
 
-                # Create the response
                 success_message = (
                     f'Retrieved VPC configuration for {vpc_id} (cluster {cluster_name})'
                 )

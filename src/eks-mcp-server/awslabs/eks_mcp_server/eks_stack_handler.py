@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""EKS stack handler for the EKS MCP Server."""
+"""EKS stack handler for the EKS MCP Server.
+
+This module provides tools for creating, managing, and deleting CloudFormation
+stacks for EKS clusters, with support for multi-region and multi-account operations.
+"""
 
 import json
 import os
 import yaml
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
+from awslabs.eks_mcp_server.config import ConfigManager
 from awslabs.eks_mcp_server.consts import (
     CFN_CAPABILITY_IAM,
     CFN_ON_FAILURE_DELETE,
@@ -60,8 +65,30 @@ class EksStackHandler:
         # Register tools
         self.mcp.tool(name='manage_eks_stacks')(self.manage_eks_stacks)
 
+    def _get_cfn_client(self, cluster_name: Optional[str] = None):
+        """Get a CloudFormation client with appropriate credentials.
+
+        If a cluster configuration is available for the given cluster name,
+        uses the configured credentials. Otherwise falls back to default.
+
+        Args:
+            cluster_name: Optional cluster name to look up configuration
+
+        Returns:
+            CloudFormation boto3 client
+        """
+        if cluster_name:
+            cluster_config = ConfigManager.get_cluster(cluster_name)
+            if cluster_config:
+                return AwsHelper.create_boto3_client_for_cluster(cluster_config, 'cloudformation')
+        return AwsHelper.create_boto3_client('cloudformation')
+
     def _ensure_stack_ownership(
-        self, ctx: Context, stack_name: str, operation: str
+        self,
+        ctx: Context,
+        stack_name: str,
+        operation: str,
+        cluster_name: Optional[str] = None,
     ) -> Tuple[bool, Optional[Dict], Optional[str]]:
         """Ensure that a stack exists and was created by this tool.
 
@@ -69,6 +96,7 @@ class EksStackHandler:
             ctx: The MCP context
             stack_name: Name of the stack to verify
             operation: Operation being performed (for error messages)
+            cluster_name: Optional cluster name for credential lookup
 
         Returns:
             Tuple of (success, stack_details, error_message)
@@ -77,8 +105,8 @@ class EksStackHandler:
             - error_message: Error message if the stack doesn't exist or wasn't created by this tool, None if successful
         """
         try:
-            # Create CloudFormation client
-            cfn_client = AwsHelper.create_boto3_client('cloudformation')
+            # Create CloudFormation client with appropriate credentials
+            cfn_client = self._get_cfn_client(cluster_name)
 
             # Get stack details
             stack_details = cfn_client.describe_stacks(StackName=stack_name)
@@ -94,7 +122,9 @@ class EksStackHandler:
 
             if not is_our_stack:
                 error_message = STACK_NOT_OWNED_ERROR_TEMPLATE.format(
-                    stack_name=stack_name, tool_name=CFN_STACK_TAG_VALUE, operation=operation
+                    stack_name=stack_name,
+                    tool_name=CFN_STACK_TAG_VALUE,
+                    operation=operation,
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return False, stack, error_message
@@ -271,7 +301,10 @@ class EksStackHandler:
         try:
             # Get the source template path
             source_template_path = os.path.join(
-                os.path.dirname(__file__), 'templates', 'eks-templates', 'eks-with-vpc.yaml'
+                os.path.dirname(__file__),
+                'templates',
+                'eks-templates',
+                'eks-with-vpc.yaml',
             )
 
             # Create directory if it doesn't exist
@@ -344,9 +377,6 @@ class EksStackHandler:
     ) -> CallToolResult:
         """Deploy a CloudFormation stack from the specified template file."""
         try:
-            # Create CloudFormation client
-            cfn_client = AwsHelper.create_boto3_client('cloudformation')
-
             # Read the template
             with open(template_file, 'r') as template_file_obj:
                 template_body = template_file_obj.read()
@@ -355,7 +385,7 @@ class EksStackHandler:
             stack_exists = False
             try:
                 success, stack, error_message = self._ensure_stack_ownership(
-                    ctx, stack_name, 'update'
+                    ctx, stack_name, 'update', cluster_name
                 )
                 if stack:
                     stack_exists = True
@@ -369,6 +399,9 @@ class EksStackHandler:
             except Exception:
                 # Stack doesn't exist, we'll create it
                 stack_exists = False
+
+            # Get CloudFormation client with appropriate credentials
+            cfn_client = self._get_cfn_client(cluster_name)
 
             # Create or update the stack
             if stack_exists:
@@ -449,7 +482,7 @@ class EksStackHandler:
         try:
             # Verify stack ownership
             success, stack, error_message = self._ensure_stack_ownership(
-                ctx, stack_name, 'describe'
+                ctx, stack_name, 'describe', cluster_name
             )
             if not success:
                 # Prepare error response with available stack details
@@ -553,11 +586,13 @@ class EksStackHandler:
     ) -> CallToolResult:
         """Delete a CloudFormation stack."""
         try:
-            # Create CloudFormation client
-            cfn_client = AwsHelper.create_boto3_client('cloudformation')
+            # Get CloudFormation client with appropriate credentials
+            cfn_client = self._get_cfn_client(cluster_name)
 
             # Verify stack ownership
-            success, stack, error_message = self._ensure_stack_ownership(ctx, stack_name, 'delete')
+            success, stack, error_message = self._ensure_stack_ownership(
+                ctx, stack_name, 'delete', cluster_name
+            )
             if not success:
                 # Prepare error response with available stack details
                 stack_id = ''

@@ -165,9 +165,11 @@ class TestK8sApisInitialization:
         # Mock import error by patching the import mechanism
         with patch(
             'builtins.__import__',
-            side_effect=lambda name, *args, **kwargs: __import__(name, *args, **kwargs)
-            if name != 'kubernetes'
-            else exec('raise ImportError("kubernetes package not installed")'),
+            side_effect=lambda name, *args, **kwargs: (
+                __import__(name, *args, **kwargs)
+                if name != 'kubernetes'
+                else exec('raise ImportError("kubernetes package not installed")')
+            ),
         ):
             # Initialize K8sApis - should raise ImportError
             with pytest.raises(ImportError, match='kubernetes package not installed'):
