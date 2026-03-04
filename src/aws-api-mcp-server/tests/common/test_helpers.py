@@ -1,4 +1,3 @@
-import awslabs.aws_api_mcp_server.core.common.helpers as helpers_module
 import base64
 import json
 import pytest
@@ -16,10 +15,10 @@ from unittest.mock import MagicMock, patch
 
 @pytest.fixture(autouse=True)
 def _reset_requests_session():
-    """Reset the requests session singleton between tests."""
-    helpers_module._requests_session = None
+    """Reset the cached requests session between tests."""
+    get_requests_session.cache_clear()
     yield
-    helpers_module._requests_session = None
+    get_requests_session.cache_clear()
 
 
 @pytest.mark.parametrize(

@@ -21,6 +21,7 @@ import time
 from botocore.response import StreamingBody
 from contextlib import contextmanager
 from datetime import datetime
+from functools import cache
 from loguru import logger
 from requests.adapters import HTTPAdapter
 from typing import Any
@@ -92,23 +93,17 @@ def validate_aws_region(region: str):
         raise ValueError(error_message)
 
 
-# Module-level singleton to avoid creating a new Session + HTTPAdapter + connection
-# pool per request. requests.Session is thread-safe for reads after configuration.
-_requests_session: requests.Session | None = None
-
-
+@cache
 def get_requests_session() -> requests.Session:
     """Return a shared requests session with common retry strategy."""
-    global _requests_session
-    if _requests_session is None:
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods={'HEAD', 'GET', 'OPTIONS', 'POST'},
-        )
-        _requests_session = requests.Session()
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        _requests_session.mount('https://', adapter)
-        _requests_session.mount('http://', adapter)
-    return _requests_session
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods={'HEAD', 'GET', 'OPTIONS', 'POST'},
+    )
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    return session
