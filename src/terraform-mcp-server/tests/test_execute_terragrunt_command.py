@@ -491,3 +491,56 @@ async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir)
         # Verify the command included the custom config flag
         cmd_args = mock_run.call_args[0][0]
         assert f'--terragrunt-config={custom_config}' in cmd_args
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_with_targets(temp_terraform_dir):
+    """Test the Terragrunt command execution with targets."""
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = 'Plan: 1 to add, 0 to change, 0 to destroy.'
+    mock_result.stderr = ''
+
+    request = TerragruntExecutionRequest(
+        command='plan',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region=None,
+        strip_ansi=True,
+        targets=['aws_instance.web', 'module.vpc'],
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
+    )
+
+    with patch('subprocess.run', return_value=mock_result) as mock_run:
+        result = await execute_terragrunt_command_impl(request)
+
+        cmd_args = mock_run.call_args[0][0]
+        assert '-target=aws_instance.web' in cmd_args
+        assert '-target=module.vpc' in cmd_args
+        assert result.status == 'success'
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_dangerous_targets(temp_terraform_dir):
+    """Test that dangerous patterns in targets are detected for Terragrunt."""
+    request = TerragruntExecutionRequest(
+        command='plan',
+        working_directory=temp_terraform_dir,
+        variables=None,
+        aws_region=None,
+        strip_ansi=True,
+        targets=['aws_instance.web; rm -rf /'],
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
+    )
+
+    result = await execute_terragrunt_command_impl(request)
+
+    assert result.status == 'error'
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert 'targets' in result.error_message

@@ -104,6 +104,7 @@ class TestTools:
             variables={'foo': 'bar'},
             aws_region='us-west-2',
             strip_ansi=True,
+            targets=['aws_instance.web', 'module.vpc'],
         )
 
         # Verify the result
@@ -118,6 +119,7 @@ class TestTools:
         assert request.variables == {'foo': 'bar'}
         assert request.aws_region == 'us-west-2'
         assert request.strip_ansi is True
+        assert request.targets == ['aws_instance.web', 'module.vpc']
 
     def test_search_aws_provider_docs_registration(self):
         """Test that the search_aws_provider_docs tool is registered correctly."""
@@ -418,6 +420,7 @@ class TestTools:
             variables={'foo': 'bar'},
             aws_region='us-west-2',
             strip_ansi=True,
+            targets=['aws_instance.web'],
             include_dirs=['/path/to/module1'],
             exclude_dirs=['/path/to/excluded'],
             run_all=False,
@@ -436,6 +439,7 @@ class TestTools:
         assert request.variables == {'foo': 'bar'}
         assert request.aws_region == 'us-west-2'
         assert request.strip_ansi is True
+        assert request.targets == ['aws_instance.web']
         assert request.include_dirs == ['/path/to/module1']
         assert request.exclude_dirs == ['/path/to/excluded']
         assert request.run_all is False

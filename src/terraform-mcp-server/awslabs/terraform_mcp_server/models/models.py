@@ -25,6 +25,7 @@ class TerraformExecutionRequest(BaseModel):
         variables: Optional dictionary of Terraform variables to pass.
         aws_region: Optional AWS region to use.
         strip_ansi: Whether to strip ANSI color codes from command output.
+        targets: Optional list of resource addresses to target for plan/apply/destroy.
     """
 
     command: Literal['init', 'plan', 'validate', 'apply', 'destroy'] = Field(
@@ -34,6 +35,10 @@ class TerraformExecutionRequest(BaseModel):
     variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass')
     aws_region: Optional[str] = Field(None, description='AWS region to use')
     strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output')
+    targets: Optional[List[str]] = Field(
+        default=None,
+        description='List of resource addresses to target. When specified, Terraform will only plan/apply changes for these resources. Example: ["aws_instance.web", "module.vpc"]',
+    )
 
 
 class SubmoduleInfo(BaseModel):
@@ -327,6 +332,7 @@ class TerragruntExecutionRequest(BaseModel):
         variables: Optional dictionary of Terraform variables to pass.
         aws_region: Optional AWS region to use.
         strip_ansi: Whether to strip ANSI color codes from command output.
+        targets: Optional list of resource addresses to target for plan/apply/destroy.
         include_dirs: Optional list of directories to include in a multi-module run.
         exclude_dirs: Optional list of directories to exclude from a multi-module run.
         run_all: Whether to run the command in all subdirectories with terragrunt.hcl files.
@@ -339,6 +345,10 @@ class TerragruntExecutionRequest(BaseModel):
     variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass')
     aws_region: Optional[str] = Field(None, description='AWS region to use')
     strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output')
+    targets: Optional[List[str]] = Field(
+        default=None,
+        description='List of resource addresses to target. When specified, Terragrunt will only plan/apply changes for these resources. Example: ["aws_instance.web", "module.vpc"]',
+    )
     include_dirs: Optional[List[str]] = Field(
         None, description='Directories to include in a multi-module run'
     )

@@ -161,6 +161,19 @@ async def execute_terragrunt_command_impl(
                 affected_dirs=None,
             )
 
+        if request.targets:
+            for target_value in request.targets:
+                if pattern in str(target_value):
+                    logger.error(f'Potentially dangerous pattern detected in targets: {pattern}')
+                    return TerragruntExecutionResult(
+                        command=f'terragrunt {request.command}',
+                        status='error',
+                        error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in targets",
+                        working_directory=request.working_directory,
+                        outputs=None,
+                        affected_dirs=None,
+                    )
+
         # Also check include_dirs and exclude_dirs for dangerous patterns
         if request.include_dirs:
             for dir_path in request.include_dirs:
@@ -219,6 +232,12 @@ async def execute_terragrunt_command_impl(
         logger.info(f'Adding {len(request.variables)} variables to {request.command} command')
         for key, value in request.variables.items():
             base_cmd.append(f'-var={key}={value}')
+
+    # Add target flags for plan, apply, destroy, and run-all commands
+    if request.command in ['plan', 'apply', 'destroy', 'run-all'] and request.targets:
+        logger.info(f'Adding {len(request.targets)} targets to {request.command} command')
+        for target in request.targets:
+            base_cmd.append(f'-target={target}')
 
     # Add include-dirs if specified
     if request.include_dirs and request.command == 'run-all':
