@@ -275,7 +275,7 @@ class TestAwsHelper:
         AwsHelper._client_cache['test_key'] = 'test_client'
         AwsHelper._assumed_role_cache['test_role'] = {
             'AccessKeyId': 'test_key',
-            'SecretAccessKey': 'test_secret',
+            'SecretAccessKey': 'test_secret',  # pragma: allowlist secret
             'SessionToken': 'test_token',
         }
 
@@ -316,11 +316,12 @@ class TestAwsHelper:
         # Verify the result
         assert credentials['AccessKeyId'] == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
         assert (
-            credentials['SecretAccessKey'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            credentials['SecretAccessKey']
+            == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert (
             credentials['SessionToken']
-            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c'
+            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c'  # pragma: allowlist secret
         )  # pragma: allowlist secret
 
         # Verify assume_role was called with correct parameters
@@ -499,10 +500,11 @@ class TestAwsHelper:
         call_kwargs = mock_boto3_client.call_args[1]
 
         assert (
-            call_kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+            call_kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert (
-            call_kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            call_kwargs['aws_secret_access_key']
+            == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
         )  # pragma: allowlist secret
         assert (
             call_kwargs['aws_session_token']
