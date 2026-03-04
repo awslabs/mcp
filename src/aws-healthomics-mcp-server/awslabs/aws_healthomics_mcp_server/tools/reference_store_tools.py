@@ -203,7 +203,7 @@ async def list_references(
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
-    except (ValueError, Exception) as e:
+    except Exception as e:
         return await handle_tool_error(ctx, e, 'Error resolving reference store ID')
 
     params: Dict[str, Any] = {
@@ -459,7 +459,7 @@ async def list_reference_import_jobs(
 
     try:
         reference_store_id = _resolve_reference_store_id(client, reference_store_id)
-    except (ValueError, Exception) as e:
+    except Exception as e:
         return await handle_tool_error(ctx, e, 'Error resolving reference store ID')
 
     params: Dict[str, Any] = {

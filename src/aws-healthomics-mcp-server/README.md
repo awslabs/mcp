@@ -94,10 +94,10 @@ This MCP server provides tools for:
 7. **StartAHOReadSetImportJob** - Import genomic files from S3 into a sequence store with batch support
 8. **GetAHOReadSetImportJob** - Get status and details of a read set import job including per-source statuses
 9. **ListAHOReadSetImportJobs** - List import jobs for a sequence store with pagination
-11. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
-12. **GetAHOReadSetExportJob** - Get status and details of a read set export job
-13. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
-14. **ActivateAHOReadSets** - Activate archived read sets for analysis access
+10. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
+11. **GetAHOReadSetExportJob** - Get status and details of a read set export job
+12. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
+13. **ActivateAHOReadSets** - Activate archived read sets for analysis access
 
 ### Reference Store Management Tools
 
@@ -522,10 +522,7 @@ The following IAM permissions are required:
                 "omics:GetReadSetExportJob",
                 "omics:ListReadSetExportJobs",
                 "omics:StartReadSetActivationJob",
-                "omics:StartReadSetArchiveJob",
-                "omics:CreateReferenceStore",
                 "omics:GetReferenceStore",
-                "omics:UpdateReferenceStore",
                 "omics:StartReferenceImportJob",
                 "omics:GetReferenceImportJob",
                 "omics:ListReferenceImportJobs",

@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Added
-
-- v0.0.27
   - **Sequence Store Management Tools**: Added 15 new MCP tools for managing HealthOmics Sequence Stores
     - **CreateAHOSequenceStore**: Create sequence stores with optional encryption, description, fallback location, and tags
     - **ListAHOSequenceStores**: List and filter sequence stores with pagination support
@@ -24,7 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **GetAHOReadSetExportJob**: Get export job status
     - **ListAHOReadSetExportJobs**: List export jobs with pagination
     - **ActivateAHOReadSets**: Activate archived read sets
-    - **ArchiveAHOReadSets**: Archive read sets to lower-cost storage
   - **Reference Store Management Tools**: Added 10 new MCP tools for managing HealthOmics Reference Stores
     - **ListAHOReferenceStores**: List and filter reference stores with pagination support
     - **GetAHOReferenceStore**: Retrieve detailed reference store configuration and metadata
@@ -34,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **GetAHOReferenceImportJob**: Get import job status with per-source statuses
     - **ListAHOReferenceImportJobs**: List import jobs with pagination
 
+
+### Added
+
 - v0.0.27
   - **Run Cache Management Tools**: Added four new MCP tools for managing HealthOmics Run Caches
     - **CreateAHORunCache**: Create run caches with S3 URI validation and configurable cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
@@ -41,7 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **ListAHORunCaches**: List and filter run caches by name, status, or cache behavior with pagination support
     - **UpdateAHORunCache**: Update run cache behavior, name, or description
 
-- v0.0.27
   - **Run Group Management Tools**: Added four new MCP tools for managing HealthOmics Run Groups
     - **CreateAHORunGroup**: Create run groups with configurable resource limits (CPUs, GPUs, duration, concurrent runs)
     - **GetAHORunGroup**: Retrieve detailed run group configuration and metadata
