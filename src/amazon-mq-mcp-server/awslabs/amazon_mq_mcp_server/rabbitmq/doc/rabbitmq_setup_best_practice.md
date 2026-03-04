@@ -96,7 +96,7 @@ channel.basicConsume(queueName, autoAck, "a-consumer-tag",
 
 Unacknowledged messages must be cached in memory. You can limit the number of messages that a consumer pre-fetches by configuring [pre-fetch](https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/best-practices-performance.html#configure-prefetching) settings for a client application.
 
-You can configure `consumer_timeout` to detect when consumers do not acknowledge deliveries. If the consumer does not send an acknowledgment within the timeout value, the channel will be closed, and you will recieve a `PRECONDITION_FAILED`. To diagnose the error, use the [UpdateConfiguration](https://docs.aws.amazon.com/amazon-mq/latest/api-reference/configurations-configuration-id.html) API to increase the `consumer_timeout` value.
+You can configure `consumer_timeout` to detect when consumers do not acknowledge deliveries. If the consumer does not send an acknowledgment within the timeout value, the channel will be closed, and you will receive a `PRECONDITION_FAILED`. To diagnose the error, use the [UpdateConfiguration](https://docs.aws.amazon.com/amazon-mq/latest/api-reference/configurations-configuration-id.html) API to increase the `consumer_timeout` value.
 
 ## Step 3: Keep queues short
 
