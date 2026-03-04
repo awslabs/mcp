@@ -337,6 +337,8 @@ async def list_read_sets(
         filter_dict['referenceArn'] = reference_arn
     if status:
         filter_dict['status'] = status
+    if file_type:
+        filter_dict['fileType'] = file_type
     if created_after:
         filter_dict['createdAfter'] = created_after
     if created_before:
@@ -353,8 +355,6 @@ async def list_read_sets(
 
         read_sets = []
         for rs in response.get('readSets', []):
-            if file_type and rs.get('fileType') != file_type:
-                continue
             creation_time = rs.get('creationTime')
             read_sets.append(
                 {

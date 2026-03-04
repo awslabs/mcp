@@ -485,20 +485,15 @@ class TestListReadSets:
                     'fileType': 'BAM',
                     'status': 'ACTIVE',
                 },
-                {
-                    'id': 'rs-002',
-                    'fileType': 'FASTQ',
-                    'status': 'ACTIVE',
-                },
             ]
         }
         with patch(MOCK_PATH, return_value=mock_client):
             result = await self.wrapper.call(
                 ctx=mock_ctx, sequence_store_id='seq-store-123', file_type='BAM'
             )
-        # file_type is not a valid API filter — it should be applied client-side
+        # fileType should be passed as a server-side API filter
         call_args = mock_client.list_read_sets.call_args[1]
-        assert 'filter' not in call_args
+        assert call_args['filter'] == {'fileType': 'BAM'}
         assert len(result['readSets']) == 1
         assert result['readSets'][0]['id'] == 'rs-001'
 
