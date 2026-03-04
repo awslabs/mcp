@@ -207,6 +207,70 @@ class TestSnapshotCapture:
         assert 'Error' in result
         assert 'CDP timeout' in result
 
+    async def test_no_root_node(self, snapshot_manager, mock_page):
+        """Tree with no root node returns informative message."""
+        nodes = [
+            _node(2, 'button', 'Click', parent_id=1),
+            _node(3, 'link', 'Link', parent_id=1),
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        assert 'No root node' in result
+
+    async def test_property_pressed(self, snapshot_manager, mock_page):
+        """Button with pressed=True property is included in output."""
+        nodes = [
+            _node(1, 'RootWebArea', ''),
+            _node(2, 'button', 'Toggle', parent_id=1, properties=[_prop('pressed', True)]),
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        assert 'pressed=True' in result
+
+    async def test_property_selected(self, snapshot_manager, mock_page):
+        """Option with selected=True property is included in output."""
+        nodes = [
+            _node(1, 'RootWebArea', ''),
+            _node(2, 'option', 'Item', parent_id=1, properties=[_prop('selected', True)]),
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        assert 'selected' in result
+
+    async def test_property_required(self, snapshot_manager, mock_page):
+        """Textbox with required=True property is included in output."""
+        nodes = [
+            _node(1, 'RootWebArea', ''),
+            _node(2, 'textbox', 'Name', parent_id=1, properties=[_prop('required', True)]),
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        assert 'required' in result
+
+    async def test_long_value_truncated(self, snapshot_manager, mock_page):
+        """Textbox with value longer than 50 chars is truncated."""
+        nodes = [
+            _node(1, 'RootWebArea', ''),
+            {
+                **_node(2, 'textbox', 'Input', parent_id=1),
+                'value': {'type': 'string', 'value': 'X' * 100},
+            },
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1')
+
+        assert '...' in result
+        assert 'X' * 100 not in result
+
 
 class TestRefResolution:
     """Tests for resolving refs to Playwright locators."""
@@ -293,6 +357,23 @@ class TestRefResolution:
         locator = await snapshot_manager.resolve_ref(mock_page, 'e3', 'sess-1')
         assert locator is mock_locator
         mock_locator.nth.assert_not_called()
+
+    async def test_resolve_ref_nameless_element(self, snapshot_manager, mock_page):
+        """Nameless element resolves with role only, no name kwarg."""
+        nodes = [
+            _node(1, 'RootWebArea', ''),
+            _node(2, 'button', '', parent_id=1),
+        ]
+        _get_cdp(mock_page).send.return_value = {'nodes': nodes}
+        await snapshot_manager.capture(mock_page, 'sess-1')
+
+        mock_locator = MagicMock()
+        mock_page.get_by_role.return_value = mock_locator
+
+        locator = await snapshot_manager.resolve_ref(mock_page, 'e1', 'sess-1')
+
+        mock_page.get_by_role.assert_called_with('button')
+        assert locator is mock_locator
 
 
 class TestScopedSnapshot:
@@ -445,6 +526,72 @@ class TestScopedSnapshot:
         calls = [call.args[0] for call in cdp.send.call_args_list]
         assert 'Accessibility.queryAXTree' in calls
         assert 'Accessibility.getFullAXTree' in calls
+
+    async def test_scoped_snapshot_empty_formatted_fallback(self, snapshot_manager, mock_page):
+        """Empty formatted scoped snapshot falls back to full tree."""
+        cdp = _get_cdp(mock_page)
+        # queryAXTree returns nodes that are all generic (skipped roles)
+        generic_nodes = [
+            _node(10, 'generic', '', parent_id=None),
+            _node(11, 'generic', '', parent_id=10),
+        ]
+        cdp.send = AsyncMock(
+            side_effect=self._make_cdp_dispatcher(
+                partial_nodes=generic_nodes,
+            )
+        )
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Warning' in result
+        assert 'empty accessibility subtree' in result
+        # Full page content should be present from fallback
+        assert 'Home' in result
+
+    async def test_scoped_snapshot_fallback_cdp_error(self, snapshot_manager, mock_page):
+        """Fallback CDP error returns warning prefix only."""
+        cdp = _get_cdp(mock_page)
+        generic_nodes = [
+            _node(10, 'generic', '', parent_id=None),
+        ]
+        call_count = [0]
+
+        async def dispatcher(method, params=None):
+            if method == 'DOM.enable':
+                return {}
+            if method == 'DOM.disable':
+                return {}
+            if method == 'DOM.getDocument':
+                return {'root': {'nodeId': 1}}
+            if method == 'DOM.querySelector':
+                return {'nodeId': 42}
+            if method == 'DOM.describeNode':
+                return {'node': {'backendNodeId': 20}}
+            if method == 'Accessibility.queryAXTree':
+                return {'nodes': generic_nodes}
+            if method == 'Accessibility.getFullAXTree':
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise Exception('CDP session detached')
+                return {'nodes': self.FULL_PAGE_NODES}
+            return {}
+
+        cdp.send = AsyncMock(side_effect=dispatcher)
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Warning' in result
+
+    async def test_queryAXTree_empty_nodes_falls_back(self, snapshot_manager, mock_page):
+        """QueryAXTree returning empty nodes falls back to full tree."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher(partial_nodes=[]))
+
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Warning' in result
+        assert 'empty accessibility subtree' in result
+        assert 'Home' in result
 
 
 class TestCleanupSession:

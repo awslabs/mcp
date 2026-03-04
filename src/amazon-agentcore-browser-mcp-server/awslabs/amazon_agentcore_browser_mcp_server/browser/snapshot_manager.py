@@ -143,7 +143,9 @@ class SnapshotManager:
         formatted = '\n'.join(lines)
 
         if not formatted.strip() and selector and not warning_prefix:
-            logger.warning('Scoped snapshot produced empty formatted output; falling back to full tree')
+            logger.warning(
+                'Scoped snapshot produced empty formatted output; falling back to full tree'
+            )
             warning_prefix = (
                 f'[Warning: selector "{selector}" matched but produced an empty '
                 f'accessibility subtree, showing full page snapshot]\n\n'

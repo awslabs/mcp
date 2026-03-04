@@ -100,8 +100,12 @@ class TestBrowserTabs:
         assert '[1]' in result
 
     async def test_new_tab(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
-        mock_browser
+        self,
+        management_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_browser,
     ):
         """New tab creates a page, sets it as active, and returns snapshot."""
         _setup_browser(mock_connection_manager, mock_browser)
@@ -121,8 +125,12 @@ class TestBrowserTabs:
         mock_snapshot_manager.capture.assert_awaited_once_with(new_page, 'sess-1')
 
     async def test_new_tab_with_url(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
-        mock_browser
+        self,
+        management_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_browser,
     ):
         """New tab navigates to URL when provided and returns snapshot."""
         _setup_browser(mock_connection_manager, mock_browser)
@@ -177,8 +185,12 @@ class TestBrowserTabs:
         assert 'out of range' in result
 
     async def test_close_tab(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
-        mock_browser
+        self,
+        management_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_browser,
     ):
         """Close tab removes it, updates active page, and returns snapshot."""
         _setup_browser(mock_connection_manager, mock_browser)
@@ -212,7 +224,7 @@ class TestBrowserTabs:
 
     async def test_no_connection(self, management_tools, mock_ctx, mock_connection_manager):
         """Tabs with no connection returns error."""
-        mock_connection_manager.get_browser.side_effect = ValueError(
+        mock_connection_manager.get_context.side_effect = ValueError(
             'No connection for session nonexistent. Call start_browser_session first.'
         )
 
@@ -236,13 +248,102 @@ class TestBrowserTabs:
         assert 'Error' in result
         assert 'Unknown action' in result
 
+    async def test_select_tab_missing_index(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+    ):
+        """Select tab without tab_index returns error."""
+        _setup_browser(mock_connection_manager, mock_browser)
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='select', tab_index=None
+        )
+
+        assert 'Error' in result
+        assert 'Provide tab_index' in result
+
+    async def test_close_tab_missing_index(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+    ):
+        """Close tab without tab_index returns error."""
+        _setup_browser(mock_connection_manager, mock_browser)
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='close', tab_index=None
+        )
+
+        assert 'Error' in result
+        assert 'Provide tab_index' in result
+
+    async def test_close_tab_out_of_range(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+    ):
+        """Close tab with out-of-range index returns error."""
+        _setup_browser(mock_connection_manager, mock_browser)
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='close', tab_index=5
+        )
+
+        assert 'Error' in result
+        assert 'out of range' in result
+
+    async def test_new_tab_error_cleans_up(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+    ):
+        """New tab cleans up page when goto raises an exception."""
+        _setup_browser(mock_connection_manager, mock_browser)
+        new_page = MagicMock()
+        new_page.goto = AsyncMock(side_effect=Exception('Navigation failed'))
+        new_page.close = AsyncMock()
+        mock_browser.contexts[0].new_page.return_value = new_page
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='new', url='https://bad.com'
+        )
+
+        assert 'Error' in result
+        new_page.close.assert_awaited()
+
+    async def test_tabs_generic_exception(
+        self, management_tools, mock_ctx, mock_connection_manager
+    ):
+        """Generic exception in tabs returns error with snapshot fallback."""
+        mock_connection_manager.get_context.side_effect = Exception('CDP error')
+        page = MagicMock()
+        mock_connection_manager.get_page.return_value = page
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='list'
+        )
+
+        assert 'CDP error' in result
+
+    async def test_list_tabs_empty(self, management_tools, mock_ctx, mock_connection_manager):
+        """List tabs with no pages returns empty message."""
+        browser = MagicMock()
+        context = MagicMock()
+        context.pages = []
+        browser.contexts = [context]
+        mock_connection_manager.get_browser.return_value = browser
+        mock_connection_manager.get_context.return_value = context
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='list'
+        )
+
+        assert 'No tabs open.' in result
+
 
 class TestBrowserClose:
     """Tests for browser_close tool."""
 
     async def test_close_page(
-        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager,
-        mock_browser
+        self,
+        management_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_browser,
     ):
         """Close page closes the active page, updates tracking, and returns snapshot."""
         page = MagicMock()
@@ -257,6 +358,46 @@ class TestBrowserClose:
         page.close.assert_awaited_once()
         assert 'Closed page: Closing Page' in result
         mock_snapshot_manager.capture.assert_awaited_once()
+
+    async def test_close_page_error(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Close page error returns error_with_snapshot result."""
+        mock_connection_manager.get_page.side_effect = Exception('Page gone')
+
+        result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error closing page' in result
+        assert 'Page gone' in result
+
+    async def test_close_last_page_error(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Cannot close the last remaining page."""
+        page = MagicMock()
+        page.title = AsyncMock(return_value='Only Page')
+        page.url = 'https://example.com'
+        context = MagicMock()
+        context.pages = [page]
+        mock_connection_manager.get_page.return_value = page
+        mock_connection_manager.get_context.return_value = context
+
+        result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Cannot close the last page' in result
+        page.close.assert_not_called()
+
+    async def test_close_page_no_remaining_context(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Close page when get_context raises returns error."""
+        page = MagicMock()
+        mock_connection_manager.get_page.return_value = page
+        mock_connection_manager.get_context.side_effect = ValueError('No remaining context')
+
+        result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error closing page' in result
 
 
 class TestBrowserResize:
@@ -277,6 +418,19 @@ class TestBrowserResize:
         page.set_viewport_size.assert_awaited_once_with({'width': 1920, 'height': 1080})
         assert '1920x1080' in result
         mock_snapshot_manager.capture.assert_awaited_once()
+
+    async def test_resize_error(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Resize error returns error result."""
+        mock_connection_manager.get_page.side_effect = Exception('No page')
+
+        result = await management_tools.browser_resize(
+            ctx=mock_ctx, session_id='sess-1', width=1920, height=1080
+        )
+
+        assert 'Error resizing viewport' in result
+        assert 'No page' in result
 
 
 class TestToolRegistration:

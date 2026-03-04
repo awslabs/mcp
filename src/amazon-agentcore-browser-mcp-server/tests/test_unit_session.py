@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.amazon_agentcore_browser_mcp_server.tools.session import BrowserSessionTools
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.fixture
@@ -293,6 +293,96 @@ class TestListBrowserSessions:
             await session_tools.list_browser_sessions(ctx=mock_ctx)
 
         mock_ctx.error.assert_awaited_once()
+
+
+class TestStartSessionAutoConnect:
+    """Tests for auto-connect Playwright on session start."""
+
+    async def test_start_session_auto_connects_playwright(self, mock_ctx, mock_browser_client):
+        """Start session with connection_manager auto-connects Playwright."""
+        mock_cm = MagicMock()
+        mock_cm.connect = AsyncMock()
+        sm = MagicMock()
+        tools = BrowserSessionTools(connection_manager=mock_cm, snapshot_manager=sm)
+
+        mock_browser_client.data_plane_client.start_browser_session.return_value = {
+            'sessionId': 'sess-auto',
+            'browserIdentifier': 'aws.browser.v1',
+            'streams': {
+                'automationStream': {'streamEndpoint': 'wss://auto.example.com/sess-auto'},
+                'liveViewStream': {},
+            },
+            'createdAt': '2025-01-01T00:00:00Z',
+        }
+
+        result = await tools.start_browser_session(ctx=mock_ctx)
+
+        assert result.session_id == 'sess-auto'
+        mock_cm.connect.assert_awaited_once()
+        call_args = mock_cm.connect.call_args
+        assert call_args.args[0] == 'sess-auto'
+        assert call_args.kwargs['browser_identifier'] == 'aws.browser.v1'
+        assert call_args.kwargs['region']  # region is set (value depends on env)
+
+    async def test_start_session_region_consistent(self, mock_ctx, monkeypatch):
+        """API client and Playwright connect use the same resolved region."""
+        captured_regions = []
+
+        def fake_get_client(region=None):
+            captured_regions.append(region)
+            client = MagicMock()
+            client.data_plane_client.start_browser_session.return_value = {
+                'sessionId': 'sess-region',
+                'browserIdentifier': 'aws.browser.v1',
+                'streams': {
+                    'automationStream': {'streamEndpoint': 'wss://auto.example.com/sess'},
+                    'liveViewStream': {},
+                },
+                'createdAt': '2025-01-01T00:00:00Z',
+            }
+            return client
+
+        monkeypatch.setattr(
+            'awslabs.amazon_agentcore_browser_mcp_server.tools.session.get_browser_client',
+            fake_get_client,
+        )
+
+        mock_cm = MagicMock()
+        mock_cm.connect = AsyncMock()
+        tools = BrowserSessionTools(connection_manager=mock_cm, snapshot_manager=MagicMock())
+
+        await tools.start_browser_session(ctx=mock_ctx, region='ap-southeast-1')
+
+        # API client gets the explicit region
+        assert captured_regions == ['ap-southeast-1']
+        # Playwright connect gets the same region
+        assert mock_cm.connect.call_args.kwargs['region'] == 'ap-southeast-1'
+
+
+class TestToStr:
+    """Tests for _to_str helper."""
+
+    def test_to_str_with_string(self):
+        """String values pass through unchanged."""
+        from awslabs.amazon_agentcore_browser_mcp_server.tools.session import _to_str
+
+        assert _to_str('hello') == 'hello'
+
+    def test_to_str_with_none(self):
+        """None returns empty string."""
+        from awslabs.amazon_agentcore_browser_mcp_server.tools.session import _to_str
+
+        assert _to_str(None) == ''
+
+    def test_to_str_converts_datetime(self):
+        """Non-string values (like datetime) are converted via str()."""
+        from awslabs.amazon_agentcore_browser_mcp_server.tools.session import _to_str
+        from datetime import datetime, timezone
+
+        dt = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        result = _to_str(dt)
+        assert '2025' in result
+        assert isinstance(result, str)
 
 
 class TestToolRegistration:

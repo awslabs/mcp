@@ -25,8 +25,12 @@ MOCK_WS_URL = 'wss://bedrock-agentcore.us-east-1.amazonaws.com/browser-streams/a
 MOCK_HEADERS = {'Authorization': 'AWS4-HMAC-SHA256 ...', 'X-Amz-Date': '20250101T000000Z'}
 
 # Patch paths
-PATCH_PW = 'awslabs.amazon_agentcore_browser_mcp_server.browser.connection_manager.async_playwright'
-PATCH_CLIENT = 'awslabs.amazon_agentcore_browser_mcp_server.browser.connection_manager.get_browser_client'
+PATCH_PW = (
+    'awslabs.amazon_agentcore_browser_mcp_server.browser.connection_manager.async_playwright'
+)
+PATCH_CLIENT = (
+    'awslabs.amazon_agentcore_browser_mcp_server.browser.connection_manager.get_browser_client'
+)
 
 
 @pytest.fixture
@@ -191,6 +195,25 @@ class TestGetPage:
         with pytest.raises(ValueError, match='No page available'):
             await connection_manager.get_page('sess-1')
 
+    async def test_get_browser_no_connection(self, connection_manager):
+        """get_browser raises ValueError for unknown session."""
+        with pytest.raises(ValueError, match='No connection'):
+            connection_manager.get_browser('nonexistent')
+
+    async def test_get_context_no_connection(self, connection_manager):
+        """get_context raises ValueError for unknown session."""
+        with pytest.raises(ValueError, match='No connection'):
+            connection_manager.get_context('nonexistent')
+
+    async def test_get_context_no_contexts(self, connection_manager):
+        """get_context raises ValueError when browser has no contexts."""
+        browser = MagicMock()
+        browser.contexts = []
+        connection_manager._connections['sess-1'] = browser
+
+        with pytest.raises(ValueError, match='No browser context'):
+            connection_manager.get_context('sess-1')
+
 
 class TestDisconnect:
     """Tests for disconnecting sessions."""
@@ -253,6 +276,29 @@ class TestCleanup:
         mock_playwright.stop.assert_awaited_once()
         assert connection_manager._playwright is None
 
+    async def test_cleanup_handles_disconnect_error(self, connection_manager, mock_playwright):
+        """Cleanup handles disconnect errors and still stops Playwright."""
+        connection_manager._playwright = mock_playwright
+        browser = MagicMock()
+        browser.close = AsyncMock(side_effect=Exception('Already closed'))
+        connection_manager._connections['sess-1'] = browser
+
+        await connection_manager.cleanup()
+
+        mock_playwright.stop.assert_awaited_once()
+        assert connection_manager._playwright is None
+
+    async def test_cleanup_handles_playwright_stop_error(
+        self, connection_manager, mock_playwright
+    ):
+        """Cleanup handles playwright.stop() error and clears reference."""
+        connection_manager._playwright = mock_playwright
+        mock_playwright.stop.side_effect = Exception('Stop failed')
+
+        await connection_manager.cleanup()
+
+        assert connection_manager._playwright is None
+
 
 class TestGenerateWsHeadersError:
     """Tests for credential validation via SDK."""
@@ -313,3 +359,68 @@ class TestDialogHandler:
 
         page.remove_listener.assert_called_once()
         assert 'sess-1' not in connection_manager._dialog_handlers
+
+    async def test_dialog_handler_accept_execution(self, connection_manager, mock_browser):
+        """Dialog handler accept path calls dialog.accept with prompt text."""
+        connection_manager._connections['sess-1'] = mock_browser
+        page = mock_browser.contexts[0].pages[0]
+        page.on = MagicMock()
+        page.remove_listener = MagicMock()
+
+        await connection_manager.set_dialog_handler('sess-1', action='accept', prompt_text='yes')
+
+        handler = page.on.call_args[0][1]
+        mock_dialog = MagicMock()
+        mock_dialog.type = 'prompt'
+        mock_dialog.message = 'Enter name'
+        mock_dialog.accept = AsyncMock()
+        mock_dialog.dismiss = AsyncMock()
+
+        await handler(mock_dialog)
+
+        mock_dialog.accept.assert_awaited_once_with('yes')
+        mock_dialog.dismiss.assert_not_awaited()
+
+    async def test_dialog_handler_dismiss_execution(self, connection_manager, mock_browser):
+        """Dialog handler dismiss path calls dialog.dismiss."""
+        connection_manager._connections['sess-1'] = mock_browser
+        page = mock_browser.contexts[0].pages[0]
+        page.on = MagicMock()
+        page.remove_listener = MagicMock()
+
+        await connection_manager.set_dialog_handler('sess-1', action='dismiss')
+
+        handler = page.on.call_args[0][1]
+        mock_dialog = MagicMock()
+        mock_dialog.type = 'confirm'
+        mock_dialog.message = 'Are you sure?'
+        mock_dialog.accept = AsyncMock()
+        mock_dialog.dismiss = AsyncMock()
+
+        await handler(mock_dialog)
+
+        mock_dialog.dismiss.assert_awaited_once()
+        mock_dialog.accept.assert_not_awaited()
+
+    async def test_dialog_handler_accept_no_prompt_text(self, connection_manager, mock_browser):
+        """Dialog handler accept without prompt text uses empty string."""
+        connection_manager._connections['sess-1'] = mock_browser
+        page = mock_browser.contexts[0].pages[0]
+        page.on = MagicMock()
+        page.remove_listener = MagicMock()
+
+        await connection_manager.set_dialog_handler('sess-1', action='accept')
+
+        handler = page.on.call_args[0][1]
+        mock_dialog = MagicMock()
+        mock_dialog.type = 'alert'
+        mock_dialog.message = 'Hello'
+        mock_dialog.accept = AsyncMock()
+
+        await handler(mock_dialog)
+
+        mock_dialog.accept.assert_awaited_once_with('')
+
+    async def test_remove_dialog_handler_no_handler(self, connection_manager):
+        """Remove dialog handler when none exists is a no-op."""
+        await connection_manager.remove_dialog_handler('nonexistent')  # Should not raise

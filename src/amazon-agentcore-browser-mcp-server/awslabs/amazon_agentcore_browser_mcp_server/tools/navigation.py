@@ -88,7 +88,9 @@ class NavigationTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error navigating to {url}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
     async def browser_navigate_back(
@@ -138,5 +140,7 @@ class NavigationTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error navigating {direction} in session {session_id}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )

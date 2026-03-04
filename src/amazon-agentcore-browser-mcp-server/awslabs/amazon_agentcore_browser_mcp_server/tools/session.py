@@ -128,7 +128,10 @@ class BrowserSessionTools:
         logger.info(f'Starting browser session: browser={browser_id}, timeout={timeout_seconds}s')
 
         try:
-            client = get_browser_client(region)
+            # Resolve region once so the API call and Playwright connection
+            # always target the same region.
+            effective_region = region or getenv('AWS_REGION', None) or 'us-east-1'
+            client = get_browser_client(effective_region)
 
             params: dict = {
                 'browserIdentifier': browser_id,
@@ -152,7 +155,6 @@ class BrowserSessionTools:
 
             # Auto-connect Playwright to the automation stream
             if self._connection_manager and automation.get('streamEndpoint'):
-                effective_region = region or getenv('AWS_REGION', None) or 'us-east-1'
                 await self._connection_manager.connect(
                     session_id,
                     browser_identifier=browser_id,

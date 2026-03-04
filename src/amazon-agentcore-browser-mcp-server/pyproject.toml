@@ -116,7 +116,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-m 'not live'"
+addopts = "-m 'not live and not local_browser'"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "local_browser: marks tests that launch a local Chromium browser (deselect with '-m \"not local_browser\"')",

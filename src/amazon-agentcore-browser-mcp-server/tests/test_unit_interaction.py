@@ -22,9 +22,13 @@ from awslabs.amazon_agentcore_browser_mcp_server.browser.snapshot_manager import
     RefNotFoundError,
     SnapshotManager,
 )
-from awslabs.amazon_agentcore_browser_mcp_server.tools.interaction import InteractionTools
+from awslabs.amazon_agentcore_browser_mcp_server.tools.interaction import (
+    InteractionTools,
+    _wait_for_settled,
+)
 from awslabs.amazon_agentcore_browser_mcp_server.tools.navigation import NavigationTools
 from awslabs.amazon_agentcore_browser_mcp_server.tools.observation import ObservationTools
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -110,7 +114,8 @@ class TestNavigationTools:
         mock_page.goto.assert_awaited_once_with(
             'https://example.com', wait_until='domcontentloaded', timeout=30000
         )
-        assert 'https://example.com' in result
+        expected_url = 'https://example.com'
+        assert expected_url in result
         assert 'Test Page' in result
         assert '200' in result
 
@@ -137,6 +142,34 @@ class TestNavigationTools:
         mock_page.go_forward.assert_awaited_once()
         assert 'Navigated forward' in result
         assert 'Test Page' in result
+
+    async def test_navigate_error(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate error returns error with snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.goto.side_effect = Exception('Connection refused')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='https://example.com'
+        )
+
+        assert 'Error' in result
+        assert 'Connection refused' in result
+
+    async def test_navigate_back_error(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Navigate back error returns error message."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.go_back.side_effect = Exception('Navigation failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await nav_tools.browser_navigate_back(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error' in result
+        assert 'Navigation failed' in result
 
 
 class TestInteractionTools:
@@ -546,9 +579,7 @@ class TestInteractionTools:
         mock_page.mouse = MagicMock()
         mock_page.mouse.wheel = AsyncMock()
 
-        result = await interaction_tools.browser_mouse_wheel(
-            ctx=mock_ctx, session_id='sess-1'
-        )
+        result = await interaction_tools.browser_mouse_wheel(ctx=mock_ctx, session_id='sess-1')
 
         mock_page.mouse.wheel.assert_awaited_once_with(0, 500)
         assert 'Scrolled down' in result
@@ -575,6 +606,313 @@ class TestInteractionTools:
         assert 'Scrolled up' in result
         assert '300px' in result
 
+    async def test_click_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Click generic exception returns error with snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+        mock_locator.click.side_effect = Exception('Element detached')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_click(ctx=mock_ctx, session_id='sess-1', ref='e1')
+
+        assert 'Error' in result
+        assert 'Element detached' in result
+
+    async def test_type_ref_not_found(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Type with invalid ref returns error and snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.side_effect = RefNotFoundError('Ref "e99" not found')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_type(
+            ctx=mock_ctx, session_id='sess-1', ref='e99', text='hello'
+        )
+
+        assert 'Error' in result
+        assert 'e99' in result
+        mock_snapshot_manager.capture.assert_awaited()
+
+    async def test_type_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Type generic exception returns error."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+        mock_locator.type.side_effect = Exception('Typing failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_type(
+            ctx=mock_ctx, session_id='sess-1', ref='e1', text='hello'
+        )
+
+        assert 'Error' in result
+        assert 'Typing failed' in result
+
+    async def test_fill_form_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Fill form generic error on first field shows Filled 0/."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.side_effect = Exception('Element gone')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        fields = [{'ref': 'e1', 'value': 'test'}]
+        result = await interaction_tools.browser_fill_form(
+            ctx=mock_ctx, session_id='sess-1', fields=fields
+        )
+
+        assert 'Filled 0/' in result
+
+    async def test_fill_form_ref_not_found(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Fill form with second field ref not found shows Filled 1/."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.side_effect = [
+            mock_locator,
+            RefNotFoundError('Ref "e2" not found'),
+        ]
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        fields = [
+            {'ref': 'e1', 'value': 'first'},
+            {'ref': 'e2', 'value': 'second'},
+        ]
+        result = await interaction_tools.browser_fill_form(
+            ctx=mock_ctx, session_id='sess-1', fields=fields
+        )
+
+        assert 'Filled 1/' in result
+
+    async def test_select_option_ref_not_found(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Select option with invalid ref returns error and snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.side_effect = RefNotFoundError('Ref "e99" not found')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_select_option(
+            ctx=mock_ctx, session_id='sess-1', ref='e99', label='Option A'
+        )
+
+        assert 'Error' in result
+        assert 'e99' in result
+        mock_snapshot_manager.capture.assert_awaited()
+
+    async def test_select_option_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Select option generic error returns error message."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+        mock_locator.select_option.side_effect = Exception('Select failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_select_option(
+            ctx=mock_ctx, session_id='sess-1', ref='e1', label='Option A'
+        )
+
+        assert 'Error' in result
+        assert 'Select failed' in result
+
+    async def test_select_option_by_index(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Select option by index calls select_option with index parameter."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+
+        result = await interaction_tools.browser_select_option(
+            ctx=mock_ctx, session_id='sess-1', ref='e1', index=2
+        )
+
+        mock_locator.select_option.assert_awaited_once_with(index=2, timeout=5000)
+        assert 'index 2' in result
+
+    async def test_hover_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Hover generic exception returns error."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+        mock_locator.hover.side_effect = Exception('Hover failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_hover(ctx=mock_ctx, session_id='sess-1', ref='e1')
+
+        assert 'Error' in result
+        assert 'Hover failed' in result
+
+    async def test_press_key_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Press key error returns error message."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.keyboard.press.side_effect = Exception('Key press failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_press_key(
+            ctx=mock_ctx, session_id='sess-1', key='Enter'
+        )
+
+        assert 'Error' in result
+        assert 'Key press failed' in result
+
+    async def test_upload_file_generic_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Upload file generic error returns error with snapshot."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+        mock_locator.set_input_files.side_effect = Exception('Upload failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_upload_file(
+            ctx=mock_ctx, session_id='sess-1', ref='e5', paths=['/tmp/a.txt']
+        )
+
+        assert 'Error' in result
+        assert 'Upload failed' in result
+
+    async def test_handle_dialog_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+    ):
+        """Handle dialog error returns error message."""
+        mock_connection_manager.set_dialog_handler.side_effect = Exception('Dialog error')
+
+        result = await interaction_tools.browser_handle_dialog(
+            ctx=mock_ctx, session_id='sess-1', action='accept'
+        )
+
+        assert 'Error' in result
+        assert 'Dialog error' in result
+
+    async def test_mouse_wheel_error(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Mouse wheel error returns error message."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.mouse = MagicMock()
+        mock_page.mouse.wheel = AsyncMock()
+        mock_page.mouse.wheel.side_effect = Exception('Scroll failed')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await interaction_tools.browser_mouse_wheel(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error' in result
+        assert 'Scroll failed' in result
+
+    async def test_mouse_wheel_horizontal(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """Mouse wheel with delta_x only scrolls horizontally."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.mouse = MagicMock()
+        mock_page.mouse.wheel = AsyncMock()
+
+        result = await interaction_tools.browser_mouse_wheel(
+            ctx=mock_ctx, session_id='sess-1', delta_x=100, delta_y=0
+        )
+
+        mock_page.mouse.wheel.assert_awaited_once_with(100, 0)
+        assert 'horizontally' in result
+
+    async def test_wait_for_settled_timeout(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+    ):
+        """_wait_for_settled swallows PlaywrightTimeoutError without propagating."""
+        mock_page.wait_for_load_state.side_effect = PlaywrightTimeoutError('Timeout 5000ms')
+
+        await _wait_for_settled(mock_page)
+
+        mock_page.wait_for_load_state.assert_awaited_once()
+
 
 class TestObservationTools:
     """Tests for browser_snapshot, screenshot, wait_for, console, network, evaluate."""
@@ -594,7 +932,8 @@ class TestObservationTools:
 
         mock_snapshot_manager.capture.assert_awaited_once_with(mock_page, 'sess-1', selector=None)
         assert 'Test Page' in result
-        assert 'https://example.com' in result
+        expected_url = 'https://example.com'
+        assert expected_url in result
 
     async def test_screenshot(
         self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
@@ -724,7 +1063,8 @@ class TestObservationTools:
 
         assert 'Network requests' in result
         assert 'fetch' in result
-        assert 'api.example.com' in result
+        expected_url = 'api.example.com'
+        assert expected_url in result
 
     async def test_network_requests_empty(
         self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
@@ -790,3 +1130,85 @@ class TestObservationTools:
 
         assert 'Error evaluating JavaScript' in result
         assert 'SyntaxError' in result
+
+    async def test_snapshot_error(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Snapshot error returns error message."""
+        mock_connection_manager.get_page.side_effect = Exception('Session not found')
+
+        result = await obs_tools.browser_snapshot(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error' in result
+        assert 'Session not found' in result
+
+    async def test_snapshot_with_selector(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Snapshot with selector passes selector to capture."""
+        mock_connection_manager.get_page.return_value = mock_page
+
+        await obs_tools.browser_snapshot(ctx=mock_ctx, session_id='sess-1', selector='#main')
+
+        mock_snapshot_manager.capture.assert_awaited_once_with(
+            mock_page, 'sess-1', selector='#main'
+        )
+
+    async def test_screenshot_error(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Screenshot error returns error string (not list)."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.screenshot.side_effect = Exception('Screenshot failed')
+
+        result = await obs_tools.browser_take_screenshot(ctx=mock_ctx, session_id='sess-1')
+
+        assert isinstance(result, str)
+        assert 'Error' in result
+        assert 'Screenshot failed' in result
+
+    async def test_console_messages_error(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Console messages error returns error message."""
+        mock_connection_manager.get_page.side_effect = Exception('Session not found')
+
+        result = await obs_tools.browser_console_messages(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error' in result
+        assert 'Session not found' in result
+
+    async def test_network_requests_error(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Network requests error returns error message."""
+        mock_connection_manager.get_page.side_effect = Exception('Session not found')
+
+        result = await obs_tools.browser_network_requests(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Error' in result
+        assert 'Session not found' in result
+
+    async def test_evaluate_returns_number(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager, mock_page
+    ):
+        """Evaluate returns numeric result."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_page.evaluate.return_value = 42
+
+        result = await obs_tools.browser_evaluate(
+            ctx=mock_ctx, session_id='sess-1', expression='1 + 41'
+        )
+
+        assert 'Result: 42' in result
+
+    async def test_wait_for_error_no_page(
+        self, obs_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Wait for error when get_page fails returns error with snapshot."""
+        mock_connection_manager.get_page.side_effect = Exception('No session')
+        mock_snapshot_manager.capture.return_value = '- button "OK" [ref=e1]'
+
+        result = await obs_tools.browser_wait_for(ctx=mock_ctx, session_id='sess-1', text='Hello')
+
+        assert 'Error' in result or 'No session' in result

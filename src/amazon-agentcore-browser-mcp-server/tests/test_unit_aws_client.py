@@ -22,9 +22,7 @@ from awslabs.amazon_agentcore_browser_mcp_server.utils.aws_client import (
 from unittest.mock import MagicMock, patch
 
 
-PATCH_BROWSER_CLIENT = (
-    'awslabs.amazon_agentcore_browser_mcp_server.utils.aws_client.BrowserClient'
-)
+PATCH_BROWSER_CLIENT = 'awslabs.amazon_agentcore_browser_mcp_server.utils.aws_client.BrowserClient'
 
 
 class TestGetBrowserClient:

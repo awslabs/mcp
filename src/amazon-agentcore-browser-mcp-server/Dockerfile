@@ -53,9 +53,6 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --python 3.13 --frozen --no-dev --no-editable
 
-# Install Playwright Chromium browser for CDP connections
-RUN /app/.venv/bin/playwright install chromium --with-deps
-
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
@@ -76,14 +73,6 @@ RUN dnf install -y shadow-utils procps && \
 # Get the project from the uv layer
 COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
-
-# Copy Playwright browser binaries from build stage
-COPY --from=uv --chown=app:app /root/.cache/ms-playwright /home/app/.cache/ms-playwright
-
-# Install Chromium system dependencies required at runtime
-# (browser binaries are copied from build stage, but system .so libs are not)
-RUN /app/.venv/bin/playwright install-deps chromium && \
-    dnf clean all
 
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh

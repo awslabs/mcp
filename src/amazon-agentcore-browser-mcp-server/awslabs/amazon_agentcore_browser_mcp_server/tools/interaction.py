@@ -118,7 +118,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error clicking ref={ref}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -177,7 +179,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error typing into ref={ref}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -237,7 +241,9 @@ class InteractionTools:
         except Exception as e:
             result = await error_with_snapshot(
                 f'Error filling form: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
             return f'{result}\nFilled {len(filled)}/{len(fields)} fields.'
 
@@ -299,7 +305,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error selecting option in ref={ref}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -337,7 +345,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error hovering over ref={ref}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -376,7 +386,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error pressing key "{key}": {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -418,7 +430,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error uploading file(s) to ref={ref}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
@@ -500,7 +514,9 @@ class InteractionTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error scrolling: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)

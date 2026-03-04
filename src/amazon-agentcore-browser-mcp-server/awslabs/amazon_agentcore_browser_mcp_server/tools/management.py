@@ -87,7 +87,6 @@ class ManagementTools:
         logger.info(f'Tab action={action} in session {session_id}')
 
         try:
-            browser = self._connection_manager.get_browser(session_id)
             context = self._connection_manager.get_context(session_id)
             pages = context.pages
 
@@ -179,6 +178,12 @@ class ManagementTools:
         page = None
         try:
             page = await self._connection_manager.get_page(session_id)
+            context = self._connection_manager.get_context(session_id)
+            if len(context.pages) <= 1:
+                return (
+                    'Error: Cannot close the last page. '
+                    'Use stop_browser_session to end the session.'
+                )
             title = await page.title()
             url = page.url
             await page.close()
@@ -197,7 +202,9 @@ class ManagementTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error closing page in session {session_id}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
     async def browser_resize(
@@ -234,5 +241,7 @@ class ManagementTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Error resizing viewport in session {session_id}: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )

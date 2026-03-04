@@ -176,7 +176,9 @@ class ObservationTools:
         except Exception as e:
             return await error_with_snapshot(
                 f'Wait timed out or failed: {e}',
-                page, session_id, self._snapshot_manager,
+                page,
+                session_id,
+                self._snapshot_manager,
             )
 
         snapshot = await self._snapshot_manager.capture(page, session_id)
