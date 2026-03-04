@@ -21,6 +21,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
 )
 from collections import deque
+from functools import cache
 from importlib.metadata import version
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -43,17 +44,11 @@ DEFAULT_USER_AGENT = (
     f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
 )
 
-# Module-level singleton for httpx.AsyncClient to avoid creating a new SSL context
-# and connection pool per HTTP request. httpx handles reconnection internally.
-_http_client: httpx.AsyncClient | None = None
 
-
+@cache
 def get_http_client() -> httpx.AsyncClient:
     """Return a shared httpx.AsyncClient instance."""
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient(timeout=30.0)
-    return _http_client
+    return httpx.AsyncClient(timeout=30.0)
 
 
 async def read_documentation_impl(
