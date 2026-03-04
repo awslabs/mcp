@@ -26,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
 )
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 
@@ -1735,7 +1736,7 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
-        from typing import Any, Dict, Optional
+        from typing import Dict, Optional
 
         mock_ctx = AsyncMock()
 
@@ -1755,7 +1756,7 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
-        from typing import Any, Dict
+        from typing import Dict
 
         mock_ctx = AsyncMock()
 
@@ -1884,7 +1885,7 @@ class TestValidateDefinitionSources:
         result = await validate_definition_sources(
             mock_ctx,
             definition_zip_base64='dGVzdA==',
-            definition_uri=MockField(),
+            definition_uri=cast(None, MockField()),
             definition_repository=None,
         )
         assert result[0] is not None  # decoded zip bytes
@@ -1907,7 +1908,7 @@ class TestValidateDefinitionSources:
             mock_ctx,
             definition_zip_base64='dGVzdA==',
             definition_uri=None,
-            definition_repository=MockField(),
+            definition_repository=cast(None, MockField()),
         )
         assert result[0] is not None
         assert result[1] is None
@@ -1990,7 +1991,7 @@ class TestValidateContainerRegistryParams:
         # Should not raise — both resolve to None
         await validate_container_registry_params(
             mock_ctx,
-            container_registry_map=MockField(),
+            container_registry_map=cast(None, MockField()),
             container_registry_map_uri=None,
         )
         mock_ctx.error.assert_not_called()
@@ -2010,7 +2011,7 @@ class TestValidateContainerRegistryParams:
         await validate_container_registry_params(
             mock_ctx,
             container_registry_map=None,
-            container_registry_map_uri=MockField(),
+            container_registry_map_uri=cast(None, MockField()),
         )
         mock_ctx.error.assert_not_called()
 
@@ -2065,7 +2066,7 @@ class TestValidateReadmeInputFieldObject:
         class MockField:
             default = None
 
-        result = await validate_readme_input(mock_ctx, readme=MockField())
+        result = await validate_readme_input(mock_ctx, readme=cast(None, MockField()))
         assert result == (None, None)
         mock_ctx.error.assert_not_called()
 
@@ -2087,7 +2088,7 @@ class TestValidateRepositoryPathParamsFieldObjects:
 
         result = await validate_repository_path_params(
             mock_ctx,
-            definition_repository=MockField(),
+            definition_repository=cast(None, MockField()),
             parameter_template_path=None,
             readme_path=None,
         )
@@ -2108,7 +2109,7 @@ class TestValidateRepositoryPathParamsFieldObjects:
         result = await validate_repository_path_params(
             mock_ctx,
             definition_repository={'some': 'repo'},
-            parameter_template_path=MockField(),
+            parameter_template_path=cast(None, MockField()),
             readme_path=None,
         )
         assert result == (None, None)
@@ -2129,6 +2130,6 @@ class TestValidateRepositoryPathParamsFieldObjects:
             mock_ctx,
             definition_repository={'some': 'repo'},
             parameter_template_path=None,
-            readme_path=MockField(),
+            readme_path=cast(None, MockField()),
         )
         assert result == (None, None)
