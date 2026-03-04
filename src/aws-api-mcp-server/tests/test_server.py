@@ -75,7 +75,6 @@ async def test_call_aws_success(
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
     mock_ir.command.is_help_operation = False
-    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -289,7 +288,6 @@ async def test_call_aws_with_consent_and_accept(
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
     mock_ir.command.is_help_operation = False
-    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_response = MagicMock()
@@ -327,7 +325,6 @@ async def test_call_aws_with_consent_and_reject(
     mock_interpret,
 ):
     """Test call_aws with mutating action and consent enabled."""
-    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
     mock_is_operation_read_only.return_value = False
 
     # Mock IR with command metadata
@@ -392,7 +389,6 @@ async def test_call_aws_without_consent(
     mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
-    mock_ir.command.is_help_operation = False
     mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
@@ -463,7 +459,6 @@ async def test_call_aws_no_credentials_error(
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
     mock_ir.command.is_help_operation = False
-    mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
@@ -501,7 +496,6 @@ async def test_call_aws_execution_error_awsmcp_error(
     mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
     mock_ir.command = MagicMock()
     mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
-    mock_ir.command.is_help_operation = False
     mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
