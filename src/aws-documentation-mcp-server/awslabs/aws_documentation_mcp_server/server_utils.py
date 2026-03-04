@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
 )
 from collections import deque
+from functools import cache
 from importlib.metadata import version
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -44,17 +45,11 @@ DEFAULT_USER_AGENT = (
     f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
 )
 
-# Module-level singleton for httpx.AsyncClient to avoid creating a new SSL context
-# and connection pool per HTTP request. httpx handles reconnection internally.
-_http_client: httpx.AsyncClient | None = None
 
-
+@cache
 def get_http_client() -> httpx.AsyncClient:
     """Return a shared httpx.AsyncClient instance."""
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient(timeout=30.0)
-    return _http_client
+    return httpx.AsyncClient(timeout=30.0)
 
 
 async def read_documentation_impl(
@@ -185,31 +180,31 @@ async def read_sections_impl(
         url_with_session += f'&query_id={query_id}'
         logger.debug(f'Using query_id {query_id}')
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                url_with_session,
-                follow_redirects=True,
-                headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    'X-MCP-Session-Id': session_uuid,
-                },
-                timeout=30,
-            )
-        except httpx.HTTPError as e:
-            error_msg = f'Failed to fetch {url_str}: {str(e)}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return error_msg
+    client = get_http_client()
+    try:
+        response = await client.get(
+            url_with_session,
+            follow_redirects=True,
+            headers={
+                'User-Agent': DEFAULT_USER_AGENT,
+                'X-MCP-Session-Id': session_uuid,
+            },
+            timeout=30,
+        )
+    except httpx.HTTPError as e:
+        error_msg = f'Failed to fetch {url_str}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
 
-        if response.status_code >= 400:
-            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return error_msg
+    if response.status_code >= 400:
+        error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
 
-        page_raw = response.text
-        content_type = response.headers.get('content-type', '')
+    page_raw = response.text
+    content_type = response.headers.get('content-type', '')
 
     if not is_html_content(page_raw, content_type):
         return 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
