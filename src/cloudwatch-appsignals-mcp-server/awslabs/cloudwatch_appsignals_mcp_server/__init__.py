@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS Application Signals MCP Server."""
+"""Deprecated: use awslabs.cloudwatch-applicationsignals-mcp-server instead."""
 
-__version__ = '0.1.19'
+__version__ = '0.2.0'
