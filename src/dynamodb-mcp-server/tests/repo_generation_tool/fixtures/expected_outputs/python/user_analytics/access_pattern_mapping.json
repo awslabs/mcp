@@ -1,0 +1,232 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get user profile by ID",
+      "entity": "User",
+      "index_name": null,
+      "method_name": "get_user",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "User | None"
+    },
+    "10": {
+      "consistent_read": false,
+      "description": "Get users who signed up within date range for age group",
+      "entity": "User",
+      "index_name": "AgeGroupIndex",
+      "method_name": "get_users_signup_date_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "age_group",
+          "type": "string"
+        },
+        {
+          "name": "start_date",
+          "type": "string"
+        },
+        {
+          "name": "end_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 10,
+      "projection": "ALL",
+      "range_condition": "between",
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "2": {
+      "consistent_read": false,
+      "description": "Get users by status",
+      "entity": "User",
+      "index_name": "StatusIndex",
+      "method_name": "get_active_users",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 2,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "Get recently active users by status",
+      "entity": "User",
+      "index_name": "StatusIndex",
+      "method_name": "get_recent_active_users",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "name": "since_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "projection": "ALL",
+      "range_condition": ">=",
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get users by country and city",
+      "entity": "User",
+      "index_name": "LocationIndex",
+      "method_name": "get_users_by_location",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "country",
+          "type": "string"
+        },
+        {
+          "name": "city",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "5": {
+      "consistent_read": false,
+      "description": "Get users by country with city prefix",
+      "entity": "User",
+      "index_name": "LocationIndex",
+      "method_name": "get_users_by_country_prefix",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "country",
+          "type": "string"
+        },
+        {
+          "name": "city_prefix",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 5,
+      "projection": "ALL",
+      "range_condition": "begins_with",
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get users by engagement level",
+      "entity": "User",
+      "index_name": "EngagementIndex",
+      "method_name": "get_users_by_engagement_level",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "engagement_level",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "7": {
+      "consistent_read": false,
+      "description": "Get highly engaged users within session count range",
+      "entity": "User",
+      "index_name": "EngagementIndex",
+      "method_name": "get_highly_engaged_users_by_session_range",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "engagement_level",
+          "type": "string"
+        },
+        {
+          "name": "min_sessions",
+          "type": "integer"
+        },
+        {
+          "name": "max_sessions",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 7,
+      "projection": "ALL",
+      "range_condition": "between",
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "8": {
+      "consistent_read": false,
+      "description": "Get users by age group",
+      "entity": "User",
+      "index_name": "AgeGroupIndex",
+      "method_name": "get_users_by_age_group",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "age_group",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 8,
+      "projection": "ALL",
+      "range_condition": null,
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    },
+    "9": {
+      "consistent_read": false,
+      "description": "Get users who signed up after a specific date in age group",
+      "entity": "User",
+      "index_name": "AgeGroupIndex",
+      "method_name": "get_recent_signups_by_age_group",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "age_group",
+          "type": "string"
+        },
+        {
+          "name": "since_date",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "projection": "ALL",
+      "range_condition": ">=",
+      "repository": "UserRepository",
+      "return_type": "tuple[list[User], dict | None]"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 10
+  }
+}

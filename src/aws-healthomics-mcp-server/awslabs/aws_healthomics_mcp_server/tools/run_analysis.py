@@ -17,6 +17,7 @@
 import json
 from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyzer
 from awslabs.aws_healthomics_mcp_server.analysis.instance_recommender import InstanceRecommender
+from awslabs.aws_healthomics_mcp_server.analysis.pricing_cache import PricingCache
 from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import TaskAggregator
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_manifest_logs_internal,
@@ -101,11 +102,11 @@ async def analyze_run_performance(
     ),
     headroom: float = Field(
         default=DEFAULT_HEADROOM,
-        description='Headroom percentage for instance recommendations (0.0 to 1.0). Default is 0.20 (20%). This adds a buffer to recommended instance sizes to prevent over-optimization.',
+        description='Headroom percentage for instance recommendations (0.0 to 1.0). Default is 0.20 (20%). This adds a buffer to recommended instance sizes to prevent over-optimization. Set this value to 0 for aggressive optimization',
     ),
     detailed: bool = Field(
         default=False,
-        description='Include detailed task metrics JSON section in the report. Default is False.',
+        description='Include very detailed task metrics in the report. Typically this is only required for granular analysis and can consume a large number of tokens in the agents context window. Default is False.',
     ),
 ) -> str:
     """Analyze AWS HealthOmics workflow run performance and provide optimization recommendations.
@@ -124,8 +125,8 @@ async def analyze_run_performance(
     - "What resources are being wasted in my runs?"
     - "How can I improve workflow performance?"
 
-    The tool retrieves detailed manifest logs containing task-level metrics
-    and provides structured data with analysis instructions for AI-powered insights.
+    The tool summarizes run manifest logs containing task-level metrics
+    and provides a structured report with recommendations for optimization.
 
     Args:
         ctx: MCP request context for error reporting
@@ -215,7 +216,7 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
             )
         report_sections.append('')
 
-        # Cross-run summary comparison (Requirements 2.4, 7.4)
+        # Cross-run summary comparison
         runs = analysis_data.get('runs', [])
         if len(runs) > 1:
             report_sections.append('## Cross-Run Summary Comparison')
@@ -288,16 +289,17 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                 report_sections.append(f'## Run {i}: {run_info["runName"]} ({run_info["runId"]})')
                 report_sections.append('')
 
-                # Run overview
-                report_sections.append('### Run Overview')
-                report_sections.append(f'- **Status**: {run_info["status"]}')
-                report_sections.append(f'- **Workflow ID**: {run_info["workflowId"]}')
-                report_sections.append(f'- **Creation Time**: {run_info["creationTime"]}')
-                report_sections.append(f'- **Start Time**: {run_info["startTime"]}')
-                report_sections.append(f'- **Stop Time**: {run_info["stopTime"]}')
-                report_sections.append('')
+                # Run overview - only show in detailed mode
+                if detailed:
+                    report_sections.append('### Run Overview')
+                    report_sections.append(f'- **Status**: {run_info["status"]}')
+                    report_sections.append(f'- **Workflow ID**: {run_info["workflowId"]}')
+                    report_sections.append(f'- **Creation Time**: {run_info["creationTime"]}')
+                    report_sections.append(f'- **Start Time**: {run_info["startTime"]}')
+                    report_sections.append(f'- **Stop Time**: {run_info["stopTime"]}')
+                    report_sections.append('')
 
-                # Cost summary (Requirements 1.4, 2.3)
+                # Cost summary
                 report_sections.append('### Cost Summary')
                 report_sections.append(
                     f'- **Total Estimated Cost**: ${run_summary.get("totalEstimatedUSD", 0):.4f}'
@@ -351,75 +353,276 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         t for t in task_metrics if t.get('isHighPrioritySaving', False)
                     ]
 
-                    # High-priority savings tasks (Requirements 4.4)
+                    # High-priority savings tasks - always show these
                     if high_priority_savings_tasks:
                         report_sections.append('#### High-Priority Savings Opportunities')
                         report_sections.append(
                             '*Tasks where potential savings exceed 10% of estimated cost*'
                         )
-                        for task in high_priority_savings_tasks:
-                            estimated = task.get('estimatedUSD', 0)
-                            savings = task.get('potentialSavingsUSD', 0)
-                            recommended = task.get('recommendedInstanceType', 'N/A')
-                            current = task.get('instanceType', 'N/A')
 
-                            report_sections.append(f'- **{task["taskName"]}**:')
-                            report_sections.append(f'  - Estimated Cost: ${estimated:.4f}')
-                            report_sections.append(f'  - Potential Savings: ${savings:.4f}')
-                            report_sections.append(f'  - Current Instance: {current}')
-                            report_sections.append(f'  - Recommended Instance: {recommended}')
-                        report_sections.append('')
+                        if detailed:
+                            # Show all tasks individually when detailed=True
+                            for task in high_priority_savings_tasks:
+                                estimated = task.get('estimatedUSD', 0)
+                                savings = task.get('potentialSavingsUSD', 0)
+                                recommended = task.get('recommendedInstanceType', 'N/A')
+                                current = task.get('instanceType', 'N/A')
 
-                    if over_provisioned_tasks:
-                        report_sections.append('#### Over-Provisioned Tasks (Wasting Resources)')
-                        for task in over_provisioned_tasks:
-                            cpu_waste = task.get('wastedCpus', 0)
-                            memory_waste = task.get('wastedMemoryGiB', 0)
-                            cpu_eff = task.get('cpuEfficiencyRatio', 0)
-                            mem_eff = task.get('memoryEfficiencyRatio', 0)
+                                report_sections.append(f'- **{task["taskName"]}**:')
+                                report_sections.append(f'  - Estimated Cost: ${estimated:.4f}')
+                                report_sections.append(f'  - Potential Savings: ${savings:.4f}')
+                                report_sections.append(f'  - Current Instance: {current}')
+                                if recommended and recommended != 'N/A':
+                                    rec_cpus, rec_memory = PricingCache.get_instance_specs(
+                                        recommended
+                                    )
+                                    if rec_cpus > 0 and rec_memory > 0:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {recommended} ({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                                        )
+                                    else:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {recommended}'
+                                        )
+                                else:
+                                    report_sections.append(
+                                        f'  - Recommended Instance: {recommended}'
+                                    )
+                        else:
+                            # Group scattered tasks when detailed=False
+                            from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import (
+                                TaskAggregator,
+                            )
 
-                            report_sections.append(f'- **{task["taskName"]}**:')
-                            report_sections.append(
-                                f'  - CPU Efficiency: {cpu_eff:.1%} (Wasted: {cpu_waste:.2f} CPUs)'
-                            )
-                            report_sections.append(
-                                f'  - Memory Efficiency: {mem_eff:.1%} (Wasted: {memory_waste:.2f} GiB)'
-                            )
-                            report_sections.append(
-                                f'  - Instance Type: {task.get("instanceType", "N/A")}'
-                            )
-                            report_sections.append(
-                                f'  - Runtime: {task.get("runningSeconds", 0)} seconds'
-                            )
-                            report_sections.append(
-                                f'  - Estimated Cost: ${task.get("estimatedUSD", 0):.4f}'
-                            )
-                            if task.get('recommendedInstanceType'):
-                                report_sections.append(
-                                    f'  - Recommended Instance: {task.get("recommendedInstanceType")}'
+                            grouped_tasks = {}
+                            for task in high_priority_savings_tasks:
+                                base_name = TaskAggregator.normalize_task_name(task['taskName'])
+                                if base_name not in grouped_tasks:
+                                    grouped_tasks[base_name] = {
+                                        'count': 0,
+                                        'total_estimated': 0,
+                                        'total_savings': 0,
+                                        'current_instance': task.get('instanceType', 'N/A'),
+                                        'recommended_instance': task.get(
+                                            'recommendedInstanceType', 'N/A'
+                                        ),
+                                    }
+                                grouped_tasks[base_name]['count'] += 1
+                                grouped_tasks[base_name]['total_estimated'] += task.get(
+                                    'estimatedUSD', 0
                                 )
+                                grouped_tasks[base_name]['total_savings'] += task.get(
+                                    'potentialSavingsUSD', 0
+                                )
+
+                            for base_name, data in grouped_tasks.items():
+                                count_str = (
+                                    f' ({data["count"]} instances)' if data['count'] > 1 else ''
+                                )
+                                report_sections.append(f'- **{base_name}**{count_str}:')
+                                report_sections.append(
+                                    f'  - Total Estimated Cost: ${data["total_estimated"]:.4f}'
+                                )
+                                report_sections.append(
+                                    f'  - Total Potential Savings: ${data["total_savings"]:.4f}'
+                                )
+                                report_sections.append(
+                                    f'  - Current Instance: {data["current_instance"]}'
+                                )
+                                recommended = data['recommended_instance']
+                                if recommended and recommended != 'N/A':
+                                    rec_cpus, rec_memory = PricingCache.get_instance_specs(
+                                        recommended
+                                    )
+                                    if rec_cpus > 0 and rec_memory > 0:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {recommended} '
+                                            f'({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                                        )
+                                    else:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {recommended}'
+                                        )
+                                else:
+                                    report_sections.append(
+                                        f'  - Recommended Instance: {recommended}'
+                                    )
+
                         report_sections.append('')
 
+                    # Over-provisioned tasks
+                    if over_provisioned_tasks:
+                        if detailed:
+                            # Show full task list when detailed=True
+                            report_sections.append(
+                                '#### Over-Provisioned Tasks (Wasting Resources)'
+                            )
+                            for task in over_provisioned_tasks:
+                                cpu_waste = task.get('wastedCpus', 0)
+                                memory_waste = task.get('wastedMemoryGiB', 0)
+                                cpu_eff = task.get('cpuEfficiencyRatio', 0)
+                                mem_eff = task.get('memoryEfficiencyRatio', 0)
+                                rec_instance = task.get('recommendedInstanceType')
+
+                                report_sections.append(f'- **{task["taskName"]}**:')
+                                report_sections.append(
+                                    f'  - CPU Efficiency: {cpu_eff:.1%} (Wasted: {cpu_waste:.2f} CPUs)'
+                                )
+                                report_sections.append(
+                                    f'  - Memory Efficiency: {mem_eff:.1%} (Wasted: {memory_waste:.2f} GiB)'
+                                )
+                                report_sections.append(
+                                    f'  - Instance Type: {task.get("instanceType", "N/A")}'
+                                )
+                                report_sections.append(
+                                    f'  - Runtime: {task.get("runningSeconds", 0)} seconds'
+                                )
+                                report_sections.append(
+                                    f'  - Estimated Cost: ${task.get("estimatedUSD", 0):.4f}'
+                                )
+                                if rec_instance and rec_instance != 'N/A':
+                                    rec_cpus, rec_memory = PricingCache.get_instance_specs(
+                                        rec_instance
+                                    )
+                                    if rec_cpus > 0 and rec_memory > 0:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {rec_instance} ({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                                        )
+                                    else:
+                                        report_sections.append(
+                                            f'  - Recommended Instance: {rec_instance}'
+                                        )
+                            report_sections.append('')
+                        else:
+                            # Show summary only when detailed=False
+                            report_sections.append('#### Over-Provisioned Tasks Summary')
+                            total_over_prov = len(over_provisioned_tasks)
+                            avg_cpu_eff = (
+                                sum(t.get('cpuEfficiencyRatio', 0) for t in over_provisioned_tasks)
+                                / total_over_prov
+                            )
+                            avg_mem_eff = (
+                                sum(
+                                    t.get('memoryEfficiencyRatio', 0)
+                                    for t in over_provisioned_tasks
+                                )
+                                / total_over_prov
+                            )
+                            total_waste_cost = sum(
+                                t.get('potentialSavingsUSD', 0) for t in over_provisioned_tasks
+                            )
+
+                            report_sections.append(
+                                f'- **{total_over_prov} tasks** are over-provisioned (< 50% efficiency)'
+                            )
+                            report_sections.append(f'- Average CPU Efficiency: {avg_cpu_eff:.1%}')
+                            report_sections.append(
+                                f'- Average Memory Efficiency: {avg_mem_eff:.1%}'
+                            )
+                            report_sections.append(
+                                f'- Total Potential Savings: ${total_waste_cost:.4f}'
+                            )
+                            report_sections.append('')
+
+                    # Under-provisioned tasks
                     if under_provisioned_tasks:
-                        report_sections.append(
-                            '#### Under-Provisioned Tasks (May Need More Resources)'
-                        )
-                        for task in under_provisioned_tasks:
-                            max_cpu_eff = task.get('maxCpuEfficiencyRatio', 0)
-                            max_mem_eff = task.get('maxMemoryEfficiencyRatio', 0)
+                        if detailed:
+                            # Show full task list when detailed=True
+                            report_sections.append(
+                                '#### Under-Provisioned Tasks (May Need More Resources)'
+                            )
+                            for task in under_provisioned_tasks:
+                                max_cpu_eff = task.get('maxCpuEfficiencyRatio', 0)
+                                max_mem_eff = task.get('maxMemoryEfficiencyRatio', 0)
 
-                            report_sections.append(f'- **{task["taskName"]}**:')
-                            report_sections.append(f'  - Max CPU Utilization: {max_cpu_eff:.1%}')
+                                report_sections.append(f'- **{task["taskName"]}**:')
+                                report_sections.append(
+                                    f'  - Max CPU Utilization: {max_cpu_eff:.1%}'
+                                )
+                                report_sections.append(
+                                    f'  - Max Memory Utilization: {max_mem_eff:.1%}'
+                                )
+                                report_sections.append(
+                                    f'  - Instance Type: {task.get("instanceType", "N/A")}'
+                                )
+                                report_sections.append(
+                                    f'  - Runtime: {task.get("runningSeconds", 0)} seconds'
+                                )
+                            report_sections.append('')
+                        else:
+                            # Show summary with grouped task names when detailed=False
+                            from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import (
+                                TaskAggregator,
+                            )
+
+                            report_sections.append('#### Under-Provisioned Tasks Summary')
+                            total_under_prov = len(under_provisioned_tasks)
+                            avg_max_cpu = (
+                                sum(
+                                    t.get('maxCpuEfficiencyRatio', 0)
+                                    for t in under_provisioned_tasks
+                                )
+                                / total_under_prov
+                            )
+                            avg_max_mem = (
+                                sum(
+                                    t.get('maxMemoryEfficiencyRatio', 0)
+                                    for t in under_provisioned_tasks
+                                )
+                                / total_under_prov
+                            )
+
                             report_sections.append(
-                                f'  - Max Memory Utilization: {max_mem_eff:.1%}'
+                                f'- **{total_under_prov} tasks** may be under-provisioned (> 90% max utilization)'
                             )
                             report_sections.append(
-                                f'  - Instance Type: {task.get("instanceType", "N/A")}'
+                                f'- Average Max CPU Utilization: {avg_max_cpu:.1%}'
                             )
                             report_sections.append(
-                                f'  - Runtime: {task.get("runningSeconds", 0)} seconds'
+                                f'- Average Max Memory Utilization: {avg_max_mem:.1%}'
                             )
-                        report_sections.append('')
+                            report_sections.append('')
+                            report_sections.append('**Tasks:**')
+
+                            # Group scattered tasks by base name
+                            grouped_tasks = {}
+                            for task in under_provisioned_tasks:
+                                base_name = TaskAggregator.normalize_task_name(task['taskName'])
+                                if base_name not in grouped_tasks:
+                                    grouped_tasks[base_name] = {
+                                        'count': 0,
+                                        'current_instance': task.get('instanceType', 'N/A'),
+                                        'recommended_instance': task.get(
+                                            'recommendedInstanceType', 'N/A'
+                                        ),
+                                    }
+                                grouped_tasks[base_name]['count'] += 1
+
+                            for base_name, data in grouped_tasks.items():
+                                count_str = (
+                                    f' ({data["count"]} instances)' if data['count'] > 1 else ''
+                                )
+                                current_instance = data['current_instance']
+                                recommended_instance = data['recommended_instance']
+
+                                if recommended_instance and recommended_instance != 'N/A':
+                                    rec_cpus, rec_memory = PricingCache.get_instance_specs(
+                                        recommended_instance
+                                    )
+                                    if rec_cpus > 0 and rec_memory > 0:
+                                        report_sections.append(
+                                            f'- {base_name}{count_str}: {current_instance} → '
+                                            f'{recommended_instance} ({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                                        )
+                                    else:
+                                        report_sections.append(
+                                            f'- {base_name}{count_str}: {current_instance} → {recommended_instance}'
+                                        )
+                                else:
+                                    report_sections.append(
+                                        f'- {base_name}{count_str}: {current_instance}'
+                                    )
+                            report_sections.append('')
 
                     # Optimization recommendations
                     report_sections.append('#### Optimization Recommendations')
@@ -437,39 +640,42 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         )
                         report_sections.append('')
 
-                    # Instance type recommendations (Requirements 3.4)
-                    instance_types = {}
-                    for task in task_metrics:
-                        inst_type = task.get('instanceType', 'unknown')
-                        if inst_type not in instance_types:
-                            instance_types[inst_type] = []
-                        instance_types[inst_type].append(task)
+                    # Instance type recommendations - only show in detailed mode
+                    if detailed:
+                        instance_types = {}
+                        for task in task_metrics:
+                            inst_type = task.get('instanceType', 'unknown')
+                            if inst_type not in instance_types:
+                                instance_types[inst_type] = []
+                            instance_types[inst_type].append(task)
 
-                    if len(instance_types) > 1:
-                        report_sections.append('**Instance Type Analysis:**')
-                        for inst_type, tasks in instance_types.items():
-                            avg_cpu_eff = sum(t.get('cpuEfficiencyRatio', 0) for t in tasks) / len(
-                                tasks
-                            )
-                            avg_mem_eff = sum(
-                                t.get('memoryEfficiencyRatio', 0) for t in tasks
-                            ) / len(tasks)
-                            total_cost = sum(t.get('estimatedUSD', 0) for t in tasks)
-                            total_savings = sum(t.get('potentialSavingsUSD', 0) for t in tasks)
-                            report_sections.append(f'- **{inst_type}** ({len(tasks)} tasks):')
-                            report_sections.append(
-                                f'  - Average CPU Efficiency: {avg_cpu_eff:.1%}'
-                            )
-                            report_sections.append(
-                                f'  - Average Memory Efficiency: {avg_mem_eff:.1%}'
-                            )
-                            report_sections.append(f'  - Total Cost: ${total_cost:.4f}')
-                            report_sections.append(f'  - Potential Savings: ${total_savings:.4f}')
-                        report_sections.append('')
+                        if len(instance_types) > 1:
+                            report_sections.append('**Instance Type Analysis:**')
+                            for inst_type, tasks in instance_types.items():
+                                avg_cpu_eff = sum(
+                                    t.get('cpuEfficiencyRatio', 0) for t in tasks
+                                ) / len(tasks)
+                                avg_mem_eff = sum(
+                                    t.get('memoryEfficiencyRatio', 0) for t in tasks
+                                ) / len(tasks)
+                                total_cost = sum(t.get('estimatedUSD', 0) for t in tasks)
+                                total_savings = sum(t.get('potentialSavingsUSD', 0) for t in tasks)
+                                report_sections.append(f'- **{inst_type}** ({len(tasks)} tasks):')
+                                report_sections.append(
+                                    f'  - Average CPU Efficiency: {avg_cpu_eff:.1%}'
+                                )
+                                report_sections.append(
+                                    f'  - Average Memory Efficiency: {avg_mem_eff:.1%}'
+                                )
+                                report_sections.append(f'  - Total Cost: ${total_cost:.4f}')
+                                report_sections.append(
+                                    f'  - Potential Savings: ${total_savings:.4f}'
+                                )
+                            report_sections.append('')
 
-                # Aggregated task metrics section (Requirements 6.4)
+                # Aggregated task metrics section - only show in detailed mode
                 aggregated_metrics = run_data.get('aggregatedTaskMetrics', [])
-                if aggregated_metrics:
+                if aggregated_metrics and detailed:
                     report_sections.append('### Aggregated Task Metrics (Scattered Tasks)')
                     report_sections.append(
                         '*Tasks grouped by base name with scatter/iteration suffixes removed*'
@@ -492,18 +698,25 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                         report_sections.append(f'  - Max CPU Usage: {max_cpu:.2f} CPUs')
                         report_sections.append(f'  - Max Memory Usage: {max_memory:.2f} GiB')
                         report_sections.append(f'  - Total Cost: ${total_cost:.4f}')
-                        report_sections.append(f'  - Recommended Instance: {recommended_instance}')
+                        if recommended_instance and recommended_instance != 'N/A':
+                            rec_cpus, rec_memory = PricingCache.get_instance_specs(
+                                recommended_instance
+                            )
+                            if rec_cpus > 0 and rec_memory > 0:
+                                report_sections.append(
+                                    f'  - Recommended Instance: {recommended_instance} ({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                                )
+                            else:
+                                report_sections.append(
+                                    f'  - Recommended Instance: {recommended_instance}'
+                                )
+                        else:
+                            report_sections.append(
+                                f'  - Recommended Instance: {recommended_instance}'
+                            )
                     report_sections.append('')
 
-                # Detailed task data (JSON format for further analysis) - only when detailed=True
-                if detailed:
-                    report_sections.append('### Detailed Task Metrics (JSON)')
-                    report_sections.append('```json')
-                    report_sections.append(_safe_json_dumps(task_metrics, indent=2))
-                    report_sections.append('```')
-                    report_sections.append('')
-
-        # Cross-run aggregates section (Requirements 7.1, 7.2, 7.3)
+        # Cross-run aggregates section
         cross_run_aggregates = analysis_data.get('crossRunAggregates', [])
         if cross_run_aggregates:
             report_sections.append('## Cross-Run Aggregate Metrics')
@@ -533,7 +746,16 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any], detailed: boo
                 report_sections.append(f'  - Max CPU Usage: {max_cpu:.2f} CPUs')
                 report_sections.append(f'  - Max Memory Usage: {max_memory:.2f} GiB')
                 report_sections.append(f'  - Total Cost (all runs): ${total_cost:.4f}')
-                report_sections.append(f'  - Recommended Instance: {recommended_instance}')
+                if recommended_instance and recommended_instance != 'N/A':
+                    rec_cpus, rec_memory = PricingCache.get_instance_specs(recommended_instance)
+                    if rec_cpus > 0 and rec_memory > 0:
+                        report_sections.append(
+                            f'  - Recommended Instance: {recommended_instance} ({rec_cpus} CPUs, {rec_memory:.1f} GiB)'
+                        )
+                    else:
+                        report_sections.append(f'  - Recommended Instance: {recommended_instance}')
+                else:
+                    report_sections.append(f'  - Recommended Instance: {recommended_instance}')
             report_sections.append('')
 
         # General recommendations
@@ -672,7 +894,7 @@ async def _get_run_analysis_data(
                 # Continue with other runs rather than failing completely
                 continue
 
-        # Calculate grand total cost across all runs (Requirements 2.4)
+        # Calculate grand total cost across all runs
         if analysis_results['runs']:
             grand_total_cost = sum(
                 run.get('summary', {}).get('totalEstimatedUSD', 0)
@@ -685,7 +907,7 @@ async def _get_run_analysis_data(
             analysis_results['summary']['grandTotalEstimatedUSD'] = grand_total_cost
             analysis_results['summary']['grandTotalPotentialSavingsUSD'] = grand_total_savings
 
-        # Add cross-run aggregation when multiple runs are provided (Requirements 7.1, 7.2, 7.3)
+        # Add cross-run aggregation when multiple runs are provided
         if len(analysis_results['runs']) > 1:
             cross_run_aggregates = _aggregate_cross_run_metrics(
                 analysis_results['runs'],
@@ -827,13 +1049,13 @@ async def _parse_manifest_for_analysis(
             else 0
         )
 
-        # Calculate cost summary (Requirements 2.1, 2.2, 2.3)
+        # Calculate cost summary
         task_cost_usd = sum(task.get('estimatedUSD', 0) for task in task_metrics)
         total_potential_savings_usd = sum(
             task.get('potentialSavingsUSD', 0) for task in task_metrics
         )
 
-        # Calculate storage cost (Requirements 11.1, 11.2, 11.3, 11.4)
+        # Calculate storage cost
         storage_cost_usd = 0.0
         if cost_analyzer and run_details:
             storage_type = run_details.get('storageType', 'DYNAMIC')
@@ -850,10 +1072,10 @@ async def _parse_manifest_for_analysis(
             )
             storage_cost_usd = storage_cost if storage_cost is not None else 0.0
 
-        # Calculate total estimated cost (Requirements 2.1, 2.4)
+        # Calculate total estimated cost
         total_estimated_usd = task_cost_usd + storage_cost_usd
 
-        # Aggregate scattered tasks (Requirements 6.1, 6.2, 6.3, 6.4, 6.5)
+        # Aggregate scattered tasks
         aggregated_task_metrics = _aggregate_task_metrics(
             task_metrics,
             instance_recommender=instance_recommender,
@@ -873,7 +1095,7 @@ async def _parse_manifest_for_analysis(
                 'overallCpuEfficiency': overall_cpu_efficiency,
                 'overallMemoryEfficiency': overall_memory_efficiency,
                 'manifestLogCount': len(log_events),
-                # Cost summary (Requirements 2.1, 2.3)
+                # Cost summary
                 'totalEstimatedUSD': total_estimated_usd,
                 'taskCostUSD': task_cost_usd,
                 'storageCostUSD': storage_cost_usd,
@@ -920,7 +1142,7 @@ def _aggregate_task_metrics(
     # Convert Polars DataFrame to list of dictionaries
     aggregated_list = aggregated_df.to_dicts()
 
-    # Add instance recommendations based on maximum observed usage (Requirement 6.5)
+    # Add instance recommendations based on maximum observed usage
     for agg_task in aggregated_list:
         max_cpus = agg_task.get('maxObservedCpus', 0.0)
         max_memory = agg_task.get('maxObservedMemoryGiB', 0.0)
@@ -956,8 +1178,6 @@ def _aggregate_cross_run_metrics(
 
     Returns:
         List of cross-run aggregated task metric dictionaries
-
-    Requirements: 7.1, 7.2, 7.3
     """
     if not runs_data:
         return []
@@ -1081,7 +1301,7 @@ def _extract_task_metrics_from_manifest(
             metrics['maxCpuEfficiencyRatio'] > 0.9 or metrics['maxMemoryEfficiencyRatio'] > 0.9
         )
 
-        # Cost analysis integration (Requirements 1.1, 1.4, 4.2, 4.4)
+        # Cost analysis integration
         instance_type = metrics['instanceType']
         running_seconds = metrics['runningSeconds']
 
@@ -1092,7 +1312,7 @@ def _extract_task_metrics_from_manifest(
         else:
             metrics['estimatedUSD'] = 0.0
 
-        # Instance recommendation integration (Requirements 3.1, 3.2, 3.4, 3.5)
+        # Instance recommendation integration
         if instance_recommender:
             max_cpu = metrics['maxCpuUtilization']
             max_memory = metrics['maxMemoryUtilizationGiB']
@@ -1114,12 +1334,12 @@ def _extract_task_metrics_from_manifest(
             else:
                 metrics['minimumUSD'] = 0.0
 
-            # Calculate potential savings (Requirements 4.1, 4.2)
+            # Calculate potential savings
             metrics['potentialSavingsUSD'] = max(
                 0.0, metrics['estimatedUSD'] - metrics['minimumUSD']
             )
 
-            # Flag high-priority savings (Requirements 4.4)
+            # Flag high-priority savings
             metrics['isHighPrioritySaving'] = instance_recommender.is_high_priority_saving(
                 metrics['estimatedUSD'], metrics['potentialSavingsUSD']
             )

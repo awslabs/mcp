@@ -4,16 +4,25 @@
       "args": [
         "awslabs.aurora-dsql-mcp-server@latest",
         "--cluster_endpoint",
-        "${CLUSTER}.dsql.${REGION}.on.aws",
+        "[dsql cluster id, e.g. abcdefghijklmnopqrst234567].dsql.[dsql cluster region, e.g. us-east-1].on.aws",
         "--region",
-        "${REGION}",
+        "[dsql cluster region, e.g. us-east-1]",
         "--database_user",
         "admin",
         "--allow-writes"
       ],
       "command": "uvx",
       "env": {
-        "AWS_PROFILE": "${AWS_PROFILE}",
+        "AWS_PROFILE": "[aws profile with dsql cluster, e.g. default]",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aurora-dsql-docs-only": {
+      "args": [
+        "awslabs.aurora-dsql-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },

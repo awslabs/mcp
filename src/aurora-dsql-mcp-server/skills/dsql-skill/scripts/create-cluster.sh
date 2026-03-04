@@ -16,15 +16,16 @@ set -euo pipefail
 
 # create-cluster.sh - Create an Aurora DSQL cluster
 #
-# Usage: ./create-cluster.sh [--region REGION] [--tags KEY=VALUE,...]
+# Usage: ./create-cluster.sh --created-by MODEL_ID [--region REGION] [--tags KEY=VALUE,...]
 #
 # Examples:
-#   ./create-cluster.sh
-#   ./create-cluster.sh --region us-east-1
-#   ./create-cluster.sh --region us-west-2 --tags Environment=dev,Project=myapp
+#   ./create-cluster.sh --created-by claude-opus-4-6
+#   ./create-cluster.sh --created-by claude-opus-4-6 --region us-east-1
+#   ./create-cluster.sh --created-by claude-opus-4-6 --region us-west-2 --tags Environment=dev,Project=myapp
 
 REGION="${AWS_REGION:-us-east-1}"
 TAGS=""
+CREATED_BY=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -37,6 +38,10 @@ while [[ $# -gt 0 ]]; do
       TAGS="$2"
       shift 2
       ;;
+    --created-by)
+      CREATED_BY="$2"
+      shift 2
+      ;;
     -h|--help)
       echo "Usage: $0 [--region REGION] [--tags KEY=VALUE,...]"
       echo ""
@@ -45,6 +50,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --region REGION    AWS region (default: \$AWS_REGION or us-east-1)"
       echo "  --tags TAGS        Comma-separated tags (e.g., Env=dev,Project=app)"
+      echo "  --created-by ID    Model/agent identifier added as a 'created_by' cluster tag"
       echo "  -h, --help         Show this help message"
       exit 0
       ;;
@@ -57,26 +63,34 @@ done
 
 echo "Creating Aurora DSQL cluster in $REGION..."
 
-# Build the AWS CLI command
-CMD="aws dsql create-cluster --region $REGION"
+# Prepend created_by tag if --created-by was provided
+if [[ -n "$CREATED_BY" ]]; then
+  # Validate: allow only alphanumeric, hyphens, underscores, and dots (e.g. claude-opus-4-6)
+  if [[ ! "$CREATED_BY" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+    echo "Error: --created-by must contain only alphanumeric characters, hyphens, underscores, and dots." >&2
+    exit 1
+  fi
+  if [[ -n "$TAGS" ]]; then
+    TAGS="created_by=${CREATED_BY},${TAGS}"
+  else
+    TAGS="created_by=${CREATED_BY}"
+  fi
+fi
+
+# Build the AWS CLI command as an array to avoid eval and shell injection
+CMD=(aws dsql create-cluster --region "$REGION")
 
 # Add tags if provided
 if [[ -n "$TAGS" ]]; then
-  # Convert comma-separated tags to JSON format
-  TAG_JSON=$(echo "$TAGS" | awk -F',' '{
-    printf "{"
-    for (i=1; i<=NF; i++) {
-      split($i, kv, "=")
-      printf "\"%s\":\"%s\"", kv[1], kv[2]
-      if (i < NF) printf ","
-    }
-    printf "}"
-  }')
-  CMD="$CMD --tags '$TAG_JSON'"
+  # Convert comma-separated tags to JSON format using jq for safe escaping
+  TAG_JSON=$(printf '%s\n' "$TAGS" | tr ',' '\n' | jq -Rn '
+    [inputs | split("=") | {(.[0]): .[1:] | join("=")}] | add // {}
+  ')
+  CMD+=(--tags "$TAG_JSON")
 fi
 
-# Execute the command
-eval $CMD > /tmp/dsql-cluster-create.json
+# Execute the command directly (no eval)
+"${CMD[@]}" > /tmp/dsql-cluster-create.json
 
 # Extract cluster identifier and endpoint
 CLUSTER_ID=$(jq -r '.identifier' /tmp/dsql-cluster-create.json)

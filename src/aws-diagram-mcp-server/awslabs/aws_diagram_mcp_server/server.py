@@ -179,8 +179,8 @@ async def mcp_generate_diagram(
 
 @mcp.tool(name='get_diagram_examples')
 async def mcp_get_diagram_examples(
-    diagram_type: DiagramType = Field(
-        default=DiagramType.ALL,
+    diagram_type: str = Field(
+        default='all',
         description='Type of diagram example to return. Options: aws, sequence, flow, class, k8s, onprem, custom, all',
     ),
 ):
@@ -220,7 +220,11 @@ async def mcp_get_diagram_examples(
     Returns:
         Dictionary with example code for the requested diagram type(s), organized by example name
     """
-    result = get_diagram_examples(diagram_type)
+    try:
+        dt = DiagramType(diagram_type)
+    except ValueError:
+        dt = DiagramType.ALL
+    result = get_diagram_examples(dt)
     return result.model_dump()
 
 

@@ -69,6 +69,20 @@ This MCP server provides tools for:
 
 1. **SearchGenomicsFiles** - Intelligent search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with pattern matching, file association detection, and relevance scoring
 
+### Run Group Management Tools
+
+1. **CreateAHORunGroup** - Create a new run group with optional resource limits (maxCpus, maxGpus, maxDuration, maxRuns) and tags
+2. **GetAHORunGroup** - Retrieve detailed information about a specific run group
+3. **ListAHORunGroups** - List available run groups with optional name filtering and pagination
+4. **UpdateAHORunGroup** - Update an existing run group's name or resource limits
+
+### Run Cache Management Tools
+
+1. **CreateAHORunCache** - Create a new run cache with a cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE), S3 URI for cache storage, and optional name, description, tags, and cross-account bucket owner ID
+2. **GetAHORunCache** - Retrieve detailed information about a specific run cache including configuration, status, and metadata
+3. **ListAHORunCaches** - List available run caches with optional filtering by name, status, or cache behavior, with pagination support
+4. **UpdateAHORunCache** - Update an existing run cache's cache behavior, name, or description
+
 ### Region Management Tools
 
 1. **GetAHOSupportedRegions** - List AWS regions where HealthOmics is available
@@ -403,6 +417,14 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 
 > **Note for Large S3 Buckets**: When searching very large S3 buckets (millions of objects), the genomics file search may take longer than the default MCP client timeout. If you encounter timeout errors, increase the MCP server timeout by adding a `"timeout"` property to your MCP server configuration (e.g., `"timeout": 300000` for five minutes, specified in milliseconds). This is particularly important when using the search tool with extensive S3 bucket configurations or when `GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH=true` is used with large datasets. The value of `"timeout"` should always be greater than the value of `GENOMICS_SEARCH_TIMEOUT_SECONDS` if you want to prevent the MCP timeout from preempting the genomics search timeout
 
+#### Agent Identification
+
+- `AGENT` - Agent identifier appended to the User-Agent string on all boto3 API calls as `agent/<value>` (optional)
+  - **Use case**: Attributing API calls to specific AI agents for traceability via CloudTrail and AWS service logs
+  - **Behavior**: When set, the value is sanitized to visible ASCII characters (0x20-0x7E), stripped of leading/trailing whitespace, lowercased, and appended to the User-Agent header as `agent/<value>`
+  - **Validation**: Empty, whitespace-only, or values that become empty after sanitization are treated as unset
+  - **Example**: `export AGENT=KIRO` produces `User-Agent: ... agent/kiro`
+
 #### Testing Configuration Variables
 
 The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
@@ -450,6 +472,14 @@ The following IAM permissions are required:
                 "omics:GetRun",
                 "omics:ListRunTasks",
                 "omics:GetRunTask",
+                "omics:CreateRunGroup",
+                "omics:GetRunGroup",
+                "omics:ListRunGroups",
+                "omics:UpdateRunGroup",
+                "omics:CreateRunCache",
+                "omics:GetRunCache",
+                "omics:ListRunCaches",
+                "omics:UpdateRunCache",
                 "omics:ListSequenceStores",
                 "omics:ListReadSets",
                 "omics:GetReadSetMetadata",
@@ -467,7 +497,8 @@ The following IAM permissions are required:
             "Action": [
                 "s3:ListBucket",
                 "s3:GetObject",
-                "s3:GetObjectTagging"
+                "s3:GetObjectTagging",
+                "s3:HeadBucket"
             ],
             "Resource": [
                 "arn:aws:s3:::*genomics*",
@@ -495,7 +526,8 @@ The following IAM permissions are required:
     "Action": [
         "s3:ListBucket",
         "s3:GetObject",
-        "s3:GetObjectTagging"
+        "s3:GetObjectTagging",
+        "s3:HeadBucket"
     ],
     "Resource": [
         "arn:aws:s3:::my-genomics-data",
@@ -527,6 +559,7 @@ Add to your Kiro MCP configuration (`~/.kiro/settings/mcp.json`):
         "AWS_REGION": "us-east-1",
         "AWS_PROFILE": "your-profile",
         "HEALTHOMICS_DEFAULT_MAX_RESULTS": "10",
+        "AGENT": "kiro",
         "GENOMICS_SEARCH_S3_BUCKETS": "s3://my-genomics-data/,s3://shared-references/",
         "GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH": "true",
         "GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE": "100",

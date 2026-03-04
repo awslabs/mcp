@@ -145,6 +145,20 @@ class TestS3SearchEngine:
         with pytest.raises(ValueError, match='Cannot create S3SearchEngine'):
             S3SearchEngine.from_environment()
 
+    @patch('awslabs.aws_healthomics_mcp_server.search.s3_search_engine.get_genomics_search_config')
+    @patch('awslabs.aws_healthomics_mcp_server.search.s3_search_engine.get_aws_session')
+    def test_from_environment_empty_configured_buckets(self, mock_session, mock_config):
+        """Test from_environment succeeds with empty configured buckets for adhoc use."""
+        mock_config.return_value = SearchConfig(s3_bucket_paths=[])
+        mock_s3_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_s3_client
+
+        engine = S3SearchEngine.from_environment()
+
+        assert engine is not None
+        assert engine.config.s3_bucket_paths == []
+        mock_config.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_search_buckets_success(self, search_engine):
         """Test successful bucket search."""

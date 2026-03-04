@@ -44,6 +44,9 @@ class TestGetPricingRegion:
             ('af-south-1', 'eu-central-1'),
             # Asia Pacific regions
             ('ap-east-1', 'ap-south-1'),
+            # European Sovereign Cloud regions
+            ('eusc-de-east-1', 'eusc-de-east-1'),
+            ('eusc-de-west-1', 'eusc-de-east-1'),
             # China regions
             ('cn-north-1', 'cn-northwest-1'),
             # Unknown regions default to us-east-1

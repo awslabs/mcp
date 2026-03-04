@@ -20,6 +20,7 @@ from .core import (
     AnalysisResult,
     CacheBehavior,
     ContainerRegistryMap,
+    DefinitionRepository,
     ExportType,
     ImageMapping,
     LogEvent,
@@ -28,6 +29,8 @@ from .core import (
     RunListResponse,
     RunStatus,
     RunSummary,
+    SourceReference,
+    SourceReferenceType,
     StorageRequest,
     StorageType,
     TaskListResponse,
@@ -35,6 +38,22 @@ from .core import (
     WorkflowListResponse,
     WorkflowSummary,
     WorkflowType,
+)
+
+# ECR models
+from .ecr import (
+    CloneContainerResponse,
+    ContainerAvailabilityResponse,
+    ContainerImage,
+    ECRRepository,
+    ECRRepositoryListResponse,
+    HealthOmicsAccessStatus,
+    PullThroughCacheListResponse,
+    PullThroughCacheRule,
+    UpstreamRegistry,
+    UPSTREAM_REGISTRY_URLS,
+    ValidationIssue,
+    ValidationResult,
 )
 
 # S3 file models and utilities
@@ -70,6 +89,7 @@ __all__ = [
     'AnalysisResult',
     'CacheBehavior',
     'ContainerRegistryMap',
+    'DefinitionRepository',
     'ExportType',
     'ImageMapping',
     'LogEvent',
@@ -78,6 +98,8 @@ __all__ = [
     'RunListResponse',
     'RunStatus',
     'RunSummary',
+    'SourceReference',
+    'SourceReferenceType',
     'StorageRequest',
     'StorageType',
     'TaskListResponse',
@@ -85,6 +107,19 @@ __all__ = [
     'WorkflowListResponse',
     'WorkflowSummary',
     'WorkflowType',
+    # ECR models
+    'CloneContainerResponse',
+    'ContainerAvailabilityResponse',
+    'ContainerImage',
+    'ECRRepository',
+    'ECRRepositoryListResponse',
+    'HealthOmicsAccessStatus',
+    'PullThroughCacheListResponse',
+    'PullThroughCacheRule',
+    'UpstreamRegistry',
+    'UPSTREAM_REGISTRY_URLS',
+    'ValidationIssue',
+    'ValidationResult',
     # S3 models
     'S3File',
     'build_s3_uri',

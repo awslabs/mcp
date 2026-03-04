@@ -9,17 +9,31 @@ uv --version
 - Install from: [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 
 **Check if MCP server is configured:**
-- Look for `aurora-dsql-mcp-server` in MCP settings
+Look for `aurora-dsql` or `power-amazon-aurora-dsql-aurora-dsql` in MCP settings.
+
+**If configured:**
+The MCP server can be configured in one of 2 ways. The [default documentation-only configuration](#default-documentation-tools-only-configuration) doesn't support database operations.
+
+The MCP server can be updated to support the `readonly_query`, `transact`, and `get_schema` database
+operation tools by connecting the server to the user's DSQL cluster, with the
+[cluster configuration](#cluster-configuration-to-add).
+
+***Ask the user which configuration they prefer and re-configure if needed, editing the appropriate***
+***MCP settings file.***
 
 **If not configured, offer to set up:**
 
-Edit the appropriate MCP settings file.
+Ask the user if they prefer the [documentation-only](#default-documentation-tools-only-configuration)
+functionality or the [database operation](#cluster-configuration-for-database-operations)
+functionality and edit the appropriate MCP settings file.
 
 ## Where to keep the MCP Configuration?
 Would the user like a global MCP configuration or a project-scoped MCP configuration?
 
 **Default:**
-By default, the power has a placeholder MCP configuration globally.
+By default, the power has a placeholder MCP configuration globally. *This MCP configuration does
+not contain any DSQL cluster details. Therefore, it can only be used for documentation tools,
+but can be updated to match the [database operation configuration](#cluster-configuration-for-database-operations) with a DSQL cluster.*
 
 ```bash
 cat ~/.kiro/settings/mcp.json
@@ -66,8 +80,27 @@ the left sidebar (Kiro's ghost icon) and navigating to the bottom "MCP Servers" 
         should be allowed.
 
 ## MCP Configuration:
-Add the following configuration:
+### Default Documentation-Tools-Only Configuration:
 
+```json
+{
+  "mcpServers": {
+    "awslabs.aurora-dsql-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aurora-dsql-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Cluster Configuration for Database Operations:
 ```json
 {
   "mcpServers": {
