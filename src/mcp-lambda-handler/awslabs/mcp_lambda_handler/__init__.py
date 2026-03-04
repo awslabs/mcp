@@ -14,6 +14,6 @@
 
 """awslabs.mcp_lambda_handler: AWS Lambda MCP Server package."""
 
-__version__ = '0.1.12'
+__version__ = '0.1.13'
 
 from .mcp_lambda_handler import MCPLambdaHandler
