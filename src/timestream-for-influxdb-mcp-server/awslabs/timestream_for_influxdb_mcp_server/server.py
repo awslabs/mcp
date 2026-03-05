@@ -17,6 +17,8 @@
 
 import boto3
 import os
+from awslabs.timestream_for_influxdb_mcp_server import __version__
+from botocore.config import Config
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
@@ -27,6 +29,10 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#timestream-for-influxdb-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 # InfluxDB environment variables for data plane operations
@@ -246,10 +252,12 @@ def get_timestream_influxdb_client():
         if aws_profile:
             logger.info(f'Using AWS profile for AWS Timestream Influx Client: {aws_profile}')
             client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client(
-                'timestream-influxdb'
+                'timestream-influxdb', config=_config
             )
         else:
-            client = boto3.Session(region_name=aws_region).client('timestream-influxdb')
+            client = boto3.Session(region_name=aws_region).client(
+                'timestream-influxdb', config=_config
+            )
     except Exception as e:
         logger.error(f'Error creating AWS Timestream for InfluxDB client: {str(e)}')
         raise

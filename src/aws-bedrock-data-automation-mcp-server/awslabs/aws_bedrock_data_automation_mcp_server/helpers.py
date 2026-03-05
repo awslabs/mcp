@@ -20,9 +20,15 @@ import boto3
 import json
 import os
 import uuid
+from awslabs.aws_bedrock_data_automation_mcp_server import __version__
+from botocore.config import Config
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#aws-bedrock-data-automation-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 def get_region() -> str:
@@ -33,7 +39,7 @@ def get_region() -> str:
 def get_account_id() -> str:
     """Get the AWS account ID using STS get_caller_identity."""
     session = get_aws_session()
-    sts_client = session.client('sts', region_name=get_region())
+    sts_client = session.client('sts', region_name=get_region(), config=_config)
     try:
         response = sts_client.get_caller_identity()
         return response['Account']
@@ -82,19 +88,21 @@ def get_profile_arn() -> Optional[str]:
 def get_bedrock_data_automation_client():
     """Get a Bedrock Data Automation client."""
     session = get_aws_session()
-    return session.client('bedrock-data-automation', region_name=get_region())
+    return session.client('bedrock-data-automation', region_name=get_region(), config=_config)
 
 
 def get_bedrock_data_automation_runtime_client():
     """Get a Bedrock Data Automation Runtime client."""
     session = get_aws_session()
-    return session.client('bedrock-data-automation-runtime', region_name=get_region())
+    return session.client(
+        'bedrock-data-automation-runtime', region_name=get_region(), config=_config
+    )
 
 
 def get_s3_client():
     """Get an S3 client."""
     session = get_aws_session()
-    return session.client('s3', region_name=get_region())
+    return session.client('s3', region_name=get_region(), config=_config)
 
 
 async def list_projects() -> list:

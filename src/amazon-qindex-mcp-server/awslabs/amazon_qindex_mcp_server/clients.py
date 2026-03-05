@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import boto3
+from awslabs.amazon_qindex_mcp_server import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
@@ -68,7 +69,12 @@ class QBusinessClient:
             aws_session_token=self.aws_session_token,
             region_name=self.region_name,
         )
-        return session.client('qbusiness', config=Config(user_agent_extra='QIndex-MCP-Server/1.0'))
+        return session.client(
+            'qbusiness',
+            config=Config(
+                user_agent_extra=f'md/awslabs#mcp#amazon-qindex-mcp-server#{__version__}'
+            ),
+        )
 
     def _validate_attribute_filter(self, attribute_filter: Dict) -> None:
         """Validate the attribute filter parameter.

@@ -93,7 +93,11 @@ def test_init_creates_boto_client_when_not_test():
             readonly=True,
             is_test=False,
         )
-        mock_client.assert_called_once_with('rds-data', region_name='us-west-2')
+        mock_client.assert_called_once()
+        args, kwargs = mock_client.call_args
+        assert args[0] == 'rds-data'
+        assert kwargs['region_name'] == 'us-west-2'
+        assert 'config' in kwargs
         assert hasattr(conn, 'data_client')
 
 

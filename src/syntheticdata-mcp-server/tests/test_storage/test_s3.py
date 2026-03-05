@@ -26,7 +26,7 @@ def test_s3_target_init(monkeypatch) -> None:
         def __init__(self, profile_name=None):
             self.profile_name = profile_name
 
-        def client(self, service_name):
+        def client(self, service_name, **kwargs):
             assert service_name == 's3'
             return {}
 

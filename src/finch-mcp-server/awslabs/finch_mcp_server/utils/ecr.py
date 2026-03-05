@@ -23,9 +23,15 @@ for production use cases.
 import boto3
 from ..consts import STATUS_ERROR, STATUS_SUCCESS
 from .common import format_result
+from awslabs.finch_mcp_server import __version__
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
 from typing import Dict, Optional
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#finch-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 def create_ecr_repository(
@@ -49,7 +55,11 @@ def create_ecr_repository(
 
     """
     try:
-        ecr_client = boto3.client('ecr', region_name=region) if region else boto3.client('ecr')
+        ecr_client = (
+            boto3.client('ecr', region_name=region, config=_config)
+            if region
+            else boto3.client('ecr', config=_config)
+        )
 
         try:
             response = ecr_client.describe_repositories(repositoryNames=[repository_name])

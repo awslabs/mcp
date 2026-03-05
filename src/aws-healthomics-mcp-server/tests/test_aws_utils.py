@@ -240,7 +240,9 @@ class TestGetAwsSession:
             region_name='eu-west-1', botocore_session=mock_botocore_instance
         )
         assert result == mock_boto3_instance
-        assert 'awslabs/mcp/aws-healthomics-mcp-server/' in mock_botocore_instance.user_agent_extra
+        assert (
+            'md/awslabs#mcp#aws-healthomics-mcp-server#' in mock_botocore_instance.user_agent_extra
+        )
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')

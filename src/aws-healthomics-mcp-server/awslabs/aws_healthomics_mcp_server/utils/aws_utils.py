@@ -132,7 +132,7 @@ def get_aws_session() -> boto3.Session:
         ImportError: If boto3 is not available
     """
     botocore_session = botocore.session.Session()
-    user_agent_extra = f'awslabs/mcp/aws-healthomics-mcp-server/{__version__}'
+    user_agent_extra = f'md/awslabs#mcp#aws-healthomics-mcp-server#{__version__}'
 
     agent_value = get_agent_value()
     if agent_value:

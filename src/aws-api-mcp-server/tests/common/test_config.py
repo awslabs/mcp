@@ -1,5 +1,4 @@
 import awslabs.aws_api_mcp_server.core.common.config as config_module
-import importlib
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
     AWS_API_MCP_WORKING_DIR_KEY,
@@ -11,7 +10,6 @@ from awslabs.aws_api_mcp_server.core.common.config import (
     get_user_agent_extra,
     get_working_directory,
 )
-from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
 
 
@@ -151,7 +149,7 @@ def test_user_agent_with_context(mock_get_context):
     # Create mock context with fastmcp name and client params
     mock_context = MagicMock()
     mock_context.fastmcp.name = 'test-fastmcp'
-    mock_context.session.client_params.clientInfo.name = 'test-client'
+    mock_context.session.client_params.clientInfo.name = 'test client'
     mock_context.session.client_params.clientInfo.version = '1.0.0'
 
     mock_get_context.return_value = mock_context
@@ -161,7 +159,7 @@ def test_user_agent_with_context(mock_get_context):
     # Verify context information is included in user agent
     assert 'via/test-fastmcp' in user_agent
     assert 'MCPClient/test-client#1.0.0' in user_agent
-    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+    assert 'awslabs#mcp#aws-api-mcp-server#' in user_agent
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.get_context')
@@ -180,24 +178,15 @@ def test_user_agent_with_context_no_client_params(mock_get_context):
     # Verify fastmcp name is included but client info is not
     assert 'via/test-fastmcp' in user_agent
     assert 'MCPClient/' not in user_agent
-    assert 'awslabs/mcp/AWS-API-MCP-server/' in user_agent
+    assert 'awslabs#mcp#aws-api-mcp-server#' in user_agent
 
 
-@patch('importlib.metadata.version')
-def test_package_version_fallback_to_unknown(mock_version):
-    """Test that PACKAGE_VERSION falls back to 'unknown' when package not found."""
-    original_version = config_module.PACKAGE_VERSION
-
-    mock_version.side_effect = PackageNotFoundError()
-    importlib.reload(config_module)
-
-    assert config_module.PACKAGE_VERSION == 'unknown'
-
+@patch('awslabs.aws_api_mcp_server.core.common.config.__version__', '1.2.3')
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_package_version_in_user_agent():
+    """Test that __version__ is included in the user agent string."""
     user_agent = config_module.get_user_agent_extra()
-    assert 'awslabs/mcp/AWS-API-MCP-server/unknown' in user_agent
-
-    # Restore original state
-    config_module.PACKAGE_VERSION = original_version
+    assert 'awslabs#mcp#aws-api-mcp-server#1.2.3' in user_agent
 
 
 @pytest.mark.parametrize(

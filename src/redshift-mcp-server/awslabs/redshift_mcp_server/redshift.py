@@ -779,7 +779,7 @@ client_manager = RedshiftClientManager(
         connect_timeout=CLIENT_CONNECT_TIMEOUT,
         read_timeout=CLIENT_READ_TIMEOUT,
         retries=CLIENT_RETRIES,
-        user_agent_extra=f'{CLIENT_USER_AGENT_NAME}/{__version__}',
+        user_agent_extra=f'md/awslabs#mcp#redshift-mcp-server#{__version__}',
     ),
     aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),

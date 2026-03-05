@@ -109,7 +109,7 @@ class TestCreatePricingClient:
         # Verify config
         config = call_args[1]['config']
         assert config.region_name == expected_region
-        assert 'awslabs/mcp/' in config.user_agent_extra
+        assert 'md/awslabs#mcp#' in config.user_agent_extra
 
         assert result == mock_client
 

@@ -97,7 +97,9 @@ class TestGetMetrics:
             assert duration[0]['unit'] == 'Milliseconds'
 
             # Verify boto3 session was created with the correct parameters
-            mock_session.client.assert_called_once_with('cloudwatch')
+            mock_session.client.assert_called_once()
+            args, kwargs = mock_session.client.call_args
+            assert args[0] == 'cloudwatch'
 
             # Verify get_metric_data was called with the correct parameters
             mock_cloudwatch.get_metric_data.assert_called_once()
@@ -136,7 +138,9 @@ class TestGetMetrics:
             assert result['success'] is True
 
             # Verify boto3 session was created with the correct parameters
-            mock_session.client.assert_called_once_with('cloudwatch')
+            mock_session.client.assert_called_once()
+            args, kwargs = mock_session.client.call_args
+            assert args[0] == 'cloudwatch'
 
             # Verify get_metric_data was called with the correct parameters
             mock_cloudwatch.get_metric_data.assert_called_once()

@@ -114,7 +114,9 @@ class AwsHelper:
                     del cls._client_cache[cache_key]
 
             # Create config with user agent suffix
-            config = Config(user_agent_extra=f'awslabs/mcp/sagemaker-ai-mcp-server/{__version__}')
+            config = Config(
+                user_agent_extra=f'md/awslabs#mcp#sagemaker-ai-mcp-server#{__version__}'
+            )
 
             # Create session with profile if specified
             if profile:
