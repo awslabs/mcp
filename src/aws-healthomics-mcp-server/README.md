@@ -83,6 +83,32 @@ This MCP server provides tools for:
 3. **ListAHORunCaches** - List available run caches with optional filtering by name, status, or cache behavior, with pagination support
 4. **UpdateAHORunCache** - Update an existing run cache's cache behavior, name, or description
 
+### Sequence Store Management Tools
+
+1. **CreateAHOSequenceStore** - Create a new sequence store with optional encryption, description, fallback location, and tags
+2. **ListAHOSequenceStores** - List sequence stores with optional name filtering and pagination
+3. **GetAHOSequenceStore** - Get detailed information about a specific sequence store
+4. **UpdateAHOSequenceStore** - Update a sequence store's name, description, or fallback location (manages ETags internally)
+5. **ListAHOReadSets** - List read sets in a sequence store with filtering by sample ID, subject ID, reference ARN, status, file type, and date range
+6. **GetAHOReadSetMetadata** - Get detailed metadata for a specific read set including sequence information and file details
+7. **StartAHOReadSetImportJob** - Import genomic files from S3 into a sequence store with batch support
+8. **GetAHOReadSetImportJob** - Get status and details of a read set import job including per-source statuses
+9. **ListAHOReadSetImportJobs** - List import jobs for a sequence store with pagination
+10. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
+11. **GetAHOReadSetExportJob** - Get status and details of a read set export job
+12. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
+13. **ActivateAHOReadSets** - Activate archived read sets for analysis access
+
+### Reference Store Management Tools
+
+1. **ListAHOReferenceStores** - List reference stores with optional name filtering and pagination
+2. **GetAHOReferenceStore** - Get detailed information about a specific reference store
+3. **ListAHOReferences** - List references in a reference store with optional name and status filtering
+4. **GetAHOReferenceMetadata** - Get detailed metadata for a specific reference including file information
+5. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
+6. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
+7. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
+
 ### Region Management Tools
 
 1. **GetAHOSupportedRegions** - List AWS regions where HealthOmics is available
@@ -486,6 +512,20 @@ The following IAM permissions are required:
                 "omics:ListReferenceStores",
                 "omics:ListReferences",
                 "omics:GetReferenceMetadata",
+                "omics:CreateSequenceStore",
+                "omics:GetSequenceStore",
+                "omics:UpdateSequenceStore",
+                "omics:StartReadSetImportJob",
+                "omics:GetReadSetImportJob",
+                "omics:ListReadSetImportJobs",
+                "omics:StartReadSetExportJob",
+                "omics:GetReadSetExportJob",
+                "omics:ListReadSetExportJobs",
+                "omics:StartReadSetActivationJob",
+                "omics:GetReferenceStore",
+                "omics:StartReferenceImportJob",
+                "omics:GetReferenceImportJob",
+                "omics:ListReferenceImportJobs",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
                 "logs:GetLogEvents"

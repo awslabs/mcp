@@ -97,6 +97,73 @@ async def validate_s3_uri(ctx: Context, uri: str, parameter_name: str) -> None:
         raise ValueError(error_message)
 
 
+def parse_tags(tags: Any) -> Dict[str, str]:
+    """Parse tags from either a JSON string or a dict.
+
+    MCP clients may send tags as a JSON string or as a native dict object.
+    This function normalizes both formats into a dict.
+
+    Args:
+        tags: Tags as a JSON string (e.g. '{"key": "value"}') or a dict.
+
+    Returns:
+        Parsed tags dictionary.
+
+    Raises:
+        ValueError: If tags is a string that is not valid JSON, or an unsupported type.
+    """
+    import json
+
+    if isinstance(tags, dict):
+        return tags
+    if isinstance(tags, str):
+        try:
+            parsed = json.loads(tags)
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Invalid tags JSON: {e}') from e
+        if not isinstance(parsed, dict):
+            raise ValueError('Tags JSON must be an object, e.g. {"key": "value"}')
+        return parsed
+    raise ValueError(f'Tags must be a JSON string or dict, got {type(tags).__name__}')
+
+
+def parse_id_list(value: Any) -> list:
+    """Parse an ID list from a JSON string, a plain string, or a native list.
+
+    MCP clients may send list parameters as a JSON string, a single scalar value,
+    or a native list. This function normalizes all formats into a list of strings.
+
+    Args:
+        value: IDs as a JSON list string (e.g. '["id1", "id2"]'), a single string/number,
+               or a native list.
+
+    Returns:
+        List of string IDs.
+
+    Raises:
+        ValueError: If the value cannot be parsed into a list of IDs.
+    """
+    import json
+
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, (int, float)):
+        return [str(value)]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            # Treat as a single ID string
+            return [value]
+        if isinstance(parsed, list):
+            return [str(v) for v in parsed]
+        # json.loads('123') returns an int — treat as single ID
+        return [str(parsed)]
+    raise ValueError(
+        f'IDs must be a JSON string, list, or single value, got {type(value).__name__}'
+    )
+
+
 async def validate_definition_sources(
     ctx: Context,
     definition_zip_base64: Optional[str],
