@@ -188,7 +188,13 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         max_file_size = _get_max_file_size()
         file_size = path.stat().st_size
         if file_size > max_file_size:
-            return f'File too large: {file_size} bytes (max: {max_file_size} bytes)'
+            size_mb = file_size / (1024 * 1024)
+            max_mb = max_file_size / (1024 * 1024)
+            return (
+                f'File too large: {size_mb:.1f}MB (max: {max_mb:.0f}MB). '
+                f'To increase the limit, set the MAX_FILE_SIZE_MB environment variable '
+                f'(e.g., MAX_FILE_SIZE_MB=200).'
+            )
 
         # Check file extension
         if path.suffix.lower() not in ALLOWED_EXTENSIONS:
