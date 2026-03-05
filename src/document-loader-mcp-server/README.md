@@ -11,6 +11,7 @@ This MCP server provides tools to parse and extract content from various documen
 - **Excel Spreadsheet Reading**: Parse XLSX/XLS files and convert to markdown
 - **PowerPoint Presentation Processing**: Extract content from PPTX/PPT files
 - **Image Loading**: Load and display various image formats (PNG, JPG, GIF, BMP, TIFF, WEBP)
+- **Slide Image Extraction**: Extract individual slides/pages as PNG images from PPTX, PPT, or PDF files using LibreOffice and poppler
 
 ## Prerequisites
 
@@ -18,6 +19,19 @@ This MCP server provides tools to parse and extract content from various documen
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python 3.10 or newer using `uv python install 3.10` (or a more recent version)
+
+### Optional: Slide Image Extraction
+
+The `extract_slides_as_images` tool requires external system packages:
+
+- **LibreOffice** (for PPTX/PPT → PDF conversion):
+  - Ubuntu/Debian: `sudo apt install libreoffice`
+  - macOS: `brew install --cask libreoffice`
+  - Windows: [Download from libreoffice.org](https://www.libreoffice.org/download/)
+- **poppler-utils** (for PDF → image rendering):
+  - Ubuntu/Debian: `sudo apt install poppler-utils`
+  - macOS: `brew install poppler`
+  - Windows: [Download from GitHub](https://github.com/oschwartz10612/poppler-windows/releases) and add to PATH
 
 ## Installation
 
@@ -51,6 +65,7 @@ For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific
 
 - `read_document`: Extract content from various document formats by specifying file_path and file_type ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt')
 - `read_image`: Load image files for LLM viewing and analysis
+- `extract_slides_as_images`: Extract slides/pages as individual PNG images from PPTX, PPT, or PDF files. Requires [LibreOffice](https://www.libreoffice.org/) (for PPTX/PPT) and [poppler-utils](https://poppler.freedesktop.org/) (for PDF-to-image rendering)
 
 ## Environment Variables
 

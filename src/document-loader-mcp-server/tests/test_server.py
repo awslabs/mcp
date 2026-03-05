@@ -18,7 +18,13 @@ import os
 import pytest
 from awslabs.document_loader_mcp_server.server import (
     DocumentReadResponse,
+    SlidesExtractionResponse,
+    _check_soffice_available,
+    _convert_to_pdf_with_soffice,
     _convert_with_markitdown,
+    _extract_slides_sync,
+    _find_soffice,
+    _get_base_directory,
     _read_pdf_content,
     mcp,
     validate_file_path,
@@ -746,6 +752,340 @@ def test_get_max_file_size_zero():
         result = _get_max_file_size()
         assert result == DEFAULT_MAX_FILE_SIZE
         print('✓ _get_max_file_size falls back to default for zero value')
+
+
+def test_check_soffice_available():
+    """Test _check_soffice_available returns None when soffice is found."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+        mock_find.return_value = '/usr/bin/soffice'
+        result = _check_soffice_available()
+        assert result is None
+        print('✓ _check_soffice_available returns None when soffice found')
+
+
+def test_check_soffice_not_available():
+    """Test _check_soffice_available returns error when soffice is missing."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+        mock_find.return_value = None
+        result = _check_soffice_available()
+        assert result is not None
+        assert 'soffice' in result
+        print('✓ _check_soffice_available returns error when soffice missing')
+
+
+def test_find_soffice_in_path():
+    """Test _find_soffice finds soffice via PATH."""
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = '/usr/local/bin/soffice'
+        result = _find_soffice()
+        assert result == '/usr/local/bin/soffice'
+        print('✓ _find_soffice finds soffice in PATH')
+
+
+def test_find_soffice_macos_libreoffice():
+    """Test _find_soffice finds macOS LibreOffice app bundle."""
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = None
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile') as mock_isfile:
+            with patch('awslabs.document_loader_mcp_server.server.os.access') as mock_access:
+                mock_isfile.side_effect = lambda p: p == (
+                    '/Applications/LibreOffice.app/Contents/MacOS/soffice'
+                )
+                mock_access.return_value = True
+                result = _find_soffice()
+                assert result == '/Applications/LibreOffice.app/Contents/MacOS/soffice'
+                print('✓ _find_soffice finds macOS LibreOffice bundle')
+
+
+def test_find_soffice_macos_openoffice():
+    """Test _find_soffice finds macOS OpenOffice app bundle."""
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = None
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile') as mock_isfile:
+            with patch('awslabs.document_loader_mcp_server.server.os.access') as mock_access:
+                mock_isfile.side_effect = lambda p: p == (
+                    '/Applications/OpenOffice.app/Contents/MacOS/soffice'
+                )
+                mock_access.return_value = True
+                result = _find_soffice()
+                assert result == '/Applications/OpenOffice.app/Contents/MacOS/soffice'
+                print('✓ _find_soffice finds macOS OpenOffice bundle')
+
+
+def test_find_soffice_not_found():
+    """Test _find_soffice returns None when soffice is nowhere."""
+    with patch('awslabs.document_loader_mcp_server.server.shutil.which') as mock_which:
+        mock_which.return_value = None
+        with patch('awslabs.document_loader_mcp_server.server.os.path.isfile') as mock_isfile:
+            mock_isfile.return_value = False
+            result = _find_soffice()
+            assert result is None
+            print('✓ _find_soffice returns None when not found')
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_soffice_missing():
+    """Test extract_slides_as_images returns error when soffice is missing for PPTX."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix='.pptx', delete=False) as temp_file:
+        temp_file.write(b'fake pptx content')
+        temp_file_path = temp_file.name
+
+    try:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = None
+            result = await call_mcp_tool_slides(temp_file_path, '/tmp/slides_out')
+            assert isinstance(result, SlidesExtractionResponse)
+            assert result.status == 'error'
+            assert 'soffice' in result.error_message
+            print('✓ extract_slides_as_images returns error when soffice missing')
+    finally:
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_nonexistent_file():
+    """Test extract_slides_as_images returns error for nonexistent file."""
+    result = await call_mcp_tool_slides('/nonexistent/file.pdf', '/tmp/slides_out')
+    assert isinstance(result, SlidesExtractionResponse)
+    assert result.status == 'error'
+    assert 'File not found' in result.error_message
+    print('✓ extract_slides_as_images handles nonexistent file')
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_timeout():
+    """Test extract_slides_as_images handles timeout."""
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        mock_validate.return_value = None
+
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch(
+                'awslabs.document_loader_mcp_server.server.asyncio.get_event_loop'
+            ) as mock_get_loop:
+                mock_loop = MagicMock()
+                mock_get_loop.return_value = mock_loop
+                mock_future = asyncio.Future()
+                mock_loop.run_in_executor.return_value = mock_future
+
+                with patch(
+                    'awslabs.document_loader_mcp_server.server.asyncio.wait_for'
+                ) as mock_wait_for:
+                    mock_wait_for.side_effect = asyncio.TimeoutError()
+                    result = await call_mcp_tool_slides('/test/doc.pptx', '/tmp/out')
+                    assert isinstance(result, SlidesExtractionResponse)
+                    assert result.status == 'error'
+                    assert 'timed out' in result.error_message
+                    print('✓ extract_slides_as_images handles timeout')
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_pdf_no_soffice_check():
+    """Test extract_slides_as_images skips soffice check for PDF input."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+        mock_find.return_value = None  # soffice not available
+
+        # For PDF, soffice check should be skipped, so we hit file validation instead
+        result = await call_mcp_tool_slides('/nonexistent/file.pdf', '/tmp/slides_out')
+        assert isinstance(result, SlidesExtractionResponse)
+        assert result.status == 'error'
+        # Should fail on file validation, NOT soffice check
+        assert 'File not found' in result.error_message
+        print('✓ extract_slides_as_images skips soffice check for PDF')
+
+
+async def call_mcp_tool_slides(
+    file_path: str, output_dir: str, dpi: int = 200, timeout: int = 120
+):
+    """Helper function to call extract_slides_as_images MCP tool."""
+    tools = await mcp.get_tools()
+
+    if 'extract_slides_as_images' not in tools:
+        raise ValueError('Tool extract_slides_as_images not found')
+
+    tool = tools['extract_slides_as_images']
+    if hasattr(tool, 'fn') and callable(getattr(tool, 'fn')):
+        fn = getattr(tool, 'fn')
+        ctx = MockContext()
+        return await fn(ctx, file_path, output_dir, dpi, timeout)
+    else:
+        raise ValueError('Cannot find callable function for tool extract_slides_as_images')
+
+
+def test_get_base_directory_from_env():
+    """Test _get_base_directory returns path from DOCUMENT_BASE_DIR env var."""
+    with patch.dict(os.environ, {'DOCUMENT_BASE_DIR': '/custom/base'}):
+        from pathlib import Path
+
+        result = _get_base_directory()
+        assert result == Path('/custom/base')
+        print('✓ _get_base_directory returns path from env var')
+
+
+def test_convert_to_pdf_with_soffice_success():
+    """Test _convert_to_pdf_with_soffice successful conversion."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                # Create a fake PDF output file that soffice would produce
+                pdf_path = os.path.join(temp_dir, 'test.pdf')
+                with open(pdf_path, 'w') as f:
+                    f.write('fake pdf')
+
+                result = _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir)
+                assert result == pdf_path
+                mock_run.assert_called_once()
+                print('✓ _convert_to_pdf_with_soffice succeeds')
+
+
+def test_convert_to_pdf_with_soffice_not_found():
+    """Test _convert_to_pdf_with_soffice raises when soffice not found."""
+    with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+        mock_find.return_value = None
+        with pytest.raises(RuntimeError, match='soffice binary not found'):
+            _convert_to_pdf_with_soffice('/input/test.pptx', '/tmp/out')
+        print('✓ _convert_to_pdf_with_soffice raises when soffice missing')
+
+
+def test_convert_to_pdf_with_soffice_no_output():
+    """Test _convert_to_pdf_with_soffice raises when PDF not created."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+                # Don't create the PDF file — simulates soffice failing silently
+                with pytest.raises(FileNotFoundError, match='PDF file not found'):
+                    _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir)
+                print('✓ _convert_to_pdf_with_soffice raises when no PDF output')
+
+
+def test_extract_slides_sync_pdf():
+    """Test _extract_slides_sync with PDF input."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as output_dir:
+        with patch('awslabs.document_loader_mcp_server.server.convert_from_path') as mock_convert:
+            # Create mock page objects
+            mock_page1 = MagicMock()
+            mock_page2 = MagicMock()
+            mock_convert.return_value = [mock_page1, mock_page2]
+
+            result = _extract_slides_sync('/test/doc.pdf', output_dir, 200, 'png')
+            assert len(result) == 2
+            assert 'slide_1.png' in result[0]
+            assert 'slide_2.png' in result[1]
+            mock_page1.save.assert_called_once()
+            mock_page2.save.assert_called_once()
+            mock_convert.assert_called_once_with('/test/doc.pdf', dpi=200)
+            print('✓ _extract_slides_sync works for PDF')
+
+
+def test_extract_slides_sync_pptx():
+    """Test _extract_slides_sync with PPTX input (via soffice)."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as output_dir:
+        with patch(
+            'awslabs.document_loader_mcp_server.server._convert_to_pdf_with_soffice'
+        ) as mock_soffice:
+            mock_soffice.return_value = '/tmp/converted.pdf'
+
+            with patch(
+                'awslabs.document_loader_mcp_server.server.convert_from_path'
+            ) as mock_convert:
+                mock_page = MagicMock()
+                mock_convert.return_value = [mock_page]
+
+                result = _extract_slides_sync('/test/slides.pptx', output_dir, 200, 'png')
+                assert len(result) == 1
+                assert 'slide_1.png' in result[0]
+                mock_soffice.assert_called_once()
+                mock_convert.assert_called_once_with('/tmp/converted.pdf', dpi=200)
+                print('✓ _extract_slides_sync works for PPTX')
+
+
+def test_extract_slides_sync_unsupported():
+    """Test _extract_slides_sync raises for unsupported file types."""
+    with pytest.raises(ValueError, match='Unsupported file type'):
+        _extract_slides_sync('/test/doc.txt', '/tmp/out')
+    print('✓ _extract_slides_sync raises for unsupported types')
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_success():
+    """Test extract_slides_as_images success path."""
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        mock_validate.return_value = None
+
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch(
+                'awslabs.document_loader_mcp_server.server.asyncio.get_event_loop'
+            ) as mock_get_loop:
+                mock_loop = MagicMock()
+                mock_get_loop.return_value = mock_loop
+
+                mock_future = asyncio.Future()
+                mock_future.set_result(['/tmp/out/slide_1.png', '/tmp/out/slide_2.png'])
+                mock_loop.run_in_executor.return_value = mock_future
+
+                with patch(
+                    'awslabs.document_loader_mcp_server.server.asyncio.wait_for'
+                ) as mock_wait_for:
+                    mock_wait_for.return_value = ['/tmp/out/slide_1.png', '/tmp/out/slide_2.png']
+
+                    result = await call_mcp_tool_slides('/test/slides.pptx', '/tmp/out')
+                    assert isinstance(result, SlidesExtractionResponse)
+                    assert result.status == 'success'
+                    assert result.slide_count == 2
+                    assert len(result.slide_images) == 2
+                    assert result.output_dir == '/tmp/out'
+                    print('✓ extract_slides_as_images success path covered')
+
+
+@pytest.mark.asyncio
+async def test_extract_slides_general_exception():
+    """Test extract_slides_as_images general exception handler."""
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        mock_validate.return_value = None
+
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch(
+                'awslabs.document_loader_mcp_server.server.asyncio.get_event_loop'
+            ) as mock_get_loop:
+                mock_loop = MagicMock()
+                mock_get_loop.return_value = mock_loop
+
+                mock_future = asyncio.Future()
+                mock_loop.run_in_executor.return_value = mock_future
+
+                with patch(
+                    'awslabs.document_loader_mcp_server.server.asyncio.wait_for'
+                ) as mock_wait_for:
+                    mock_wait_for.side_effect = RuntimeError('Conversion failed')
+
+                    result = await call_mcp_tool_slides('/test/slides.pptx', '/tmp/out')
+                    assert isinstance(result, SlidesExtractionResponse)
+                    assert result.status == 'error'
+                    assert 'Conversion failed' in result.error_message
+                    print('✓ extract_slides_as_images general exception covered')
 
 
 if __name__ == '__main__':

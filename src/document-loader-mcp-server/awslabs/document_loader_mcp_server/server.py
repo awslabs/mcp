@@ -16,15 +16,19 @@
 import asyncio
 import os
 import pdfplumber
+import shutil
+import subprocess
 import sys
+import tempfile
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
 from loguru import logger
 from markitdown import MarkItDown
 from pathlib import Path
+from pdf2image import convert_from_path
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 
 
 # Set up logging
@@ -116,6 +120,19 @@ class DocumentReadResponse(BaseModel):
     status: str = Field(..., description='Status of the operation (success/error)')
     content: str = Field(..., description='Extracted content from the document')
     file_path: str = Field(..., description='Path to the processed file')
+    error_message: Optional[str] = Field(None, description='Error message if operation failed')
+
+
+class SlidesExtractionResponse(BaseModel):
+    """Response from slide image extraction operations."""
+
+    status: str = Field(..., description='Status of the operation (success/error)')
+    slide_images: List[str] = Field(
+        default_factory=list, description='List of file paths to extracted slide images'
+    )
+    slide_count: int = Field(0, description='Number of slides extracted')
+    file_path: str = Field(..., description='Path to the source file')
+    output_dir: str = Field('', description='Directory containing the extracted slide images')
     error_message: Optional[str] = Field(None, description='Error message if operation failed')
 
 
@@ -373,6 +390,178 @@ async def read_image(
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
+
+
+# Known soffice paths for macOS app bundles (not on $PATH by default)
+_SOFFICE_KNOWN_PATHS = [
+    '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+    '/Applications/OpenOffice.app/Contents/MacOS/soffice',
+    os.path.expanduser('~/Applications/LibreOffice.app/Contents/MacOS/soffice'),
+    os.path.expanduser('~/Applications/OpenOffice.app/Contents/MacOS/soffice'),
+]
+
+
+def _find_soffice() -> Optional[str]:
+    """Find the soffice binary.
+
+    Checks $PATH first, then known macOS app bundle locations.
+    Returns the full path to soffice, or None if not found.
+    """
+    path = shutil.which('soffice')
+    if path:
+        return path
+    for known_path in _SOFFICE_KNOWN_PATHS:
+        if os.path.isfile(known_path) and os.access(known_path, os.X_OK):
+            return known_path
+    return None
+
+
+def _check_soffice_available() -> Optional[str]:
+    """Check if LibreOffice/OpenOffice soffice binary is available.
+
+    Returns None if available, or an error message string if not.
+    """
+    if _find_soffice() is None:
+        return (
+            'LibreOffice/OpenOffice (soffice) is not installed or not found. '
+            'Install it to use slide image extraction:\n'
+            '- Ubuntu/Debian: sudo apt install libreoffice\n'
+            '- macOS: brew install --cask libreoffice\n'
+            '- Windows: https://www.libreoffice.org/download/'
+        )
+    return None
+
+
+def _convert_to_pdf_with_soffice(file_path: str, temp_dir: str) -> str:
+    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode."""
+    soffice_path = _find_soffice()
+    if not soffice_path:
+        raise RuntimeError('soffice binary not found')
+    cmd = [
+        soffice_path,
+        '--headless',
+        '--convert-to',
+        'pdf',
+        file_path,
+        '--outdir',
+        temp_dir,
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    pdf_filename = Path(file_path).stem + '.pdf'
+    pdf_path = os.path.join(temp_dir, pdf_filename)
+    if not os.path.isfile(pdf_path):
+        raise FileNotFoundError(f'PDF file not found after soffice conversion: {pdf_path}')
+    return pdf_path
+
+
+def _extract_slides_sync(
+    file_path: str, output_dir: str, dpi: int = 200, output_format: str = 'png'
+) -> List[str]:
+    """Synchronous slide extraction for thread pool execution.
+
+    Converts PPTX to PDF via soffice, then PDF pages to images via pdf2image.
+    For PDF input, converts pages to images directly.
+    """
+    suffix = Path(file_path).suffix.lower()
+    temp_dir = None
+    try:
+        if suffix in {'.pptx', '.ppt'}:
+            temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
+            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir)
+        elif suffix == '.pdf':
+            pdf_path = file_path
+        else:
+            raise ValueError(f'Unsupported file type for slide extraction: {suffix}')
+
+        os.makedirs(output_dir, exist_ok=True)
+        pages = convert_from_path(pdf_path, dpi=dpi)
+        output_files = []
+        for i, page in enumerate(pages):
+            output_file = os.path.join(output_dir, f'slide_{i + 1}.{output_format}')
+            page.save(output_file, output_format.upper())
+            output_files.append(output_file)
+        return output_files
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@mcp.tool()
+async def extract_slides_as_images(
+    ctx: Context,
+    file_path: str = Field(..., description='Path to a PPTX, PPT, or PDF file'),
+    output_dir: str = Field(..., description='Directory to save extracted slide images'),
+    dpi: int = Field(200, description='Image resolution in DPI (default: 200)', ge=72, le=600),
+    timeout_seconds: int = Field(
+        120, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
+    ),
+) -> SlidesExtractionResponse:
+    """Extract slides/pages as individual PNG images from PPTX, PPT, or PDF files.
+
+    Requires LibreOffice (soffice) for PPTX/PPT conversion and poppler-utils
+    (pdftoppm) for PDF-to-image rendering. Use read_image to view individual
+    slide images from the output.
+    """
+    # Check soffice availability for presentation files
+    suffix = Path(file_path).suffix.lower()
+    if suffix in {'.pptx', '.ppt'}:
+        soffice_error = _check_soffice_available()
+        if soffice_error:
+            return SlidesExtractionResponse(
+                status='error',
+                slide_count=0,
+                file_path=file_path,
+                output_dir='',
+                error_message=soffice_error,
+            )
+
+    # Validate file path
+    validation_error = validate_file_path(ctx, file_path)
+    if validation_error:
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=validation_error,
+        )
+
+    try:
+        loop = asyncio.get_event_loop()
+        slide_files = await asyncio.wait_for(
+            loop.run_in_executor(None, _extract_slides_sync, file_path, output_dir, dpi, 'png'),
+            timeout=timeout_seconds,
+        )
+        return SlidesExtractionResponse(
+            status='success',
+            slide_images=slide_files,
+            slide_count=len(slide_files),
+            file_path=file_path,
+            output_dir=output_dir,
+            error_message=None,
+        )
+    except asyncio.TimeoutError:
+        error_msg = f'Slide extraction timed out after {timeout_seconds} seconds for {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=error_msg,
+        )
+    except Exception as e:
+        error_msg = f'Error extracting slides from {file_path}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=error_msg,
+        )
 
 
 def main():
