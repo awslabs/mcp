@@ -17,13 +17,15 @@
 import diagrams
 import importlib
 import inspect
+import json
 import logging
 import os
-import re
-import signal
-import tempfile
-import threading
+import subprocess
 import uuid
+from awslabs.aws_diagram_mcp_server._sandbox_runner import (
+    _SAFE_BUILTINS,  # noqa: F401
+    _safe_urlretrieve,  # noqa: F401
+)
 from awslabs.aws_diagram_mcp_server.models import (
     DiagramExampleResponse,
     DiagramGenerateResponse,
@@ -32,142 +34,9 @@ from awslabs.aws_diagram_mcp_server.models import (
 )
 from awslabs.aws_diagram_mcp_server.scanner import scan_python_code
 from typing import Optional
-from urllib.parse import urlparse
-from urllib.request import urlretrieve as _real_urlretrieve
 
 
 logger = logging.getLogger(__name__)
-
-# Allowed image extensions for icon downloads via urlretrieve.
-_ALLOWED_ICON_EXTENSIONS = frozenset(
-    {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.bmp', '.webp'}
-)
-
-
-def _safe_urlretrieve(url: str, filename: str = '') -> tuple:
-    """Download an icon file for use with Custom diagram nodes.
-
-    Validates URL scheme and filename to restrict downloads to HTTP(S) image
-    files and writes into an isolated temporary directory to reduce the risk of
-    arbitrary file writes. This helper does not by itself prevent SSRF; callers
-    must ensure URLs are trusted.
-
-    Args:
-        url: HTTP/HTTPS URL to download from.
-        filename: Desired filename (basename only, must be an image extension).
-
-    Returns:
-        Tuple of (local_path, headers) matching urllib.request.urlretrieve API.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme not in ('http', 'https'):
-        raise ValueError(f'Only http/https URLs are allowed, got: {parsed.scheme!r}')
-
-    # Use URL basename as filename if not provided
-    if not filename:
-        filename = os.path.basename(parsed.path) or 'icon.png'
-
-    # Sanitize filename: strip path components to prevent traversal
-    safe_name = os.path.basename(filename)
-    if not safe_name:
-        raise ValueError('Filename cannot be empty')
-
-    _, ext = os.path.splitext(safe_name)
-    if ext.lower() not in _ALLOWED_ICON_EXTENSIONS:
-        raise ValueError(
-            f'Only image files are allowed '
-            f'({", ".join(sorted(_ALLOWED_ICON_EXTENSIONS))}), got: {ext!r}'
-        )
-
-    # Download to a per-invocation unique temp directory to avoid symlink attacks
-    download_dir = tempfile.mkdtemp(prefix='diagram-icons-')
-    download_path = os.path.join(download_dir, safe_name)
-
-    _, headers = _real_urlretrieve(url, download_path)  # nosec B310 - scheme validated above
-    return download_path, headers
-
-
-# Restricted builtins for user code execution. Excludes dangerous functions
-# (__import__, exec, eval, compile, open, getattr, setattr, delattr, globals,
-# locals, vars, breakpoint) to provide defense-in-depth against scanner bypasses.
-_SAFE_BUILTINS = {
-    # Constants
-    'True': True,
-    'False': False,
-    'None': None,
-    # Types
-    'bool': bool,
-    'int': int,
-    'float': float,
-    'str': str,
-    'list': list,
-    'tuple': tuple,
-    'dict': dict,
-    'set': set,
-    'frozenset': frozenset,
-    'bytes': bytes,
-    'bytearray': bytearray,
-    'complex': complex,
-    'slice': slice,
-    'object': object,
-    'type': type,
-    'super': super,
-    'property': property,
-    'classmethod': classmethod,
-    'staticmethod': staticmethod,
-    # Safe functions
-    'abs': abs,
-    'all': all,
-    'any': any,
-    'ascii': ascii,
-    'bin': bin,
-    'callable': callable,
-    'chr': chr,
-    'divmod': divmod,
-    'enumerate': enumerate,
-    'filter': filter,
-    'format': format,
-    'hash': hash,
-    'hex': hex,
-    'id': id,
-    'isinstance': isinstance,
-    'issubclass': issubclass,
-    'iter': iter,
-    'len': len,
-    'map': map,
-    'max': max,
-    'min': min,
-    'next': next,
-    'oct': oct,
-    'ord': ord,
-    'pow': pow,
-    'print': print,
-    'range': range,
-    'repr': repr,
-    'reversed': reversed,
-    'round': round,
-    'sorted': sorted,
-    'sum': sum,
-    'zip': zip,
-    # Exceptions
-    'ArithmeticError': ArithmeticError,
-    'AssertionError': AssertionError,
-    'AttributeError': AttributeError,
-    'EOFError': EOFError,
-    'Exception': Exception,
-    'IndexError': IndexError,
-    'KeyError': KeyError,
-    'LookupError': LookupError,
-    'NameError': NameError,
-    'NotImplementedError': NotImplementedError,
-    'OSError': OSError,
-    'OverflowError': OverflowError,
-    'RuntimeError': RuntimeError,
-    'StopIteration': StopIteration,
-    'TypeError': TypeError,
-    'ValueError': ValueError,
-    'ZeroDivisionError': ZeroDivisionError,
-}
 
 
 async def generate_diagram(
@@ -241,256 +110,50 @@ async def generate_diagram(
         output_path = os.path.join(output_dir, simple_filename)
 
     try:
-        # Create a namespace for execution
-        namespace = {}
+        # Execute user code in an isolated subprocess for defense-in-depth.
+        # Process isolation ensures user code runs independently of the
+        # MCP server process.
+        import sys
 
-        # Import necessary modules directly in the namespace
-        # Security: Do NOT import 'os' or bare 'diagrams' into the namespace.
-        # The 'os' module exposes os.system/os.popen which can be aliased to bypass
-        # the scanner (CVE: variable aliasing RCE). The bare 'diagrams' module leaks
-        # 'os' via diagrams.os since the package imports os at module level.
-        # The diagrams package uses os internally via its own module-level import,
-        # so user code does not need os in the execution namespace.
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            'from diagrams import Diagram, Cluster, Edge', namespace
-        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
-        # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            """from diagrams.saas.crm import *
-from diagrams.saas.identity import *
-from diagrams.saas.chat import *
-from diagrams.saas.recommendation import *
-from diagrams.saas.cdn import *
-from diagrams.saas.communication import *
-from diagrams.saas.media import *
-from diagrams.saas.logging import *
-from diagrams.saas.security import *
-from diagrams.saas.social import *
-from diagrams.saas.alerting import *
-from diagrams.saas.analytics import *
-from diagrams.saas.automation import *
-from diagrams.saas.filesharing import *
-from diagrams.onprem.vcs import *
-from diagrams.onprem.database import *
-from diagrams.onprem.gitops import *
-from diagrams.onprem.workflow import *
-from diagrams.onprem.etl import *
-from diagrams.onprem.inmemory import *
-from diagrams.onprem.identity import *
-from diagrams.onprem.network import *
-from diagrams.onprem.proxmox import *
-from diagrams.onprem.cd import *
-from diagrams.onprem.container import *
-from diagrams.onprem.certificates import *
-from diagrams.onprem.mlops import *
-from diagrams.onprem.dns import *
-from diagrams.onprem.compute import *
-from diagrams.onprem.logging import *
-from diagrams.onprem.registry import *
-from diagrams.onprem.security import *
-from diagrams.onprem.client import *
-from diagrams.onprem.groupware import *
-from diagrams.onprem.iac import *
-from diagrams.onprem.analytics import *
-from diagrams.onprem.messaging import *
-from diagrams.onprem.tracing import *
-from diagrams.onprem.ci import *
-from diagrams.onprem.search import *
-from diagrams.onprem.storage import *
-from diagrams.onprem.auth import *
-from diagrams.onprem.monitoring import *
-from diagrams.onprem.aggregator import *
-from diagrams.onprem.queue import *
-from diagrams.gis.database import *
-from diagrams.gis.cli import *
-from diagrams.gis.server import *
-from diagrams.gis.python import *
-from diagrams.gis.organization import *
-from diagrams.gis.cplusplus import *
-from diagrams.gis.mobile import *
-from diagrams.gis.javascript import *
-from diagrams.gis.desktop import *
-from diagrams.gis.ogc import *
-from diagrams.gis.java import *
-from diagrams.gis.routing import *
-from diagrams.gis.data import *
-from diagrams.gis.geocoding import *
-from diagrams.gis.format import *
-from diagrams.elastic.saas import *
-from diagrams.elastic.observability import *
-from diagrams.elastic.elasticsearch import *
-from diagrams.elastic.orchestration import *
-from diagrams.elastic.security import *
-from diagrams.elastic.beats import *
-from diagrams.elastic.enterprisesearch import *
-from diagrams.elastic.agent import *
-from diagrams.programming.runtime import *
-from diagrams.programming.framework import *
-from diagrams.programming.flowchart import *
-from diagrams.programming.language import *
-from diagrams.gcp.storage import *
-from diagrams.generic.database import *
-from diagrams.generic.blank import *
-from diagrams.generic.network import *
-from diagrams.generic.virtualization import *
-from diagrams.generic.place import *
-from diagrams.generic.device import *
-from diagrams.generic.compute import *
-from diagrams.generic.os import *
-from diagrams.generic.storage import *
-from diagrams.k8s.others import *
-from diagrams.k8s.rbac import *
-from diagrams.k8s.network import *
-from diagrams.k8s.ecosystem import *
-from diagrams.k8s.compute import *
-from diagrams.k8s.chaos import *
-from diagrams.k8s.infra import *
-from diagrams.k8s.podconfig import *
-from diagrams.k8s.controlplane import *
-from diagrams.k8s.clusterconfig import *
-from diagrams.k8s.storage import *
-from diagrams.k8s.group import *
-from diagrams.aws.cost import *
-from diagrams.aws.ar import *
-from diagrams.aws.general import *
-from diagrams.aws.database import *
-from diagrams.aws.management import *
-from diagrams.aws.ml import *
-from diagrams.aws.game import *
-from diagrams.aws.enablement import *
-from diagrams.aws.network import *
-from diagrams.aws.quantum import *
-from diagrams.aws.iot import *
-from diagrams.aws.robotics import *
-from diagrams.aws.migration import *
-from diagrams.aws.mobile import *
-from diagrams.aws.compute import *
-from diagrams.aws.media import *
-from diagrams.aws.engagement import *
-from diagrams.aws.security import *
-from diagrams.aws.devtools import *
-from diagrams.aws.integration import *
-from diagrams.aws.business import *
-from diagrams.aws.analytics import *
-from diagrams.aws.blockchain import *
-from diagrams.aws.storage import *
-from diagrams.aws.satellite import *
-from diagrams.aws.enduser import *
-""",
-            namespace,
+        sandbox_config = json.dumps({'code': code, 'output_path': output_path})
+        result = subprocess.run(  # nosec B603 - args are not user-controlled
+            [
+                sys.executable,
+                '-m',
+                'awslabs.aws_diagram_mcp_server._sandbox_runner',
+            ],
+            input=sandbox_config,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
-        # Inject safe urlretrieve wrapper instead of the raw urllib function.
-        # The raw urlretrieve allows arbitrary file writes to any path; the safe
-        # wrapper validates URL scheme, filename extension, and downloads to a
-        # temp directory only.
-        namespace['urlretrieve'] = _safe_urlretrieve
 
-        # Restrict __builtins__ to a safe subset. This must happen AFTER the
-        # import exec() calls above (which need full builtins) but BEFORE the
-        # user code exec(). Removes __import__, exec, eval, compile, open,
-        # getattr/setattr/delattr, globals/locals/vars, and breakpoint.
-        namespace['__builtins__'] = _SAFE_BUILTINS
-
-        # Process the code to ensure show=False and set the output path
-        if 'with Diagram(' in code:
-            # Find all instances of Diagram constructor
-            diagram_pattern = r'with\s+Diagram\s*\((.*?)\)'
-            matches = re.findall(diagram_pattern, code)
-
-            for match in matches:
-                # Get the original arguments
-                original_args = match.strip()
-
-                # Check if show parameter is already set
-                has_show = 'show=' in original_args
-                has_filename = 'filename=' in original_args
-
-                # Prepare new arguments
-                new_args = original_args
-
-                # Add or replace parameters as needed
-                # If filename is already set, we need to replace it with our output_path
-                if has_filename:
-                    # Replace the existing filename parameter
-                    filename_pattern = r'filename\s*=\s*[\'"]([^\'"]*)[\'"]'
-                    new_args = re.sub(filename_pattern, f"filename='{output_path}'", new_args)
-                else:
-                    # Add the filename parameter
-                    if new_args and not new_args.endswith(','):
-                        new_args += ', '
-                    new_args += f"filename='{output_path}'"
-
-                # Add show=False if not already set
-                if not has_show:
-                    if new_args and not new_args.endswith(','):
-                        new_args += ', '
-                    new_args += 'show=False'
-
-                # Replace in the code
-                code = code.replace(f'with Diagram({original_args})', f'with Diagram({new_args})')
-
-        # Execute the code with a platform-aware timeout.
-        # SIGALRM is POSIX-only and unavailable on Windows, so we use
-        # a threading-based approach on platforms without it.
-        if hasattr(signal, 'SIGALRM'):
-
-            def timeout_handler(signum, frame):
-                raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
-
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
-            try:
-                # nosec B102 - exec is necessary to run user-provided diagram code
-                exec(
-                    code, namespace
-                )  # nosem: python.lang.security.audit.exec-detected.exec-detected
-            finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-        else:
-            # Windows / non-POSIX: use a daemon thread with a timeout.
-            # Note: if the thread times out, the daemon thread continues running
-            # in the background until the process exits. This is acceptable because
-            # diagram generation has no dangerous side effects beyond writing a file.
-            exec_exception: list = []
-
-            def _run_code():
-                try:
-                    # nosec B102 - exec is necessary to run user-provided diagram code
-                    exec(
-                        code, namespace
-                    )  # nosem: python.lang.security.audit.exec-detected.exec-detected
-                except Exception as exc:
-                    exec_exception.append(exc)
-
-            worker = threading.Thread(target=_run_code, daemon=True)
-            worker.start()
-            worker.join(timeout=timeout)
-            if worker.is_alive():
-                raise TimeoutError(f'Diagram generation timed out after {timeout} seconds')
-            if exec_exception:
-                raise exec_exception[0]
-
-        # Check if the file was created
-        png_path = f'{output_path}.png'
-        if os.path.exists(png_path):
-            response = DiagramGenerateResponse(
-                status='success',
-                path=png_path,
-                message=f'Diagram generated successfully at {png_path}',
-            )
-
-            return response
-        else:
+        if result.returncode != 0 and not result.stdout.strip():
+            stderr_msg = result.stderr.strip() if result.stderr else 'Unknown error'
             return DiagramGenerateResponse(
                 status='error',
-                message='Diagram file was not created. Check your code for errors.',
+                message=f'Sandbox process failed: {stderr_msg}',
             )
-    except TimeoutError as e:
-        return DiagramGenerateResponse(status='error', message=str(e))
+
+        try:
+            sandbox_result = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return DiagramGenerateResponse(
+                status='error',
+                message=f'Sandbox produced invalid output: {result.stdout[:200]}',
+            )
+
+        return DiagramGenerateResponse(
+            status=sandbox_result.get('status', 'error'),
+            path=sandbox_result.get('path'),
+            message=sandbox_result.get('message', 'Unknown result'),
+        )
+    except subprocess.TimeoutExpired:
+        return DiagramGenerateResponse(
+            status='error',
+            message=f'Diagram generation timed out after {timeout} seconds',
+        )
     except Exception as e:
-        # More detailed error logging
         error_type = type(e).__name__
         error_message = str(e)
         return DiagramGenerateResponse(
