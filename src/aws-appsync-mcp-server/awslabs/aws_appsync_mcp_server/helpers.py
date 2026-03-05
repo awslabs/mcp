@@ -27,7 +27,7 @@ def get_appsync_client():
     from awslabs.aws_appsync_mcp_server import __version__
 
     # Create config with user agent
-    config = Config(user_agent_extra=f'awslabs/mcp/aws-appsync-mcp-server/{__version__}')
+    config = Config(user_agent_extra=f'md/awslabs#mcp#aws-appsync-mcp-server#{__version__}')
     try:
         session = boto3.Session(
             profile_name=os.getenv('AWS_PROFILE'), region_name=os.getenv('AWS_REGION', 'us-east-1')
