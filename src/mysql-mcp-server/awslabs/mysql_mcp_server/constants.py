@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.postgres-mcp-server"""
+from awslabs.mysql_mcp_server import __version__
+from botocore.config import Config
 
-from importlib.metadata import version
 
-try:
-    __version__ = version('awslabs.postgres-mcp-server')
-except Exception:
-    __version__ = '1.0.18'
-
-__user_agent__ = f'md/awslabs#mcp#postgres-mcp-server#{__version__}'
+# User agent configuration for AWS service calls
+USER_AGENT_EXTRA = f'md/awslabs#mcp#mysql-mcp-server#{__version__}'
+USER_AGENT_CONFIG = Config(user_agent_extra=USER_AGENT_EXTRA)

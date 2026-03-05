@@ -14,6 +14,7 @@
 
 import boto3
 import json
+from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
 from awslabs.amazon_neptune_mcp_server.models import (
@@ -55,7 +56,7 @@ class NeptuneAnalytics(NeptuneGraph):
             else:
                 session = boto3.Session(profile_name=credentials_profile_name)
 
-            self.client = session.client('neptune-graph')
+            self.client = session.client('neptune-graph', config=USER_AGENT_CONFIG)
 
         except Exception as e:
             logger.exception(
