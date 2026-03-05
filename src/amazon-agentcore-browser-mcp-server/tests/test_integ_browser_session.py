@@ -308,6 +308,11 @@ class TestSessionLifecycle:
     Tests run in definition order and share state via class attributes.
     """
 
+    _ctx: MagicMock
+    _conn_mgr: BrowserConnectionManager
+    _session_tools: BrowserSessionTools
+    _session_id: str
+
     async def test_start_session(self):
         """Start a session with default parameters."""
         cls = type(self)
@@ -335,6 +340,7 @@ class TestSessionLifecycle:
         conn_mgr2 = BrowserConnectionManager()
         session_tools2 = BrowserSessionTools(connection_manager=conn_mgr2)
 
+        result = None
         try:
             result = await session_tools2.start_browser_session(
                 ctx=ctx,
@@ -404,18 +410,18 @@ class TestSessionLifecycle:
 class TestNavigationAndObservation:
     """Integration tests for 3 navigation tools and 6 observation tools."""
 
+    _viewport_screenshot_len: int
+
     async def test_navigate(self, nav_env):
-        """Navigate to about:blank and verify the tool returns a result."""
-        # AgentCore browser blocks external URLs, so we test navigation
-        # with about:blank and verify the tool's return format.
+        """Navigate to example.com and verify the tool returns a result."""
         result = await nav_env['nav'].browser_navigate(
             ctx=nav_env['ctx'],
             session_id=nav_env['sid'],
-            url='about:blank',
+            url='https://example.com',
         )
 
         assert 'Navigated to' in result
-        assert 'about:blank' in result
+        assert 'example.com' in result
 
     async def test_snapshot(self, nav_env):
         """Take an accessibility tree snapshot of an injected page."""
@@ -858,6 +864,32 @@ class TestInteractionAndForms:
 
         assert 'Pressed key: Control+a' in result
 
+    async def test_mouse_wheel_down(self, form_env):
+        """Scroll down by default amount."""
+        ctx, sid = form_env['ctx'], form_env['sid']
+        interaction = form_env['interaction']
+
+        result = await interaction.browser_mouse_wheel(
+            ctx=ctx,
+            session_id=sid,
+            delta_y=300,
+        )
+
+        assert 'Scrolled down by 300px' in result
+
+    async def test_mouse_wheel_up(self, form_env):
+        """Scroll up."""
+        ctx, sid = form_env['ctx'], form_env['sid']
+        interaction = form_env['interaction']
+
+        result = await interaction.browser_mouse_wheel(
+            ctx=ctx,
+            session_id=sid,
+            delta_y=-200,
+        )
+
+        assert 'Scrolled up by 200px' in result
+
     async def test_upload_file(self, form_env):
         """Upload a file to a file input element."""
         ctx, sid = form_env['ctx'], form_env['sid']
@@ -986,14 +1018,14 @@ class TestManagement:
         assert 'Opened new tab' in result
 
     async def test_tabs_new_with_url(self, mgmt_env):
-        """Open a new tab with a URL (about:blank since external URLs are blocked)."""
+        """Open a new tab with a URL."""
         ctx, sid, mgmt = mgmt_env['ctx'], mgmt_env['sid'], mgmt_env['mgmt']
 
         result = await mgmt.browser_tabs(
             ctx=ctx,
             session_id=sid,
             action='new',
-            url='about:blank',
+            url='https://example.com',
         )
 
         assert 'Opened new tab' in result

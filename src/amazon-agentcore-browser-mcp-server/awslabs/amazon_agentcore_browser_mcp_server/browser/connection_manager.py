@@ -165,6 +165,10 @@ class BrowserConnectionManager:
         """Check if a session has an active Playwright connection."""
         return session_id in self._connections
 
+    def get_session_ids(self) -> list[str]:
+        """Return all tracked session IDs."""
+        return list(self._connections.keys())
+
     async def set_dialog_handler(
         self,
         session_id: str,

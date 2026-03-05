@@ -25,6 +25,7 @@ from awslabs.amazon_agentcore_browser_mcp_server.tools.error_handler import (
 )
 from awslabs.amazon_agentcore_browser_mcp_server.tools.navigation import (
     NAVIGATION_TIMEOUT_MS,
+    _validate_url_scheme,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -100,6 +101,10 @@ class ManagementTools:
                 return '\n'.join(lines)
 
             elif action == 'new':
+                if url:
+                    scheme_error = _validate_url_scheme(url)
+                    if scheme_error:
+                        return scheme_error
                 new_page = await context.new_page()
                 try:
                     if url:
@@ -230,6 +235,12 @@ class ManagementTools:
         Returns the page snapshot at the new size.
         """
         logger.info(f'Resizing viewport to {width}x{height} in session {session_id}')
+
+        if not (100 <= width <= 7680) or not (100 <= height <= 4320):
+            return (
+                f'Error: Viewport dimensions out of bounds. '
+                f'Width must be 100-7680, height must be 100-4320. Got {width}x{height}.'
+            )
 
         page = None
         try:

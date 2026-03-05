@@ -133,12 +133,20 @@ class BrowserSessionTools:
             effective_region = region or getenv('AWS_REGION', None) or 'us-east-1'
             client = get_browser_client(effective_region)
 
+            vw = viewport_width or 1456
+            vh = viewport_height or 819
+            if not (100 <= vw <= 7680) or not (100 <= vh <= 4320):
+                raise ValueError(
+                    f'Viewport dimensions out of bounds. '
+                    f'Width must be 100-7680, height must be 100-4320. Got {vw}x{vh}.'
+                )
+
             params: dict = {
                 'browserIdentifier': browser_id,
                 'sessionTimeoutSeconds': timeout_seconds or 900,
                 'viewPort': {
-                    'width': viewport_width or 1456,
-                    'height': viewport_height or 819,
+                    'width': vw,
+                    'height': vh,
                 },
             }
             if extension_s3_url:
@@ -225,6 +233,7 @@ class BrowserSessionTools:
                 viewport_width=viewport.get('width'),
                 viewport_height=viewport.get('height'),
                 created_at=_to_str(response.get('createdAt')),
+                message=f'Session {session_id} status: {response.get("status", "UNKNOWN")}',
             )
 
         except Exception as e:

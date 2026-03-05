@@ -31,7 +31,7 @@ from os import getenv
 from playwright.async_api import Page
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from pydantic import Field
-from typing import Annotated
+from typing import Annotated, Literal
 
 
 INTERACTION_TIMEOUT_MS = int(getenv('BROWSER_INTERACTION_TIMEOUT_MS', '5000'))
@@ -90,7 +90,7 @@ class InteractionTools:
             Field(description='Double-click instead of single click'),
         ] = False,
         button: Annotated[
-            str,
+            Literal['left', 'middle', 'right'],
             Field(description='Mouse button: "left", "right", or "middle"'),
         ] = 'left',
     ) -> str:
@@ -296,7 +296,7 @@ class InteractionTools:
                 await locator.select_option(label=label, timeout=INTERACTION_TIMEOUT_MS)
             elif value is not None:
                 await locator.select_option(value=value, timeout=INTERACTION_TIMEOUT_MS)
-            elif index is not None:
+            else:
                 await locator.select_option(index=index, timeout=INTERACTION_TIMEOUT_MS)
 
         except RefNotFoundError:

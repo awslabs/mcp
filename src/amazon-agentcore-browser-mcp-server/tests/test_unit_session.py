@@ -126,6 +126,17 @@ class TestStartBrowserSession:
 
         mock_ctx.error.assert_awaited_once()
 
+    async def test_start_session_viewport_out_of_bounds(
+        self, session_tools, mock_ctx, mock_browser_client
+    ):
+        """Start session with viewport out of bounds raises ValueError."""
+        with pytest.raises(ValueError, match='out of bounds'):
+            await session_tools.start_browser_session(
+                ctx=mock_ctx, viewport_width=50, viewport_height=50
+            )
+
+        mock_ctx.error.assert_awaited_once()
+
     async def test_start_session_missing_streams(
         self, session_tools, mock_ctx, mock_browser_client
     ):
@@ -209,6 +220,27 @@ class TestStopBrowserSession:
             browserIdentifier='aws.browser.v1',
             sessionId='session-123',
         )
+
+    async def test_stop_session_no_connection_manager(self, mock_ctx, mock_browser_client):
+        """Stop session with no connection_manager skips disconnect."""
+        tools = BrowserSessionTools(connection_manager=None, snapshot_manager=MagicMock())
+        mock_browser_client.data_plane_client.stop_browser_session.return_value = {}
+
+        result = await tools.stop_browser_session(ctx=mock_ctx, session_id='session-123')
+
+        assert result.status == 'TERMINATED'
+
+    async def test_stop_session_no_snapshot_manager(self, mock_ctx, mock_browser_client):
+        """Stop session with no snapshot_manager skips cleanup."""
+        mock_cm = MagicMock()
+        mock_cm.disconnect = AsyncMock()
+        tools = BrowserSessionTools(connection_manager=mock_cm, snapshot_manager=None)
+        mock_browser_client.data_plane_client.stop_browser_session.return_value = {}
+
+        result = await tools.stop_browser_session(ctx=mock_ctx, session_id='session-123')
+
+        assert result.status == 'TERMINATED'
+        mock_cm.disconnect.assert_awaited_once()
 
     async def test_stop_session_api_error(self, session_tools, mock_ctx, mock_browser_client):
         """Stop session raises on API error."""

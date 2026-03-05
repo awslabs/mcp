@@ -28,9 +28,30 @@ from mcp.server.fastmcp import Context
 from os import getenv
 from pydantic import Field
 from typing import Annotated
+from urllib.parse import urlparse
 
 
 NAVIGATION_TIMEOUT_MS = int(getenv('BROWSER_NAVIGATION_TIMEOUT_MS', '30000'))
+
+_schemes_env = getenv('BROWSER_ALLOWED_URL_SCHEMES', 'http,https')
+ALLOWED_URL_SCHEMES: set[str] = {s.strip().lower() for s in _schemes_env.split(',') if s.strip()}
+
+
+def _validate_url_scheme(url: str) -> str | None:
+    """Validate URL scheme against allowed list. Returns error message or None."""
+    try:
+        parsed = urlparse(url)
+        scheme = (parsed.scheme or '').lower()
+    except Exception:
+        return f'Error: Could not parse URL "{url}".'
+    if not scheme:
+        return 'Error: No URL scheme provided. Use http:// or https://.'
+    if scheme not in ALLOWED_URL_SCHEMES:
+        return (
+            f'Error: URL scheme "{scheme}" is not allowed. '
+            f'Allowed schemes: {", ".join(sorted(ALLOWED_URL_SCHEMES))}.'
+        )
+    return None
 
 
 class NavigationTools:
@@ -69,7 +90,13 @@ class NavigationTools:
         of the loaded page. Use the element refs in the snapshot for
         subsequent interaction tools.
         """
-        logger.info(f'Navigating session {session_id} to {url}')
+        parsed = urlparse(url)
+        logger.info(f'Navigating session {session_id} to {parsed.scheme}://{parsed.hostname}')
+        logger.debug(f'Full navigation URL for session {session_id}: {url}')
+
+        scheme_error = _validate_url_scheme(url)
+        if scheme_error:
+            return scheme_error
 
         page = None
         try:

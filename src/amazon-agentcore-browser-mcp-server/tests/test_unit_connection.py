@@ -181,6 +181,14 @@ class TestGetPage:
 
         assert page is page2
 
+    async def test_get_context_returns_first_context(self, connection_manager, mock_browser):
+        """get_context returns the first browser context."""
+        connection_manager._connections['sess-1'] = mock_browser
+
+        context = connection_manager.get_context('sess-1')
+
+        assert context is mock_browser.contexts[0]
+
     async def test_get_page_no_connection(self, connection_manager):
         """Raises ValueError for unknown session."""
         with pytest.raises(ValueError, match='No connection'):
@@ -424,3 +432,85 @@ class TestDialogHandler:
     async def test_remove_dialog_handler_no_handler(self, connection_manager):
         """Remove dialog handler when none exists is a no-op."""
         await connection_manager.remove_dialog_handler('nonexistent')  # Should not raise
+
+    async def test_remove_dialog_handler_session_disconnected(
+        self, connection_manager, mock_browser
+    ):
+        """Remove dialog handler when session is already disconnected hits ValueError path."""
+        connection_manager._connections['sess-1'] = mock_browser
+        page = mock_browser.contexts[0].pages[0]
+        page.on = MagicMock()
+        page.remove_listener = MagicMock()
+
+        await connection_manager.set_dialog_handler('sess-1', action='accept')
+
+        # Simulate session being disconnected while handler still tracked
+        handler = connection_manager._dialog_handlers['sess-1']
+        del connection_manager._connections['sess-1']
+        connection_manager._dialog_handlers['sess-1'] = handler
+
+        await connection_manager.remove_dialog_handler('sess-1')
+        assert 'sess-1' not in connection_manager._dialog_handlers
+
+
+class TestReconnect:
+    """Tests for reconnecting to an already-connected session."""
+
+    @patch(PATCH_CLIENT)
+    @patch(PATCH_PW)
+    async def test_connect_reconnect_disconnects_first(
+        self,
+        mock_async_pw,
+        mock_get_client,
+        connection_manager,
+        mock_playwright,
+        mock_browser,
+        mock_sdk_client,
+    ):
+        """Connecting with an existing session_id disconnects the old session first."""
+        mock_async_pw.return_value.start = AsyncMock(return_value=mock_playwright)
+        mock_playwright.chromium.connect_over_cdp.return_value = mock_browser
+        mock_get_client.return_value = mock_sdk_client
+
+        await connection_manager.connect('sess-1', 'aws.browser.v1')
+        await connection_manager.connect('sess-1', 'aws.browser.v1')
+
+        # First browser should have been closed during reconnect
+        mock_browser.close.assert_awaited()
+
+
+class TestGetSessionIds:
+    """Tests for get_session_ids."""
+
+    async def test_get_session_ids(self, connection_manager, mock_browser):
+        """Returns all tracked session IDs."""
+        connection_manager._connections['sess-1'] = mock_browser
+        connection_manager._connections['sess-2'] = mock_browser
+
+        ids = connection_manager.get_session_ids()
+        assert set(ids) == {'sess-1', 'sess-2'}
+
+    async def test_get_session_ids_empty(self, connection_manager):
+        """Returns empty list when no sessions are tracked."""
+        assert connection_manager.get_session_ids() == []
+
+
+class TestCleanupEdgeCases:
+    """Additional cleanup edge case tests."""
+
+    async def test_cleanup_no_playwright(self, connection_manager):
+        """Cleanup when playwright was never started is a no-op."""
+        assert connection_manager._playwright is None
+        await connection_manager.cleanup()
+        assert connection_manager._playwright is None
+
+    async def test_cleanup_disconnect_raises(self, connection_manager):
+        """Cleanup catches exception when disconnect itself raises."""
+        connection_manager._connections['sess-1'] = MagicMock()
+
+        async def failing_disconnect(sid):
+            raise Exception('disconnect failed')
+
+        connection_manager.disconnect = failing_disconnect
+
+        await connection_manager.cleanup()  # Should not raise

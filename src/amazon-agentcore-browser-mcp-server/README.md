@@ -503,6 +503,37 @@ document.querySelector('.specific-selector').click()
 
 This gives you full CSS selector precision when the accessibility tree's element refs are ambiguous.
 
+## Security
+
+### Isolation Model
+
+Each browser session runs in an isolated **Firecracker microVM** managed by Amazon Bedrock AgentCore. The MCP server itself is a thin orchestration layer — it does not run a browser locally. JavaScript execution (`browser_evaluate`), file uploads, and all page interactions happen inside the remote microVM, not on the host running the MCP server.
+
+### IAM Least-Privilege
+
+The MCP server inherits the AWS credentials of its host process. Follow least-privilege IAM policies:
+- Grant only the AgentCore Browser actions needed (`bedrock:StartBrowserSession`, `bedrock:StopBrowserSession`, `bedrock:GetBrowserSession`, `bedrock:ListBrowserSessions`).
+- Scope credentials to specific regions and resources where possible.
+
+### Security Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `BROWSER_ALLOWED_URL_SCHEMES` | Comma-separated list of allowed URL schemes for navigation | `http,https` |
+| `BROWSER_DISABLE_EVALUATE` | Set to `true` to disable the `browser_evaluate` tool entirely | `false` |
+
+- **`BROWSER_ALLOWED_URL_SCHEMES`** — Blocks navigation to non-allowed schemes (e.g., `javascript:`, `file:`, `data:`). Requests with blocked schemes return an error without navigating.
+- **`BROWSER_DISABLE_EVALUATE`** — Prevents the `browser_evaluate` tool from being registered. Use this in deployments where arbitrary JavaScript execution is not desired.
+
+### Local-Mode Development
+
+If you connect the MCP server to a local browser (instead of AgentCore), be aware that:
+- File upload paths resolve on **your local filesystem**, not a remote microVM.
+- JavaScript evaluation runs in **your local browser context**.
+- There is no Firecracker isolation boundary.
+
+Local-mode usage should be limited to development and testing environments.
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -512,8 +543,10 @@ This gives you full CSS selector precision when the accessibility tree's element
 | `BROWSER_IDENTIFIER` | AgentCore browser resource ID | `aws.browser.v1` |
 | `BROWSER_NAVIGATION_TIMEOUT_MS` | Timeout for page navigation in milliseconds | `30000` |
 | `BROWSER_INTERACTION_TIMEOUT_MS` | Timeout for element interactions in milliseconds | `5000` |
+| `BROWSER_ALLOWED_URL_SCHEMES` | Comma-separated list of allowed URL schemes | `http,https` |
+| `BROWSER_DISABLE_EVALUATE` | Disable `browser_evaluate` tool (`true`/`false`) | `false` |
 | `FASTMCP_LOG_LEVEL` | Log level for the MCP server (FastMCP framework) | `INFO` |
 
 ## License
 
-Apache-2.0. See [LICENSE](../../LICENSE).
+Apache-2.0. See the LICENSE file in this directory.

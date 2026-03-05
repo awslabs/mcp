@@ -184,7 +184,8 @@ class SnapshotManager:
         self._previous_snapshots[session_id] = formatted
 
         logger.debug(f'Captured snapshot with {self._ref_counters[session_id]} refs')
-        return warning_prefix + formatted
+        content = warning_prefix + formatted
+        return f'--- PAGE CONTENT START ---\n{content}\n--- PAGE CONTENT END ---'
 
     async def _resolve_selector(self, cdp, selector: str) -> int | None:
         """Resolve a CSS selector to a backend DOM node ID.

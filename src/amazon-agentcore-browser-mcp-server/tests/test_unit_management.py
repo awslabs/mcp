@@ -433,6 +433,145 @@ class TestBrowserResize:
         assert 'No page' in result
 
 
+class TestBrowserTabsEdgeCases:
+    """Additional edge-case tests for browser_tabs."""
+
+    async def test_new_tab_invalid_scheme(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_browser
+    ):
+        """New tab with invalid URL scheme returns error."""
+        _setup_browser(mock_connection_manager, mock_browser)
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='new', url='ftp://evil.com'
+        )
+
+        assert 'Error' in result
+        assert 'scheme' in result.lower()
+
+    async def test_close_tab_no_remaining_pages(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Close tab when no pages remain returns plain message without snapshot."""
+        page1 = MagicMock()
+        page1.title = AsyncMock(return_value='Tab One')
+        page1.close = AsyncMock()
+        page2 = MagicMock()
+        page2.title = AsyncMock(return_value='Tab Two')
+        page2.close = AsyncMock()
+
+        context = MagicMock()
+        context.pages = [page1, page2]
+        mock_connection_manager.get_context.return_value = context
+
+        # After close, context.pages becomes empty
+        async def close_page():
+            context.pages = []
+
+        page2.close = AsyncMock(side_effect=close_page)
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='close', tab_index=1
+        )
+
+        assert 'Closed tab [1]' in result
+        assert '0 tab(s) remaining' in result
+        mock_snapshot_manager.capture.assert_not_awaited()
+
+    async def test_tabs_generic_exception_snapshot_also_fails(
+        self, management_tools, mock_ctx, mock_connection_manager
+    ):
+        """Generic exception when both tab operation and snapshot fallback fail."""
+        mock_connection_manager.get_context.side_effect = Exception('CDP error')
+        mock_connection_manager.get_page.side_effect = Exception('Page also gone')
+
+        result = await management_tools.browser_tabs(
+            ctx=mock_ctx, session_id='sess-1', action='list'
+        )
+
+        assert 'CDP error' in result
+
+
+class TestBrowserCloseEdgeCases:
+    """Additional edge-case tests for browser_close."""
+
+    async def test_close_page_post_close_context_raises(
+        self,
+        management_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_browser,
+    ):
+        """Close page returns plain message when post-close get_context raises ValueError."""
+        page = MagicMock()
+        page.title = AsyncMock(return_value='Closing Page')
+        page.url = 'https://example.com'
+        page.close = AsyncMock()
+        mock_connection_manager.get_page.return_value = page
+
+        # First call succeeds (line 186), second call raises ValueError (line 197)
+        call_count = [0]
+
+        def get_context_side_effect(sid):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                ctx = MagicMock()
+                ctx.pages = [page, MagicMock()]  # 2 pages so close is allowed
+                return ctx
+            raise ValueError('No context after close')
+
+        mock_connection_manager.get_context.side_effect = get_context_side_effect
+
+        result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Closed page: Closing Page' in result
+        mock_snapshot_manager.capture.assert_not_awaited()
+
+    async def test_close_page_post_close_empty_pages(
+        self, management_tools, mock_ctx, mock_connection_manager, mock_snapshot_manager
+    ):
+        """Close page when post-close context has empty pages returns plain message."""
+        page = MagicMock()
+        page.title = AsyncMock(return_value='Closing Page')
+        page.url = 'https://example.com'
+        page.close = AsyncMock()
+        mock_connection_manager.get_page.return_value = page
+
+        call_count = [0]
+
+        def get_context_side_effect(sid):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                ctx = MagicMock()
+                ctx.pages = [page, MagicMock()]
+                return ctx
+            # Second call: context exists but pages is empty
+            ctx = MagicMock()
+            ctx.pages = []
+            return ctx
+
+        mock_connection_manager.get_context.side_effect = get_context_side_effect
+
+        result = await management_tools.browser_close(ctx=mock_ctx, session_id='sess-1')
+
+        assert 'Closed page: Closing Page' in result
+        mock_snapshot_manager.capture.assert_not_awaited()
+
+
+class TestBrowserResizeEdgeCases:
+    """Additional edge-case tests for browser_resize."""
+
+    async def test_resize_out_of_bounds(self, management_tools, mock_ctx, mock_connection_manager):
+        """Resize with too-small dimensions returns bounds error."""
+        result = await management_tools.browser_resize(
+            ctx=mock_ctx, session_id='sess-1', width=50, height=50
+        )
+
+        assert 'Error' in result
+        assert 'out of bounds' in result
+
+
 class TestToolRegistration:
     """Tests for management tool registration."""
 

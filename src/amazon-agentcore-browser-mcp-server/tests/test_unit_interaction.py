@@ -29,7 +29,7 @@ from awslabs.amazon_agentcore_browser_mcp_server.tools.interaction import (
 from awslabs.amazon_agentcore_browser_mcp_server.tools.navigation import NavigationTools
 from awslabs.amazon_agentcore_browser_mcp_server.tools.observation import ObservationTools
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
@@ -170,6 +170,45 @@ class TestNavigationTools:
 
         assert 'Error' in result
         assert 'Navigation failed' in result
+
+    def test_validate_url_scheme_parse_error(self):
+        """_validate_url_scheme returns error when urlparse raises."""
+        from awslabs.amazon_agentcore_browser_mcp_server.tools.navigation import (
+            _validate_url_scheme,
+        )
+
+        with patch(
+            'awslabs.amazon_agentcore_browser_mcp_server.tools.navigation.urlparse',
+            side_effect=ValueError('Bad URL'),
+        ):
+            result = _validate_url_scheme(':::bad')
+
+        assert result is not None
+        assert 'Could not parse' in result
+
+    def test_validate_url_scheme_empty_string(self):
+        """Empty URL string has no scheme and returns a clear error."""
+        from awslabs.amazon_agentcore_browser_mcp_server.tools.navigation import (
+            _validate_url_scheme,
+        )
+
+        result = _validate_url_scheme('')
+        assert result is not None
+        assert 'No URL scheme provided' in result
+
+    async def test_navigate_invalid_scheme(
+        self, nav_tools, mock_ctx, mock_connection_manager, mock_page
+    ):
+        """Navigate with disallowed URL scheme returns error without navigating."""
+        mock_connection_manager.get_page.return_value = mock_page
+
+        result = await nav_tools.browser_navigate(
+            ctx=mock_ctx, session_id='sess-1', url='ftp://example.com'
+        )
+
+        assert 'Error' in result
+        assert 'scheme' in result.lower()
+        mock_page.goto.assert_not_awaited()
 
 
 class TestInteractionTools:
@@ -779,6 +818,26 @@ class TestInteractionTools:
         mock_locator.select_option.assert_awaited_once_with(index=2, timeout=5000)
         assert 'index 2' in result
 
+    async def test_select_option_by_index_zero(
+        self,
+        interaction_tools,
+        mock_ctx,
+        mock_connection_manager,
+        mock_snapshot_manager,
+        mock_page,
+        mock_locator,
+    ):
+        """Select option by index 0 (falsy but valid) calls select_option."""
+        mock_connection_manager.get_page.return_value = mock_page
+        mock_snapshot_manager.resolve_ref.return_value = mock_locator
+
+        result = await interaction_tools.browser_select_option(
+            ctx=mock_ctx, session_id='sess-1', ref='e1', index=0
+        )
+
+        mock_locator.select_option.assert_awaited_once_with(index=0, timeout=5000)
+        assert 'index 0' in result
+
     async def test_hover_generic_error(
         self,
         interaction_tools,
@@ -1212,3 +1271,18 @@ class TestObservationTools:
         result = await obs_tools.browser_wait_for(ctx=mock_ctx, session_id='sess-1', text='Hello')
 
         assert 'Error' in result or 'No session' in result
+
+    def test_register_evaluate_disabled(self, mock_connection_manager, mock_snapshot_manager):
+        """browser_evaluate is not registered when BROWSER_EVALUATE_DISABLED is True."""
+        with patch(
+            'awslabs.amazon_agentcore_browser_mcp_server.tools.observation.BROWSER_EVALUATE_DISABLED',
+            True,
+        ):
+            obs = ObservationTools(mock_connection_manager, mock_snapshot_manager)
+            mock_mcp = MagicMock()
+            mock_mcp.tool.return_value = lambda fn: fn
+            obs.register(mock_mcp)
+
+            tool_names = [call.kwargs['name'] for call in mock_mcp.tool.call_args_list]
+            assert 'browser_evaluate' not in tool_names
+            assert 'browser_snapshot' in tool_names

@@ -594,6 +594,141 @@ class TestScopedSnapshot:
         assert 'Home' in result
 
 
+class TestFormatCdpNode:
+    """Tests for _format_cdp_node edge cases."""
+
+    def test_format_cdp_node_missing_node(self, snapshot_manager):
+        """_format_cdp_node returns early when node_id not in node_map."""
+        lines = []
+        snapshot_manager._format_cdp_node(
+            'nonexistent', {}, {}, lines, indent=0, session_id='sess-1'
+        )
+        assert lines == []
+
+    def test_format_node_non_dict_value(self, snapshot_manager):
+        """Node with non-dict value is handled without error."""
+        node = {
+            'nodeId': '1',
+            'role': {'value': 'textbox'},
+            'name': {'value': 'Input'},
+            'properties': [],
+            'value': 'plain_string',
+        }
+        lines = []
+        snapshot_manager._ref_counters = {'sess-1': 0}
+        snapshot_manager._ref_maps = {'sess-1': {}}
+        snapshot_manager._nth_counters = {'sess-1': {}}
+        snapshot_manager._format_cdp_node(
+            '1', {'1': node}, {}, lines, indent=0, session_id='sess-1'
+        )
+        assert len(lines) == 1
+        assert 'textbox' in lines[0]
+        assert 'value=' not in lines[0]
+
+    def test_format_node_unrecognized_property(self, snapshot_manager):
+        """Node with an unrecognized property name does not include it in output."""
+        node = {
+            'nodeId': '1',
+            'role': {'value': 'button'},
+            'name': {'value': 'OK'},
+            'properties': [
+                {'name': 'unknown_prop', 'value': {'type': 'string', 'value': 'foo'}},
+            ],
+        }
+        lines = []
+        snapshot_manager._ref_counters = {'sess-1': 0}
+        snapshot_manager._ref_maps = {'sess-1': {}}
+        snapshot_manager._nth_counters = {'sess-1': {}}
+        snapshot_manager._format_cdp_node(
+            '1', {'1': node}, {}, lines, indent=0, session_id='sess-1'
+        )
+        assert len(lines) == 1
+        assert 'unknown_prop' not in lines[0]
+        assert 'ref=e1' in lines[0]
+
+    def test_format_node_no_children_no_properties(self, snapshot_manager):
+        """Node with no children and no properties formats correctly."""
+        node = {
+            'nodeId': '1',
+            'role': {'value': 'button'},
+            'name': {'value': 'Submit'},
+            'properties': [],
+        }
+        lines = []
+        snapshot_manager._ref_counters = {'sess-1': 0}
+        snapshot_manager._ref_maps = {'sess-1': {}}
+        snapshot_manager._nth_counters = {'sess-1': {}}
+        snapshot_manager._format_cdp_node(
+            '1', {'1': node}, {}, lines, indent=0, session_id='sess-1'
+        )
+        assert len(lines) == 1
+        assert 'button "Submit"' in lines[0]
+        assert 'ref=e1' in lines[0]
+
+
+class TestScopedSnapshotEdgeCases:
+    """Additional edge-case tests for selector-scoped capture."""
+
+    async def test_scoped_fallback_full_tree_no_root(self, snapshot_manager, mock_page):
+        """When fallback full tree has no root node, formatted output stays empty."""
+        cdp = _get_cdp(mock_page)
+        generic_nodes = [_node(10, 'generic', '', parent_id=None)]
+        no_root_full_nodes = [
+            _node(2, 'button', 'Click', parent_id=1),
+            _node(3, 'link', 'Link', parent_id=1),
+        ]
+
+        async def dispatcher(method, params=None):
+            if method == 'DOM.enable':
+                return {}
+            if method == 'DOM.disable':
+                return {}
+            if method == 'DOM.getDocument':
+                return {'root': {'nodeId': 1}}
+            if method == 'DOM.querySelector':
+                return {'nodeId': 42}
+            if method == 'DOM.describeNode':
+                return {'node': {'backendNodeId': 20}}
+            if method == 'Accessibility.queryAXTree':
+                return {'nodes': generic_nodes}
+            if method == 'Accessibility.getFullAXTree':
+                return {'nodes': no_root_full_nodes}
+            return {}
+
+        cdp.send = AsyncMock(side_effect=dispatcher)
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        assert 'Warning' in result
+        assert 'empty accessibility subtree' in result
+
+    async def test_resolve_selector_dom_disable_failure(self, snapshot_manager, mock_page):
+        """DOM.disable failure in _resolve_selector is caught silently."""
+        cdp = _get_cdp(mock_page)
+
+        async def dispatcher(method, params=None):
+            if method == 'DOM.enable':
+                return {}
+            if method == 'DOM.disable':
+                raise Exception('Already detached')
+            if method == 'DOM.getDocument':
+                return {'root': {'nodeId': 1}}
+            if method == 'DOM.querySelector':
+                return {'nodeId': 42}
+            if method == 'DOM.describeNode':
+                return {'node': {'backendNodeId': 20}}
+            if method == 'Accessibility.queryAXTree':
+                return {
+                    'nodes': [_node(1, 'RootWebArea', ''), _node(2, 'button', 'OK', parent_id=1)]
+                }
+            return {}
+
+        cdp.send = AsyncMock(side_effect=dispatcher)
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='#btn')
+
+        # Should succeed despite DOM.disable failure
+        assert 'button' in result
+
+
 class TestCleanupSession:
     """Tests for session cleanup."""
 

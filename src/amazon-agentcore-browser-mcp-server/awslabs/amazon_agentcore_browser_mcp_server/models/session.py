@@ -26,13 +26,17 @@ class BrowserSessionResponse(BaseModel):
     )
     browser_identifier: str = Field(..., description='Browser resource identifier')
     automation_stream_url: str | None = Field(
-        None, description='WebSocket URL for browser automation via CDP'
+        default=None, description='WebSocket URL for browser automation via CDP'
     )
-    live_view_url: str | None = Field(None, description='URL for live browser view stream')
-    viewport_width: int | None = Field(None, description='Browser viewport width in pixels')
-    viewport_height: int | None = Field(None, description='Browser viewport height in pixels')
-    created_at: str | None = Field(None, description='ISO 8601 creation timestamp')
-    message: str | None = Field(None, description='Informational message')
+    live_view_url: str | None = Field(default=None, description='URL for live browser view stream')
+    viewport_width: int | None = Field(
+        default=None, description='Browser viewport width in pixels'
+    )
+    viewport_height: int | None = Field(
+        default=None, description='Browser viewport height in pixels'
+    )
+    created_at: str | None = Field(default=None, description='ISO 8601 creation timestamp')
+    message: str | None = Field(default=None, description='Informational message')
 
 
 class BrowserSessionSummary(BaseModel):
@@ -40,7 +44,7 @@ class BrowserSessionSummary(BaseModel):
 
     session_id: str = Field(..., description='Unique session identifier')
     status: str = Field(..., description='Session status')
-    created_at: str | None = Field(None, description='ISO 8601 creation timestamp')
+    created_at: str | None = Field(default=None, description='ISO 8601 creation timestamp')
 
 
 class SessionListResponse(BaseModel):
@@ -50,4 +54,4 @@ class SessionListResponse(BaseModel):
         default_factory=list, description='List of browser session summaries'
     )
     has_more: bool = Field(default=False, description='Whether more sessions are available')
-    message: str | None = Field(None, description='Informational message')
+    message: str | None = Field(default=None, description='Informational message')

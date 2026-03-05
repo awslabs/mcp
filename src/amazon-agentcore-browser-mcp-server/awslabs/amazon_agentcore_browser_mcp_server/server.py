@@ -43,6 +43,29 @@ connection_manager = BrowserConnectionManager()
 snapshot_manager = SnapshotManager()
 
 
+STALE_SESSION_CHECK_INTERVAL_S = 60
+
+
+async def _cleanup_stale_sessions() -> None:
+    """Periodically check for stale Playwright connections and prune them."""
+    while True:
+        await asyncio.sleep(STALE_SESSION_CHECK_INTERVAL_S)
+        try:
+            for sid in connection_manager.get_session_ids():
+                try:
+                    browser = connection_manager.get_browser(sid)
+                    if not browser.is_connected():
+                        logger.info(f'Pruning stale session {sid} (browser disconnected)')
+                        await connection_manager.disconnect(sid)
+                        snapshot_manager.cleanup_session(sid)
+                except ValueError:
+                    pass
+                except Exception as e:
+                    logger.debug(f'Error checking session {sid} liveness: {e}')
+        except Exception as e:
+            logger.debug(f'Stale session cleanup sweep error: {e}')
+
+
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
     """Manage server lifecycle — cleanup Playwright on shutdown."""
@@ -54,10 +77,12 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
             sig, lambda s=sig: asyncio.ensure_future(connection_manager.cleanup())
         )
 
+    cleanup_task = asyncio.create_task(_cleanup_stale_sessions())
     try:
         yield
     finally:
         logger.info('Bedrock AgentCore Browser MCP server shutting down')
+        cleanup_task.cancel()
         await connection_manager.cleanup()
 
 
