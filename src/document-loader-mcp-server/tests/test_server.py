@@ -14,6 +14,7 @@
 """Test script to verify MCP server functionality."""
 
 import asyncio
+import os
 import pytest
 from awslabs.document_loader_mcp_server.server import (
     DocumentReadResponse,
@@ -695,6 +696,56 @@ async def test_read_document_timeout_scenarios():
                     in pptx_result.error_message
                 )
                 print('✓ PPTX timeout through read_document covered')
+
+
+def test_get_max_file_size_default():
+    """Test _get_max_file_size returns default when env var is not set."""
+    from awslabs.document_loader_mcp_server.server import DEFAULT_MAX_FILE_SIZE, _get_max_file_size
+
+    with patch.dict(os.environ, {}, clear=True):
+        result = _get_max_file_size()
+        assert result == DEFAULT_MAX_FILE_SIZE
+        print('✓ _get_max_file_size returns default when env var is not set')
+
+
+def test_get_max_file_size_custom():
+    """Test _get_max_file_size returns custom value from env var in MB."""
+    from awslabs.document_loader_mcp_server.server import _get_max_file_size
+
+    with patch.dict(os.environ, {'MAX_FILE_SIZE_MB': '100'}):
+        result = _get_max_file_size()
+        assert result == 100 * 1024 * 1024
+        print('✓ _get_max_file_size returns custom value from env var')
+
+
+def test_get_max_file_size_invalid():
+    """Test _get_max_file_size falls back to default for invalid values."""
+    from awslabs.document_loader_mcp_server.server import DEFAULT_MAX_FILE_SIZE, _get_max_file_size
+
+    with patch.dict(os.environ, {'MAX_FILE_SIZE_MB': 'not_a_number'}):
+        result = _get_max_file_size()
+        assert result == DEFAULT_MAX_FILE_SIZE
+        print('✓ _get_max_file_size falls back to default for non-numeric value')
+
+
+def test_get_max_file_size_negative():
+    """Test _get_max_file_size falls back to default for negative values."""
+    from awslabs.document_loader_mcp_server.server import DEFAULT_MAX_FILE_SIZE, _get_max_file_size
+
+    with patch.dict(os.environ, {'MAX_FILE_SIZE_MB': '-100'}):
+        result = _get_max_file_size()
+        assert result == DEFAULT_MAX_FILE_SIZE
+        print('✓ _get_max_file_size falls back to default for negative value')
+
+
+def test_get_max_file_size_zero():
+    """Test _get_max_file_size falls back to default for zero."""
+    from awslabs.document_loader_mcp_server.server import DEFAULT_MAX_FILE_SIZE, _get_max_file_size
+
+    with patch.dict(os.environ, {'MAX_FILE_SIZE_MB': '0'}):
+        result = _get_max_file_size()
+        assert result == DEFAULT_MAX_FILE_SIZE
+        print('✓ _get_max_file_size falls back to default for zero value')
 
 
 if __name__ == '__main__':

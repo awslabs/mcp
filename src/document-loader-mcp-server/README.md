@@ -55,6 +55,8 @@ For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific
 ## Environment Variables
 
 - `FASTMCP_LOG_LEVEL`: Set logging level (ERROR, INFO, DEBUG)
+- `MAX_FILE_SIZE_MB`: Maximum allowed file size in megabytes (default: 50). Must be a positive integer.
+- `DOCUMENT_BASE_DIR`: Base directory for file access security. Restricts document loading to files within this directory. Defaults to the current working directory.
 
 ## Development
 

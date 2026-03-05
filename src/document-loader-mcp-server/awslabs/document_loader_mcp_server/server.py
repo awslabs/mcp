@@ -36,7 +36,30 @@ mcp = FastMCP('Document Loader')
 
 
 # Security Constants
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+
+
+def _get_max_file_size() -> int:
+    """Get max file size from environment or use default.
+
+    The MAX_FILE_SIZE_MB env var is specified in megabytes for ergonomics.
+    """
+    env_val = os.getenv('MAX_FILE_SIZE_MB')
+    if env_val:
+        try:
+            size_mb = int(env_val)
+            if size_mb > 0:
+                return size_mb * 1024 * 1024
+            logger.warning(
+                f'MAX_FILE_SIZE_MB must be positive, using default: '
+                f'{DEFAULT_MAX_FILE_SIZE // (1024 * 1024)}MB'
+            )
+        except ValueError:
+            logger.warning(
+                f'Invalid MAX_FILE_SIZE_MB value: {env_val}, using default: '
+                f'{DEFAULT_MAX_FILE_SIZE // (1024 * 1024)}MB'
+            )
+    return DEFAULT_MAX_FILE_SIZE
 
 
 # Base directory for file access security - configurable via environment
@@ -144,10 +167,11 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         if not path.is_file():
             return f'Path is not a file: {file_path}'
 
-        # Check file size
+        # Check file size — read dynamically so env var changes take effect
+        max_file_size = _get_max_file_size()
         file_size = path.stat().st_size
-        if file_size > MAX_FILE_SIZE:
-            return f'File too large: {file_size} bytes (max: {MAX_FILE_SIZE} bytes)'
+        if file_size > max_file_size:
+            return f'File too large: {file_size} bytes (max: {max_file_size} bytes)'
 
         # Check file extension
         if path.suffix.lower() not in ALLOWED_EXTENSIONS:
