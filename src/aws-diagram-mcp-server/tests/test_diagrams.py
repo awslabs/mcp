@@ -16,6 +16,7 @@
 
 """Tests for the diagrams module of the diagrams-mcp-server."""
 
+import awslabs.aws_diagram_mcp_server._sandbox_runner as runner
 import os
 import pytest
 import signal
@@ -547,6 +548,71 @@ class TestNamespaceRCEPrevention:
         assert result.status == 'error'
         assert result.path is None
 
+    @pytest.mark.asyncio
+    async def test_traceback_frame_traversal_blocked(self, temp_workspace_dir):
+        """Traceback frame traversal attributes must be blocked."""
+        code = """
+try:
+    1/0
+except ZeroDivisionError as e:
+    f = e.__traceback__.tb_frame
+    while f is not None:
+        if '__import__' in f.f_builtins:
+            sp = f.f_builtins['__import__']('subprocess')
+            r = sp.run(['whoami'], capture_output=True, text=True)
+            break
+        f = f.f_back
+
+with Diagram("Test", show=False):
+    pass
+"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_frame_traversal',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_generator_frame_access_blocked(self, temp_workspace_dir):
+        """Generator gi_frame access must be blocked to prevent frame traversal."""
+        code = """
+def gen():
+    yield 1
+g = gen()
+f = g.gi_frame
+
+with Diagram("Test", show=False):
+    pass
+"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_gen_frame',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
+    @pytest.mark.asyncio
+    async def test_code_object_access_blocked(self, temp_workspace_dir):
+        """__code__ access must be blocked to prevent code object inspection."""
+        code = """
+def foo():
+    pass
+c = foo.__code__
+
+with Diagram("Test", show=False):
+    pass
+"""
+        result = await generate_diagram(
+            code=code,
+            filename='test_code_obj',
+            workspace_dir=temp_workspace_dir,
+        )
+        assert result.status == 'error'
+        assert result.path is None
+
 
 class TestSafeUrlretrieve:
     """Unit tests for the _safe_urlretrieve function."""
@@ -582,7 +648,7 @@ class TestSafeUrlretrieve:
     def test_strips_path_traversal(self):
         """Path traversal components are stripped to basename only."""
         with patch(
-            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            'awslabs.aws_diagram_mcp_server._sandbox_runner._real_urlretrieve',
             return_value=('/tmp/fake', {}),
         ) as mock_retrieve:
             from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
@@ -604,7 +670,7 @@ class TestSafeUrlretrieve:
     def test_accepts_valid_image_extensions(self):
         """Valid image extensions pass validation and reach the download call."""
         with patch(
-            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            'awslabs.aws_diagram_mcp_server._sandbox_runner._real_urlretrieve',
             return_value=('/tmp/fake', {}),
         ) as mock_retrieve:
             from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
@@ -616,7 +682,7 @@ class TestSafeUrlretrieve:
     def test_downloads_to_unique_temp_dir(self):
         """Each call downloads to a unique temp directory."""
         with patch(
-            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            'awslabs.aws_diagram_mcp_server._sandbox_runner._real_urlretrieve',
             return_value=('/tmp/fake', {}),
         ):
             from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
@@ -629,7 +695,7 @@ class TestSafeUrlretrieve:
     def test_uses_url_basename_when_filename_omitted(self):
         """Filename defaults to URL path basename when not provided."""
         with patch(
-            'awslabs.aws_diagram_mcp_server.diagrams_tools._real_urlretrieve',
+            'awslabs.aws_diagram_mcp_server._sandbox_runner._real_urlretrieve',
             return_value=('/tmp/fake', {}),
         ):
             from awslabs.aws_diagram_mcp_server.diagrams_tools import _safe_urlretrieve
@@ -638,15 +704,296 @@ class TestSafeUrlretrieve:
             assert os.path.basename(path) == 'my-icon.png'
 
 
+class TestSandboxRunner:
+    """Unit tests for the _sandbox_runner module functions."""
+
+    def test_safe_builtins_excludes_dangerous(self):
+        """runner._SAFE_BUILTINS must not contain dangerous functions."""
+        for name in [
+            '__import__',
+            'exec',
+            'eval',
+            'compile',
+            'open',
+            'getattr',
+            'setattr',
+            'delattr',
+            'globals',
+            'locals',
+            'vars',
+            'breakpoint',
+        ]:
+            assert name not in runner._SAFE_BUILTINS, (
+                f'{name} must not be in runner._SAFE_BUILTINS'
+            )
+
+    def test_safe_builtins_includes_essentials(self):
+        """runner._SAFE_BUILTINS must include essential types and functions."""
+        for name in [
+            'print',
+            'range',
+            'len',
+            'int',
+            'str',
+            'list',
+            'dict',
+            'True',
+            'False',
+            'None',
+        ]:
+            assert name in runner._SAFE_BUILTINS, f'{name} must be in runner._SAFE_BUILTINS'
+
+    def test_safe_builtins_includes_exceptions(self):
+        """runner._SAFE_BUILTINS must include common exception types for try/except."""
+        for name in ['ValueError', 'TypeError', 'KeyError', 'Exception']:
+            assert name in runner._SAFE_BUILTINS, f'{name} must be in runner._SAFE_BUILTINS'
+
+    def test_build_namespace_has_diagram_classes(self):
+        """_build_namespace must provide Diagram, Cluster, Edge."""
+        ns = runner._build_namespace()
+        assert 'Diagram' in ns
+        assert 'Cluster' in ns
+        assert 'Edge' in ns
+
+    def test_build_namespace_has_safe_urlretrieve(self):
+        """_build_namespace must provide the safe urlretrieve wrapper."""
+        ns = runner._build_namespace()
+        assert 'urlretrieve' in ns
+        assert callable(ns['urlretrieve'])
+
+    def test_build_namespace_restricts_builtins(self):
+        """_build_namespace must restrict __builtins__ after setup."""
+        ns = runner._build_namespace()
+        builtins = ns['__builtins__']
+        assert isinstance(builtins, dict)
+        assert '__import__' not in builtins
+
+    def test_build_namespace_excludes_os(self):
+        """_build_namespace must not include the os module."""
+        ns = runner._build_namespace()
+        assert 'os' not in ns
+
+    def test_process_diagram_code_adds_show_false(self):
+        """_process_diagram_code must inject show=False."""
+        code = 'with Diagram("Test"):\n    pass'
+        result = runner._process_diagram_code(code, '/tmp/out')
+        assert 'show=False' in result
+
+    def test_process_diagram_code_sets_filename(self):
+        """_process_diagram_code must set the output filename."""
+        code = 'with Diagram("Test"):\n    pass'
+        result = runner._process_diagram_code(code, '/tmp/out')
+        assert "filename='/tmp/out'" in result
+
+    def test_process_diagram_code_replaces_existing_filename(self):
+        """_process_diagram_code must replace an existing filename parameter."""
+        code = 'with Diagram("Test", filename=\'old\'):\n    pass'
+        result = runner._process_diagram_code(code, '/tmp/new')
+        assert "filename='/tmp/new'" in result
+        assert 'old' not in result
+
+    def test_main_invalid_json(self):
+        """main() must handle invalid JSON input gracefully."""
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+
+        with (
+            patch('sys.stdin', StringIO('not json')),
+            patch('sys.stdout', new_callable=StringIO) as mock_out,
+        ):
+            with pytest.raises(SystemExit):
+                runner.main()
+            output = json.loads(mock_out.getvalue())
+            assert output['status'] == 'error'
+
+    def test_main_missing_keys(self):
+        """main() must handle missing required keys gracefully."""
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+
+        with (
+            patch('sys.stdin', StringIO('{}')),
+            patch('sys.stdout', new_callable=StringIO) as mock_out,
+        ):
+            with pytest.raises(SystemExit):
+                runner.main()
+            output = json.loads(mock_out.getvalue())
+            assert output['status'] == 'error'
+
+    def test_main_execution_error(self):
+        """main() must handle code execution errors gracefully."""
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+
+        config = json.dumps({'code': 'raise ValueError("test error")', 'output_path': '/tmp/test'})
+        with (
+            patch('sys.stdin', StringIO(config)),
+            patch('sys.stdout', new_callable=StringIO) as mock_out,
+        ):
+            runner.main()
+            output = json.loads(mock_out.getvalue())
+            assert output['status'] == 'error'
+            assert 'ValueError' in output['message']
+
+    def test_main_no_diagram_created(self):
+        """main() must report error when no PNG is created."""
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+
+        config = json.dumps({'code': 'x = 1 + 1', 'output_path': '/tmp/nonexistent_test'})
+        with (
+            patch('sys.stdin', StringIO(config)),
+            patch('sys.stdout', new_callable=StringIO) as mock_out,
+        ):
+            runner.main()
+            output = json.loads(mock_out.getvalue())
+            assert output['status'] == 'error'
+            assert 'not created' in output['message']
+
+    def test_main_success_path(self):
+        """main() must report success when PNG file exists."""
+        import json
+        import tempfile
+        from io import StringIO
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, 'test_diagram')
+            png_path = f'{output_path}.png'
+            # Pre-create the PNG so the success path is hit
+            with open(png_path, 'w') as f:
+                f.write('')
+            config = json.dumps({'code': 'x = 1', 'output_path': output_path})
+            with (
+                patch('sys.stdin', StringIO(config)),
+                patch('sys.stdout', new_callable=StringIO) as mock_out,
+            ):
+                runner.main()
+                output = json.loads(mock_out.getvalue())
+                assert output['status'] == 'success'
+                assert output['path'] == png_path
+
+    def test_main_entry_point(self):
+        """The __main__ guard must call main()."""
+        import json
+        from io import StringIO
+        from unittest.mock import patch
+
+        config = json.dumps({'code': 'x = 1', 'output_path': '/tmp/test_entry'})
+        with (
+            patch('sys.stdin', StringIO(config)),
+            patch('sys.stdout', new_callable=StringIO) as mock_out,
+        ):
+            with patch.object(runner, '__name__', '__main__'):
+                runner.main()
+            output = json.loads(mock_out.getvalue())
+            assert output['status'] == 'error'
+
+
+class TestSubprocessErrorPaths:
+    """Tests for subprocess error handling paths in generate_diagram."""
+
+    @pytest.mark.asyncio
+    async def test_subprocess_crash_no_stdout(self, temp_workspace_dir):
+        """Subprocess crash with no stdout must return error."""
+        from unittest.mock import patch
+
+        mock_result = type(
+            'Result',
+            (),
+            {
+                'returncode': 1,
+                'stdout': '',
+                'stderr': 'Segmentation fault',
+            },
+        )()
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools.subprocess.run',
+            return_value=mock_result,
+        ):
+            result = await generate_diagram(
+                code='with Diagram("Test", show=False):\n    pass',
+                filename='test_crash',
+                workspace_dir=temp_workspace_dir,
+            )
+        assert result.status == 'error'
+        assert 'Sandbox process failed' in result.message
+        assert 'Segmentation fault' in result.message
+
+    @pytest.mark.asyncio
+    async def test_subprocess_invalid_json_output(self, temp_workspace_dir):
+        """Subprocess returning non-JSON stdout must return error."""
+        from unittest.mock import patch
+
+        mock_result = type(
+            'Result',
+            (),
+            {
+                'returncode': 0,
+                'stdout': 'not json at all',
+                'stderr': '',
+            },
+        )()
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools.subprocess.run',
+            return_value=mock_result,
+        ):
+            result = await generate_diagram(
+                code='with Diagram("Test", show=False):\n    pass',
+                filename='test_bad_json',
+                workspace_dir=temp_workspace_dir,
+            )
+        assert result.status == 'error'
+        assert 'invalid output' in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_subprocess_timeout(self, temp_workspace_dir):
+        """Subprocess timeout must return timeout error."""
+        import subprocess as sp
+        from unittest.mock import patch
+
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools.subprocess.run',
+            side_effect=sp.TimeoutExpired(cmd='test', timeout=5),
+        ):
+            result = await generate_diagram(
+                code='with Diagram("Test", show=False):\n    pass',
+                filename='test_timeout',
+                workspace_dir=temp_workspace_dir,
+            )
+        assert result.status == 'error'
+        assert 'timed out' in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_subprocess_unexpected_exception(self, temp_workspace_dir):
+        """Unexpected exception during subprocess launch must return error."""
+        from unittest.mock import patch
+
+        with patch(
+            'awslabs.aws_diagram_mcp_server.diagrams_tools.subprocess.run',
+            side_effect=OSError('No such file or directory'),
+        ):
+            result = await generate_diagram(
+                code='with Diagram("Test", show=False):\n    pass',
+                filename='test_oserror',
+                workspace_dir=temp_workspace_dir,
+            )
+        assert result.status == 'error'
+        assert 'OSError' in result.message
+
+
 class TestCrossPlatformTimeout:
     """Tests for cross-platform timeout handling in generate_diagram."""
 
-    def test_signal_module_imported(self):
-        """Test that the diagrams_tools module imports signal and threading."""
+    def test_subprocess_module_imported(self):
+        """Test that the diagrams_tools module imports subprocess for process isolation."""
         dt = sys.modules.get('awslabs.aws_diagram_mcp_server.diagrams_tools')
         assert dt is not None
-        assert hasattr(dt, 'signal')
-        assert hasattr(dt, 'threading')
+        assert hasattr(dt, 'subprocess')
 
     @pytest.mark.asyncio
     async def test_unix_path_uses_sigalrm(self, aws_diagram_code, temp_workspace_dir):
