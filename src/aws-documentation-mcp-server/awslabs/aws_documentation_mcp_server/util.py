@@ -205,7 +205,7 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     if not html or not section_titles:
         return 'No content or section titles provided'
 
-    from bs4 import BeautifulSoup
+    from bs4 import BeautifulSoup, Tag
 
     soup = BeautifulSoup(html, 'html.parser')
 
@@ -229,7 +229,8 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
             section_content = [h2]
 
             for sibling in h2.find_next_siblings():
-                if sibling.name in ['h1', 'h2']:
+                # Only Tag elements have name attribute; skip NavigableStrings
+                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
                     break
                 section_content.append(sibling)
 
