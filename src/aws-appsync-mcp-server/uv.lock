@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-appsync-mcp-server"
-version = "0.1.9"
+version = "0.1.10"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
