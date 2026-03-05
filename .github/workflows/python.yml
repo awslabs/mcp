@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -115,7 +115,7 @@ jobs:
         run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" . || echo "status=failure" >> $GITHUB_OUTPUT
 
       - name: Store Bandit as Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: bandit-report-${{ matrix.package }}.html
           path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}.html
@@ -178,7 +178,7 @@ jobs:
         run: uv build
 
       - name: Upload distribution
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: dist-${{ matrix.package }}
           path: src/${{ matrix.package }}/dist/
@@ -291,7 +291,7 @@ jobs:
            python -
 
       - name: Upload Software Bill of Materials
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: sbom-${{ matrix.package }}
           path: src/${{ matrix.package }}/sbom.json
