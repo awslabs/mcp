@@ -47,10 +47,6 @@ async def test_read_sections_live_basic():
         assert isinstance(result, str)
         assert len(result) > 0
 
-        assert url in result
-
-        assert 'AWS Documentation content from' in result
-
         assert 'general purpose buckets naming rules' in result.lower()
 
         assert 'Error extracting sections:' not in result, 'Found error indicator in the result'
@@ -77,8 +73,6 @@ async def test_read_sections_live_multiple_sections():
         assert result is not None
         assert isinstance(result, str)
         assert len(result) > 0
-
-        assert 'AWS Documentation content from' in result
 
         assert 'general purpose buckets naming rules' in result.lower()
         assert 'example general purpose bucket names' in result.lower()
@@ -108,14 +102,10 @@ async def test_read_sections_live_missing_sections():
         assert isinstance(result, str)
         assert len(result) > 0
 
-        assert 'AWS Documentation content from' in result
-
         assert 'general purpose buckets naming rules' in result.lower()
 
         expected_missing_note = '> **Note**: The following requested sections were not found: "Nonexistent Section Title", "Another Missing Section"'
-        assert expected_missing_note in result, (
-            f'Expected to find exact missing sections note in result. Got: {result[:100]}...'
-        )
+        assert expected_missing_note in result
 
 
 @pytest.mark.asyncio
@@ -138,8 +128,6 @@ async def test_read_sections_live_case_insensitive():
         assert result is not None
         assert isinstance(result, str)
         assert len(result) > 0
-
-        assert 'AWS Documentation content from' in result
 
         assert 'general purpose buckets naming rules' in result.lower()
 
@@ -172,7 +160,7 @@ async def test_read_sections_live_whitespace_normalization():
 @pytest.mark.asyncio
 @pytest.mark.live
 async def test_read_sections_live_all_sections_fail():
-    """Test that when all sections fail to match, full markdown is returned."""
+    """Test that when all sections fail to match, ValueError is raised with helpful message."""
     url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html'
     # Use section titles that definitely don't exist on this page
     section_titles = [
@@ -186,13 +174,10 @@ async def test_read_sections_live_all_sections_fail():
         'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
         TEST_USER_AGENT,
     ):
-        result = await read_sections_global(ctx, url=url, section_titles=section_titles)
+        with pytest.raises(ValueError) as exc_info:
+            await read_sections_global(ctx, url=url, section_titles=section_titles)
 
-        assert result is not None
-        assert isinstance(result, str)
-        assert len(result) > 0
-
-        assert 'No matching sections were found:' in result
-        assert 'use the read_documentation tool instead' in result
-
-        assert 'Error extracting sections:' not in result, 'Found error indicator in the result'
+        error_message = str(exc_info.value)
+        assert 'No matching sections were found:' in error_message
+        assert 'Available sections:' in error_message
+        assert 'use the read_documentation tool instead' in error_message

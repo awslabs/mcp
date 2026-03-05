@@ -16,7 +16,7 @@ import os
 from awslabs.aws_documentation_mcp_server.models import SearchResponse
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
-    extract_sections_from_markdown,
+    extract_sections_from_html,
     format_documentation_result,
     is_html_content,
 )
@@ -187,23 +187,30 @@ async def read_sections_impl(
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
 
-    if is_html_content(page_raw, content_type):
-        full_markdown = extract_content_from_html(page_raw)
-
-        if full_markdown == '<e>Page failed to be simplified from HTML</e>':
-            error_msg = 'Could not parse HTML page content. Please use the read_documentation tool instead to get the full document content.'
-            logger.error(error_msg)
-            await ctx.error(error_msg)
-            return error_msg
-    else:
+    if not is_html_content(page_raw, content_type):
         return 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
 
-    filtered_content = extract_sections_from_markdown(full_markdown, section_titles)
+    try:
+        filtered_content = extract_sections_from_html(page_raw, section_titles)
+    except ValueError as e:
+        error_msg = str(e)
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
 
-    if filtered_content.startswith(
-        '**Alert**: No matching sections were found:'
-    ) or filtered_content.startswith('**Alert**: This document does not contain subsections.'):
-        return filtered_content
+    try:
+        markdown = extract_content_from_html(filtered_content)
 
-    result = f'AWS Documentation content from {url_str}:\n\n{filtered_content}'
-    return result
+        # detect tagged error responses
+        if markdown.startswith('<e>') and markdown.endswith('</e>'):
+            # strip only the outer wrapper tags
+            error_msg = markdown[3:-4]
+            raise ValueError(error_msg)
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+    return markdown

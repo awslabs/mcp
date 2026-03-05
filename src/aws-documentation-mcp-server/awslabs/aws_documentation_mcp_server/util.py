@@ -192,79 +192,71 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-def extract_sections_from_markdown(markdown_content: str, section_titles: List[str]) -> str:
-    """Extract specific sections from markdown content based on section titles.
+def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
+    """Extract requested sections from HTML.
 
     Args:
-        markdown_content: Full markdown content to extract sections from
+        html: Raw HTML content
         section_titles: List of section titles to extract
 
     Returns:
-        Filtered markdown content containing only the requested sections
+        Filtered HTML content containing only the requested sections
     """
-    if not markdown_content or not section_titles:
-        return '<e>No content or section titles provided</e>'
+    if not html or not section_titles:
+        return 'No content or section titles provided'
 
-    try:
-        lines = markdown_content.split('\n')
-        result_lines = []
-        found_sections = set()
-        available_level2_sections = []
-        current_section_level = 0
-        capturing = False
+    from bs4 import BeautifulSoup
 
-        normalized_titles = {}
-        for title in section_titles:
-            normalized_key = ' '.join(title.strip().lower().split())
-            normalized_titles[normalized_key] = title.strip()
+    soup = BeautifulSoup(html, 'html.parser')
 
-        for line in lines:
-            if line.strip().startswith('#'):
-                heading_match = line.strip()
-                heading_level = len(heading_match) - len(heading_match.lstrip('#'))
-                heading_text = heading_match.lstrip('#').strip()
+    normalized_titles = {}
+    for title in section_titles:
+        normalized_key = ' '.join(title.strip().lower().split())
+        normalized_titles[normalized_key] = title.strip()
 
-                if heading_level == 2 and heading_text not in available_level2_sections:
-                    available_level2_sections.append(heading_text)
+    h2_tags = soup.find_all('h2')
+    available_level2_sections = []
+    matched_sections_html = []
+    found_sections = set()
 
-                normalized_heading = ' '.join(heading_text.lower().split())
+    for h2 in h2_tags:
+        h2_text = h2.get_text(strip=True)
+        available_level2_sections.append(h2_text)
 
-                if normalized_heading in normalized_titles:
-                    current_section_level = heading_level
-                    capturing = True
-                    result_lines.append(line)
-                    found_sections.add(normalized_titles[normalized_heading])
-                elif capturing and heading_level <= current_section_level:
-                    # End of current section
-                    capturing = False
-                elif capturing:
-                    # Continue capturing content within section
-                    result_lines.append(line)
-            elif capturing:
-                result_lines.append(line)
-        if not found_sections:
-            section_list = ', '.join(f'"{title}"' for title in section_titles)
-            if available_level2_sections:
-                available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
-                return f'**Alert**: No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            else:
-                return '**Alert**: This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
+        normalized_h2 = ' '.join(h2_text.lower().split())
 
-        result_content = '\n'.join(result_lines)
+        if normalized_h2 in normalized_titles:
+            section_content = [h2]
 
+            for sibling in h2.find_next_siblings():
+                if sibling.name in ['h1', 'h2']:
+                    break
+                section_content.append(sibling)
+
+            section_html_str = ''.join(str(elem) for elem in section_content)
+            matched_sections_html.append(section_html_str)
+            found_sections.add(normalized_titles[normalized_h2])
+
+    if not found_sections:
+        section_list = ', '.join(f'"{title}"' for title in section_titles)
+        if available_level2_sections:
+            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+            error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+        else:
+            error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+
+    result_html = ''.join(matched_sections_html)
+
+    if len(found_sections) < len(section_titles):
         missing_sections = [
             title.strip() for title in section_titles if title.strip() not in found_sections
         ]
-        if missing_sections:
-            missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-            result_content += (
-                f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
-            )
+        missing_list = ', '.join(f'"{title}"' for title in missing_sections)
+        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
 
-        return result_content
-
-    except Exception as e:
-        return f'<e>Error extracting sections: {str(e)}</e>'
+    return result_html
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:
