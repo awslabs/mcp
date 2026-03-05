@@ -19,8 +19,14 @@ import boto3
 import os
 import pandas as pd
 from .base import DataTarget
+from awslabs.syntheticdata_mcp_server import __version__
+from botocore.config import Config
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#syntheticdata-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 class S3Target(DataTarget):
@@ -29,7 +35,7 @@ class S3Target(DataTarget):
     def __init__(self):
         """Initialize S3 target with boto3 client."""
         session = boto3.Session(profile_name=os.environ.get('AWS_PROFILE'))
-        self.s3_client = session.client('s3')
+        self.s3_client = session.client('s3', config=_config)
         self.supported_formats = ['csv', 'json', 'parquet']
         self.executor = ThreadPoolExecutor(max_workers=4)
 

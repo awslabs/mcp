@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Diagrams MCP Server package.
+from awslabs.mysql_mcp_server import __version__
+from botocore.config import Config
 
-This package provides an MCP server that creates diagrams using the Python diagrams package DSL.
-"""
 
-__version__ = '1.0.22'
+# User agent configuration for AWS service calls
+USER_AGENT_EXTRA = f'md/awslabs#mcp#mysql-mcp-server#{__version__}'
+USER_AGENT_CONFIG = Config(user_agent_extra=USER_AGENT_EXTRA)
