@@ -17,7 +17,7 @@ import asyncio
 import os
 import pdfplumber
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
 import tempfile
 from fastmcp import FastMCP
@@ -452,7 +452,7 @@ def _convert_to_pdf_with_soffice(file_path: str, temp_dir: str) -> str:
         '--outdir',
         temp_dir,
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec B603 - fixed command with no shell=True, args are not user-controlled
     pdf_filename = Path(file_path).stem + '.pdf'
     pdf_path = os.path.join(temp_dir, pdf_filename)
     if not os.path.isfile(pdf_path):
