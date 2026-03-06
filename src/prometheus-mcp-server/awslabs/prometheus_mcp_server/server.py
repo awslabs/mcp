@@ -476,20 +476,23 @@ async def get_workspace_details(
 # validate_query function removed - now part of SecurityValidator class
 
 
-@mcp.tool(name='ExecuteQuery')
-async def execute_query(
-    ctx: Context,
+class ExecuteQueryInput(BaseModel):
+    """Input model for ExecuteQuery tool."""
+
     workspace_id: Optional[str] = Field(
         None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
-    ),
-    query: str = Field(..., description='The PromQL query to execute'),
+    )
+    query: str = Field(..., description='The PromQL query to execute')
     time: Optional[str] = Field(
         None, description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)'
-    ),
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
-) -> Dict[str, Any]:
+    )
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+
+
+@mcp.tool(name='ExecuteQuery')
+async def execute_query(input: ExecuteQueryInput, ctx: Context) -> Dict[str, Any]:
     """Execute a PromQL query against Amazon Managed Prometheus.
 
     ## Usage
@@ -529,21 +532,21 @@ async def execute_query(
     try:
         # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(
-            ctx, workspace_id, region, profile
+            ctx, input.workspace_id, input.region, input.profile
         )
 
-        logger.info(f'Executing instant query: {query}')
+        logger.info(f'Executing instant query: {input.query}')
 
         # Validate query for security
-        if not SecurityValidator.validate_query(query):
+        if not SecurityValidator.validate_query(input.query):
             error_msg = 'Query validation failed: potentially dangerous query pattern detected'
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise ValueError(error_msg)
 
-        params = {'query': query}
-        if time:
-            params['time'] = time
+        params = {'query': input.query}
+        if input.time:
+            params['time'] = input.time
 
         return await PrometheusClient.make_request(
             prometheus_url=workspace_config['prometheus_url'],
@@ -562,22 +565,25 @@ async def execute_query(
         raise
 
 
-@mcp.tool(name='ExecuteRangeQuery')
-async def execute_range_query(
-    ctx: Context,
+class ExecuteRangeQueryInput(BaseModel):
+    """Input model for ExecuteRangeQuery tool."""
+
     workspace_id: Optional[str] = Field(
         None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
-    ),
-    query: str = Field(..., description='The PromQL query to execute'),
-    start: str = Field(..., description='Start timestamp (RFC3339 or Unix timestamp)'),
-    end: str = Field(..., description='End timestamp (RFC3339 or Unix timestamp)'),
+    )
+    query: str = Field(..., description='The PromQL query to execute')
+    start: str = Field(..., description='Start timestamp (RFC3339 or Unix timestamp)')
+    end: str = Field(..., description='End timestamp (RFC3339 or Unix timestamp)')
     step: str = Field(
         ..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')"
-    ),
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
-) -> Dict[str, Any]:
+    )
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+
+
+@mcp.tool(name='ExecuteRangeQuery')
+async def execute_range_query(input: ExecuteRangeQueryInput, ctx: Context) -> Dict[str, Any]:
     r"""Execute a range query and return the result.
 
     ## Usage
@@ -610,19 +616,19 @@ async def execute_range_query(
     try:
         # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(
-            ctx, workspace_id, region, profile
+            ctx, input.workspace_id, input.region, input.profile
         )
 
-        logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
+        logger.info(f'Executing range query: {input.query} from {input.start} to {input.end} with step {input.step}')
 
         # Validate query for security
-        if not SecurityValidator.validate_query(query):
+        if not SecurityValidator.validate_query(input.query):
             error_msg = 'Query validation failed: potentially dangerous query pattern detected'
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise ValueError(error_msg)
 
-        params = {'query': query, 'start': start, 'end': end, 'step': step}
+        params = {'query': input.query, 'start': input.start, 'end': input.end, 'step': input.step}
 
         return await PrometheusClient.make_request(
             prometheus_url=workspace_config['prometheus_url'],
@@ -641,16 +647,19 @@ async def execute_range_query(
         raise
 
 
-@mcp.tool(name='ListMetrics')
-async def list_metrics(
-    ctx: Context,
+class ListMetricsInput(BaseModel):
+    """Input model for ListMetrics tool."""
+
     workspace_id: Optional[str] = Field(
         None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
-    ),
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
-) -> MetricsList:
+    )
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+
+
+@mcp.tool(name='ListMetrics')
+async def list_metrics(input: ListMetricsInput, ctx: Context) -> MetricsList:
     """Get a list of all metric names.
 
     ## Usage
@@ -677,7 +686,7 @@ async def list_metrics(
     try:
         # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(
-            ctx, workspace_id, region, profile
+            ctx, input.workspace_id, input.region, input.profile
         )
 
         logger.info('Listing all available metrics')
@@ -700,16 +709,19 @@ async def list_metrics(
         raise
 
 
-@mcp.tool(name='GetServerInfo')
-async def get_server_info(
-    ctx: Context,
+class GetServerInfoInput(BaseModel):
+    """Input model for GetServerInfo tool."""
+
     workspace_id: Optional[str] = Field(
         None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
-    ),
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
-) -> ServerInfo:
+    )
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+
+
+@mcp.tool(name='GetServerInfo')
+async def get_server_info(input: GetServerInfoInput, ctx: Context) -> ServerInfo:
     """Get information about the Prometheus server configuration.
 
     ## Usage
@@ -736,7 +748,7 @@ async def get_server_info(
     try:
         # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(
-            ctx, workspace_id, region, profile
+            ctx, input.workspace_id, input.region, input.profile
         )
 
         logger.info('Retrieving server configuration information')
@@ -754,12 +766,15 @@ async def get_server_info(
         raise
 
 
+class GetAvailableWorkspacesInput(BaseModel):
+    """Input model for GetAvailableWorkspaces tool."""
+
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+
+
 @mcp.tool(name='GetAvailableWorkspaces')
-async def get_available_workspaces(
-    ctx: Context,
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
-) -> Dict[str, Any]:
+async def get_available_workspaces(input: GetAvailableWorkspacesInput, ctx: Context) -> Dict[str, Any]:
     """List all available Prometheus workspaces in the specified region.
 
     ## Usage
@@ -800,8 +815,8 @@ async def get_available_workspaces(
     """
     try:
         # Use provided region or default from environment
-        aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
-        aws_profile = profile or os.getenv(ENV_AWS_PROFILE)
+        aws_region = input.region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
+        aws_profile = input.profile or os.getenv(ENV_AWS_PROFILE)
 
         # Check if we already have a URL configured and if it contains a workspace ID
         prometheus_url = os.getenv('PROMETHEUS_URL')
