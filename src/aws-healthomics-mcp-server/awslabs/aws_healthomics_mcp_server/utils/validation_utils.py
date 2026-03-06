@@ -16,7 +16,7 @@
 
 import posixpath
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, DefinitionRepository
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import decode_from_base64
+from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from enum import Enum
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -166,17 +166,25 @@ def parse_id_list(value: Any) -> list:
 
 async def validate_definition_sources(
     ctx: Context,
-    definition_zip_base64: Optional[str],
+    definition_source: Optional[str],
     definition_uri: Optional[str],
     definition_repository: Optional[Dict[str, Any]] = None,
+    definition_zip_base64: Optional[str] = None,
 ) -> Tuple[Optional[bytes], Optional[str], Optional[Dict[str, Any]]]:
     """Validate that exactly one definition source is provided and process it.
 
+    Accepts a ``definition_source`` parameter that can be a local ZIP file path,
+    S3 URI, or base64-encoded ZIP content.  The legacy ``definition_zip_base64``
+    parameter is supported as a deprecated alias for backward compatibility.
+
     Args:
         ctx: MCP context for error reporting
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_source: Workflow definition content — a local ZIP file path,
+            S3 URI (s3://bucket/key.zip), or base64-encoded ZIP content
         definition_uri: S3 URI of the workflow definition ZIP file
         definition_repository: Git repository configuration
+        definition_zip_base64: **Deprecated** — use ``definition_source`` instead.
+            Base64-encoded workflow definition ZIP file.
 
     Returns:
         Tuple of (decoded_zip_bytes, validated_uri, validated_repository)
@@ -185,6 +193,27 @@ async def validate_definition_sources(
         ValueError: If validation fails
     """
     # Handle Field objects for optional parameters (FastMCP compatibility)
+    if hasattr(definition_source, 'default') and not isinstance(
+        definition_source, (str, type(None))
+    ):
+        definition_source = getattr(definition_source, 'default', None)
+
+    if hasattr(definition_zip_base64, 'default') and not isinstance(
+        definition_zip_base64, (str, type(None))
+    ):
+        definition_zip_base64 = getattr(definition_zip_base64, 'default', None)
+
+    # Handle deprecated alias
+    if definition_source is None and definition_zip_base64 is not None:
+        logger.warning('definition_zip_base64 is deprecated. Use definition_source instead.')
+        definition_source = definition_zip_base64
+    elif definition_source is not None and definition_zip_base64 is not None:
+        logger.warning(
+            'Both definition_source and definition_zip_base64 provided. '
+            'Using definition_source, ignoring definition_zip_base64.'
+        )
+
+    # Handle Field objects for remaining optional parameters (FastMCP compatibility)
     if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
         definition_uri = getattr(definition_uri, 'default', None)
 
@@ -196,7 +225,7 @@ async def validate_definition_sources(
     # Count how many definition sources are provided
     sources_provided = sum(
         [
-            definition_zip_base64 is not None,
+            definition_source is not None,
             definition_uri is not None,
             definition_repository is not None,
         ]
@@ -206,7 +235,7 @@ async def validate_definition_sources(
     if sources_provided > 1:
         error_message = (
             'Cannot specify multiple definition sources. Use only one of: '
-            'definition_zip_base64, definition_uri, or definition_repository'
+            'definition_source, definition_uri, or definition_repository'
         )
         logger.error(error_message)
         await ctx.error(error_message)
@@ -215,22 +244,27 @@ async def validate_definition_sources(
     if sources_provided == 0:
         error_message = (
             'Must specify one definition source: '
-            'definition_zip_base64, definition_uri, or definition_repository'
+            'definition_source, definition_uri, or definition_repository'
         )
         logger.error(error_message)
         await ctx.error(error_message)
         raise ValueError(error_message)
 
-    # Validate and decode base64 input if provided
-    definition_zip = None
-    if definition_zip_base64 is not None:
+    # Resolve definition_source via content resolver
+    definition_zip: bytes | None = None
+    if definition_source is not None:
         try:
-            definition_zip = decode_from_base64(definition_zip_base64)
-        except Exception as e:
-            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
+            resolved = await resolve_single_content(definition_source, mode='binary')
+            definition_zip = (
+                bytes(resolved.content)
+                if isinstance(resolved.content, (bytes, bytearray))
+                else resolved.content.encode('utf-8')
+            )
+        except (ValueError, FileNotFoundError, PermissionError) as e:
+            error_message = f'Failed to resolve definition source: {str(e)}'
             logger.error(error_message)
             await ctx.error(error_message)
-            raise
+            raise ValueError(error_message) from e
 
     # Validate S3 URI format if provided
     if definition_uri is not None:
