@@ -94,6 +94,31 @@ BASE_DIRECTORY = _get_base_directory()
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
 MAX_TIMEOUT_SECONDS = 300  # 5 minute maximum timeout
 MIN_TIMEOUT_SECONDS = 5  # 5 second minimum timeout
+DEFAULT_SOFFICE_TIMEOUT_SECONDS = 120  # 2 minute default for soffice subprocess
+
+
+def _get_soffice_timeout() -> int:
+    """Get soffice subprocess timeout from environment or use default.
+
+    The SOFFICE_TIMEOUT_SECONDS env var controls how long the soffice
+    subprocess is allowed to run before being killed.
+    """
+    env_val = os.getenv('SOFFICE_TIMEOUT_SECONDS')
+    if env_val:
+        try:
+            timeout = int(env_val)
+            if MIN_TIMEOUT_SECONDS <= timeout <= MAX_TIMEOUT_SECONDS:
+                return timeout
+            logger.warning(
+                f'SOFFICE_TIMEOUT_SECONDS must be between {MIN_TIMEOUT_SECONDS} and '
+                f'{MAX_TIMEOUT_SECONDS}, using default: {DEFAULT_SOFFICE_TIMEOUT_SECONDS}s'
+            )
+        except ValueError:
+            logger.warning(
+                f'Invalid SOFFICE_TIMEOUT_SECONDS value: {env_val}, using default: '
+                f'{DEFAULT_SOFFICE_TIMEOUT_SECONDS}s'
+            )
+    return DEFAULT_SOFFICE_TIMEOUT_SECONDS
 ALLOWED_EXTENSIONS = {
     '.pdf',
     '.docx',
@@ -169,6 +194,24 @@ def _is_within_base_directory(resolved_path: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+def validate_output_dir(output_dir: str) -> Optional[str]:
+    """Validate output directory is within the allowed base directory."""
+    try:
+        resolved = Path(output_dir).resolve()
+        if not _is_within_base_directory(resolved):
+            base_dir = _get_base_directory()
+            logger.warning(
+                f'Output dir traversal attempt blocked: {output_dir} -> {resolved}, '
+                f'outside base directory {base_dir}'
+            )
+            return 'Access denied: output directory outside allowed directory'
+        return None
+    except Exception as e:
+        error_msg = f'Error validating output directory {output_dir}: {str(e)}'
+        logger.error(error_msg)
+        return error_msg
 
 
 def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
@@ -438,8 +481,12 @@ def _check_soffice_available() -> Optional[str]:
     return None
 
 
-def _convert_to_pdf_with_soffice(file_path: str, temp_dir: str) -> str:
+def _convert_to_pdf_with_soffice(
+    file_path: str, temp_dir: str, timeout_seconds: Optional[int] = None
+) -> str:
     """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode."""
+    if timeout_seconds is None:
+        timeout_seconds = _get_soffice_timeout()
     soffice_path = _find_soffice()
     if not soffice_path:
         raise RuntimeError('soffice binary not found')
@@ -452,7 +499,7 @@ def _convert_to_pdf_with_soffice(file_path: str, temp_dir: str) -> str:
         '--outdir',
         temp_dir,
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds)  # nosec B603 - fixed command with no shell=True, args are not user-controlled
     pdf_filename = Path(file_path).stem + '.pdf'
     pdf_path = os.path.join(temp_dir, pdf_filename)
     if not os.path.isfile(pdf_path):
@@ -461,7 +508,11 @@ def _convert_to_pdf_with_soffice(file_path: str, temp_dir: str) -> str:
 
 
 def _extract_slides_sync(
-    file_path: str, output_dir: str, dpi: int = 200, output_format: str = 'png'
+    file_path: str,
+    output_dir: str,
+    dpi: int = 200,
+    output_format: str = 'png',
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> List[str]:
     """Synchronous slide extraction for thread pool execution.
 
@@ -473,7 +524,7 @@ def _extract_slides_sync(
     try:
         if suffix in {'.pptx', '.ppt'}:
             temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
-            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir)
+            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds)
         elif suffix == '.pdf':
             pdf_path = file_path
         else:
@@ -532,10 +583,23 @@ async def extract_slides_as_images(
             error_message=validation_error,
         )
 
+    # Validate output directory against base directory
+    output_dir_error = validate_output_dir(output_dir)
+    if output_dir_error:
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=output_dir_error,
+        )
+
     try:
         loop = asyncio.get_event_loop()
         slide_files = await asyncio.wait_for(
-            loop.run_in_executor(None, _extract_slides_sync, file_path, output_dir, dpi, 'png'),
+            loop.run_in_executor(
+                None, _extract_slides_sync, file_path, output_dir, dpi, 'png', timeout_seconds
+            ),
             timeout=timeout_seconds,
         )
         return SlidesExtractionResponse(

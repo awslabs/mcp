@@ -25,9 +25,11 @@ from awslabs.document_loader_mcp_server.server import (
     _extract_slides_sync,
     _find_soffice,
     _get_base_directory,
+    _get_soffice_timeout,
     _read_pdf_content,
     mcp,
     validate_file_path,
+    validate_output_dir,
 )
 from fastmcp.utilities.types import Image
 from tests.test_document_parsing import DocumentTestGenerator, MockContext
@@ -926,6 +928,56 @@ def test_get_base_directory_from_env():
         print('✓ _get_base_directory returns path from env var')
 
 
+def test_get_soffice_timeout_default():
+    """Test _get_soffice_timeout returns default when env var not set."""
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop('SOFFICE_TIMEOUT_SECONDS', None)
+        result = _get_soffice_timeout()
+        assert result == 120
+        print('✓ _get_soffice_timeout returns default')
+
+
+def test_get_soffice_timeout_custom():
+    """Test _get_soffice_timeout returns custom value from env var."""
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': '60'}):
+        result = _get_soffice_timeout()
+        assert result == 60
+        print('✓ _get_soffice_timeout returns custom value')
+
+
+def test_get_soffice_timeout_invalid():
+    """Test _get_soffice_timeout falls back to default for invalid env var."""
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': 'abc'}):
+        result = _get_soffice_timeout()
+        assert result == 120
+        print('✓ _get_soffice_timeout falls back for invalid value')
+
+
+def test_get_soffice_timeout_out_of_range():
+    """Test _get_soffice_timeout falls back to default for out-of-range env var."""
+    with patch.dict(os.environ, {'SOFFICE_TIMEOUT_SECONDS': '999'}):
+        result = _get_soffice_timeout()
+        assert result == 120
+        print('✓ _get_soffice_timeout falls back for out-of-range value')
+
+
+def test_validate_output_dir_within_base():
+    """Test validate_output_dir allows paths within base directory."""
+    with patch.dict(os.environ, {'DOCUMENT_BASE_DIR': '/tmp'}):
+        result = validate_output_dir('/tmp/slides_output')
+        assert result is None
+        print('✓ validate_output_dir allows paths within base directory')
+
+
+def test_validate_output_dir_outside_base():
+    """Test validate_output_dir blocks paths outside base directory."""
+    with patch.dict(os.environ, {'DOCUMENT_BASE_DIR': '/var/app/documents'}):
+        result = validate_output_dir('/etc/evil_output')
+        assert result is not None
+        assert 'Access denied' in result
+        print('✓ validate_output_dir blocks paths outside base directory')
+
+
 def test_convert_to_pdf_with_soffice_success():
     """Test _convert_to_pdf_with_soffice successful conversion."""
     import tempfile
@@ -945,7 +997,31 @@ def test_convert_to_pdf_with_soffice_success():
                 result = _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir)
                 assert result == pdf_path
                 mock_run.assert_called_once()
+                # Verify timeout is passed to subprocess.run
+                call_kwargs = mock_run.call_args[1]
+                assert 'timeout' in call_kwargs
                 print('✓ _convert_to_pdf_with_soffice succeeds')
+
+
+def test_convert_to_pdf_with_soffice_custom_timeout():
+    """Test _convert_to_pdf_with_soffice passes custom timeout to subprocess.run."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with patch('awslabs.document_loader_mcp_server.server._find_soffice') as mock_find:
+            mock_find.return_value = '/usr/bin/soffice'
+
+            with patch('awslabs.document_loader_mcp_server.server.subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
+
+                pdf_path = os.path.join(temp_dir, 'test.pdf')
+                with open(pdf_path, 'w') as f:
+                    f.write('fake pdf')
+
+                _convert_to_pdf_with_soffice('/input/test.pptx', temp_dir, timeout_seconds=60)
+                call_kwargs = mock_run.call_args[1]
+                assert call_kwargs['timeout'] == 60
+                print('✓ _convert_to_pdf_with_soffice passes custom timeout')
 
 
 def test_convert_to_pdf_with_soffice_not_found():
