@@ -619,7 +619,9 @@ async def execute_range_query(input: ExecuteRangeQueryInput, ctx: Context) -> Di
             ctx, input.workspace_id, input.region, input.profile
         )
 
-        logger.info(f'Executing range query: {input.query} from {input.start} to {input.end} with step {input.step}')
+        logger.info(
+            f'Executing range query: {input.query} from {input.start} to {input.end} with step {input.step}'
+        )
 
         # Validate query for security
         if not SecurityValidator.validate_query(input.query):
@@ -774,7 +776,9 @@ class GetAvailableWorkspacesInput(BaseModel):
 
 
 @mcp.tool(name='GetAvailableWorkspaces')
-async def get_available_workspaces(input: GetAvailableWorkspacesInput, ctx: Context) -> Dict[str, Any]:
+async def get_available_workspaces(
+    input: GetAvailableWorkspacesInput, ctx: Context
+) -> Dict[str, Any]:
     """List all available Prometheus workspaces in the specified region.
 
     ## Usage
