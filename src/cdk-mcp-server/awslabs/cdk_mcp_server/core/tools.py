@@ -17,6 +17,7 @@
 import logging
 import os
 import re
+import warnings
 from awslabs.cdk_mcp_server.core import search_utils
 from awslabs.cdk_mcp_server.data.cdk_nag_parser import (
     check_cdk_nag_suppressions,
@@ -140,7 +141,9 @@ async def check_cdk_nag_suppressions_tool(
     code: Optional[str] = None,
     file_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Check if CDK code contains Nag suppressions that require human review.
+    """DEPRECATED: This tool is deprecated. Please use the AWS IaC MCP Server instead.
+
+    Check if CDK code contains Nag suppressions that require human review.
 
     Scans TypeScript/JavaScript code for NagSuppressions usage to ensure security
     suppressions receive proper human oversight and justification.
@@ -153,6 +156,9 @@ async def check_cdk_nag_suppressions_tool(
     Returns:
         Analysis results with suppression details and security guidance
     """
+    msg = 'CheckCDKNagSuppressions tool is deprecated. Please use the AWS IaC MCP Server instead.'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     # Use the imported function from cdk_nag_parser.py
     return check_cdk_nag_suppressions(code=code, file_path=file_path)
 
@@ -224,7 +230,9 @@ def save_fallback_script_to_file(
 async def bedrock_schema_generator_from_file(
     ctx: Context, lambda_code_path: str, output_path: str
 ) -> Dict[str, Any]:
-    """Generate OpenAPI schema for Bedrock Agent Action Groups from a file.
+    """DEPRECATED: This tool is deprecated. Please use the AWS IaC MCP Server instead.
+
+    Generate OpenAPI schema for Bedrock Agent Action Groups from a file.
 
     This tool converts a Lambda file with BedrockAgentResolver into a Bedrock-compatible
     OpenAPI schema. It uses a progressive approach to handle common issues:
@@ -241,6 +249,11 @@ async def bedrock_schema_generator_from_file(
         Dictionary with schema generation results, including status, path to generated schema,
         and diagnostic information if errors occurred
     """
+    msg = (
+        'GenerateBedrockAgentSchema tool is deprecated. Please use the AWS IaC MCP Server instead.'
+    )
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     # Ensure the output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 

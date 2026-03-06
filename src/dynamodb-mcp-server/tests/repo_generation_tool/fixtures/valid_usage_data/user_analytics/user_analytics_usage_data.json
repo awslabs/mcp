@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "access_pattern_data": {
+        "age_group": "35-44",
+        "city": "Toronto",
+        "country": "CA",
+        "email": "analytics.user@techcorp.com",
+        "engagement_level": "medium",
+        "last_active": "2024-01-19T16:45:00Z",
+        "last_purchase_date": "2024-01-10T14:20:00Z",
+        "session_count": 42,
+        "signup_date": "2023-12-01T08:30:00Z",
+        "status": "premium",
+        "total_sessions": 280,
+        "user_id": "user-98765"
+      },
+      "sample_data": {
+        "age_group": "25-34",
+        "city": "Seattle",
+        "country": "US",
+        "email": "user@example.com",
+        "engagement_level": "high",
+        "last_active": "2024-01-20T14:30:00Z",
+        "last_purchase_date": "2024-01-18T12:00:00Z",
+        "session_count": 25,
+        "signup_date": "2024-01-15T10:00:00Z",
+        "status": "active",
+        "total_sessions": 150,
+        "user_id": "user-12345"
+      },
+      "update_data": {
+        "engagement_level": "very_high",
+        "last_active": "2024-01-21T09:15:00Z",
+        "session_count": 28,
+        "status": "premium_active",
+        "total_sessions": 165
+      }
+    }
+  }
+}

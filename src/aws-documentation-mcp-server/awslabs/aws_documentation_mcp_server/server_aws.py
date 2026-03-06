@@ -41,7 +41,7 @@ from pydantic import Field
 from typing import List, Optional
 
 
-SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
+SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
 SESSION_UUID = str(uuid.uuid4())
 

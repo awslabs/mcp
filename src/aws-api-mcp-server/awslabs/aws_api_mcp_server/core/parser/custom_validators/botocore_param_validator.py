@@ -17,14 +17,6 @@ from botocore.validate import ParamValidator, ValidationErrors, range_check, typ
 from loguru import logger
 
 
-def max_range_check(name, value, shape, error_type, errors):
-    """Check if the value exceeds the maximum allowed by the shape."""
-    if 'max' in shape.metadata:
-        max_allowed = shape.metadata['max']
-        if value > max_allowed:
-            errors.report(name, error_type, param=value, max_allowed=max_allowed)
-
-
 def pattern_check(name, value, shape, error_type, errors):
     """Check if the value matches the pattern in the shape."""
     if 'pattern' in shape.metadata:
@@ -68,6 +60,6 @@ class BotoCoreParamValidator(ParamValidator):
 
     @type_check(valid_types=(str,))
     def _validate_string(self, param, shape, errors, name):
+        # max range is not checked to be forward compatible with API changes https://github.com/boto/botocore/issues/1845
         range_check(name, len(param), shape, 'invalid length', errors)
-        max_range_check(name, len(param), shape, 'invalid length', errors)
         pattern_check(name, param, shape, 'invalid pattern', errors)

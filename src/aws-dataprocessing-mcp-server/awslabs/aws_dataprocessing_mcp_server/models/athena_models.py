@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Response models for Query Management
-from mcp.types import CallToolResult
-from pydantic import Field
+# Data models for Query Management
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
 
-class BatchGetQueryExecutionResponse(CallToolResult):
-    """Response model for batch get query execution operation."""
+class BatchGetQueryExecutionData(BaseModel):
+    """Data model for batch get query execution operation."""
 
     query_executions: List[Dict[str, Any]] = Field(..., description='List of query executions')
     unprocessed_query_execution_ids: List[Dict[str, Any]] = Field(
@@ -28,8 +27,8 @@ class BatchGetQueryExecutionResponse(CallToolResult):
     operation: str = Field(default='batch-get-query-execution', description='Operation performed')
 
 
-class GetQueryExecutionResponse(CallToolResult):
-    """Response model for get query execution operation."""
+class GetQueryExecutionData(BaseModel):
+    """Data model for get query execution operation."""
 
     query_execution_id: str = Field(..., description='ID of the query execution')
     query_execution: Dict[str, Any] = Field(
@@ -39,8 +38,8 @@ class GetQueryExecutionResponse(CallToolResult):
     operation: str = Field(default='get-query-execution', description='Operation performed')
 
 
-class GetQueryResultsResponse(CallToolResult):
-    """Response model for get query results operation."""
+class GetQueryResultsData(BaseModel):
+    """Data model for get query results operation."""
 
     query_execution_id: str = Field(..., description='ID of the query execution')
     result_set: Dict[str, Any] = Field(
@@ -57,8 +56,8 @@ class GetQueryResultsResponse(CallToolResult):
     operation: str = Field(default='get-query-results', description='Operation performed')
 
 
-class GetQueryRuntimeStatisticsResponse(CallToolResult):
-    """Response model for get query runtime statistics operation."""
+class GetQueryRuntimeStatisticsData(BaseModel):
+    """Data model for get query runtime statistics operation."""
 
     query_execution_id: str = Field(..., description='ID of the query execution')
     statistics: Dict[str, Any] = Field(
@@ -70,8 +69,8 @@ class GetQueryRuntimeStatisticsResponse(CallToolResult):
     )
 
 
-class ListQueryExecutionsResponse(CallToolResult):
-    """Response model for list query executions operation."""
+class ListQueryExecutionsData(BaseModel):
+    """Data model for list query executions operation."""
 
     query_execution_ids: List[str] = Field(..., description='List of query execution IDs')
     count: int = Field(..., description='Number of query executions found')
@@ -79,25 +78,25 @@ class ListQueryExecutionsResponse(CallToolResult):
     operation: str = Field(default='list-query-executions', description='Operation performed')
 
 
-class StartQueryExecutionResponse(CallToolResult):
-    """Response model for start query execution operation."""
+class StartQueryExecutionData(BaseModel):
+    """Data model for start query execution operation."""
 
     query_execution_id: str = Field(..., description='ID of the started query execution')
     operation: str = Field(default='start-query-execution', description='Operation performed')
 
 
-class StopQueryExecutionResponse(CallToolResult):
-    """Response model for stop query execution operation."""
+class StopQueryExecutionData(BaseModel):
+    """Data model for stop query execution operation."""
 
     query_execution_id: str = Field(..., description='ID of the stopped query execution')
     operation: str = Field(default='stop-query-execution', description='Operation performed')
 
 
-# Response models for Named Query Operations
+# Data models for Named Query Operations
 
 
-class BatchGetNamedQueryResponse(CallToolResult):
-    """Response model for batch get named query operation."""
+class BatchGetNamedQueryData(BaseModel):
+    """Data model for batch get named query operation."""
 
     named_queries: List[Dict[str, Any]] = Field(..., description='List of named queries')
     unprocessed_named_query_ids: List[Dict[str, Any]] = Field(
@@ -106,22 +105,22 @@ class BatchGetNamedQueryResponse(CallToolResult):
     operation: str = Field(default='batch-get-named-query', description='Operation performed')
 
 
-class CreateNamedQueryResponse(CallToolResult):
-    """Response model for create named query operation."""
+class CreateNamedQueryData(BaseModel):
+    """Data model for create named query operation."""
 
     named_query_id: str = Field(..., description='ID of the created named query')
     operation: str = Field(default='create-named-query', description='Operation performed')
 
 
-class DeleteNamedQueryResponse(CallToolResult):
-    """Response model for delete named query operation."""
+class DeleteNamedQueryData(BaseModel):
+    """Data model for delete named query operation."""
 
     named_query_id: str = Field(..., description='ID of the deleted named query')
     operation: str = Field(default='delete-named-query', description='Operation performed')
 
 
-class GetNamedQueryResponse(CallToolResult):
-    """Response model for get named query operation."""
+class GetNamedQueryData(BaseModel):
+    """Data model for get named query operation."""
 
     named_query_id: str = Field(..., description='ID of the named query')
     named_query: Dict[str, Any] = Field(
@@ -131,8 +130,8 @@ class GetNamedQueryResponse(CallToolResult):
     operation: str = Field(default='get-named-query', description='Operation performed')
 
 
-class ListNamedQueriesResponse(CallToolResult):
-    """Response model for list named queries operation."""
+class ListNamedQueriesData(BaseModel):
+    """Data model for list named queries operation."""
 
     named_query_ids: List[str] = Field(..., description='List of named query IDs')
     count: int = Field(..., description='Number of named queries found')
@@ -140,32 +139,32 @@ class ListNamedQueriesResponse(CallToolResult):
     operation: str = Field(default='list-named-queries', description='Operation performed')
 
 
-class UpdateNamedQueryResponse(CallToolResult):
-    """Response model for update named query operation."""
+class UpdateNamedQueryData(BaseModel):
+    """Data model for update named query operation."""
 
     named_query_id: str = Field(..., description='ID of the updated named query')
     operation: str = Field(default='update-named-query', description='Operation performed')
 
 
-# Response models for Data Catalog Operations
+# Data models for Data Catalog Operations
 
 
-class CreateDataCatalogResponse(CallToolResult):
-    """Response model for create data catalog operation."""
+class CreateDataCatalogData(BaseModel):
+    """Data model for create data catalog operation."""
 
     name: str = Field(..., description='Name of the created data catalog')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteDataCatalogResponse(CallToolResult):
-    """Response model for delete data catalog operation."""
+class DeleteDataCatalogData(BaseModel):
+    """Data model for delete data catalog operation."""
 
     name: str = Field(..., description='Name of the deleted data catalog')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetDataCatalogResponse(CallToolResult):
-    """Response model for get data catalog operation."""
+class GetDataCatalogData(BaseModel):
+    """Data model for get data catalog operation."""
 
     data_catalog: Dict[str, Any] = Field(
         ...,
@@ -174,8 +173,8 @@ class GetDataCatalogResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListDataCatalogsResponse(CallToolResult):
-    """Response model for list data catalogs operation."""
+class ListDataCatalogsData(BaseModel):
+    """Data model for list data catalogs operation."""
 
     data_catalogs: List[Dict[str, Any]] = Field(
         ...,
@@ -186,15 +185,15 @@ class ListDataCatalogsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateDataCatalogResponse(CallToolResult):
-    """Response model for update data catalog operation."""
+class UpdateDataCatalogData(BaseModel):
+    """Data model for update data catalog operation."""
 
     name: str = Field(..., description='Name of the updated data catalog')
     operation: str = Field(default='update', description='Operation performed')
 
 
-class GetDatabaseResponse(CallToolResult):
-    """Response model for get database operation."""
+class GetDatabaseData(BaseModel):
+    """Data model for get database operation."""
 
     database: Dict[str, Any] = Field(
         ..., description='Database details including name, description, and parameters'
@@ -202,8 +201,8 @@ class GetDatabaseResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class GetTableMetadataResponse(CallToolResult):
-    """Response model for get table metadata operation."""
+class GetTableMetadataData(BaseModel):
+    """Data model for get table metadata operation."""
 
     table_metadata: Dict[str, Any] = Field(
         ...,
@@ -212,8 +211,8 @@ class GetTableMetadataResponse(CallToolResult):
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListDatabasesResponse(CallToolResult):
-    """Response model for list databases operation."""
+class ListDatabasesData(BaseModel):
+    """Data model for list databases operation."""
 
     database_list: List[Dict[str, Any]] = Field(
         ...,
@@ -224,8 +223,8 @@ class ListDatabasesResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class ListTableMetadataResponse(CallToolResult):
-    """Response model for list table metadata operation."""
+class ListTableMetadataData(BaseModel):
+    """Data model for list table metadata operation."""
 
     table_metadata_list: List[Dict[str, Any]] = Field(
         ...,
@@ -236,32 +235,32 @@ class ListTableMetadataResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-# Response models for WorkGroup Operations
+# Data models for WorkGroup Operations
 
 
-class CreateWorkGroupResponse(CallToolResult):
-    """Response model for create work group operation."""
+class CreateWorkGroupData(BaseModel):
+    """Data model for create work group operation."""
 
     work_group_name: str = Field(..., description='Name of the created work group')
     operation: str = Field(default='create', description='Operation performed')
 
 
-class DeleteWorkGroupResponse(CallToolResult):
-    """Response model for delete work group operation."""
+class DeleteWorkGroupData(BaseModel):
+    """Data model for delete work group operation."""
 
     work_group_name: str = Field(..., description='Name of the deleted work group')
     operation: str = Field(default='delete', description='Operation performed')
 
 
-class GetWorkGroupResponse(CallToolResult):
-    """Response model for get work group operation."""
+class GetWorkGroupData(BaseModel):
+    """Data model for get work group operation."""
 
     work_group: Dict[str, Any] = Field(..., description='Work group details')
     operation: str = Field(default='get', description='Operation performed')
 
 
-class ListWorkGroupsResponse(CallToolResult):
-    """Response model for list work groups operation."""
+class ListWorkGroupsData(BaseModel):
+    """Data model for list work groups operation."""
 
     work_groups: List[Dict[str, Any]] = Field(..., description='List of work groups')
     count: int = Field(..., description='Number of work groups found')
@@ -269,8 +268,8 @@ class ListWorkGroupsResponse(CallToolResult):
     operation: str = Field(default='list', description='Operation performed')
 
 
-class UpdateWorkGroupResponse(CallToolResult):
-    """Response model for update work group operation."""
+class UpdateWorkGroupData(BaseModel):
+    """Data model for update work group operation."""
 
     work_group_name: str = Field(..., description='Name of the updated work group')
     operation: str = Field(default='update', description='Operation performed')

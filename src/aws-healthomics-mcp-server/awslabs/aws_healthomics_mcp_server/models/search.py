@@ -227,6 +227,9 @@ class GenomicsFileSearchRequest(BaseModel):
     enable_storage_pagination: bool = False  # Enable efficient storage-level pagination
     pagination_buffer_size: int = 500  # Buffer size for ranking-aware pagination
 
+    # Adhoc S3 bucket support
+    adhoc_s3_buckets: Optional[List[str]] = None  # Additional S3 bucket paths to search
+
     @field_validator('max_results')
     @classmethod
     def validate_max_results(cls, v: int) -> int:
@@ -246,6 +249,40 @@ class GenomicsFileSearchRequest(BaseModel):
         if v > 50000:
             raise ValueError('pagination_buffer_size cannot exceed 50000')
         return v
+
+    @field_validator('adhoc_s3_buckets')
+    @classmethod
+    def validate_adhoc_s3_buckets(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate adhoc_s3_buckets parameter."""
+        if v is None:
+            return v
+
+        if not isinstance(v, list):
+            raise ValueError('adhoc_s3_buckets must be a list of S3 bucket paths')
+
+        if len(v) == 0:
+            return None  # Empty list is equivalent to None
+
+        if len(v) > 50:  # Reasonable limit to prevent abuse
+            raise ValueError('adhoc_s3_buckets cannot contain more than 50 bucket paths')
+
+        # Basic format validation for each bucket path
+        from awslabs.aws_healthomics_mcp_server.utils.s3_utils import (
+            validate_and_normalize_s3_path,
+        )
+
+        validated_paths = []
+        for bucket_path in v:
+            if not isinstance(bucket_path, str):
+                raise ValueError('All adhoc_s3_buckets entries must be strings')
+
+            try:
+                validated_path = validate_and_normalize_s3_path(bucket_path)
+                validated_paths.append(validated_path)
+            except ValueError as e:
+                raise ValueError(f'Invalid S3 bucket path "{bucket_path}": {str(e)}')
+
+        return validated_paths
 
 
 class GenomicsFileSearchResponse(BaseModel):

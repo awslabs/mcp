@@ -1,0 +1,222 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "AnotherTestEntity": {
+          "access_patterns": [
+            {
+              "description": "Invalid operation type",
+              "name": "invalid_operation_type",
+              "operation": "InvalidOperation",
+              "parameters": [
+                {
+                  "name": "another_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ANOTHER_TEST",
+          "fields": [
+            {
+              "name": "another_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "ValidIndex",
+              "pk_template": "EMPTY_TEMPLATE#{}",
+              "sk_template": "{}"
+            },
+            {
+              "name": "ValidIndex",
+              "pk_template": "MALFORMED#{unclosed_brace",
+              "sk_template": "VALID#{status}"
+            }
+          ],
+          "pk_template": "ANOTHER#{another_id}",
+          "sk_template": "INFO"
+        },
+        "TestEntity": {
+          "access_patterns": [
+            {
+              "description": "Get test entity by ID",
+              "name": "get_test_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "test_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "Query using non-existent index",
+              "index_name": "NonExistentIndex",
+              "name": "query_nonexistent_index",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "status",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 2,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Query with invalid range condition",
+              "index_name": "ValidIndex",
+              "name": "invalid_range_condition",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "valid_field",
+                  "type": "string"
+                },
+                {
+                  "name": "range_value",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "range_condition": "invalid_condition",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Between condition with wrong parameter count",
+              "index_name": "ValidIndex",
+              "name": "wrong_parameter_count_for_between",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "valid_field",
+                  "type": "string"
+                },
+                {
+                  "name": "single_range_value",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "range_condition": "between",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Begins_with condition with too many parameters",
+              "index_name": "ValidIndex",
+              "name": "too_many_parameters_for_begins_with",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "valid_field",
+                  "type": "string"
+                },
+                {
+                  "name": "prefix_value",
+                  "type": "string"
+                },
+                {
+                  "name": "extra_param",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 5,
+              "range_condition": "begins_with",
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Query missing required partition key parameter",
+              "index_name": "ValidIndex",
+              "name": "missing_required_parameters",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "range_value",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            }
+          ],
+          "entity_type": "TEST",
+          "fields": [
+            {
+              "name": "test_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "status",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "created_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "NonExistentIndex",
+              "pk_template": "STATUS#{status}",
+              "sk_template": "{created_at}"
+            },
+            {
+              "name": "ValidIndex",
+              "pk_template": "VALID#{missing_field}",
+              "sk_template": "{another_missing_field}"
+            },
+            {
+              "name": "DuplicateIndex",
+              "pk_template": "DUPLICATE#{status}",
+              "sk_template": "{created_at}"
+            }
+          ],
+          "pk_template": "TEST#{test_id}",
+          "sk_template": "DETAILS"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "DuplicateIndex",
+          "partition_key": "status_pk",
+          "sort_key": "created_at_sk"
+        },
+        {
+          "name": "DuplicateIndex",
+          "partition_key": "category_pk",
+          "sort_key": "name_sk"
+        },
+        {
+          "name": "ValidIndex",
+          "partition_key": "valid_pk",
+          "sort_key": "valid_sk"
+        }
+      ],
+      "table_config": {
+        "partition_key": "pk",
+        "sort_key": "sk",
+        "table_name": "InvalidGSIExample"
+      }
+    }
+  ]
+}

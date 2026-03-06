@@ -14,10 +14,8 @@
 
 """CloudWatch Alarms tools for MCP server."""
 
-import boto3
 import json
-import os
-from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
+from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     ActiveAlarmsResponse,
     AlarmDetails,
@@ -28,7 +26,6 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     MetricAlarmSummary,
     TimeRangeSuggestion,
 )
-from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -42,21 +39,6 @@ class CloudWatchAlarmsTools:
     def __init__(self):
         """Initialize the CloudWatch Alarms tools."""
         pass
-
-    def _get_cloudwatch_client(self, region: str):
-        """Create a CloudWatch client for the specified region."""
-        config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
-
-        try:
-            if aws_profile := os.environ.get('AWS_PROFILE'):
-                return boto3.Session(profile_name=aws_profile, region_name=region).client(
-                    'cloudwatch', config=config
-                )
-            else:
-                return boto3.Session(region_name=region).client('cloudwatch', config=config)
-        except Exception as e:
-            logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
-            raise
 
     def register(self, mcp):
         """Register all CloudWatch Alarms tools with the MCP server."""
@@ -76,9 +58,17 @@ class CloudWatchAlarmsTools:
             ),
         ] = 50,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+            ),
+        ] = None,
     ) -> ActiveAlarmsResponse:
         """Gets all CloudWatch Alarms currently in ALARM state.
 
@@ -92,7 +82,8 @@ class CloudWatchAlarmsTools:
         Args:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -118,7 +109,7 @@ class CloudWatchAlarmsTools:
                 raise ValueError('max_items must be at least 1')
 
             # Create CloudWatch client for the specified region
-            cloudwatch_client = self._get_cloudwatch_client(region)
+            cloudwatch_client = get_aws_client('cloudwatch', region, profile_name)
 
             # Fetch active alarms using paginator
             logger.info(f'Fetching up to {max_items} active alarms')
@@ -220,9 +211,17 @@ class CloudWatchAlarmsTools:
             ),
         ] = False,
         region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
+            str | None,
+            Field(
+                description='AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.'
+            ),
+        ] = None,
+        profile_name: Annotated[
+            str | None,
+            Field(
+                description='AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.'
+            ),
+        ] = None,
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
         """Gets the history for a CloudWatch alarm with time range suggestions for investigation.
 
@@ -237,13 +236,14 @@ class CloudWatchAlarmsTools:
 
         Args:
             ctx: The MCP context object for error handling and logging.
-            region: AWS region to query. Defaults to 'us-east-1'.
+            region: AWS region to query. Defaults to AWS_REGION environment variable or us-east-1 if not set.
             alarm_name: Name of the alarm to retrieve history for.
             start_time: Optional start time for the history query. Defaults to 24 hours ago.
             end_time: Optional end time for the history query. Defaults to current time.
             history_item_type: Optional type of history items to retrieve. Defaults to 'StateUpdate'.
             max_items: Maximum number of history items to return. Defaults to 50.
             include_component_alarms: For composite alarms, whether to include details about component alarms.
+            profile_name: AWS CLI Profile Name to use for AWS access. Falls back to AWS_PROFILE environment variable if not specified, or uses default AWS credential chain.
 
         Returns:
             Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]: Either a response containing
@@ -271,7 +271,7 @@ class CloudWatchAlarmsTools:
                 history_item_type = 'StateUpdate'
 
             # Create CloudWatch client for the specified region
-            cloudwatch_client = self._get_cloudwatch_client(region)
+            cloudwatch_client = get_aws_client('cloudwatch', region, profile_name)
 
             # Set up default time range (last 24 hours)
             if end_time is None or not isinstance(end_time, str):

@@ -63,7 +63,7 @@ class AWSToolGenerator:
         self.skip_param_documentation = skip_param_documentation
         self.__validate_tool_configuration()
         self.config = Config(
-            user_agent_extra=f'awslabs/mcp/{self.service_name}/{mcp_server_version}'
+            user_agent_extra=f'md/awslabs#mcp#amazon-{self.service_name}-mcp-server#{mcp_server_version}'
         )
 
     def generate(self):

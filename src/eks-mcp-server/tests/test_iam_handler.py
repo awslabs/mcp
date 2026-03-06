@@ -154,15 +154,18 @@ async def test_get_policies_for_role(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
-    assert result.description == 'Test role'
-    assert len(result.managed_policies) == 1
-    assert result.managed_policies[0].policy_type == 'Managed'
-    assert len(result.inline_policies) == 1
-    assert result.inline_policies[0].policy_type == 'Inline'
+
+    # Parse JSON data from content
+    data = json.loads(result.content[1].text)
+    assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
+    assert data['description'] == 'Test role'
+    assert len(data['managed_policies']) == 1
+    assert data['managed_policies'][0]['policy_type'] == 'Managed'
+    assert len(data['inline_policies']) == 1
+    assert data['inline_policies'][0]['policy_type'] == 'Inline'
 
 
 @pytest.mark.asyncio
@@ -215,8 +218,6 @@ async def test_add_inline_policy_existing_policy(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Policy test-inline-policy already exists in role test-role' in result.content[0].text
-    assert result.policy_name == 'test-inline-policy'
-    assert result.role_name == 'test-role'
 
     # Verify that put_role_policy was NOT called
     mock_iam_client.put_role_policy.assert_not_called()
@@ -258,15 +259,18 @@ async def test_add_inline_policy_new_policy(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert (
         'Successfully created new inline policy test-inline-policy in role test-role'
         in result.content[0].text
     )
-    assert result.policy_name == 'test-inline-policy'
-    assert result.role_name == 'test-role'
-    assert result.permissions_added == permissions
+
+    # Parse JSON data from content
+    data = json.loads(result.content[1].text)
+    assert data['policy_name'] == 'test-inline-policy'
+    assert data['role_name'] == 'test-role'
+    assert data['permissions_added'] == permissions
 
     # Verify that put_role_policy was called with the correct parameters
     mock_iam_client.put_role_policy.assert_called_once()
@@ -317,15 +321,18 @@ async def test_add_inline_policy_multiple_statements(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert (
         'Successfully created new inline policy test-inline-policy in role test-role'
         in result.content[0].text
     )
-    assert result.policy_name == 'test-inline-policy'
-    assert result.role_name == 'test-role'
-    assert result.permissions_added == permissions
+
+    # Parse JSON data from content
+    data = json.loads(result.content[1].text)
+    assert data['policy_name'] == 'test-inline-policy'
+    assert data['role_name'] == 'test-role'
+    assert data['permissions_added'] == permissions
 
     # Verify that put_role_policy was called with the correct parameters
     mock_iam_client.put_role_policy.assert_called_once()
@@ -367,11 +374,6 @@ async def test_get_policies_for_role_error(mock_create_client):
     assert result.content[0].type == 'text'
     assert 'Failed to describe IAM role' in result.content[0].text
     assert 'Role not found' in result.content[0].text
-    assert result.role_arn == ''
-    assert result.assume_role_policy_document == {}
-    assert result.description is None
-    assert result.managed_policies == []
-    assert result.inline_policies == []
 
 
 @pytest.mark.asyncio
@@ -418,12 +420,15 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
-    assert result.description == 'Test role'
-    assert result.assume_role_policy_document == {
+
+    # Parse JSON data from content
+    data = json.loads(result.content[1].text)
+    assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
+    assert data['description'] == 'Test role'
+    assert data['assume_role_policy_document'] == {
         'Version': '2012-10-17',
         'Statement': [
             {
@@ -433,8 +438,8 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
             }
         ],
     }
-    assert result.managed_policies == []
-    assert result.inline_policies == []
+    assert data['managed_policies'] == []
+    assert data['inline_policies'] == []
 
 
 @pytest.mark.asyncio
@@ -518,16 +523,21 @@ async def test_get_managed_policies_error(mock_create_client):
 
     # Verify the result
     assert not result.isError
-    assert len(result.content) == 1
+    assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
-    assert result.description == 'Test role'
-    assert len(result.managed_policies) == 1
-    assert result.managed_policies[0].policy_type == 'Managed'
-    assert result.managed_policies[0].description == 'Policy for EKS clusters'
-    assert result.managed_policies[0].policy_document is None  # Should be None due to the error
-    assert result.inline_policies == []
+
+    # Parse JSON data from content
+    data = json.loads(result.content[1].text)
+    assert data['role_arn'] == 'arn:aws:iam::123456789012:role/test-role'
+    assert data['description'] == 'Test role'
+    assert len(data['managed_policies']) == 1
+    assert data['managed_policies'][0]['policy_type'] == 'Managed'
+    assert data['managed_policies'][0]['description'] == 'Policy for EKS clusters'
+    assert (
+        data['managed_policies'][0]['policy_document'] is None
+    )  # Should be None due to the error
+    assert data['inline_policies'] == []
 
 
 @pytest.mark.asyncio
@@ -591,11 +601,6 @@ async def test_get_inline_policies_error(mock_create_client):
     assert result.content[0].type == 'text'
     assert 'Failed to describe IAM role' in result.content[0].text
     assert 'Policy not found' in result.content[0].text
-    assert result.role_arn == ''
-    assert result.assume_role_policy_document == {}
-    assert result.description is None
-    assert result.managed_policies == []
-    assert result.inline_policies == []
 
 
 @pytest.mark.asyncio
@@ -632,9 +637,6 @@ async def test_add_inline_policy_write_access_disabled(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Adding inline policies requires --allow-write flag' in result.content[0].text
-    assert result.policy_name == 'test-inline-policy'
-    assert result.role_name == 'test-role'
-    assert result.permissions_added == {}
 
     # Verify that no AWS API calls were made
     mock_create_client.assert_not_called()
@@ -678,6 +680,3 @@ async def test_add_inline_policy_general_error(mock_create_client):
     assert result.content[0].type == 'text'
     assert 'Failed to create inline policy' in result.content[0].text
     assert 'AWS credentials not found' in result.content[0].text
-    assert result.policy_name == 'test-inline-policy'
-    assert result.role_name == 'test-role'
-    assert result.permissions_added == {}

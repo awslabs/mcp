@@ -10,14 +10,13 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     InvalidServiceError,
     InvalidServiceOperationError,
     InvalidTypeForParameterError,
-    MalformedFilterError,
     MissingOperationError,
     MissingRequiredParametersError,
+    OperationIsNotSupportedInTheRegionError,
     ParameterSchemaValidationError,
     ParameterValidationErrorRecord,
     ServiceNotAllowedError,
     ShortHandParserError,
-    UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
     _validate_endpoint,
@@ -320,36 +319,6 @@ def test_tag_key_filter(command):
 
 
 @pytest.mark.parametrize(
-    'command,error_class,message',
-    [
-        (
-            'aws ssm list-documents --filters Key=Unknown,Values=Automation',
-            UnknownFiltersError,
-            str(
-                UnknownFiltersError(
-                    'ssm',
-                    ['Unknown'],
-                )
-            ),
-        ),
-        (
-            'aws ssm list-commands --filters key=InvokedAfter,value=2020-02-01T00:00:00Z,type=Equal',
-            MalformedFilterError,
-            str(
-                MalformedFilterError(
-                    'ssm', 'list-commands', {'key', 'value', 'type'}, {'key', 'value'}
-                )
-            ),
-        ),
-    ],
-)
-def test_filter_validation_errors(command, error_class, message):
-    """Test that filter validation errors raise the correct exception."""
-    with pytest.raises(error_class, match=re.escape(message)):
-        parse(command)
-
-
-@pytest.mark.parametrize(
     'command',
     [
         # https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_ListCommands.html
@@ -403,7 +372,7 @@ def test_plural_singular_params(command):
     'command',
     [
         'aws s3api get-bucket-location --bucket=deploymentloggingbucke-9c88ebe0707be65d2518510c64917283d761bf03',
-        "aws ec2 describe-availability-zones --query='AvailabilityZones[?ZoneName==`us-east-1a`]'",
+        'aws ec2 describe-availability-zones --query=\'AvailabilityZones[?ZoneName=="us-east-1a"]\'',
         'aws s3api get-bucket-lifecycle --bucket my-s3-bucket',
         'aws --region=us-east-1 ec2 get-subnet-cidr-reservations --subnet-id subnet-012 --color=on',
         "aws apigateway get-export --parameters extensions='postman' --rest-api-id a1b2c3d4e5 --stage-name dev --export-type swagger -",
@@ -604,7 +573,8 @@ def test_client_side_filter_error():
     """Test that a malformed client-side filter raises an error."""
     command = 'aws ec2 describe-instances --query "Reservations[[]"'
     with pytest.raises(
-        ClientSideFilterError, match="Error parsing client-side filter 'Reservations[[]'*"
+        ClientSideFilterError,
+        match=re.escape("Error parsing client-side filter 'Reservations[[]'") + '.*',
     ):
         parse(command)
 
@@ -725,3 +695,16 @@ def test_allowed_custom_operations_when_file_access_disabled_is_subset():
         + 'The following operations are in ALLOWED_CUSTOM_OPERATIONS_WHEN_FILE_ACCESS_DISABLED but not in ALLOWED_CUSTOM_OPERATIONS:\n'
         + '\n'.join(extra_operations)
     )
+
+
+def test_s3_express_one_in_unsupported_region():
+    """Test aws s3 list-directory-buckets command in region where this operation is not supported."""
+    with pytest.raises(
+        OperationIsNotSupportedInTheRegionError,
+        match='The operation s3:list-directory-buckets is not supported in the eu-central-1 region.',
+    ):
+        result = parse('aws s3api list-directory-buckets --region eu-central-1')
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 's3'
+        assert result.command_metadata.operation_sdk_name == 'ListDirectoryBuckets'

@@ -21,6 +21,7 @@ from awslabs.aws_healthomics_mcp_server.models import (
 from awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator import (
     GenomicsSearchOrchestrator,
 )
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -66,6 +67,10 @@ async def search_genomics_files(
         ge=100,
         le=50000,
     ),
+    adhoc_s3_buckets: Optional[List[str]] = Field(
+        None,
+        description='Optional list of additional S3 bucket paths to search (e.g., ["s3://bucket-name/prefix/"]). These buckets will be searched in addition to any configured buckets, allowing you to search buckets that are not part of the standard configuration. Maximum 50 bucket paths.',
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -83,6 +88,7 @@ async def search_genomics_files(
         continuation_token: Continuation token from previous search response for paginated results
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
+        adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
 
     Returns:
         Comprehensive dictionary containing:
@@ -129,21 +135,16 @@ async def search_genomics_files(
             f'include_associated_files={include_associated_files}, '
             f'offset={offset}, continuation_token={continuation_token is not None}, '
             f'enable_storage_pagination={enable_storage_pagination}, '
-            f'pagination_buffer_size={pagination_buffer_size}'
+            f'pagination_buffer_size={pagination_buffer_size}, '
+            f'adhoc_s3_buckets={len(adhoc_s3_buckets) if adhoc_s3_buckets else 0} buckets'
         )
 
         # Validate file_type parameter if provided
         if file_type:
             try:
                 GenomicsFileType(file_type.lower())
-            except ValueError:
-                valid_types = [ft.value for ft in GenomicsFileType]
-                error_message = (
-                    f"Invalid file_type '{file_type}'. Valid types are: {', '.join(valid_types)}"
-                )
-                logger.error(error_message)
-                await ctx.error(error_message)
-                raise ValueError(error_message)
+            except Exception as e:
+                return await handle_tool_error(ctx, e, 'Error validating file type')
 
         # Create search request
         search_request = GenomicsFileSearchRequest(
@@ -155,16 +156,14 @@ async def search_genomics_files(
             continuation_token=continuation_token,
             enable_storage_pagination=enable_storage_pagination,
             pagination_buffer_size=pagination_buffer_size,
+            adhoc_s3_buckets=adhoc_s3_buckets,
         )
 
         # Initialize search orchestrator from environment configuration
         try:
             orchestrator = GenomicsSearchOrchestrator.from_environment()
-        except ValueError as e:
-            error_message = f'Configuration error: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise
+        except Exception as e:
+            return await handle_tool_error(ctx, e, 'Error initializing search orchestrator')
 
         # Execute the search - use paginated search if enabled
         try:
@@ -173,10 +172,7 @@ async def search_genomics_files(
             else:
                 response = await orchestrator.search(search_request)
         except Exception as e:
-            error_message = f'Search execution failed: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise
+            return await handle_tool_error(ctx, e, 'Error executing genomics file search')
 
         # Use the enhanced response if available, otherwise fall back to basic structure
         if hasattr(response, 'enhanced_response') and response.enhanced_response:
@@ -201,10 +197,7 @@ async def search_genomics_files(
         # Re-raise validation errors as-is
         raise
     except Exception as e:
-        error_message = f'Unexpected error during genomics file search: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise Exception(error_message) from e
+        return await handle_tool_error(ctx, e, 'Error during genomics file search')
 
 
 # Additional helper function for getting file type information
@@ -267,7 +260,4 @@ async def get_supported_file_types(ctx: Context) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        error_message = f'Error retrieving supported file types: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error retrieving supported file types')
