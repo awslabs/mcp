@@ -38,8 +38,8 @@ async def test_read_documentation_china_live():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws_cn.DEFAULT_USER_AGENT',
-        TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_utils.get_default_user_agent',
+        return_value=TEST_USER_AGENT,
     ):
         # Call the tool
         result = await read_documentation_china(ctx, url=url, max_length=5000, start_index=0)
@@ -89,8 +89,8 @@ async def test_read_documentation_china_pagination_live():
     small_max_length = 1000
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws_cn.DEFAULT_USER_AGENT',
-        TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_utils.get_default_user_agent',
+        return_value=TEST_USER_AGENT,
     ):
         # Call the tool for the first page
         first_page = await read_documentation_china(
