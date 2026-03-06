@@ -14,9 +14,8 @@
 
 """Workflow analysis tools for the AWS HealthOmics MCP server."""
 
-import botocore
-import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_logs_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from loguru import logger
@@ -159,21 +158,8 @@ async def get_run_logs(
             next_token,
             start_from_head,
         )
-    except ValueError as e:
-        error_message = f'Invalid timestamp format: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error retrieving run logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error retrieving run logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error retrieving run logs')
 
 
 async def _get_run_manifest_logs_internal(
@@ -312,21 +298,8 @@ async def get_run_manifest_logs(
             next_token,
             start_from_head,
         )
-    except ValueError as e:
-        error_message = f'Invalid timestamp format: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error retrieving manifest logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error retrieving manifest logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error retrieving manifest logs')
 
 
 async def get_run_engine_logs(
@@ -393,21 +366,8 @@ async def get_run_engine_logs(
             next_token,
             start_from_head,
         )
-    except ValueError as e:
-        error_message = f'Invalid timestamp format: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = f'AWS error retrieving engine logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = f'Unexpected error retrieving engine logs for run {run_id}: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error retrieving engine logs')
 
 
 async def get_task_logs(
@@ -478,25 +438,8 @@ async def get_task_logs(
             next_token,
             start_from_head,
         )
-    except ValueError as e:
-        error_message = f'Invalid timestamp format: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
-    except botocore.exceptions.BotoCoreError as e:
-        error_message = (
-            f'AWS error retrieving task logs for run {run_id}, task {task_id}: {str(e)}'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
     except Exception as e:
-        error_message = (
-            f'Unexpected error retrieving task logs for run {run_id}, task {task_id}: {str(e)}'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error retrieving task logs')
 
 
 # Internal wrapper functions for use by other modules (without Pydantic Field decorators)

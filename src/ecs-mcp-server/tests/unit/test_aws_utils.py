@@ -30,7 +30,7 @@ class TestAwsUtils:
     def test_get_aws_config(self):
         """Test get_aws_config function."""
         config = get_aws_config()
-        assert "awslabs/mcp/ecs-mcp-server" in config.user_agent_extra
+        assert "md/awslabs#mcp#ecs-mcp-server#" in config.user_agent_extra
 
 
 class TestAwsClientAsync:
@@ -264,9 +264,9 @@ class TestAwsClientAsync:
         mock_client2 = mock.MagicMock()
         # Return different mock clients for different service names
         mock_boto3.client = mock.MagicMock(
-            side_effect=lambda service_name, **kwargs: mock_client1
-            if service_name == "s3"
-            else mock_client2
+            side_effect=lambda service_name, **kwargs: (
+                mock_client1 if service_name == "s3" else mock_client2
+            )
         )
 
         try:

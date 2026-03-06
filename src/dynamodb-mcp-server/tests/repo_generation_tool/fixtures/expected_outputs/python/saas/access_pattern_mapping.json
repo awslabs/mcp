@@ -1,0 +1,568 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get organization details by ID",
+      "entity": "Organization",
+      "index_name": null,
+      "method_name": "get_organization",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "OrganizationRepository",
+      "return_type": "Organization | None"
+    },
+    "10": {
+      "description": "Create new project with organization reference",
+      "entity": "Project",
+      "index_name": null,
+      "method_name": "put_project",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Project",
+          "name": "project",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Organization",
+          "name": "organization",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "ProjectRepository",
+      "return_type": "Project | None"
+    },
+    "11": {
+      "description": "Update project status and progress",
+      "entity": "Project",
+      "index_name": null,
+      "method_name": "update_project_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "name": "updated_at",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "ProjectRepository",
+      "return_type": "Project | None"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "Get all milestones for a project",
+      "entity": "ProjectMilestone",
+      "index_name": null,
+      "method_name": "get_project_milestones",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "ProjectMilestoneRepository",
+      "return_type": "tuple[list[ProjectMilestone], dict | None]"
+    },
+    "13": {
+      "description": "Create milestone for project",
+      "entity": "ProjectMilestone",
+      "index_name": null,
+      "method_name": "put_project_milestone",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProjectMilestone",
+          "name": "milestone",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "ProjectMilestoneRepository",
+      "return_type": "ProjectMilestone | None"
+    },
+    "14": {
+      "consistent_read": false,
+      "description": "Get all projects for an organization (sorted by creation date)",
+      "entity": "OrganizationProject",
+      "index_name": null,
+      "method_name": "get_organization_projects",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "OrganizationProjectRepository",
+      "return_type": "tuple[list[OrganizationProject], dict | None]"
+    },
+    "15": {
+      "description": "Add project to organization index with cross-table references",
+      "entity": "OrganizationProject",
+      "index_name": null,
+      "method_name": "add_project_to_organization",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "OrganizationProject",
+          "name": "org_project",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Organization",
+          "name": "organization",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Project",
+          "name": "project",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "OrganizationProjectRepository",
+      "return_type": "OrganizationProject | None"
+    },
+    "16": {
+      "consistent_read": false,
+      "description": "Get task details by ID",
+      "entity": "Task",
+      "index_name": null,
+      "method_name": "get_task",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "task_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "TaskRepository",
+      "return_type": "Task | None"
+    },
+    "17": {
+      "description": "Create new task with project reference",
+      "entity": "Task",
+      "index_name": null,
+      "method_name": "put_task",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Task",
+          "name": "task",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Project",
+          "name": "project",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "TaskRepository",
+      "return_type": "Task | None"
+    },
+    "18": {
+      "description": "Update task status and completion",
+      "entity": "Task",
+      "index_name": null,
+      "method_name": "update_task_status",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "task_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "name": "actual_hours",
+          "type": "decimal"
+        },
+        {
+          "name": "completed_at",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 18,
+      "range_condition": null,
+      "repository": "TaskRepository",
+      "return_type": "Task | None"
+    },
+    "19": {
+      "consistent_read": false,
+      "description": "Get all tasks for a project (sorted by status and priority)",
+      "entity": "ProjectTask",
+      "index_name": null,
+      "method_name": "get_project_tasks",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 19,
+      "range_condition": null,
+      "repository": "ProjectTaskRepository",
+      "return_type": "tuple[list[ProjectTask], dict | None]"
+    },
+    "2": {
+      "description": "Create new organization",
+      "entity": "Organization",
+      "index_name": null,
+      "method_name": "put_organization",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "Organization",
+          "name": "organization",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "OrganizationRepository",
+      "return_type": "Organization | None"
+    },
+    "20": {
+      "consistent_read": false,
+      "description": "Get tasks for a project filtered by status",
+      "entity": "ProjectTask",
+      "index_name": null,
+      "method_name": "get_project_tasks_by_status",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 20,
+      "range_condition": null,
+      "repository": "ProjectTaskRepository",
+      "return_type": "tuple[list[ProjectTask], dict | None]"
+    },
+    "21": {
+      "description": "Add task to project index",
+      "entity": "ProjectTask",
+      "index_name": null,
+      "method_name": "add_task_to_project",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "ProjectTask",
+          "name": "project_task",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 21,
+      "range_condition": null,
+      "repository": "ProjectTaskRepository",
+      "return_type": "ProjectTask | None"
+    },
+    "22": {
+      "consistent_read": false,
+      "description": "Get all tasks assigned to a user (sorted by status and due date)",
+      "entity": "UserTask",
+      "index_name": null,
+      "method_name": "get_user_tasks",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 22,
+      "range_condition": null,
+      "repository": "UserTaskRepository",
+      "return_type": "tuple[list[UserTask], dict | None]"
+    },
+    "23": {
+      "consistent_read": false,
+      "description": "Get active tasks for a user",
+      "entity": "UserTask",
+      "index_name": null,
+      "method_name": "get_user_active_tasks",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 23,
+      "range_condition": null,
+      "repository": "UserTaskRepository",
+      "return_type": "tuple[list[UserTask], dict | None]"
+    },
+    "24": {
+      "description": "Assign task to user with cross-table references",
+      "entity": "UserTask",
+      "index_name": null,
+      "method_name": "assign_task_to_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "UserTask",
+          "name": "user_task",
+          "type": "entity"
+        },
+        {
+          "entity_type": "Task",
+          "name": "task",
+          "type": "entity"
+        },
+        {
+          "entity_type": "OrganizationMember",
+          "name": "member",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 24,
+      "range_condition": null,
+      "repository": "UserTaskRepository",
+      "return_type": "UserTask | None"
+    },
+    "25": {
+      "consistent_read": false,
+      "description": "Get all comments for a task (sorted by creation time)",
+      "entity": "TaskComment",
+      "index_name": null,
+      "method_name": "get_task_comments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "task_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 25,
+      "range_condition": null,
+      "repository": "TaskCommentRepository",
+      "return_type": "tuple[list[TaskComment], dict | None]"
+    },
+    "26": {
+      "description": "Add comment to task with author reference",
+      "entity": "TaskComment",
+      "index_name": null,
+      "method_name": "add_task_comment",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TaskComment",
+          "name": "comment",
+          "type": "entity"
+        },
+        {
+          "entity_type": "OrganizationMember",
+          "name": "author",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 26,
+      "range_condition": null,
+      "repository": "TaskCommentRepository",
+      "return_type": "TaskComment | None"
+    },
+    "3": {
+      "description": "Update organization subscription plan",
+      "entity": "Organization",
+      "index_name": null,
+      "method_name": "update_organization_plan",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        },
+        {
+          "name": "plan_type",
+          "type": "string"
+        },
+        {
+          "name": "max_users",
+          "type": "integer"
+        },
+        {
+          "name": "max_projects",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "OrganizationRepository",
+      "return_type": "Organization | None"
+    },
+    "4": {
+      "consistent_read": false,
+      "description": "Get all members of an organization",
+      "entity": "OrganizationMember",
+      "index_name": null,
+      "method_name": "get_organization_members",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "OrganizationMemberRepository",
+      "return_type": "tuple[list[OrganizationMember], dict | None]"
+    },
+    "5": {
+      "description": "Add member to organization",
+      "entity": "OrganizationMember",
+      "index_name": null,
+      "method_name": "add_organization_member",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "OrganizationMember",
+          "name": "member",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "OrganizationMemberRepository",
+      "return_type": "OrganizationMember | None"
+    },
+    "6": {
+      "description": "Update member role and permissions",
+      "entity": "OrganizationMember",
+      "index_name": null,
+      "method_name": "update_member_role",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "item_type": "string",
+          "name": "permissions",
+          "type": "array"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "OrganizationMemberRepository",
+      "return_type": "OrganizationMember | None"
+    },
+    "7": {
+      "consistent_read": false,
+      "description": "Get pending invites for organization",
+      "entity": "OrganizationInvite",
+      "index_name": null,
+      "method_name": "get_organization_invites",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "org_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "OrganizationInviteRepository",
+      "return_type": "tuple[list[OrganizationInvite], dict | None]"
+    },
+    "8": {
+      "description": "Create organization invite with member reference",
+      "entity": "OrganizationInvite",
+      "index_name": null,
+      "method_name": "put_organization_invite",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "OrganizationInvite",
+          "name": "invite",
+          "type": "entity"
+        },
+        {
+          "entity_type": "OrganizationMember",
+          "name": "inviter",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "OrganizationInviteRepository",
+      "return_type": "OrganizationInvite | None"
+    },
+    "9": {
+      "consistent_read": false,
+      "description": "Get project details by ID",
+      "entity": "Project",
+      "index_name": null,
+      "method_name": "get_project",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "project_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "ProjectRepository",
+      "return_type": "Project | None"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 26
+  }
+}

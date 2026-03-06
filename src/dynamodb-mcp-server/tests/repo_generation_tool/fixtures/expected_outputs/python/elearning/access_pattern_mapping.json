@@ -1,0 +1,481 @@
+{
+  "access_pattern_mapping": {
+    "1": {
+      "consistent_read": false,
+      "description": "Get organization details for a tenant",
+      "entity": "TenantOrganization",
+      "index_name": null,
+      "method_name": "get_tenant_organization",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 1,
+      "range_condition": null,
+      "repository": "TenantOrganizationRepository",
+      "return_type": "TenantOrganization | None"
+    },
+    "10": {
+      "description": "Enroll user in a course",
+      "entity": "TenantEnrollment",
+      "index_name": null,
+      "method_name": "enroll_user_in_course",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantEnrollment",
+          "name": "enrollment",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 10,
+      "range_condition": null,
+      "repository": "TenantEnrollmentRepository",
+      "return_type": "TenantEnrollment | None"
+    },
+    "11": {
+      "description": "Update user's progress in course",
+      "entity": "TenantEnrollment",
+      "index_name": null,
+      "method_name": "update_enrollment_progress",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        },
+        {
+          "name": "enrollment_date",
+          "type": "integer"
+        },
+        {
+          "name": "progress_percentage",
+          "type": "integer"
+        },
+        {
+          "name": "current_lesson",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 11,
+      "range_condition": null,
+      "repository": "TenantEnrollmentRepository",
+      "return_type": "TenantEnrollment | None"
+    },
+    "12": {
+      "consistent_read": false,
+      "description": "Get all lessons for a course in tenant (ordered)",
+      "entity": "TenantLesson",
+      "index_name": null,
+      "method_name": "get_course_lessons",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 12,
+      "range_condition": null,
+      "repository": "TenantLessonRepository",
+      "return_type": "tuple[list[TenantLesson], dict | None]"
+    },
+    "13": {
+      "consistent_read": false,
+      "description": "Get specific lesson details",
+      "entity": "TenantLesson",
+      "index_name": null,
+      "method_name": "get_specific_lesson",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        },
+        {
+          "name": "lesson_order",
+          "type": "integer"
+        },
+        {
+          "name": "lesson_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 13,
+      "range_condition": null,
+      "repository": "TenantLessonRepository",
+      "return_type": "TenantLesson | None"
+    },
+    "14": {
+      "description": "Create new lesson in course",
+      "entity": "TenantLesson",
+      "index_name": null,
+      "method_name": "create_course_lesson",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantLesson",
+          "name": "lesson",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 14,
+      "range_condition": null,
+      "repository": "TenantLessonRepository",
+      "return_type": "TenantLesson | None"
+    },
+    "15": {
+      "consistent_read": false,
+      "description": "Get user's progress for all lessons in a course",
+      "entity": "TenantProgress",
+      "index_name": null,
+      "method_name": "get_user_course_progress",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 15,
+      "range_condition": null,
+      "repository": "TenantProgressRepository",
+      "return_type": "tuple[list[TenantProgress], dict | None]"
+    },
+    "16": {
+      "description": "Record user's progress on a lesson",
+      "entity": "TenantProgress",
+      "index_name": null,
+      "method_name": "record_lesson_progress",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantProgress",
+          "name": "progress",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 16,
+      "range_condition": null,
+      "repository": "TenantProgressRepository",
+      "return_type": "TenantProgress | None"
+    },
+    "17": {
+      "description": "Update user's lesson progress",
+      "entity": "TenantProgress",
+      "index_name": null,
+      "method_name": "update_lesson_progress",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        },
+        {
+          "name": "lesson_id",
+          "type": "string"
+        },
+        {
+          "name": "attempt_date",
+          "type": "integer"
+        },
+        {
+          "name": "completion_status",
+          "type": "string"
+        },
+        {
+          "name": "time_spent_minutes",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 17,
+      "range_condition": null,
+      "repository": "TenantProgressRepository",
+      "return_type": "TenantProgress | None"
+    },
+    "18": {
+      "consistent_read": false,
+      "description": "Get all certificates earned by user in tenant",
+      "entity": "TenantCertificate",
+      "index_name": null,
+      "method_name": "get_user_certificates",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 18,
+      "range_condition": null,
+      "repository": "TenantCertificateRepository",
+      "return_type": "tuple[list[TenantCertificate], dict | None]"
+    },
+    "19": {
+      "description": "Issue certificate for course completion",
+      "entity": "TenantCertificate",
+      "index_name": null,
+      "method_name": "issue_course_certificate",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantCertificate",
+          "name": "certificate",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 19,
+      "range_condition": null,
+      "repository": "TenantCertificateRepository",
+      "return_type": "TenantCertificate | None"
+    },
+    "2": {
+      "description": "Create new tenant organization",
+      "entity": "TenantOrganization",
+      "index_name": null,
+      "method_name": "put_tenant_organization",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantOrganization",
+          "name": "organization",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 2,
+      "range_condition": null,
+      "repository": "TenantOrganizationRepository",
+      "return_type": "TenantOrganization | None"
+    },
+    "20": {
+      "consistent_read": false,
+      "description": "Verify certificate by verification code",
+      "entity": "TenantCertificate",
+      "index_name": null,
+      "method_name": "verify_certificate",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        },
+        {
+          "name": "issued_date",
+          "type": "integer"
+        }
+      ],
+      "pattern_id": 20,
+      "range_condition": null,
+      "repository": "TenantCertificateRepository",
+      "return_type": "TenantCertificate | None"
+    },
+    "3": {
+      "consistent_read": false,
+      "description": "Get user profile within tenant",
+      "entity": "TenantUser",
+      "index_name": null,
+      "method_name": "get_tenant_user",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 3,
+      "range_condition": null,
+      "repository": "TenantUserRepository",
+      "return_type": "TenantUser | None"
+    },
+    "4": {
+      "description": "Create new user in tenant",
+      "entity": "TenantUser",
+      "index_name": null,
+      "method_name": "put_tenant_user",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantUser",
+          "name": "user",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 4,
+      "range_condition": null,
+      "repository": "TenantUserRepository",
+      "return_type": "TenantUser | None"
+    },
+    "5": {
+      "description": "Update user profile information",
+      "entity": "TenantUser",
+      "index_name": null,
+      "method_name": "update_user_profile",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        },
+        {
+          "entity_type": "TenantUser",
+          "name": "updates",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 5,
+      "range_condition": null,
+      "repository": "TenantUserRepository",
+      "return_type": "TenantUser | None"
+    },
+    "6": {
+      "consistent_read": false,
+      "description": "Get course details within tenant",
+      "entity": "TenantCourse",
+      "index_name": null,
+      "method_name": "get_tenant_course",
+      "operation": "GetItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 6,
+      "range_condition": null,
+      "repository": "TenantCourseRepository",
+      "return_type": "TenantCourse | None"
+    },
+    "7": {
+      "description": "Create new course in tenant",
+      "entity": "TenantCourse",
+      "index_name": null,
+      "method_name": "put_tenant_course",
+      "operation": "PutItem",
+      "parameters": [
+        {
+          "entity_type": "TenantCourse",
+          "name": "course",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 7,
+      "range_condition": null,
+      "repository": "TenantCourseRepository",
+      "return_type": "TenantCourse | None"
+    },
+    "8": {
+      "description": "Update course information",
+      "entity": "TenantCourse",
+      "index_name": null,
+      "method_name": "update_course_details",
+      "operation": "UpdateItem",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "course_id",
+          "type": "string"
+        },
+        {
+          "entity_type": "TenantCourse",
+          "name": "updates",
+          "type": "entity"
+        }
+      ],
+      "pattern_id": 8,
+      "range_condition": null,
+      "repository": "TenantCourseRepository",
+      "return_type": "TenantCourse | None"
+    },
+    "9": {
+      "consistent_read": false,
+      "description": "Get all course enrollments for a user in tenant",
+      "entity": "TenantEnrollment",
+      "index_name": null,
+      "method_name": "get_user_enrollments",
+      "operation": "Query",
+      "parameters": [
+        {
+          "name": "tenant_id",
+          "type": "string"
+        },
+        {
+          "name": "user_id",
+          "type": "string"
+        }
+      ],
+      "pattern_id": 9,
+      "range_condition": null,
+      "repository": "TenantEnrollmentRepository",
+      "return_type": "tuple[list[TenantEnrollment], dict | None]"
+    }
+  },
+  "metadata": {
+    "generated_at": {
+      "timestamp": "auto-generated"
+    },
+    "generator_type": "Jinja2Generator",
+    "total_patterns": 20
+  }
+}

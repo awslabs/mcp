@@ -107,51 +107,103 @@ class TestHandleExceptionsDecorator:
     """Test handle_exceptions decorator."""
 
     @pytest.mark.asyncio
-    async def test_exception_decorator_behavior(self):
-        """Test handle_exceptions decorator with various scenarios."""
+    async def test_successful_execution_returns_result(self):
+        """Decorated function should return result on success."""
 
-        # Test 1: Successful execution
         @handle_exceptions
         async def successful_function():
             return 'success'
 
         result = await successful_function()
+
         assert result == 'success'
 
-        # Test 2: Exception handling
+    @pytest.mark.asyncio
+    async def test_exception_returns_error_dict(self):
+        """Decorated function should return error dict on exception."""
+
         @handle_exceptions
         async def failing_function():
             raise ValueError('Test error message')
 
         result = await failing_function()
+
         assert isinstance(result, dict)
         assert 'error' in result
         assert result['error'] == 'Test error message'
 
-        # Test 3: Function with arguments
+    @pytest.mark.asyncio
+    async def test_preserves_positional_arguments(self):
+        """Decorated function should preserve positional arguments."""
+
         @handle_exceptions
         async def function_with_args(arg1, arg2):
-            if arg1 == 'fail':
-                raise RuntimeError(f'Failed with {arg2}')
             return f'{arg1} {arg2}'
 
-        success_result = await function_with_args('hello', 'world')
-        assert success_result == 'hello world'
+        result = await function_with_args('hello', 'world')
 
-        error_result = await function_with_args('fail', 'test')
-        assert isinstance(error_result, dict)
-        assert 'Failed with test' in error_result['error']
+        assert result == 'hello world'
 
-        # Test 4: Function with kwargs
+    @pytest.mark.asyncio
+    async def test_preserves_keyword_arguments(self):
+        """Decorated function should preserve keyword arguments."""
+
         @handle_exceptions
         async def function_with_kwargs(name='default', value=0):
-            if value < 0:
-                raise ValueError(f'Invalid value for {name}')
             return f'{name}={value}'
 
-        success_result = await function_with_kwargs(name='test', value=10)
-        assert success_result == 'test=10'
+        result = await function_with_kwargs(name='test', value=10)
 
-        error_result = await function_with_kwargs(name='test', value=-5)
-        assert isinstance(error_result, dict)
-        assert 'Invalid value for test' in error_result['error']
+        assert result == 'test=10'
+
+    @pytest.mark.asyncio
+    async def test_exception_with_arguments_returns_error(self):
+        """Decorated function with args should return error dict on exception."""
+
+        @handle_exceptions
+        async def function_with_args(arg1, arg2):
+            raise RuntimeError(f'Failed with {arg2}')
+
+        result = await function_with_args('fail', 'test')
+
+        assert isinstance(result, dict)
+        assert 'Failed with test' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_exception_with_kwargs_returns_error(self):
+        """Decorated function with kwargs should return error dict on exception."""
+
+        @handle_exceptions
+        async def function_with_kwargs(name='default', value=0):
+            raise ValueError(f'Invalid value for {name}')
+
+        result = await function_with_kwargs(name='test', value=-5)
+
+        assert isinstance(result, dict)
+        assert 'Invalid value for test' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_logs_exception_with_function_name(self, caplog):
+        """Decorator should log exception with function name."""
+
+        @handle_exceptions
+        async def my_failing_function():
+            raise ValueError('Something went wrong')
+
+        with caplog.at_level('ERROR'):
+            await my_failing_function()
+
+        assert 'my_failing_function' in caplog.text
+        assert 'Something went wrong' in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_preserves_function_metadata(self):
+        """Decorator should preserve original function metadata."""
+
+        @handle_exceptions
+        async def documented_function():
+            """This is the docstring."""
+            return 'result'
+
+        assert documented_function.__name__ == 'documented_function'
+        assert documented_function.__doc__ == 'This is the docstring.'

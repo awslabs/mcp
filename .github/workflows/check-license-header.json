@@ -28,7 +28,8 @@
       "**/*.py",
       "**/*Dockerfile",
       "**/*.sh",
-      "**/*.guard"
+      "**/*.guard",
+      "**/ruff.toml"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
   },
@@ -77,7 +78,10 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
-      "**/dist/**"
+      "**/dist/**",
+      "**/skills/*/scripts",
+      "**/skills/*/references",
+      "**/skills/*/mcp"
     ]
   }
 ]

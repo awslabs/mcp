@@ -20,7 +20,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, field_validator, model_validator
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class WorkflowType(str, Enum):
@@ -43,6 +43,56 @@ class CacheBehavior(str, Enum):
 
     CACHE_ALWAYS = 'CACHE_ALWAYS'
     CACHE_ON_FAILURE = 'CACHE_ON_FAILURE'
+
+
+class SourceReferenceType(str, Enum):
+    """Enum for source reference types in repository definitions."""
+
+    COMMIT_ID = 'COMMIT_ID'
+    BRANCH = 'BRANCH'
+    TAG = 'TAG'
+
+
+class SourceReference(BaseModel):
+    """Model for repository source reference."""
+
+    type: SourceReferenceType
+    value: str
+
+    @field_validator('value')
+    @classmethod
+    def validate_value_not_empty(cls, v: str) -> str:
+        """Validate that value is not empty."""
+        if not v or not v.strip():
+            raise ValueError('source_reference.value cannot be empty')
+        return v
+
+
+class DefinitionRepository(BaseModel):
+    """Model for Git repository definition configuration."""
+
+    connection_arn: str
+    full_repository_id: str
+    source_reference: SourceReference
+    exclude_file_patterns: Optional[List[str]] = None
+
+    @field_validator('connection_arn')
+    @classmethod
+    def validate_connection_arn(cls, v: str) -> str:
+        """Validate that connection_arn is a valid AWS CodeConnection ARN."""
+        if not v.startswith('arn:aws:codeconnections:') and not v.startswith(
+            'arn:aws:codestar-connections:'
+        ):
+            raise ValueError(f'connection_arn must be a valid AWS CodeConnection ARN, got: {v}')
+        return v
+
+    @field_validator('full_repository_id')
+    @classmethod
+    def validate_repository_id_not_empty(cls, v: str) -> str:
+        """Validate that full_repository_id is not empty."""
+        if not v or not v.strip():
+            raise ValueError('full_repository_id cannot be empty')
+        return v
 
 
 class RunStatus(str, Enum):
@@ -205,3 +255,64 @@ class ContainerRegistryMap(BaseModel):
     def convert_none_to_empty_list(cls, v: Any) -> List[Any]:
         """Convert None values to empty lists for consistency."""
         return [] if v is None else v
+
+
+class RunGroupSummary(BaseModel):
+    """Summary information about a run group."""
+
+    id: str
+    arn: str
+    name: Optional[str] = None
+    maxCpus: Optional[int] = None
+    maxGpus: Optional[int] = None
+    maxDuration: Optional[int] = None
+    maxRuns: Optional[int] = None
+    creationTime: datetime
+
+
+class RunGroupDetail(RunGroupSummary):
+    """Detailed run group information including tags."""
+
+    tags: Optional[Dict[str, str]] = None
+
+
+class RunGroupListResponse(BaseModel):
+    """Response model for listing run groups."""
+
+    runGroups: List[RunGroupSummary]
+    nextToken: Optional[str] = None
+
+
+class RunCacheStatus(str, Enum):
+    """Enum for run cache statuses."""
+
+    ACTIVE = 'ACTIVE'
+    DELETED = 'DELETED'
+    FAILED = 'FAILED'
+
+
+class RunCacheSummary(BaseModel):
+    """Summary information about a run cache."""
+
+    id: str
+    arn: str
+    name: Optional[str] = None
+    status: str
+    cacheBehavior: Optional[str] = None
+    creationTime: datetime
+
+
+class RunCacheDetail(RunCacheSummary):
+    """Detailed run cache information."""
+
+    cacheS3Uri: Optional[str] = None
+    cacheBucketOwnerId: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[Dict[str, str]] = None
+
+
+class RunCacheListResponse(BaseModel):
+    """Response model for listing run caches."""
+
+    runCaches: List[RunCacheSummary]
+    nextToken: Optional[str] = None

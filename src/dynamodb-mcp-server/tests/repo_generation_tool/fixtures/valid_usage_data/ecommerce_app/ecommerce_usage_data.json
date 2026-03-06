@@ -1,0 +1,207 @@
+{
+  "entities": {
+    "Order": {
+      "access_pattern_data": {
+        "created_at": "2024-01-16T15:45:00Z",
+        "order_id": "order-66666",
+        "payment_method": "paypal",
+        "shipping_address": "789 Pine Street, Apt 4B, San Francisco, CA 94102",
+        "status": "delivered",
+        "total_amount": 349.98,
+        "updated_at": "2024-01-19T10:30:00Z",
+        "user_id": "user-98765"
+      },
+      "sample_data": {
+        "created_at": "2024-01-20T11:30:00Z",
+        "order_id": "order-33333",
+        "payment_method": "credit_card",
+        "shipping_address": "123 Main Street, New York, NY 10001",
+        "status": "processing",
+        "total_amount": 199.99,
+        "updated_at": "2024-01-20T11:30:00Z",
+        "user_id": "user-12345"
+      },
+      "update_data": {
+        "status": "shipped",
+        "updated_at": "2024-01-21T09:00:00Z"
+      }
+    },
+    "OrderItem": {
+      "access_pattern_data": {
+        "order_id": "order-66666",
+        "product_id": "prod-77777",
+        "product_name": "Smart Fitness Watch",
+        "quantity": 1,
+        "total_price": 299.99,
+        "unit_price": 299.99
+      },
+      "sample_data": {
+        "order_id": "order-33333",
+        "product_id": "prod-11111",
+        "product_name": "Wireless Bluetooth Headphones",
+        "quantity": 1,
+        "total_price": 199.99,
+        "unit_price": 199.99
+      },
+      "update_data": {
+        "quantity": 2,
+        "total_price": 399.98
+      }
+    },
+    "Product": {
+      "access_pattern_data": {
+        "brand": "FitTech",
+        "category": "Wearables",
+        "created_at": "2024-01-05T12:30:00Z",
+        "description": "Advanced fitness tracker with heart rate monitoring, GPS, and 7-day battery life",
+        "name": "Smart Fitness Watch",
+        "price": 299.99,
+        "product_id": "prod-77777",
+        "sku": "FT-SFW-002",
+        "stock_quantity": 25
+      },
+      "sample_data": {
+        "brand": "TechBrand",
+        "category": "Electronics",
+        "created_at": "2024-01-10T08:00:00Z",
+        "description": "High-quality wireless headphones with noise cancellation",
+        "name": "Wireless Bluetooth Headphones",
+        "price": 199.99,
+        "product_id": "prod-11111",
+        "sku": "TB-WBH-001",
+        "stock_quantity": 50
+      },
+      "update_data": {
+        "description": "Premium wireless headphones with advanced noise cancellation and 30-hour battery",
+        "name": "Premium Wireless Bluetooth Headphones",
+        "price": 179.99,
+        "stock_quantity": 45
+      }
+    },
+    "ProductCategory": {
+      "access_pattern_data": {
+        "category_name": "Wearables",
+        "price": 299.99,
+        "product_id": "prod-77777",
+        "product_name": "Smart Fitness Watch",
+        "stock_quantity": 25
+      },
+      "sample_data": {
+        "category_name": "Electronics",
+        "price": 199.99,
+        "product_id": "prod-11111",
+        "product_name": "Wireless Bluetooth Headphones",
+        "stock_quantity": 50
+      },
+      "update_data": {
+        "price": 179.99,
+        "product_name": "Premium Wireless Bluetooth Headphones",
+        "stock_quantity": 45
+      }
+    },
+    "ProductReview": {
+      "access_pattern_data": {
+        "comment": "Love the GPS accuracy and battery life. The heart rate monitor is very reliable during workouts.",
+        "created_at": "2024-01-12T09:20:00Z",
+        "product_id": "prod-77777",
+        "rating": 4,
+        "review_id": "review-88888",
+        "title": "Great fitness tracker",
+        "user_id": "user-98765",
+        "verified_purchase": true
+      },
+      "sample_data": {
+        "comment": "Great sound quality and comfortable to wear for long periods.",
+        "created_at": "2024-01-18T16:45:00Z",
+        "product_id": "prod-11111",
+        "rating": 5,
+        "review_id": "review-22222",
+        "title": "Excellent headphones!",
+        "user_id": "user-12345",
+        "verified_purchase": true
+      },
+      "update_data": {
+        "comment": "Great sound quality and comfortable to wear. Battery life could be better.",
+        "rating": 4,
+        "title": "Very good headphones"
+      }
+    },
+    "User": {
+      "access_pattern_data": {
+        "created_at": "2024-01-08T14:22:00Z",
+        "email": "sarah.johnson@gmail.com",
+        "first_name": "Sarah",
+        "last_name": "Johnson",
+        "phone": "+1-555-0456",
+        "status": "premium",
+        "user_id": "user-98765"
+      },
+      "sample_data": {
+        "created_at": "2024-01-15T10:00:00Z",
+        "email": "john.doe@example.com",
+        "first_name": "John",
+        "last_name": "Doe",
+        "phone": "+1-555-0123",
+        "status": "active",
+        "user_id": "user-12345"
+      },
+      "update_data": {
+        "phone": "+1-555-0199",
+        "status": "verified"
+      }
+    },
+    "UserAddress": {
+      "access_pattern_data": {
+        "address_id": "addr-54321",
+        "address_type": "billing",
+        "city": "San Francisco",
+        "country": "USA",
+        "is_default": false,
+        "postal_code": "94102",
+        "state": "CA",
+        "street_address": "789 Pine Street, Apt 4B",
+        "user_id": "user-98765"
+      },
+      "sample_data": {
+        "address_id": "addr-67890",
+        "address_type": "shipping",
+        "city": "New York",
+        "country": "USA",
+        "is_default": true,
+        "postal_code": "10001",
+        "state": "NY",
+        "street_address": "123 Main Street",
+        "user_id": "user-12345"
+      },
+      "update_data": {
+        "city": "Brooklyn",
+        "is_default": false,
+        "postal_code": "11201",
+        "street_address": "456 Oak Avenue"
+      }
+    },
+    "UserOrderHistory": {
+      "access_pattern_data": {
+        "item_count": 2,
+        "order_date": "2024-01-16",
+        "order_id": "order-66666",
+        "status": "delivered",
+        "total_amount": 349.98,
+        "user_id": "user-98765"
+      },
+      "sample_data": {
+        "item_count": 1,
+        "order_date": "2024-01-20",
+        "order_id": "order-33333",
+        "status": "processing",
+        "total_amount": 199.99,
+        "user_id": "user-12345"
+      },
+      "update_data": {
+        "item_count": 2,
+        "status": "shipped",
+        "total_amount": 399.98
+      }
+    }
+  }
+}
