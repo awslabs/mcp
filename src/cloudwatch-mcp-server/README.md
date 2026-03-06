@@ -165,7 +165,7 @@ This MCP server includes reusable investigation skills that encode domain expert
 
 | Skill | Description | Setup Guide |
 |-------|-------------|-------------|
-| [AgentCore Investigation](skills/agentcore-investigation/SKILL.md) | Investigate Bedrock AgentCore runtime sessions — resolve session/trace IDs, query OTEL spans, filter noise, build timelines | [Kiro CLI setup](skills/agentcore-investigation/kiro_skill_setup.md) |
+| [AgentCore Investigation](skills/agentcore-investigation/SKILL.md) | Investigate Bedrock AgentCore runtime sessions — resolve session/trace IDs, query OTEL spans, filter noise, build timelines | [Kiro CLI setup](skills/agentcore-investigation/kiro-skill-setup.md) |
 
 Skills provide pre-built investigation pipelines that agents can follow. They include the skill definition (`SKILL.md`), reference documentation, and MCP server configuration.
 
