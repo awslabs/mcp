@@ -291,7 +291,7 @@ def main():
                 secret_arn=args.secret_arn,
                 database=args.database,
                 region=args.region,
-                readonly=args.readonly.lower(),
+                readonly=args.readonly.lower() == 'true',
                 hostname=args.hostname,
                 port=args.port,
             )
