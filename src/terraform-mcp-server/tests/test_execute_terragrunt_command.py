@@ -14,6 +14,16 @@ from unittest.mock import MagicMock, patch
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def mock_path_validation(temp_terraform_dir):
+    """Bypass path validation for tests that use temp dirs outside cwd."""
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command.validate_working_directory',
+        side_effect=lambda path, **kwargs: temp_terraform_dir,
+    ):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_execute_terragrunt_command_success(temp_terraform_dir):
     """Test the Terragrunt command execution function with successful mocks."""
@@ -488,6 +498,68 @@ async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir)
         assert result.status == 'success'
         assert result.stdout == 'Terragrunt initialized with custom config!'
 
-        # Verify the command included the custom config flag
+        # Verify the command included a --terragrunt-config flag (path is validated/resolved)
         cmd_args = mock_run.call_args[0][0]
-        assert f'--terragrunt-config={custom_config}' in cmd_args
+        assert any(arg.startswith('--terragrunt-config=') for arg in cmd_args)
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_rejects_invalid_path(temp_terraform_dir):
+    """Test that terragrunt command rejects paths outside the allowed base."""
+    request = TerragruntExecutionRequest(
+        command='init',
+        working_directory='/etc',
+        variables={},
+        aws_region=None,
+        strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
+    )
+
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command.validate_working_directory',
+        side_effect=ValueError('path outside allowed base'),
+    ):
+        result = await execute_terragrunt_command_impl(request)
+
+        assert result.status == 'error'
+        assert result.error_message is not None
+        assert 'path outside allowed base' in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_rejects_invalid_config_path(temp_terraform_dir):
+    """Test that terragrunt command rejects config paths outside the allowed base."""
+    request = TerragruntExecutionRequest(
+        command='init',
+        working_directory=temp_terraform_dir,
+        variables={},
+        aws_region=None,
+        strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config='/etc/malicious.hcl',
+    )
+
+    # First call (working_dir) succeeds, second call (config) raises
+    call_count = 0
+
+    def side_effect(path, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return temp_terraform_dir
+        raise ValueError('config path outside allowed base')
+
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command.validate_working_directory',
+        side_effect=side_effect,
+    ):
+        result = await execute_terragrunt_command_impl(request)
+
+        assert result.status == 'error'
+        assert result.error_message is not None
+        assert 'config path outside allowed base' in result.error_message
