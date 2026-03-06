@@ -119,6 +119,8 @@ def _get_soffice_timeout() -> int:
                 f'{DEFAULT_SOFFICE_TIMEOUT_SECONDS}s'
             )
     return DEFAULT_SOFFICE_TIMEOUT_SECONDS
+
+
 ALLOWED_EXTENSIONS = {
     '.pdf',
     '.docx',
@@ -499,7 +501,9 @@ def _convert_to_pdf_with_soffice(
         '--outdir',
         temp_dir,
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds)  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+    subprocess.run(
+        cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds
+    )  # nosec B603 - fixed command with no shell=True, args are not user-controlled
     pdf_filename = Path(file_path).stem + '.pdf'
     pdf_path = os.path.join(temp_dir, pdf_filename)
     if not os.path.isfile(pdf_path):
