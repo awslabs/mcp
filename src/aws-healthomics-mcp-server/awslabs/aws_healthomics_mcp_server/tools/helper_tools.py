@@ -22,10 +22,11 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_aws_session,
     get_omics_service_name,
 )
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 async def package_workflow(
@@ -42,7 +43,7 @@ async def package_workflow(
         None,
         description='Dictionary of additional files (filename: content)',
     ),
-) -> str:
+) -> Union[str, Dict[str, Any]]:
     """Package workflow definition files into a base64-encoded ZIP.
 
     Args:
@@ -52,7 +53,7 @@ async def package_workflow(
         additional_files: Dictionary of additional files (filename: content)
 
     Returns:
-        Base64-encoded ZIP file containing the workflow definition
+        Base64-encoded ZIP file containing the workflow definition, or error dict
     """
     try:
         # Create a dictionary of files
@@ -69,10 +70,7 @@ async def package_workflow(
 
         return base64_data
     except Exception as e:
-        error_message = f'Error packaging workflow: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+        return await handle_tool_error(ctx, e, 'Error packaging workflow')
 
 
 async def get_supported_regions(

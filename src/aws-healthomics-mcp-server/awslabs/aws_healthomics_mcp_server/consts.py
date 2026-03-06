@@ -44,6 +44,18 @@ HEALTHOMICS_SUPPORTED_REGIONS = [
 ]
 
 
+# ECR Constants
+HEALTHOMICS_PRINCIPAL = 'omics.amazonaws.com'
+ECR_REQUIRED_REGISTRY_ACTIONS = ['ecr:CreateRepository', 'ecr:BatchImportUpstreamImage']
+ECR_REQUIRED_REPOSITORY_ACTIONS = ['ecr:BatchGetImage', 'ecr:GetDownloadUrlForLayer']
+
+# Default ECR repository prefixes
+DEFAULT_ECR_PREFIXES = {
+    'docker-hub': 'docker-hub',
+    'quay': 'quay',
+    'ecr-public': 'ecr-public',
+}
+
 # Storage types
 STORAGE_TYPE_STATIC = 'STATIC'
 STORAGE_TYPE_DYNAMIC = 'DYNAMIC'
@@ -72,6 +84,9 @@ RUN_STATUSES = [
 
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
+
+# Agent identification
+AGENT_ENV = 'AGENT'
 
 # Genomics file search configuration
 GENOMICS_SEARCH_S3_BUCKETS_ENV = 'GENOMICS_SEARCH_S3_BUCKETS'
@@ -212,3 +227,8 @@ FASTQ_PAIR_PATTERNS = [
 
 # FASTQ file extensions
 FASTQ_EXTENSIONS = ['fastq', 'fq', 'fastq.gz', 'fq.gz']
+
+# Run group constants
+RUN_GROUP_MAX_NAME_LENGTH = 128
+RUN_GROUP_MAX_RESOURCE_LIMIT = 100000
+RUN_GROUP_ID_MAX_LENGTH = 18

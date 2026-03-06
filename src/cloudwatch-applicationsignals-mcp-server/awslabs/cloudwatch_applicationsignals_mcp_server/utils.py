@@ -15,6 +15,27 @@
 """CloudWatch Application Signals MCP Server - Utility functions."""
 
 from datetime import datetime, timedelta, timezone
+from loguru import logger
+from typing import Any, Dict, List, Optional, Tuple
+
+
+# =============================================================================
+# Health Monitoring Thresholds
+# =============================================================================
+# Default thresholds for service health assessment used across group-level tools.
+# These values determine when services are categorized as WARNING or CRITICAL.
+
+# Fault rate thresholds (percentage of requests with 5xx errors)
+FAULT_THRESHOLD_WARNING = 1.0  # Fault rate >= 1% triggers WARNING
+FAULT_THRESHOLD_CRITICAL = 5.0  # Fault rate >= 5% triggers CRITICAL
+
+# Error rate thresholds (percentage of requests with 4xx errors)
+ERROR_THRESHOLD_WARNING = 1.0  # Error rate >= 1% triggers WARNING
+ERROR_THRESHOLD_CRITICAL = 5.0  # Error rate >= 5% triggers CRITICAL
+
+# Latency thresholds (P99 latency in milliseconds)
+LATENCY_P99_THRESHOLD_WARNING = 1000.0  # P99 >= 1000ms (1s) triggers WARNING
+LATENCY_P99_THRESHOLD_CRITICAL = 5000.0  # P99 >= 5000ms (5s) triggers CRITICAL
 
 
 def remove_null_values(data: dict) -> dict:
@@ -170,3 +191,136 @@ def calculate_name_similarity(
         score = max(0, score - 5)
 
     return min(100, score)
+
+
+# =============================================================================
+# COMMON UTILITIES FOR GROUP AND SERVICE TOOLS
+# =============================================================================
+
+
+def parse_time_range(
+    start_time: Optional[str],
+    end_time: Optional[str],
+    default_hours: int = 3,
+) -> Tuple[datetime, datetime]:
+    """Parse time range parameters with defaults.
+
+    Args:
+        start_time: Start time string or None for default
+        end_time: End time string or None for default
+        default_hours: Default lookback hours when start_time is None (default: 3)
+
+    Returns:
+        Tuple of (start_datetime, end_datetime)
+    """
+    now = datetime.now(timezone.utc)
+    start_dt = (
+        parse_timestamp(start_time) if start_time else (now - timedelta(hours=default_hours))
+    )
+    end_dt = parse_timestamp(end_time, default_hours=0) if end_time else now
+    return start_dt, end_dt
+
+
+def fetch_metric_stats(
+    cloudwatch_client: Any,
+    namespace: str,
+    metric_name: str,
+    dimensions: list,
+    start_dt: datetime,
+    end_dt: datetime,
+    period: int,
+    extended_statistics: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Fetch CloudWatch metric statistics.
+
+    Args:
+        cloudwatch_client: Boto3 CloudWatch client
+        namespace: CloudWatch namespace
+        metric_name: Metric name
+        dimensions: List of metric dimensions
+        start_dt: Start datetime
+        end_dt: End datetime
+        period: Period in seconds
+        extended_statistics: Optional list of extended statistics (e.g., ['p99'])
+
+    Returns:
+        Dict with 'average' and optional 'extended' keys, or None if no data
+    """
+    try:
+        params = {
+            'Namespace': namespace,
+            'MetricName': metric_name,
+            'Dimensions': dimensions,
+            'StartTime': start_dt,
+            'EndTime': end_dt,
+            'Period': period,
+            'Statistics': ['Average'],
+        }
+        if extended_statistics:
+            params['ExtendedStatistics'] = extended_statistics
+        response = cloudwatch_client.get_metric_statistics(**params)
+        datapoints = response.get('Datapoints', [])
+        if not datapoints:
+            logger.debug(f'No datapoints found for {namespace}/{metric_name}')
+            return None
+        result = {'average': sum(dp.get('Average', 0) for dp in datapoints) / len(datapoints)}
+        if extended_statistics:
+            result['extended'] = datapoints
+        return result
+
+    except Exception as e:
+        logger.error(f'Error fetching metric stats for {namespace}/{metric_name}: {e}')
+        return None
+
+
+def list_services_paginated(
+    applicationsignals_client: Any,
+    start_time: datetime,
+    end_time: datetime,
+    max_results: int = 100,
+) -> List[Dict[str, Any]]:
+    """List all services with pagination handling.
+
+    Args:s
+        applicationsignals_client: Boto3 Application Signals client
+        start_time: Start datetime
+        end_time: End datetime
+        max_results: Maximum results per page (default: 100)
+
+    Returns:
+        List of all service summaries
+
+    Raises:
+        Exception: If API call fails
+    """
+    all_services = []
+    next_token = None
+    page_count = 0
+
+    try:
+        while True:
+            page_count += 1
+            list_params = {
+                'StartTime': start_time,
+                'EndTime': end_time,
+                'MaxResults': max_results,
+            }
+            if next_token:
+                list_params['NextToken'] = next_token
+
+            response = applicationsignals_client.list_services(**list_params)
+            services_batch = response.get('ServiceSummaries', [])
+            all_services.extend(services_batch)
+
+            next_token = response.get('NextToken')
+            if not next_token:
+                break
+
+        logger.info(
+            f'Completed service listing: {len(all_services)} total services across {page_count} pages'
+        )
+        return all_services
+
+    except Exception as e:
+        logger.error(f'Error listing services (page {page_count}): {e}')
+        raise

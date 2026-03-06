@@ -89,23 +89,28 @@ class S3SearchEngine:
         """
         config = get_genomics_search_config()
 
-        # Validate bucket access during initialization
-        try:
-            accessible_buckets = validate_bucket_access_permissions()
-            # Update config to only include accessible buckets
-            original_count = len(config.s3_bucket_paths)
-            config.s3_bucket_paths = accessible_buckets
+        # Validate bucket access during initialization (only if configured buckets exist)
+        if config.s3_bucket_paths:
+            try:
+                accessible_buckets = validate_bucket_access_permissions()
+                # Update config to only include accessible buckets
+                original_count = len(config.s3_bucket_paths)
+                config.s3_bucket_paths = accessible_buckets
 
-            if len(accessible_buckets) < original_count:
-                logger.warning(
-                    f'Only {len(accessible_buckets)} of {original_count} configured buckets are accessible'
-                )
-            else:
-                logger.info(f'All {len(accessible_buckets)} configured buckets are accessible')
+                if len(accessible_buckets) < original_count:
+                    logger.warning(
+                        f'Only {len(accessible_buckets)} of {original_count} configured buckets are accessible'
+                    )
+                else:
+                    logger.info(f'All {len(accessible_buckets)} configured buckets are accessible')
 
-        except ValueError as e:
-            logger.error(f'S3 bucket access validation failed: {e}')
-            raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
+            except ValueError as e:
+                logger.error(f'S3 bucket access validation failed: {e}')
+                raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
+        else:
+            logger.info(
+                'No configured S3 bucket paths. S3SearchEngine created for adhoc bucket searches.'
+            )
 
         return cls(config, _internal=True)
 

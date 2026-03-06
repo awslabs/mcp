@@ -21,6 +21,7 @@ import os
 import requests
 import sys
 import time
+from awslabs.prometheus_mcp_server import __version__
 from awslabs.prometheus_mcp_server.consts import (
     API_VERSION_PATH,
     DEFAULT_AWS_REGION,
@@ -46,6 +47,8 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#prometheus-mcp-server#{__version__}'
 
 # Configure loguru
 logger.remove()
@@ -122,7 +125,7 @@ class AWSCredentials:
                 return False
 
             # Test if credentials have necessary permissions
-            sts = session.client('sts', config=Config(user_agent_extra='prometheus-mcp-server'))
+            sts = session.client('sts', config=Config(user_agent_extra=USER_AGENT_EXTRA))
             identity = sts.get_caller_identity()
             logger.info(f'AWS Identity: {identity["Arn"]}')
             logger.info(f'AWS Region: {region}')
@@ -419,7 +422,7 @@ def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optio
     region = region_name or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
 
     # Configure custom user agent
-    config = Config(user_agent_extra='prometheus-mcp-server')
+    config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
     # Create a new session to force credentials to reload
     session = boto3.Session(profile_name=profile_name, region_name=region)

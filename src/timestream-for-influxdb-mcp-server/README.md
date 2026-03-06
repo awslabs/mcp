@@ -8,7 +8,8 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
 - Create, update, list, describe, and delete Timestream for InfluxDB database clusters
 - Manage DB parameter groups
 - Tag management for Timestream for InfluxDB resources
-- Write and query data using InfluxDB's APIs
+- Manage InfluxDB 2 buckets and organizations
+- Write and query data using InfluxDB 2 APIs
 
 
 ## Pre-requisites
@@ -36,6 +37,9 @@ You can modify the settings of your MCP client to run your local server (e.g. fo
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
+        "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
+        "INFLUXDB_TOKEN": "your-influxdb-token",
+        "INFLUXDB_ORG": "your-influxdb-org",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -64,9 +68,12 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.timestream-for-influxdb-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",
+        "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
+        "INFLUXDB_TOKEN": "your-influxdb-token",
+        "INFLUXDB_ORG": "your-influxdb-org",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -116,3 +123,11 @@ The Timestream for InfluxDB MCP server provides the following tools:
 
 ##### Query API
 - `InfluxDBQuery`: Query data from InfluxDB using Flux query language
+
+##### Bucket Management
+- `InfluxDBListBuckets`: List all buckets in InfluxDB
+- `InfluxDBCreateBucket`: Create a new bucket in InfluxDB
+
+##### Organization Management
+- `InfluxDBListOrgs`: List all organizations in InfluxDB
+- `InfluxDBCreateOrg`: Create a new organization in InfluxDB

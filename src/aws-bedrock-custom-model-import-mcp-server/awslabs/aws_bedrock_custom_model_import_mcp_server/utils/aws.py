@@ -40,7 +40,7 @@ def get_aws_client(
     try:
         config = Config(
             retries={'max_attempts': 3, 'mode': 'standard'},
-            user_agent_extra=f'awslabs/mcp/aws-bedrock-custom-model-import-mcp-server/{__version__}',
+            user_agent_extra=f'md/awslabs#mcp#aws-bedrock-custom-model-import-mcp-server#{__version__}',
         )
         session = boto3.Session(profile_name=profile_name, region_name=region_name)
         return session.client(service_name, config=config)

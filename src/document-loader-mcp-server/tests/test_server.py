@@ -385,6 +385,34 @@ async def test_validate_file_path_general_exception():
 
 
 @pytest.mark.asyncio
+async def test_path_traversal_blocked():
+    """Test that path traversal attempts are blocked by base directory enforcement."""
+    import os
+    import tempfile
+    from pathlib import Path
+
+    # Create a temp file
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+        temp_file.write(b'%PDF-1.4 test')  # Minimal PDF header
+        temp_file_path = temp_file.name
+
+    try:
+        # Mock base directory to a restricted location
+        with patch('awslabs.document_loader_mcp_server.server._get_base_directory') as mock_base:
+            mock_base.return_value = Path('/restricted/directory')
+
+            ctx = MockContext()
+            error = validate_file_path(ctx, temp_file_path)
+
+            assert error is not None
+            assert 'Access denied: path outside allowed directory' in error
+            print('✓ Path traversal blocked by base directory enforcement')
+    finally:
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+@pytest.mark.asyncio
 async def test_convert_with_markitdown_file_not_found():
     """Test FileNotFoundError in _convert_with_markitdown (lines 106-108)."""
     # Create a mock context

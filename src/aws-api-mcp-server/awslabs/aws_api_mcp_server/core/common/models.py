@@ -16,7 +16,7 @@ import dataclasses
 from .command import IRCommand
 from .command_metadata import CommandMetadata
 from .errors import Failure
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer, model_validator
 from typing import Any
 
 
@@ -209,3 +209,28 @@ class InterpretedProgram:
 
 def _normalize_program(str) -> list[str]:
     return [line.strip() for line in str.splitlines() if line.strip()]
+
+
+class CallAWSResponse(BaseModel):
+    """The result from running a single CLI command."""
+
+    cli_command: str
+    response: ProgramInterpretationResponse | AwsCliAliasResponse | None = None
+    error: str | None = None
+
+    @model_validator(mode='after')
+    def check_response_or_error(self) -> 'CallAWSResponse':
+        """Validate the result by checking whether it has either a response or an error."""
+        if self.response is None and self.error is None:
+            raise ValueError("Either 'response' or 'error' must be provided")
+        return self
+
+    @model_serializer
+    def serialize_model(self) -> dict:
+        """Serialize the model to a dict."""
+        result = {'cli_command': self.cli_command}
+        if self.response:
+            result.update(self.response.model_dump())
+        if self.error:
+            result['error'] = self.error
+        return result

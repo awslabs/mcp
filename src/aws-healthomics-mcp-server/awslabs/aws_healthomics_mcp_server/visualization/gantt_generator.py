@@ -133,7 +133,7 @@ class GanttGenerator:
         if max_time <= 0:
             max_time = 1.0
 
-        # Build SVG - omit labels if more than 100 tasks (Requirement 5.6)
+        # Build SVG - omit labels if more than 100 tasks
         show_labels = len(valid_tasks) <= 100
         return self._build_svg(
             chart_data, run_info, max_time, time_unit, width, height, show_labels
@@ -243,7 +243,7 @@ class GanttGenerator:
         for task in chart_data:
             y = margin['top'] + task['index'] * (bar_height + 2)
 
-            # Pending bar (grey) - Requirement 5.2
+            # Pending bar (grey)
             pending_width = (task['pending_end'] - task['pending_start']) * x_scale
             if pending_width > 0:
                 # Build pending tooltip with creation time and wait duration
@@ -263,11 +263,11 @@ class GanttGenerator:
                     tooltip=pending_tooltip,
                 )
 
-            # Running bar (colored by status) - Requirement 5.3
+            # Running bar (colored by status)
             running_width = (task['running_end'] - task['pending_end']) * x_scale
             color = self.STATUS_COLORS.get(task['status'], '#6495ED')
 
-            # Build tooltip with task details including timing - Requirement 5.4
+            # Build tooltip with task details including timing
             start_str = task['start_time'].strftime('%Y-%m-%d %H:%M:%S')
             stop_str = task['stop_time'].strftime('%Y-%m-%d %H:%M:%S')
             running_duration = self._format_duration(task['running_seconds'])

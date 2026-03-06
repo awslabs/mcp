@@ -1,0 +1,17 @@
+{
+  "entities": {
+    "UserProfile": {
+      "sample_data": {
+        "user_id": "user-123",
+        "username": "testuser"
+      },
+      "access_pattern_data": {
+        "user_id": "sample_user_id"
+      },
+      "update_data": {
+        "username": "updated_user"
+      }
+    }
+  }
+  // This comment makes it invalid JSON
+}

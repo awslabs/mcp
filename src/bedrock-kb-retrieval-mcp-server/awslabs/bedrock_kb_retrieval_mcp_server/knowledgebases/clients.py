@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import boto3
+from awslabs.bedrock_kb_retrieval_mcp_server import __version__
+from botocore.config import Config
 from typing import TYPE_CHECKING
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#bedrock-kb-retrieval-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 if TYPE_CHECKING:
@@ -36,10 +42,12 @@ def get_bedrock_agent_runtime_client(
     """
     if profile_name:
         client = boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent-runtime', region_name=region_name or 'us-west-2'
+            'bedrock-agent-runtime', region_name=region_name or 'us-west-2', config=_config
         )
         return client  # type: ignore
-    client = boto3.client('bedrock-agent-runtime', region_name=region_name or 'us-west-2')
+    client = boto3.client(
+        'bedrock-agent-runtime', region_name=region_name or 'us-west-2', config=_config
+    )
     return client  # type: ignore
 
 
@@ -56,8 +64,8 @@ def get_bedrock_agent_client(
     """
     if profile_name:
         client = boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent', region_name=region_name or 'us-west-2'
+            'bedrock-agent', region_name=region_name or 'us-west-2', config=_config
         )
         return client  # type: ignore
-    client = boto3.client('bedrock-agent', region_name=region_name or 'us-west-2')
+    client = boto3.client('bedrock-agent', region_name=region_name or 'us-west-2', config=_config)
     return client  # type: ignore

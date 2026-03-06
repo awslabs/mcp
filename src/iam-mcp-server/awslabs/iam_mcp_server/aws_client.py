@@ -15,6 +15,7 @@
 """AWS client utilities for the IAM MCP Server."""
 
 import boto3
+from awslabs.iam_mcp_server import __version__
 from awslabs.iam_mcp_server.context import Context
 from botocore.config import Config
 from loguru import logger
@@ -38,7 +39,7 @@ def get_iam_client(region: Optional[str] = None) -> Any:
         client_region = region or Context.get_region()
 
         # Add user agent to identify this MCP server in AWS logs
-        config = Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
+        config = Config(user_agent_extra=f'md/awslabs#mcp#iam-mcp-server#{__version__}')
 
         if client_region:
             logger.debug(f'Creating IAM client for region: {client_region}')
@@ -70,7 +71,7 @@ def get_aws_client(service_name: str, region: Optional[str] = None) -> Any:
         client_region = region or Context.get_region()
 
         # Add user agent to identify this MCP server in AWS logs
-        config = Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
+        config = Config(user_agent_extra=f'md/awslabs#mcp#iam-mcp-server#{__version__}')
 
         if client_region:
             logger.debug(f'Creating {service_name} client for region: {client_region}')

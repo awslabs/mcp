@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
     CreateWorkGroupData,
     DeleteWorkGroupData,
@@ -200,7 +199,7 @@ class AthenaWorkGroupHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -238,7 +237,7 @@ class AthenaWorkGroupHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -258,7 +257,7 @@ class AthenaWorkGroupHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -285,7 +284,7 @@ class AthenaWorkGroupHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 
@@ -329,7 +328,7 @@ class AthenaWorkGroupHandler:
                     isError=False,
                     content=[
                         TextContent(type='text', text=success_message),
-                        TextContent(type='text', text=json.dumps(data.model_dump())),
+                        TextContent(type='text', text=data.model_dump_json()),
                     ],
                 )
 

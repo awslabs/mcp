@@ -60,7 +60,7 @@ class TestCreateAwsClient:
         assert 'config' in call_kwargs
         assert (
             call_kwargs['config'].user_agent_extra
-            == f'awslabs/mcp/aws-finops-mcp-server/{__version__}'
+            == f'md/awslabs#mcp#billing-cost-management-mcp-server#{__version__}'
         )
 
         # Verify service name

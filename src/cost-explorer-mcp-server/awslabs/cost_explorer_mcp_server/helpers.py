@@ -18,15 +18,21 @@ import boto3
 import os
 import re
 import sys
+from awslabs.cost_explorer_mcp_server import __version__
 from awslabs.cost_explorer_mcp_server.constants import (
     VALID_DIMENSIONS,
     VALID_GROUP_BY_DIMENSIONS,
     VALID_GROUP_BY_TYPES,
     VALID_MATCH_OPTIONS,
 )
+from botocore.config import Config
 from datetime import datetime, timezone
 from loguru import logger
 from typing import Any, Dict, Optional, Tuple
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#cost-explorer-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 # Configure Loguru logging
@@ -54,9 +60,11 @@ def get_cost_explorer_client():
             if aws_profile:
                 _cost_explorer_client = boto3.Session(
                     profile_name=aws_profile, region_name=aws_region
-                ).client('ce')
+                ).client('ce', config=_config)
             else:
-                _cost_explorer_client = boto3.Session(region_name=aws_region).client('ce')
+                _cost_explorer_client = boto3.Session(region_name=aws_region).client(
+                    'ce', config=_config
+                )
         except Exception as e:
             logger.error(f'Error creating Cost Explorer client: {str(e)}')
             raise

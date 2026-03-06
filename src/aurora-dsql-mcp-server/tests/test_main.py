@@ -35,11 +35,6 @@ class TestMain:
         ],
     )
     def test_main_with_required_arguments(self, mocker):
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
@@ -49,7 +44,6 @@ class TestMain:
         assert awslabs.aurora_dsql_mcp_server.server.region == "us-west-2"
         assert awslabs.aurora_dsql_mcp_server.server.read_only == True
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
         assert mock_mcp_run.call_args[1].get("transport") is None
 
@@ -67,18 +61,12 @@ class TestMain:
         ],
     )
     def test_main_with_optional_arguments(self, mocker):
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
 
         assert awslabs.aurora_dsql_mcp_server.server.read_only == False
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     def test_module_execution(self):
@@ -96,7 +84,10 @@ class TestMain:
 
         # Check that the module has the if __name__ == '__main__': block
         # Accept both single and double quotes
-        assert "if __name__ == '__main__':" in source or 'if __name__ == "__main__":' in source
+        assert (
+            "if __name__ == '__main__':" in source
+            or 'if __name__ == "__main__":' in source
+        )
         assert "main()" in source
 
         # This test doesn't actually execute the code, but it ensures
@@ -239,11 +230,6 @@ class TestMain:
     )
     def test_main_with_custom_knowledge_parameters(self, mocker):
         """Test that main accepts custom knowledge server and timeout."""
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
@@ -254,7 +240,6 @@ class TestMain:
         )
         assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 60.0
 
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     @patch(
@@ -271,11 +256,6 @@ class TestMain:
     )
     def test_main_uses_default_knowledge_parameters(self, mocker):
         """Test that main uses default knowledge server and timeout when not specified."""
-        mock_execute_query = mocker.patch(
-            "awslabs.aurora_dsql_mcp_server.server.execute_query"
-        )
-        mock_execute_query.return_value = {"column": 1}
-
         mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
 
         main()
@@ -286,5 +266,67 @@ class TestMain:
         )
         assert awslabs.aurora_dsql_mcp_server.server.knowledge_timeout == 30.0
 
-        mock_execute_query.assert_called_once()
+        mock_mcp_run.assert_called_once()
+
+    @patch("sys.argv", ["awslabs.aurora-dsql-mcp-server"])
+    def test_main_starts_without_cluster_config(self, mocker):
+        """Test that main starts successfully without cluster configuration."""
+        mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
+        mock_execute_query = mocker.patch(
+            "awslabs.aurora_dsql_mcp_server.server.execute_query"
+        )
+
+        main()
+
+        assert awslabs.aurora_dsql_mcp_server.server.cluster_endpoint is None
+        assert awslabs.aurora_dsql_mcp_server.server.database_user is None
+        assert awslabs.aurora_dsql_mcp_server.server.region is None
+
+        mock_execute_query.assert_not_called()
+        mock_mcp_run.assert_called_once()
+
+    @patch(
+        "sys.argv",
+        [
+            "awslabs.aurora-dsql-mcp-server",
+            "--cluster_endpoint",
+            "test_ce",
+        ],
+    )
+    def test_main_starts_with_partial_config(self, mocker):
+        """Test that main starts with partial configuration (missing user and region)."""
+        mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
+        mock_execute_query = mocker.patch(
+            "awslabs.aurora_dsql_mcp_server.server.execute_query"
+        )
+
+        main()
+
+        assert awslabs.aurora_dsql_mcp_server.server.cluster_endpoint == "test_ce"
+        assert awslabs.aurora_dsql_mcp_server.server.database_user is None
+
+        mock_execute_query.assert_not_called()
+        mock_mcp_run.assert_called_once()
+
+    @patch(
+        "sys.argv",
+        [
+            "awslabs.aurora-dsql-mcp-server",
+            "--cluster_endpoint",
+            "invalid_endpoint",
+            "--database_user",
+            "test_user",
+            "--region",
+            "us-west-2",
+        ],
+    )
+    def test_main_starts_with_invalid_cluster(self, mocker):
+        """Test that main starts even when connection validation fails."""
+        mock_mcp_run = mocker.patch("awslabs.aurora_dsql_mcp_server.server.mcp.run")
+
+        main()
+
+        assert (
+            awslabs.aurora_dsql_mcp_server.server.cluster_endpoint == "invalid_endpoint"
+        )
         mock_mcp_run.assert_called_once()

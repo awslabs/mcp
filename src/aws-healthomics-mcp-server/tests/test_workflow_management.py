@@ -158,12 +158,11 @@ async def test_list_workflows_boto_error():
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
     ):
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await list_workflows(ctx=mock_ctx, max_results=10, next_token=None)
+        result = await list_workflows(ctx=mock_ctx, max_results=10, next_token=None)
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'AWS error listing workflows' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error listing workflows' in result['error']
 
 
 @pytest.mark.asyncio
@@ -178,12 +177,11 @@ async def test_list_workflows_unexpected_error():
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
     ):
-        with pytest.raises(Exception, match='Unexpected error'):
-            await list_workflows(ctx=mock_ctx, max_results=10, next_token=None)
+        result = await list_workflows(ctx=mock_ctx, max_results=10, next_token=None)
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Unexpected error listing workflows' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error listing workflows' in result['error']
 
 
 @pytest.mark.asyncio
@@ -343,12 +341,11 @@ async def test_get_workflow_boto_error():
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
     ):
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'AWS error getting workflow' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error getting workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -363,12 +360,11 @@ async def test_get_workflow_unexpected_error():
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
     ):
-        with pytest.raises(Exception, match='Unexpected error'):
-            await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
+        result = await get_workflow(ctx=mock_ctx, workflow_id='wfl-12345', export_definition=False)
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Unexpected error getting workflow' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error getting workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -664,13 +660,11 @@ async def test_list_workflow_versions_client_error(mock_omics_client, mock_conte
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_omics_client,
     ):
-        # Call the function and expect it to raise an exception
-        with pytest.raises(ClientError):
-            await list_workflow_versions(mock_context, workflow_id='nonexistent-id')
+        result = await list_workflow_versions(mock_context, workflow_id='nonexistent-id')
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        assert 'Workflow not found' in mock_context.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error listing workflow versions' in result['error']
 
 
 @pytest.mark.asyncio
@@ -683,13 +677,11 @@ async def test_list_workflow_versions_general_exception(mock_omics_client, mock_
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_omics_client,
     ):
-        # Call the function and expect it to raise an exception
-        with pytest.raises(Exception):
-            await list_workflow_versions(mock_context, workflow_id='abc123')
+        result = await list_workflow_versions(mock_context, workflow_id='abc123')
 
-        # Verify error was reported to context
-        mock_context.error.assert_called_once()
-        assert 'Unexpected error listing workflow versions' in mock_context.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error listing workflow versions' in result['error']
 
 
 @pytest.mark.asyncio
@@ -796,20 +788,19 @@ async def test_create_workflow_invalid_base64():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(Exception, match='Invalid base64-encoded string'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64='invalid base64!',
-            description=None,
-            parameter_template=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64='invalid base64!',
+        description=None,
+        parameter_template=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Failed to decode base64' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -823,14 +814,11 @@ async def test_create_workflow_boto_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with (
-        patch(
-            'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
-            return_value=mock_client,
-        ),
-        pytest.raises(botocore.exceptions.BotoCoreError),
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
     ):
-        await create_workflow(
+        result = await create_workflow(
             mock_ctx,
             name='test-workflow',
             definition_zip_base64=definition_zip_base64,
@@ -840,9 +828,9 @@ async def test_create_workflow_boto_error():
             container_registry_map_uri=None,
         )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'AWS error creating workflow' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -856,14 +844,11 @@ async def test_create_workflow_unexpected_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with (
-        patch(
-            'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
-            return_value=mock_client,
-        ),
-        pytest.raises(Exception, match='Unexpected error'),
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
     ):
-        await create_workflow(
+        result = await create_workflow(
             mock_ctx,
             name='test-workflow',
             definition_zip_base64=definition_zip_base64,
@@ -873,9 +858,9 @@ async def test_create_workflow_unexpected_error():
             container_registry_map_uri=None,
         )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Unexpected error creating workflow' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1064,15 +1049,17 @@ async def test_create_workflow_invalid_container_registry_map():
         ]
     }
 
-    # Should raise ValueError due to validation error
-    with pytest.raises(ValueError, match='Invalid container registry map structure'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            container_registry_map=invalid_container_registry_map,
-            container_registry_map_uri=None,
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        container_registry_map=invalid_container_registry_map,
+        container_registry_map_uri=None,
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1094,26 +1081,19 @@ async def test_create_workflow_both_container_registry_params_error():
     # S3 URI for container registry map
     container_registry_map_uri = 's3://my-bucket/registry-mappings.json'
 
-    with pytest.raises(
-        ValueError,
-        match='Cannot specify both container_registry_map and container_registry_map_uri parameters',
-    ):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            container_registry_map=container_registry_map,
-            container_registry_map_uri=container_registry_map_uri,
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        container_registry_map=container_registry_map,
+        container_registry_map_uri=container_registry_map_uri,
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1227,22 +1207,22 @@ async def test_create_workflow_version_static_without_capacity():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with pytest.raises(ValueError, match='Storage capacity is required'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            storage_type='STATIC',
-            storage_capacity=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        storage_type='STATIC',
+        storage_capacity=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1251,23 +1231,22 @@ async def test_create_workflow_version_invalid_base64():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(Exception, match='Invalid base64-encoded string'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64='invalid base64!',
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64='invalid base64!',
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Failed to decode base64' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1281,14 +1260,11 @@ async def test_create_workflow_version_boto_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with (
-        patch(
-            'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
-            return_value=mock_client,
-        ),
-        pytest.raises(botocore.exceptions.BotoCoreError),
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
     ):
-        await create_workflow_version(
+        result = await create_workflow_version(
             mock_ctx,
             workflow_id='wfl-12345',
             version_name='v2.0',
@@ -1301,9 +1277,9 @@ async def test_create_workflow_version_boto_error():
             container_registry_map_uri=None,
         )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'AWS error creating workflow version' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1580,29 +1556,22 @@ async def test_create_workflow_version_both_container_registry_params_error():
     # S3 URI for container registry map
     container_registry_map_uri = 's3://my-bucket/registry-mappings.json'
 
-    with pytest.raises(
-        ValueError,
-        match='Cannot specify both container_registry_map and container_registry_map_uri parameters',
-    ):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=container_registry_map,
-            container_registry_map_uri=container_registry_map_uri,
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=container_registry_map,
+        container_registry_map_uri=container_registry_map_uri,
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 # Tests for S3 URI support in create_workflow
@@ -1666,26 +1635,20 @@ async def test_create_workflow_both_definition_sources_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(
-        ValueError, match='Cannot specify both definition_zip_base64 and definition_uri'
-    ):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri='s3://my-bucket/workflow-definition.zip',
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both definition_zip_base64 and definition_uri'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri='s3://my-bucket/workflow-definition.zip',
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1694,26 +1657,20 @@ async def test_create_workflow_no_definition_source_error():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(
-        ValueError, match='Must specify either definition_zip_base64 or definition_uri'
-    ):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=None,
-            description=None,
-            parameter_template=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri=None,
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Must specify either definition_zip_base64 or definition_uri'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=None,
+        description=None,
+        parameter_template=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri=None,
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1722,21 +1679,20 @@ async def test_create_workflow_invalid_s3_uri():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(ValueError, match='definition_uri must be a valid S3 URI'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=None,
-            description=None,
-            parameter_template=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri='https://example.com/workflow.zip',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=None,
+        description=None,
+        parameter_template=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri='https://example.com/workflow.zip',
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'definition_uri must be a valid S3 URI' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 # Tests for S3 URI support in create_workflow_version
@@ -1807,29 +1763,23 @@ async def test_create_workflow_version_both_definition_sources_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(
-        ValueError, match='Cannot specify both definition_zip_base64 and definition_uri'
-    ):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri='s3://my-bucket/workflow-definition.zip',
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Cannot specify both definition_zip_base64 and definition_uri'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri='s3://my-bucket/workflow-definition.zip',
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1838,29 +1788,23 @@ async def test_create_workflow_version_no_definition_source_error():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(
-        ValueError, match='Must specify either definition_zip_base64 or definition_uri'
-    ):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=None,
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri=None,
-        )
-
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert (
-        'Must specify either definition_zip_base64 or definition_uri'
-        in mock_ctx.error.call_args[0][0]
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=None,
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri=None,
     )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1879,24 +1823,23 @@ async def test_create_workflow_version_invalid_container_registry_map():
         ]
     }
 
-    with pytest.raises(ValueError, match='Invalid container registry map structure'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=invalid_container_registry_map,
-            container_registry_map_uri=None,
-            definition_uri=None,
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=invalid_container_registry_map,
+        container_registry_map_uri=None,
+        definition_uri=None,
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Invalid container registry map structure' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1905,24 +1848,23 @@ async def test_create_workflow_version_invalid_s3_uri():
     # Mock context
     mock_ctx = AsyncMock()
 
-    with pytest.raises(ValueError, match='definition_uri must be a valid S3 URI'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=None,
-            description=None,
-            parameter_template=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            container_registry_map=None,
-            container_registry_map_uri=None,
-            definition_uri='https://example.com/workflow.zip',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=None,
+        description=None,
+        parameter_template=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        container_registry_map=None,
+        container_registry_map_uri=None,
+        definition_uri='https://example.com/workflow.zip',
+    )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'definition_uri must be a valid S3 URI' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -1936,14 +1878,11 @@ async def test_create_workflow_version_unexpected_error():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with (
-        patch(
-            'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
-            return_value=mock_client,
-        ),
-        pytest.raises(Exception, match='Unexpected error'),
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
     ):
-        await create_workflow_version(
+        result = await create_workflow_version(
             mock_ctx,
             workflow_id='wfl-12345',
             version_name='v2.0',
@@ -1957,9 +1896,9 @@ async def test_create_workflow_version_unexpected_error():
             definition_uri=None,
         )
 
-    # Verify error was reported to context
-    mock_ctx.error.assert_called_once()
-    assert 'Unexpected error creating workflow version' in mock_ctx.error.call_args[0][0]
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2068,16 +2007,11 @@ async def test_list_workflow_versions_botocore_error():
         'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
         return_value=mock_client,
     ):
-        # Call the function and expect it to raise an exception
-        with pytest.raises(botocore.exceptions.BotoCoreError):
-            await list_workflow_versions(mock_ctx, workflow_id='wfl-12345')
+        result = await list_workflow_versions(mock_ctx, workflow_id='wfl-12345')
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        assert (
-            'AWS error listing workflow versions for workflow wfl-12345'
-            in mock_ctx.error.call_args[0][0]
-        )
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error listing workflow versions' in result['error']
 
 
 # Tests for path_to_main parameter
@@ -2563,15 +2497,16 @@ async def test_create_workflow_with_invalid_path_to_main_absolute():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must be a relative path'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='/absolute/path/main.wdl',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='/absolute/path/main.wdl',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2580,15 +2515,16 @@ async def test_create_workflow_with_invalid_path_to_main_traversal():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='../main.wdl',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='../main.wdl',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2597,15 +2533,16 @@ async def test_create_workflow_with_invalid_path_to_main_extension():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='workflows/script.py',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='workflows/script.py',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2614,17 +2551,18 @@ async def test_create_workflow_version_with_invalid_path_to_main_absolute():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must be a relative path'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            storage_type='DYNAMIC',
-            path_to_main='/absolute/path/main.wdl',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='/absolute/path/main.wdl',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2633,17 +2571,18 @@ async def test_create_workflow_version_with_invalid_path_to_main_traversal():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            storage_type='DYNAMIC',
-            path_to_main='workflows/../../../etc/passwd',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='workflows/../../../etc/passwd',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2652,17 +2591,18 @@ async def test_create_workflow_version_with_invalid_path_to_main_extension():
     mock_ctx = AsyncMock()
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            storage_type='DYNAMIC',
-            path_to_main='workflows/config.json',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='workflows/config.json',
+    )
 
-    mock_ctx.error.assert_called_once()
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2756,13 +2696,16 @@ async def test_create_workflow_path_to_main_validation_absolute_path():
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must be a relative path'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='/absolute/path/main.wdl',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='/absolute/path/main.wdl',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2772,13 +2715,16 @@ async def test_create_workflow_path_to_main_validation_directory_traversal():
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='../main.wdl',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='../main.wdl',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2788,13 +2734,16 @@ async def test_create_workflow_path_to_main_validation_invalid_extension():
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
-        await create_workflow(
-            mock_ctx,
-            name='test-workflow',
-            definition_zip_base64=definition_zip_base64,
-            path_to_main='main.txt',
-        )
+    result = await create_workflow(
+        mock_ctx,
+        name='test-workflow',
+        definition_zip_base64=definition_zip_base64,
+        path_to_main='main.txt',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2804,15 +2753,18 @@ async def test_create_workflow_version_path_to_main_validation_absolute_path():
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must be a relative path'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            storage_type='DYNAMIC',
-            path_to_main='/absolute/path/main.wdl',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='/absolute/path/main.wdl',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2822,15 +2774,18 @@ async def test_create_workflow_version_path_to_main_validation_directory_travers
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='cannot contain directory traversal sequences'):
-        await create_workflow_version(
-            mock_ctx,
-            workflow_id='wfl-12345',
-            version_name='v2.0',
-            definition_zip_base64=definition_zip_base64,
-            storage_type='DYNAMIC',
-            path_to_main='workflows/../main.wdl',
-        )
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='workflows/../main.wdl',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2840,12 +2795,436 @@ async def test_create_workflow_version_path_to_main_validation_invalid_extension
 
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    with pytest.raises(ValueError, match='must point to a workflow file with extension'):
-        await create_workflow_version(
+    result = await create_workflow_version(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        version_name='v2.0',
+        definition_zip_base64=definition_zip_base64,
+        storage_type='DYNAMIC',
+        path_to_main='main.py',
+    )
+
+    # Verify error dict is returned
+    assert 'error' in result
+    assert 'Error creating workflow version' in result['error']
+
+
+# Tests for README parameter support
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_readme_s3_uri():
+    """Test create_workflow with readme as S3 URI."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            readme='s3://my-bucket/docs/readme.md',
+        )
+
+    # Verify the client was called with readmeUri parameter
+    call_args = mock_client.create_workflow.call_args
+    assert 'readmeUri' in call_args.kwargs
+    assert call_args.kwargs['readmeUri'] == 's3://my-bucket/docs/readme.md'
+    assert 'readmeMarkdown' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['status'] == 'CREATING'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_readme_markdown_content():
+    """Test create_workflow with readme as markdown content."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    markdown_content = '# My Workflow\n\nThis is documentation.'
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            readme=markdown_content,
+        )
+
+    # Verify the client was called with readmeMarkdown parameter
+    call_args = mock_client.create_workflow.call_args
+    assert 'readmeMarkdown' in call_args.kwargs
+    assert call_args.kwargs['readmeMarkdown'] == markdown_content
+    assert 'readmeUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_readme_s3_uri():
+    """Test create_workflow_version with readme as S3 URI."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
             mock_ctx,
             workflow_id='wfl-12345',
             version_name='v2.0',
             definition_zip_base64=definition_zip_base64,
             storage_type='DYNAMIC',
-            path_to_main='main.py',
+            readme='s3://my-bucket/docs/readme.md',
         )
+
+    # Verify the client was called with readmeUri parameter
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'readmeUri' in call_args.kwargs
+    assert call_args.kwargs['readmeUri'] == 's3://my-bucket/docs/readme.md'
+    assert 'readmeMarkdown' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_readme_markdown_content():
+    """Test create_workflow_version with readme as markdown content."""
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+    markdown_content = '# My Workflow v2\n\nUpdated documentation.'
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=definition_zip_base64,
+            storage_type='DYNAMIC',
+            readme=markdown_content,
+        )
+
+    # Verify the client was called with readmeMarkdown parameter
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'readmeMarkdown' in call_args.kwargs
+    assert call_args.kwargs['readmeMarkdown'] == markdown_content
+    assert 'readmeUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+
+
+# Tests for create_workflow with definition_uri and definition_repository
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_definition_uri():
+    """Test workflow creation with definition_uri (S3 URI source)."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=None,
+            definition_uri='s3://my-bucket/workflows/workflow.zip',
+            definition_repository=None,
+            description='Test workflow from S3',
+        )
+
+    # Verify client was called with definitionUri
+    call_args = mock_client.create_workflow.call_args
+    assert 'definitionUri' in call_args.kwargs
+    assert call_args.kwargs['definitionUri'] == 's3://my-bucket/workflows/workflow.zip'
+    assert 'definitionZip' not in call_args.kwargs
+    assert 'definitionRepository' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_definition_repository():
+    """Test workflow creation with definition_repository (Git source)."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    definition_repository = {
+        'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+        'full_repository_id': 'owner/repo',
+        'source_reference': {'type': 'BRANCH', 'value': 'main'},
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+            description='Test workflow from Git',
+        )
+
+    # Verify client was called with definitionRepository
+    call_args = mock_client.create_workflow.call_args
+    assert 'definitionRepository' in call_args.kwargs
+    assert (
+        call_args.kwargs['definitionRepository']['connectionArn']
+        == definition_repository['connection_arn']
+    )
+    assert (
+        call_args.kwargs['definitionRepository']['fullRepositoryId']
+        == definition_repository['full_repository_id']
+    )
+    assert 'definitionZip' not in call_args.kwargs
+    assert 'definitionUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_with_repository_path_params():
+    """Test workflow creation with repository-specific path parameters."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow.return_value = mock_response
+
+    definition_repository = {
+        'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+        'full_repository_id': 'owner/repo',
+        'source_reference': {'type': 'TAG', 'value': 'v1.0.0'},
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+            parameter_template_path='config/params.json',
+            readme_path='docs/README.md',
+        )
+
+    # Verify client was called with parameterTemplatePath and readmePath
+    call_args = mock_client.create_workflow.call_args
+    assert 'parameterTemplatePath' in call_args.kwargs
+    assert call_args.kwargs['parameterTemplatePath'] == 'config/params.json'
+    assert 'readmePath' in call_args.kwargs
+    assert call_args.kwargs['readmePath'] == 'docs/README.md'
+
+    assert result['id'] == 'wfl-12345'
+
+
+# Tests for create_workflow_version with definition_uri and definition_repository
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_definition_uri():
+    """Test workflow version creation with definition_uri (S3 URI source)."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=None,
+            definition_uri='s3://my-bucket/workflows/workflow-v2.zip',
+            definition_repository=None,
+            storage_type='DYNAMIC',
+            description='Version 2.0 from S3',
+        )
+
+    # Verify client was called with definitionUri
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'definitionUri' in call_args.kwargs
+    assert call_args.kwargs['definitionUri'] == 's3://my-bucket/workflows/workflow-v2.zip'
+    assert 'definitionZip' not in call_args.kwargs
+    assert 'definitionRepository' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_definition_repository():
+    """Test workflow version creation with definition_repository (Git source)."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    definition_repository = {
+        'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+        'full_repository_id': 'owner/repo',
+        'source_reference': {'type': 'TAG', 'value': 'v2.0.0'},
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+            storage_type='DYNAMIC',
+            description='Version 2.0 from Git',
+        )
+
+    # Verify client was called with definitionRepository
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'definitionRepository' in call_args.kwargs
+    assert (
+        call_args.kwargs['definitionRepository']['connectionArn']
+        == definition_repository['connection_arn']
+    )
+    assert 'definitionZip' not in call_args.kwargs
+    assert 'definitionUri' not in call_args.kwargs
+
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_version_with_repository_path_params():
+    """Test workflow version creation with repository-specific path parameters."""
+    mock_response = {
+        'id': 'wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'status': 'CREATING',
+        'name': 'test-workflow',
+        'versionName': 'v2.0',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.create_workflow_version.return_value = mock_response
+
+    definition_repository = {
+        'connection_arn': 'arn:aws:codeconnections:us-east-1:123456789012:connection/abc-123',
+        'full_repository_id': 'owner/repo',
+        'source_reference': {'type': 'COMMIT_ID', 'value': 'a1b2c3d4e5f6'},
+    }
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await create_workflow_version(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            version_name='v2.0',
+            definition_zip_base64=None,
+            definition_uri=None,
+            definition_repository=definition_repository,
+            storage_type='DYNAMIC',
+            parameter_template_path='config/params-v2.json',
+            readme_path='docs/README-v2.md',
+        )
+
+    # Verify client was called with parameterTemplatePath and readmePath
+    call_args = mock_client.create_workflow_version.call_args
+    assert 'parameterTemplatePath' in call_args.kwargs
+    assert call_args.kwargs['parameterTemplatePath'] == 'config/params-v2.json'
+    assert 'readmePath' in call_args.kwargs
+    assert call_args.kwargs['readmePath'] == 'docs/README-v2.md'
+
+    assert result['id'] == 'wfl-12345'
+    assert result['versionName'] == 'v2.0'

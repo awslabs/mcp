@@ -1,0 +1,426 @@
+{
+  "tables": [
+    {
+      "entities": {
+        "Game": {
+          "access_patterns": [
+            {
+              "consistent_read": true,
+              "description": "Get game details by ID",
+              "name": "get_game",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "game_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 1,
+              "return_type": "single_entity"
+            },
+            {
+              "description": "List all games",
+              "name": "list_games",
+              "operation": "Scan",
+              "parameters": [],
+              "pattern_id": 2,
+              "return_type": "entity_list"
+            },
+            {
+              "consistent_read": false,
+              "description": "Get game by ID (duplicate of CRUD - should be filtered)",
+              "name": "get_game_by_id",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "game_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 11,
+              "return_type": "single_entity"
+            },
+            {
+              "consistent_read": true,
+              "description": "Get game with metadata verification",
+              "name": "get_game_with_verification",
+              "operation": "GetItem",
+              "parameters": [
+                {
+                  "name": "game_id",
+                  "type": "string"
+                },
+                {
+                  "name": "verification_code",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 12,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "GAME",
+          "fields": [
+            {
+              "name": "game_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "title",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "genre",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "release_date",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "publisher",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "max_players",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "is_active",
+              "required": true,
+              "type": "boolean"
+            },
+            {
+              "name": "verification_code",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "pk_template": "{game_id}",
+          "sk_template": "METADATA"
+        }
+      },
+      "table_config": {
+        "partition_key": "game_id",
+        "sort_key": "sk",
+        "table_name": "GameTable"
+      }
+    },
+    {
+      "entities": {
+        "LeaderboardEntry": {
+          "access_patterns": [
+            {
+              "consistent_read": false,
+              "description": "Get top scores for a game",
+              "name": "get_top_scores",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "game_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 3,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get all scores for a player",
+              "index_name": "PlayerScoresIndex",
+              "name": "get_player_scores",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "player_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 4,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Submit a new score",
+              "name": "submit_score",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "LeaderboardEntry",
+                  "name": "entry",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 5,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "SCORE",
+          "fields": [
+            {
+              "name": "game_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "score",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "player_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "player_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "achieved_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "level_reached",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "play_duration_seconds",
+              "required": false,
+              "type": "integer"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "PlayerScoresIndex",
+              "pk_template": "{player_id}",
+              "sk_template": "{score}"
+            }
+          ],
+          "pk_template": "{game_id}",
+          "sk_template": "{score}"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "PlayerScoresIndex",
+          "partition_key": "player_id",
+          "sort_key": "score"
+        }
+      ],
+      "table_config": {
+        "partition_key": "game_id",
+        "sort_key": "score",
+        "table_name": "LeaderboardTable"
+      }
+    },
+    {
+      "entities": {
+        "PlayerAchievement": {
+          "access_patterns": [
+            {
+              "description": "Get all achievements for a player",
+              "name": "get_player_achievements",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "player_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 6,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Get achievements for a game sorted by points",
+              "index_name": "GameAchievementsIndex",
+              "name": "get_game_achievements",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "game_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 7,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Unlock an achievement for a player",
+              "name": "unlock_achievement",
+              "operation": "PutItem",
+              "parameters": [
+                {
+                  "entity_type": "PlayerAchievement",
+                  "name": "achievement",
+                  "type": "entity"
+                }
+              ],
+              "pattern_id": 8,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "ACHIEVEMENT",
+          "fields": [
+            {
+              "name": "player_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "achievement_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "game_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "achievement_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "name": "points",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "unlocked_at",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "rarity",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "gsi_mappings": [
+            {
+              "name": "GameAchievementsIndex",
+              "pk_template": "{game_id}",
+              "sk_template": "{points}"
+            }
+          ],
+          "pk_template": "{player_id}",
+          "sk_template": "{achievement_id}"
+        }
+      },
+      "gsi_list": [
+        {
+          "name": "GameAchievementsIndex",
+          "partition_key": "game_id",
+          "sort_key": "points"
+        }
+      ],
+      "table_config": {
+        "partition_key": "player_id",
+        "sort_key": "achievement_id",
+        "table_name": "AchievementTable"
+      }
+    },
+    {
+      "entities": {
+        "TournamentEntry": {
+          "access_patterns": [
+            {
+              "description": "Get tournament rankings",
+              "name": "get_tournament_rankings",
+              "operation": "Query",
+              "parameters": [
+                {
+                  "name": "tournament_id",
+                  "type": "string"
+                }
+              ],
+              "pattern_id": 9,
+              "return_type": "entity_list"
+            },
+            {
+              "description": "Update player ranking in tournament",
+              "name": "update_ranking",
+              "operation": "UpdateItem",
+              "parameters": [
+                {
+                  "name": "tournament_id",
+                  "type": "string"
+                },
+                {
+                  "name": "ranking",
+                  "type": "integer"
+                }
+              ],
+              "pattern_id": 10,
+              "return_type": "single_entity"
+            }
+          ],
+          "entity_type": "TOURNAMENT",
+          "fields": [
+            {
+              "name": "tournament_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "ranking",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "player_id",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "player_name",
+              "required": true,
+              "type": "string"
+            },
+            {
+              "name": "total_score",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "matches_played",
+              "required": true,
+              "type": "integer"
+            },
+            {
+              "name": "wins",
+              "required": false,
+              "type": "integer"
+            },
+            {
+              "name": "prize_amount",
+              "required": false,
+              "type": "decimal"
+            }
+          ],
+          "pk_template": "{tournament_id}",
+          "sk_template": "{ranking}"
+        }
+      },
+      "table_config": {
+        "partition_key": "tournament_id",
+        "sort_key": "ranking",
+        "table_name": "TournamentTable"
+      }
+    }
+  ]
+}

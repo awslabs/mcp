@@ -68,6 +68,9 @@ def get_pricing_region(requested_region: Optional[str] = None) -> str:
     elif requested_region.startswith('ap-'):
         # Asia Pacific regions
         pricing_region = 'ap-south-1'
+    elif requested_region.startswith('eusc-'):
+        # AWS European Sovereign Cloud
+        pricing_region = 'eusc-de-east-1'
     else:
         # Default to US East (covers us-, ca-, sa- and any unknown regions)
         pricing_region = 'us-east-1'
@@ -98,7 +101,7 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
 
     config = Config(
         region_name=pricing_region,
-        user_agent_extra=f'awslabs/mcp/{consts.MCP_SERVER_NAME}/{__version__}',
+        user_agent_extra=f'md/awslabs#mcp#aws-pricing-mcp-server#{__version__}',
     )
 
     logger.debug(

@@ -24,7 +24,7 @@ jobs:
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Find Dockerfiles
         id: find-dockerfiles
         run: |
@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@0bb449ef24e57237bf567483639970b2aba7e3d3
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@11841059cfcc830c367325450a1898ebffef6e01
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -57,7 +57,7 @@ jobs:
 
       - name: Checkout code
         id: checkout-code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
@@ -122,14 +122,14 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) == ''
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 #v0.33.1
+        uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 #v0.34.2
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
           format: 'sarif'
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@fb650c22f965a3eff7e20c5535e51a256dd16bf1 # v4.31.9
+        uses: github/codeql-action/upload-sarif@c0fc915677567258ee3c194d03ffe7ae3dc8d741 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 

@@ -315,6 +315,52 @@ class TestMcpListDiagramIcons:
         assert args[1] == 'compute'
 
 
+class TestMcpGetDiagramExamplesStringInput:
+    """Tests for mcp_get_diagram_examples with plain string input."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_string_input_all(self, mock_get_diagram_examples):
+        """Test that plain string 'all' is accepted and converted to DiagramType."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='all')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_string_input_aws(self, mock_get_diagram_examples):
+        """Test that plain string 'aws' is accepted and converted to DiagramType."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='aws')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.AWS)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_invalid_string_falls_back_to_all(self, mock_get_diagram_examples):
+        """Test that an invalid diagram type string falls back to ALL."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        await mcp_get_diagram_examples(diagram_type='nonexistent')
+        mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.get_diagram_examples')
+    async def test_each_valid_diagram_type_string(self, mock_get_diagram_examples):
+        """Test that each valid DiagramType string value is accepted."""
+        mock_get_diagram_examples.return_value = MagicMock(
+            model_dump=MagicMock(return_value={'examples': {}})
+        )
+        for dt in list(DiagramType):
+            mock_get_diagram_examples.reset_mock()
+            await mcp_get_diagram_examples(diagram_type=dt.value)
+            mock_get_diagram_examples.assert_called_once_with(dt)
+
+
 class TestServerIntegration:
     """Integration tests for the server module."""
 

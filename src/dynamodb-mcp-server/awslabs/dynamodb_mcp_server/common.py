@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
 from functools import wraps
 from typing import Callable
+
+
+logger = logging.getLogger(__name__)
 
 
 def validate_database_name(database_name: str) -> None:
@@ -89,6 +93,7 @@ def handle_exceptions(func: Callable) -> Callable:
         try:
             return await func(*args, **kwargs)
         except Exception as e:
+            logger.exception('Error in %s', func.__name__)
             return {'error': str(e)}
 
     return wrapper

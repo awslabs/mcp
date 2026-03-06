@@ -69,6 +69,46 @@ This MCP server provides tools for:
 
 1. **SearchGenomicsFiles** - Intelligent search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores with pattern matching, file association detection, and relevance scoring
 
+### Run Group Management Tools
+
+1. **CreateAHORunGroup** - Create a new run group with optional resource limits (maxCpus, maxGpus, maxDuration, maxRuns) and tags
+2. **GetAHORunGroup** - Retrieve detailed information about a specific run group
+3. **ListAHORunGroups** - List available run groups with optional name filtering and pagination
+4. **UpdateAHORunGroup** - Update an existing run group's name or resource limits
+
+### Run Cache Management Tools
+
+1. **CreateAHORunCache** - Create a new run cache with a cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE), S3 URI for cache storage, and optional name, description, tags, and cross-account bucket owner ID
+2. **GetAHORunCache** - Retrieve detailed information about a specific run cache including configuration, status, and metadata
+3. **ListAHORunCaches** - List available run caches with optional filtering by name, status, or cache behavior, with pagination support
+4. **UpdateAHORunCache** - Update an existing run cache's cache behavior, name, or description
+
+### Sequence Store Management Tools
+
+1. **CreateAHOSequenceStore** - Create a new sequence store with optional encryption, description, fallback location, and tags
+2. **ListAHOSequenceStores** - List sequence stores with optional name filtering and pagination
+3. **GetAHOSequenceStore** - Get detailed information about a specific sequence store
+4. **UpdateAHOSequenceStore** - Update a sequence store's name, description, or fallback location (manages ETags internally)
+5. **ListAHOReadSets** - List read sets in a sequence store with filtering by sample ID, subject ID, reference ARN, status, file type, and date range
+6. **GetAHOReadSetMetadata** - Get detailed metadata for a specific read set including sequence information and file details
+7. **StartAHOReadSetImportJob** - Import genomic files from S3 into a sequence store with batch support
+8. **GetAHOReadSetImportJob** - Get status and details of a read set import job including per-source statuses
+9. **ListAHOReadSetImportJobs** - List import jobs for a sequence store with pagination
+10. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
+11. **GetAHOReadSetExportJob** - Get status and details of a read set export job
+12. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
+13. **ActivateAHOReadSets** - Activate archived read sets for analysis access
+
+### Reference Store Management Tools
+
+1. **ListAHOReferenceStores** - List reference stores with optional name filtering and pagination
+2. **GetAHOReferenceStore** - Get detailed information about a specific reference store
+3. **ListAHOReferences** - List references in a reference store with optional name and status filtering
+4. **GetAHOReferenceMetadata** - Get detailed metadata for a specific reference including file information
+5. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
+6. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
+7. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
+
 ### Region Management Tools
 
 1. **GetAHOSupportedRegions** - List AWS regions where HealthOmics is available
@@ -403,6 +443,14 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 
 > **Note for Large S3 Buckets**: When searching very large S3 buckets (millions of objects), the genomics file search may take longer than the default MCP client timeout. If you encounter timeout errors, increase the MCP server timeout by adding a `"timeout"` property to your MCP server configuration (e.g., `"timeout": 300000` for five minutes, specified in milliseconds). This is particularly important when using the search tool with extensive S3 bucket configurations or when `GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH=true` is used with large datasets. The value of `"timeout"` should always be greater than the value of `GENOMICS_SEARCH_TIMEOUT_SECONDS` if you want to prevent the MCP timeout from preempting the genomics search timeout
 
+#### Agent Identification
+
+- `AGENT` - Agent identifier appended to the User-Agent string on all boto3 API calls as `agent/<value>` (optional)
+  - **Use case**: Attributing API calls to specific AI agents for traceability via CloudTrail and AWS service logs
+  - **Behavior**: When set, the value is sanitized to visible ASCII characters (0x20-0x7E), stripped of leading/trailing whitespace, lowercased, and appended to the User-Agent header as `agent/<value>`
+  - **Validation**: Empty, whitespace-only, or values that become empty after sanitization are treated as unset
+  - **Example**: `export AGENT=KIRO` produces `User-Agent: ... agent/kiro`
+
 #### Testing Configuration Variables
 
 The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
@@ -450,12 +498,34 @@ The following IAM permissions are required:
                 "omics:GetRun",
                 "omics:ListRunTasks",
                 "omics:GetRunTask",
+                "omics:CreateRunGroup",
+                "omics:GetRunGroup",
+                "omics:ListRunGroups",
+                "omics:UpdateRunGroup",
+                "omics:CreateRunCache",
+                "omics:GetRunCache",
+                "omics:ListRunCaches",
+                "omics:UpdateRunCache",
                 "omics:ListSequenceStores",
                 "omics:ListReadSets",
                 "omics:GetReadSetMetadata",
                 "omics:ListReferenceStores",
                 "omics:ListReferences",
                 "omics:GetReferenceMetadata",
+                "omics:CreateSequenceStore",
+                "omics:GetSequenceStore",
+                "omics:UpdateSequenceStore",
+                "omics:StartReadSetImportJob",
+                "omics:GetReadSetImportJob",
+                "omics:ListReadSetImportJobs",
+                "omics:StartReadSetExportJob",
+                "omics:GetReadSetExportJob",
+                "omics:ListReadSetExportJobs",
+                "omics:StartReadSetActivationJob",
+                "omics:GetReferenceStore",
+                "omics:StartReferenceImportJob",
+                "omics:GetReferenceImportJob",
+                "omics:ListReferenceImportJobs",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
                 "logs:GetLogEvents"
@@ -467,7 +537,8 @@ The following IAM permissions are required:
             "Action": [
                 "s3:ListBucket",
                 "s3:GetObject",
-                "s3:GetObjectTagging"
+                "s3:GetObjectTagging",
+                "s3:HeadBucket"
             ],
             "Resource": [
                 "arn:aws:s3:::*genomics*",
@@ -495,7 +566,8 @@ The following IAM permissions are required:
     "Action": [
         "s3:ListBucket",
         "s3:GetObject",
-        "s3:GetObjectTagging"
+        "s3:GetObjectTagging",
+        "s3:HeadBucket"
     ],
     "Resource": [
         "arn:aws:s3:::my-genomics-data",
@@ -527,6 +599,7 @@ Add to your Kiro MCP configuration (`~/.kiro/settings/mcp.json`):
         "AWS_REGION": "us-east-1",
         "AWS_PROFILE": "your-profile",
         "HEALTHOMICS_DEFAULT_MAX_RESULTS": "10",
+        "AGENT": "kiro",
         "GENOMICS_SEARCH_S3_BUCKETS": "s3://my-genomics-data/,s3://shared-references/",
         "GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH": "true",
         "GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE": "100",

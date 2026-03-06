@@ -6,7 +6,7 @@ At the moment, there is no dedicated development container, thus you need to con
 
 - [pre-commit](https://pre-commit.com/)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Python](Python) 3.10. You can install it through uv using `uv python install 3.10`
+- [Python](https://www.python.org) 3.10. You can install it through uv using `uv python install 3.10`
 - [Git](https://git-scm.com/) (if using code repository)
 - (optional) [AWS CLI](https://aws.amazon.com/cli/). Some servers will require to use your AWS credentials to interact with your AWS account. Configure your credentials:
 

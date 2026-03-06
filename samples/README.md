@@ -1,6 +1,6 @@
-# AWS MCP Servers - Samples
+# Open source MCP servers for AWS - Samples
 
-This directory contains a collection of examples demonstrating how to use the AWS MCP Servers provided in the `src` directory. Each sample is organized into its own folder with relevant documentation and code.
+This directory contains a collection of examples demonstrating how to use the open source MCP servers for AWS provided in the `src` directory. Each sample is organized into its own folder with relevant documentation and code.
 
 ## Structure
 
@@ -15,7 +15,7 @@ samples/
 
 The samples in this directory provide:
 
-- Working examples for each AWS MCP Server
+- Working examples for each open source MCP server for AWS
 - Integration patterns and best practices
 - Code snippets for common use cases
 - Step-by-step guides

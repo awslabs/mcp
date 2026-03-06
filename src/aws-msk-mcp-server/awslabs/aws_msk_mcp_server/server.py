@@ -27,10 +27,12 @@ from awslabs.aws_msk_mcp_server.tools import (
     logs_and_telemetry,
     mutate_cluster,
     mutate_config,
+    mutate_topics,
     mutate_vpc,
     read_cluster,
     read_config,
     read_global,
+    read_topics,
     read_vpc,
     static_tools,
 )
@@ -78,6 +80,7 @@ async def run_server():
     read_global.register_module(mcp)
     read_vpc.register_module(mcp)
     read_config.register_module(mcp)
+    read_topics.register_module(mcp)
     logs_and_telemetry.register_module(mcp)
     static_tools.register_module(mcp)
 
@@ -86,6 +89,7 @@ async def run_server():
         logger.info('Write operations are enabled')
         mutate_cluster.register_module(mcp)
         mutate_config.register_module(mcp)
+        mutate_topics.register_module(mcp)
         mutate_vpc.register_module(mcp)
     else:
         logger.info('Server running in read-only mode. Write operations are disabled.')

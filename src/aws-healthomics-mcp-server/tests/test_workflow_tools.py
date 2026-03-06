@@ -83,6 +83,7 @@ async def test_package_workflow_basic():
     assert isinstance(result, str)
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -115,6 +116,7 @@ async def test_package_workflow_with_additional_files():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -154,6 +156,7 @@ async def test_package_workflow_default_filename():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -175,6 +178,7 @@ async def test_package_workflow_cwl_file():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -209,6 +213,7 @@ async def test_package_workflow_with_subdirectories():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -240,6 +245,7 @@ async def test_package_workflow_empty_additional_files():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -260,17 +266,16 @@ async def test_package_workflow_error_handling():
     ) as mock_create_zip:
         mock_create_zip.side_effect = Exception('ZIP creation failed')
 
-        with pytest.raises(Exception, match='ZIP creation failed'):
-            await package_workflow(
-                ctx=mock_ctx,
-                main_file_content=SAMPLE_WDL_WORKFLOW,
-                main_file_name='main.wdl',
-                additional_files=None,
-            )
+        result = await package_workflow(
+            ctx=mock_ctx,
+            main_file_content=SAMPLE_WDL_WORKFLOW,
+            main_file_name='main.wdl',
+            additional_files=None,
+        )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        assert 'Error packaging workflow' in mock_ctx.error.call_args[0][0]
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert 'Error packaging workflow' in result['error']
 
 
 @pytest.mark.asyncio
@@ -289,6 +294,7 @@ async def test_package_workflow_large_files():
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents
@@ -320,6 +326,7 @@ workflow SpecialChars {
     )
 
     # Decode base64 string
+    assert isinstance(result, str)
     zip_data = base64.b64decode(result)
 
     # Read ZIP contents

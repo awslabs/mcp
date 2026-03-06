@@ -12,29 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""DynamoDB MCP Server for data modeling and database analysis."""
-
 import json
 import os
 from awslabs.aws_api_mcp_server.server import call_aws
 from awslabs.dynamodb_mcp_server.cdk_generator.generator import CdkGenerator
 from awslabs.dynamodb_mcp_server.common import handle_exceptions
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.calculator_runner import (
+    run_cost_calculator,
+)
+from awslabs.dynamodb_mcp_server.cost_performance_calculator.data_model import (
+    AccessPattern,
+    DataModel,
+    Table,
+    format_validation_errors,
+)
 from awslabs.dynamodb_mcp_server.db_analyzer import analyzer_utils
 from awslabs.dynamodb_mcp_server.db_analyzer.plugin_registry import PluginRegistry
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
+    DynamoDBClientConfig,
     create_validation_resources,
     get_validation_result_transform_prompt,
     setup_dynamodb_local,
 )
+from awslabs.dynamodb_mcp_server.repo_generation_tool.codegen import generate
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from pathlib import Path
-from pydantic import Field
+from pydantic import Field, ValidationError
 from typing import Any, Dict, List, Optional
 
 
 DATA_MODEL_JSON_FILE = 'dynamodb_data_model.json'
 DATA_MODEL_VALIDATION_RESULT_JSON_FILE = 'dynamodb_model_validation.json'
+GENERATED_DATA_ACCESS_LAYER_DIR = 'generated_dal'
+
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
@@ -81,6 +93,33 @@ Use the `generate_resources` tool to generate resources from your DynamoDB data 
 - The CDK app reads dynamodb_data_model.json to create tables with proper configuration
 - Use after completing data model validation
 - Creates a 'cdk' directory with a ready-to-deploy CDK project
+
+Use the `dynamodb_data_model_schema_converter` tool to convert data models to schema.json:
+- Converts dynamodb_data_model.md to structured JSON schema for code generation
+- Automatically validates schema using dynamodb_data_model_schema_validator (up to 8 iterations)
+- Creates isolated timestamped folder with validated schema.json
+- Returns specialized conversion prompt
+
+Use the `dynamodb_data_model_schema_validator` tool to validate schema.json files:
+- Validates schema.json structure for code generation compatibility
+- Optionally validates usage_data.json if path is provided
+- Checks field types, operations, GSI mappings, and pattern IDs
+- Provides detailed error messages with fix suggestions
+- Returns validation status and errors
+
+Use the `generate_data_access_layer` tool to generate code from schema.json:
+- Generates type-safe entity classes and repository classes with CRUD operations
+- Implements all access patterns from schema
+- Creates usage examples and test cases
+- Returns implementation guidance for Python (TypeScript, Java support planned)
+
+Use the `compute_performances_and_costs` tool to calculate DynamoDB capacity and costs:
+- Analyzes access patterns to compute Read/Write Capacity Units (RCU/WCU)
+- Calculates monthly costs for on-demand pricing
+- Supports all DynamoDB operations (GetItem, Query, Scan, Batch, Transactions, etc.)
+- Tracks GSI additional writes for accurate cost projections
+- Optional storage cost calculation when table definitions provided
+- Returns comprehensive markdown report with capacity requirements and cost breakdown
 """
 
 
@@ -93,6 +132,20 @@ def create_server():
 
 
 app = create_server()
+
+_original_call_tool = app.call_tool
+
+
+async def _call_tool_with_formatted_errors(name, arguments):
+    try:
+        return await _original_call_tool(name, arguments)
+    except ToolError as e:
+        if name == 'compute_performances_and_costs' and isinstance(e.__cause__, ValidationError):
+            raise ToolError(format_validation_errors(e.__cause__)) from e.__cause__
+        raise
+
+
+app.call_tool = _call_tool_with_formatted_errors
 
 
 @app.tool()
@@ -116,7 +169,162 @@ async def dynamodb_data_modeling() -> str:
     """
     prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
     architect_prompt = prompt_file.read_text(encoding='utf-8')
-    return architect_prompt
+
+    # Add next steps guidance
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_modeling_complete.md')
+
+    return architect_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_converter(
+    generate_usage_data: bool = Field(
+        default=True,
+        description=(
+            'Set to False if user only wants schema.json without usage examples/sample data. '
+            'Set to True (default) to generate both schema.json and usage_data.json with realistic sample data for code generation'
+        ),
+    ),
+) -> str:
+    """Retrieves the DynamoDB Data Model Schema Converter Expert prompt.
+
+    This tool returns a specialized prompt for converting DynamoDB data models (dynamodb_data_model.md)
+    into schema.json - a structured JSON representation used for generating type-safe entities and repositories.
+    By default, also includes instructions for generating usage_data.json with realistic sample data.
+
+    The prompt guides through:
+    - Reading and parsing dynamodb_data_model.md files
+    - Converting table designs, GSIs, and access patterns into structured JSON format
+    - Validating generated schemas using the dynamodb_data_model_schema_validator tool
+    - Iteratively fixing validation errors (up to 8 iterations)
+    - Generating usage_data.json with realistic sample data from markdown tables (unless generate_usage_data=False)
+    - Creating isolated output folders with schema.json (and optionally usage_data.json)
+
+    When to set generate_usage_data=False:
+    - User explicitly asks for "schema only", "just schema", "without usage data", "without examples"
+    - User wants to skip sample data generation
+    - User only needs the schema structure for validation or review
+
+    Args:
+        generate_usage_data: If True (default), includes instructions for generating usage_data.json.
+                           If False, only generates schema.json.
+
+    Returns: Complete schema converter expert prompt as text
+    """
+    # Load the main schema generator prompt
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_schema_generator.md'
+    schema_generator_prompt = prompt_file.read_text(encoding='utf-8')
+
+    if generate_usage_data:
+        usage_data_prompt = (
+            Path(__file__).parent / 'prompts' / 'usage_data_generator.md'
+        ).read_text(encoding='utf-8')
+        combined_prompt = f"""{schema_generator_prompt}
+
+# ADDITIONAL TASK: Generate Usage Data
+
+After schema.json validation succeeds, you MUST also generate usage_data.json with realistic sample data.
+
+{usage_data_prompt}"""
+    else:
+        combined_prompt = schema_generator_prompt
+
+    # Add next steps guidance (same for both cases)
+    next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_schema_converter_complete.md')
+
+    return combined_prompt + next_steps_prompt
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_model_schema_validator(
+    schema_path: str = Field(description='Absolute path to the schema.json file to validate'),
+    usage_data_path: Optional[str] = Field(
+        default=None,
+        description='Optional absolute path to the usage_data.json file to validate alongside the schema',
+    ),
+) -> str:
+    """Validates a schema.json file - the structured JSON representation of your DynamoDB data model.
+
+    This tool validates that your schema.json file is properly formatted and contains all required fields
+    for use with the repository generation tool and other automation tools. It provides detailed error
+    messages with suggestions for fixing any issues found.
+
+    Optionally, if usage_data_path is provided, it will also validate the usage_data.json file against
+    the schema to ensure consistency.
+
+    The validation checks:
+    - Required sections (table_config, entities) exist
+    - All required fields are present
+    - Field types are valid (string, integer, decimal, boolean, array, object, uuid)
+    - Enum values are correct (operation types, return types, etc.)
+    - Pattern IDs are unique across all entities
+    - GSI names match between gsi_list and gsi_mappings
+    - Fields referenced in templates exist in entity fields
+    - Range conditions are valid and have correct parameter counts
+    - Access patterns have valid operations and return types
+    - Usage data validation (if usage_data_path provided)
+
+    Security:
+    - Schema files must be within the current working directory or subdirectories
+    - Path traversal attempts (e.g., ../../../../etc/passwd) are blocked
+
+    Args:
+        schema_path: Absolute path to the schema.json file to validate
+        usage_data_path: Optional absolute path to the usage_data.json file to validate
+
+    Returns:
+        Validation result with either success message or detailed error messages with suggestions
+
+    Example Usage:
+        dynamodb_data_model_schema_validator("/path/to/schema.json")
+        dynamodb_data_model_schema_validator("/path/to/schema.json", "/path/to/usage_data.json")
+
+    Example Success Output:
+        "✅ Schema validation passed!"
+        or
+        "✅ Schema validation passed!
+         ✅ Usage data validation passed!"
+
+    Example Error Output:
+        "❌ Schema validation failed:
+          • entities.User.fields[0].type: Invalid type value 'strng'
+            💡 Did you mean 'string'? Valid options: string, integer, decimal, boolean, array, object, uuid"
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+        schema_parent_dir = schema_file.parent
+
+        # Security: Resolve and validate usage_data_path to prevent traversal attacks
+        if usage_data_path:
+            usage_data_path = str(Path(usage_data_path).resolve())
+
+        if not schema_file.exists():
+            return f'Error: Schema file not found at {schema_path}'
+
+        # Pass usage_data_path to generate() for security validation
+        # generate() validates paths are within allowed_base_dirs before checking existence
+        result = generate(
+            schema_path=str(schema_file),
+            validate_only=True,
+            allowed_base_dirs=[schema_parent_dir],
+            usage_data_path=usage_data_path,
+        )
+
+        # Return formatted output for MCP
+        return result.format_for_mcp()
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except FileNotFoundError as e:
+        logger.error(f'Schema file not found: {str(e)}')
+        return f'Error: Schema file not found at {schema_path}'
+    except Exception as e:
+        logger.error(f'Schema validation failed with exception: {str(e)}')
+        return f'Error during schema validation: {str(e)}'
 
 
 @app.tool()
@@ -310,11 +518,15 @@ async def _execute_dynamodb_command(
 
     # Configure environment with fake AWS credentials if endpoint_url is present
     if endpoint_url:
-        os.environ['AWS_ACCESS_KEY_ID'] = 'AKIAIOSFODNN7EXAMPLE'  # pragma: allowlist secret
+        os.environ['AWS_ACCESS_KEY_ID'] = (
+            DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        )  # pragma: allowlist secret
         os.environ['AWS_SECRET_ACCESS_KEY'] = (
-            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+            DynamoDBClientConfig.DUMMY_SECRET_KEY
+        )  # pragma: allowlist secret
+        os.environ['AWS_DEFAULT_REGION'] = os.environ.get(
+            'AWS_REGION', DynamoDBClientConfig.DEFAULT_REGION
         )
-        os.environ['AWS_DEFAULT_REGION'] = os.environ.get('AWS_REGION', 'us-east-1')
         command += f' --endpoint-url {endpoint_url}'
 
     try:
@@ -355,7 +567,11 @@ async def dynamodb_data_model_validation(
        - Transforms results to markdown format for comprehensive review
 
     WHAT TO DO ON SUCCESSFUL COMPLETION:
-    - You MUST ask the user if they want to call the `generate_resources` tool to create the CDK app to provision the DynamoDB data model tables and GSIs.
+    After validation completes, you MUST present the user with TWO options:
+    1. Deploy to AWS: Call `generate_resources` tool with resource_type='cdk' to create a CDK app for provisioning tables
+    2. Generate Python code: Call `dynamodb_data_model_schema_converter` to convert the model to schema.json, then generate code
+
+    The user can choose one or both options. If they choose CDK first, you can still generate Python code afterward.
 
     Args:
         workspace_dir: Absolute path of the workspace directory
@@ -372,9 +588,11 @@ async def dynamodb_data_model_validation(
             guide_path = Path(__file__).parent / 'prompts' / 'json_generation_guide.md'
             try:
                 json_guide = guide_path.read_text(encoding='utf-8')
-                return f"""Error: {data_model_path} not found in your working directory.
-
-{json_guide}"""
+                # Use string concatenation to avoid f-string interpreting {} in markdown
+                return (
+                    f'Error: {data_model_path} not found in your working directory.\n\n'
+                    + json_guide
+                )
             except FileNotFoundError:
                 return f'Error: {data_model_path} not found. Please generate your data model with dynamodb_data_modeling tool first.'
 
@@ -407,7 +625,12 @@ async def dynamodb_data_model_validation(
         )
 
         # Step 6: Transform validation results to markdown
-        return get_validation_result_transform_prompt()
+        validation_prompt = get_validation_result_transform_prompt()
+
+        # Add next steps guidance
+        next_steps_prompt = _load_next_steps_prompt('dynamodb_data_model_validation_complete.md')
+
+        return validation_prompt + next_steps_prompt
 
     except FileNotFoundError as e:
         logger.error(f'File not found: {e}')
@@ -415,6 +638,110 @@ async def dynamodb_data_model_validation(
     except Exception as e:
         logger.error(f'Data model validation failed: {e}')
         return f'Data model validation failed: {str(e)}. Please check your data model JSON structure and try again.'
+
+
+@app.tool()
+@handle_exceptions
+async def compute_performances_and_costs(
+    access_pattern_list: List[AccessPattern] = Field(
+        description='List of access patterns with operation details (required)'
+    ),
+    table_list: List[Table] = Field(
+        description='List of table definitions for storage cost calculation (required)',
+    ),
+    workspace_dir: str = Field(
+        description='Absolute path of the workspace directory (required). Cost analysis will be appended to dynamodb_data_model.md',
+    ),
+) -> Dict[str, str]:
+    """Calculate DynamoDB capacity units and monthly costs from access patterns.
+
+    Call after completing data model design. Extracts patterns from Access Pattern Mapping
+    table and tables from Table Designs section in dynamodb_data_model.md.
+
+    Args:
+        access_pattern_list: Access patterns with fields:
+            - operation: GetItem|Query|Scan|PutItem|UpdateItem|DeleteItem|BatchGetItem|BatchWriteItem|TransactGetItems|TransactWriteItems
+            - pattern, description, table, rps (>0), item_size_bytes (1-409600)
+            - item_count: required for Query/Scan/Batch/Transact operations (>0)
+            - strongly_consistent: optional for GetItem/Query/Scan/BatchGetItem (default: false)
+            - gsi: optional for Query/Scan (target index name)
+            - gsi_list: optional for write operations (affected index names)
+        table_list: Tables with name, item_count (>0), item_size_bytes (1-409600), gsi_list (each GSI needs name, item_count, item_size_bytes)
+        workspace_dir: Absolute path to the folder containing dynamodb_data_model.md - report will be appended
+
+    Returns:
+        {'status': 'success', 'message': <success_message>} or {'status': 'error', 'message': <error_reason>}
+
+    Example:
+        {
+          "access_pattern_list": [
+            {
+              "operation": "GetItem",
+              "pattern": "get-user",
+              "description": "Get user by ID",
+              "table": "users",
+              "rps": 100,
+              "item_size_bytes": 2000
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-by-email",
+              "description": "Query user by email",
+              "table": "users",
+              "rps": 50,
+              "item_size_bytes": 1500,
+              "item_count": 1,
+              "gsi": "email-index"
+            },
+            {
+              "operation": "PutItem",
+              "pattern": "put-user",
+              "description": "Create user",
+              "table": "users",
+              "rps": 20,
+              "item_size_bytes": 2000,
+              "gsi_list": ["email-index", "status-index"]
+            },
+            {
+              "operation": "Query",
+              "pattern": "query-orders",
+              "description": "Query user orders",
+              "table": "orders",
+              "rps": 50,
+              "item_size_bytes": 800,
+              "item_count": 10
+            }
+          ],
+          "table_list": [
+            {
+              "name": "users",
+              "item_size_bytes": 2500,
+              "item_count": 10000,
+              "gsi_list": [
+                {"name": "email-index", "item_size_bytes": 1500, "item_count": 10000},
+                {"name": "status-index", "item_size_bytes": 500, "item_count": 10000}
+              ]
+            },
+            {
+              "name": "orders",
+              "item_size_bytes": 1024,
+              "item_count": 50000
+            }
+          ],
+          "workspace_dir": "/absolute/path/to/workspace"
+        }
+    """
+    try:
+        data_model = DataModel(
+            access_pattern_list=access_pattern_list,
+            table_list=table_list,
+        )
+    except ValidationError as e:
+        return {'status': 'error', 'message': format_validation_errors(e)}
+
+    summary = run_cost_calculator(data_model, workspace_dir)
+
+    return {'status': 'success', 'message': summary}
 
 
 @app.tool()
@@ -436,15 +763,18 @@ async def generate_resources(
 
     WHEN TO USE:
     - After completing data model validation with `dynamodb_data_model_validation` tool
-    - When user asks to "create", "deploy", "test", or "provision" their DynamoDB data model or tables
-    - To create the DynamoDB tables and GSIs using a CDK app
+    - When user asks to "deploy", "create CDK app", "generate CDK", or "provision infrastructure"
+    - When user wants to deploy their DynamoDB tables and GSIs to AWS using a CDK app
 
     WHEN NOT TO USE:
     - Before completing data model validation with `dynamodb_data_model_validation` tool
     - Before having created the `dynamodb_data_model.json` file
+    - When user only wants to generate Python code without deploying infrastructure
 
     WHAT TO DO ON SUCCESSFUL COMPLETION:
-    - You MUST ask the user if they want to use the CDK app to create the DynamoDB data model tables and GSIs.
+    After CDK generation completes, you MUST ask the user if they want to:
+    1. Deploy the CDK app now (provide deployment instructions)
+    2. Generate Python data access layer code to interact with the tables (call `dynamodb_data_model_schema_converter` then `generate_data_access_layer`)
 
     Args:
         dynamodb_data_model_json_file: Absolute path to the `dynamodb_data_model.json` file
@@ -464,9 +794,147 @@ async def generate_resources(
         # Generator returns None on success, so we construct the success message
         cdk_dir = json_path.parent / 'cdk'
         logger.info(f'CDK project generated successfully. cdk_dir: {cdk_dir}')
-        return f"Successfully generated CDK project at '{cdk_dir}'"
+
+        # Add next steps guidance
+        next_steps_prompt = _load_next_steps_prompt('generate_resources_complete.md')
+        return f"Successfully generated CDK project at '{cdk_dir}'\n{next_steps_prompt}"
     else:
         return f"Error: Unknown resource type '{resource_type}'. Supported types: cdk"
+
+
+@app.tool()
+@handle_exceptions
+async def generate_data_access_layer(
+    schema_path: str = Field(..., description='Path to the schema JSON file'),
+    language: str = Field('python', description='Target programming language (python)'),
+    generate_sample_usage: bool = Field(
+        True, description='Generate usage examples and test cases'
+    ),
+    usage_data_path: Optional[str] = Field(
+        default=None,
+        description='Path to usage_data.json file for realistic sample data (optional)',
+    ),
+) -> str:
+    """Generate Python code for a data access layer to interact with your DynamoDB tables.
+
+    🔴 PREREQUISITE: Before calling this tool, you MUST first call `dynamodb_data_model_schema_converter`
+    to generate schema.json from dynamodb_data_model.md. This tool ONLY accepts schema.json.
+
+    TYPICAL WORKFLOW:
+    1. Complete data modeling with `dynamodb_data_modeling` tool (creates dynamodb_data_model.md)
+    2. Validate with `dynamodb_data_model_validation` tool (optional but recommended)
+    3. Optionally deploy infrastructure with `generate_resources` tool (resource_type='cdk')
+    4. Convert to schema: Call `dynamodb_data_model_schema_converter` tool (creates schema.json)
+    5. Generate code: Call this `generate_data_access_layer` tool with the path to schema.json
+
+    This tool generates a complete data access layer from your schema including:
+    - Type-safe entity classes with field validation using Pydantic
+    - Repository classes with optimistic locking and error handling for all operations
+    - Fully implemented access patterns
+    - Working usage examples with realistic sample data (if usage_data_path provided)
+
+    Args:
+        schema_path: Path to the schema JSON file
+        language: Target programming language for generated code (currently only 'python' supported)
+        generate_sample_usage: Generate usage examples and test cases
+        usage_data_path: Path to usage_data.json file for realistic sample data (optional)
+
+    Returns:
+        Success message with output location and implementation guidance
+    """
+    try:
+        # Security: Resolve and validate path to prevent traversal attacks
+        schema_file = Path(schema_path).resolve()
+        schema_parent_dir = schema_file.parent
+
+        # Security: Resolve and validate usage_data_path to prevent traversal attacks
+        if usage_data_path:
+            usage_data_path = str(Path(usage_data_path).resolve())
+
+        # Check if schema file exists
+        if not Path(schema_path).exists():
+            return _load_next_steps_prompt(
+                'generate_data_access_layer_schema_not_found.md', schema_path=schema_path
+            )
+
+        # Set default output directory in same directory as schema.json
+        output_dir = str(schema_parent_dir / GENERATED_DATA_ACCESS_LAYER_DIR)
+
+        # Generate the data access layer code
+        # generate() validates usage_data_path is within allowed_base_dirs before checking existence
+        result = generate(
+            schema_path=schema_path,
+            output_dir=output_dir,
+            language=language,
+            generate_sample_usage=generate_sample_usage,
+            usage_data_path=usage_data_path,
+            no_lint=True,
+            allowed_base_dirs=[schema_parent_dir],
+        )
+
+        if not result.success:
+            return result.format_for_mcp()
+
+        # Load implementation prompt and instruct LLM to execute it
+        prompt_file = Path(__file__).parent / 'prompts' / 'dal_implementation' / f'{language}.md'
+        implementation_prompt = prompt_file.read_text(encoding='utf-8')
+
+        # Replace placeholders with actual example credentials for DynamoDB Local
+        implementation_prompt = implementation_prompt.replace(
+            '{{AWS_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_ACCESS_KEY
+        ).replace('{{AWS_SECRET_ACCESS_KEY_PLACEHOLDER}}', DynamoDBClientConfig.DUMMY_SECRET_KEY)
+
+        # Load workflow steps prompt
+        workflow_steps_file = (
+            Path(__file__).parent
+            / 'prompts'
+            / 'dal_implementation'
+            / 'generate_dal_workflow_steps.md'
+        )
+        workflow_steps = workflow_steps_file.read_text(encoding='utf-8').format(
+            output_dir=output_dir
+        )
+
+        # Load next steps prompt for README generation
+        next_steps_prompt = _load_next_steps_prompt(
+            'generate_data_access_layer_complete.md', output_dir=output_dir
+        )
+
+        return f"""Code generation completed successfully in: {output_dir}
+
+{workflow_steps}
+---
+IMPLEMENTATION REFERENCE:
+{implementation_prompt}
+---
+{next_steps_prompt}"""
+
+    except ValueError as e:
+        logger.error(f'Path validation error: {str(e)}')
+        return f'Security Error: {str(e)}'
+    except Exception as e:
+        logger.error(f'Analysis failed with exception: {str(e)}')
+        return f'Analysis failed: {str(e)}'
+
+
+def _load_next_steps_prompt(filename: str, **kwargs) -> str:
+    """Load next steps guidance from markdown file with optional variable substitution.
+
+    Args:
+        filename: Name of the markdown file in prompts/next_steps/ directory
+        **kwargs: Variables to substitute in the template (e.g., schema_path="...")
+
+    Returns:
+        Content of the next steps markdown file with variables substituted
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'next_steps' / filename
+    content = prompt_file.read_text(encoding='utf-8')
+
+    # Substitute variables if provided
+    if kwargs:
+        content = content.format(**kwargs)
+
+    return content
 
 
 def main():

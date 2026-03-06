@@ -196,9 +196,7 @@ class TestSearchDocumentation:
                 called_url = args[0]  # args is a tuple, first element is request URL
 
                 assert '?session=' in called_url
-                assert called_url.startswith(
-                    'https://proxy.search.docs.aws.amazon.com/search?session='
-                )
+                assert called_url.startswith('https://proxy.search.docs.aws.com/search?session=')
 
                 request_body = kwargs['json']
                 assert not any(
@@ -250,9 +248,7 @@ class TestSearchDocumentation:
                 called_url = args[0]  # args is a tuple, first element is request URL
 
                 assert '?session=' in called_url
-                assert called_url.startswith(
-                    'https://proxy.search.docs.aws.amazon.com/search?session='
-                )
+                assert called_url.startswith('https://proxy.search.docs.aws.com/search?session=')
 
                 request_body = kwargs['json']
                 assert any(

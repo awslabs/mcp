@@ -14,7 +14,7 @@
 """Tests for the profile option in server.py."""
 
 import awslabs.aurora_dsql_mcp_server.server
-from awslabs.aurora_dsql_mcp_server.server import main
+from awslabs.aurora_dsql_mcp_server.server import main, _config
 from unittest.mock import patch
 
 
@@ -40,9 +40,6 @@ class TestProfileOption:
         mock_session = mock_boto3_session.return_value
         mock_dsql_client = mock_session.client.return_value
 
-        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
-        mock_execute_query.return_value = {'column': 1}
-
         mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
 
         main()
@@ -53,14 +50,13 @@ class TestProfileOption:
         # Check that boto3.Session was called with the correct profile
         mock_boto3_session.assert_called_once_with(profile_name='test-profile')
 
-        # Check that the session's client method was called with the correct service and region
-        mock_session.client.assert_called_once_with('dsql', region_name='us-west-2')
+        # Check that the session's client method was called with the correct service, region, and config
+        mock_session.client.assert_called_once_with('dsql', region_name='us-west-2', config=_config)
 
         # Check that the dsql client was set correctly
         assert awslabs.aurora_dsql_mcp_server.server.dsql_client == mock_dsql_client
 
         # Check that the server was started
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
 
     @patch(
@@ -80,9 +76,6 @@ class TestProfileOption:
         mock_session = mock_boto3_session.return_value
         mock_dsql_client = mock_session.client.return_value
 
-        mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
-        mock_execute_query.return_value = {'column': 1}
-
         mock_mcp_run = mocker.patch('awslabs.aurora_dsql_mcp_server.server.mcp.run')
 
         main()
@@ -93,12 +86,11 @@ class TestProfileOption:
         # Check that boto3.Session was called without a profile
         mock_boto3_session.assert_called_once_with()
 
-        # Check that the session's client method was called with the correct service and region
-        mock_session.client.assert_called_once_with('dsql', region_name='us-west-2')
+        # Check that the session's client method was called with the correct service, region, and config
+        mock_session.client.assert_called_once_with('dsql', region_name='us-west-2', config=_config)
 
         # Check that the dsql client was set correctly
         assert awslabs.aurora_dsql_mcp_server.server.dsql_client == mock_dsql_client
 
         # Check that the server was started
-        mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()

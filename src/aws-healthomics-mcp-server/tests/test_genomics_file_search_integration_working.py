@@ -157,16 +157,13 @@ class TestGenomicsFileSearchIntegration:
             'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.GenomicsSearchOrchestrator.from_environment',
             side_effect=ValueError('Configuration error: Missing S3 buckets'),
         ):
-            # Should raise an exception and report error to context
-            with pytest.raises(Exception) as exc_info:
-                await search_tool_wrapper.call(
-                    ctx=mock_context,
-                    file_type='bam',
-                )
+            result = await search_tool_wrapper.call(
+                ctx=mock_context,
+                file_type='bam',
+            )
 
-            # Verify error was reported to context
-            mock_context.error.assert_called()
-            assert 'Configuration error' in str(exc_info.value)
+            assert 'error' in result
+            assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_search_execution_error(self, search_tool_wrapper, mock_context):
@@ -178,30 +175,25 @@ class TestGenomicsFileSearchIntegration:
             'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.GenomicsSearchOrchestrator.from_environment',
             return_value=mock_orchestrator,
         ):
-            # Should raise an exception and report error to context
-            with pytest.raises(Exception) as exc_info:
-                await search_tool_wrapper.call(
-                    ctx=mock_context,
-                    file_type='fastq',
-                )
+            result = await search_tool_wrapper.call(
+                ctx=mock_context,
+                file_type='fastq',
+            )
 
-            # Verify error was reported to context
-            mock_context.error.assert_called()
-            assert 'Search failed' in str(exc_info.value)
+            assert 'error' in result
+            assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_invalid_file_type(self, search_tool_wrapper, mock_context):
         """Test handling of invalid file type."""
-        # Should raise ValueError for invalid file type before reaching orchestrator
-        with pytest.raises(ValueError) as exc_info:
-            await search_tool_wrapper.call(
-                ctx=mock_context,
-                file_type='invalid_type',
-            )
+        result = await search_tool_wrapper.call(
+            ctx=mock_context,
+            file_type='invalid_type',
+        )
 
-        assert 'Invalid file_type' in str(exc_info.value)
-        # Error should also be reported to context
-        mock_context.error.assert_called()
+        assert 'error' in result
+        assert 'Error' in result['error']
+        assert 'invalid_type' in result['error']
 
     @pytest.mark.asyncio
     async def test_search_with_pagination(self, search_tool_wrapper, mock_context):
@@ -394,18 +386,13 @@ class TestGetSupportedFileTypes:
     ):
         """Test error handling in get_supported_file_types."""
         # Mock an exception during execution
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.tools.genomics_file_search.logger'
-        ) as mock_logger:
+        with patch('awslabs.aws_healthomics_mcp_server.tools.genomics_file_search.logger'):
             # Patch something that would cause an exception
             with patch('builtins.sorted', side_effect=Exception('Test error')):
-                with pytest.raises(Exception) as exc_info:
-                    await file_types_tool_wrapper.call(ctx=mock_context)
+                result = await file_types_tool_wrapper.call(ctx=mock_context)
 
-                # Verify error was logged and reported to context
-                mock_logger.error.assert_called()
-                mock_context.error.assert_called()
-                assert 'Test error' in str(exc_info.value)
+                assert 'error' in result
+                assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_get_supported_file_types_no_context_error(
