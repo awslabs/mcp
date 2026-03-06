@@ -1,7 +1,12 @@
 """Tests to cover specific coverage gaps."""
 
 import pytest
-from awslabs.prometheus_mcp_server.server import PrometheusClient
+from awslabs.prometheus_mcp_server.server import (
+    GetAvailableWorkspacesInput,
+    GetServerInfoInput,
+    ListMetricsInput,
+    PrometheusClient,
+)
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -69,7 +74,7 @@ class TestToolExceptionHandling:
             side_effect=Exception('Test error'),
         ):
             with pytest.raises(Exception, match='Test error'):
-                await list_metrics(mock_ctx)
+                await list_metrics(input=ListMetricsInput(), ctx=mock_ctx)
 
             mock_ctx.error.assert_called_once()
 
@@ -85,7 +90,7 @@ class TestToolExceptionHandling:
             side_effect=Exception('Test error'),
         ):
             with pytest.raises(Exception, match='Test error'):
-                await get_server_info(mock_ctx)
+                await get_server_info(input=GetServerInfoInput(), ctx=mock_ctx)
 
             mock_ctx.error.assert_called_once()
 
@@ -101,7 +106,7 @@ class TestToolExceptionHandling:
             side_effect=Exception('Test error'),
         ):
             with pytest.raises(Exception, match='Test error'):
-                await get_available_workspaces(mock_ctx)
+                await get_available_workspaces(input=GetAvailableWorkspacesInput(), ctx=mock_ctx)
 
             mock_ctx.error.assert_called_once()
 
