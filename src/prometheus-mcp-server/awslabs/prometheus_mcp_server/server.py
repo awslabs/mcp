@@ -44,7 +44,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from dotenv import load_dotenv
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
+from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
 
 
