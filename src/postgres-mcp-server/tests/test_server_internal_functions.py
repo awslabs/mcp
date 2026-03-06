@@ -15,7 +15,6 @@
 
 import json
 import pytest
-from typing import Optional
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
     create_cluster_worker,
@@ -994,4 +993,3 @@ class TestValidateTableNameSQLInjection:
     def test_backtick_injection(self):
         """Test that backtick injection attempt is rejected."""
         assert validate_table_name("`users`") is False
-

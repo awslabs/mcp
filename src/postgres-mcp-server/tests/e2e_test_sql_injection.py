@@ -5,6 +5,12 @@ from mcp.client.stdio import stdio_client
 
 
 async def test_sql_injection(args):
+    """Main entry point End-to-end SQL injection test
+
+        Args:
+            args: list of args
+    """
+
     server_params = StdioServerParameters(
         command="uv",
         args=[
@@ -78,6 +84,10 @@ async def test_sql_injection(args):
 
 
 def parse_args():
+
+    """Helper function to parse the args
+    """
+    
     parser = argparse.ArgumentParser(
         description="End-to-end SQL injection test for postgres-mcp-server"
     )
