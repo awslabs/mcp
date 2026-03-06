@@ -1,0 +1,39 @@
+{
+    "name": "AWS MWAA MCP Server",
+    "version": "1.0.0",
+    "description": "Amazon MWAA environment management and Airflow workflow orchestration",
+    "package": {
+        "name": "mcp-proxy-for-aws",
+        "version": "1.1.1",
+        "registry": "pypi",
+        "runtime": "uvx",
+        "transport": "stdio"
+    },
+    "endpoint": "https://mcp-runtime.{region}.api.aws/sse",
+    "args": [
+        "https://mcp-runtime.{region}.api.aws/sse",
+        "--service",
+        "mwaa-mcp",
+        "--profile",
+        "{profile}",
+        "--region",
+        "{region}"
+    ],
+    "variables": {
+        "region": {
+            "description": "AWS region for MWAA operations",
+            "default": "us-east-1"
+        },
+        "profile": {
+            "description": "AWS credential profile to use",
+            "default": "default"
+        }
+    },
+    "source": {
+        "url": "https://github.com/awslabs/mcp",
+        "directory": "src/mwaa-mcp-server"
+    },
+    "documentation": {
+        "url": "https://docs.aws.amazon.com/mwaa/latest/userguide/"
+    }
+}
