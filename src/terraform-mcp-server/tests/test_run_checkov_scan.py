@@ -132,81 +132,115 @@ async def test_parse_checkov_json_output_invalid():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_with_absolute_path(temp_terraform_dir):
-    """Test running Checkov scan with an absolute path."""
-    # Create the request with an absolute path and all required parameters
-    absolute_path = os.path.abspath(temp_terraform_dir)
+async def test_run_checkov_scan_with_absolute_path_outside_cwd(temp_terraform_dir):
+    """Test that absolute paths outside cwd are rejected."""
     request = CheckovScanRequest(
-        working_directory=absolute_path,
+        working_directory='/etc',
         framework='terraform',
         output_format='json',
         check_ids=None,
         skip_check_ids=None,
     )
 
-    # Create a mock subprocess.run result
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = json.dumps(
-        {'results': {'failed_checks': []}, 'summary': {'passed': 5, 'failed': 0, 'skipped': 0}}
-    )
-    mock_result.stderr = ''
+    result = await run_checkov_scan_impl(request)
 
-    # Mock subprocess.run and _ensure_checkov_installed
-    with patch('subprocess.run', return_value=mock_result):
-        with patch(
-            'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
-            return_value=True,
-        ):
-            # Call the function
-            result = await run_checkov_scan_impl(request)
-
-            # Check the result
-            assert result.status == 'success'
-            assert result.working_directory == absolute_path
-            assert result.summary['passed'] == 5
-            assert result.summary['failed'] == 0
+    assert result.status == 'error'
+    assert result.error_message is not None
+    assert 'Security' in result.error_message
+    assert 'outside' in result.error_message
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_with_relative_path(temp_terraform_dir):
-    """Test running Checkov scan with a relative path."""
-    # Create a relative path (just the directory name)
-    relative_path = os.path.basename(temp_terraform_dir)
-
-    # Create the request with a relative path and all required parameters
+async def test_run_checkov_scan_with_parent_traversal(temp_terraform_dir):
+    """Test that parent directory traversal is rejected."""
     request = CheckovScanRequest(
-        working_directory=relative_path,
+        working_directory='../../etc/passwd',
         framework='terraform',
         output_format='json',
         check_ids=None,
         skip_check_ids=None,
     )
 
-    # Create a mock subprocess.run result
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = json.dumps(
-        {'results': {'failed_checks': []}, 'summary': {'passed': 3, 'failed': 0, 'skipped': 0}}
-    )
-    mock_result.stderr = ''
+    result = await run_checkov_scan_impl(request)
 
-    # Mock subprocess.run, _ensure_checkov_installed, and os.path.isabs
-    with patch('subprocess.run', return_value=mock_result):
-        with patch(
-            'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
-            return_value=True,
-        ):
-            with patch('os.path.isabs', return_value=False):
-                with patch('os.getcwd', return_value='/fake/cwd'):
-                    with patch('os.path.abspath', return_value='/fake/absolute/path'):
-                        # Call the function
-                        result = await run_checkov_scan_impl(request)
+    assert result.status == 'error'
+    assert result.error_message is not None
+    assert 'Security' in result.error_message
 
-                        # Check the result
-                        assert result.status == 'success'
-                        assert result.working_directory == relative_path
-                        assert result.summary['passed'] == 3
+
+@pytest.mark.asyncio
+async def test_run_checkov_scan_with_valid_subdirectory(temp_terraform_dir):
+    """Test running Checkov scan with a valid subdirectory within cwd."""
+    # Create a subdirectory within cwd
+    subdir = os.path.join(os.getcwd(), 'test_subdir')
+    os.makedirs(subdir, exist_ok=True)
+
+    try:
+        request = CheckovScanRequest(
+            working_directory='test_subdir',
+            framework='terraform',
+            output_format='json',
+            check_ids=None,
+            skip_check_ids=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps(
+            {'results': {'failed_checks': []}, 'summary': {'passed': 5, 'failed': 0, 'skipped': 0}}
+        )
+        mock_result.stderr = ''
+
+        with patch('subprocess.run', return_value=mock_result):
+            with patch(
+                'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
+                return_value=True,
+            ):
+                result = await run_checkov_scan_impl(request)
+
+                assert result.status == 'success'
+                assert result.summary['passed'] == 5
+                assert result.summary['failed'] == 0
+    finally:
+        os.rmdir(subdir)
+
+
+@pytest.mark.asyncio
+async def test_run_checkov_scan_with_relative_path_in_cwd(temp_terraform_dir):
+    """Test running Checkov scan with a relative path that resolves within cwd."""
+    # Create a subdirectory in cwd for this test
+    subdir_name = 'tf_test_relative'
+    subdir = os.path.join(os.getcwd(), subdir_name)
+    os.makedirs(subdir, exist_ok=True)
+
+    try:
+        request = CheckovScanRequest(
+            working_directory=subdir_name,
+            framework='terraform',
+            output_format='json',
+            check_ids=None,
+            skip_check_ids=None,
+        )
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = json.dumps(
+            {'results': {'failed_checks': []}, 'summary': {'passed': 3, 'failed': 0, 'skipped': 0}}
+        )
+        mock_result.stderr = ''
+
+        with patch('subprocess.run', return_value=mock_result):
+            with patch(
+                'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
+                return_value=True,
+            ):
+                result = await run_checkov_scan_impl(request)
+
+                assert result.status == 'success'
+                assert result.working_directory == subdir_name
+                assert result.summary['passed'] == 3
+    finally:
+        os.rmdir(subdir)
 
 
 @pytest.mark.asyncio
@@ -234,7 +268,6 @@ async def test_run_checkov_scan_with_skip_check_ids_dangerous_pattern(temp_terra
 @pytest.mark.asyncio
 async def test_run_checkov_scan_cli_output_parsing(temp_terraform_dir):
     """Test running Checkov scan with CLI output format and parsing the results."""
-    # Create the request with all required parameters
     request = CheckovScanRequest(
         working_directory=temp_terraform_dir,
         framework='terraform',
@@ -243,11 +276,9 @@ async def test_run_checkov_scan_cli_output_parsing(temp_terraform_dir):
         skip_check_ids=None,
     )
 
-    # Create a mock subprocess.run result with CLI output
     mock_result = MagicMock()
     mock_result.returncode = 1  # Vulnerabilities found
 
-    # Create CLI output with multiple checks
     cli_output = f"""
     Check: CKV_AWS_1: "Ensure S3 bucket has encryption enabled"
     FAILED for resource: aws_s3_bucket.my_bucket
@@ -267,28 +298,28 @@ async def test_run_checkov_scan_cli_output_parsing(temp_terraform_dir):
     mock_result.stdout = cli_output
     mock_result.stderr = ''
 
-    # Mock subprocess.run and _ensure_checkov_installed
     with patch('subprocess.run', return_value=mock_result):
         with patch(
             'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
             return_value=True,
         ):
-            # Call the function
-            result = await run_checkov_scan_impl(request)
+            with patch(
+                'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan.validate_working_directory',
+                return_value=temp_terraform_dir,
+            ):
+                result = await run_checkov_scan_impl(request)
 
-            # Check the result
-            assert result.status == 'success'
-            assert result.return_code == 1
-            assert len(result.vulnerabilities) == 3
-            assert result.summary['passed'] == 2
-            assert result.summary['failed'] == 3
-            assert result.summary['skipped'] == 1
+                assert result.status == 'success'
+                assert result.return_code == 1
+                assert len(result.vulnerabilities) == 3
+                assert result.summary['passed'] == 2
+                assert result.summary['failed'] == 3
+                assert result.summary['skipped'] == 1
 
 
 @pytest.mark.asyncio
 async def test_run_checkov_scan_with_return_code_2(temp_terraform_dir):
     """Test running Checkov scan with return code 2 (error)."""
-    # Create the request with all required parameters
     request = CheckovScanRequest(
         working_directory=temp_terraform_dir,
         framework='terraform',
@@ -297,31 +328,30 @@ async def test_run_checkov_scan_with_return_code_2(temp_terraform_dir):
         skip_check_ids=None,
     )
 
-    # Create a mock subprocess.run result with error
     mock_result = MagicMock()
     mock_result.returncode = 2  # Error code
     mock_result.stdout = 'Error running checkov'
     mock_result.stderr = 'Failed to parse Terraform files'
 
-    # Mock subprocess.run and _ensure_checkov_installed
     with patch('subprocess.run', return_value=mock_result):
         with patch(
             'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
             return_value=True,
         ):
-            # Call the function
-            result = await run_checkov_scan_impl(request)
+            with patch(
+                'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan.validate_working_directory',
+                return_value=temp_terraform_dir,
+            ):
+                result = await run_checkov_scan_impl(request)
 
-            # Check the result
-            assert result.status == 'error'
-            assert result.return_code == 2
-            assert len(result.vulnerabilities) == 0
+                assert result.status == 'error'
+                assert result.return_code == 2
+                assert len(result.vulnerabilities) == 0
 
 
 @pytest.mark.asyncio
 async def test_run_checkov_scan_exception_handling(temp_terraform_dir):
     """Test running Checkov scan with exception handling."""
-    # Create the request with all required parameters
     request = CheckovScanRequest(
         working_directory=temp_terraform_dir,
         framework='terraform',
@@ -330,25 +360,25 @@ async def test_run_checkov_scan_exception_handling(temp_terraform_dir):
         skip_check_ids=None,
     )
 
-    # Mock subprocess.run to raise an exception
     with patch('subprocess.run', side_effect=Exception('Command execution failed')):
         with patch(
             'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan._ensure_checkov_installed',
             return_value=True,
         ):
-            # Call the function
-            result = await run_checkov_scan_impl(request)
+            with patch(
+                'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan.validate_working_directory',
+                return_value=temp_terraform_dir,
+            ):
+                result = await run_checkov_scan_impl(request)
 
-            # Check the result
-            assert result.status == 'error'
-            assert result.error_message == 'Command execution failed'
-            assert result.working_directory == temp_terraform_dir
+                assert result.status == 'error'
+                assert result.error_message == 'Command execution failed'
+                assert result.working_directory == temp_terraform_dir
 
 
 @pytest.mark.asyncio
 async def test_run_checkov_scan_checkov_not_found_install_success(temp_terraform_dir):
     """Test running Checkov scan when checkov is not found but install succeeds."""
-    # Create the request with all required parameters
     request = CheckovScanRequest(
         working_directory=temp_terraform_dir,
         framework='terraform',
@@ -357,7 +387,6 @@ async def test_run_checkov_scan_checkov_not_found_install_success(temp_terraform
         skip_check_ids=None,
     )
 
-    # Create a mock subprocess.run result for the actual scan
     mock_scan_result = MagicMock()
     mock_scan_result.returncode = 0
     mock_scan_result.stdout = json.dumps(
@@ -365,34 +394,29 @@ async def test_run_checkov_scan_checkov_not_found_install_success(temp_terraform
     )
     mock_scan_result.stderr = ''
 
-    # Create a mock subprocess.run result for pip install
     mock_install_result = MagicMock()
     mock_install_result.returncode = 0
 
-    # Mock subprocess.run with side_effect to handle multiple calls
     with patch('subprocess.run') as mock_run:
-        # First call (checkov --version) raises FileNotFoundError
-        # Second call (pip install) succeeds
-        # Third call (actual scan) succeeds
         mock_run.side_effect = [
             FileNotFoundError(),
             mock_install_result,  # pip install success
             mock_scan_result,  # checkov scan
         ]
+        with patch(
+            'awslabs.terraform_mcp_server.impl.tools.run_checkov_scan.validate_working_directory',
+            return_value=temp_terraform_dir,
+        ):
+            result = await run_checkov_scan_impl(request)
 
-        # Call the function
-        result = await run_checkov_scan_impl(request)
-
-        # Check the result
-        assert result.status == 'success'
-        assert result.summary['passed'] == 1
-        assert mock_run.call_count == 3
+            assert result.status == 'success'
+            assert result.summary['passed'] == 1
+            assert mock_run.call_count == 3
 
 
 @pytest.mark.asyncio
 async def test_run_checkov_scan_checkov_not_found_install_fails(temp_terraform_dir):
     """Test running Checkov scan when checkov is not found and install fails."""
-    # Create the request with all required parameters
     request = CheckovScanRequest(
         working_directory=temp_terraform_dir,
         framework='terraform',
@@ -401,19 +425,14 @@ async def test_run_checkov_scan_checkov_not_found_install_fails(temp_terraform_d
         skip_check_ids=None,
     )
 
-    # Mock subprocess.run with side_effect to handle multiple calls
     with patch('subprocess.run') as mock_run:
-        # First call (checkov --version) raises FileNotFoundError
-        # Second call (pip install) raises CalledProcessError
         mock_run.side_effect = [
             FileNotFoundError(),
             subprocess.CalledProcessError(1, 'pip install checkov'),
         ]
 
-        # Call the function
         result = await run_checkov_scan_impl(request)
 
-        # Check the result
         assert result.status == 'error'
         assert result.error_message is not None
         assert 'Failed to install Checkov' in result.error_message
