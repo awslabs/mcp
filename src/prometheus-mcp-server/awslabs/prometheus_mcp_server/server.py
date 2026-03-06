@@ -480,15 +480,20 @@ class ExecuteQueryInput(BaseModel):
     """Input model for ExecuteQuery tool."""
 
     workspace_id: Optional[str] = Field(
-        None,
+        default=None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     )
     query: str = Field(..., description='The PromQL query to execute')
     time: Optional[str] = Field(
-        None, description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)'
+        default=None,
+        description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)',
     )
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+    region: Optional[str] = Field(
+        default=None, description='AWS region (defaults to current region)'
+    )
+    profile: Optional[str] = Field(
+        default=None, description='AWS profile to use (defaults to None)'
+    )
 
 
 @mcp.tool(name='ExecuteQuery')
@@ -569,7 +574,7 @@ class ExecuteRangeQueryInput(BaseModel):
     """Input model for ExecuteRangeQuery tool."""
 
     workspace_id: Optional[str] = Field(
-        None,
+        default=None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     )
     query: str = Field(..., description='The PromQL query to execute')
@@ -578,8 +583,12 @@ class ExecuteRangeQueryInput(BaseModel):
     step: str = Field(
         ..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')"
     )
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+    region: Optional[str] = Field(
+        default=None, description='AWS region (defaults to current region)'
+    )
+    profile: Optional[str] = Field(
+        default=None, description='AWS profile to use (defaults to None)'
+    )
 
 
 @mcp.tool(name='ExecuteRangeQuery')
@@ -653,11 +662,15 @@ class ListMetricsInput(BaseModel):
     """Input model for ListMetrics tool."""
 
     workspace_id: Optional[str] = Field(
-        None,
+        default=None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     )
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+    region: Optional[str] = Field(
+        default=None, description='AWS region (defaults to current region)'
+    )
+    profile: Optional[str] = Field(
+        default=None, description='AWS profile to use (defaults to None)'
+    )
 
 
 @mcp.tool(name='ListMetrics')
@@ -715,11 +728,15 @@ class GetServerInfoInput(BaseModel):
     """Input model for GetServerInfo tool."""
 
     workspace_id: Optional[str] = Field(
-        None,
+        default=None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     )
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+    region: Optional[str] = Field(
+        default=None, description='AWS region (defaults to current region)'
+    )
+    profile: Optional[str] = Field(
+        default=None, description='AWS profile to use (defaults to None)'
+    )
 
 
 @mcp.tool(name='GetServerInfo')
@@ -771,8 +788,12 @@ async def get_server_info(input: GetServerInfoInput, ctx: Context) -> ServerInfo
 class GetAvailableWorkspacesInput(BaseModel):
     """Input model for GetAvailableWorkspaces tool."""
 
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
-    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)')
+    region: Optional[str] = Field(
+        default=None, description='AWS region (defaults to current region)'
+    )
+    profile: Optional[str] = Field(
+        default=None, description='AWS profile to use (defaults to None)'
+    )
 
 
 @mcp.tool(name='GetAvailableWorkspaces')

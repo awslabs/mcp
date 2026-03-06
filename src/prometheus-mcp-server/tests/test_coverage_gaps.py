@@ -106,9 +106,7 @@ class TestToolExceptionHandling:
             side_effect=Exception('Test error'),
         ):
             with pytest.raises(Exception, match='Test error'):
-                await get_available_workspaces(
-                    input=GetAvailableWorkspacesInput(), ctx=mock_ctx
-                )
+                await get_available_workspaces(input=GetAvailableWorkspacesInput(), ctx=mock_ctx)
 
             mock_ctx.error.assert_called_once()
 
