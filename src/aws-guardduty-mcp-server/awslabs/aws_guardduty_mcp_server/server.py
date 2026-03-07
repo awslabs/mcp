@@ -41,6 +41,7 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
 
 
@@ -83,6 +84,13 @@ def _resolve_detector_id(client: Any, detector_id: Optional[str], region: Option
             'Multiple GuardDuty detectors found. Pass detector_id explicitly.'
         )
     return detector_ids[0]
+
+
+def _normalize_field_default(value: Any) -> Any:
+    """Unwrap Pydantic Field defaults when tools are called directly in tests."""
+    if isinstance(value, FieldInfo):
+        return value.default
+    return value
 
 
 def _merge_finding_criteria(
@@ -162,6 +170,7 @@ async def list_detectors(
 ) -> ListDetectorsResponse:
     """List GuardDuty detectors in the selected region."""
     try:
+        region = _normalize_field_default(region)
         logger.info(f'Listing GuardDuty detectors for region={region}')
         client = get_guardduty_client(region=region)
         response = client.list_detectors()
@@ -211,6 +220,17 @@ async def list_findings(
 ) -> ListFindingsResponse:
     """List GuardDuty findings and include compact summaries for LLM triage."""
     try:
+        detector_id = _normalize_field_default(detector_id)
+        region = _normalize_field_default(region)
+        max_results = _normalize_field_default(max_results)
+        next_token = _normalize_field_default(next_token)
+        severity_min = _normalize_field_default(severity_min)
+        severity_max = _normalize_field_default(severity_max)
+        archived = _normalize_field_default(archived)
+        finding_criteria_json = _normalize_field_default(finding_criteria_json)
+        sort_attribute_name = _normalize_field_default(sort_attribute_name)
+        sort_order = _normalize_field_default(sort_order)
+
         if max_results < 1 or max_results > MAX_FINDINGS_PAGE_SIZE:
             raise GuardDutyValidationError(
                 f'max_results must be between 1 and {MAX_FINDINGS_PAGE_SIZE}'
@@ -284,6 +304,11 @@ async def get_findings(
 ) -> GetFindingsResponse:
     """Fetch full GuardDuty findings for downstream LLM analysis."""
     try:
+        detector_id = _normalize_field_default(detector_id)
+        region = _normalize_field_default(region)
+        sort_attribute_name = _normalize_field_default(sort_attribute_name)
+        sort_order = _normalize_field_default(sort_order)
+
         if not finding_ids:
             raise GuardDutyValidationError('finding_ids must not be empty')
         if sort_order not in {'ASC', 'DESC'}:
