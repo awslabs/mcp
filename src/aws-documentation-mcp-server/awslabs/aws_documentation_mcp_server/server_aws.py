@@ -59,6 +59,7 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
 # Read FastMCP settings from environment variables
 FASTMCP_HOST = os.getenv('FASTMCP_HOST', '127.0.0.1')
 FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
+FASTMCP_STATELESS_HTTP = os.getenv('FASTMCP_STATELESS_HTTP', 'false').lower() == 'true'
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -459,6 +460,7 @@ def main():
     if transport == "streamable-http":
         mcp.settings.host = FASTMCP_HOST
         mcp.settings.port = FASTMCP_PORT
+        mcp.settings.stateless_http = FASTMCP_STATELESS_HTTP
         # Only disable DNS rebinding protection for non-localhost deployments
         # (e.g., ECS behind ALB). Keep it enabled for localhost to prevent
         # DNS rebinding attacks (CVE-2025-66416).

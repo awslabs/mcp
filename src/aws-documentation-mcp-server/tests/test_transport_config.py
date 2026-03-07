@@ -193,3 +193,71 @@ class TestTransportConfigurationCN:
 
                     assert mock_mcp.settings.transport_security is None
                     mock_mcp.run.assert_called_once_with(transport='streamable-http')
+
+
+class TestStatelessHttpConfiguration:
+    """Tests for stateless_http configuration via environment variable."""
+
+    def test_stateless_http_env_true_sets_setting(self):
+        """Test that FASTMCP_STATELESS_HTTP=true is applied to mcp.settings."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http', 'FASTMCP_STATELESS_HTTP': 'true'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws.FASTMCP_STATELESS_HTTP', True):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws import main
+                    main()
+
+                    assert mock_mcp.settings.stateless_http is True
+
+    def test_stateless_http_env_false_keeps_default(self):
+        """Test that FASTMCP_STATELESS_HTTP=false keeps stateless_http as False."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http', 'FASTMCP_STATELESS_HTTP': 'false'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws.FASTMCP_STATELESS_HTTP', False):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws import main
+                    main()
+
+                    assert mock_mcp.settings.stateless_http is False
+
+    def test_stdio_does_not_set_stateless_http(self):
+        """Test that stdio transport does not set stateless_http."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'stdio'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                mock_settings = MagicMock()
+                mock_mcp.settings = mock_settings
+                mock_mcp.run = MagicMock()
+
+                from awslabs.aws_documentation_mcp_server.server_aws import main
+                main()
+
+                for c in mock_settings._mock_children:
+                    assert c != 'stateless_http', (
+                        'mcp.settings.stateless_http should not be set for stdio transport'
+                    )
+
+    def test_cn_stateless_http_env_true_sets_setting(self):
+        """Test that CN server applies FASTMCP_STATELESS_HTTP=true."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http', 'FASTMCP_STATELESS_HTTP': 'true'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.FASTMCP_STATELESS_HTTP', True):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws_cn import main
+                    main()
+
+                    assert mock_mcp.settings.stateless_http is True
+
+    def test_module_level_stateless_http_default(self):
+        """Test that FASTMCP_STATELESS_HTTP defaults to False when env var is not set."""
+        from awslabs.aws_documentation_mcp_server.server_aws import FASTMCP_STATELESS_HTTP
+
+        assert isinstance(FASTMCP_STATELESS_HTTP, bool)
