@@ -17,6 +17,7 @@
 import asyncio
 import boto3
 from awslabs.mysql_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from awslabs.mysql_mcp_server.constants import USER_AGENT_CONFIG
 from loguru import logger
 from typing import Any, Dict, List, Optional
 
@@ -48,7 +49,9 @@ class RDSDataAPIConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.database = database
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
+            self.data_client = boto3.client(
+                'rds-data', region_name=region, config=USER_AGENT_CONFIG
+            )
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
