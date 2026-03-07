@@ -1,6 +1,6 @@
 {
     "name": "AWS MWAA MCP Server",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "description": "Amazon MWAA environment management and Airflow workflow orchestration",
     "package": {
         "name": "mcp-proxy-for-aws",

@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """MWAA MCP Server - Model Context Protocol server for Amazon Managed Workflows for Apache Airflow."""
 
 import logging
@@ -11,7 +25,9 @@ from .prompts import AIRFLOW_BEST_PRACTICES, DAG_DESIGN_GUIDANCE
 
 # Set up logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=getattr(logging, os.getenv("FASTMCP_LOG_LEVEL", "ERROR")))
+_log_level_str = os.getenv("FASTMCP_LOG_LEVEL", "ERROR")
+_log_level = getattr(logging, _log_level_str.upper(), logging.ERROR)
+logging.basicConfig(level=_log_level)
 
 # Initialize the MCP server
 mcp = FastMCP(

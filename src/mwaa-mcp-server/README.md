@@ -37,6 +37,14 @@ This MCP server provides comprehensive tools for managing MWAA environments and 
 
 ## Installation
 
+```bash
+# Using uvx (recommended)
+uvx awslabs.mwaa-mcp-server
+
+# Or install with pip
+pip install awslabs.mwaa-mcp-server
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -92,7 +100,7 @@ or docker after a successful `docker build -t mwaa-mcp-server .`:
         "--env",
         "FASTMCP_LOG_LEVEL=ERROR",
         "-v",
-        "~/.aws:/home/app/.aws:ro",
+        "~/.aws:/app/.aws:ro",
         "mwaa-mcp-server:latest"
       ],
       "env": {},
@@ -160,7 +168,8 @@ The IAM user or role needs the following permissions:
         "airflow:CreateCliToken",
         "airflow:CreateWebLoginToken",
         "airflow:GetEnvironment",
-        "airflow:ListEnvironments"
+        "airflow:ListEnvironments",
+        "airflow:InvokeRestApi"
       ],
       "Resource": "*"
     }
@@ -198,8 +207,6 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install in development mode with all dev dependencies
 uv sync --dev
 
-# Or using pip
-pip install -r requirements-dev.txt
 ```
 
 ### Running Tests
@@ -227,7 +234,7 @@ docker run -it --rm \
   -e AWS_REGION=us-east-1 \
   -e MWAA_MCP_READONLY=false \
   -e FASTMCP_LOG_LEVEL=ERROR \
-  -v ~/.aws:/home/app/.aws:ro \
+  -v ~/.aws:/app/.aws:ro \
   mwaa-mcp-server
 ```
 
@@ -248,12 +255,12 @@ docker run -it --rm \
 3. **Import Errors in DAGs**
    - Use the `get_import_errors` tool to diagnose
    - Check CloudWatch logs for detailed error messages
-   - Verify all dependencies are in requirements.txt
+   - Verify all dependencies are in `pyproject.toml`
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](../../CONTRIBUTING.md) for details.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](../../LICENSE) file for details.
