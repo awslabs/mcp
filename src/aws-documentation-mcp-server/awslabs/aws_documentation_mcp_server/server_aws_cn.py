@@ -254,6 +254,11 @@ def main():
     if transport == "streamable-http":
         mcp.settings.host = FASTMCP_HOST
         mcp.settings.port = FASTMCP_PORT
+        # Only disable DNS rebinding protection for non-localhost deployments
+        # (e.g., ECS behind ALB). Keep it enabled for localhost to prevent
+        # DNS rebinding attacks (CVE-2025-66416).
+        if FASTMCP_HOST not in ("127.0.0.1", "localhost", "::1"):
+            mcp.settings.transport_security = None
     
     mcp.run(transport=transport)
 

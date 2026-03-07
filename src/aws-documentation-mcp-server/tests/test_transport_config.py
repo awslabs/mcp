@@ -66,6 +66,39 @@ class TestTransportConfigurationAWS:
                 assert mock_mcp.settings.port == FASTMCP_PORT
                 mock_mcp.run.assert_called_once_with(transport='streamable-http')
 
+    def test_streamable_http_localhost_keeps_transport_security(self):
+        """Test that transport_security is NOT disabled when host is localhost."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws.FASTMCP_HOST', '127.0.0.1'):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws import main
+                    main()
+
+                    # transport_security should NOT have been set to None
+                    # (MagicMock attribute access returns a new MagicMock, not None)
+                    assert mock_mcp.settings.transport_security is not None
+                    mock_mcp.run.assert_called_once_with(transport='streamable-http')
+
+    def test_streamable_http_non_localhost_disables_transport_security(self):
+        """Test that transport_security is disabled when host is 0.0.0.0 (non-localhost)."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws.FASTMCP_HOST', '0.0.0.0'):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws import main
+                    main()
+
+                    # transport_security should be set to None
+                    assert mock_mcp.settings.transport_security is None
+                    mock_mcp.run.assert_called_once_with(transport='streamable-http')
+
     def test_default_transport_is_stdio(self):
         """Test that default transport is stdio when FASTMCP_TRANSPORT is not set."""
         env = os.environ.copy()
@@ -129,3 +162,34 @@ class TestTransportConfigurationCN:
                 assert mock_mcp.settings.host == FASTMCP_HOST
                 assert mock_mcp.settings.port == FASTMCP_PORT
                 mock_mcp.run.assert_called_once_with(transport='streamable-http')
+
+    def test_cn_streamable_http_localhost_keeps_transport_security(self):
+        """Test that CN transport_security is NOT disabled when host is localhost."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.FASTMCP_HOST', '127.0.0.1'):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws_cn import main
+                    main()
+
+                    # transport_security should NOT have been set to None
+                    assert mock_mcp.settings.transport_security is not None
+                    mock_mcp.run.assert_called_once_with(transport='streamable-http')
+
+    def test_cn_streamable_http_non_localhost_disables_transport_security(self):
+        """Test that CN transport_security is disabled when host is 0.0.0.0."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
+            with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+                with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.FASTMCP_HOST', '0.0.0.0'):
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+                    mock_mcp.run = MagicMock()
+
+                    from awslabs.aws_documentation_mcp_server.server_aws_cn import main
+                    main()
+
+                    assert mock_mcp.settings.transport_security is None
+                    mock_mcp.run.assert_called_once_with(transport='streamable-http')
