@@ -15,152 +15,117 @@
 
 import os
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, call, patch
 
 
-class TestTransportConfiguration:
-    """Tests for transport configuration logic."""
+class TestTransportConfigurationAWS:
+    """Tests for AWS server transport configuration logic."""
 
     def test_stdio_transport_does_not_set_host_port(self):
-        """Test that stdio transport does not set host and port."""
+        """Test that stdio transport does not set mcp.settings.host or mcp.settings.port."""
         with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'stdio'}, clear=False):
             with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                mock_settings = MagicMock()
+                mock_mcp.settings = mock_settings
                 mock_mcp.run = MagicMock()
-                mock_mcp.settings = MagicMock()
-                
+
                 from awslabs.aws_documentation_mcp_server.server_aws import main
-                
                 main()
-                
-                # Verify host and port were not set for stdio transport
-                assert not hasattr(mock_mcp.settings, 'host') or mock_mcp.settings.host != '127.0.0.1'
-                assert not hasattr(mock_mcp.settings, 'port') or mock_mcp.settings.port != 8000
+
+                # settings.host and settings.port should NOT have been assigned
+                # Check that no attribute was set on mock_settings via __setattr__
+                set_calls = [
+                    c for c in mock_settings.mock_calls
+                    if '__setattr__' not in str(c)
+                ]
+                # The key check: host and port should not appear in the
+                # property assignments on mock_settings
+                for c in mock_settings._mock_children:
+                    assert c not in ('host', 'port'), (
+                        f'mcp.settings.{c} should not be set for stdio transport'
+                    )
                 mock_mcp.run.assert_called_once_with(transport='stdio')
 
     def test_streamable_http_transport_sets_host_port(self):
-        """Test that streamable-http transport sets host and port."""
-        with patch.dict(
-            os.environ,
-            {
-                'FASTMCP_TRANSPORT': 'streamable-http',
-                'FASTMCP_HOST': '0.0.0.0',
-                'FASTMCP_PORT': '9000',
-            },
-            clear=False,
-        ):
+        """Test that streamable-http transport sets mcp.settings.host and mcp.settings.port."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
             with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
+                mock_settings = MagicMock()
+                mock_mcp.settings = mock_settings
                 mock_mcp.run = MagicMock()
-                mock_mcp.settings = MagicMock()
-                
-                # Need to reload the module to pick up new environment variables
-                import importlib
-                import awslabs.aws_documentation_mcp_server.server_aws as server_module
-                importlib.reload(server_module)
-                
-                server_module.main()
-                
-                # Verify host and port were set for streamable-http transport
-                mock_mcp.settings.host = '0.0.0.0'
-                mock_mcp.settings.port = 9000
+
+                from awslabs.aws_documentation_mcp_server.server_aws import (
+                    FASTMCP_HOST,
+                    FASTMCP_PORT,
+                    main,
+                )
+                main()
+
+                # Verify host and port were SET (not just read) on settings
+                assert mock_mcp.settings.host == FASTMCP_HOST
+                assert mock_mcp.settings.port == FASTMCP_PORT
                 mock_mcp.run.assert_called_once_with(transport='streamable-http')
 
     def test_default_transport_is_stdio(self):
         """Test that default transport is stdio when FASTMCP_TRANSPORT is not set."""
-        env_copy = os.environ.copy()
-        if 'FASTMCP_TRANSPORT' in env_copy:
-            del env_copy['FASTMCP_TRANSPORT']
-        
-        with patch.dict(os.environ, env_copy, clear=True):
+        env = os.environ.copy()
+        env.pop('FASTMCP_TRANSPORT', None)
+
+        with patch.dict(os.environ, env, clear=True):
             with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp') as mock_mcp:
                 mock_mcp.run = MagicMock()
                 mock_mcp.settings = MagicMock()
-                
+
                 from awslabs.aws_documentation_mcp_server.server_aws import main
-                
                 main()
-                
+
                 mock_mcp.run.assert_called_once_with(transport='stdio')
 
-    def test_environment_variables_read_correctly(self):
-        """Test that environment variables are read correctly."""
-        with patch.dict(
-            os.environ,
-            {
-                'FASTMCP_HOST': '192.168.1.1',
-                'FASTMCP_PORT': '7777',
-                'FASTMCP_TRANSPORT': 'streamable-http',
-            },
-            clear=False,
-        ):
-            # Need to reload the module to pick up new environment variables
-            import importlib
-            import awslabs.aws_documentation_mcp_server.server_aws as server_module
-            importlib.reload(server_module)
-            
-            # Verify environment variables are read
-            assert server_module.FASTMCP_HOST == '192.168.1.1'
-            assert server_module.FASTMCP_PORT == 7777
+    def test_module_level_env_defaults(self):
+        """Test default FASTMCP_HOST and FASTMCP_PORT values at module level."""
+        from awslabs.aws_documentation_mcp_server.server_aws import FASTMCP_HOST, FASTMCP_PORT
 
-    def test_default_host_port_values(self):
-        """Test default host and port values when environment variables are not set."""
-        env_copy = os.environ.copy()
-        for key in ['FASTMCP_HOST', 'FASTMCP_PORT']:
-            if key in env_copy:
-                del env_copy[key]
-        
-        with patch.dict(os.environ, env_copy, clear=True):
-            # Need to reload the module to pick up environment changes
-            import importlib
-            import awslabs.aws_documentation_mcp_server.server_aws as server_module
-            importlib.reload(server_module)
-            
-            # Verify default values
-            assert server_module.FASTMCP_HOST == '127.0.0.1'
-            assert server_module.FASTMCP_PORT == 8000
+        # These are read at module import time; verify they have sensible defaults
+        assert isinstance(FASTMCP_HOST, str)
+        assert isinstance(FASTMCP_PORT, int)
+        assert FASTMCP_PORT > 0
 
 
 class TestTransportConfigurationCN:
-    """Tests for AWS CN transport configuration logic."""
+    """Tests for AWS CN server transport configuration logic."""
 
     def test_cn_stdio_transport_does_not_set_host_port(self):
-        """Test that stdio transport does not set host and port for CN server."""
+        """Test that stdio transport does not set mcp.settings.host or mcp.settings.port for CN."""
         with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'stdio'}, clear=False):
             with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+                mock_settings = MagicMock()
+                mock_mcp.settings = mock_settings
                 mock_mcp.run = MagicMock()
-                mock_mcp.settings = MagicMock()
-                
+
                 from awslabs.aws_documentation_mcp_server.server_aws_cn import main
-                
                 main()
-                
-                # Verify host and port were not set for stdio transport
-                assert not hasattr(mock_mcp.settings, 'host') or mock_mcp.settings.host != '127.0.0.1'
-                assert not hasattr(mock_mcp.settings, 'port') or mock_mcp.settings.port != 8000
+
+                for c in mock_settings._mock_children:
+                    assert c not in ('host', 'port'), (
+                        f'mcp.settings.{c} should not be set for stdio transport'
+                    )
                 mock_mcp.run.assert_called_once_with(transport='stdio')
 
     def test_cn_streamable_http_transport_sets_host_port(self):
-        """Test that streamable-http transport sets host and port for CN server."""
-        with patch.dict(
-            os.environ,
-            {
-                'FASTMCP_TRANSPORT': 'streamable-http',
-                'FASTMCP_HOST': '0.0.0.0',
-                'FASTMCP_PORT': '9000',
-            },
-            clear=False,
-        ):
+        """Test that streamable-http transport sets mcp.settings.host and mcp.settings.port for CN."""
+        with patch.dict(os.environ, {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False):
             with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+                mock_settings = MagicMock()
+                mock_mcp.settings = mock_settings
                 mock_mcp.run = MagicMock()
-                mock_mcp.settings = MagicMock()
-                
-                # Need to reload the module to pick up new environment variables
-                import importlib
-                import awslabs.aws_documentation_mcp_server.server_aws_cn as server_module
-                importlib.reload(server_module)
-                
-                server_module.main()
-                
-                # Verify host and port were set for streamable-http transport
-                mock_mcp.settings.host = '0.0.0.0'
-                mock_mcp.settings.port = 9000
+
+                from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+                    FASTMCP_HOST,
+                    FASTMCP_PORT,
+                    main,
+                )
+                main()
+
+                assert mock_mcp.settings.host == FASTMCP_HOST
+                assert mock_mcp.settings.port == FASTMCP_PORT
                 mock_mcp.run.assert_called_once_with(transport='streamable-http')

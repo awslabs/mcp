@@ -17,14 +17,15 @@ SERVER="aws-documentation-mcp-server"
 
 # Check if HTTP transport is enabled
 if [ "$FASTMCP_TRANSPORT" = "streamable-http" ]; then
-  # Check HTTP endpoint - 406 is acceptable (means server is running but needs proper headers)
+  # Check HTTP endpoint with GET request
+  # 200 = healthy, 406 = server running but needs proper MCP headers (also healthy)
   PORT="${FASTMCP_PORT:-8000}"
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/mcp" --max-time 5)
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/mcp" --max-time 5 2>/dev/null) || HTTP_CODE="000"
   if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "406" ]; then
-    echo "$SERVER HTTP is healthy"
+    echo "$SERVER HTTP is healthy (HTTP $HTTP_CODE)"
     exit 0
   fi
-  echo "$SERVER HTTP is unhealthy"
+  echo "$SERVER HTTP is unhealthy (HTTP $HTTP_CODE)"
   exit 1
 else
   # Original stdio check

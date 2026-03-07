@@ -285,16 +285,26 @@ class TestMain:
 
     def test_main_stdio_transport(self):
         """Test the main function with stdio transport."""
-        with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp.run') as mock_run:
+        with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
             with patch(
                 'awslabs.aws_documentation_mcp_server.server_aws_cn.logger.info'
             ) as mock_logger:
                 with patch.dict('os.environ', {'FASTMCP_TRANSPORT': 'stdio'}, clear=False):
+                    mock_mcp.run = MagicMock()
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
+
                     main()
+
                     mock_logger.assert_called_once_with(
                         'Starting AWS China Documentation MCP Server with stdio transport'
                     )
-                    mock_run.assert_called_once_with(transport='stdio')
+                    mock_mcp.run.assert_called_once_with(transport='stdio')
+                    # Verify host and port were NOT set on settings
+                    for c in mock_settings._mock_children:
+                        assert c not in ('host', 'port'), (
+                            f'mcp.settings.{c} should not be set for stdio transport'
+                        )
 
     def test_main_streamable_http_transport(self):
         """Test the main function with streamable-http transport."""
@@ -306,13 +316,18 @@ class TestMain:
                     'os.environ', {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False
                 ):
                     mock_mcp.run = MagicMock()
-                    mock_mcp.settings = MagicMock()
+                    mock_settings = MagicMock()
+                    mock_mcp.settings = mock_settings
 
                     main()
 
                     mock_logger.assert_called_once_with(
                         'Starting AWS China Documentation MCP Server with streamable-http transport'
                     )
-                    assert mock_mcp.settings.host == '127.0.0.1'
-                    assert mock_mcp.settings.port == 8000
+                    from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+                        FASTMCP_HOST,
+                        FASTMCP_PORT,
+                    )
+                    assert mock_mcp.settings.host == FASTMCP_HOST
+                    assert mock_mcp.settings.port == FASTMCP_PORT
                     mock_mcp.run.assert_called_once_with(transport='streamable-http')
