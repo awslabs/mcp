@@ -283,12 +283,36 @@ class TestGetAvailableServices:
 class TestMain:
     """Tests for the main function."""
 
-    def test_main(self):
-        """Test the main function."""
+    def test_main_stdio_transport(self):
+        """Test the main function with stdio transport."""
         with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp.run') as mock_run:
             with patch(
                 'awslabs.aws_documentation_mcp_server.server_aws_cn.logger.info'
             ) as mock_logger:
-                main()
-                mock_logger.assert_called_once_with('Starting AWS China Documentation MCP Server')
-                mock_run.assert_called_once()
+                with patch.dict('os.environ', {'FASTMCP_TRANSPORT': 'stdio'}, clear=False):
+                    main()
+                    mock_logger.assert_called_once_with(
+                        'Starting AWS China Documentation MCP Server with stdio transport'
+                    )
+                    mock_run.assert_called_once_with(transport='stdio')
+
+    def test_main_streamable_http_transport(self):
+        """Test the main function with streamable-http transport."""
+        with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp') as mock_mcp:
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_aws_cn.logger.info'
+            ) as mock_logger:
+                with patch.dict(
+                    'os.environ', {'FASTMCP_TRANSPORT': 'streamable-http'}, clear=False
+                ):
+                    mock_mcp.run = MagicMock()
+                    mock_mcp.settings = MagicMock()
+
+                    main()
+
+                    mock_logger.assert_called_once_with(
+                        'Starting AWS China Documentation MCP Server with streamable-http transport'
+                    )
+                    assert mock_mcp.settings.host == '127.0.0.1'
+                    assert mock_mcp.settings.port == 8000
+                    mock_mcp.run.assert_called_once_with(transport='streamable-http')

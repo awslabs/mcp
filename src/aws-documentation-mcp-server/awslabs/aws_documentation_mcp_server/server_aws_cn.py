@@ -42,8 +42,6 @@ FASTMCP_PORT = int(os.getenv('FASTMCP_PORT', '8000'))
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
-    host=FASTMCP_HOST,
-    port=FASTMCP_PORT,
     instructions="""
     # AWS China Documentation MCP Server
 
@@ -248,10 +246,14 @@ async def get_available_services(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    import os
     
     transport = os.getenv('FASTMCP_TRANSPORT', 'stdio')
     logger.info(f'Starting AWS China Documentation MCP Server with {transport} transport')
+    
+    # Only set host and port for streamable-http transport
+    if transport == "streamable-http":
+        mcp.settings.host = FASTMCP_HOST
+        mcp.settings.port = FASTMCP_PORT
     
     mcp.run(transport=transport)
 
