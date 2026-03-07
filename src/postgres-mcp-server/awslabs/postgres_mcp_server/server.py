@@ -56,6 +56,9 @@ query_comment_prohibited_key = 'The comment in query is prohibited because of in
 query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
 
+# Startup connection parameters for auto-connect
+startup_connection_params: Optional[Dict[str, Any]] = None
+
 
 class DummyCtx:
     """A dummy context class for error handling in MCP tools."""
@@ -152,13 +155,33 @@ async def run_query(
         database=database,
     )
     if not db_connection:
-        err = (
-            f'No database connection available for method:{connection_method}, '
-            f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}'
-        )
-        logger.error(err)
-        await ctx.error(err)
-        return [{'error': err}]
+        # Try to auto-connect using startup parameters if available
+        global startup_connection_params
+        if startup_connection_params and db_endpoint == startup_connection_params.get('db_endpoint') and database == startup_connection_params.get('database'):
+            logger.info('Auto-connecting using startup parameters')
+            try:
+                db_connection, _ = internal_connect_to_database(
+                    region=startup_connection_params['region'],
+                    database_type=startup_connection_params['database_type'],
+                    connection_method=startup_connection_params['connection_method'],
+                    cluster_identifier=startup_connection_params.get('cluster_identifier'),
+                    db_endpoint=startup_connection_params['db_endpoint'],
+                    port=startup_connection_params.get('port', 5432),
+                    database=startup_connection_params['database'],
+                    username=startup_connection_params.get('username'),
+                )
+            except Exception as e:
+                logger.error(f'Auto-connect failed: {e}')
+                db_connection = None
+
+        if not db_connection:
+            err = (
+                f'No database connection available for method:{connection_method}, '
+                f'cluster_identifier:{cluster_identifier}, db_endpoint:{db_endpoint}, database:{database}'
+            )
+            logger.error(err)
+            await ctx.error(err)
+            return [{'error': err}]
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
@@ -277,6 +300,7 @@ def connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')],
+    username: Annotated[Optional[str], Field(description='database username for IAM authentication (required for PG_WIRE_IAM_PROTOCOL)')] = None,
 ) -> str:
     """Connect to a specific database save the connection internally.
 
@@ -288,6 +312,7 @@ def connect_to_database(
         db_endpoint: database endpoint
         port: database port
         database: database name. Required parameter
+        username: database username for IAM authentication. Required for PG_WIRE_IAM_PROTOCOL if different from master user
 
         Supported scenario:
         1. Aurora Postgres database with RDS_API + Credential Manager:
@@ -312,6 +337,7 @@ def connect_to_database(
             db_endpoint=db_endpoint,
             port=port,
             database=database,
+            username=username,
         )
 
         return str(llm_response)
@@ -365,10 +391,27 @@ def get_database_connection_info() -> str:
     """Get all cached database connection information.
 
     Return:
-        A list of cached connection information.
+        A list of cached connection information, or startup parameters if no connections exist.
     """
     global db_connection_map
-    return db_connection_map.get_keys_json()
+    global startup_connection_params
+
+    connections_json = db_connection_map.get_keys_json()
+
+    # If no active connections but startup params exist, return those
+    if connections_json == '[]' and startup_connection_params:
+        startup_info = {
+            'status': 'ready_to_connect',
+            'message': 'No active connections. Use these parameters with run_query to auto-connect.',
+            'connection_method': str(startup_connection_params.get('connection_method', '')),
+            'cluster_identifier': startup_connection_params.get('cluster_identifier') or '',
+            'db_endpoint': startup_connection_params.get('db_endpoint', ''),
+            'database': startup_connection_params.get('database', ''),
+            'port': startup_connection_params.get('port', 5432),
+        }
+        return json.dumps([startup_info], indent=2)
+
+    return connections_json
 
 
 @mcp.tool(name='create_cluster', description='Create an Aurora Postgres cluster')
@@ -523,6 +566,7 @@ def internal_connect_to_database(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     port: Annotated[int, Field(description='Postgres port')],
     database: Annotated[str, Field(description='database name')] = 'postgres',
+    username: Annotated[Optional[str], Field(description='database username for IAM auth')] = None,
 ) -> Tuple:
     """Connect to a specific database save the connection internally.
 
@@ -618,6 +662,8 @@ def internal_connect_to_database(
     )
 
     db_connection = None
+    # Use provided username if available, otherwise fall back to masteruser
+    effective_user = username if username else masteruser
     if connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL:
         db_connection = PsycopgPoolConnection(
             host=db_endpoint,
@@ -625,7 +671,7 @@ def internal_connect_to_database(
             database=database,
             readonly=readonly_query,
             secret_arn='',
-            db_user=masteruser,
+            db_user=effective_user,
             region=region,
             is_iam_auth=True,
         )
@@ -696,6 +742,7 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument('--username', help='Database username (required for IAM auth if different from master user)')
     args = parser.parse_args()
 
     logger.info(
@@ -714,18 +761,31 @@ def main():
 
     try:
         if args.db_type:
-            # Create the appropriate database connection based on the provided parameters
-            db_connection: Optional[AbstractDBConnection] = None
+            global startup_connection_params
+            cluster_identifier = args.db_cluster_arn.split(':')[-1] if args.db_cluster_arn else None
 
-            cluster_identifier = args.db_cluster_arn.split(':')[-1]
+            # Store startup parameters for auto-connect in MCP event loop
+            startup_connection_params = {
+                'region': args.region,
+                'database_type': DatabaseType[args.db_type],
+                'connection_method': ConnectionMethod[args.connection_method],
+                'cluster_identifier': cluster_identifier,
+                'db_endpoint': args.db_endpoint,
+                'port': args.port,
+                'database': args.database,
+                'username': args.username,
+            }
+
+            # Validate database connection at startup
             db_connection, llm_response = internal_connect_to_database(
                 region=args.region,
                 database_type=DatabaseType[args.db_type],
                 connection_method=ConnectionMethod[args.connection_method],
                 cluster_identifier=cluster_identifier,
-                db_endpoint=args.hostname,
+                db_endpoint=args.db_endpoint,
                 port=args.port,
                 database=args.database,
+                username=args.username,
             )
 
             # Test database connection
@@ -753,6 +813,10 @@ def main():
                     sys.exit(1)
                 else:
                     logger.success('Successfully validated database connection to Postgres')
+
+            # Clear the connection pool after validation - it will be recreated
+            # in the MCP event loop to avoid async lock conflicts
+            db_connection_map.close_all()
 
         logger.info('Postgres MCP server started')
         mcp.run()

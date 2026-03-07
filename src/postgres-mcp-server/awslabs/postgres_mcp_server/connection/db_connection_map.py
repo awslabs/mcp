@@ -60,8 +60,11 @@ class DBConnectionMap:
         if not database:
             raise ValueError('database cannot be None or empty')
 
+        # Normalize empty string to None for cluster_identifier
+        normalized_cluster_id = cluster_identifier if cluster_identifier else None
+
         with self._lock:
-            return self.map.get((method, cluster_identifier, db_endpoint, database, port))
+            return self.map.get((method, normalized_cluster_id, db_endpoint, database, port))
 
     def set(
         self,
@@ -79,8 +82,11 @@ class DBConnectionMap:
         if not conn:
             raise ValueError('conn cannot be None')
 
+        # Normalize empty string to None for cluster_identifier
+        normalized_cluster_id = cluster_identifier if cluster_identifier else None
+
         with self._lock:
-            self.map[(method, cluster_identifier, db_endpoint, database, port)] = conn
+            self.map[(method, normalized_cluster_id, db_endpoint, database, port)] = conn
 
     def remove(
         self,
@@ -94,12 +100,15 @@ class DBConnectionMap:
         if not database:
             raise ValueError('database cannot be None or empty')
 
+        # Normalize empty string to None for cluster_identifier
+        normalized_cluster_id = cluster_identifier if cluster_identifier else None
+
         with self._lock:
             try:
-                self.map.pop((method, cluster_identifier, db_endpoint, database, port))
+                self.map.pop((method, normalized_cluster_id, db_endpoint, database, port))
             except KeyError:
                 logger.info(
-                    f'Try to remove a non-existing connection. {method} {cluster_identifier} {db_endpoint} {database} {port}'
+                    f'Try to remove a non-existing connection. {method} {normalized_cluster_id} {db_endpoint} {database} {port}'
                 )
 
     def get_keys_json(self) -> str:
