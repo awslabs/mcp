@@ -126,8 +126,21 @@ class DBConnectionMap:
                 entries.append(entry)
         return json.dumps(entries, indent=2)
 
+    def clear(self) -> None:
+        """Clear the connection map without closing connections.
+
+        Use this when connections have already been closed separately
+        (e.g., via asyncio.run for async close methods).
+        """
+        with self._lock:
+            self.map.clear()
+
     def close_all(self) -> None:
-        """Close all connections and clear the map."""
+        """Close all connections and clear the map.
+
+        Note: This calls conn.close() synchronously. If close() is async,
+        use clear() after properly awaiting each connection's close method.
+        """
         with self._lock:
             for key, conn in self.map.items():
                 try:

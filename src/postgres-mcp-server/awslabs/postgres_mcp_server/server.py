@@ -157,7 +157,18 @@ async def run_query(
     if not db_connection:
         # Try to auto-connect using startup parameters if available
         global startup_connection_params
-        if startup_connection_params and db_endpoint == startup_connection_params.get('db_endpoint') and database == startup_connection_params.get('database'):
+        # Normalize cluster_identifier for comparison (empty string -> None)
+        normalized_cluster_id = cluster_identifier if cluster_identifier else None
+        startup_cluster_id = startup_connection_params.get('cluster_identifier') if startup_connection_params else None
+        startup_cluster_id = startup_cluster_id if startup_cluster_id else None
+
+        if (
+            startup_connection_params
+            and db_endpoint == startup_connection_params.get('db_endpoint')
+            and database == startup_connection_params.get('database')
+            and connection_method == startup_connection_params.get('connection_method')
+            and normalized_cluster_id == startup_cluster_id
+        ):
             logger.info('Auto-connecting using startup parameters')
             try:
                 db_connection, _ = internal_connect_to_database(
@@ -400,14 +411,18 @@ def get_database_connection_info() -> str:
 
     # If no active connections but startup params exist, return those
     if connections_json == '[]' and startup_connection_params:
+        connection_method = startup_connection_params.get('connection_method', '')
+        connection_method_value = connection_method.value if isinstance(connection_method, ConnectionMethod) else connection_method
+
         startup_info = {
             'status': 'ready_to_connect',
             'message': 'No active connections. Use these parameters with run_query to auto-connect.',
-            'connection_method': str(startup_connection_params.get('connection_method', '')),
+            'connection_method': connection_method_value,
             'cluster_identifier': startup_connection_params.get('cluster_identifier') or '',
             'db_endpoint': startup_connection_params.get('db_endpoint', ''),
             'database': startup_connection_params.get('database', ''),
             'port': startup_connection_params.get('port', 5432),
+            'username': startup_connection_params.get('username') or '',
         }
         return json.dumps([startup_info], indent=2)
 
@@ -814,9 +829,11 @@ def main():
                 else:
                     logger.success('Successfully validated database connection to Postgres')
 
-            # Clear the connection pool after validation - it will be recreated
-            # in the MCP event loop to avoid async lock conflicts
-            db_connection_map.close_all()
+            # Clear the connection map after validation - connections will be garbage collected.
+            # We cannot properly close the async connections here because they were created
+            # in the asyncio.run() event loop which is now closed, and their internal locks
+            # are bound to that loop. New connections will be created in the MCP event loop.
+            db_connection_map.clear()
 
         logger.info('Postgres MCP server started')
         mcp.run()
