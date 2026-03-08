@@ -556,3 +556,212 @@ class TestASTDangerousFunctions:
         results = check_dangerous_functions(code)
         funcs = [r['function'] for r in results]
         assert 'compile' in funcs
+
+
+class TestVariableAliasingBypass:
+    """Tests documenting variable aliasing bypass vectors.
+
+    These tests verify that the scanner does NOT catch aliased calls
+    (a known limitation of static AST analysis). The primary defense
+    against these vectors is removing dangerous modules from the
+    execution namespace, not scanner detection.
+    """
+
+    def test_scanner_misses_module_alias_os_system(self):
+        """Scanner does not catch os.system via module alias.
+
+        The fix is removing os from the namespace, not scanner detection.
+        """
+        code = 'x = os\nx.system("echo test")'
+        results = check_dangerous_functions(code)
+        # Scanner sees x.system, not os.system — this is expected behavior.
+        # The defense is that os is not in the execution namespace.
+        assert not any(r['function'] == 'os.system' for r in results)
+
+    def test_scanner_misses_module_alias_os_popen(self):
+        """Scanner does not catch os.popen via module alias."""
+        code = 'x = os\nx.popen("echo test")'
+        results = check_dangerous_functions(code)
+        assert not any(r['function'] == 'os.popen' for r in results)
+
+    def test_scanner_misses_function_extraction(self):
+        """Scanner does not catch extracted function references."""
+        code = 'f = os.system\nf("echo test")'
+        results = check_dangerous_functions(code)
+        # f("echo test") is Name(id='f'), not in dangerous_builtins
+        assert not any(r['function'] == 'os.system' for r in results)
+
+    def test_scanner_misses_builtin_alias_exec(self):
+        """Scanner does not catch aliased exec."""
+        code = 'e = exec\ne("print(1)")'
+        results = check_dangerous_functions(code)
+        # e is Name(id='e'), not 'exec'
+        funcs = [r['function'] for r in results]
+        assert 'exec' not in funcs
+
+    def test_scanner_misses_builtin_alias_eval(self):
+        """Scanner does not catch aliased eval."""
+        code = 'v = eval\nv("2+2")'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'eval' not in funcs
+
+
+class TestNamespaceSecurityIntegration:
+    """Integration tests for namespace security.
+
+    Verifies that dangerous modules are NOT in the execution namespace,
+    preventing aliasing attacks at runtime.
+    """
+
+    @pytest.mark.asyncio
+    async def test_os_alias_bypasses_scanner(self):
+        """Verify the scanner does not catch os.system via variable alias.
+
+        This documents the known scanner limitation. The actual defense is
+        that os is not in the execution namespace (tested in test_diagrams.py
+        TestNamespaceRCEPrevention).
+        """
+        code = 'x = os\nx.system("echo test")'
+        result = await scan_python_code(code)
+        # The aliased call bypasses the scanner — this is expected.
+        # The runtime NameError (os not in namespace) is the real defense.
+        assert result.has_errors is False
+
+    def test_os_system_direct_still_caught(self):
+        """Verify that direct os.system calls are still caught by scanner."""
+        code = 'os.system("echo test")'
+        results = check_dangerous_functions(code)
+        assert any(r['function'] == 'os.system' for r in results)
+
+    def test_os_popen_direct_still_caught(self):
+        """Verify that direct os.popen calls are still caught by scanner."""
+        code = 'os.popen("echo test")'
+        results = check_dangerous_functions(code)
+        assert any(r['function'] == 'os.popen' for r in results)
+
+
+class TestFrameTraversalDetection:
+    """Tests for detection of frame traversal and code object attribute access.
+
+    The scanner must detect __traceback__, tb_frame, f_back, f_builtins,
+    and related attributes as dangerous.
+    """
+
+    def test_catches_traceback_access(self):
+        """__traceback__ attribute access must be caught."""
+        code = 'e.__traceback__'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__traceback__' in funcs
+
+    def test_catches_tb_frame_access(self):
+        """tb_frame attribute access must be caught."""
+        code = 'tb.tb_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'tb_frame' in funcs
+
+    def test_catches_f_back_traversal(self):
+        """f_back attribute access must be caught."""
+        code = 'frame.f_back'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_back' in funcs
+
+    def test_catches_f_builtins_access(self):
+        """f_builtins attribute access must be caught."""
+        code = 'frame.f_builtins'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_builtins' in funcs
+
+    def test_catches_f_globals_access(self):
+        """f_globals attribute access must be caught."""
+        code = 'frame.f_globals'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_globals' in funcs
+
+    def test_catches_f_locals_access(self):
+        """f_locals attribute access must be caught."""
+        code = 'frame.f_locals'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'f_locals' in funcs
+
+    def test_catches_generator_frame_access(self):
+        """gi_frame attribute access must be caught."""
+        code = 'gen.gi_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'gi_frame' in funcs
+
+    def test_catches_coroutine_frame_access(self):
+        """cr_frame attribute access must be caught."""
+        code = 'coro.cr_frame'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'cr_frame' in funcs
+
+    def test_catches_code_object_access(self):
+        """__code__ attribute access must be caught."""
+        code = 'func.__code__'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__code__' in funcs
+
+    def test_catches_code_object_consts(self):
+        """co_consts attribute access must be caught."""
+        code = 'code.co_consts'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert 'co_consts' in funcs
+
+    def test_catches_getattribute_access(self):
+        """__getattribute__ access must be caught."""
+        code = 'object.__getattribute__(e, "__traceback__")'
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        assert '__getattribute__' in funcs
+
+    def test_catches_combined_frame_traversal_pattern(self):
+        """Combined frame traversal pattern must be caught by multiple detections."""
+        code = """
+try:
+    1/0
+except ZeroDivisionError as e:
+    f = e.__traceback__.tb_frame
+    while f is not None:
+        if '__import__' in f.f_builtins:
+            sp = f.f_builtins['__import__']('subprocess')
+            r = sp.run(['whoami'], capture_output=True, text=True)
+            break
+        f = f.f_back
+"""
+        results = check_dangerous_functions(code)
+        funcs = [r['function'] for r in results]
+        # Must catch at least __traceback__, tb_frame, f_builtins, and f_back
+        assert '__traceback__' in funcs
+        assert 'tb_frame' in funcs
+        assert 'f_builtins' in funcs
+        assert 'f_back' in funcs
+
+    @pytest.mark.asyncio
+    async def test_frame_traversal_blocked_by_scan(self):
+        """Frame traversal pattern must be blocked by scan_python_code."""
+        code = """
+try:
+    1/0
+except ZeroDivisionError as e:
+    f = e.__traceback__.tb_frame
+    while f is not None:
+        if '__import__' in f.f_builtins:
+            sp = f.f_builtins['__import__']('subprocess')
+            r = sp.run(['whoami'], capture_output=True, text=True)
+            break
+        f = f.f_back
+"""
+        result = await scan_python_code(code)
+        assert result.has_errors is True
+        assert len(result.security_issues) > 0

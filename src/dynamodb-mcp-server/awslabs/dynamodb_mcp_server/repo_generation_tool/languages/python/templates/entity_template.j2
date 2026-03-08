@@ -64,7 +64,14 @@ class {{ entity_name }}(ConfigurableEntity):
 {%- for gsi_mapping in entity_config.gsi_mappings %}
 
     @classmethod
-    {% if gsi_mapping.pk_is_numeric -%}
+    {% if gsi_mapping.pk_is_multi_attribute -%}
+    def build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.pk_params | length > 0 %}, {{ gsi_mapping.pk_params | join(', ') }}{% endif %}) -> tuple:
+        """Build GSI multi-attribute partition key for {{ gsi_mapping.name }} lookup operations
+
+        Returns tuple of key values in order: ({{ gsi_mapping.pk_params | join(', ') }})
+        """
+        return ({% for tmpl in gsi_mapping.pk_templates %}f"{{ tmpl }}"{{ ", " if not loop.last else ("," if loop.length == 1 else "") }}{% endfor %})
+    {%- elif gsi_mapping.pk_is_numeric -%}
     def build_gsi_pk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.pk_params | length > 0 %}, {{ gsi_mapping.pk_params | join(', ') }}{% endif %}) -> KeyType:
         """Build GSI partition key for {{ gsi_mapping.name }} lookup operations"""
         return {{ gsi_mapping.pk_params[0] }}
@@ -76,7 +83,14 @@ class {{ entity_name }}(ConfigurableEntity):
 
     {% if gsi_mapping.sk_template -%}
     @classmethod
-    {% if gsi_mapping.sk_is_numeric -%}
+    {% if gsi_mapping.sk_is_multi_attribute -%}
+    def build_gsi_sk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.sk_params | length > 0 %}, {{ gsi_mapping.sk_params | join(', ') }}{% endif %}) -> tuple:
+        """Build GSI multi-attribute sort key for {{ gsi_mapping.name }} lookup operations
+
+        Returns tuple of key values in order: ({{ gsi_mapping.sk_params | join(', ') }})
+        """
+        return ({% for tmpl in gsi_mapping.sk_templates %}f"{{ tmpl }}"{{ ", " if not loop.last else ("," if loop.length == 1 else "") }}{% endfor %})
+    {%- elif gsi_mapping.sk_is_numeric -%}
     def build_gsi_sk_for_lookup_{{ gsi_mapping.safe_name }}(cls{% if gsi_mapping.sk_params | length > 0 %}, {{ gsi_mapping.sk_params | join(', ') }}{% endif %}) -> KeyType:
         """Build GSI sort key for {{ gsi_mapping.name }} lookup operations"""
         return {{ gsi_mapping.sk_params[0] }}
@@ -91,7 +105,14 @@ class {{ entity_name }}(ConfigurableEntity):
     # GSI Key Builder Instance Methods
 {%- for gsi_mapping in entity_config.gsi_mappings %}
 
-    {% if gsi_mapping.pk_is_numeric -%}
+    {% if gsi_mapping.pk_is_multi_attribute -%}
+    def build_gsi_pk_{{ gsi_mapping.safe_name }}(self) -> tuple:
+        """Build GSI multi-attribute partition key for {{ gsi_mapping.name }} from entity instance
+
+        Returns tuple of key values in order: ({{ gsi_mapping.pk_params | join(', ') }})
+        """
+        return ({% for tmpl in gsi_mapping.pk_templates %}f"{{ tmpl | substitute_self_params(gsi_mapping.pk_params) }}"{{ ", " if not loop.last else ("," if loop.length == 1 else "") }}{% endfor %})
+    {%- elif gsi_mapping.pk_is_numeric -%}
     def build_gsi_pk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
         """Build GSI partition key for {{ gsi_mapping.name }} from entity instance"""
         return self.{{ gsi_mapping.pk_params[0] }}
@@ -102,7 +123,14 @@ class {{ entity_name }}(ConfigurableEntity):
     {%- endif %}
 
     {% if gsi_mapping.sk_template -%}
-    {% if gsi_mapping.sk_is_numeric -%}
+    {% if gsi_mapping.sk_is_multi_attribute -%}
+    def build_gsi_sk_{{ gsi_mapping.safe_name }}(self) -> tuple:
+        """Build GSI multi-attribute sort key for {{ gsi_mapping.name }} from entity instance
+
+        Returns tuple of key values in order: ({{ gsi_mapping.sk_params | join(', ') }})
+        """
+        return ({% for tmpl in gsi_mapping.sk_templates %}f"{{ tmpl | substitute_self_params(gsi_mapping.sk_params) }}"{{ ", " if not loop.last else ("," if loop.length == 1 else "") }}{% endfor %})
+    {%- elif gsi_mapping.sk_is_numeric -%}
     def build_gsi_sk_{{ gsi_mapping.safe_name }}(self) -> KeyType:
         """Build GSI sort key for {{ gsi_mapping.name }} from entity instance"""
         return self.{{ gsi_mapping.sk_params[0] }}
