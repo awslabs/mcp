@@ -42,6 +42,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-msk-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @dingyiheng @mehbey @isaurab007
 /src/aws-network-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
 /src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
+/src/aws-security-hub-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @venkatakrishna-pullela
 /src/aws-serverless-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900
 /src/aws-support-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
 /src/bedrock-kb-retrieval-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @pranjbh
