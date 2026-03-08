@@ -26,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
 )
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 
@@ -1735,7 +1736,7 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
-        from typing import Any, Dict, Optional
+        from typing import Dict, Optional
 
         mock_ctx = AsyncMock()
 
@@ -1755,7 +1756,7 @@ class TestValidateRepositoryDefinitionFieldObjects:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_repository_definition,
         )
-        from typing import Any, Dict
+        from typing import Dict
 
         mock_ctx = AsyncMock()
 
@@ -1772,3 +1773,363 @@ class TestValidateRepositoryDefinitionFieldObjects:
         assert result is not None
         assert result['connectionArn'] == MockField.default['connection_arn']
         mock_ctx.error.assert_not_called()
+
+
+class TestParseTags:
+    """Tests for parse_tags function."""
+
+    def test_parse_tags_dict_input(self):
+        """Test parse_tags with a dict input passes through."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
+
+        result = parse_tags({'env': 'prod', 'team': 'genomics'})
+        assert result == {'env': 'prod', 'team': 'genomics'}
+
+    def test_parse_tags_valid_json_string(self):
+        """Test parse_tags with a valid JSON string."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
+
+        result = parse_tags('{"env": "prod", "team": "genomics"}')
+        assert result == {'env': 'prod', 'team': 'genomics'}
+
+    def test_parse_tags_invalid_json_string(self):
+        """Test parse_tags with an invalid JSON string raises ValueError."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
+
+        with pytest.raises(ValueError, match='Invalid tags JSON'):
+            parse_tags('{not valid json}')
+
+    def test_parse_tags_json_string_non_dict(self):
+        """Test parse_tags with a JSON string that parses to a non-dict raises ValueError."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
+
+        with pytest.raises(ValueError, match='Tags JSON must be an object'):
+            parse_tags('["a", "b"]')
+
+    def test_parse_tags_unsupported_type(self):
+        """Test parse_tags with an unsupported type raises ValueError."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_tags
+
+        with pytest.raises(ValueError, match='Tags must be a JSON string or dict, got int'):
+            parse_tags(42)
+
+
+class TestParseIdList:
+    """Tests for parse_id_list function."""
+
+    def test_parse_id_list_native_list(self):
+        """Test parse_id_list with a native list."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list(['id1', 'id2', 'id3'])
+        assert result == ['id1', 'id2', 'id3']
+
+    def test_parse_id_list_int_input(self):
+        """Test parse_id_list with an int input."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list(123)
+        assert result == ['123']
+
+    def test_parse_id_list_float_input(self):
+        """Test parse_id_list with a float input."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list(3.14)
+        assert result == ['3.14']
+
+    def test_parse_id_list_json_list_string(self):
+        """Test parse_id_list with a JSON list string."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list('["id1", "id2"]')
+        assert result == ['id1', 'id2']
+
+    def test_parse_id_list_plain_string(self):
+        """Test parse_id_list with a plain string (not valid JSON)."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list('single-id')
+        assert result == ['single-id']
+
+    def test_parse_id_list_json_scalar_string(self):
+        """Test parse_id_list with a JSON scalar string (e.g. '123')."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        result = parse_id_list('123')
+        assert result == ['123']
+
+    def test_parse_id_list_unsupported_type(self):
+        """Test parse_id_list with an unsupported type raises ValueError."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import parse_id_list
+
+        with pytest.raises(ValueError, match='IDs must be a JSON string, list, or single value'):
+            parse_id_list({'key': 'value'})
+
+
+class TestValidateDefinitionSources:
+    """Tests for validate_definition_sources covering missing lines."""
+
+    @pytest.mark.asyncio
+    async def test_field_object_definition_uri(self):
+        """Test Field object handling for definition_uri parameter."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64='dGVzdA==',
+            definition_uri=cast(None, MockField()),
+            definition_repository=None,
+        )
+        assert result[0] is not None  # decoded zip bytes
+        assert result[1] is None
+        assert result[2] is None
+
+    @pytest.mark.asyncio
+    async def test_field_object_definition_repository(self):
+        """Test Field object handling for definition_repository parameter."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_definition_sources(
+            mock_ctx,
+            definition_zip_base64='dGVzdA==',
+            definition_uri=None,
+            definition_repository=cast(None, MockField()),
+        )
+        assert result[0] is not None
+        assert result[1] is None
+        assert result[2] is None
+
+    @pytest.mark.asyncio
+    async def test_multiple_sources_error(self):
+        """Test error when multiple definition sources are provided."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError, match='Cannot specify multiple definition sources'):
+            await validate_definition_sources(
+                mock_ctx,
+                definition_zip_base64='dGVzdA==',
+                definition_uri='s3://bucket/key.zip',
+                definition_repository=None,
+            )
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_zero_sources_error(self):
+        """Test error when no definition source is provided."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError, match='Must specify one definition source'):
+            await validate_definition_sources(
+                mock_ctx,
+                definition_zip_base64=None,
+                definition_uri=None,
+                definition_repository=None,
+            )
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_base64_decode_failure(self):
+        """Test error when base64 decoding fails."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.decode_from_base64',
+            side_effect=Exception('Invalid base64'),
+        ):
+            with pytest.raises(Exception, match='Invalid base64'):
+                await validate_definition_sources(
+                    mock_ctx,
+                    definition_zip_base64='not-valid-base64!!!',
+                    definition_uri=None,
+                    definition_repository=None,
+                )
+        mock_ctx.error.assert_called_once()
+
+
+class TestValidateContainerRegistryParams:
+    """Tests for validate_container_registry_params covering missing lines."""
+
+    @pytest.mark.asyncio
+    async def test_field_object_container_registry_map(self):
+        """Test Field object handling for container_registry_map."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_container_registry_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        # Should not raise — both resolve to None
+        await validate_container_registry_params(
+            mock_ctx,
+            container_registry_map=cast(None, MockField()),
+            container_registry_map_uri=None,
+        )
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_field_object_container_registry_map_uri(self):
+        """Test Field object handling for container_registry_map_uri."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_container_registry_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        await validate_container_registry_params(
+            mock_ctx,
+            container_registry_map=None,
+            container_registry_map_uri=cast(None, MockField()),
+        )
+        mock_ctx.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_both_params_error(self):
+        """Test error when both container registry params are provided."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_container_registry_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        with pytest.raises(ValueError, match='Cannot specify both'):
+            await validate_container_registry_params(
+                mock_ctx,
+                container_registry_map={'registry': 'value'},
+                container_registry_map_uri='s3://bucket/map.json',
+            )
+        mock_ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invalid_map_structure(self):
+        """Test error when container_registry_map has invalid structure."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_container_registry_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        # registryMappings expects a list, not a string — triggers ValidationError
+        with pytest.raises(ValueError, match='Invalid container registry map structure'):
+            await validate_container_registry_params(
+                mock_ctx,
+                container_registry_map={'registryMappings': 'not-a-list'},
+                container_registry_map_uri=None,
+            )
+        mock_ctx.error.assert_called_once()
+
+
+class TestValidateReadmeInputFieldObject:
+    """Tests for validate_readme_input Field object handling."""
+
+    @pytest.mark.asyncio
+    async def test_field_object_readme(self):
+        """Test Field object handling for readme parameter resolves to None."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_readme_input,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_readme_input(mock_ctx, readme=cast(None, MockField()))
+        assert result == (None, None)
+        mock_ctx.error.assert_not_called()
+
+
+class TestValidateRepositoryPathParamsFieldObjects:
+    """Tests for validate_repository_path_params Field object handling."""
+
+    @pytest.mark.asyncio
+    async def test_field_object_definition_repository(self):
+        """Test Field object handling for definition_repository parameter."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_repository_path_params(
+            mock_ctx,
+            definition_repository=cast(None, MockField()),
+            parameter_template_path=None,
+            readme_path=None,
+        )
+        assert result == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_field_object_parameter_template_path(self):
+        """Test Field object handling for parameter_template_path parameter."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_repository_path_params(
+            mock_ctx,
+            definition_repository={'some': 'repo'},
+            parameter_template_path=cast(None, MockField()),
+            readme_path=None,
+        )
+        assert result == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_field_object_readme_path(self):
+        """Test Field object handling for readme_path parameter."""
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_repository_path_params,
+        )
+
+        mock_ctx = AsyncMock()
+
+        class MockField:
+            default = None
+
+        result = await validate_repository_path_params(
+            mock_ctx,
+            definition_repository={'some': 'repo'},
+            parameter_template_path=None,
+            readme_path=cast(None, MockField()),
+        )
+        assert result == (None, None)

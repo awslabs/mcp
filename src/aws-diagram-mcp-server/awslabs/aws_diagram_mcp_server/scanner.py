@@ -256,6 +256,28 @@ def _check_dangerous_functions_string(code: str) -> List[Dict[str, Any]]:
         ('__bases__', '__bases__'),
         ('__globals__', '__globals__'),
         ('__mro__', '__mro__'),
+        # Frame traversal / code object attributes
+        ('__traceback__', '__traceback__'),
+        ('__code__', '__code__'),
+        ('__closure__', '__closure__'),
+        ('__func__', '__func__'),
+        ('__getattribute__', '__getattribute__'),
+        ('tb_frame', 'tb_frame'),
+        ('tb_next', 'tb_next'),
+        ('f_back', 'f_back'),
+        ('f_builtins', 'f_builtins'),
+        ('f_globals', 'f_globals'),
+        ('f_locals', 'f_locals'),
+        ('f_code', 'f_code'),
+        ('gi_frame', 'gi_frame'),
+        ('gi_code', 'gi_code'),
+        ('cr_frame', 'cr_frame'),
+        ('cr_code', 'cr_code'),
+        ('ag_frame', 'ag_frame'),
+        ('ag_code', 'ag_code'),
+        ('co_consts', 'co_consts'),
+        ('co_code', 'co_code'),
+        ('co_names', 'co_names'),
     ]
 
     results = []
@@ -307,6 +329,32 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
         '__bases__',
         '__globals__',
         '__mro__',
+        # Frame traversal / code object attributes
+        '__traceback__',
+        '__code__',
+        '__closure__',
+        '__func__',
+        '__getattribute__',
+    }
+
+    # Non-dunder attributes related to frame traversal and code object inspection.
+    dangerous_frame_attrs = {
+        'tb_frame',
+        'tb_next',
+        'f_back',
+        'f_builtins',
+        'f_globals',
+        'f_locals',
+        'f_code',
+        'gi_frame',
+        'gi_code',
+        'cr_frame',
+        'cr_code',
+        'ag_frame',
+        'ag_code',
+        'co_consts',
+        'co_code',
+        'co_names',
     }
 
     try:
@@ -347,7 +395,9 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
                     )
 
         # Check for dangerous dunder attribute access
-        if isinstance(node, ast.Attribute) and node.attr in dangerous_dunders:
+        if isinstance(node, ast.Attribute) and (
+            node.attr in dangerous_dunders or node.attr in dangerous_frame_attrs
+        ):
             lineno = node.lineno
             code_line = lines[lineno - 1].strip() if lineno <= len(lines) else ''
             results.append(
