@@ -20,6 +20,7 @@ It exposes the abstracted APIs via the MCP protocol.
 
 import argparse
 import os
+import platform
 import signal
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
@@ -46,12 +47,20 @@ ERROR_WRITE_OPERATION_IN_READ_ONLY_MODE = 'Your MSK MCP server does not allow wr
 
 
 async def signal_handler(scope: CancelScope):
-    """Handle SIGINT and SIGTERM signals asynchronously.
+    """Handle SIGINT and SIGTERM signals asynchronously (Unix only).
 
     The anyio.open_signal_receiver returns an async generator that yields
     signal numbers whenever a specified signal is received. The async for
     loop waits for signals and processes them as they arrive.
+    
+    Note: Signal handlers are not supported on Windows, so this function
+    returns immediately on Windows platforms.
     """
+    # Signal handlers are not supported on Windows
+    if platform.system() == 'Windows':
+        logger.info('Signal handlers not supported on Windows - skipping signal handler setup')
+        return
+    
     with open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
         async for _ in signals:  # Shutting down regardless of the signal type
             print('Shutting down MCP server...')
