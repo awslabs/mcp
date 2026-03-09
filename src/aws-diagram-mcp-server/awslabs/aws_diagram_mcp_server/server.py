@@ -287,9 +287,9 @@ async def mcp_list_diagram_icons(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    import logging
+    import warnings
 
-    logging.warning(DEPRECATION_NOTICE)
+    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
     mcp.run()
 
 
