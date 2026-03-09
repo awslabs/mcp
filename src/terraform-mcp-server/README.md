@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please use [HashiCorp's official Terraform MCP Server](https://github.com/hashicorp/terraform-mcp-server) instead, which provides comprehensive Terraform Registry lookups, HCP Terraform workspace management, and enterprise-grade features. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-terraform.md) for a detailed mapping of tools and known gaps (Terragrunt, Checkov, AWSCC guidance).
+
 # AWS Terraform MCP Server
 
 MCP server for Terraform on AWS best practices, infrastructure as code patterns, and security compliance with Checkov.
