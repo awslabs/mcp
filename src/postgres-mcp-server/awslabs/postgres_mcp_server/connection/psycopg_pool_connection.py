@@ -21,6 +21,7 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 
 import boto3
 import json
+import re
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -172,8 +173,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
                     async with conn.cursor() as cursor:
                         # Execute the query
                         if parameters:
-                            params = self._convert_parameters(parameters)
-                            await cursor.execute(sql, params)
+                            converted_sql = self._convert_sql_for_psycopg(sql)
+                            converted_params = self._convert_parameters(parameters)
+                            await cursor.execute(converted_sql, converted_params)
                         else:
                             await cursor.execute(sql)
 
@@ -241,6 +243,18 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 result[name] = None
 
         return result
+
+    def _convert_sql_for_psycopg(self, sql: str) -> str:
+        """Convert Aurora-style :name placeholders to psycopg %(name)s style.
+
+        Uses negative lookbehind to avoid mangling PostgreSQL's :: cast operator.
+
+        Examples:
+            :table_name     →  %(table_name)s
+            column::text    →  column::text  (unchanged)
+            :schema_name    →  %(schema_name)s
+        """
+        return re.sub(r'(?<!:):([a-zA-Z_]\w*)', r'%(\1)s', sql)
 
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False
