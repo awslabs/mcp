@@ -46,7 +46,6 @@ from awslabs.terraform_mcp_server.static import (
     MCP_INSTRUCTIONS,
     TERRAFORM_WORKFLOW_GUIDE,
 )
-from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
