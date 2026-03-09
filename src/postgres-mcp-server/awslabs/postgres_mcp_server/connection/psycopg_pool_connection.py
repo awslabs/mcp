@@ -173,7 +173,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
                     async with conn.cursor() as cursor:
                         # Execute the query
                         if parameters:
-                            converted_sql = self._convert_sql_for_psycopg(sql)    
+                            converted_sql = self._convert_sql_for_psycopg(sql)
                             converted_params = self._convert_parameters(parameters)
                             await cursor.execute(converted_sql, converted_params)
                         else:
@@ -245,8 +245,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         return result
 
     def _convert_sql_for_psycopg(self, sql: str) -> str:
-        """
-        Convert Aurora-style :name placeholders to psycopg %(name)s style.
+        """Convert Aurora-style :name placeholders to psycopg %(name)s style.
 
         Uses negative lookbehind to avoid mangling PostgreSQL's :: cast operator.
 
@@ -255,7 +254,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             column::text    →  column::text  (unchanged)
             :schema_name    →  %(schema_name)s
         """
-        return re.sub(r"(?<!:):([a-zA-Z_]\w*)", r"%(\1)s", sql)
+        return re.sub(r'(?<!:):([a-zA-Z_]\w*)', r'%(\1)s', sql)
 
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False

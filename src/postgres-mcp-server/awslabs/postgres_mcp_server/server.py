@@ -43,9 +43,10 @@ from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.shared.exceptions import McpError
-from mcp.types import ErrorData, INVALID_PARAMS
+from mcp.types import INVALID_PARAMS, ErrorData
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
+
 
 # Max identifier length in bytes (NAMEDATALEN - 1, default compile-time constant)
 MAX_IDENTIFIER_BYTES = 63
@@ -246,13 +247,10 @@ async def get_table_schema(
     )
 
     if not validate_table_name(table_name):
-        raise McpError(ErrorData(
-                code=INVALID_PARAMS,
-                message=(
-                    f"Invalid table name: '{table_name}'. "
-                )
-            ))
-        
+        raise McpError(
+            ErrorData(code=INVALID_PARAMS, message=(f"Invalid table name: '{table_name}'. "))
+        )
+
     sql = """
         SELECT
             a.attname AS column_name,
@@ -687,8 +685,7 @@ def internal_connect_to_database(
 
 
 def _parse_identifier_parts(table_name: str) -> Optional[list[str]]:
-    """
-    Parse a possibly-qualified PostgreSQL table name into its identifier parts.
+    """Parse a possibly-qualified PostgreSQL table name into its identifier parts.
 
     Uses a character-by-character parser rather than regex because quoted
     identifiers can contain nearly any character, making regex fragile.
@@ -767,8 +764,7 @@ def _parse_identifier_parts(table_name: str) -> Optional[list[str]]:
 
 
 def validate_table_name(table_name: str | None) -> bool:
-    """
-    Validate a PostgreSQL table name reference.
+    """Validate a PostgreSQL table name reference.
 
     Follows PostgreSQL lexical rules from:
     https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
@@ -811,6 +807,7 @@ def validate_table_name(table_name: str | None) -> bool:
             return False
 
     return True
+
 
 def main():
     """Main entry point for the MCP server application.
