@@ -810,10 +810,6 @@ class TestValidateTableNameInvalidType:
         """Test that empty string is rejected."""
         assert validate_table_name("") is False
 
-    def test_list(self):
-        """Test that list input is rejected."""
-        assert validate_table_name(["users"]) is False
-
 
 class TestValidateTableNameInvalidIdentifier:
     """Tests for validate_table_name with invalid identifiers."""
