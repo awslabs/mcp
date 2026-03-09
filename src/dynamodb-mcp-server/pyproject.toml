@@ -8,14 +8,14 @@ dependencies = [
     "boto3>=1.40.5",
     "jinja2>=3.1.0",
     "loguru==0.7.3",
-    "mcp[cli]==1.23.0",
+    "mcp[cli]>=1.23.0",
     "psutil==7.1.1",
     "pydantic==2.11.7",
-    "typing-extensions==4.14.1",
+    "typing-extensions>=4.14.1",
     "strands-agents>=1.5.0",
     "dspy-ai>=2.6.27",
     "awslabs.mysql-mcp-server==1.0.9",
-    "awslabs-aws-api-mcp-server==1.0.2",
+    "awslabs-aws-api-mcp-server>=1.3.19",
     "jinja2>=3.1.6",
 ]
 license = {text = "Apache-2.0"}
