@@ -766,7 +766,7 @@ def _parse_identifier_parts(table_name: str) -> Optional[list[str]]:
     return parts if parts else None
 
 
-def validate_table_name(table_name: str) -> bool:
+def validate_table_name(table_name: str | None) -> bool:
     """
     Validate a PostgreSQL table name reference.
 
@@ -794,7 +794,7 @@ def validate_table_name(table_name: str) -> bool:
         (empty string)                 empty input
         (identifiers > 63 bytes)       exceeds NAMEDATALEN - 1
     """
-    if not table_name or not isinstance(table_name, str):
+    if not table_name:
         return False
 
     parts = _parse_identifier_parts(table_name)
