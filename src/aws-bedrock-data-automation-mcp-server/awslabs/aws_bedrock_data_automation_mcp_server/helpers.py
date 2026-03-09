@@ -176,7 +176,7 @@ async def upload_to_s3(asset_path: str) -> str:
     if not asset_path_obj.exists():
         raise ValueError(f'Asset at path {asset_path} does not exist')
 
-    with open(asset_path, 'rb') as f:
+    with open(asset_path_obj, 'rb') as f:
         asset_content = f.read()
 
     extension = asset_path_obj.suffix

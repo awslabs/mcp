@@ -264,6 +264,53 @@ async def test_upload_to_s3_file_not_exists():
                 await upload_to_s3('/path/to/asset.pdf')
 
 
+@pytest.mark.asyncio
+async def test_upload_to_s3_uses_sanitized_path_not_raw_input():
+    """Test that upload_to_s3 opens the sanitized path, not the raw input (path traversal fix).
+
+    Ensures that open() is called with the Path returned by sanitize_path(), so that
+    a malicious input like '../../etc/passwd' cannot be used to read files outside
+    the base directory.
+    """
+    safe_path = Path('/allowed/base/safe.txt')
+    malicious_input = '../../etc/passwd'
+
+    with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket', 'BASE_DIR': '/allowed/base'}):
+        with patch(
+            'awslabs.aws_bedrock_data_automation_mcp_server.helpers.sanitize_path',
+            return_value=safe_path,
+        ):
+            with patch(
+                'awslabs.aws_bedrock_data_automation_mcp_server.helpers.Path.exists',
+                return_value=True,
+            ):
+                with patch(
+                    'builtins.open', mock_open(read_data=b'safe content')
+                ) as mock_file_open:
+                    with patch(
+                        'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_s3_client',
+                    ) as mock_get_client:
+                        mock_client = MagicMock()
+                        mock_get_client.return_value = mock_client
+
+                        await upload_to_s3(malicious_input)
+
+                        # Critical: open must be called with the sanitized Path, not the raw input
+                        mock_file_open.assert_called_once()
+                        call_args = mock_file_open.call_args
+                        opened_path = call_args[0][0]
+                        assert opened_path == safe_path, (
+                            'open() must be called with sanitized Path object, not raw user input. '
+                            'Path traversal would occur if open() received the original string.'
+                        )
+                        assert opened_path != malicious_input
+                        mock_client.put_object.assert_called_once_with(
+                            Bucket='test-bucket',
+                            Key=ANY,
+                            Body=b'safe content',
+                        )
+
+
 def test_get_bucket_and_key_from_s3_uri():
     """Test the get_bucket_and_key_from_s3_uri function."""
     bucket, key = get_bucket_and_key_from_s3_uri('s3://test-bucket/path/to/file.txt')
