@@ -15,6 +15,7 @@
 
 import json
 import pytest
+from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store.database import NeptuneDatabase
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
@@ -51,7 +52,7 @@ class TestNeptuneDatabase:
             # Assert
             mock_session.assert_called_once()
             mock_session_instance.client.assert_called_once_with(
-                'neptunedata', endpoint_url='https://test-endpoint:8182'
+                'neptunedata', config=USER_AGENT_CONFIG, endpoint_url='https://test-endpoint:8182'
             )
             assert db.client == mock_client
 
@@ -85,7 +86,7 @@ class TestNeptuneDatabase:
             # Assert
             mock_session.assert_called_once_with(profile_name='test-profile')
             mock_session_instance.client.assert_called_once_with(
-                'neptunedata', endpoint_url='https://test-endpoint:8182'
+                'neptunedata', config=USER_AGENT_CONFIG, endpoint_url='https://test-endpoint:8182'
             )
 
     @patch('boto3.Session')
@@ -111,7 +112,7 @@ class TestNeptuneDatabase:
 
             # Assert
             mock_session_instance.client.assert_called_once_with(
-                'neptunedata', endpoint_url='http://test-endpoint:8182'
+                'neptunedata', config=USER_AGENT_CONFIG, endpoint_url='http://test-endpoint:8182'
             )
 
     @patch('boto3.Session')

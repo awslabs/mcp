@@ -51,7 +51,7 @@ class TestAWSClientManager:
         assert client == mock_client
         mock_session.assert_called_once_with(profile_name='default', region_name=region)
         mock_config.assert_called_once_with(
-            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            user_agent_extra='md/awslabs#mcp#aws-msk-mcp-server#1.0.0'
         )
         mock_session.return_value.client.assert_called_once_with(
             service_name, config=mock_config_instance
@@ -82,7 +82,7 @@ class TestAWSClientManager:
         assert client1 == client2
         mock_session.assert_called_once_with(profile_name='default', region_name=region)
         mock_config.assert_called_once_with(
-            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            user_agent_extra='md/awslabs#mcp#aws-msk-mcp-server#1.0.0'
         )
         mock_session.return_value.client.assert_called_once_with(
             service_name, config=mock_config_instance
@@ -113,7 +113,7 @@ class TestAWSClientManager:
         assert cloudwatch_client == mock_cloudwatch_client
         assert mock_session.call_count == 2
         assert mock_session.return_value.client.call_count == 2
-        mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
+        mock_config.assert_called_with(user_agent_extra='md/awslabs#mcp#aws-msk-mcp-server#1.0.0')
         mock_session.return_value.client.assert_any_call(
             kafka_service, config=mock_config_instance
         )
@@ -146,7 +146,7 @@ class TestAWSClientManager:
         assert us_west_client == mock_us_west_client
         assert mock_session.call_count == 2
         assert mock_session.return_value.client.call_count == 2
-        mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
+        mock_config.assert_called_with(user_agent_extra='md/awslabs#mcp#aws-msk-mcp-server#1.0.0')
         mock_session.assert_any_call(profile_name='default', region_name=us_east_region)
         mock_session.assert_any_call(profile_name='default', region_name=us_west_region)
         mock_session.return_value.client.assert_any_call(service_name, config=mock_config_instance)
@@ -173,7 +173,7 @@ class TestAWSClientManager:
         assert client == mock_client
         mock_session.assert_called_once_with(profile_name='test-profile', region_name=region)
         mock_config.assert_called_once_with(
-            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            user_agent_extra='md/awslabs#mcp#aws-msk-mcp-server#1.0.0'
         )
         mock_session.return_value.client.assert_called_once_with(
             service_name, config=mock_config_instance
