@@ -54,7 +54,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 DEPRECATION_NOTICE = (
     '[DEPRECATED] This server is deprecated and will no longer receive '
-    'updates. We recommend migrating to HashiCorp\'s official Terraform '
+    "updates. We recommend migrating to HashiCorp's official Terraform "
     'MCP Server: https://github.com/hashicorp/terraform-mcp-server'
 )
 
