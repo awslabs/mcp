@@ -21,6 +21,7 @@ import pytest
 import tempfile
 from awslabs.aws_diagram_mcp_server.models import DiagramType
 from awslabs.aws_diagram_mcp_server.server import (
+    DEPRECATION_NOTICE,
     mcp,
     mcp_generate_diagram,
     mcp_get_diagram_examples,
@@ -393,11 +394,14 @@ class TestServerIntegration:
     @pytest.mark.asyncio
     async def test_deprecation_notices(self):
         """Test that deprecation notices are present in instructions and tool docstrings."""
+        migration_url = 'https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws'
+
+        # Verify full DEPRECATION_NOTICE is in instructions
         assert mcp.instructions is not None
-        assert '[DEPRECATED]' in mcp.instructions
-        assert mcp_generate_diagram.__doc__ is not None
-        assert '[DEPRECATED]' in mcp_generate_diagram.__doc__
-        assert mcp_get_diagram_examples.__doc__ is not None
-        assert '[DEPRECATED]' in mcp_get_diagram_examples.__doc__
-        assert mcp_list_diagram_icons.__doc__ is not None
-        assert '[DEPRECATED]' in mcp_list_diagram_icons.__doc__
+        assert DEPRECATION_NOTICE in mcp.instructions
+
+        # Verify each tool docstring contains deprecation tag and migration URL
+        for func in (mcp_generate_diagram, mcp_get_diagram_examples, mcp_list_diagram_icons):
+            assert func.__doc__ is not None
+            assert '[DEPRECATED]' in func.__doc__
+            assert migration_url in func.__doc__
