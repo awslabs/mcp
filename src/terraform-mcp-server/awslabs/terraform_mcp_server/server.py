@@ -461,7 +461,9 @@ async def terraform_aws_best_practices() -> str:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    logger.warning(DEPRECATION_NOTICE)
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
     mcp.run()
 
 
