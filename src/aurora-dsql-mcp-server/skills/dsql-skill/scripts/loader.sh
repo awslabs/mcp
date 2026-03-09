@@ -171,6 +171,57 @@ detect_platform() {
   echo "${arch}-${os}"
 }
 
+# Minimum expected binary size in bytes (1 MB) to detect truncated or corrupt downloads
+MIN_BINARY_SIZE=1048576
+
+# Allowed download URL domain patterns
+ALLOWED_DOWNLOAD_DOMAINS="^https://github\.com/aws-samples/aurora-dsql-loader/|^https://objects\.githubusercontent\.com/"
+
+# Validate that a downloaded file is a real executable binary, not an error page or corrupt file
+validate_binary() {
+  local file_path="$1"
+
+  # Check minimum file size
+  local file_size
+  file_size=$(wc -c < "$file_path")
+  if [[ "$file_size" -lt "$MIN_BINARY_SIZE" ]]; then
+    echo "Error: Downloaded file is too small (${file_size} bytes). Expected at least ${MIN_BINARY_SIZE} bytes." >&2
+    echo "This may indicate a corrupt or incomplete download." >&2
+    return 1
+  fi
+
+  # Verify the file is an actual binary (ELF on Linux, Mach-O on macOS), not an HTML error page
+  local file_type
+  file_type=$(file "$file_path")
+  if echo "$file_type" | grep -qiE "HTML|text|ASCII|XML|JSON"; then
+    echo "Error: Downloaded file appears to be text, not a binary executable." >&2
+    echo "File type: $file_type" >&2
+    echo "This may indicate the download URL returned an error page." >&2
+    return 1
+  fi
+
+  local os
+  os="$(uname -s)"
+  case "$os" in
+    Linux)
+      if ! echo "$file_type" | grep -q "ELF"; then
+        echo "Error: Downloaded file is not a valid Linux ELF binary." >&2
+        echo "File type: $file_type" >&2
+        return 1
+      fi
+      ;;
+    Darwin)
+      if ! echo "$file_type" | grep -qE "Mach-O|universal binary"; then
+        echo "Error: Downloaded file is not a valid macOS Mach-O binary." >&2
+        echo "File type: $file_type" >&2
+        return 1
+      fi
+      ;;
+  esac
+
+  return 0
+}
+
 # Install the loader if not present
 install_loader() {
   if [[ -x "$LOADER_BIN" ]]; then
@@ -197,7 +248,14 @@ install_loader() {
   echo "Fetching release information from GitHub..." >&2
 
   # Extract the download URL for the appropriate platform
-  download_url=$(curl -sL "$release_url" | grep -o "https://[^\"]*aurora-dsql-loader-${platform}[^\"]*" | head -1)
+  # Use --proto =https to enforce HTTPS-only and --fail to error on HTTP failures
+  local release_json
+  release_json=$(curl --proto "=https" --fail --show-error -sL "$release_url") || {
+    echo "Error: Failed to fetch release information from GitHub." >&2
+    exit 1
+  }
+
+  download_url=$(echo "$release_json" | grep -o "https://[^\"]*aurora-dsql-loader-${platform}[^\"]*" | head -1)
 
   if [[ -z "$download_url" ]]; then
     echo "Error: Could not find download URL for platform: $platform" >&2
@@ -205,35 +263,69 @@ install_loader() {
     exit 1
   fi
 
+  # Validate the download URL points to an expected GitHub domain
+  if ! echo "$download_url" | grep -qE "$ALLOWED_DOWNLOAD_DOMAINS"; then
+    echo "Error: Download URL points to an unexpected domain." >&2
+    echo "URL: $download_url" >&2
+    echo "Expected: github.com/aws-samples/aurora-dsql-loader or objects.githubusercontent.com" >&2
+    exit 1
+  fi
+
   echo "Downloading from: $download_url" >&2
 
-  # Download and install
+  # Download with HTTPS enforcement and HTTP error detection
   local temp_file
   temp_file=$(mktemp)
   trap "rm -f '$temp_file'" EXIT
 
-  if ! curl -sL "$download_url" -o "$temp_file"; then
+  if ! curl --proto "=https" --fail --show-error -L "$download_url" -o "$temp_file"; then
     echo "Error: Failed to download loader" >&2
     exit 1
   fi
 
   # Check if it's a tar.gz or direct binary
   if file "$temp_file" | grep -q "gzip"; then
-    tar -xzf "$temp_file" -C "$INSTALL_DIR"
-    # Find and rename the binary if needed
-    if [[ ! -f "$LOADER_BIN" ]]; then
-      local extracted_bin
-      extracted_bin=$(find "$INSTALL_DIR" -name "aurora-dsql-loader*" -type f -executable 2>/dev/null | head -1)
-      if [[ -n "$extracted_bin" && "$extracted_bin" != "$LOADER_BIN" ]]; then
-        mv "$extracted_bin" "$LOADER_BIN"
-      fi
+    # Extract to a temporary directory first to avoid contaminating INSTALL_DIR on failure
+    local temp_extract_dir
+    temp_extract_dir=$(mktemp -d)
+    trap "rm -f '$temp_file'; rm -rf '$temp_extract_dir'" EXIT
+
+    tar -xzf "$temp_file" -C "$temp_extract_dir"
+
+    # Find the extracted binary
+    local extracted_bin
+    extracted_bin=$(find "$temp_extract_dir" -name "aurora-dsql-loader*" -type f 2>/dev/null | head -1)
+    if [[ -z "$extracted_bin" ]]; then
+      extracted_bin=$(find "$temp_extract_dir" -name "aurora-dsql-loader" -type f 2>/dev/null | head -1)
     fi
+
+    if [[ -z "$extracted_bin" ]]; then
+      echo "Error: Could not find aurora-dsql-loader binary in the downloaded archive." >&2
+      exit 1
+    fi
+
+    chmod +x "$extracted_bin"
+
+    # Validate the extracted binary before moving it into place
+    if ! validate_binary "$extracted_bin"; then
+      echo "Error: Binary validation failed. Aborting installation." >&2
+      exit 1
+    fi
+
+    mv "$extracted_bin" "$LOADER_BIN"
+    rm -rf "$temp_extract_dir"
   else
+    chmod +x "$temp_file"
+
+    # Validate the binary before moving it into place
+    if ! validate_binary "$temp_file"; then
+      echo "Error: Binary validation failed. Aborting installation." >&2
+      exit 1
+    fi
+
     mv "$temp_file" "$LOADER_BIN"
     trap - EXIT
   fi
-
-  chmod +x "$LOADER_BIN"
 
   echo "Aurora DSQL Loader installed successfully at $LOADER_BIN" >&2
   "$LOADER_BIN" --version 2>/dev/null || true

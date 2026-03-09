@@ -12,27 +12,202 @@ EXPECTED_KNOWLEDGE_TOOLS=(
 )
 
 # Expected exact tool descriptions (upstream + ECS_TOOL_GUIDANCE) - for detecting upstream changes
-EXPECTED_SEARCH_DESCRIPTION="Search AWS documentation using the official AWS Documentation Search API.
+EXPECTED_SEARCH_DESCRIPTION=$(cat <<'SEARCH_DESC_EOF'
+# AWS Documentation Search Tool
+This is your primary source for AWS information—always prefer this over general knowledge for AWS services, features, configurations, troubleshooting, and best practices.
 
-    ## Usage
+## When to Use This Tool
 
-    This tool searches across all AWS documentation and other AWS Websites including AWS Blog, AWS Solutions Library, Getting started with AWS, AWS Architecture Center and AWS Prescriptive Guidance for pages matching your search phrase.
-    Use it to find relevant documentation when you don't have a specific URL.
+**Always search when the query involves:**
+- Any AWS service or feature (Lambda, S3, EC2, RDS, etc.)
+- AWS architecture, patterns, or best practices
+- AWS CLI, SDK, or API usage
+- AWS CDK or CloudFormation
+- AWS Amplify development
+- AWS errors or troubleshooting
+- AWS pricing, limits, or quotas
+- "How do I..." questions about AWS
+- Recent AWS updates or announcements
 
-    ## Search Tips
+**Only skip this tool when:**
+- Query is about non-AWS technologies
+- Question is purely conceptual (e.g., "What is a database?")
+- General programming questions unrelated to AWS
 
-    - Use specific technical terms rather than general phrases
-    - Include service names to narrow results (e.g., \"S3 bucket versioning\" instead of just \"versioning\")
-    - Use quotes for exact phrase matching (e.g., \"AWS Lambda function URLs\")
-    - Include abbreviations and alternative terms to improve results
+## Quick Topic Selection
 
-    ## Result Interpretation
+| Query Type | Use Topic | Example |
+|------------|-----------|---------|
+| API/SDK/CLI code | `reference_documentation` | "S3 PutObject boto3", "Lambda invoke API" |
+| New features, releases | `current_awareness` | "Lambda new features 2024", "what's new in ECS" |
+| Errors, debugging | `troubleshooting` | "AccessDenied S3", "Lambda timeout error" |
+| Amplify apps | `amplify_docs` | "Amplify Auth React", "Amplify Storage Flutter" |
+| CDK concepts, APIs, CLI | `cdk_docs` | "CDK stack props Python", "cdk deploy command" |
+| CDK code samples, patterns | `cdk_constructs` | "serverless API CDK", "Lambda function example TypeScript" |
+| CloudFormation templates | `cloudformation` | "DynamoDB CloudFormation", "StackSets template" |
+| Architecture, blogs, guides | `general` | "Lambda best practices", "S3 architecture patterns" |
 
-    Each result includes:
-    - rank_order: The relevance ranking (lower is more relevant)
-    - url: The documentation page URL
-    - title: The page title
-    - context: A brief excerpt or summary (if available)
+## Documentation Topics
+
+### reference_documentation
+**For: API methods, SDK code, CLI commands, technical specifications**
+
+Use for:
+- SDK method signatures: "boto3 S3 upload_file parameters"
+- CLI commands: "aws ec2 describe-instances syntax"
+- API references: "Lambda InvokeFunction API"
+- Service configuration: "RDS parameter groups"
+
+Don't confuse with general—use this for specific technical implementation.
+
+### current_awareness
+**For: New features, announcements, "what's new", release dates**
+
+Use for:
+- "New Lambda features"
+- "When was EventBridge Scheduler released"
+- "Latest S3 updates"
+- "Is feature X available yet"
+
+Keywords: new, recent, latest, announced, released, launch, available
+
+### troubleshooting
+**For: Error messages, debugging, problems, "not working"**
+
+Use for:
+- Error codes: "InvalidParameterValue", "AccessDenied"
+- Problems: "Lambda function timing out"
+- Debug scenarios: "S3 bucket policy not working"
+- "How to fix..." queries
+
+Keywords: error, failed, issue, problem, not working, how to fix, how to resolve
+
+### amplify_docs
+**For: Frontend/mobile apps with Amplify framework**
+
+Always include framework: React, Next.js, Angular, Vue, JavaScript, React Native, Flutter, Android, Swift
+
+Examples:
+- "Amplify authentication React"
+- "Amplify GraphQL API Next.js"
+- "Amplify Storage Flutter setup"
+
+### cdk_docs
+**For: CDK concepts, API references, CLI commands, getting started**
+
+Use for CDK questions like:
+- "How to get started with CDK"
+- "CDK stack construct TypeScript"
+- "cdk deploy command options"
+- "CDK best practices Python"
+- "What are CDK constructs"
+
+Include language: Python, TypeScript, Java, C#, Go
+
+**Common mistake**: Using general knowledge instead of searching for CDK concepts and guides. Always search for CDK questions!
+
+### cdk_constructs
+**For: CDK code examples, patterns, L3 constructs, sample implementations**
+
+Use for:
+- Working code: "Lambda function CDK Python example"
+- Patterns: "API Gateway Lambda CDK pattern"
+- Sample apps: "Serverless application CDK TypeScript"
+- L3 constructs: "ECS service construct"
+
+Include language: Python, TypeScript, Java, C#, Go
+
+### cloudformation
+**For: CloudFormation templates, concepts, SAM patterns**
+
+Use for:
+- "CloudFormation StackSets"
+- "DynamoDB table template"
+- "SAM API Gateway Lambda"
+- CloudFormation template examples
+
+### general
+**For: Architecture, best practices, tutorials, blog posts, design patterns**
+
+Use for:
+- Architecture patterns: "Serverless architecture AWS"
+- Best practices: "S3 security best practices"
+- Design guidance: "Multi-region architecture"
+- Getting started: "Building data lakes on AWS"
+- Tutorials and blog posts
+
+**Common mistake**: Not using this for AWS conceptual and architectural questions. Always search for AWS best practices and patterns!
+
+**Don't use general knowledge for AWS topics—search instead!**
+
+## Search Best Practices
+
+**Be specific with service names:**
+
+Good examples:
+```
+"S3 bucket versioning configuration"
+"Lambda environment variables Python SDK"
+"DynamoDB GSI query patterns"
+```
+
+Bad examples:
+```
+"versioning" (too vague)
+"environment variables" (missing context)
+```
+
+**Include framework/language:**
+```
+"Amplify authentication React"
+"CDK Lambda function TypeScript"
+"boto3 S3 client Python"
+```
+
+**Use exact error messages:**
+```
+"AccessDenied error S3 GetObject"
+"InvalidParameterValue Lambda environment"
+```
+
+**Add temporal context for new features:**
+```
+"Lambda new features 2024"
+"recent S3 announcements"
+```
+
+## Multiple Topic Selection
+
+You can search multiple topics simultaneously for comprehensive results:
+```
+# For a query about Lambda errors and new features:
+topics=["troubleshooting", "current_awareness"]
+
+# For CDK examples and API reference:
+topics=["cdk_constructs", "cdk_docs"]
+
+# For Amplify and general AWS architecture:
+topics=["amplify_docs", "general"]
+```
+
+## Response Format
+
+Results include:
+- `rank_order`: Relevance score (lower = more relevant)
+- `url`: Direct documentation link
+- `title`: Page title
+- `context`: Excerpt or summary
+
+## Parameters
+```
+search_phrase: str         # Required - your search query
+topics: List[str]          # Optional - up to 3 topics. Defaults to ["general"]
+limit: int = 10            # Optional - max results per topic
+```
+
+---
+
+**Remember: When in doubt about AWS, always search. This tool provides the most current, accurate AWS information.**
 
     ## ECS DOCUMENTATION GUIDANCE:
     This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
@@ -40,88 +215,79 @@ EXPECTED_SEARCH_DESCRIPTION="Search AWS documentation using the official AWS Doc
     New ECS features include:
     - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
     - ECS Managed Instances (launched 2025)
-    - ECS Express Mode / Express Gateway Services (launched 2025)"
+    - ECS Express Mode / Express Gateway Services (launched 2025)
+SEARCH_DESC_EOF
+)
 
-EXPECTED_READ_DESCRIPTION="Fetch and convert an AWS documentation page to markdown format.
+EXPECTED_READ_DESCRIPTION=$(cat <<'READ_DESC_EOF'
+Fetch and convert an AWS documentation page to markdown format.
 
-    ## Usage
+## Usage
 
-    This tool retrieves the content of an AWS documentation page and converts it to markdown format.
-    For long documents, you can make multiple calls with different start_index values to retrieve
-    the entire content in chunks.
+This tool retrieves the content of an AWS documentation page and converts it to markdown format.
+For long documents, you can make multiple calls with different start_index values to retrieve
+the entire content in chunks.
 
-    ## URL Requirements
+## URL Requirements
 
-    - Must be from the docs.aws.amazon.com or aws.amazon.com domain
+Allow-listed URL prefixes:
+- docs.aws.amazon.com
+- aws.amazon.com
+- repost.aws/knowledge-center
+- docs.amplify.aws
+- ui.docs.amplify.aws
+- github.com/aws-cloudformation/aws-cloudformation-templates
+- github.com/aws-samples/aws-cdk-examples
+- github.com/aws-samples/generative-ai-cdk-constructs-samples
+- github.com/aws-samples/serverless-patterns
+- github.com/awsdocs/aws-cdk-guide
+- github.com/awslabs/aws-solutions-constructs
+- github.com/cdklabs/cdk-nag
+- constructs.dev/packages/@aws-cdk-containers
+- constructs.dev/packages/@aws-cdk
+- constructs.dev/packages/@cdk-cloudformation
+- constructs.dev/packages/aws-analytics-reference-architecture
+- constructs.dev/packages/aws-cdk-lib
+- constructs.dev/packages/cdk-amazon-chime-resources
+- constructs.dev/packages/cdk-aws-lambda-powertools-layer
+- constructs.dev/packages/cdk-ecr-deployment
+- constructs.dev/packages/cdk-lambda-powertools-python-layer
+- constructs.dev/packages/cdk-serverless-clamscan
+- constructs.dev/packages/cdk8s
+- constructs.dev/packages/cdk8s-plus-33
 
-    ## Example URLs
+Deny-listed URL prefixes:
+- aws.amazon.com/marketplace
 
-    - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
-    - https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html
-    - https://aws.amazon.com/about-aws/whats-new/2023/02/aws-telco-network-builder/
-    - https://aws.amazon.com/builders-library/ensuring-rollback-safety-during-deployments/
-    - https://aws.amazon.com/blogs/developer/make-the-most-of-community-resources-for-aws-sdks-and-tools/
+## Example URLs
 
-    ## Output Format
+- https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
+- https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html
+- https://aws.amazon.com/about-aws/whats-new/2023/02/aws-telco-network-builder/
+- https://aws.amazon.com/builders-library/ensuring-rollback-safety-during-deployments/
+- https://aws.amazon.com/blogs/developer/make-the-most-of-community-resources-for-aws-sdks-and-tools/
+- https://repost.aws/knowledge-center/example-article
+- https://docs.amplify.aws/react/build-a-backend/auth/
+- https://ui.docs.amplify.aws/angular/connected-components/authenticator
+- https://github.com/aws-samples/aws-cdk-examples/blob/main/README.md
+- https://github.com/awslabs/aws-solutions-constructs/blob/main/README.md
+- https://constructs.dev/packages/aws-cdk-lib/v/2.229.1?submodule=aws_lambda&lang=typescript
+- https://github.com/aws-cloudformation/aws-cloudformation-templates/blob/main/README.md
 
-    The output is formatted as markdown text with:
-    - Preserved headings and structure
-    - Code blocks for examples
-    - Lists and tables converted to markdown format
+## Output Format
 
-    ## Handling Long Documents
+The output is formatted as markdown text with:
+- Preserved headings and structure
+- Code blocks for examples
+- Lists and tables converted to markdown format
 
-    If the response indicates the document was truncated, you have several options:
+## Handling Long Documents
 
-    1. **Continue Reading**: Make another call with start_index set to the end of the previous response
-    2. **Stop Early**: For very long documents (>30,000 characters), if you've already found the specific information needed, you can stop reading
+If the response indicates the document was truncated, you have several options:
 
-    ## ECS DOCUMENTATION GUIDANCE:
-    This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
-
-    New ECS features include:
-    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
-    - ECS Managed Instances (launched 2025)
-    - ECS Express Mode / Express Gateway Services (launched 2025)"
-
-EXPECTED_RECOMMEND_DESCRIPTION="Get content recommendations for an AWS documentation page.
-
-    ## Usage
-
-    This tool provides recommendations for related AWS documentation pages based on a given URL.
-    Use it to discover additional relevant content that might not appear in search results.
-    URL must be from the docs.aws.amazon.com domain.
-
-    ## Recommendation Types
-
-    The recommendations include four categories:
-
-    1. **Highly Rated**: Popular pages within the same AWS service
-    2. **New**: Recently added pages within the same AWS service - useful for finding newly released features
-    3. **Similar**: Pages covering similar topics to the current page
-    4. **Journey**: Pages commonly viewed next by other users
-
-    ## When to Use
-
-    - After reading a documentation page to find related content
-    - When exploring a new AWS service to discover important pages
-    - To find alternative explanations of complex concepts
-    - To discover the most popular pages for a service
-    - To find newly released information by using a service's welcome page URL and checking the **New** recommendations
-
-    ## Finding New Features
-
-    To find newly released information about a service:
-    1. Find any page belong to that service, typically you can try the welcome page
-    2. Call this tool with that URL
-    3. Look specifically at the **New** recommendation type in the results
-
-    ## Result Interpretation
-
-    Each recommendation includes:
-    - url: The documentation page URL
-    - title: The page title
-    - context: A brief description (if available)
+1. **Continue Reading**: Make another call with start_index set to the end of the previous response
+2. **Jump to Section**: If a Table of Contents is provided, you can jump directly to any section using the character positions shown (e.g., "char 1500-2800"). Note: Table of Contents length is not counted toward max_length.
+3. **Stop Early**: For very long documents (>30,000 characters), if you've already found the specific information needed, you can stop reading
 
     ## ECS DOCUMENTATION GUIDANCE:
     This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
@@ -129,7 +295,59 @@ EXPECTED_RECOMMEND_DESCRIPTION="Get content recommendations for an AWS documenta
     New ECS features include:
     - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
     - ECS Managed Instances (launched 2025)
-    - ECS Express Mode / Express Gateway Services (launched 2025)"
+    - ECS Express Mode / Express Gateway Services (launched 2025)
+READ_DESC_EOF
+)
+
+EXPECTED_RECOMMEND_DESCRIPTION=$(cat <<'RECOMMEND_DESC_EOF'
+Get content recommendations for an AWS documentation page.
+
+## Usage
+
+This tool provides recommendations for related AWS documentation pages based on a given URL.
+Use it to discover additional relevant content that might not appear in search results.
+URL must be from the docs.aws.amazon.com domain.
+
+## Recommendation Types
+
+The recommendations include four categories:
+
+1. **Highly Rated**: Popular pages within the same AWS service
+2. **New**: Recently added pages within the same AWS service - useful for finding newly released features
+3. **Similar**: Pages covering similar topics to the current page
+4. **Journey**: Pages commonly viewed next by other users
+
+## When to Use
+
+- After reading a documentation page to find related content
+- When exploring a new AWS service to discover important pages
+- To find alternative explanations of complex concepts
+- To discover the most popular pages for a service
+- To find newly released information by using a service's welcome page URL and checking the **New** recommendations
+
+## Finding New Features
+
+To find newly released information about a service:
+1. Find any page belong to that service, typically you can try the welcome page
+2. Call this tool with that URL
+3. Look specifically at the **New** recommendation type in the results
+
+## Result Interpretation
+
+Each recommendation includes:
+- url: The documentation page URL
+- title: The page title
+- context: A brief description (if available)
+
+    ## ECS DOCUMENTATION GUIDANCE:
+    This tool provides up-to-date ECS documentation and implementation guidance, including new ECS features beyond standard LLM training data.
+
+    New ECS features include:
+    - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)
+    - ECS Express Mode / Express Gateway Services (launched 2025)
+RECOMMEND_DESC_EOF
+)
 
 # Validate that a response is valid JSON
 validate_json() {

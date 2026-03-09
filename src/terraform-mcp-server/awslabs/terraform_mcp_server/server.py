@@ -46,14 +46,21 @@ from awslabs.terraform_mcp_server.static import (
     MCP_INSTRUCTIONS,
     TERRAFORM_WORKFLOW_GUIDE,
 )
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
 
+DEPRECATION_NOTICE = (
+    '[DEPRECATED] This server is deprecated and will no longer receive '
+    "updates. We recommend migrating to HashiCorp's official Terraform "
+    'MCP Server: https://github.com/hashicorp/terraform-mcp-server'
+)
+
 mcp = FastMCP(
     'terraform_mcp_server',
-    instructions=f'{MCP_INSTRUCTIONS}',
+    instructions=f'{DEPRECATION_NOTICE}\n\n{MCP_INSTRUCTIONS}',
     dependencies=[
         'pydantic',
         'loguru',
@@ -75,7 +82,10 @@ async def execute_terraform_command(
     aws_region: Optional[str] = Field(None, description='AWS region to use'),
     strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output'),
 ) -> TerraformExecutionResult:
-    """Execute Terraform workflow commands against an AWS account.
+    """[DEPRECATED] Execute Terraform workflow commands against an AWS account.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool runs Terraform commands (init, plan, validate, apply, destroy) in the
     specified working directory, with optional variables and region settings.
@@ -120,7 +130,10 @@ async def execute_terragrunt_command(
         None, description='Path to a custom terragrunt config file (not valid with run-all)'
     ),
 ) -> TerragruntExecutionResult:
-    """Execute Terragrunt workflow commands against an AWS account.
+    """[DEPRECATED] Execute Terragrunt workflow commands against an AWS account.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool runs Terragrunt commands (init, plan, validate, apply, destroy, run-all) in the
     specified working directory, with optional variables and region settings. Terragrunt extends
@@ -166,7 +179,10 @@ async def search_aws_provider_docs(
         description="Type of documentation to search - 'resource' (default), 'data_source', or 'both'",
     ),
 ) -> List[TerraformAWSProviderDocsResult]:
-    """Search AWS provider documentation for resources and attributes.
+    """[DEPRECATED] Search AWS provider documentation for resources and attributes.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool searches the Terraform AWS provider documentation for information about
     a specific asset in the AWS Provider Documentation, assets can be either resources or data sources. It retrieves comprehensive details including descriptions, example code snippets, argument references, and attribute references.
@@ -211,7 +227,10 @@ async def search_awscc_provider_docs(
         description="Type of documentation to search - 'resource' (default), 'data_source', or 'both'",
     ),
 ) -> List[TerraformAWSCCProviderDocsResult]:
-    """Search AWSCC provider documentation for resources and attributes.
+    """[DEPRECATED] Search AWSCC provider documentation for resources and attributes.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     The AWSCC provider is based on the AWS Cloud Control API
     and provides a more consistent interface to AWS resources compared to the standard AWS provider.
@@ -257,7 +276,10 @@ async def search_specific_aws_ia_modules(
         ..., description='Optional search term to filter modules (empty returns all four modules)'
     ),
 ) -> List[ModuleSearchResult]:
-    """Search for specific AWS-IA Terraform modules.
+    """[DEPRECATED] Search for specific AWS-IA Terraform modules.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool checks for information about four specific AWS-IA modules:
     - aws-ia/bedrock/aws - Amazon Bedrock module for generative AI applications
@@ -310,7 +332,10 @@ async def run_checkov_scan(
     skip_check_ids: Optional[List[str]] = Field(None, description='Check IDs to skip'),
     output_format: str = Field('json', description='Output format (json, cli, etc.)'),
 ) -> CheckovScanResult:
-    """Run Checkov security scan on Terraform code.
+    """[DEPRECATED] Run Checkov security scan on Terraform code.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool runs Checkov to scan Terraform code for security and compliance issues,
     identifying potential vulnerabilities and misconfigurations according to best practices.
@@ -348,7 +373,10 @@ async def search_user_provided_module(
         None, description='Variables to use when analyzing the module'
     ),
 ) -> SearchUserProvidedModuleResult:
-    """Search for a user-provided Terraform registry module and understand its inputs, outputs, and usage.
+    """[DEPRECATED] Search for a user-provided Terraform registry module.
+
+    DEPRECATED: This server is deprecated. Use HashiCorp's official Terraform
+    MCP Server instead: https://github.com/hashicorp/terraform-mcp-server
 
     This tool takes a Terraform registry module URL and analyzes its input variables,
     output variables, README, and other details to provide comprehensive information
@@ -394,7 +422,7 @@ async def search_user_provided_module(
     mime_type='text/markdown',
 )
 async def terraform_development_workflow() -> str:
-    """Provides guidance for developing Terraform code and integrates with Terraform workflow commands."""
+    """[DEPRECATED] Provides guidance for developing Terraform code and integrates with Terraform workflow commands."""
     return f'{TERRAFORM_WORKFLOW_GUIDE}'
 
 
@@ -405,7 +433,7 @@ async def terraform_development_workflow() -> str:
     mime_type='text/markdown',
 )
 async def terraform_aws_provider_resources_listing() -> str:
-    """Provides an up-to-date categorized listing of all AWS provider resources and data sources."""
+    """[DEPRECATED] Provides an up-to-date categorized listing of all AWS provider resources and data sources."""
     return await terraform_aws_provider_assets_listing_impl()
 
 
@@ -416,7 +444,7 @@ async def terraform_aws_provider_resources_listing() -> str:
     mime_type='text/markdown',
 )
 async def terraform_awscc_provider_resources_listing() -> str:
-    """Provides an up-to-date categorized listing of all AWSCC provider resources and data sources."""
+    """[DEPRECATED] Provides an up-to-date categorized listing of all AWSCC provider resources and data sources."""
     return await terraform_awscc_provider_resources_listing_impl()
 
 
@@ -427,12 +455,15 @@ async def terraform_awscc_provider_resources_listing() -> str:
     mime_type='text/markdown',
 )
 async def terraform_aws_best_practices() -> str:
-    """Provides AWS Terraform Provider Best Practices guidance."""
+    """[DEPRECATED] Provides AWS Terraform Provider Best Practices guidance."""
     return f'{AWS_TERRAFORM_BEST_PRACTICES}'
 
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
     mcp.run()
 
 

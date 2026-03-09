@@ -22,6 +22,7 @@ This document describes the file organization and structure of the generated Dyn
     ├── entities.py
     ├── repositories.py
     ├── base_repository.py
+    ├── transaction_service.py   (if cross_table_access_patterns exist)
     ├── access_pattern_mapping.json
     ├── ruff.toml
     └── usage_examples.py        (if exists)
@@ -44,13 +45,14 @@ This document describes the file organization and structure of the generated Dyn
 
 ### Generated Code (generated_dal/)
 
-`entities.py`, `repositories.py`, and `base_repository.py` are the three files that enable data access to the designed DynamoDB data model. These files are used in `usage_examples.py` to demonstrate how the generated code can be used.
+`entities.py`, `repositories.py`, and `base_repository.py` are the three files that enable data access to the designed DynamoDB data model. When cross-table transaction patterns are defined, `transaction_service.py` is also generated. These files are used in `usage_examples.py` to demonstrate how the generated code can be used.
 
 | File | Purpose |
 |------|---------|
 | `entities.py` | Pydantic entity classes with PK/SK builders and GSI key builders. |
 | `repositories.py` | Repository classes with CRUD operations and access pattern method stubs. |
 | `base_repository.py` | Base class with DynamoDB operations: create, get, update (optimistic locking), delete, query. |
+| `transaction_service.py` | (Conditional) Service class with cross-table transaction method stubs. Only generated when `cross_table_access_patterns` are defined in schema. |
 | `access_pattern_mapping.json` | JSON mapping of access pattern IDs to method implementations. |
 | `ruff.toml` | Ruff linter configuration. |
 | `usage_examples.py` | (Optional) Runnable examples demonstrating CRUD and access patterns. |

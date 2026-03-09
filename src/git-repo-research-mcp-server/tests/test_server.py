@@ -35,7 +35,7 @@ from awslabs.git_repo_research_mcp_server.server import (
 )
 from mcp.server.fastmcp import Image
 from typing import Dict, List, Union
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestContext:
@@ -536,6 +536,56 @@ async def test_access_file_or_directory(
 
         # Clean up
         await mcp_delete_repository(test_context, repository_name_or_path=repo_name)
+
+
+@pytest.mark.asyncio
+async def test_access_file_rejects_non_repository_format():
+    """Test that access_file rejects paths that are not in repository format (path confinement).
+
+    Prevents arbitrary file read e.g. /etc/passwd or ~/.aws/credentials.
+    """
+    result = await access_file_or_directory('/etc/passwd')
+    assert isinstance(result, str)
+    data = json.loads(result)
+    assert data['status'] == 'error'
+    assert 'repository format' in data['message'].lower()
+
+    result = await access_file_or_directory('/home/ubuntu/.aws/credentials')
+    assert isinstance(result, str)
+    data = json.loads(result)
+    assert data['status'] == 'error'
+    assert 'repository format' in data['message'].lower()
+
+    result = await access_file_or_directory('relative/path/without/repository')
+    assert isinstance(result, str)
+    data = json.loads(result)
+    assert data['status'] == 'error'
+    assert 'repository format' in data['message'].lower()
+
+
+@pytest.mark.asyncio
+async def test_access_file_rejects_path_traversal():
+    """Test that access_file rejects repository-format paths that traverse outside repo (../).
+
+    Prevents e.g. repo/repository/../../../../etc/passwd from reading files outside the repo.
+    """
+    mock_searcher = MagicMock()
+    # _get_index_path(repo_name) returns the index path for that repo (e.g. /base/some_repo)
+    # Use 4 levels so join(repo_path, '../../../../etc/passwd') resolves to /etc/passwd
+    mock_searcher.repository_indexer._get_index_path.return_value = '/allowed/repo_index/some_repo'
+
+    with patch(
+        'awslabs.git_repo_research_mcp_server.server.get_repository_searcher',
+        return_value=mock_searcher,
+    ):
+        # Path that resolves to /etc/passwd (outside repo_path); must be rejected
+        result = await access_file_or_directory('some_repo/repository/../../../../etc/passwd')
+    assert isinstance(result, str)
+    data = json.loads(result)
+    assert data['status'] == 'error'
+    msg = data['message'].lower()
+    # Path traversal must be explicitly blocked when resolved path is outside base
+    assert 'path traversal' in msg or 'must be under' in msg
 
 
 @pytest.mark.asyncio

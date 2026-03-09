@@ -52,9 +52,17 @@ sampled in [.mcp.json](mcp/.mcp.json)
 **When:** User explicitly requests to "Get started with DSQL" or similar phrase
 **Contains:** Interactive step-by-step guide for new users
 
+### [access-control.md](references/access-control.md)
+**When:** MUST load when creating database roles, granting permissions, setting up schemas for applications, or handling sensitive data
+**Contains:** Scoped role setup, IAM-to-database role mapping, schema separation for sensitive data, role design patterns
+
 ### [ddl-migrations.md](references/ddl-migrations.md)
 **When:** MUST load when trying to perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT functionality
 **Contains:** Table recreation patterns, batched migration for large tables, data validation
+
+### [mysql-to-dsql-migrations.md](references/mysql-to-dsql-migrations.md)
+**When:** MUST load when migrating from MySQL to DSQL or translating MySQL DDL to DSQL-compatible equivalents
+**Contains:** MySQL data type mappings, DDL operation translations, AUTO_INCREMENT/ENUM/SET/FOREIGN KEY migration patterns, ALTER TABLE ALTER COLUMN and DROP COLUMN via table recreation
 
 ---
 
@@ -191,7 +199,28 @@ Always use CREATE INDEX ASYNC in separate transaction
 - Reject cross-tenant access at application layer
 - Use allowlists or regex validation for tenant IDs
 
-### Workflow 5: Table Recreation DDL Migration
+### Workflow 5: Set Up Scoped Database Roles
+
+**Goal:** Create application-specific database roles instead of using the `admin` role
+
+**MUST load [access-control.md](references/access-control.md) for detailed guidance.**
+
+**Steps:**
+1. Connect as `admin` (the only time admin should be used)
+2. Create database roles with `CREATE ROLE <name> WITH LOGIN`
+3. Create an IAM role with `dsql:DbConnect` for each database role
+4. Map database roles to IAM roles with `AWS IAM GRANT`
+5. Create dedicated schemas for sensitive data (e.g., `users_schema`)
+6. Grant schema and table permissions per role
+7. Applications connect using `generate-db-connect-auth-token` (not the admin variant)
+
+**Critical rules:**
+- ALWAYS use scoped database roles for application connections
+- MUST place user PII and sensitive data in dedicated schemas, not `public`
+- ALWAYS use `dsql:DbConnect` for application IAM roles
+- SHOULD create separate roles per service component (read-only, read-write, user service, etc.)
+
+### Workflow 6: Table Recreation DDL Migration
 
 **Goal:** Perform DROP COLUMN, RENAME COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT using the table recreation pattern.
 
@@ -213,6 +242,32 @@ Always use CREATE INDEX ASYNC in separate transaction
 - MUST NOT drop original table until new table is verified
 - MUST recreate all indexes after table swap using ASYNC
 
+### Workflow 6: MySQL to DSQL Schema Migration
+
+**Goal:** Migrate MySQL table schemas and DDL operations to DSQL-compatible equivalents, including data type mapping, ALTER TABLE ALTER COLUMN, and DROP COLUMN operations.
+
+**MUST load [mysql-to-dsql-migrations.md](references/mysql-to-dsql-migrations.md) for detailed guidance.**
+
+**Steps:**
+1. MUST map all MySQL data types to DSQL equivalents (e.g., AUTO_INCREMENT → UUID/IDENTITY/SEQUENCE, ENUM → VARCHAR with CHECK, JSON → TEXT)
+2. MUST remove MySQL-specific features (ENGINE, FOREIGN KEY, ON UPDATE CURRENT_TIMESTAMP, FULLTEXT INDEX)
+3. MUST implement application-layer replacements for removed features (referential integrity, timestamp updates)
+4. For `ALTER TABLE ... ALTER COLUMN col datatype` or `MODIFY COLUMN`: MUST use table recreation pattern
+5. For `ALTER TABLE ... DROP COLUMN col`: MUST use table recreation pattern
+6. MUST convert all index creation to `CREATE INDEX ASYNC` in separate transactions
+7. MUST validate data compatibility before type changes (abort if incompatible)
+
+**Rules:**
+- MUST use table recreation pattern for ALTER COLUMN and DROP COLUMN (not directly supported)
+- MUST replace FOREIGN KEY with application-layer referential integrity
+- MUST replace ENUM with VARCHAR and CHECK constraint
+- MUST replace SET with TEXT (comma-separated)
+- MUST replace JSON columns with TEXT
+- MUST convert AUTO_INCREMENT to UUID, IDENTITY column, or SEQUENCE (SERIAL not supported)
+- MUST replace UNSIGNED integers with CHECK (col >= 0)
+- MUST use batching for tables exceeding 3,000 rows
+- MUST NOT drop original table until new table is verified
+
 ---
 
 ## Best Practices
@@ -225,13 +280,14 @@ Always use CREATE INDEX ASYNC in separate transaction
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
 - **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
 - **ALWAYS Batch under 3,000 rows** - maintain transaction limits
-- **REQUIRED: Use parameterized queries** - Prevent SQL injection with $1, $2 placeholders
+- **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](mcp/mcp-tools.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential itegrity are required; refer to [Application Layer Patterns](references/development-guide.md#application-layer-patterns)
 - **REQUIRED use DELETE for truncation** - DELETE is the only supported operation for truncation
 - **SHOULD test any migrations** - Verify DDL on dev clusters before production
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](references/development-guide.md#horizontal-scaling-best-practice)
 - **SHOULD use connection pooling in production applications** - Refer to [Connection Pooling](references/development-guide.md#connection-pooling-recommended)
 - **SHOULD debug with the troubleshooting guide:** - Always refer to the resources and guidelines in [troubleshooting.md](references/troubleshooting.md)
+- **ALWAYS use scoped roles for applications** - Create database roles with `dsql:DbConnect`; refer to [Access Control](references/access-control.md)
 
 ---
 

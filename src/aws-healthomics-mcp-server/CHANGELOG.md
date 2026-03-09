@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+  - **Sequence Store Management Tools**: Added 15 new MCP tools for managing HealthOmics Sequence Stores
+    - **CreateAHOSequenceStore**: Create sequence stores with optional encryption, description, fallback location, and tags
+    - **ListAHOSequenceStores**: List and filter sequence stores with pagination support
+    - **GetAHOSequenceStore**: Retrieve detailed sequence store configuration and metadata
+    - **UpdateAHOSequenceStore**: Update sequence store name, description, or fallback location with internal ETag management
+    - **ListAHOReadSets**: List and filter read sets by sample ID, subject ID, reference ARN, status, file type, and date range
+    - **GetAHOReadSetMetadata**: Retrieve detailed read set metadata including sequence information and file details
+    - **StartAHOReadSetImportJob**: Import genomic files from S3 into a sequence store
+    - **GetAHOReadSetImportJob**: Get import job status with per-source statuses
+    - **ListAHOReadSetImportJobs**: List import jobs with pagination
+    - **StartAHOReadSetExportJob**: Export read sets to S3
+    - **GetAHOReadSetExportJob**: Get export job status
+    - **ListAHOReadSetExportJobs**: List export jobs with pagination
+    - **ActivateAHOReadSets**: Activate archived read sets
+  - **Reference Store Management Tools**: Added 10 new MCP tools for managing HealthOmics Reference Stores
+    - **ListAHOReferenceStores**: List and filter reference stores with pagination support
+    - **GetAHOReferenceStore**: Retrieve detailed reference store configuration and metadata
+    - **ListAHOReferences**: List and filter references by name and status
+    - **GetAHOReferenceMetadata**: Retrieve detailed reference metadata including file information
+    - **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
+    - **GetAHOReferenceImportJob**: Get import job status with per-source statuses
+    - **ListAHOReferenceImportJobs**: List import jobs with pagination
+
+
 ### Added
+
+- v0.0.27
+  - **Run Cache Management Tools**: Added four new MCP tools for managing HealthOmics Run Caches
+    - **CreateAHORunCache**: Create run caches with S3 URI validation and configurable cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
+    - **GetAHORunCache**: Retrieve detailed run cache configuration and metadata with ISO 8601 datetime serialization
+    - **ListAHORunCaches**: List and filter run caches by name, status, or cache behavior with pagination support
+    - **UpdateAHORunCache**: Update run cache behavior, name, or description
+
+  - **Run Group Management Tools**: Added four new MCP tools for managing HealthOmics Run Groups
+    - **CreateAHORunGroup**: Create run groups with configurable resource limits (CPUs, GPUs, duration, concurrent runs)
+    - **GetAHORunGroup**: Retrieve detailed run group configuration and metadata
+    - **ListAHORunGroups**: List and filter run groups with pagination support
+    - **UpdateAHORunGroup**: Update run group resource limits and configuration
+    - Added optional `run_group_id` parameter to **StartAHORun** for associating runs with a run group
+    - Added optional `run_group_id` parameter to **ListAHORuns** for filtering runs by run group
+
+- v0.0.25
+  - **Agent Identification**: Added support for an `AGENT` environment variable that appends `agent/<value>` to the User-Agent string on all boto3 API calls, enabling traceability and attribution of requests to specific AI agents via CloudTrail and AWS service logs
+    - New `AGENT_ENV` constant in `consts.py`
+    - New `get_agent_value()` function with input sanitization (visible ASCII only)
+    - Agent value appended to `user_agent_extra` on the botocore session as `agent/<lowercased_value>`
+    - All service clients automatically inherit the user-agent suffix from the shared session
 
 - v0.0.22
   - **ListECRRepositories**: List ECR repositories with HealthOmics accessibility status

@@ -381,14 +381,47 @@ class TestGSIValidationIntegration:
         helpful_phrases = [
             '💡 Valid options:',
             '💡 Use one of the available GSI names:',
-            '💡 Add',
-            '💡 Template parameter',
+            '💡 Use one of the available fields:',
+            '💡 Valid range_condition values:',
         ]
 
         found_helpful_phrases = sum(1 for phrase in helpful_phrases if phrase in error_output)
         assert found_helpful_phrases >= 3, (
             f'Should provide helpful error suggestions, found {found_helpful_phrases}'
         )
+
+    def test_invalid_multi_attribute_keys_schema_fails_validation(self, code_generator, tmp_path):
+        """Test that invalid multi-attribute key schemas fail with proper error messages."""
+        fixtures_path = Path(__file__).parent.parent / 'fixtures'
+        invalid_schema = (
+            fixtures_path / 'invalid_schemas' / 'invalid_multi_attribute_keys_schema.json'
+        )
+
+        validation_dir = tmp_path / 'validation_invalid_multi_attr'
+        validation_dir.mkdir()
+
+        result = code_generator(invalid_schema, validation_dir, validate_only=True)
+
+        assert result.returncode != 0, 'Invalid multi-attribute key schema should fail validation'
+
+        error_output = result.stdout + result.stderr
+
+        # Verify multi-attribute key specific errors
+        expected_errors = [
+            'partition_key array cannot be empty',
+            'more than 4 attributes',
+            'sort_key array cannot be empty',
+            'Attribute at index 1 must be a string',
+            'Attribute at index 1 cannot be empty',
+            'pk_template type (string) does not match partition_key type (array)',
+            'sk_template type (array) does not match sort_key type (string)',
+            'sk_template array length (1) does not match sort_key array length (3)',
+        ]
+
+        for expected_error in expected_errors:
+            assert expected_error in error_output, (
+                f"Expected multi-attribute key error '{expected_error}' not found in output"
+            )
 
 
 @pytest.mark.integration
