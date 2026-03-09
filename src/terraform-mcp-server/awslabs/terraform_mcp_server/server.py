@@ -55,14 +55,11 @@ from typing import Any, Dict, List, Literal, Optional
 DEPRECATION_NOTICE = (
     '[DEPRECATED] This server is deprecated and will no longer receive '
     'updates. We recommend migrating to HashiCorp\'s official Terraform '
-    'MCP Server: '
-    'https://github.com/hashicorp/terraform-mcp-server -- '
-    'Migration guide: '
-    'https://github.com/awslabs/mcp/blob/main/docs/migration-terraform.md'
+    'MCP Server: https://github.com/hashicorp/terraform-mcp-server'
 )
 
 mcp = FastMCP(
-    '[DEPRECATED] terraform_mcp_server',
+    'terraform_mcp_server',
     instructions=f'{DEPRECATION_NOTICE}\n\n{MCP_INSTRUCTIONS}',
     dependencies=[
         'pydantic',
