@@ -1,3 +1,9 @@
+> **DEPRECATED:** This MCP server is deprecated and will no longer receive updates. We recommend migrating to the [diagram agent skill](https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws) in the `deploy-on-aws` plugin, which generates equivalent diagrams directly through Claude Code without requiring a running MCP server.
+>
+> **Migration guide:** See [migration-diagram.md](https://github.com/awslabs/mcp/blob/main/docs/migration-diagram.md) for step-by-step migration instructions.
+>
+> **What changes:** The MCP server's sandboxed execution model is replaced by Claude Code's user-approved Bash execution. You'll need GraphViz and the Python `diagrams` package installed locally.
+
 # AWS Diagram MCP Server
 
 Model Context Protocol (MCP) server for AWS Diagrams
