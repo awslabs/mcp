@@ -67,7 +67,9 @@ class NeptuneServer:
             elif endpoint.startswith('neptune-graph://'):
                 # This is a Neptune Analytics Graph
                 graphId = endpoint.replace('neptune-graph://', '')
-                self.graph = NeptuneAnalytics(graphId)
+                self.graph = NeptuneAnalytics(
+                    graphId, endpoint_url=kwargs.get('endpoint_url')
+                )
                 logger.debug('Creating Neptune Graph session for %s', endpoint)
             else:
                 raise ValueError(

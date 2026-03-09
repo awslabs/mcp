@@ -33,6 +33,9 @@ class NeptuneAnalytics(NeptuneGraph):
 
     Args:
         graph_identifier: the graph identifier for a Neptune Analytics graph
+        credentials_profile_name: optional AWS profile name
+        endpoint_url: optional custom endpoint URL for connecting to local Neptune
+            Analytics containers or non-standard endpoints (e.g., http://localhost:8182)
 
     Example:
         .. code-block:: python
@@ -45,7 +48,10 @@ class NeptuneAnalytics(NeptuneGraph):
     schema: Optional[GraphSchema] = None
 
     def __init__(
-        self, graph_identifier: str, credentials_profile_name: Optional[str] = None
+        self,
+        graph_identifier: str,
+        credentials_profile_name: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
     ) -> None:
         """Create a new Neptune Analytics graph wrapper instance."""
         self.graph_identifier = graph_identifier
@@ -56,7 +62,13 @@ class NeptuneAnalytics(NeptuneGraph):
             else:
                 session = boto3.Session(profile_name=credentials_profile_name)
 
-            self.client = session.client('neptune-graph', config=USER_AGENT_CONFIG)
+            client_params = {}
+            if endpoint_url:
+                client_params['endpoint_url'] = endpoint_url
+
+            self.client = session.client(
+                'neptune-graph', config=USER_AGENT_CONFIG, **client_params
+            )
 
         except Exception as e:
             logger.exception(

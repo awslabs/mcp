@@ -65,7 +65,9 @@ def get_graph():
             't',
         )
 
-        _graph = NeptuneServer(endpoint, use_https=use_https)
+        endpoint_url = os.environ.get('NEPTUNE_ANALYTICS_ENDPOINT_URL', None)
+
+        _graph = NeptuneServer(endpoint, use_https=use_https, endpoint_url=endpoint_url)
 
     return _graph
 
