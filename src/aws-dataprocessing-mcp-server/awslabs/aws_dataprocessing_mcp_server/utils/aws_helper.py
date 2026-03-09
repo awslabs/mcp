@@ -142,7 +142,7 @@ class AwsHelper:
 
         # Create config with user agent suffix
         config = Config(
-            user_agent_extra=f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
+            user_agent_extra=f'md/awslabs#mcp#aws-dataprocessing-mcp-server#{__version__}'
         )
 
         # Create session with profile if specified

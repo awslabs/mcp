@@ -14,12 +14,13 @@ BEGIN implementing methods immediately.
 - NEVER create Python scripts with regex to batch-implement - corrupts files
 - Use direct file editing for sequential implementation
 
-STEP 1: Implement repository methods (START IMMEDIATELY)
+STEP 1: Implement repository and transaction service methods (START IMMEDIATELY)
 - Read `{output_dir}/repositories.py` to find TODO/pass statements
+- If `{output_dir}/transaction_service.py` exists, also implement those methods
 - Implement 3-5 methods at a time using file editing tools
-- Validate after each chunk: `uv run -m py_compile {output_dir}/repositories.py`
+- Validate after each chunk: `uv run -m py_compile {output_dir}/repositories.py` (and transaction_service.py if exists)
 - DO NOT create implement_todos.py or similar scripts - they break the file
-- Continue until ALL methods implemented (no TODO/pass remaining)
+- Continue until ALL methods implemented (no TODO/pass remaining in any file)
 
 STEP 2: Execute tests
 - Find DynamoDB Local port, set environment variables

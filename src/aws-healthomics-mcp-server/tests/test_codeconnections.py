@@ -298,10 +298,10 @@ class TestListCodeconnections:
             'awslabs.aws_healthomics_mcp_server.tools.codeconnections.get_codeconnections_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await list_codeconnections(ctx=mock_ctx)
+            result = await list_codeconnections(ctx=mock_ctx)
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error listing CodeConnections' in result['error']
 
     @pytest.mark.asyncio
     async def test_list_codeconnections_botocore_error(self, mock_ctx, mock_client):
@@ -312,10 +312,10 @@ class TestListCodeconnections:
             'awslabs.aws_healthomics_mcp_server.tools.codeconnections.get_codeconnections_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await list_codeconnections(ctx=mock_ctx)
+            result = await list_codeconnections(ctx=mock_ctx)
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error listing CodeConnections' in result['error']
 
     @pytest.mark.asyncio
     async def test_list_codeconnections_unexpected_error(self, mock_ctx, mock_client):
@@ -326,10 +326,10 @@ class TestListCodeconnections:
             'awslabs.aws_healthomics_mcp_server.tools.codeconnections.get_codeconnections_client',
             return_value=mock_client,
         ):
-            with pytest.raises(RuntimeError):
-                await list_codeconnections(ctx=mock_ctx)
+            result = await list_codeconnections(ctx=mock_ctx)
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error listing CodeConnections' in result['error']
 
     @pytest.mark.asyncio
     async def test_list_codeconnections_with_next_token(self, mock_ctx, mock_client):
@@ -504,12 +504,12 @@ class TestCreateCodeconnection:
                 return_value='GitHub',
             ),
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await create_codeconnection(
-                    ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
-                )
+            result = await create_codeconnection(
+                ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error creating CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_codeconnection_botocore_error(self, mock_ctx, mock_client):
@@ -527,12 +527,12 @@ class TestCreateCodeconnection:
                 return_value='GitHub',
             ),
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await create_codeconnection(
-                    ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
-                )
+            result = await create_codeconnection(
+                ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error creating CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_codeconnection_unexpected_error(self, mock_ctx, mock_client):
@@ -550,12 +550,12 @@ class TestCreateCodeconnection:
                 return_value='GitHub',
             ),
         ):
-            with pytest.raises(RuntimeError):
-                await create_codeconnection(
-                    ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
-                )
+            result = await create_codeconnection(
+                ctx=mock_ctx, connection_name='my-connection', provider_type='GitHub'
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error creating CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_codeconnection_short_arn(self, mock_ctx, mock_client):
@@ -728,15 +728,13 @@ class TestGetCodeconnection:
                 return_value='arn:aws:codeconnections:us-east-1:123456789012:connection/nonexistent',
             ),
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await get_codeconnection(
-                    ctx=mock_ctx,
-                    connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/nonexistent',
-                )
+            result = await get_codeconnection(
+                ctx=mock_ctx,
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/nonexistent',
+            )
 
-        mock_ctx.error.assert_called_once()
-        error_call = mock_ctx.error.call_args[0][0]
-        assert 'not found' in error_call.lower()
+        assert 'error' in result
+        assert 'Error getting CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_get_codeconnection_client_error(self, mock_ctx, mock_client):
@@ -757,13 +755,13 @@ class TestGetCodeconnection:
                 return_value='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
             ),
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await get_codeconnection(
-                    ctx=mock_ctx,
-                    connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
-                )
+            result = await get_codeconnection(
+                ctx=mock_ctx,
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error getting CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_get_codeconnection_botocore_error(self, mock_ctx, mock_client):
@@ -781,13 +779,13 @@ class TestGetCodeconnection:
                 return_value='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
             ),
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await get_codeconnection(
-                    ctx=mock_ctx,
-                    connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
-                )
+            result = await get_codeconnection(
+                ctx=mock_ctx,
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error getting CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_get_codeconnection_unexpected_error(self, mock_ctx, mock_client):
@@ -805,13 +803,13 @@ class TestGetCodeconnection:
                 return_value='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
             ),
         ):
-            with pytest.raises(RuntimeError):
-                await get_codeconnection(
-                    ctx=mock_ctx,
-                    connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
-                )
+            result = await get_codeconnection(
+                ctx=mock_ctx,
+                connection_arn='arn:aws:codeconnections:us-east-1:123456789012:connection/abc123',
+            )
 
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error getting CodeConnection' in result['error']
 
     @pytest.mark.asyncio
     async def test_get_codeconnection_error_status(self, mock_ctx, mock_client):

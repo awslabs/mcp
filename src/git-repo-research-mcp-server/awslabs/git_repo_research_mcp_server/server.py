@@ -42,6 +42,7 @@ from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP, Image
 from mcp.types import ImageContent
+from pathlib import Path
 from pydantic import Field
 from typing import Dict, List, Optional, Union
 
@@ -49,6 +50,32 @@ from typing import Dict, List, Optional, Union
 # Configure logging
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
+
+
+def _resolve_and_validate_under_base(file_path: str, base_dir: str) -> Path:
+    """Resolve path and ensure it is under base_dir to prevent path traversal.
+
+    Args:
+        file_path: The requested file path (may contain ..).
+        base_dir: The allowed base directory (e.g. repository path).
+
+    Returns:
+        Resolved absolute Path that is under base_dir.
+
+    Raises:
+        ValueError: If the path is outside base_dir or invalid.
+    """
+    base = Path(base_dir).resolve()
+    try:
+        resolved = Path(file_path).resolve(strict=False)
+        if not resolved.exists():
+            raise ValueError(f'File or directory not found: {file_path}')
+        if not resolved.is_relative_to(base):
+            raise ValueError(f'Path traversal blocked: path must be under {base}')
+        return resolved
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f'Invalid path: {file_path}') from e
+
 
 # Create the MCP server
 mcp = FastMCP(
@@ -493,70 +520,80 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
             # Re-split the filepath with the normalized repository name
             parts = filepath.split('/')
 
-        if len(parts) >= 2 and parts[1] == 'repository':
-            repo_name = parts[0]
-            # Get the repository directory path
-            try:
-                # Get AWS credentials from environment variables
-                aws_region = os.environ.get('AWS_REGION')
-                aws_profile = os.environ.get('AWS_PROFILE')
-
-                # Get the repository searcher
-                searcher = get_repository_searcher(
-                    aws_region=aws_region,
-                    aws_profile=aws_profile,
-                )
-
-                # Get the repository directory path
-                index_path = searcher.repository_indexer._get_index_path(repo_name)
-                repo_path = os.path.join(index_path, 'repository')
-
-                # Construct the full path to the file
-                if len(parts) > 2:
-                    file_path = os.path.join(repo_path, *parts[2:])
-                else:
-                    file_path = repo_path
-
-                logger.info(f'Accessing repository file: {file_path}')
-                filepath = file_path
-            except Exception as e:
-                logger.error(f'Error resolving repository path: {e}')
-                return json.dumps(
-                    {
-                        'status': 'error',
-                        'message': f'Error resolving repository path: {str(e)}',
-                    }
-                )
-
-        # Check if the path exists
-        if not os.path.exists(filepath):
+        # Only allow repository format to prevent arbitrary file read (path confinement)
+        if len(parts) < 2 or parts[1] != 'repository':
             return json.dumps(
                 {
                     'status': 'error',
-                    'message': f'File or directory not found: {filepath}',
+                    'message': (
+                        'File path must use repository format: '
+                        'repository_name/repository/path/to/file'
+                    ),
                 }
             )
 
+        repo_name = parts[0]
+        try:
+            # Get AWS credentials from environment variables
+            aws_region = os.environ.get('AWS_REGION')
+            aws_profile = os.environ.get('AWS_PROFILE')
+
+            # Get the repository searcher
+            searcher = get_repository_searcher(
+                aws_region=aws_region,
+                aws_profile=aws_profile,
+            )
+
+            # Get the repository directory path
+            index_path = searcher.repository_indexer._get_index_path(repo_name)
+            repo_path = os.path.join(index_path, 'repository')
+
+            # Construct the full path to the file
+            if len(parts) > 2:
+                file_path = os.path.join(repo_path, *parts[2:])
+            else:
+                file_path = repo_path
+
+            logger.info(f'Accessing repository file: {file_path}')
+
+            # Resolve and validate path is under repo_path (prevents ../ traversal)
+            safe_path = _resolve_and_validate_under_base(file_path, repo_path)
+        except ValueError as e:
+            return json.dumps(
+                {'status': 'error', 'message': str(e)},
+            )
+        except Exception as e:
+            logger.error(f'Error resolving repository path: {e}')
+            return json.dumps(
+                {
+                    'status': 'error',
+                    'message': f'Error resolving repository path: {str(e)}',
+                }
+            )
+
+        # Use only the validated path for all file operations
+        resolved_path = safe_path
+
         # If it's a directory, return a listing of files
-        if os.path.isdir(filepath):
-            files = os.listdir(filepath)
+        if resolved_path.is_dir():
+            files = os.listdir(resolved_path)
             return json.dumps(
                 {
                     'status': 'success',
                     'type': 'directory',
-                    'path': filepath,
+                    'path': str(resolved_path),
                     'files': files,
                 }
             )
 
         # If it's a file, determine the mime type
-        mime_type, _ = mimetypes.guess_type(filepath)
+        mime_type, _ = mimetypes.guess_type(str(resolved_path))
 
         # If it's an image, return the image data
         if mime_type and mime_type.startswith('image/'):
             try:
                 # Read file directly as binary data
-                with open(filepath, 'rb') as f:
+                with open(resolved_path, 'rb') as f:
                     image_data = f.read()
 
                 # Extract format from mime_type (e.g., "image/png" -> "png")
@@ -575,7 +612,7 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
 
         # For text files, return the content as a string
         try:
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(resolved_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             return content
         except UnicodeDecodeError:
@@ -583,7 +620,7 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
             return json.dumps(
                 {
                     'status': 'error',
-                    'message': f'File appears to be binary and not an image: {filepath}',
+                    'message': f'File appears to be binary and not an image: {resolved_path!s}',
                 }
             )
 

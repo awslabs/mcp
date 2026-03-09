@@ -14,6 +14,7 @@
 
 import botocore.config
 import sys
+from awslabs.aws_iac_mcp_server import __version__
 from boto3 import Session
 from os import environ
 
@@ -25,7 +26,7 @@ class ClientError(Exception):
 
 
 session_config = botocore.config.Config(
-    user_agent_extra='aws-iac-mcp-server/1.0.0',
+    user_agent_extra=f'md/awslabs#mcp#aws-iac-mcp-server#{__version__}',
 )
 
 

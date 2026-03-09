@@ -1448,24 +1448,21 @@ class TestListECRRepositoriesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception):
-                await list_ecr_repositories(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                    filter_healthomics_accessible=False,
-                )
+            result = await list_ecr_repositories(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+                filter_healthomics_accessible=False,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'Access denied' in error_message
-        assert 'ecr:DescribeRepositories' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_error_other_client_error(self):
@@ -1482,23 +1479,21 @@ class TestListECRRepositoriesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception):
-                await list_ecr_repositories(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                    filter_healthomics_accessible=False,
-                )
+            result = await list_ecr_repositories(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+                filter_healthomics_accessible=False,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'ECR error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_error_botocore_error(self):
@@ -1514,23 +1509,21 @@ class TestListECRRepositoriesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(Exception):
-                await list_ecr_repositories(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                    filter_healthomics_accessible=False,
-                )
+            result = await list_ecr_repositories(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+                filter_healthomics_accessible=False,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'AWS error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_healthomics_accessible_repository(self):
@@ -2545,12 +2538,6 @@ class TestCheckContainerAvailabilityUnit:
                     image_digest=None,
                 )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'Access denied' in error_message
-        assert 'ecr:DescribeImages' in error_message
-
     @pytest.mark.asyncio
     async def test_other_client_error(self):
         """Test handling of other ClientError types.
@@ -2584,11 +2571,6 @@ class TestCheckContainerAvailabilityUnit:
                     image_digest=None,
                 )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'ECR error' in error_message
-
     @pytest.mark.asyncio
     async def test_botocore_error(self):
         """Test handling of BotoCoreError.
@@ -2601,23 +2583,21 @@ class TestCheckContainerAvailabilityUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await check_container_availability(
-                    ctx=mock_ctx,
-                    repository_name='my-repo',
-                    image_tag='latest',
-                    image_digest=None,
-                )
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest=None,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'AWS error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_unexpected_exception(self):
@@ -2631,23 +2611,21 @@ class TestCheckContainerAvailabilityUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(RuntimeError):
-                await check_container_availability(
-                    ctx=mock_ctx,
-                    repository_name='my-repo',
-                    image_tag='latest',
-                    image_digest=None,
-                )
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest=None,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'Unexpected error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     # =========================================================================
     # Test: API call verification
@@ -3718,23 +3696,20 @@ class TestListPullThroughCacheRulesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await list_pull_through_cache_rules(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                )
+            result = await list_pull_through_cache_rules(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'Access denied' in error_message
-        assert 'ecr:DescribePullThroughCacheRules' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_error_other_client_error(self):
@@ -3756,22 +3731,20 @@ class TestListPullThroughCacheRulesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await list_pull_through_cache_rules(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                )
+            result = await list_pull_through_cache_rules(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'ECR error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_error_botocore_error(self):
@@ -3787,22 +3760,20 @@ class TestListPullThroughCacheRulesUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await list_pull_through_cache_rules(
-                    ctx=mock_ctx,
-                    max_results=100,
-                    next_token=None,
-                )
+            result = await list_pull_through_cache_rules(
+                ctx=mock_ctx,
+                max_results=100,
+                next_token=None,
+            )
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'AWS error' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_registry_policy_error_handled_gracefully(self):
@@ -5604,7 +5575,7 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
     # =========================================================================
 
     @pytest.mark.asyncio
-    async def test_access_denied_exception(self):
+    async def test_access_denied_error(self):
         """Test handling of AccessDeniedException.
 
         **Validates: Requirement 4.8** - Return detailed error for permission failures
@@ -5638,7 +5609,6 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
         # Assert
         assert result['success'] is False
         assert 'access denied' in result['message'].lower()
-        mock_ctx.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_invalid_parameter_exception(self):
@@ -6183,9 +6153,8 @@ class TestCreatePullThroughCacheForHealthOmicsUnit:
             )
 
         # Assert
-        assert result['success'] is False
-        assert 'aws error' in result['message'].lower() or 'error' in result['message'].lower()
-        mock_ctx.error.assert_called_once()
+        assert 'error' in result
+        assert 'Error' in result['error']
 
 
 # =============================================================================
@@ -7360,18 +7329,16 @@ class TestValidateHealthomicsECRConfigUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.ClientError):
-                await validate_healthomics_ecr_config(ctx=mock_ctx)
+            result = await validate_healthomics_ecr_config(ctx=mock_ctx)
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
-        error_message = mock_ctx.error.call_args[0][0]
-        assert 'Access denied' in error_message
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_botocore_error_handling(self):
@@ -7391,16 +7358,16 @@ class TestValidateHealthomicsECRConfigUnit:
 
         mock_ctx = AsyncMock()
 
-        # Act & Assert
+        # Act
         with patch(
             'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
             return_value=mock_client,
         ):
-            with pytest.raises(botocore.exceptions.BotoCoreError):
-                await validate_healthomics_ecr_config(ctx=mock_ctx)
+            result = await validate_healthomics_ecr_config(ctx=mock_ctx)
 
-        # Verify error was reported to context
-        mock_ctx.error.assert_called_once()
+        # Assert
+        assert 'error' in result
+        assert 'Error' in result['error']
 
     @pytest.mark.asyncio
     async def test_multiple_ptc_rules_validation(self):

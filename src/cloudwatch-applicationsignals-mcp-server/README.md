@@ -9,9 +9,10 @@ This server enables AI assistants like Kiro, Claude, and GitHub Copilot to help 
 1. **Comprehensive Service Auditing** - Monitor overall service health, diagnose root causes, and recommend actionable fixes with built-in APM expertise
 2. **Advanced SLO Compliance Monitoring** - Track Service Level Objectives with breach detection and root cause analysis
 3. **Operation-Level Performance Analysis** - Deep dive into specific API endpoints and operations
-4. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
-5. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
-6. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
+4. **Group-Level Monitoring** - Assess health, dependencies, and changes across service groups for team-based workflows
+5. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
+6. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
+7. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
 
 ## Prerequisites
 
@@ -296,6 +297,62 @@ This tool provides access to AWS Application Signals' change detection capabilit
 - Simple list of breached services with SLO names
 - **IMPORTANT**: `audit_services()` is the PRIMARY and PREFERRED tool for all service auditing tasks
 - Only use this tool for legacy SLI status report format specifically
+
+### 🏢 Group-Level Monitoring Tools
+
+#### 15. **`list_group_services`** - Group Service Discovery
+**Discover all services belonging to a specific group**
+
+- List services by group name with wildcard support (`*payment*`)
+- View group membership details and sources (TAG, OTEL, etc.)
+- Useful for understanding team ownership and service organization
+
+**Key Use Cases:**
+- `list_group_services(group_name="Payments")` - List all services in Payments group
+- `list_group_services(group_name="*prod*")` - Find all production groups
+
+#### 16. **`audit_group_health`** - Group Health Monitoring
+**Comprehensive health assessment for all services in a group**
+
+- Automatic health detection using SLOs and metrics
+- Configurable thresholds for fault, error, and latency
+- Categorizes services as Healthy, Warning, Critical, or Unknown
+- Provides actionable recommendations for unhealthy services
+
+**Key Use Cases:**
+- `audit_group_health(group_name="Payments")` - Audit all payment services
+- `audit_group_health(group_name="Frontend", fault_threshold_critical=10.0)` - Custom thresholds
+
+#### 17. **`get_group_dependencies`** - Group Dependency Mapping
+**Map dependencies within and across service groups**
+
+- Identifies intra-group dependencies (services calling each other)
+- Discovers cross-group dependencies with group information
+- Lists external AWS service dependencies (DynamoDB, S3, etc.)
+
+**Key Use Cases:**
+- `get_group_dependencies(group_name="Payments")` - Map payment service dependencies
+- Useful for understanding service architecture and blast radius
+
+#### 18. **`get_group_changes`** - Group Change Tracking
+**Track deployments across a group**
+
+- Lists recent deployments
+- Groups changes by service for easy analysis
+- Useful for correlating deployments with incidents
+- Supports custom time ranges
+
+**Key Use Cases:**
+- `get_group_changes(group_name="Payments")` - Recent deployments in last 24 hours
+- `get_group_changes(group_name="API", start_time="2024-01-15 00:00:00")` - Deployments since specific time
+
+#### 19. **`list_grouping_attribute_definitions`** - Group Configuration
+**List all custom grouping attribute definitions**
+
+- Shows configured grouping attributes (Team, BusinessUnit, etc.)
+- Displays source keys (AWS tags, OTEL attributes)
+- Shows default values for each grouping attribute
+- Useful for understanding available groups
 
 ## Installation
 
@@ -837,6 +894,8 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListAuditFindings",
         "application-signals:ListEntityEvents",
         "application-signals:ListServiceStates",
+        "application-signals:ListServiceDependencies",
+        "application-signals:ListGroupingAttributeDefinitions",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",

@@ -42,6 +42,6 @@ class AWSClientManager:
                 profile_name=aws_profile, region_name=region
             ).client(
                 service_name,
-                config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+                config=Config(user_agent_extra=f'md/awslabs#mcp#aws-msk-mcp-server#{__version__}'),
             )
         return self.clients[client_key]

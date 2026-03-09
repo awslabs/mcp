@@ -21,7 +21,7 @@ import logging
 from typing import Optional
 
 from fastmcp import FastMCP
-from fastmcp.server.proxy import ProxyClient
+from fastmcp.server import create_proxy
 from fastmcp.tools.tool_transform import ToolTransformConfig
 
 # Allowlisted AWS Knowledge tools to expose from the proxy
@@ -60,10 +60,10 @@ def register_proxy(mcp: FastMCP) -> Optional[bool]:
     """
     try:
         logger.info("Setting up AWS Knowledge MCP Server proxy")
-        aws_knowledge_proxy = FastMCP.as_proxy(
-            ProxyClient("https://knowledge-mcp.global.api.aws"), name="AWS-Knowledge-Bridge"
+        aws_knowledge_proxy = create_proxy(
+            "https://knowledge-mcp.global.api.aws", name="AWS-Knowledge-Bridge"
         )
-        mcp.mount(aws_knowledge_proxy, prefix="aws_knowledge")
+        mcp.mount(aws_knowledge_proxy, namespace="aws_knowledge")
 
         # Add prompt patterns for blue-green deployments
         register_ecs_prompts(mcp)
@@ -91,17 +91,16 @@ async def apply_tool_transformations(mcp: FastMCP) -> None:
 async def _filter_knowledge_proxy_tools(mcp: FastMCP) -> None:
     """Filter AWS Knowledge proxy tools to only expose allowlisted tools."""
     try:
-        tools = await mcp.get_tools()
+        tools = await mcp.list_tools()
+        tools_by_name = {tool.name: tool for tool in tools}
 
         # Disable tools that are not in the DESIRED_KNOWLEDGE_PROXY_TOOLS allowlist
-        for tool_name in tools.keys():
+        for tool_name in tools_by_name:
             if not tool_name.startswith("aws_knowledge_"):
                 continue
             if tool_name not in DESIRED_KNOWLEDGE_PROXY_TOOLS:
                 logger.debug(f"Disabling tool {tool_name} from AWS Knowledge proxy")
-                mcp.add_tool_transformation(
-                    tool_name, ToolTransformConfig(name=tool_name, enabled=False)
-                )
+                mcp.disable(names={tool_name})
 
         logger.debug(f"Filtered AWS Knowledge tools to allowlist: {DESIRED_KNOWLEDGE_PROXY_TOOLS}")
     except Exception as e:
@@ -112,14 +111,15 @@ async def _filter_knowledge_proxy_tools(mcp: FastMCP) -> None:
 async def _add_ecs_guidance_to_knowledge_tools(mcp: FastMCP) -> None:
     """Add ECS documentation guidance to allowlisted knowledge tools."""
     try:
-        tools = await mcp.get_tools()
+        tools = await mcp.list_tools()
+        tools_by_name = {tool.name: tool for tool in tools}
 
         for tool_name in DESIRED_KNOWLEDGE_PROXY_TOOLS:
-            if tool_name not in tools:
+            if tool_name not in tools_by_name:
                 logger.warning(f"Tool {tool_name} not found in MCP tools")
                 continue
 
-            original_desc = tools[tool_name].description or ""
+            original_desc = tools_by_name[tool_name].description or ""
             config = ToolTransformConfig(
                 name=tool_name, description=original_desc + ECS_TOOL_GUIDANCE
             )

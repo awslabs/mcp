@@ -54,6 +54,18 @@ def get_sample_schemas():
         / 'user_analytics'
         / 'user_analytics_schema.json',
         'deals': fixtures_path / 'valid_schemas' / 'deals_app' / 'deals_schema.json',
+        'user_registration': fixtures_path
+        / 'valid_schemas'
+        / 'user_registration'
+        / 'user_registration_schema.json',
+        'package_delivery': fixtures_path
+        / 'valid_schemas'
+        / 'package_delivery_app'
+        / 'package_delivery_app_schema.json',
+        'food_delivery': fixtures_path
+        / 'valid_schemas'
+        / 'food_delivery_app'
+        / 'food_delivery_schema.json',
     }
 
 
@@ -138,6 +150,7 @@ def create_snapshots(schema_names: list[str] = None, language: str = 'python'):
                 'access_pattern_mapping.json',
                 'usage_examples.py',
                 'base_repository.py',
+                'transaction_service.py',  # Conditional - only for schemas with cross_table_access_patterns
                 'ruff.toml',
             ]
 
