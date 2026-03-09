@@ -393,7 +393,11 @@ class TestServerIntegration:
     @pytest.mark.asyncio
     async def test_deprecation_notices(self):
         """Test that deprecation notices are present in instructions and tool docstrings."""
+        assert mcp.instructions is not None
         assert '[DEPRECATED]' in mcp.instructions
+        assert mcp_generate_diagram.__doc__ is not None
         assert '[DEPRECATED]' in mcp_generate_diagram.__doc__
+        assert mcp_get_diagram_examples.__doc__ is not None
         assert '[DEPRECATED]' in mcp_get_diagram_examples.__doc__
+        assert mcp_list_diagram_icons.__doc__ is not None
         assert '[DEPRECATED]' in mcp_list_diagram_icons.__doc__
