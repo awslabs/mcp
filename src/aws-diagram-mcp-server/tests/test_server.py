@@ -19,8 +19,12 @@
 import os
 import pytest
 import tempfile
+import warnings
 from awslabs.aws_diagram_mcp_server.models import DiagramType
 from awslabs.aws_diagram_mcp_server.server import (
+    DEPRECATION_NOTICE,
+    main,
+    mcp,
     mcp_generate_diagram,
     mcp_get_diagram_examples,
     mcp_list_diagram_icons,
@@ -388,3 +392,29 @@ class TestServerIntegration:
             and 'List available icons from the diagrams package, with optional filtering'
             in mcp_list_diagram_icons.__doc__
         )
+
+    @pytest.mark.asyncio
+    async def test_deprecation_notices(self):
+        """Test that deprecation notices are present in instructions and tool docstrings."""
+        migration_url = 'https://github.com/awslabs/agent-plugins/tree/main/plugins/deploy-on-aws'
+
+        # Verify full DEPRECATION_NOTICE is in instructions
+        assert mcp.instructions is not None
+        assert DEPRECATION_NOTICE in mcp.instructions
+
+        # Verify each tool docstring contains deprecation tag and migration URL
+        for func in (mcp_generate_diagram, mcp_get_diagram_examples, mcp_list_diagram_icons):
+            assert func.__doc__ is not None
+            assert '[DEPRECATED]' in func.__doc__
+            assert migration_url in func.__doc__
+
+    @patch('awslabs.aws_diagram_mcp_server.server.mcp')
+    def test_main_emits_deprecation_warning(self, mock_mcp):
+        """Test that main() emits a DeprecationWarning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            main()
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert DEPRECATION_NOTICE in str(w[0].message)
+        mock_mcp.run.assert_called_once()
