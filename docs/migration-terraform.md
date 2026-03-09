@@ -11,7 +11,7 @@ HashiCorp has released an official, production-grade Terraform MCP server that p
 ### Claude Code
 
 ```bash
-claude mcp add terraform -s user -t stdio -- docker run -i --rm hashicorp/terraform-mcp-server:0.4.0
+claude mcp add terraform --scope user --transport stdio -- docker run -i --rm hashicorp/terraform-mcp-server:0.4.0
 ```
 
 ### VS Code / Cursor
@@ -23,7 +23,12 @@ Add to your MCP server settings:
   "mcpServers": {
     "terraform": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "hashicorp/terraform-mcp-server:0.4.0"],
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "TFE_TOKEN",
+        "-e", "TFE_ADDRESS",
+        "hashicorp/terraform-mcp-server:0.4.0"
+      ],
       "env": {
         "TFE_TOKEN": "<your-token>",
         "TFE_ADDRESS": "https://app.terraform.io"
@@ -32,6 +37,8 @@ Add to your MCP server settings:
   }
 }
 ```
+
+The `env` block sets host-side environment variables, and the `-e` flags in `args` forward them into the Docker container.
 
 ### From Source (Go)
 
