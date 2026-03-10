@@ -212,6 +212,7 @@ async def audit_services(
     - **Actionable recommendations**: Specific steps to resolve identified issues
     - **Performance optimized**: Fast execution with automatic batching for large target lists
     - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery
+    - **GenAI Token Monitoring**: For Amazon Bedrock services, automatically monitors GenAI input/output token usage patterns and detects anomalies when using operation_metric or trace auditors
 
     **SERVICE TARGET FORMAT:**
     - **Full Format**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"my-service","Environment":"eks:my-cluster"}}}]`
