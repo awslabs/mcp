@@ -348,6 +348,9 @@ async def _execute_statement(
         request_params['Database'] = database_name
         if cluster_info['type'] == 'provisioned':
             request_params['ClusterIdentifier'] = cluster_identifier
+            db_user = os.environ.get('REDSHIFT_DB_USER')
+            if db_user:
+                request_params['DbUser'] = db_user
         elif cluster_info['type'] == 'serverless':
             request_params['WorkgroupName'] = cluster_identifier
         else:
