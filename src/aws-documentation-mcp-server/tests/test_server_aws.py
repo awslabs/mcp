@@ -24,6 +24,7 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     search_documentation,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 class MockContext:
@@ -165,7 +166,17 @@ class TestReadSections:
 
             mock_get.assert_called_once()
             called_url = mock_get.call_args[0][0]
-            assert '?session=' in called_url
+
+            # Verify sections parameter by parsing and decoding
+            parsed_url = urlparse(called_url)
+            query_params = parse_qs(parsed_url.query)
+            assert 'sections' in query_params
+
+            # Decode and verify section titles
+            encoded_sections = query_params['sections'][0]
+            decoded_sections = [unquote(s.strip()) for s in encoded_sections.split(',')]
+            assert 'Introduction' in decoded_sections
+            assert 'Main Section' in decoded_sections
 
     @pytest.mark.asyncio
     async def test_read_sections_with_domain_modification(self):
@@ -277,6 +288,55 @@ class TestReadSections:
 
         with pytest.raises(ValueError, match='section_titles parameter cannot be empty'):
             await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_special_characters_url_encoding(self):
+        """Test that section titles with special characters are properly URL-encoded."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = [
+            'C++ & C# Programming',
+            'REST/HTTP APIs',
+            'Parameters (optional)',
+            'Key=Value Pairs',
+        ]
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>C++ & C# Programming</h2>
+            <p>Programming content.</p>
+            <h2>REST/HTTP APIs</h2>
+            <p>API content.</p>
+            <h2>Parameters (optional)</h2>
+            <p>Parameter details.</p>
+            <h2>Key=Value Pairs</h2>
+            <p>Key-value content.</p>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Programming content' in result
+            assert 'API content' in result
+
+            called_url = mock_get.call_args[0][0]
+            parsed_url = urlparse(called_url)
+            query_params = parse_qs(parsed_url.query)
+
+            assert 'sections' in query_params, 'sections parameter missing from URL'
+
+            # Decode comma-separated sections (use unquote since we use quote, not quote_plus)
+            encoded_sections = query_params['sections'][0]
+            decoded_sections = [unquote(s.strip()) for s in encoded_sections.split(',')]
+
+            for original_title in section_titles:
+                assert original_title.strip() in decoded_sections, (
+                    f'Title "{original_title}" not in decoded sections: {decoded_sections}'
+                )
 
     @pytest.mark.asyncio
     async def test_read_sections_whitespace_normalization(self):

@@ -155,6 +155,8 @@ async def read_sections_impl(
     logger.debug(f'Fetching sections {section_titles} from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
+    sections_param = ','.join(quote(title.strip(), safe='') for title in section_titles)
+    url_with_session += f'&sections={sections_param}'
 
     query_id = get_query_id_from_cache(url_str)
     if query_id:
