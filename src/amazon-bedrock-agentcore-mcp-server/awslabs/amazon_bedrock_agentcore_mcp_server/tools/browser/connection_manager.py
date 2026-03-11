@@ -15,7 +15,6 @@
 """Manages Playwright CDP connections to AgentCore browser sessions."""
 
 import asyncio
-
 from .aws_client import (
     get_browser_client,
 )

@@ -92,7 +92,7 @@ _browser_sm = None
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
     """Manage server lifecycle — browser cleanup task and graceful shutdown."""
-    if _browser_cm is not None:
+    if _browser_cm is not None and _browser_sm is not None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(

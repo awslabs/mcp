@@ -31,9 +31,9 @@ Run with: uv run pytest tests/browser/test_integ_mcp_protocol.py -v
 
 from __future__ import annotations
 
-from datetime import timedelta
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
+from mcp.types import TextContent
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -88,14 +88,13 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
     Creates an isolated server instance with env-var-driven opt-in/opt-out,
     without touching the module-level singleton in server.py.
     """
-    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs, gateway, memory, runtime
+    # Temporarily override env vars for _is_primitive_enabled
+    import os
     from awslabs.amazon_bedrock_agentcore_mcp_server.server import (
         AGENTCORE_MCP_INSTRUCTIONS,
         _is_primitive_enabled,
     )
-
-    # Temporarily override env vars for _is_primitive_enabled
-    import os
+    from awslabs.amazon_bedrock_agentcore_mcp_server.tools import docs, gateway, memory, runtime
 
     old_disable = os.environ.pop('AGENTCORE_DISABLE_TOOLS', None)
     old_enable = os.environ.pop('AGENTCORE_ENABLE_TOOLS', None)
@@ -268,8 +267,9 @@ class TestToolInvocation:
             )
 
             assert len(result.content) > 0
-            text = result.content[0].text
-            assert 'error' in text.lower() or 'Error' in text
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_navigate_invalid_session(self):
         """browser_navigate with a bogus session_id returns error text."""
@@ -280,8 +280,9 @@ class TestToolInvocation:
                 {'session_id': 'nonexistent-session-id', 'url': 'https://example.com'},
             )
 
-            text = result.content[0].text
-            assert 'error' in text.lower() or 'Error' in text
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_click_invalid_session(self):
         """browser_click with a bogus session_id returns error text."""
@@ -292,8 +293,9 @@ class TestToolInvocation:
                 {'session_id': 'nonexistent-session-id', 'ref': 'e1'},
             )
 
-            text = result.content[0].text
-            assert 'error' in text.lower() or 'Error' in text
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            assert 'error' in first.text.lower() or 'Error' in first.text
 
     async def test_browser_resize_validation(self):
         """browser_resize with out-of-bounds dimensions returns error."""
@@ -304,8 +306,9 @@ class TestToolInvocation:
                 {'session_id': 'nonexistent', 'width': 50, 'height': 50},
             )
 
-            text = result.content[0].text
-            assert 'out of bounds' in text.lower() or 'Error' in text
+            first = result.content[0]
+            assert isinstance(first, TextContent)
+            assert 'out of bounds' in first.text.lower() or 'Error' in first.text
 
     async def test_start_session_mocked_api(self):
         """start_browser_session through protocol with mocked AWS API."""
@@ -336,8 +339,9 @@ class TestToolInvocation:
 
                     # The tool returns a structured BrowserSessionResponse
                     assert len(result.content) > 0
-                    text = result.content[0].text
-                    assert 'sess-mock-123' in text
+                    first = result.content[0]
+                    assert isinstance(first, TextContent)
+                    assert 'sess-mock-123' in first.text
 
     async def test_list_sessions_mocked_api(self):
         """list_browser_sessions through protocol with mocked AWS API."""
@@ -355,17 +359,16 @@ class TestToolInvocation:
             async with create_connected_server_and_client_session(server) as client:
                 result = await client.call_tool('list_browser_sessions', {})
 
-                text = result.content[0].text
-                assert 'sess-1' in text
-                assert '2 session' in text
+                first = result.content[0]
+                assert isinstance(first, TextContent)
+                assert 'sess-1' in first.text
+                assert '2 session' in first.text
 
     async def test_docs_tool_invocation(self):
         """search_agentcore_docs can be called through protocol."""
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
-            result = await client.call_tool(
-                'search_agentcore_docs', {'query': 'browser'}
-            )
+            result = await client.call_tool('search_agentcore_docs', {'query': 'browser'})
 
             assert len(result.content) > 0
 
@@ -433,15 +436,14 @@ class TestGracefulDegradation:
 
     async def test_browser_evaluate_disabled_env(self):
         """BROWSER_DISABLE_EVALUATE=true omits browser_evaluate from tool list."""
+        import awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.observation as obs_mod
+        import importlib
         import os
 
         old = os.environ.get('BROWSER_DISABLE_EVALUATE')
         os.environ['BROWSER_DISABLE_EVALUATE'] = 'true'
         try:
-            # Need to reimport observation module to pick up env var
-            import importlib
-            import awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.observation as obs_mod
-
+            # Reimport observation module to pick up env var
             importlib.reload(obs_mod)
 
             server = _build_server()

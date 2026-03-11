@@ -312,6 +312,6 @@ class TestIdempotentCleanup:
             assert cm._cleaned_up is True
 
             # Second call should be a no-op
-            cm.disconnect.reset_mock()
+            cm.disconnect.reset_mock()  # type: ignore[union-attr]
             await cm.cleanup()
-            cm.disconnect.assert_not_awaited()
+            cm.disconnect.assert_not_awaited()  # type: ignore[union-attr]
