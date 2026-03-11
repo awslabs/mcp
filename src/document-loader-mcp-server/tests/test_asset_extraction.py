@@ -15,11 +15,14 @@
 
 import pytest
 from awslabs.document_loader_mcp_server.extractors import (
+    ASSET_EXTRACTION_EXTENSIONS,
     AssetInfo,
     DocumentMetadata,
     ExtractedAsset,
     ExtractionResponse,
     InspectionResponse,
+    dispatch_extract,
+    dispatch_inspect,
 )
 from awslabs.document_loader_mcp_server.extractors.pdf import extract_pdf, inspect_pdf
 from pathlib import Path
@@ -330,11 +333,6 @@ async def test_extract_pdf_creates_output_dir(pdf_with_images, tmp_path):
 
 
 # Dispatch logic tests
-from awslabs.document_loader_mcp_server.extractors import (
-    ASSET_EXTRACTION_EXTENSIONS,
-    dispatch_extract,
-    dispatch_inspect,
-)
 
 
 def test_asset_extraction_extensions():

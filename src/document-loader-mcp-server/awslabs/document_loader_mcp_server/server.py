@@ -20,6 +20,12 @@ import shutil
 import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
 import tempfile
+from awslabs.document_loader_mcp_server.extractors import (
+    ExtractionResponse,
+    InspectionResponse,
+    dispatch_extract,
+    dispatch_inspect,
+)
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
@@ -636,6 +642,117 @@ async def extract_slides_as_images(
             output_dir='',
             error_message=error_msg,
         )
+
+
+@mcp.tool()
+async def inspect_document_assets(
+    ctx: Context,
+    file_path: str = Field(
+        ..., description='Path to document file (PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS)'
+    ),
+    timeout_seconds: int = Field(
+        30, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
+    ),
+) -> InspectionResponse:
+    """Inspect a document to discover embedded images and document metadata.
+
+    Returns document-level metadata and a detailed inventory of all embedded
+    images with properties like dimensions, format, DPI, and color space.
+    Use asset indices from the response with extract_document_assets to
+    pull specific assets out of the document.
+
+    For Office formats (DOCX, DOC, PPTX, PPT, XLSX, XLS), requires LibreOffice
+    (soffice). PDF files are processed directly with pdfplumber.
+    """
+    suffix = Path(file_path).suffix.lower()
+
+    # Check soffice for Office formats before file validation
+    if suffix in {'.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'}:
+        soffice_error = _check_soffice_available()
+        if soffice_error:
+            return InspectionResponse(
+                status='error',
+                asset_count=0,
+                total_assets_found=0,
+                error_message=soffice_error,
+            )
+
+    # Validate file path
+    validation_error = validate_file_path(ctx, file_path)
+    if validation_error:
+        return InspectionResponse(
+            status='error',
+            asset_count=0,
+            total_assets_found=0,
+            error_message=validation_error,
+        )
+
+    return await dispatch_inspect(
+        file_path=file_path,
+        timeout_seconds=timeout_seconds,
+        convert_to_pdf_fn=_convert_to_pdf_with_soffice,
+        check_soffice_fn=_check_soffice_available,
+    )
+
+
+@mcp.tool()
+async def extract_document_assets(
+    ctx: Context,
+    file_path: str = Field(
+        ..., description='Path to document file (PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS)'
+    ),
+    output_dir: str = Field(..., description='Directory to save extracted assets'),
+    asset_indices: Optional[List[int]] = Field(
+        None,
+        description='Specific asset indices to extract (from inspect_document_assets). None = all.',
+    ),
+    timeout_seconds: int = Field(
+        60, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
+    ),
+) -> ExtractionResponse:
+    """Extract embedded images from a document to disk.
+
+    Use inspect_document_assets first to discover available assets and their
+    indices. Pass specific indices to extract selectively, or omit to extract all.
+
+    For Office formats, requires LibreOffice (soffice). PDF files are processed
+    directly with pdfplumber.
+    """
+    suffix = Path(file_path).suffix.lower()
+
+    if suffix in {'.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'}:
+        soffice_error = _check_soffice_available()
+        if soffice_error:
+            return ExtractionResponse(
+                status='error',
+                output_dir='',
+                error_message=soffice_error,
+            )
+
+    validation_error = validate_file_path(ctx, file_path)
+    if validation_error:
+        return ExtractionResponse(
+            status='error',
+            output_dir='',
+            error_message=validation_error,
+        )
+
+    output_dir_error = validate_output_dir(output_dir)
+    if output_dir_error:
+        return ExtractionResponse(
+            status='error',
+            output_dir='',
+            error_message=output_dir_error,
+        )
+
+    return await dispatch_extract(
+        file_path=file_path,
+        output_dir=output_dir,
+        asset_indices=asset_indices,
+        timeout_seconds=timeout_seconds,
+        convert_to_pdf_fn=_convert_to_pdf_with_soffice,
+        check_soffice_fn=_check_soffice_available,
+    )
 
 
 def main():
