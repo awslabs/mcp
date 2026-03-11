@@ -566,3 +566,23 @@ class TestServer:
             mock_receiver.assert_called_once_with(signal.SIGINT, signal.SIGTERM)
             mock_print.assert_called_once_with('Shutting down MCP server...')
             mock_exit.assert_called_once_with(0)
+
+    @patch('awslabs.aws_msk_mcp_server.server.logger')
+    async def test_signal_handler_not_implemented(self, mock_logger):
+        """Test the signal_handler function when signal handlers are not supported (e.g., Windows)."""
+        # Arrange
+        mock_scope = MagicMock(spec=CancelScope)
+
+        # Mock open_signal_receiver to raise NotImplementedError (simulating Windows)
+        with patch('awslabs.aws_msk_mcp_server.server.open_signal_receiver') as mock_receiver:
+            mock_receiver.return_value.__enter__.side_effect = NotImplementedError
+
+            # Act
+            await signal_handler(mock_scope)
+
+            # Assert
+            mock_receiver.assert_called_once_with(signal.SIGINT, signal.SIGTERM)
+            mock_logger.info.assert_called_once_with(
+                'Signal handlers not supported on this platform - skipping signal handler setup'
+            )
+
