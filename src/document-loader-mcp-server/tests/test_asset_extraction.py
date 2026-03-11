@@ -17,22 +17,22 @@ import pytest
 from awslabs.document_loader_mcp_server.extractors import (
     AssetInfo,
     DocumentMetadata,
-    ExtractionResponse,
     ExtractedAsset,
+    ExtractionResponse,
     InspectionResponse,
 )
-from pathlib import Path
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import (
     Image as RLImage,
+)
+from reportlab.platypus import (
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
 )
-from reportlab.lib.styles import getSampleStyleSheet
 
 
 @pytest.fixture
