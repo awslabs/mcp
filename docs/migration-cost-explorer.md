@@ -34,25 +34,25 @@ The Billing and Cost Management MCP Server is a superset of the Cost Explorer MC
 
 **Cost Explorer server:** Returns current date for relative date calculations.
 
-**Billing server:** The `cost_explorer` tool handles date context internally. No separate date tool needed.
+**Billing server:** The `cost-explorer` tool handles date context internally. No separate date tool needed.
 
 ### get_dimension_values
 
 **Cost Explorer server:** Retrieves available values for Cost Explorer dimensions (SERVICE, REGION, etc.).
 
-**Billing server:** Available through the `cost_explorer` tool, which wraps all Cost Explorer API operations including `GetDimensionValues`.
+**Billing server:** Available through the `cost-explorer` tool, which wraps all Cost Explorer API operations including `GetDimensionValues`.
 
 ### get_tag_values
 
 **Cost Explorer server:** Retrieves available tag values for a specific tag key.
 
-**Billing server:** Available through the `cost_explorer` tool via `GetTags`.
+**Billing server:** Available through the `cost-explorer` tool via `GetTags`.
 
 ### get_cost_and_usage
 
 **Cost Explorer server:** Core cost and usage data retrieval with filtering and grouping.
 
-**Billing server:** Available through the `cost_explorer` tool via `GetCostAndUsage`. Same parameters and behavior.
+**Billing server:** Available through the `cost-explorer` tool via `GetCostAndUsage`. Same parameters and behavior.
 
 ### get_cost_and_usage_comparisons
 
@@ -70,7 +70,7 @@ The Billing and Cost Management MCP Server is a superset of the Cost Explorer MC
 
 **Cost Explorer server:** Generates cost forecasts based on historical usage.
 
-**Billing server:** Available through the `cost_explorer` tool via `GetCostForecast`.
+**Billing server:** Available through the `cost-explorer` tool via `GetCostForecast`.
 
 ## New Capabilities in the Billing Server
 
@@ -97,12 +97,12 @@ All Cost Explorer MCP Server functionality is fully covered by the Billing and C
 | Old Tool | New Tool | Notes |
 |----------|----------|-------|
 | `get_today_date` | Built into `cost_explorer` | No separate tool needed |
-| `get_dimension_values` | `cost_explorer` | Same API, unified tool |
-| `get_tag_values` | `cost_explorer` | Same API, unified tool |
-| `get_cost_and_usage` | `cost_explorer` | Same API, unified tool |
+| `get_dimension_values` | `cost-explorer` | Same API, unified tool |
+| `get_tag_values` | `cost-explorer` | Same API, unified tool |
+| `get_cost_and_usage` | `cost-explorer` | Same API, unified tool |
 | `get_cost_and_usage_comparisons` | `cost_comparison` | Same API, dedicated tool |
 | `get_cost_comparison_drivers` | `cost_comparison` | Same API, dedicated tool |
-| `get_cost_forecast` | `cost_explorer` | Same API, unified tool |
+| `get_cost_forecast` | `cost-explorer` | Same API, unified tool |
 
 ## Removing the Old Server
 
