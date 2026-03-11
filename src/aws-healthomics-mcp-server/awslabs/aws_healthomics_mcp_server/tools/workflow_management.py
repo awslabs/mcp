@@ -188,7 +188,7 @@ async def create_workflow(
         ) = await validate_definition_sources(
             ctx, definition_source, definition_uri, definition_repository, definition_zip_base64
         )
-        await validate_container_registry_params(
+        validated_container_registry_map = await validate_container_registry_params(
             ctx, container_registry_map, container_registry_map_uri
         )
 
@@ -226,8 +226,8 @@ async def create_workflow(
         if parameter_template:
             params['parameterTemplate'] = parameter_template
 
-        if container_registry_map:
-            params['containerRegistryMap'] = container_registry_map
+        if validated_container_registry_map is not None:
+            params['containerRegistryMap'] = validated_container_registry_map
 
         if container_registry_map_uri:
             params['containerRegistryMapUri'] = container_registry_map_uri
@@ -430,7 +430,7 @@ async def create_workflow_version(
         ) = await validate_definition_sources(
             ctx, definition_source, definition_uri, definition_repository, definition_zip_base64
         )
-        await validate_container_registry_params(
+        validated_container_registry_map = await validate_container_registry_params(
             ctx, container_registry_map, container_registry_map_uri
         )
 
@@ -481,8 +481,8 @@ async def create_workflow_version(
         if storage_type == 'STATIC':
             params['storageCapacity'] = storage_capacity
 
-        if container_registry_map:
-            params['containerRegistryMap'] = container_registry_map
+        if validated_container_registry_map is not None:
+            params['containerRegistryMap'] = validated_container_registry_map
 
         if container_registry_map_uri:
             params['containerRegistryMapUri'] = container_registry_map_uri

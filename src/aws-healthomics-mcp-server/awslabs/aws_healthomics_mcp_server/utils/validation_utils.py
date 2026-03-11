@@ -337,13 +337,21 @@ async def validate_container_registry_params(
     ctx: Context,
     container_registry_map: Optional[Dict[str, Any]],
     container_registry_map_uri: Optional[str],
-) -> None:
+) -> Optional[Dict[str, Any]]:
     """Validate container registry parameters.
+
+    When a container_registry_map is provided, upstreamRepositoryPrefix and ecrAccountId
+    are not required in each registryMapping. If they are present (explicitly provided or
+    inferred), they will be included in the returned map; otherwise they are omitted.
 
     Args:
         ctx: MCP context for error reporting
         container_registry_map: Container registry map dictionary
         container_registry_map_uri: S3 URI pointing to container registry mappings
+
+    Returns:
+        Cleaned container registry map with optional fields omitted when None, or None if
+        no map was provided.
 
     Raises:
         ValueError: If validation fails
@@ -368,15 +376,41 @@ async def validate_container_registry_params(
         await ctx.error(error_message)
         raise ValueError(error_message)
 
-    # Validate container registry map structure if provided
+    # Validate container registry map structure if provided and return cleaned version
     if container_registry_map is not None:
         try:
-            ContainerRegistryMap(**container_registry_map)
+            validated = ContainerRegistryMap(**container_registry_map)
         except ValidationError as e:
             error_message = f'Invalid container registry map structure: {str(e)}'
             logger.error(error_message)
             await ctx.error(error_message)
             raise ValueError(error_message)
+
+        # Build cleaned registry mappings, including upstreamRepositoryPrefix and ecrAccountId
+        # only when they are present (not None)
+        cleaned_registry_mappings = []
+        for rm in validated.registryMappings:
+            entry: Dict[str, Any] = {
+                'upstreamRegistryUrl': rm.upstreamRegistryUrl,
+                'ecrRepositoryPrefix': rm.ecrRepositoryPrefix,
+            }
+            if rm.upstreamRepositoryPrefix is not None:
+                entry['upstreamRepositoryPrefix'] = rm.upstreamRepositoryPrefix
+            if rm.ecrAccountId is not None:
+                entry['ecrAccountId'] = rm.ecrAccountId
+            cleaned_registry_mappings.append(entry)
+
+        cleaned_image_mappings = [
+            {'sourceImage': im.sourceImage, 'destinationImage': im.destinationImage}
+            for im in validated.imageMappings
+        ]
+
+        return {
+            'registryMappings': cleaned_registry_mappings,
+            'imageMappings': cleaned_image_mappings,
+        }
+
+    return None
 
 
 async def validate_adhoc_s3_buckets(adhoc_buckets: Optional[List[str]]) -> List[str]:
