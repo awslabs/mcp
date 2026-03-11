@@ -595,8 +595,7 @@ class TestPropertyS3PathConfigRoundTrip:
     """Property-based tests for S3 path config round-trip.
 
     Feature: s3-adhoc-bucket-search-fix
-    Property 1: Valid S3 paths survive config round-trip
-    Validates: Requirements 1.3
+    Property: Valid S3 paths survive config round-trip
     """
 
     def setup_method(self):
@@ -613,8 +612,6 @@ class TestPropertyS3PathConfigRoundTrip:
         environment variable, calling get_s3_bucket_paths() returns a list containing
         exactly those paths, validated and normalized (trailing slash ensured, s3://
         prefix preserved).
-
-        **Validates: Requirements 1.3**
         """
         # Generate 1-5 valid S3 bucket paths
         num_paths = data.draw(st.integers(min_value=1, max_value=5))
