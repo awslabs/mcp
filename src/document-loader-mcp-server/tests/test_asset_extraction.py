@@ -21,7 +21,8 @@ from awslabs.document_loader_mcp_server.extractors import (
     ExtractionResponse,
     InspectionResponse,
 )
-from awslabs.document_loader_mcp_server.extractors.pdf import inspect_pdf
+from awslabs.document_loader_mcp_server.extractors.pdf import extract_pdf, inspect_pdf
+from pathlib import Path
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -259,3 +260,70 @@ async def test_inspect_pdf_nonexistent():
     assert result.status == 'error'
     assert result.error_message is not None
     assert result.asset_count == 0
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_all_assets(pdf_with_images, tmp_path):
+    """Test extracting all assets from PDF with images."""
+    output_dir = str(tmp_path / 'extracted')
+    result = await extract_pdf(pdf_with_images, output_dir)
+    assert result.status == 'success'
+    assert result.extracted_count > 0
+    assert result.failed_count == 0
+    assert result.output_dir == output_dir
+    for item in result.extracted:
+        assert item.status == 'success'
+        assert Path(item.output_path).exists()
+        assert Path(item.output_path).stat().st_size > 0
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_selective(pdf_with_images, tmp_path):
+    """Test selective extraction of specific asset indices."""
+    output_dir = str(tmp_path / 'selective')
+    inspection = await inspect_pdf(pdf_with_images)
+    assert inspection.asset_count > 0
+    result = await extract_pdf(pdf_with_images, output_dir, asset_indices=[0])
+    assert result.status == 'success'
+    assert result.extracted_count == 1
+    assert len(result.extracted) == 1
+    assert result.extracted[0].index == 0
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_invalid_index(pdf_with_images, tmp_path):
+    """Test handling of invalid asset index."""
+    output_dir = str(tmp_path / 'invalid')
+    result = await extract_pdf(pdf_with_images, output_dir, asset_indices=[999])
+    assert result.status == 'error'
+    assert result.failed_count == 1
+    assert result.extracted[0].status == 'error'
+    assert result.extracted[0].error_message is not None
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_empty_indices(pdf_with_images, tmp_path):
+    """Test that empty asset_indices list returns error."""
+    output_dir = str(tmp_path / 'empty')
+    result = await extract_pdf(pdf_with_images, output_dir, asset_indices=[])
+    assert result.status == 'error'
+    assert result.error_message is not None
+    assert 'No asset indices' in result.error_message
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_no_images(pdf_without_images, tmp_path):
+    """Test extraction from PDF without images."""
+    output_dir = str(tmp_path / 'no_images')
+    result = await extract_pdf(pdf_without_images, output_dir)
+    assert result.status == 'success'
+    assert result.extracted_count == 0
+
+
+@pytest.mark.asyncio
+async def test_extract_pdf_creates_output_dir(pdf_with_images, tmp_path):
+    """Test that output directory is created if it doesn't exist."""
+    output_dir = str(tmp_path / 'nested' / 'dir' / 'output')
+    result = await extract_pdf(pdf_with_images, output_dir)
+    assert result.status == 'success'
+    assert Path(output_dir).exists()

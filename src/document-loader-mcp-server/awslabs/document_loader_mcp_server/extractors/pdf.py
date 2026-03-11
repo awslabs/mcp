@@ -20,12 +20,14 @@ import pdfplumber
 from awslabs.document_loader_mcp_server.extractors import (
     AssetInfo,
     DocumentMetadata,
+    ExtractedAsset,
+    ExtractionResponse,
     InspectionResponse,
     _get_max_assets,
 )
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image as PILImage
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 # PDF filter to output format mapping
@@ -412,13 +414,228 @@ async def inspect_pdf(file_path: str, timeout_seconds: int = 120) -> InspectionR
         )
 
 
-async def extract_pdf(file_path: str, output_dir: str, asset_indices: list[int]) -> None:
-    """Extract specific assets from PDF (placeholder for future implementation).
+def _save_image_bytes(raw_bytes, fmt, output_path, image_obj):
+    """Save image bytes to disk. Handles both encoded and raw pixel data."""
+    save_fmt_map = {'jpeg': 'JPEG', 'png': 'PNG', 'tiff': 'TIFF', 'jp2': 'JPEG2000'}
+
+    if not _is_raw_pixel_data(image_obj):
+        # Encoded image (JPEG, JP2) -- write directly or via Pillow
+        if fmt == 'jpeg':
+            with open(output_path, 'wb') as f:
+                f.write(raw_bytes)
+            return
+        try:
+            img = PILImage.open(io.BytesIO(raw_bytes))
+            img.save(output_path, format=save_fmt_map.get(fmt, 'PNG'))
+            return
+        except Exception:
+            pass  # Fall through to raw pixel reconstruction
+
+    # Raw pixel data -- reconstruct with frombytes
+    stream_w, stream_h = _get_stream_dimensions(image_obj)
+    if stream_w and stream_h:
+        mode = _get_stream_color_mode(image_obj)
+        try:
+            img = PILImage.frombytes(mode, (stream_w, stream_h), raw_bytes)
+            img.save(output_path, format='PNG')
+            return
+        except Exception:
+            pass
+
+    # Last resort
+    try:
+        img = PILImage.open(io.BytesIO(raw_bytes))
+        img.save(output_path, format='PNG')
+    except Exception as e:
+        raise ValueError(f'Cannot decode image data: {str(e)}') from e
+
+
+def _extract_pdf_sync(
+    file_path: str, output_dir: str, asset_indices: Optional[List[int]]
+) -> ExtractionResponse:
+    """Synchronous PDF extraction implementation.
 
     Args:
         file_path: Path to PDF file.
         output_dir: Directory to save extracted assets.
-        asset_indices: List of asset indices to extract.
+        asset_indices: List of asset indices to extract, or None for all.
+
+    Returns:
+        ExtractionResponse with per-asset extraction results.
     """
-    # Placeholder for Task 5
-    raise NotImplementedError('PDF extraction not yet implemented')
+    # Check file exists
+    if not os.path.exists(file_path):
+        return ExtractionResponse(
+            status='error',
+            error_message=f'File not found: {file_path}',
+            output_dir=output_dir,
+        )
+
+    # Check for empty list (explicit no extraction)
+    if asset_indices is not None and len(asset_indices) == 0:
+        return ExtractionResponse(
+            status='error',
+            error_message='No asset indices specified',
+            output_dir=output_dir,
+        )
+
+    # Discover all images (same iteration as inspect)
+    all_images = []
+    max_assets = _get_max_assets()
+
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            global_asset_index = 0
+            for page in pdf.pages:
+                if global_asset_index >= max_assets:
+                    break
+
+                page_images = page.images
+                for img_obj in page_images:
+                    if global_asset_index >= max_assets:
+                        break
+
+                    all_images.append((global_asset_index, img_obj))
+                    global_asset_index += 1
+
+        # Determine which indices to extract
+        if asset_indices is None:
+            # Extract all
+            indices_to_extract = list(range(len(all_images)))
+            if len(indices_to_extract) > max_assets:
+                return ExtractionResponse(
+                    status='error',
+                    error_message=f'Too many assets. Limit is {max_assets}.',
+                    output_dir=output_dir,
+                )
+        else:
+            indices_to_extract = asset_indices
+
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Extract each requested image
+        extracted_assets = []
+        success_count = 0
+        fail_count = 0
+
+        for idx in indices_to_extract:
+            # Check if index is valid
+            if idx < 0 or idx >= len(all_images):
+                extracted_assets.append(
+                    ExtractedAsset(
+                        index=idx,
+                        output_path='',
+                        status='error',
+                        error_message=f'Invalid index {idx}. Valid range: 0-{len(all_images) - 1}',
+                    )
+                )
+                fail_count += 1
+                continue
+
+            # Get image object
+            _, img_obj = all_images[idx]
+
+            try:
+                # Get format and extension
+                fmt, ext = _get_image_format(img_obj)
+
+                # Get raw bytes
+                raw_bytes = _get_image_bytes(img_obj)
+                if not raw_bytes:
+                    extracted_assets.append(
+                        ExtractedAsset(
+                            index=idx,
+                            output_path='',
+                            status='error',
+                            error_message='Could not extract image bytes',
+                        )
+                    )
+                    fail_count += 1
+                    continue
+
+                # Build output path
+                output_path = os.path.join(output_dir, f'image_{idx:03d}{ext}')
+
+                # Save image
+                _save_image_bytes(raw_bytes, fmt, output_path, img_obj)
+
+                extracted_assets.append(
+                    ExtractedAsset(index=idx, output_path=output_path, status='success')
+                )
+                success_count += 1
+
+            except Exception as e:
+                extracted_assets.append(
+                    ExtractedAsset(
+                        index=idx,
+                        output_path='',
+                        status='error',
+                        error_message=str(e),
+                    )
+                )
+                fail_count += 1
+
+        # Determine overall status
+        if fail_count == 0:
+            status = 'success'
+        elif success_count == 0:
+            status = 'error'
+        else:
+            status = 'partial'
+
+        return ExtractionResponse(
+            status=status,
+            extracted=extracted_assets,
+            extracted_count=success_count,
+            failed_count=fail_count,
+            output_dir=output_dir,
+        )
+
+    except Exception as e:
+        return ExtractionResponse(
+            status='error',
+            error_message=f'Failed to extract PDF assets: {str(e)}',
+            output_dir=output_dir,
+        )
+
+
+async def extract_pdf(
+    file_path: str,
+    output_dir: str,
+    asset_indices: Optional[List[int]] = None,
+    timeout_seconds: int = 60,
+) -> ExtractionResponse:
+    """Extract assets from PDF file.
+
+    Args:
+        file_path: Path to PDF file.
+        output_dir: Directory to save extracted assets.
+        asset_indices: List of asset indices to extract, or None for all.
+        timeout_seconds: Maximum time to wait for extraction (default: 60).
+
+    Returns:
+        ExtractionResponse with per-asset extraction results.
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(
+                    executor, _extract_pdf_sync, file_path, output_dir, asset_indices
+                ),
+                timeout=timeout_seconds,
+            )
+            return result
+    except asyncio.TimeoutError:
+        return ExtractionResponse(
+            status='error',
+            error_message=f'PDF extraction timed out after {timeout_seconds} seconds',
+            output_dir=output_dir,
+        )
+    except Exception as e:
+        return ExtractionResponse(
+            status='error',
+            error_message=f'Unexpected error during PDF extraction: {str(e)}',
+            output_dir=output_dir,
+        )
