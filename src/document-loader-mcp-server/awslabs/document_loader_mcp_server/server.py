@@ -16,15 +16,19 @@
 import asyncio
 import os
 import pdfplumber
+import shutil
+import subprocess  # nosec B404 - subprocess used with fixed command, no shell=True
 import sys
+import tempfile
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 from fastmcp.utilities.types import Image
 from loguru import logger
 from markitdown import MarkItDown
 from pathlib import Path
+from pdf2image import convert_from_path
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 
 
 # Set up logging
@@ -36,7 +40,30 @@ mcp = FastMCP('Document Loader')
 
 
 # Security Constants
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB limit
+
+
+def _get_max_file_size() -> int:
+    """Get max file size from environment or use default.
+
+    The MAX_FILE_SIZE_MB env var is specified in megabytes for ergonomics.
+    """
+    env_val = os.getenv('MAX_FILE_SIZE_MB')
+    if env_val:
+        try:
+            size_mb = int(env_val)
+            if size_mb > 0:
+                return size_mb * 1024 * 1024
+            logger.warning(
+                f'MAX_FILE_SIZE_MB must be positive, using default: '
+                f'{DEFAULT_MAX_FILE_SIZE // (1024 * 1024)}MB'
+            )
+        except ValueError:
+            logger.warning(
+                f'Invalid MAX_FILE_SIZE_MB value: {env_val}, using default: '
+                f'{DEFAULT_MAX_FILE_SIZE // (1024 * 1024)}MB'
+            )
+    return DEFAULT_MAX_FILE_SIZE
 
 
 # Base directory for file access security - configurable via environment
@@ -67,6 +94,33 @@ BASE_DIRECTORY = _get_base_directory()
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
 MAX_TIMEOUT_SECONDS = 300  # 5 minute maximum timeout
 MIN_TIMEOUT_SECONDS = 5  # 5 second minimum timeout
+DEFAULT_SOFFICE_TIMEOUT_SECONDS = 120  # 2 minute default for soffice subprocess
+
+
+def _get_soffice_timeout() -> int:
+    """Get soffice subprocess timeout from environment or use default.
+
+    The SOFFICE_TIMEOUT_SECONDS env var controls how long the soffice
+    subprocess is allowed to run before being killed.
+    """
+    env_val = os.getenv('SOFFICE_TIMEOUT_SECONDS')
+    if env_val:
+        try:
+            timeout = int(env_val)
+            if MIN_TIMEOUT_SECONDS <= timeout <= MAX_TIMEOUT_SECONDS:
+                return timeout
+            logger.warning(
+                f'SOFFICE_TIMEOUT_SECONDS must be between {MIN_TIMEOUT_SECONDS} and '
+                f'{MAX_TIMEOUT_SECONDS}, using default: {DEFAULT_SOFFICE_TIMEOUT_SECONDS}s'
+            )
+        except ValueError:
+            logger.warning(
+                f'Invalid SOFFICE_TIMEOUT_SECONDS value: {env_val}, using default: '
+                f'{DEFAULT_SOFFICE_TIMEOUT_SECONDS}s'
+            )
+    return DEFAULT_SOFFICE_TIMEOUT_SECONDS
+
+
 ALLOWED_EXTENSIONS = {
     '.pdf',
     '.docx',
@@ -93,6 +147,19 @@ class DocumentReadResponse(BaseModel):
     status: str = Field(..., description='Status of the operation (success/error)')
     content: str = Field(..., description='Extracted content from the document')
     file_path: str = Field(..., description='Path to the processed file')
+    error_message: Optional[str] = Field(None, description='Error message if operation failed')
+
+
+class SlidesExtractionResponse(BaseModel):
+    """Response from slide image extraction operations."""
+
+    status: str = Field(..., description='Status of the operation (success/error)')
+    slide_images: List[str] = Field(
+        default_factory=list, description='List of file paths to extracted slide images'
+    )
+    slide_count: int = Field(0, description='Number of slides extracted')
+    file_path: str = Field(..., description='Path to the source file')
+    output_dir: str = Field('', description='Directory containing the extracted slide images')
     error_message: Optional[str] = Field(None, description='Error message if operation failed')
 
 
@@ -131,6 +198,24 @@ def _is_within_base_directory(resolved_path: Path) -> bool:
         return False
 
 
+def validate_output_dir(output_dir: str) -> Optional[str]:
+    """Validate output directory is within the allowed base directory."""
+    try:
+        resolved = Path(output_dir).resolve()
+        if not _is_within_base_directory(resolved):
+            base_dir = _get_base_directory()
+            logger.warning(
+                f'Output dir traversal attempt blocked: {output_dir} -> {resolved}, '
+                f'outside base directory {base_dir}'
+            )
+            return 'Access denied: output directory outside allowed directory'
+        return None
+    except Exception as e:
+        error_msg = f'Error validating output directory {output_dir}: {str(e)}'
+        logger.error(error_msg)
+        return error_msg
+
+
 def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
     """Validate file path for security constraints."""
     try:
@@ -144,10 +229,17 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         if not path.is_file():
             return f'Path is not a file: {file_path}'
 
-        # Check file size
+        # Check file size — read dynamically so env var changes take effect
+        max_file_size = _get_max_file_size()
         file_size = path.stat().st_size
-        if file_size > MAX_FILE_SIZE:
-            return f'File too large: {file_size} bytes (max: {MAX_FILE_SIZE} bytes)'
+        if file_size > max_file_size:
+            size_mb = file_size / (1024 * 1024)
+            max_mb = max_file_size / (1024 * 1024)
+            return (
+                f'File too large: {size_mb:.1f}MB (max: {max_mb:.0f}MB). '
+                f'To increase the limit, set the MAX_FILE_SIZE_MB environment variable '
+                f'(e.g., MAX_FILE_SIZE_MB=200).'
+            )
 
         # Check file extension
         if path.suffix.lower() not in ALLOWED_EXTENSIONS:
@@ -349,6 +441,201 @@ async def read_image(
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
+
+
+# Known soffice paths for macOS app bundles (not on $PATH by default)
+_SOFFICE_KNOWN_PATHS = [
+    '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+    '/Applications/OpenOffice.app/Contents/MacOS/soffice',
+    os.path.expanduser('~/Applications/LibreOffice.app/Contents/MacOS/soffice'),
+    os.path.expanduser('~/Applications/OpenOffice.app/Contents/MacOS/soffice'),
+]
+
+
+def _find_soffice() -> Optional[str]:
+    """Find the soffice binary.
+
+    Checks $PATH first, then known macOS app bundle locations.
+    Returns the full path to soffice, or None if not found.
+    """
+    path = shutil.which('soffice')
+    if path:
+        return path
+    for known_path in _SOFFICE_KNOWN_PATHS:
+        if os.path.isfile(known_path) and os.access(known_path, os.X_OK):
+            return known_path
+    return None
+
+
+def _check_soffice_available() -> Optional[str]:
+    """Check if LibreOffice/OpenOffice soffice binary is available.
+
+    Returns None if available, or an error message string if not.
+    """
+    if _find_soffice() is None:
+        return (
+            'LibreOffice/OpenOffice (soffice) is not installed or not found. '
+            'Install it to use slide image extraction:\n'
+            '- Ubuntu/Debian: sudo apt install libreoffice\n'
+            '- macOS: brew install --cask libreoffice\n'
+            '- Windows: https://www.libreoffice.org/download/'
+        )
+    return None
+
+
+def _convert_to_pdf_with_soffice(
+    file_path: str, temp_dir: str, timeout_seconds: Optional[int] = None
+) -> str:
+    """Convert a PPTX file to PDF using LibreOffice/OpenOffice headless mode."""
+    if timeout_seconds is None:
+        timeout_seconds = _get_soffice_timeout()
+    soffice_path = _find_soffice()
+    if not soffice_path:
+        raise RuntimeError('soffice binary not found')
+    cmd = [
+        soffice_path,
+        '--headless',
+        '--convert-to',
+        'pdf',
+        file_path,
+        '--outdir',
+        temp_dir,
+    ]
+    subprocess.run(
+        cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds
+    )  # nosec B603 - fixed command with no shell=True, args are not user-controlled
+    pdf_filename = Path(file_path).stem + '.pdf'
+    pdf_path = os.path.join(temp_dir, pdf_filename)
+    if not os.path.isfile(pdf_path):
+        raise FileNotFoundError(f'PDF file not found after soffice conversion: {pdf_path}')
+    return pdf_path
+
+
+def _extract_slides_sync(
+    file_path: str,
+    output_dir: str,
+    dpi: int = 200,
+    output_format: str = 'png',
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+) -> List[str]:
+    """Synchronous slide extraction for thread pool execution.
+
+    Converts PPTX to PDF via soffice, then PDF pages to images via pdf2image.
+    For PDF input, converts pages to images directly.
+    """
+    suffix = Path(file_path).suffix.lower()
+    temp_dir = None
+    try:
+        if suffix in {'.pptx', '.ppt'}:
+            temp_dir = tempfile.mkdtemp(prefix='docloader_soffice_')
+            pdf_path = _convert_to_pdf_with_soffice(file_path, temp_dir, timeout_seconds)
+        elif suffix == '.pdf':
+            pdf_path = file_path
+        else:
+            raise ValueError(f'Unsupported file type for slide extraction: {suffix}')
+
+        os.makedirs(output_dir, exist_ok=True)
+        pages = convert_from_path(pdf_path, dpi=dpi)
+        output_files = []
+        for i, page in enumerate(pages):
+            output_file = os.path.join(output_dir, f'slide_{i + 1}.{output_format}')
+            page.save(output_file, output_format.upper())
+            output_files.append(output_file)
+        return output_files
+    finally:
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@mcp.tool()
+async def extract_slides_as_images(
+    ctx: Context,
+    file_path: str = Field(..., description='Path to a PPTX, PPT, or PDF file'),
+    output_dir: str = Field(..., description='Directory to save extracted slide images'),
+    dpi: int = Field(200, description='Image resolution in DPI (default: 200)', ge=72, le=600),
+    timeout_seconds: int = Field(
+        120, description='Timeout in seconds (min: 5, max: 300)', ge=5, le=300
+    ),
+) -> SlidesExtractionResponse:
+    """Extract slides/pages as individual PNG images from PPTX, PPT, or PDF files.
+
+    Requires LibreOffice (soffice) for PPTX/PPT conversion and poppler-utils
+    (pdftoppm) for PDF-to-image rendering. Use read_image to view individual
+    slide images from the output.
+    """
+    # Check soffice availability for presentation files
+    suffix = Path(file_path).suffix.lower()
+    if suffix in {'.pptx', '.ppt'}:
+        soffice_error = _check_soffice_available()
+        if soffice_error:
+            return SlidesExtractionResponse(
+                status='error',
+                slide_count=0,
+                file_path=file_path,
+                output_dir='',
+                error_message=soffice_error,
+            )
+
+    # Validate file path
+    validation_error = validate_file_path(ctx, file_path)
+    if validation_error:
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=validation_error,
+        )
+
+    # Validate output directory against base directory
+    output_dir_error = validate_output_dir(output_dir)
+    if output_dir_error:
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=output_dir_error,
+        )
+
+    try:
+        loop = asyncio.get_event_loop()
+        slide_files = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, _extract_slides_sync, file_path, output_dir, dpi, 'png', timeout_seconds
+            ),
+            timeout=timeout_seconds,
+        )
+        return SlidesExtractionResponse(
+            status='success',
+            slide_images=slide_files,
+            slide_count=len(slide_files),
+            file_path=file_path,
+            output_dir=output_dir,
+            error_message=None,
+        )
+    except asyncio.TimeoutError:
+        error_msg = f'Slide extraction timed out after {timeout_seconds} seconds for {file_path}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=error_msg,
+        )
+    except Exception as e:
+        error_msg = f'Error extracting slides from {file_path}: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return SlidesExtractionResponse(
+            status='error',
+            slide_count=0,
+            file_path=file_path,
+            output_dir='',
+            error_message=error_msg,
+        )
 
 
 def main():
