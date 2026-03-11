@@ -14,7 +14,6 @@
 
 """CloudFormation IaC Generator tool implementation."""
 
-import os
 from awslabs.ccapi_mcp_server.aws_client import get_aws_client
 from awslabs.ccapi_mcp_server.errors import ClientError, handle_aws_api_error
 from typing import Dict, List, Optional
@@ -27,7 +26,6 @@ async def create_template(
     deletion_policy: str = 'RETAIN',
     update_replace_policy: str = 'RETAIN',
     template_id: Optional[str] = None,
-    save_to_file: Optional[str] = None,
     region_name: Optional[str] = None,
 ) -> Dict:
     """Create a CloudFormation template from existing resources using the IaC Generator API.
@@ -44,7 +42,6 @@ async def create_template(
         deletion_policy: Default DeletionPolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)
         update_replace_policy: Default UpdateReplacePolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)
         template_id: ID of an existing template generation process to check status or retrieve template
-        save_to_file: Path to save the generated template to a file
         region_name: AWS region name
 
     Returns:
@@ -68,9 +65,7 @@ async def create_template(
 
     # Case 1: Check status or retrieve template for an existing template generation process
     if template_id:
-        return await _handle_existing_template(
-            cfn_client, template_id, save_to_file, output_format
-        )
+        return await _handle_existing_template(cfn_client, template_id, output_format)
 
     # Case 2: Start a new template generation process
     return await _start_template_generation(
@@ -136,14 +131,13 @@ async def _start_template_generation(
 
 
 async def _handle_existing_template(
-    cfn_client, template_id: str, save_to_file: Optional[str], output_format: str = 'YAML'
+    cfn_client, template_id: str, output_format: str = 'YAML'
 ) -> Dict:
     """Handle an existing template generation process - check status or retrieve template.
 
     Args:
         cfn_client: Boto3 CloudFormation client
         template_id: ID of the template generation process
-        save_to_file: Path to save the generated template to a file
         output_format: Format of generated template. Either JSON or YAML
 
     Returns:
@@ -171,20 +165,6 @@ async def _handle_existing_template(
         template_content = template_response['TemplateBody']
         resources = status_response.get('ResourceIdentifiers', [])
 
-        # Save the template to a file if requested
-        file_path = None
-        if save_to_file:
-            try:
-                # Ensure the directory exists
-                os.makedirs(os.path.dirname(os.path.abspath(save_to_file)), exist_ok=True)
-
-                # Write the template to the file
-                with open(save_to_file, 'w') as f:
-                    f.write(template_content)
-                file_path = save_to_file
-            except Exception as e:
-                raise ClientError(f'Failed to save template to file: {str(e)}')
-
         # Return the template and related information
         result = {
             'status': 'COMPLETED',
@@ -193,9 +173,6 @@ async def _handle_existing_template(
             'resources': resources,
             'message': 'Template generation completed.',
         }
-
-        if file_path:
-            result['file_path'] = file_path
 
         return result
 
