@@ -430,7 +430,7 @@ async def create_template(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account'
     )
