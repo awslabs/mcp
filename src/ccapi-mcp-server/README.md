@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. The original owner has departed and no service team has taken ownership. For Cloud Control API access, consider using the [AWS IAC MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server), which provides a unified infrastructure-as-code experience covering CloudFormation, CDK, and Terraform.
+
 # AWS Cloud Control API (CCAPI) MCP Server
 
 Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API and IaC Generator with Infrastructure as Code best practices.
