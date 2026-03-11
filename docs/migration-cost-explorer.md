@@ -58,13 +58,13 @@ The Billing and Cost Management MCP Server is a superset of the Cost Explorer MC
 
 **Cost Explorer server:** Compares costs between two time periods.
 
-**Billing server:** Available through the `cost_comparison` tool, which provides `GetCostAndUsageComparisons`.
+**Billing server:** Available through the `cost-comparison` tool, which provides `GetCostAndUsageComparisons`.
 
-### get_cost_comparison_drivers
+### get_cost-comparison_drivers
 
 **Cost Explorer server:** Analyzes top 10 cost change drivers between periods.
 
-**Billing server:** Available through the `cost_comparison` tool, which provides `GetCostComparisonDrivers`.
+**Billing server:** Available through the `cost-comparison` tool, which provides `GetCostComparisonDrivers`.
 
 ### get_cost_forecast
 
@@ -79,16 +79,16 @@ The Billing and Cost Management server provides many tools the Cost Explorer ser
 | Tool | Description |
 |------|-------------|
 | `budgets` | AWS Budgets management and monitoring |
-| `cost_anomaly` | Cost anomaly detection and analysis |
-| `cost_optimization_hub` | Centralized cost optimization recommendations |
-| `compute_optimizer` | EC2, Lambda, EBS, RDS, ECS right-sizing recommendations |
-| `ri_performance` | Reserved Instance coverage and utilization analysis |
-| `sp_performance` | Savings Plans coverage and utilization analysis |
-| `free_tier_usage` | Free tier usage tracking |
-| `aws_pricing` | AWS service pricing lookups |
-| `storage_lens_run_query` | S3 Storage Lens analytics via Athena |
-| `bcm_pricing_calc` | BCM Pricing Calculator for cost estimation |
-| `session_sql` | SQL queries against cost data |
+| `cost-anomaly` | Cost anomaly detection and analysis |
+| `cost-optimization` | Centralized cost optimization recommendations |
+| `compute-optimizer` | EC2, Lambda, EBS, RDS, ECS right-sizing recommendations |
+| `ri-performance` | Reserved Instance coverage and utilization analysis |
+| `sp-performance` | Savings Plans coverage and utilization analysis |
+| `free-tier-usage` | Free tier usage tracking |
+| `aws-pricing` | AWS service pricing lookups |
+| `storage-lens` | S3 Storage Lens analytics via Athena |
+| `bcm-pricing-calc` | BCM Pricing Calculator for cost estimation |
+| `session-sql` | SQL queries against cost data |
 
 ## Summary of Gaps
 
@@ -96,12 +96,12 @@ All Cost Explorer MCP Server functionality is fully covered by the Billing and C
 
 | Old Tool | New Tool | Notes |
 |----------|----------|-------|
-| `get_today_date` | Built into `cost_explorer` | No separate tool needed |
+| `get_today_date` | Built into `cost-explorer` | No separate tool needed |
 | `get_dimension_values` | `cost-explorer` | Same API, unified tool |
 | `get_tag_values` | `cost-explorer` | Same API, unified tool |
 | `get_cost_and_usage` | `cost-explorer` | Same API, unified tool |
-| `get_cost_and_usage_comparisons` | `cost_comparison` | Same API, dedicated tool |
-| `get_cost_comparison_drivers` | `cost_comparison` | Same API, dedicated tool |
+| `get_cost_and_usage_comparisons` | `cost-comparison` | Same API, dedicated tool |
+| `get_cost-comparison_drivers` | `cost-comparison` | Same API, dedicated tool |
 | `get_cost_forecast` | `cost-explorer` | Same API, unified tool |
 
 ## Removing the Old Server
