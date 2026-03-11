@@ -21,6 +21,7 @@ from awslabs.document_loader_mcp_server.extractors import (
     ExtractionResponse,
     InspectionResponse,
 )
+from awslabs.document_loader_mcp_server.extractors.pdf import inspect_pdf
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -208,3 +209,53 @@ def test_extracted_asset_error():
     assert asset.output_path == ''
     assert asset.status == 'error'
     assert asset.error_message == 'Failed to decode image data'
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_with_images(pdf_with_images):
+    """Test inspecting PDF with embedded images."""
+    result = await inspect_pdf(pdf_with_images)
+    assert result.status == 'success'
+    assert result.metadata is not None
+    assert result.metadata.file_type == 'pdf'
+    assert result.metadata.page_count >= 2
+    assert result.asset_count > 0
+    assert result.total_assets_found > 0
+    assert len(result.assets) == result.asset_count
+    for asset in result.assets:
+        assert asset.index >= 0
+        assert asset.name
+        assert asset.format in ('jpeg', 'png', 'tiff', 'jp2')
+        assert asset.size_bytes > 0
+        assert asset.location.startswith('Page ')
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_without_images(pdf_without_images):
+    """Test inspecting PDF without embedded images."""
+    result = await inspect_pdf(pdf_without_images)
+    assert result.status == 'success'
+    assert result.metadata is not None
+    assert result.metadata.page_count >= 1
+    assert result.asset_count == 0
+    assert result.total_assets_found == 0
+    assert result.assets == []
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_metadata(pdf_with_images):
+    """Test that PDF metadata extraction works correctly."""
+    result = await inspect_pdf(pdf_with_images)
+    assert result.metadata is not None
+    assert result.metadata.file_path == pdf_with_images
+    assert result.metadata.file_size_bytes > 0
+    assert result.metadata.page_count is not None
+
+
+@pytest.mark.asyncio
+async def test_inspect_pdf_nonexistent():
+    """Test that nonexistent PDF files return error status."""
+    result = await inspect_pdf('/tmp/nonexistent_file.pdf')
+    assert result.status == 'error'
+    assert result.error_message is not None
+    assert result.asset_count == 0
