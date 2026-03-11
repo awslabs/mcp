@@ -34,8 +34,8 @@ class NeptuneAnalytics(NeptuneGraph):
     Args:
         graph_identifier: the graph identifier for a Neptune Analytics graph
         credentials_profile_name: optional AWS profile name
-        endpoint_url: optional custom endpoint URL for connecting to local Neptune
-            Analytics containers or non-standard endpoints (e.g., http://localhost:8182)
+        endpoint_url: optional custom endpoint URL for the Neptune Analytics
+            service endpoint (e.g., for VPC endpoints or non-standard configurations)
 
     Example:
         .. code-block:: python
