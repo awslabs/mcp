@@ -52,13 +52,21 @@ from pydantic import Field
 from typing import Any
 
 
+DEPRECATION_NOTICE = (
+    '[DEPRECATED] This server is deprecated and will no longer receive '
+    'updates. The owner has departed and no service team has taken ownership. '
+    'For Cloud Control API access, consider using the AWS IAC MCP Server: '
+    'https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server'
+)
+
 # Module-level store for workflow token validation
 _workflow_store: dict[str, dict] = {}
 
 
 mcp = FastMCP(
     'awslabs.ccapi-mcp-server',
-    instructions="""
+    instructions=f"""{DEPRECATION_NOTICE}
+
 # AWS Resource Management Protocol - MANDATORY INSTRUCTIONS
 
 ## MANDATORY TOOL ORDER - NEVER DEVIATE
@@ -142,7 +150,10 @@ async def get_resource_schema_information(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Get schema information for an AWS resource.
+    """[DEPRECATED] Get schema information for an AWS resource.
+
+    DEPRECATED: This server is deprecated. Consider using the AWS IAC MCP Server:
+    https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -173,7 +184,7 @@ async def list_resources(
         default=5, description='Maximum number of resources to analyze when analyze_security=True'
     ),
 ) -> dict:
-    """List AWS resources of a specified type.
+    """[DEPRECATED] List AWS resources of a specified type.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")
@@ -259,7 +270,7 @@ async def generate_infrastructure_code(
         description='Credentials token from get_aws_session_info() to ensure AWS credentials are valid'
     ),
 ) -> dict:
-    """Generate infrastructure code before resource creation or update."""
+    """[DEPRECATED] Generate infrastructure code before resource creation or update."""
     request = GenerateInfrastructureCodeRequest(
         resource_type=resource_type,
         properties=properties,
@@ -293,7 +304,7 @@ async def explain(
     ),
     user_intent: str = Field(default='', description="Optional: User's stated purpose"),
 ) -> dict:
-    """MANDATORY: Explain any data in clear, human-readable format.
+    """[DEPRECATED] MANDATORY: Explain any data in clear, human-readable format.
 
     For infrastructure operations (create/update/delete):
     - CONSUMES generated_code_token and returns explained_token
@@ -339,7 +350,7 @@ async def get_resource(
         description='Whether to perform security analysis on the resource using Checkov',
     ),
 ) -> dict:
-    """Get details of a specific AWS resource."""
+    """[DEPRECATED] Get details of a specific AWS resource."""
     request = GetResourceRequest(
         resource_type=resource_type,
         identifier=identifier,
@@ -375,7 +386,7 @@ async def update_resource(
     ),
     skip_security_check: bool = Field(False, description='Skip security checks (not recommended)'),
 ) -> dict:
-    """Update an AWS resource.
+    """[DEPRECATED] Update an AWS resource.
 
     IMPORTANT: Always check the response for 'security_warning' field and display any warnings to the user.
     """
@@ -414,7 +425,7 @@ async def create_resource(
         False, description='Skip security checks (only when SECURITY_SCANNING=disabled)'
     ),
 ) -> dict:
-    """Create an AWS resource.
+    """[DEPRECATED] Create an AWS resource.
 
     This tool automatically adds default identification tags to all resources for support and troubleshooting purposes.
 
@@ -450,7 +461,7 @@ async def delete_resource(
         description='Explained token from explain() to ensure deletion was explained'
     ),
 ) -> dict:
-    """Delete an AWS resource."""
+    """[DEPRECATED] Delete an AWS resource."""
     request = DeleteResourceRequest(
         resource_type=resource_type,
         identifier=identifier,
@@ -471,7 +482,7 @@ async def get_resource_request_status(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Get the status of a long running operation with the request token."""
+    """[DEPRECATED] Get the status of a long running operation with the request token."""
     return await get_resource_request_status_impl(request_token, region or 'us-east-1')
 
 
@@ -485,7 +496,7 @@ async def run_checkov(
         default='cloudformation',
     ),
 ) -> dict:
-    """Run Checkov security and compliance scanner on server-stored CloudFormation template.
+    """[DEPRECATED] Run Checkov security and compliance scanner on server-stored CloudFormation template.
 
     SECURITY: This tool only scans CloudFormation templates stored server-side from generate_infrastructure_code().
     AI agents cannot provide different content to bypass security scanning.
@@ -547,7 +558,7 @@ async def create_template(
         description='The AWS region that the operation should be performed in', default=None
     ),
 ) -> dict:
-    """Create a CloudFormation template from existing resources using the IaC Generator API.
+    """[DEPRECATED] Create a CloudFormation template from existing resources using the IaC Generator API.
 
     This tool allows you to generate CloudFormation templates from existing AWS resources
     that are not already managed by CloudFormation. The template generation process is
@@ -619,7 +630,7 @@ async def create_template(
 
 @mcp.tool()
 async def check_environment_variables() -> dict:
-    """Check if required environment variables are set correctly."""
+    """[DEPRECATED] Check if required environment variables are set correctly."""
     return await check_environment_variables_impl(_workflow_store)
 
 
@@ -629,7 +640,7 @@ async def get_aws_session_info(
         description='Environment token from check_environment_variables() to ensure environment is properly configured'
     ),
 ) -> dict:
-    """Get information about the current AWS session.
+    """[DEPRECATED] Get information about the current AWS session.
 
     This tool provides details about the current AWS session, including the profile name,
     account ID, region, and credential information. Use this when you need to confirm which
@@ -657,7 +668,7 @@ async def get_aws_session_info(
 
 @mcp.tool()
 async def get_aws_account_info() -> dict:
-    """Get information about the current AWS account being used.
+    """[DEPRECATED] Get information about the current AWS account being used.
 
     Common questions this tool answers:
     - "What AWS account am I using?"
@@ -692,6 +703,10 @@ async def get_aws_account_info() -> dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
+    import warnings
+
+    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
+
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for managing AWS resources via Cloud Control API'
     )
