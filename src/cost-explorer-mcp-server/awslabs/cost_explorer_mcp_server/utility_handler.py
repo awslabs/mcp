@@ -35,7 +35,7 @@ async def get_today_date(ctx: Context) -> Dict[str, str]:
     """[DEPRECATED] Retrieve current date information in UTC time zone.
 
     This tool retrieves the current date in YYYY-MM-DD format and the current month in YYYY-MM format.
-    It's useful for calculating relevent date when user ask last N months/days.
+    It's useful for calculating relevant dates when a user asks about the last N months/days.
 
     Args:
         ctx: MCP context
