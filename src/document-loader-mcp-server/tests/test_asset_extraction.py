@@ -21,6 +21,65 @@ from awslabs.document_loader_mcp_server.extractors import (
     ExtractedAsset,
     InspectionResponse,
 )
+from pathlib import Path
+from PIL import Image as PILImage
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (
+    Image as RLImage,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+)
+from reportlab.lib.styles import getSampleStyleSheet
+
+
+@pytest.fixture
+def pdf_with_images(tmp_path):
+    """Generate a PDF with 3 embedded images for testing."""
+    pdf_path = tmp_path / 'test_with_images.pdf'
+    images = []
+    for i, (size, color, fmt) in enumerate(
+        [
+            ((200, 150), 'red', 'PNG'),
+            ((300, 200), 'blue', 'JPEG'),
+            ((100, 100), 'green', 'PNG'),
+        ]
+    ):
+        img = PILImage.new('RGB', size, color=color)
+        img_path = tmp_path / f'test_img_{i}.{"jpg" if fmt == "JPEG" else "png"}'
+        img.save(str(img_path), format=fmt)
+        images.append(str(img_path))
+
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph('Test PDF with Embedded Images', styles['Title']))
+    story.append(Spacer(1, 12))
+    for img_path in images:
+        story.append(RLImage(img_path, width=150, height=100))
+        story.append(Spacer(1, 12))
+    story.append(PageBreak())
+    story.append(Paragraph('Page 2', styles['Heading1']))
+    story.append(RLImage(images[0], width=150, height=100))
+    doc.build(story)
+    return str(pdf_path)
+
+
+@pytest.fixture
+def pdf_without_images(tmp_path):
+    """Generate a text-only PDF with no embedded images."""
+    pdf_path = tmp_path / 'text_only.pdf'
+    doc = SimpleDocTemplate(str(pdf_path), pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph('Text Only Document', styles['Title']),
+        Spacer(1, 12),
+        Paragraph('This document has no images.', styles['Normal']),
+    ]
+    doc.build(story)
+    return str(pdf_path)
 
 
 def test_asset_info_creation():
