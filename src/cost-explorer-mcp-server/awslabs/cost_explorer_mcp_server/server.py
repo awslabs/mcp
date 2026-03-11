@@ -94,7 +94,7 @@ def main():
     """Run the MCP server with CLI argument support."""
     import warnings
 
-    warnings.warn(DEPRECATION_NOTICE, DeprecationWarning, stacklevel=1)
+    warnings.warn(DEPRECATION_NOTICE, FutureWarning, stacklevel=2)
     app.run()
 
 
