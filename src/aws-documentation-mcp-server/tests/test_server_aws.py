@@ -403,6 +403,29 @@ class TestReadSections:
             mock_get.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_read_sections_extract_content_error(self):
+        """Test read_sections when extract_content_from_html returns error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Test Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Test Section</h2><p>Content.</p></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                # Simulate extract_content_from_html returning an error
+                mock_extract.return_value = '<e>Failed to convert HTML to markdown</e>'
+
+                with pytest.raises(ValueError, match='Failed to convert HTML to markdown'):
+                    await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
     async def test_read_sections_end_to_end_workflow(self):
         """Test complete end-to-end workflow and verify only h2 sections extracted."""
         url = 'https://docs.aws.amazon.com/s3/latest/userguide/test.html'
