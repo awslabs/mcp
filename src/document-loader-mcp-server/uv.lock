@@ -81,6 +81,7 @@ dependencies = [
     { name = "markitdown", extra = ["docx", "pptx", "xlsx"] },
     { name = "pdf2image" },
     { name = "pdfplumber" },
+    { name = "pillow" },
 ]
 
 [package.optional-dependencies]
@@ -112,6 +113,7 @@ requires-dist = [
     { name = "markitdown", extras = ["docx", "xlsx", "pptx"], specifier = ">=0.1.2" },
     { name = "pdf2image", specifier = ">=1.16.0" },
     { name = "pdfplumber", specifier = ">=0.10.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.398" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
