@@ -6,17 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+  - **File Path & S3 URI Content Resolution**: Added shared content resolution utility enabling MCP tools to accept local file paths and S3 URIs as alternatives to inline content
+    - New `content_resolver.py` utility with automatic detection of input type (local file, S3 URI, or inline content)
+    - `lint_workflow_definition` and `lint_workflow_bundle` now accept local file paths and S3 URIs
+    - `package_workflow` now accepts local file paths and S3 URIs for main file and additional files
+    - New `definition_source` parameter in `create_workflow` and `create_workflow_version` replacing deprecated `definition_zip_base64`
+    - `definition_zip_base64` retained as deprecated alias for backward compatibility
+    - Security hardening: path traversal rejection, S3 URI format validation, configurable file size limits
 
 ### Added
-
 - v0.0.28
+  - **Sequence Store Management Tools**: Added 15 new MCP tools for managing HealthOmics Sequence Stores
+    - **CreateAHOSequenceStore**: Create sequence stores with optional encryption, description, fallback location, and tags
+    - **ListAHOSequenceStores**: List and filter sequence stores with pagination support
+    - **GetAHOSequenceStore**: Retrieve detailed sequence store configuration and metadata
+    - **UpdateAHOSequenceStore**: Update sequence store name, description, or fallback location with internal ETag management
+    - **ListAHOReadSets**: List and filter read sets by sample ID, subject ID, reference ARN, status, file type, and date range
+    - **GetAHOReadSetMetadata**: Retrieve detailed read set metadata including sequence information and file details
+    - **StartAHOReadSetImportJob**: Import genomic files from S3 into a sequence store
+    - **GetAHOReadSetImportJob**: Get import job status with per-source statuses
+    - **ListAHOReadSetImportJobs**: List import jobs with pagination
+    - **StartAHOReadSetExportJob**: Export read sets to S3
+    - **GetAHOReadSetExportJob**: Get export job status
+    - **ListAHOReadSetExportJobs**: List export jobs with pagination
+    - **ActivateAHOReadSets**: Activate archived read sets
+  - **Reference Store Management Tools**: Added 10 new MCP tools for managing HealthOmics Reference Stores
+    - **ListAHOReferenceStores**: List and filter reference stores with pagination support
+    - **GetAHOReferenceStore**: Retrieve detailed reference store configuration and metadata
+    - **ListAHOReferences**: List and filter references by name and status
+    - **GetAHOReferenceMetadata**: Retrieve detailed reference metadata including file information
+    - **StartAHOReferenceImportJob**: Import reference files from S3 into a reference store
+    - **GetAHOReferenceImportJob**: Get import job status with per-source statuses
+    - **ListAHOReferenceImportJobs**: List import jobs with pagination
+- v0.0.27
   - **Run Cache Management Tools**: Added four new MCP tools for managing HealthOmics Run Caches
     - **CreateAHORunCache**: Create run caches with S3 URI validation and configurable cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
     - **GetAHORunCache**: Retrieve detailed run cache configuration and metadata with ISO 8601 datetime serialization
     - **ListAHORunCaches**: List and filter run caches by name, status, or cache behavior with pagination support
     - **UpdateAHORunCache**: Update run cache behavior, name, or description
 
-- v0.0.27
   - **Run Group Management Tools**: Added four new MCP tools for managing HealthOmics Run Groups
     - **CreateAHORunGroup**: Create run groups with configurable resource limits (CPUs, GPUs, duration, concurrent runs)
     - **GetAHORunGroup**: Retrieve detailed run group configuration and metadata

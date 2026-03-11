@@ -16,24 +16,34 @@
 
 import botocore
 import botocore.exceptions
+import json
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     encode_to_base64,
+    get_account_id,
     get_aws_session,
     get_omics_service_name,
 )
+from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.path_utils import write_zip_to_local
+from awslabs.aws_healthomics_mcp_server.utils.s3_utils import write_zip_to_s3
+from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, Optional, Union
 
 
+# Sentinel value for default bucket owner
+_SENTINEL_DEFAULT_OWNER = '__DEFAULT__'
+
+
 async def package_workflow(
     ctx: Context,
     main_file_content: str = Field(
         ...,
-        description='Content of the main workflow file',
+        description='Content of the main workflow file. Accepts inline content, a local file path, or an S3 URI (s3://bucket/key).',
     ),
     main_file_name: str = Field(
         'main.wdl',
@@ -41,29 +51,90 @@ async def package_workflow(
     ),
     additional_files: Optional[Dict[str, str]] = Field(
         None,
-        description='Dictionary of additional files (filename: content)',
+        description='Dictionary of additional files (filename: content). Values accept inline content, local file paths, or S3 URIs.',
+    ),
+    output_path: Optional[str] = Field(
+        default=None,
+        description=(
+            'Optional file path or S3 URI (s3://bucket/key) where the ZIP output '
+            'will be written. When provided, the response contains only summary '
+            'metadata instead of the full base64-encoded ZIP content.'
+        ),
+    ),
+    expected_bucket_owner: Optional[str] = Field(
+        default=_SENTINEL_DEFAULT_OWNER,
+        description=(
+            'AWS account ID that must own the target S3 bucket. Defaults to the '
+            'current caller identity account ID. Set to None to skip bucket owner '
+            'verification. Only used when output_path is an S3 URI.'
+        ),
     ),
 ) -> Union[str, Dict[str, Any]]:
     """Package workflow definition files into a base64-encoded ZIP.
 
     Args:
         ctx: MCP context for error reporting
-        main_file_content: Content of the main workflow file
+        main_file_content: Content of the main workflow file. Accepts inline content,
+            a local file path, or an S3 URI (s3://bucket/key).
         main_file_name: Name of the main workflow file (default: main.wdl)
-        additional_files: Dictionary of additional files (filename: content)
+        additional_files: Dictionary of additional files (filename: content).
+            Values accept inline content, local file paths, or S3 URIs.
+        output_path: Optional file path or S3 URI to write the ZIP to
+        expected_bucket_owner: AWS account ID for S3 bucket owner verification
 
     Returns:
-        Base64-encoded ZIP file containing the workflow definition, or error dict
+        Base64-encoded ZIP file containing the workflow definition,
+        or summary dict when output_path is provided, or error dict
     """
     try:
-        # Create a dictionary of files
-        files = {main_file_name: main_file_content}
+        try:
+            resolved_main = await resolve_single_content(main_file_content, mode='text')
+        except (ValueError, FileNotFoundError, PermissionError) as e:
+            return await handle_tool_error(ctx, e, 'Error resolving main file content')
+
+        files: dict[str, str] = {main_file_name: str(resolved_main.content)}
 
         if additional_files:
-            files.update(additional_files)
+            try:
+                for fname, fvalue in additional_files.items():
+                    resolved = await resolve_single_content(fvalue, mode='text')
+                    files[fname] = str(resolved.content)
+            except (ValueError, FileNotFoundError, PermissionError) as e:
+                return await handle_tool_error(ctx, e, 'Error resolving additional file content')
 
         # Create ZIP file
         zip_data = create_zip_file(files)
+
+        # If output_path is provided, write ZIP to the specified destination
+        if output_path is not None:
+            try:
+                if output_path.startswith('s3://'):
+                    resolved_owner = expected_bucket_owner
+                    if resolved_owner == _SENTINEL_DEFAULT_OWNER:
+                        resolved_owner = get_account_id()
+                    result_path = write_zip_to_s3(zip_data, output_path, resolved_owner)
+                else:
+                    result_path = write_zip_to_local(zip_data, output_path)
+
+                return json.dumps(
+                    {
+                        'status': 'success',
+                        'output_path': result_path,
+                        'file_count': len(files),
+                        'files': list(files.keys()),
+                    }
+                )
+            except (
+                ValueError,
+                FileExistsError,
+                OSError,
+                ClientError,
+                NoCredentialsError,
+                PermissionError,
+            ) as e:
+                return json.dumps(
+                    await handle_tool_error(ctx, e, 'Error writing packaged workflow')
+                )
 
         # Encode to base64
         base64_data = encode_to_base64(zip_data)

@@ -36,7 +36,7 @@ def get_aws_config() -> Config:
     Returns:
         Config object with user-agent tag
     """
-    return Config(user_agent_extra=f"awslabs/mcp/ecs-mcp-server/{__version__}")
+    return Config(user_agent_extra=f"md/awslabs#mcp#ecs-mcp-server#{__version__}")
 
 
 # Dictionary to store clients for reuse

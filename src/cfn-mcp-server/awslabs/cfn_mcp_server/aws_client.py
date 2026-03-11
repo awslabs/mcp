@@ -14,6 +14,7 @@
 
 import botocore.config
 import sys
+from awslabs.cfn_mcp_server import __version__
 from awslabs.cfn_mcp_server.errors import ClientError
 from boto3 import Session
 from os import environ
@@ -21,7 +22,7 @@ from os import environ
 
 session = Session(profile_name=environ.get('AWS_PROFILE'))
 session_config = botocore.config.Config(
-    user_agent_extra='cfn-mcp-server/1.0.0',
+    user_agent_extra=f'md/awslabs#mcp#cfn-mcp-server#{__version__}',
 )
 
 

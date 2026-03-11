@@ -20,7 +20,7 @@ from awslabs.aws_serverless_mcp_server.utils.cloudformation import (
 )
 from botocore.exceptions import ClientError
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 
 class TestCloudFormation:
@@ -69,7 +69,7 @@ class TestCloudFormation:
             }
 
             # Verify the client was called correctly
-            mock_session.client.assert_called_once_with('cloudformation')
+            mock_session.client.assert_called_once_with('cloudformation', config=ANY)
             mock_client.describe_stacks.assert_called_once_with(StackName=stack_name)
 
     @pytest.mark.asyncio
@@ -107,7 +107,7 @@ class TestCloudFormation:
             assert result['statusReason'] == 'Stack update completed successfully'
 
             # Verify the session was created with the correct region
-            mock_session.client.assert_called_once_with('cloudformation')
+            mock_session.client.assert_called_once_with('cloudformation', config=ANY)
             mock_client.describe_stacks.assert_called_once_with(StackName=stack_name)
 
     @pytest.mark.asyncio

@@ -43,7 +43,7 @@ def get_qbiz_client() -> QBusinessClient:
         AWS_PROFILE = os.environ.get('AWS_PROFILE')
         if AWS_PROFILE:
             config = Config(
-                user_agent_extra=f'awslabs/mcp/amazon_qbusiness_anonymous_mcp_server/{__version__}'
+                user_agent_extra=f'md/awslabs#mcp#amazon-qbusiness-anonymous-mcp-server#{__version__}'
             )
             aq_client: QBusinessClient = boto3.Session(
                 profile_name=AWS_PROFILE, region_name=region

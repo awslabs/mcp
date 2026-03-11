@@ -638,7 +638,9 @@ class TestDeployService:
             result = await get_stack_outputs('test-stack')
 
             # Verify Session was created without region
-            mock_session.client.assert_called_once_with('cloudformation')
+            mock_session.client.assert_called_once()
+            args, kwargs = mock_session.client.call_args
+            assert args[0] == 'cloudformation'
             assert result == {}
 
     @pytest.mark.asyncio

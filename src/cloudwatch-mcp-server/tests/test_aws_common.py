@@ -141,7 +141,9 @@ class TestGetAwsClient:
         # Verify config was passed with user_agent_extra
         call_args = mock_session.client.call_args
         config = call_args[1]['config']
-        assert f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}' in config.user_agent_extra
+        assert (
+            f'md/awslabs#mcp#cloudwatch-mcp-server#{MCP_SERVER_VERSION}' in config.user_agent_extra
+        )
 
     @patch('awslabs.cloudwatch_mcp_server.aws_common.Session')
     def test_get_aws_client_profile_takes_precedence_over_env(self, mock_session_class):
